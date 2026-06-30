@@ -15,13 +15,13 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
   return (
     <SidebarProvider>
       <AppSidebar userEmail={user.email ?? ''} isAdmin={isAdmin} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium">glagency</span>
         </header>
-        <div className="flex flex-1 flex-col gap-4 p-6">{children}</div>
+        <div className="flex min-w-0 flex-1 flex-col gap-4 p-6">{children}</div>
       </SidebarInset>
     </SidebarProvider>
   )
