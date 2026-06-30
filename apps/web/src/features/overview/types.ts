@@ -4,7 +4,7 @@
  * en basculant `services/get-overview.ts` sur la vraie source, l'affichage ne bouge pas.
  */
 
-export interface KpiCard {
+export interface Kpi {
   key: string
   /** Libellé de la carte, ex. « CA du mois ». */
   label: string
@@ -28,7 +28,7 @@ export interface DailyPoint {
 export interface OverviewData {
   /** Libellé de période courante, ex. « Juin 2026 ». */
   periodLabel: string
-  kpis: KpiCard[]
+  kpis: Kpi[]
   /** Série quotidienne complète ; le graphe filtre la plage côté client. */
   daily: DailyPoint[]
 }
