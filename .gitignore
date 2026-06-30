@@ -1,0 +1,29 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+.next/
+out/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# supabase local
+packages/db/supabase/.branches/
+packages/db/supabase/.temp/
+
+# test / coverage
+coverage/
+
+# claude code (local uniquement — ne pas push)
+.claude/
+
+# misc
+.DS_Store
+*.log
