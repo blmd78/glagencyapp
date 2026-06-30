@@ -13,7 +13,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { NAV } from '@/config/nav'
+import { WORKSPACES, workspaceForPath } from '@/config/workspaces'
+import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 
 export function AppSidebar({
@@ -24,19 +25,13 @@ export function AppSidebar({
   isAdmin?: boolean
 }) {
   const pathname = usePathname()
-  const items = NAV.filter((item) => !item.adminOnly || isAdmin)
+  const active = workspaceForPath(pathname)
+  const items = active.nav.filter((item) => !item.adminOnly || isAdmin)
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-1.5 py-1">
-          <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-bold text-sidebar-primary-foreground">
-            gA
-          </div>
-          <span className="font-semibold group-data-[collapsible=icon]:hidden">
-            glagency
-          </span>
-        </div>
+        <WorkspaceSwitcher workspaces={WORKSPACES} active={active} />
       </SidebarHeader>
 
       <SidebarContent>
@@ -44,11 +39,11 @@ export function AppSidebar({
           <SidebarMenu>
             {items.map((item) => {
               const Icon = item.icon
-              const active =
+              const isActive =
                 pathname === item.href || pathname.startsWith(item.href + '/')
               return (
                 <SidebarMenuItem key={item.href}>
-                  <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                  <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
                     <Link href={item.href}>
                       <Icon />
                       <span>{item.label}</span>
@@ -57,6 +52,11 @@ export function AppSidebar({
                 </SidebarMenuItem>
               )
             })}
+            {items.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
+                Bientôt
+              </p>
+            )}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

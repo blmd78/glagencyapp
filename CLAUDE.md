@@ -39,6 +39,11 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 - **Frontière = tables Supabase.** `packages/core` ne dépend de rien (pur). Personne n'importe `web`.
 - **Secrets en env uniquement** (cf. `.env.example`) — jamais en clair dans le code.
 - **RLS = enforcement réel** du cloisonnement par modèle ; l'UI n'est qu'optimiste.
+- **2 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`) et `Marketing`
+  (`/marketing/*`). Une seule source : `config/workspaces.ts` (`WORKSPACES`). La face
+  active se déduit du `pathname` (`workspaceForPath`) ; la sidebar (`AppSidebar` +
+  `WorkspaceSwitcher`) affiche la nav de cette face. Ajouter/remplir une face = éditer
+  `WORKSPACES` + créer les routes sous son `basePath`. Ne pas réintroduire de routes à plat.
 
 ## Design
 

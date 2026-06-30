@@ -1,0 +1,76 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  LayoutDashboard,
+  Lightbulb,
+  MessageSquare,
+  Users,
+  HeartPulse,
+  Target,
+  Calculator,
+  UserCog,
+  Megaphone,
+} from 'lucide-react'
+
+export interface NavItem {
+  href: string
+  label: string
+  icon: LucideIcon
+  adminOnly?: boolean
+}
+
+/** Une « face » du CRM (Chatteurs, Marketing…). Sa nav et son préfixe d'URL lui sont propres. */
+export interface Workspace {
+  id: 'chatter' | 'marketing'
+  label: string
+  /** Sous-titre affiché dans le switcher (façon « Enterprise »). */
+  subtitle: string
+  icon: LucideIcon
+  /** Préfixe d'URL : la face active se déduit du pathname. */
+  basePath: string
+  nav: NavItem[]
+}
+
+export const WORKSPACES: Workspace[] = [
+  {
+    id: 'chatter',
+    label: 'Chatteurs',
+    subtitle: 'Performance',
+    icon: MessageSquare,
+    basePath: '/chatter',
+    nav: [
+      { href: '/chatter/overview', label: 'Overview', icon: LayoutDashboard },
+      { href: '/chatter/insights', label: 'Insights', icon: Lightbulb },
+      { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare },
+      { href: '/chatter/teams', label: 'Équipes', icon: Users },
+      { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse },
+      { href: '/chatter/quotas', label: 'Quotas', icon: Target },
+      { href: '/chatter/compta', label: 'Compta', icon: Calculator },
+      { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true },
+    ],
+  },
+  {
+    id: 'marketing',
+    label: 'Marketing',
+    subtitle: 'Acquisition',
+    icon: Megaphone,
+    basePath: '/marketing',
+    // TODO: à définir (contenu Marketing encore inconnu).
+    nav: [],
+  },
+]
+
+export const DEFAULT_WORKSPACE = WORKSPACES[0]
+
+/** Face active déduite de l'URL (fallback : face par défaut). */
+export function workspaceForPath(pathname: string): Workspace {
+  return (
+    WORKSPACES.find(
+      (w) => pathname === w.basePath || pathname.startsWith(w.basePath + '/'),
+    ) ?? DEFAULT_WORKSPACE
+  )
+}
+
+/** Home d'une face = sa 1ʳᵉ entrée de nav, sinon son basePath. */
+export function workspaceHome(w: Workspace): string {
+  return w.nav[0]?.href ?? w.basePath
+}
