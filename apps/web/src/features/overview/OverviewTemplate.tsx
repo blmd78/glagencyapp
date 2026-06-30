@@ -1,15 +1,20 @@
-// Template de la feature « overview » — reçoit les données en props et appelle les composants.
-// Convention archi-web : AUCUN fetch ici (la récup se fait dans app/(dash)/overview/page.tsx).
+import { SectionCards } from './components/section-cards'
+import { RevenueChart } from './components/revenue-chart'
+import type { OverviewData } from './types'
 
-export interface OverviewTemplateProps {
-  data?: unknown // TODO: typer (cf. ./types)
-}
-
-export function OverviewTemplate({ data: _data }: OverviewTemplateProps = {}) {
+/**
+ * Template de la feature Overview : compose les composants à partir des données
+ * reçues en props. Aucun fetch ici (convention app → feature(template) → composants).
+ */
+export function OverviewTemplate({ data }: { data: OverviewData }) {
   return (
-    <section className="space-y-2">
-      <h1 className="text-xl font-semibold">Overview</h1>
-      <p className="text-sm text-muted-foreground">TODO — feature « overview »</p>
-    </section>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+        <p className="text-sm text-muted-foreground">{data.periodLabel}</p>
+      </div>
+      <SectionCards kpis={data.kpis} />
+      <RevenueChart data={data.daily} />
+    </div>
   )
 }
