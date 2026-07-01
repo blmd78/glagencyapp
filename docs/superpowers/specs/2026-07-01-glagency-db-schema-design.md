@@ -566,6 +566,13 @@ Testé sur **Sarah (creator 221)**, PPV juin, recalcul **100 % API** (transactio
 
 **Conséquence stratégie** : le **100 % API est atteignable** (chiffres prouvés), mais exige (1) une **résolution d'identité robuste** `sender_user_id → chatteur canonique` (= le gros du travail, c'est `chatter_alias`), (2) valider les tips, (3) dériver la réactivité. **Cutover SÛR** : construire le recalcul API en gardant le scrape `money-team` comme **oracle de validation** ; ne couper le scrape que quand le recalcul **matche une période complète** (tous modèles, PPV+tips, identité résolue). → objectif « plus de scrape » atteint **sans jamais risquer un chiffre faux**.
 
+### DÉCISION FINALE d'architecture (2026-07-01) — scrape source unique, API non utilisée
+Après le spike API, décision tranchée avec le gérant : **on ne se passe pas du scrape** (l'API n'a ni présence, ni réactivité, ni ~17 % de l'identité). Pour garantir des **chiffres justes partout**, on refuse l'hybride (2 sources pour un même chiffre = risque de divergence).
+- **Le scrape `money-team` + `dashboard/stats` est LA source unique** de tous les chiffres → stockés dans Supabase (faits jour) → le dashboard **lit Supabase**.
+- **Supabase** = faits (scrape) + **données à nous** (quotas, bilans, insights, affectations) + **auth + droits managers (RLS)**. *MyPuls = les faits, Supabase = notre config/annotations.*
+- **Les routes API MyPuls ne sont PAS utilisées** en production. (L'exploration a quand même donné l'ancre de vérité au centime — PPV 142 672,88 / Tips 113 325,29 / total 258 853,45 — utilisable plus tard comme simple vérificateur optionnel, jamais comme source.)
+- **Règle anti-divergence** : un chiffre = une seule source.
+
 ## Questions ouvertes (détail technique)
 
 1. Hiérarchie team vs modèle : valider le split teams (lead) 1-N creators (modèle OF). Les données actuelles sont ~1:1 (13 équipes = 13 modèles) mais CREATOR_TO_TEAM, SECONDARY_TO_PRIMARY et les transferts (Tagwalker/DIX/Kira) impliquent N modèles/équipe. Confirmer la profondeur (sinon on garde la conflation actuelle creators=team).

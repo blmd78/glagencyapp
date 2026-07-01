@@ -28,7 +28,7 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 | `@glagency/web` (`apps/web`) | dashboard Next.js |
 | `@glagency/ingestion` (`apps/ingestion`) | worker cron MyPuls → Supabase |
 | `@glagency/core` (`packages/core`) | domaine pur : métriques + insights + types |
-| `@glagency/mypuls` (`packages/mypuls`) | client MyPuls (login, fetch, parse) |
+| `@glagency/mypuls` (`packages/mypuls`) | scrape MyPuls (session `money-team` + `dashboard/stats`) = **source des chiffres** |
 | `@glagency/db` (`packages/db`) | Supabase : migrations, RLS, types générés, client admin |
 
 ## Règles

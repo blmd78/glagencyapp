@@ -1,12 +1,17 @@
 'use client'
 
+import { Fragment, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import type { ChatterRow } from '../types'
 
 const eur = (n: number) =>
@@ -14,143 +19,138 @@ const eur = (n: number) =>
 const pct = (n: number) =>
   `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 
-// Largeurs de colonnes partagées entre l'entête et les lignes (alignement).
-const C = {
-  name: 'flex-1 min-w-[150px]',
-  team: 'w-24 shrink-0',
-  ca: 'w-24 shrink-0 text-right tabular-nums',
-  com: 'w-20 shrink-0 text-right tabular-nums',
-  ppv: 'w-24 shrink-0 text-right tabular-nums',
-  tips: 'w-24 shrink-0 text-right tabular-nums',
-  pv: 'w-24 shrink-0 text-right tabular-nums',
-  conv: 'w-16 shrink-0 text-right tabular-nums',
-  pres: 'w-28 shrink-0 text-right tabular-nums',
-  react: 'w-14 shrink-0 text-right tabular-nums',
-  status: 'w-20 shrink-0 text-center',
-}
-
 export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
+  const [open, setOpen] = useState<Set<string>>(new Set())
+
+  const toggle = (id: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
   return (
-    <div className="overflow-x-auto rounded-xl border">
-      <div className="min-w-[980px]">
-        {/* Entête */}
-        <div className="flex items-center gap-3 border-b bg-muted/50 px-3 py-2 text-xs font-medium text-muted-foreground">
-          <span className="w-4 shrink-0" />
-          <span className={C.name}>Chatteur</span>
-          <span className={C.team}>Équipe</span>
-          <span className={C.ca}>CA</span>
-          <span className={C.com}>Com.</span>
-          <span className={C.ppv}>PPV</span>
-          <span className={C.tips}>Tips</span>
-          <span className={C.pv}>Prop./Vendu</span>
-          <span className={C.conv}>Conv.</span>
-          <span className={C.pres}>Présence</span>
-          <span className={C.react}>Réact.</span>
-          <span className={C.status}>Statut</span>
-        </div>
-
-        {chatters.map((c) => {
-          const hasDetail = c.nbModels > 0 || c.caUnattributed > 0
-          return (
-            <Collapsible key={c.id} asChild>
-              <div className="border-b last:border-b-0">
-                <CollapsibleTrigger asChild disabled={!hasDetail}>
-                  <button
-                    type="button"
-                    className="group flex w-full items-center gap-3 px-3 py-2 text-left text-sm hover:bg-muted/40 disabled:cursor-default"
-                  >
-                    <ChevronRight
-                      className={`w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90 ${
-                        hasDetail ? '' : 'opacity-0'
-                      }`}
-                    />
-                    <span className={`${C.name} min-w-0`}>
-                      <span className="block truncate font-medium">{c.name}</span>
-                      {c.nbModels > 1 && (
-                        <span className="text-xs text-muted-foreground">
-                          {c.nbModels} modèles
-                        </span>
-                      )}
-                    </span>
-                    <span className={`${C.team} truncate text-muted-foreground`}>
-                      {c.team ?? '—'}
-                    </span>
-                    <span className={`${C.ca} font-medium`}>{eur(c.ca)}</span>
-                    <span className={`${C.com} text-muted-foreground`}>
-                      {eur(c.com)}
-                    </span>
-                    <span className={C.ppv}>{eur(c.ppv)}</span>
-                    <span className={C.tips}>{eur(c.tips)}</span>
-                    <span className={C.pv}>
-                      {c.propose} / {c.vendu}
-                    </span>
-                    <span className={C.conv}>{pct(c.tauxConv)}</span>
-                    <span className={`${C.pres} text-muted-foreground`}>
-                      {Math.round(c.presenceActiveH)}h / {Math.round(c.presenceIdleH)}h
-                    </span>
-                    <span className={`${C.react} text-muted-foreground`}>
-                      {c.reactiviteS != null ? `${c.reactiviteS}s` : '—'}
-                    </span>
-                    <span className={C.status}>
-                      <Badge variant={c.active ? 'secondary' : 'outline'}>
-                        {c.active ? 'Actif' : 'Fantôme'}
-                      </Badge>
-                    </span>
-                  </button>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent>
-                  <div className="bg-muted/20">
-                    {c.models.map((m) => (
-                      <div
-                        key={m.model}
-                        className="flex items-center gap-3 border-t px-3 py-1.5 text-sm"
-                      >
-                        <span className="w-4 shrink-0" />
-                        <span className={`${C.name} truncate pl-4 text-muted-foreground`}>
-                          {m.model}
-                        </span>
-                        <span className={C.team}>—</span>
-                        <span className={C.ca}>{eur(m.ca)}</span>
-                        <span className={C.com}>—</span>
-                        <span className={C.ppv}>{eur(m.ppv)}</span>
-                        <span className={C.tips}>{eur(m.tips)}</span>
-                        <span className={C.pv}>
-                          {m.propose} / {m.vendu}
-                        </span>
-                        <span className={C.conv}>{pct(m.tauxConv)}</span>
-                        <span className={C.pres}>—</span>
-                        <span className={C.react}>—</span>
-                        <span className={C.status}>—</span>
+    <div className="rounded-xl border">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            <TableHead>Chatteur</TableHead>
+            <TableHead>Équipe</TableHead>
+            <TableHead className="text-right">CA</TableHead>
+            <TableHead className="text-right">Com.</TableHead>
+            <TableHead className="text-right">PPV</TableHead>
+            <TableHead className="text-right">Tips</TableHead>
+            <TableHead className="text-right">Prop./Vendu</TableHead>
+            <TableHead className="text-right">Conv.</TableHead>
+            <TableHead className="text-right">Présence</TableHead>
+            <TableHead className="text-right">Réact.</TableHead>
+            <TableHead className="text-center">Statut</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {chatters.map((c) => {
+            const hasDetail = c.nbModels > 0 || c.caUnattributed > 0
+            const isOpen = open.has(c.id)
+            return (
+              <Fragment key={c.id}>
+                <TableRow
+                  className={cn(hasDetail && 'cursor-pointer')}
+                  onClick={() => hasDetail && toggle(c.id)}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <ChevronRight
+                        className={cn(
+                          'size-4 shrink-0 text-muted-foreground transition-transform',
+                          isOpen && 'rotate-90',
+                          !hasDetail && 'opacity-0',
+                        )}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{c.name}</div>
+                        {c.nbModels > 1 && (
+                          <div className="text-xs text-muted-foreground">
+                            {c.nbModels} modèles
+                          </div>
+                        )}
                       </div>
-                    ))}
-                    {c.caUnattributed > 0 && (
-                      <div className="flex items-center gap-3 border-t px-3 py-1.5 text-sm">
-                        <span className="w-4 shrink-0" />
-                        <span className={`${C.name} pl-4 italic text-amber-600`}>
-                          Non ventilé (identité à résoudre)
-                        </span>
-                        <span className={C.team}>—</span>
-                        <span className={`${C.ca} italic text-amber-600`}>
-                          {eur(c.caUnattributed)}
-                        </span>
-                        <span className={C.com}>—</span>
-                        <span className={C.ppv}>—</span>
-                        <span className={C.tips}>—</span>
-                        <span className={C.pv}>—</span>
-                        <span className={C.conv}>—</span>
-                        <span className={C.pres}>—</span>
-                        <span className={C.react}>—</span>
-                        <span className={C.status}>—</span>
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
-          )
-        })}
-      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {c.team ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">
+                    {eur(c.ca)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {eur(c.com)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{eur(c.ppv)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{eur(c.tips)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {c.propose} / {c.vendu}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {pct(c.tauxConv)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {Math.round(c.presenceActiveH)}h / {Math.round(c.presenceIdleH)}h
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                    {c.reactiviteS != null ? `${c.reactiviteS}s` : '—'}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={c.active ? 'secondary' : 'outline'}>
+                      {c.active ? 'Actif' : 'Fantôme'}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+
+                {isOpen &&
+                  c.models.map((m) => (
+                    <TableRow
+                      key={`${c.id}:${m.model}`}
+                      className="bg-muted/30 hover:bg-muted/30"
+                    >
+                      <TableCell className="pl-8 text-muted-foreground">
+                        {m.model}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right tabular-nums">{eur(m.ca)}</TableCell>
+                      <TableCell className="text-right text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right tabular-nums">{eur(m.ppv)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{eur(m.tips)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {m.propose} / {m.vendu}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {pct(m.tauxConv)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-muted-foreground">—</TableCell>
+                      <TableCell className="text-center text-muted-foreground">—</TableCell>
+                    </TableRow>
+                  ))}
+
+                {isOpen && c.caUnattributed > 0 && (
+                  <TableRow className="bg-muted/30 hover:bg-muted/30">
+                    <TableCell className="pl-8 italic text-amber-600">
+                      Non ventilé (identité à résoudre)
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">—</TableCell>
+                    <TableCell className="text-right italic tabular-nums text-amber-600">
+                      {eur(c.caUnattributed)}
+                    </TableCell>
+                    <TableCell colSpan={8} className="text-muted-foreground">
+                      —
+                    </TableCell>
+                  </TableRow>
+                )}
+              </Fragment>
+            )
+          })}
+        </TableBody>
+      </Table>
     </div>
   )
 }
