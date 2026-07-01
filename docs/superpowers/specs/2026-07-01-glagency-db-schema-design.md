@@ -531,24 +531,32 @@ Contexte : la page Analyse affiche **une carte par manager** avec la **liste de 
 ### Ingestion via l'API officielle MyPuls (fin du scraping HTML)
 MyPuls expose une **API REST officielle documentée** (OpenAPI/NelmioApiDocBundle) sous `/api/v1`, auth **`X-API-TOKEN`** (`/api/doc`, spec `/api/doc.json`).
 
-**Décision** : ingestion **API GET + token uniquement**. On **abandonne** le scraping HTML (login CSRF + parse du tableau `money-team`) **et le mot de passe** → intégration propre, stable, versionnée.
+**Testé en réel le 2026-07-01 (GET + token, lecture seule) → verdict : HYBRIDE.** L'API donne les **totaux compte au centime** + le **roster chatteurs** + la **volumétrie par chatteur**, mais **PAS l'argent attribué par chatteur** (attribution `null` à 100 %, cf. « Testé » plus bas). On garde donc un **mini-scrape ciblé** (session `money-team`) pour ce que l'API n'expose pas.
 
 **Mapping endpoints → tables :**
 | Endpoint (GET /api/v1/) | → Table | Contenu |
 |---|---|---|
 | `users` | `chatters` + `chatter_creators` | user_id **stable**, email, is_active_now, last_activity_at, créateurs+rôles |
 | `creators` | `creators` | id, pseudo, platform, currency, status, external_id |
-| `team/money` | `chatter_creator_daily` | transactions PPV+tips par `attributed_user_id` → **agrégées par jour** (bucket) |
-| `team/messages/stats` | `chatter_daily_reach` | messages, mots, fans distincts, PPV proposés/vendus par chatteur |
+| `team/money` | `creator_daily` (compte) | transactions PPV+tips **par compte** (`attributed_user_id` VIDE → pas de ventilation chatteur) → totaux au centime |
+| `team/messages/stats` | `chatter_daily_reach` | messages, mots, fans distincts, PPV **proposés** (⚠️ PPV **vendus** = 0, non exposé) ; jointure par **email** |
 | `creators/{id}/stats` | `creator_daily` | revenu par type (ppv/tips/**renew**), nouveaux fans |
 | `creators/{id}/fans` | (LTV/abonnés) | fans + revenus par type |
 
 **Gains majeurs :**
-- **Identité résolue** : `user_id` stable de l'API → `chatter_alias` **ne sert plus que** pour rapprocher le backfill du vieux CSV. Fini le matching de noms sales en continu.
+- **Identité** : `/users` donne un roster propre (email + affectations), mais les `user_id` **diffèrent selon l'endpoint** → l'**email** reste la clé de jointure. `chatter_alias`/email restent nécessaires (roster API + attribution scrapée + backfill CSV).
 - **Grain jour** : pas d'endpoint jour, MAIS `team/money` est **par transaction** (timestamp) → on bucketise par jour (voire plus fin). Les stats période → appel `start=end=jour`. Cron 23h59 = quelques GET pour la veille.
 - **Token seul** → plus de login/mot de passe, GET only, plus sûr.
 
-**⚠️ À CONFIRMER à l'implémentation (1er appel authentifié)** : la **présence horaire (actif/idle)** et la **réactivité** — le HTML les donnait, mais **aucun endpoint API évident** ne les expose. Options : (a) **réactivité** dérivable de `team/messages` (timestamps fan→réponse chatteur) ; (b) **présence** dérivable de l'activité/`last_activity_at`, sinon garder un **mini-scrape** ciblé pour ces 2 champs (ils alimentent les quotas → ne pas les perdre).
+**✅ Testé le 2026-07-01 (juin, réel) :**
+- `team/money` : **9 576 transactions**, Σ = **255 998,17 €** = PPV **142 672,88** + Tips **113 325,29** = **MyPuls au centime**. MAIS `attributed_user_id` = **null à 100 %** (méthode `brute_force`), et `team/money?chatter=X` → **0 transaction**. → **argent par chatteur NON récupérable via l'API.**
+- `team/messages/stats` : **161 chatteurs**, donne messages/mots/fans distincts/PPV **proposés** ✅ ; mais `ppv_sold` = 0 (**conversion non exposée**). Son `user_id` **diffère** de celui de `/users` → jointure par **email**.
+- `/users` (188 membres) + `/creators` (17 comptes) + `/session` : ✅ roster & dimensions propres.
+
+**Conséquences :**
+- **Source de l'attribution argent chatteur + présence + réactivité = dashboard HTML `money-team`** (session login), comme l'ancien script. L'API ne la remplace **pas**.
+- **L'API = source de vérité des totaux** → **garde-fou** : Σ(chatteurs scrapés) doit coller au total compte API (PPV 142 672,88 / Tips 113 325,29). Chiffres bons partout, mécaniquement vérifiés.
+- **Identité** : `/users.user_id` stable pour le roster, mais **l'email est la clé de jointure canonique** entre endpoints (les user_id ne concordent pas d'un endpoint à l'autre) → `chatter_alias`/email restent nécessaires.
 
 ## Questions ouvertes (détail technique)
 
