@@ -528,6 +528,28 @@ Contexte : la page Analyse affiche **une carte par manager** avec la **liste de 
 - **3 périmètres documentés, tous stockés** (chiffres justes = on sait lequel on affiche) :
   `258 853 €` tous comptes (= MyPuls) ⊇ `255 338 €` hors privés ⊇ `252 856 €` attribué chatteurs. L'écart attribué↔compte = revenu **non-messagerie** (renew, media on-demand/push) — normal, non imputable à un chatteur.
 
+### Ingestion via l'API officielle MyPuls (fin du scraping HTML)
+MyPuls expose une **API REST officielle documentée** (OpenAPI/NelmioApiDocBundle) sous `/api/v1`, auth **`X-API-TOKEN`** (`/api/doc`, spec `/api/doc.json`).
+
+**Décision** : ingestion **API GET + token uniquement**. On **abandonne** le scraping HTML (login CSRF + parse du tableau `money-team`) **et le mot de passe** → intégration propre, stable, versionnée.
+
+**Mapping endpoints → tables :**
+| Endpoint (GET /api/v1/) | → Table | Contenu |
+|---|---|---|
+| `users` | `chatters` + `chatter_creators` | user_id **stable**, email, is_active_now, last_activity_at, créateurs+rôles |
+| `creators` | `creators` | id, pseudo, platform, currency, status, external_id |
+| `team/money` | `chatter_creator_daily` | transactions PPV+tips par `attributed_user_id` → **agrégées par jour** (bucket) |
+| `team/messages/stats` | `chatter_daily_reach` | messages, mots, fans distincts, PPV proposés/vendus par chatteur |
+| `creators/{id}/stats` | `creator_daily` | revenu par type (ppv/tips/**renew**), nouveaux fans |
+| `creators/{id}/fans` | (LTV/abonnés) | fans + revenus par type |
+
+**Gains majeurs :**
+- **Identité résolue** : `user_id` stable de l'API → `chatter_alias` **ne sert plus que** pour rapprocher le backfill du vieux CSV. Fini le matching de noms sales en continu.
+- **Grain jour** : pas d'endpoint jour, MAIS `team/money` est **par transaction** (timestamp) → on bucketise par jour (voire plus fin). Les stats période → appel `start=end=jour`. Cron 23h59 = quelques GET pour la veille.
+- **Token seul** → plus de login/mot de passe, GET only, plus sûr.
+
+**⚠️ À CONFIRMER à l'implémentation (1er appel authentifié)** : la **présence horaire (actif/idle)** et la **réactivité** — le HTML les donnait, mais **aucun endpoint API évident** ne les expose. Options : (a) **réactivité** dérivable de `team/messages` (timestamps fan→réponse chatteur) ; (b) **présence** dérivable de l'activité/`last_activity_at`, sinon garder un **mini-scrape** ciblé pour ces 2 champs (ils alimentent les quotas → ne pas les perdre).
+
 ## Questions ouvertes (détail technique)
 
 1. Hiérarchie team vs modèle : valider le split teams (lead) 1-N creators (modèle OF). Les données actuelles sont ~1:1 (13 équipes = 13 modèles) mais CREATOR_TO_TEAM, SECONDARY_TO_PRIMARY et les transferts (Tagwalker/DIX/Kira) impliquent N modèles/équipe. Confirmer la profondeur (sinon on garde la conflation actuelle creators=team).
