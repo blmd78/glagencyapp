@@ -84,21 +84,39 @@ const columns: ColumnDef<ChatterRow>[] = [
         />
         <div className="min-w-0">
           <div className="truncate font-medium">{row.original.name}</div>
-          {row.original.nbModels > 1 && (
-            <div className="text-xs text-muted-foreground">
-              {row.original.nbModels} modèles
-            </div>
-          )}
         </div>
       </div>
     ),
   },
   {
-    accessorKey: 'team',
-    header: 'Équipe',
-    cell: ({ getValue }) => (
-      <span className="text-muted-foreground">{(getValue() as string) ?? '—'}</span>
-    ),
+    id: 'models',
+    header: 'Modèles',
+    cell: ({ row }) => {
+      const names =
+        row.original.models.length > 0
+          ? row.original.models.map((m) => m.model)
+          : row.original.team
+            ? [row.original.team]
+            : []
+      if (names.length === 0)
+        return <span className="text-muted-foreground">—</span>
+      const shown = names.slice(0, 4)
+      const extra = names.length - shown.length
+      return (
+        <div className="flex flex-wrap gap-1">
+          {shown.map((n) => (
+            <Badge key={n} variant="outline" className="font-normal">
+              {n}
+            </Badge>
+          ))}
+          {extra > 0 && (
+            <Badge variant="outline" className="font-normal text-muted-foreground">
+              +{extra}
+            </Badge>
+          )}
+        </div>
+      )
+    },
   },
   {
     accessorKey: 'ca',
