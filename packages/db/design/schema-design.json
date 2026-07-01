@@ -1,0 +1,1509 @@
+{
+  "summary": "Modèle en étoile, grain JOUR = source de vérité. 3 couches strictement séparées : (1) DIMENSIONS propres à clés stables — teams (unité de management/lead, porte les quotas), creators (modèle/compte OF, FK team_id + fusion secondaires + excluded), chatters (clé = mypuls_user_id/email, PAS le name instable), + chatter_alias (réconciliation d'identité sale) et chatter_creators (N-N multi-modèles). (2) FAITS QUOTIDIENS immuables, une table par fichier source : chatter_daily (argent+présence+réactivité+volume, tous modèles, depuis daily_ca.csv), chatter_daily_reach (messages/mots/fans/ppv_proposes depuis daily_fans_distincts.csv), creator_daily (ca+ppv/tips/renew+abonnés depuis dashboard/stats+subscriptions), chatter_creator_daily (ventilation CA par modèle pour le multi-modèles). (3) CONFIG MANUELLE jamais écrasée par le refresh (quotas, creator_transfers, insight_states, bilans/bilan_revisions, chatter_config fondu dans chatters, excluded fondu dans creators, payroll_config). Principe cardinal : TOUT agrégat période/semaine/mois et tout champ dérivé (com=ca*0.10, taux_conv=Σvendu/Σpropose, evolution, per, pres_pct, idle_pct, LTV, Pareto, badges) est calculé en SQL (RPC SECURITY INVOKER + vues), JAMAIS stocké — sauf period_snapshot_kpi (rollup) qui fige total_ca_prev/n_active/bornes non recalculables. Correction majeure vs l'hypothèse initiale : présence+réactivité passent au grain JOUR (le CSV les fournit au jour), ce qui débloque le calcul des quotas ok_days/7 ; et fans_distincts est réintégré (vide seulement dans data.json, réel dans le CSV). Choix d'architecture : chatter_daily reste au grain (chatter,jour) TOUS MODÈLES car le CSV source n'a pas de colonne modèle ; la ventilation par modèle vit dans chatter_creator_daily (invariant Σmodèles = chatter_daily) plutôt que de forcer creator_id dans la PK d'une source qui ne le porte pas. Montants en numeric précis, pourcentages non bornés à 100 (taux_conv monte à 600, evolution à +1270%), FK explicites avec ON DELETE, index sur date + toutes les FK, CHECK garantissant l'intégrité des calculs (ca=ppv+tips côté chatter, reactivite>0, PAS de vendu<=propose).",
+  "tables": [
+    {
+      "name": "teams",
+      "kind": "dimension",
+      "grain": "1 ligne = 1 équipe de management (lead : Carla, Sarah, Mathilde...). ~13 lignes.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "constraints": "pk default gen_random_uuid()"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "constraints": "not null unique"
+        },
+        {
+          "name": "lead_name",
+          "type": "text",
+          "constraints": "null (nom du responsable, souvent = name)"
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "constraints": "not null default true"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "id",
+      "foreignKeys": [],
+      "indexes": [
+        "unique(name)"
+      ],
+      "purpose": "Unité de rattachement des chatteurs, porteuse des quotas, cible des transferts de modèles. SÉPARÉE de creators pour supporter N modèles par équipe et l'historique de transfert (Tagwalker/DIX/Kira changent d'équipe)."
+    },
+    {
+      "name": "creators",
+      "kind": "dimension",
+      "grain": "1 ligne = 1 modèle / compte OF (Taprofcarla, Tagwalker, Carlaprive...).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "constraints": "pk default gen_random_uuid()"
+        },
+        {
+          "name": "name",
+          "type": "text",
+          "constraints": "not null unique (pseudo modèle)"
+        },
+        {
+          "name": "mypuls_creator_id",
+          "type": "text",
+          "constraints": "unique null (id créateur MyPuls)"
+        },
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "constraints": "null (équipe courante)"
+        },
+        {
+          "name": "is_secondary",
+          "type": "boolean",
+          "constraints": "not null default false"
+        },
+        {
+          "name": "primary_creator_id",
+          "type": "uuid",
+          "constraints": "null (fusion SECONDARY_TO_PRIMARY)"
+        },
+        {
+          "name": "excluded",
+          "type": "boolean",
+          "constraints": "not null default false (comptes privés/test hors CA)"
+        },
+        {
+          "name": "excluded_reason",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "constraints": "not null default true"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "id",
+      "foreignKeys": [
+        "team_id -> teams(id) on delete set null",
+        "primary_creator_id -> creators(id) on delete set null"
+      ],
+      "indexes": [
+        "unique(mypuls_creator_id)",
+        "unique(name)",
+        "index(team_id)",
+        "index(primary_creator_id)"
+      ],
+      "purpose": "Dimension modèle/compte OF ; rattachement courant à une équipe, fusion des comptes secondaires, exclusion (fond excluded_accounts.json). CREATOR_TO_TEAM = creators.team_id ; SECONDARY_TO_PRIMARY = primary_creator_id."
+    },
+    {
+      "name": "chatters",
+      "kind": "dimension",
+      "grain": "1 ligne = 1 chatteur (agent). Clé canonique = mypuls_user_id / email, PAS le name.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "constraints": "pk default gen_random_uuid()"
+        },
+        {
+          "name": "mypuls_user_id",
+          "type": "text",
+          "constraints": "unique null (clé stable API)"
+        },
+        {
+          "name": "email",
+          "type": "citext",
+          "constraints": "null (unique via index partiel après dédoublonnage)"
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "constraints": "not null (nettoyer la ligne name=email)"
+        },
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "constraints": "null (équipe courante, config manuelle chatter_config.json)"
+        },
+        {
+          "name": "role",
+          "type": "chatter_role",
+          "constraints": "null (enum ; '' -> null)"
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "constraints": "not null default true"
+        },
+        {
+          "name": "access_revoked",
+          "type": "boolean",
+          "constraints": "not null default false (suffixe '(acces revoque)')"
+        },
+        {
+          "name": "config_updated_at",
+          "type": "timestamptz",
+          "constraints": "null (updated_at manuel)"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "id",
+      "foreignKeys": [
+        "team_id -> teams(id) on delete set null"
+      ],
+      "indexes": [
+        "unique(mypuls_user_id)",
+        "unique index on lower(email) where email is not null",
+        "index(team_id)"
+      ],
+      "purpose": "Dimension chatteur. Remplace le fragile unique(name,email) (email a 1 NULL + 1 doublon, name instable) par une clé stable + statut access_revoked extrait de la dimension (pas de la clé)."
+    },
+    {
+      "name": "chatter_alias",
+      "kind": "dimension",
+      "grain": "1 ligne = 1 libellé brut observé (pseudo/email/casse/emoji/suffixe) -> chatteur canonique.",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "constraints": "pk default gen_random_uuid()"
+        },
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "raw_label",
+          "type": "text",
+          "constraints": "not null (valeur brute d'origine)"
+        },
+        {
+          "name": "raw_label_norm",
+          "type": "text",
+          "constraints": "not null (lower, strip accents/emojis/'(acces revoque)'/digits finaux)"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "constraints": "not null check in ('csv_money','csv_reach','scrape','api','manual')"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "id",
+      "foreignKeys": [
+        "chatter_id -> chatters(id) on delete cascade"
+      ],
+      "indexes": [
+        "unique(raw_label_norm)",
+        "index(chatter_id)"
+      ],
+      "purpose": "Réconciliation d'identité (les 457/369 'distincts' surestiment le réel). Indispensable à l'exactitude de tout agrégat par chatteur ; l'ingestion résout chaque libellé brut via cette table."
+    },
+    {
+      "name": "chatter_creators",
+      "kind": "dimension",
+      "grain": "1 ligne = (chatteur, modèle) — affectation N-N.",
+      "columns": [
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "role",
+          "type": "chatter_role",
+          "constraints": "null"
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "constraints": "not null default true"
+        },
+        {
+          "name": "is_manual",
+          "type": "boolean",
+          "constraints": "not null default false (chatter_teams.json vs API roles MESSAGING)"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "(chatter_id, creator_id)",
+      "foreignKeys": [
+        "chatter_id -> chatters(id) on delete cascade",
+        "creator_id -> creators(id) on delete cascade"
+      ],
+      "indexes": [
+        "index(creator_id)",
+        "index(chatter_id)"
+      ],
+      "purpose": "Multi-modèles (assigned[]>1). Grain réel de la perf = (chatter, modèle) ; permet planned=count(members) et la ventilation du CA d'un chatteur multi-modèles vers la bonne équipe."
+    },
+    {
+      "name": "chatter_daily",
+      "kind": "fait_jour",
+      "grain": "1 ligne = (chatteur, jour), TOUS MODÈLES agrégés. Source = daily_ca.csv. SOURCE DE VÉRITÉ.",
+      "columns": [
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "ca",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (ca = ca_ppv + ca_tips)"
+        },
+        {
+          "name": "ca_ppv",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "ca_tips",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "propose",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "vendu",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0) — PAS de check vendu<=propose"
+        },
+        {
+          "name": "presence_active_h",
+          "type": "numeric(5,2)",
+          "constraints": "not null default 0 check (>=0) — heures actives (heures_actif)"
+        },
+        {
+          "name": "presence_idle_h",
+          "type": "numeric(5,2)",
+          "constraints": "not null default 0 check (>=0) — heures idle"
+        },
+        {
+          "name": "reactivite_sec",
+          "type": "integer",
+          "constraints": "null check (reactivite_sec is null or reactivite_sec > 0) — '-' -> NULL"
+        }
+      ],
+      "primaryKey": "(chatter_id, date)",
+      "foreignKeys": [
+        "chatter_id -> chatters(id) on delete cascade"
+      ],
+      "indexes": [
+        "index(date)",
+        "pk(chatter_id,date)"
+      ],
+      "purpose": "Fait quotidien argent+présence+réactivité+volume. Base de TOUS les agrégats période, des quotas ok_days/7, de présence/idle et de la réactivité moyenne. Débloque le calcul des quotas au jour (contrairement à l'ancien chatter_period_stats). Dédupliquer/SOMMER les sessions multiples (Safidy 05-17/05-30) à l'ingestion avant upsert."
+    },
+    {
+      "name": "chatter_daily_reach",
+      "kind": "fait_jour",
+      "grain": "1 ligne = (chatteur, jour). Source = daily_fans_distincts.csv.",
+      "columns": [
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "messages",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "mots",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "fans_distincts",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "ppv_proposes",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        }
+      ],
+      "primaryKey": "(chatter_id, date)",
+      "foreignKeys": [
+        "chatter_id -> chatters(id) on delete cascade"
+      ],
+      "indexes": [
+        "index(date)"
+      ],
+      "purpose": "Reach/charge : audience (fans_distincts), messages, mots, offres PPV. Réintègre fans_distincts (RÉEL dans le CSV 1->523 ; vide seulement dans data.json). Table séparée de chatter_daily car fichier/job distinct et couverture chatteurs différente (369 vs 457). Dédupliquer doublon Safidy 2026-05-29."
+    },
+    {
+      "name": "chatter_creator_daily",
+      "kind": "fait_jour",
+      "grain": "1 ligne = (chatteur, modèle, jour) — CA/volume ventilé par modèle.",
+      "columns": [
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "ca",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (ca = ca_ppv + ca_tips)"
+        },
+        {
+          "name": "ca_ppv",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "ca_tips",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "propose",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "vendu",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        }
+      ],
+      "primaryKey": "(chatter_id, creator_id, date)",
+      "foreignKeys": [
+        "chatter_id -> chatters(id) on delete cascade",
+        "creator_id -> creators(id) on delete cascade"
+      ],
+      "indexes": [
+        "index(creator_id, date)",
+        "index(date)"
+      ],
+      "purpose": "Attribution par équipe d'un chatteur multi-modèles (team_chatter_details). Invariant vérifié à l'ingestion : SUM sur creator_id = chatter_daily(argent) pour (chatter,jour). NÉCESSITE un fetch money-team par créateur/jour ; tant qu'indisponible, cette table est peuplée au grain période (voir questions ouvertes)."
+    },
+    {
+      "name": "creator_daily",
+      "kind": "fait_jour",
+      "grain": "1 ligne = (modèle, jour). Source = dashboard/stats + subscriptions.",
+      "columns": [
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "ca",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0) — total, inclut 'autres'"
+        },
+        {
+          "name": "ca_ppv",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "ca_tips",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "ca_renew",
+          "type": "numeric(12,2)",
+          "constraints": "not null default 0 check (>=0) — renouvellements abo"
+        },
+        {
+          "name": "subs_active",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        },
+        {
+          "name": "new_subs",
+          "type": "integer",
+          "constraints": "not null default 0 check (>=0)"
+        }
+      ],
+      "primaryKey": "(creator_id, date)",
+      "foreignKeys": [
+        "creator_id -> creators(id) on delete cascade"
+      ],
+      "indexes": [
+        "index(date)"
+      ],
+      "purpose": "Fait quotidien modèle. Ajoute ppv/tips/renew (comble le gap breakdown) -> mix revenu équipe + team.renew calculables. ca (total) >= ppv+tips+renew (le delta ~1828€ chez Carla est 'autres', d'où pas de CHECK d'égalité stricte)."
+    },
+    {
+      "name": "period_snapshot_kpi",
+      "kind": "rollup",
+      "grain": "1 ligne = 1 snapshot global d'extraction (clé = last_update).",
+      "columns": [
+        {
+          "name": "last_update",
+          "type": "timestamptz",
+          "constraints": "pk"
+        },
+        {
+          "name": "period_start",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "period_end",
+          "type": "date",
+          "constraints": "not null check (period_end >= period_start)"
+        },
+        {
+          "name": "period_prev_start",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "period_prev_end",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "week_start",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "week_end",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "current_week_start",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "current_week_end",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "current_week_days",
+          "type": "smallint",
+          "constraints": "not null check (between 0 and 7)"
+        },
+        {
+          "name": "period_days",
+          "type": "smallint",
+          "constraints": "not null"
+        },
+        {
+          "name": "total_ca",
+          "type": "numeric(14,2)",
+          "constraints": "not null (figé pour cohérence d'affichage)"
+        },
+        {
+          "name": "total_ca_prev",
+          "type": "numeric(14,2)",
+          "constraints": "not null (NON recalculable -> DOIT être stocké)"
+        },
+        {
+          "name": "n_active",
+          "type": "integer",
+          "constraints": "not null"
+        },
+        {
+          "name": "n_inactive",
+          "type": "integer",
+          "constraints": "not null"
+        },
+        {
+          "name": "max_missed_shifts",
+          "type": "integer",
+          "constraints": "not null default 0"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "constraints": "not null"
+        },
+        {
+          "name": "sheet_used",
+          "type": "text",
+          "constraints": "not null"
+        }
+      ],
+      "primaryKey": "last_update",
+      "foreignKeys": [],
+      "indexes": [
+        "unique(period_start, period_end)"
+      ],
+      "purpose": "Ancre les bornes de fenêtres (mois/semaine/semaine en cours) et fige total_ca_prev + n_active/n_inactive + max_missed_shifts, non reconstituables depuis l'extrait courant. Rattache les insights par snapshot_id (évolution MoM/WoW fiable)."
+    },
+    {
+      "name": "quotas",
+      "kind": "config",
+      "grain": "1 ligne = 1 équipe -> seuils journaliers. Config manuelle (quotas.json).",
+      "columns": [
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "constraints": "pk"
+        },
+        {
+          "name": "presence_h",
+          "type": "numeric(4,1)",
+          "constraints": "not null check (>0) — h/j, higher-is-better"
+        },
+        {
+          "name": "reactivite_s",
+          "type": "integer",
+          "constraints": "not null check (>0) — s/j, LOWER-is-better"
+        },
+        {
+          "name": "medias_proposes",
+          "type": "integer",
+          "constraints": "not null check (>=0) — /j"
+        },
+        {
+          "name": "conv_pct",
+          "type": "numeric(5,2)",
+          "constraints": "not null check (between 0 and 100) — %/j"
+        },
+        {
+          "name": "ca_eur",
+          "type": "numeric(12,2)",
+          "constraints": "not null check (>=0) — €/j"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "constraints": "null"
+        }
+      ],
+      "primaryKey": "team_id",
+      "foreignKeys": [
+        "team_id -> teams(id) on delete cascade",
+        "updated_by -> profiles(id) on delete set null"
+      ],
+      "indexes": [
+        "pk(team_id)"
+      ],
+      "purpose": "Seuils quotas PAR ÉQUIPE (re-clé depuis creator_id) ; jamais écrasés par le refresh. Comparés jour par jour à chatter_daily pour ok_days/7 et la sévérité des cartes."
+    },
+    {
+      "name": "creator_transfers",
+      "kind": "config",
+      "grain": "1 ligne = (modèle, date) — déplacement d'un modèle entre équipes. Config manuelle (transfers.json).",
+      "columns": [
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "constraints": "not null (le MODÈLE déplacé : Tagwalker/DIX/Kira)"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "not null"
+        },
+        {
+          "name": "from_team_id",
+          "type": "uuid",
+          "constraints": "null"
+        },
+        {
+          "name": "to_team_id",
+          "type": "uuid",
+          "constraints": "null check (from_team_id is distinct from to_team_id)"
+        },
+        {
+          "name": "created_by",
+          "type": "uuid",
+          "constraints": "null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "(creator_id, date)",
+      "foreignKeys": [
+        "creator_id -> creators(id) on delete cascade",
+        "from_team_id -> teams(id) on delete set null",
+        "to_team_id -> teams(id) on delete set null",
+        "created_by -> profiles(id) on delete set null"
+      ],
+      "indexes": [
+        "index(to_team_id)",
+        "index(from_team_id)",
+        "pk(creator_id,date)"
+      ],
+      "purpose": "Historise les réaffectations de MODÈLE (pas de chatter) -> réattribution du CA à la bonne équipe avant/après la date. Remplace transfers(chatter_id) PK unique qui interdisait tout historique."
+    },
+    {
+      "name": "insights",
+      "kind": "fait_periode",
+      "grain": "1 ligne = 1 carte insight (scope+période) à une génération. Historisé par (insight_key, generated_at).",
+      "columns": [
+        {
+          "name": "insight_key",
+          "type": "text",
+          "constraints": "not null (slug stable : pareto_concentration, inactive_<email>, week_plan_<date>_<team>_<chatter>...)"
+        },
+        {
+          "name": "generated_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        },
+        {
+          "name": "snapshot_id",
+          "type": "timestamptz",
+          "constraints": "null"
+        },
+        {
+          "name": "period",
+          "type": "insight_period",
+          "constraints": "not null (enum month|week)"
+        },
+        {
+          "name": "scope",
+          "type": "insight_scope",
+          "constraints": "not null (global|team|chatter)"
+        },
+        {
+          "name": "severity",
+          "type": "insight_severity",
+          "constraints": "not null"
+        },
+        {
+          "name": "category",
+          "type": "text",
+          "constraints": "not null (à mapper vers référentiel normalisé)"
+        },
+        {
+          "name": "team_id",
+          "type": "uuid",
+          "constraints": "null ('all' -> null + scope=global)"
+        },
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "constraints": "null"
+        },
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "null (résolu du slug/titre à l'ingestion)"
+        },
+        {
+          "name": "chatter_email",
+          "type": "citext",
+          "constraints": "null (clé de jointure alternative)"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "constraints": "not null"
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "recommendation",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "icon",
+          "type": "text",
+          "constraints": "null (décoratif, pas une clé)"
+        },
+        {
+          "name": "data_points",
+          "type": "jsonb",
+          "constraints": "null"
+        },
+        {
+          "name": "period_start",
+          "type": "date",
+          "constraints": "null"
+        },
+        {
+          "name": "period_end",
+          "type": "date",
+          "constraints": "null"
+        }
+      ],
+      "primaryKey": "(insight_key, generated_at)",
+      "foreignKeys": [
+        "snapshot_id -> period_snapshot_kpi(last_update) on delete set null",
+        "team_id -> teams(id) on delete set null",
+        "creator_id -> creators(id) on delete set null",
+        "chatter_id -> chatters(id) on delete set null"
+      ],
+      "indexes": [
+        "index(insight_key)",
+        "index(chatter_id)",
+        "index(creator_id)",
+        "index(team_id)",
+        "index(scope, period)",
+        "index(generated_at)"
+      ],
+      "purpose": "Cartes générées HISTORISÉES (PK versionnée -> plus d'écrasement). scope/team_id/chatter_id matérialisés à l'ingestion (parse du slug) pour éviter le reparse à l'affichage. Enum period réduit à {month,week} (scope 'day' jamais produit)."
+    },
+    {
+      "name": "insight_states",
+      "kind": "config",
+      "grain": "1 ligne = (insight_key, période) — état UI éditable, survit aux régénérations.",
+      "columns": [
+        {
+          "name": "insight_key",
+          "type": "text",
+          "constraints": "not null (slug stable, pas la version)"
+        },
+        {
+          "name": "period",
+          "type": "insight_period",
+          "constraints": "not null"
+        },
+        {
+          "name": "status",
+          "type": "insight_status",
+          "constraints": "not null default 'open' (resolved|in_progress|ignored|kept)"
+        },
+        {
+          "name": "snoozed_until",
+          "type": "timestamptz",
+          "constraints": "null"
+        },
+        {
+          "name": "note",
+          "type": "text",
+          "constraints": "null (action manager)"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        },
+        {
+          "name": "updated_by",
+          "type": "uuid",
+          "constraints": "null"
+        }
+      ],
+      "primaryKey": "(insight_key, period)",
+      "foreignKeys": [
+        "updated_by -> profiles(id) on delete set null"
+      ],
+      "indexes": [
+        "pk(insight_key,period)",
+        "index(status)"
+      ],
+      "purpose": "Statut de traitement des cartes ancré sur le SLUG (pas le insight_pk versionné) pour survivre aux régénérations quotidiennes. Découplé volontairement d'insights (pas de FK stricte)."
+    },
+    {
+      "name": "insight_data_points",
+      "kind": "derive",
+      "grain": "1 ligne = (insight, ord). Normalisation optionnelle du jsonb data_points.",
+      "columns": [
+        {
+          "name": "insight_key",
+          "type": "text",
+          "constraints": "not null"
+        },
+        {
+          "name": "generated_at",
+          "type": "timestamptz",
+          "constraints": "not null"
+        },
+        {
+          "name": "ord",
+          "type": "smallint",
+          "constraints": "not null (0-based)"
+        },
+        {
+          "name": "label",
+          "type": "text",
+          "constraints": "not null"
+        },
+        {
+          "name": "is_meta",
+          "type": "boolean",
+          "constraints": "not null default false (label commence par '_')"
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "constraints": "null ('ko' si [KO], 'ok' si [OK])"
+        },
+        {
+          "name": "value_raw",
+          "type": "text",
+          "constraints": "not null (chaîne d'origine : 'moy. 209e/j (cible 286e/j)')"
+        },
+        {
+          "name": "value_num",
+          "type": "numeric(14,2)",
+          "constraints": "null (extrait si parsable)"
+        }
+      ],
+      "primaryKey": "(insight_key, generated_at, ord)",
+      "foreignKeys": [
+        "(insight_key, generated_at) -> insights(insight_key, generated_at) on delete cascade"
+      ],
+      "indexes": [
+        "pk"
+      ],
+      "purpose": "Normalisation OPTIONNELLE des KPIs formatés pour requêter/trier (seuils, comparaison vs cible). Sinon le jsonb data_points sur insights suffit."
+    },
+    {
+      "name": "bilans",
+      "kind": "config",
+      "grain": "1 ligne = 1 débrief manager↔chatter (clé signal_key). Saisie manuelle (bilans.json).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "constraints": "pk default gen_random_uuid()"
+        },
+        {
+          "name": "signal_key",
+          "type": "text",
+          "constraints": "not null unique (= même clé que insight_states)"
+        },
+        {
+          "name": "signal_type",
+          "type": "text",
+          "constraints": "null (dérivé du préfixe)"
+        },
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "null (matché via alias)"
+        },
+        {
+          "name": "week_start",
+          "type": "date",
+          "constraints": "null (dérivé des clés week_plan_<date>)"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "null (date du débrief, manuel)"
+        },
+        {
+          "name": "duree",
+          "type": "bilan_duree",
+          "constraints": "null (enum 5min|15min|30min|1h+)"
+        },
+        {
+          "name": "etat",
+          "type": "bilan_etat",
+          "constraints": "null (enum motive|neutre|fatigue)"
+        },
+        {
+          "name": "resume",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "actions",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "objectifs",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "sanction",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "next_check",
+          "type": "date",
+          "constraints": "null ('' -> NULL)"
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "saved_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        },
+        {
+          "name": "saved_by",
+          "type": "uuid",
+          "constraints": "null"
+        }
+      ],
+      "primaryKey": "id",
+      "foreignKeys": [
+        "chatter_id -> chatters(id) on delete set null",
+        "saved_by -> profiles(id) on delete set null"
+      ],
+      "indexes": [
+        "unique(signal_key)",
+        "index(chatter_id)",
+        "index(date)",
+        "index(week_start)"
+      ],
+      "purpose": "Débriefs RH manuels (sensibles). signal_key = relation 1-1 logique avec insight_states (statut de la carte). Filtrer les données de test à l'import ; enums fermés duree/etat."
+    },
+    {
+      "name": "bilan_revisions",
+      "kind": "config",
+      "grain": "1 ligne = 1 version historique d'un bilan (issu de history[]).",
+      "columns": [
+        {
+          "name": "bilan_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "revision_no",
+          "type": "smallint",
+          "constraints": "not null (rang chrono par saved_at)"
+        },
+        {
+          "name": "date",
+          "type": "date",
+          "constraints": "null"
+        },
+        {
+          "name": "duree",
+          "type": "bilan_duree",
+          "constraints": "null"
+        },
+        {
+          "name": "etat",
+          "type": "bilan_etat",
+          "constraints": "null"
+        },
+        {
+          "name": "resume",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "actions",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "objectifs",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "sanction",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "next_check",
+          "type": "date",
+          "constraints": "null"
+        },
+        {
+          "name": "notes",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "saved_at",
+          "type": "timestamptz",
+          "constraints": "not null"
+        }
+      ],
+      "primaryKey": "(bilan_id, revision_no)",
+      "foreignKeys": [
+        "bilan_id -> bilans(id) on delete cascade"
+      ],
+      "indexes": [
+        "pk"
+      ],
+      "purpose": "Historique REQUÊTABLE des versions d'un bilan (audit/édition). Alternative : garder history jsonb sur bilans si l'audit n'a pas besoin d'être requêté."
+    },
+    {
+      "name": "profiles",
+      "kind": "config",
+      "grain": "1 ligne = 1 utilisateur applicatif (auth).",
+      "columns": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "constraints": "pk (= auth.users.id)"
+        },
+        {
+          "name": "role",
+          "type": "app_role",
+          "constraints": "not null default 'member' (admin|manager|member)"
+        },
+        {
+          "name": "display_name",
+          "type": "text",
+          "constraints": "null"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "id",
+      "foreignKeys": [
+        "id -> auth.users(id) on delete cascade"
+      ],
+      "indexes": [
+        "pk"
+      ],
+      "purpose": "RBAC ; base des politiques RLS. Inchangé."
+    },
+    {
+      "name": "profile_creators",
+      "kind": "config",
+      "grain": "1 ligne = (profil, modèle) — scope de visibilité.",
+      "columns": [
+        {
+          "name": "profile_id",
+          "type": "uuid",
+          "constraints": "not null"
+        },
+        {
+          "name": "creator_id",
+          "type": "uuid",
+          "constraints": "not null"
+        }
+      ],
+      "primaryKey": "(profile_id, creator_id)",
+      "foreignKeys": [
+        "profile_id -> profiles(id) on delete cascade",
+        "creator_id -> creators(id) on delete cascade"
+      ],
+      "indexes": [
+        "pk",
+        "index(creator_id)"
+      ],
+      "purpose": "Cloisonnement RLS par modèle (le plus fin). L'accès équipe se dérive (creators.team_id). Envisager profile_teams si le scope devient équipe (question ouverte)."
+    },
+    {
+      "name": "payroll_config",
+      "kind": "config",
+      "grain": "1 ligne = (scope, key) — paie clé/valeur admin-only.",
+      "columns": [
+        {
+          "name": "scope",
+          "type": "text",
+          "constraints": "not null"
+        },
+        {
+          "name": "key",
+          "type": "text",
+          "constraints": "not null"
+        },
+        {
+          "name": "value",
+          "type": "jsonb",
+          "constraints": "not null"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "constraints": "not null default now()"
+        }
+      ],
+      "primaryKey": "(scope, key)",
+      "foreignKeys": [],
+      "indexes": [
+        "pk"
+      ],
+      "purpose": "Paramètres de paie sensibles (admin-only via RLS). Placeholder compta ; la seule paie calculée reste com=ca*0.10 (en RPC, pas stockée)."
+    },
+    {
+      "name": "v_chatter_period",
+      "kind": "derive",
+      "grain": "VUE : (chatteur, période paramétrée) — remplace la table chatter_period_stats.",
+      "columns": [
+        {
+          "name": "chatter_id",
+          "type": "uuid",
+          "constraints": "dérivé"
+        },
+        {
+          "name": "ca / ca_ppv / ca_tips",
+          "type": "numeric",
+          "constraints": "Σ chatter_daily"
+        },
+        {
+          "name": "propose / vendu",
+          "type": "bigint",
+          "constraints": "Σ chatter_daily"
+        },
+        {
+          "name": "taux_conv",
+          "type": "numeric(6,2)",
+          "constraints": "100*Σvendu/Σpropose (non borné 100, non moyenné)"
+        },
+        {
+          "name": "presence_active_h / presence_idle_h",
+          "type": "numeric",
+          "constraints": "Σ chatter_daily"
+        },
+        {
+          "name": "idle_pct",
+          "type": "numeric(5,1)",
+          "constraints": "idle/(active+idle)*100"
+        },
+        {
+          "name": "reactivite_avg_sec",
+          "type": "numeric",
+          "constraints": "avg(reactivite_sec) ignore NULL"
+        },
+        {
+          "name": "com",
+          "type": "numeric(12,2)",
+          "constraints": "Σca*0.10"
+        },
+        {
+          "name": "active",
+          "type": "boolean",
+          "constraints": "Σca > 0"
+        }
+      ],
+      "primaryKey": "n/a (vue ; paramétrée par bornes via RPC fn_chatters_period)",
+      "foreignKeys": [],
+      "indexes": [
+        "n/a (matérialiser + index(chatter_id) seulement si perf leaderboard l'exige)"
+      ],
+      "purpose": "Remplace chatter_period_stats (table supprimée) : 100% dérivé de chatter_daily maintenant que présence/réactivité sont au jour. Aucune duplication ; taux_conv jamais stocké/moyenné."
+    }
+  ],
+  "calculations": [
+    {
+      "metric": "total_ca (CA global période)",
+      "sources": [
+        "creator_daily.ca"
+      ],
+      "formula": "Σ creator_daily.ca sur [p_start,p_end] (def. canonique = agrégat modèles) ; alternative Σ chatter_daily.ca des actifs — choisir UNE def.",
+      "where": "rpc"
+    },
+    {
+      "metric": "total_ca_prev (CA période précédente)",
+      "sources": [
+        "period_snapshot_kpi.total_ca_prev",
+        "chatter_daily.ca"
+      ],
+      "formula": "Lecture directe period_snapshot_kpi.total_ca_prev (figé, non recalculable) ; recomputable = Σ chatter_daily.ca sur la même plage J du mois-1 si l'historique jour existe. Surfacé via RPC.",
+      "where": "rpc"
+    },
+    {
+      "metric": "evolution mensuelle (MoM)",
+      "sources": [
+        "creator_daily.ca",
+        "period_snapshot_kpi.total_ca_prev"
+      ],
+      "formula": "(total_ca - total_ca_prev)/total_ca_prev*100, NULL si prev=0 ; numeric(7,2) borné -100 en bas, non borné en haut",
+      "where": "rpc"
+    },
+    {
+      "metric": "evolution hebdo (WoW)",
+      "sources": [
+        "chatter_daily.ca",
+        "period_snapshot_kpi.current_week_days"
+      ],
+      "formula": "ref_daily = ca_week/7 ; cw_daily = ca_current_week/current_week_days ; (cw_daily-ref_daily)/ref_daily*100",
+      "where": "rpc"
+    },
+    {
+      "metric": "perf_pct hebdo (vs moyenne mensuelle)",
+      "sources": [
+        "chatter_daily.ca"
+      ],
+      "formula": "(ca_week - ca_mois/4)/(ca_mois/4)*100 ; seuils carte -40/-20/+25",
+      "where": "rpc"
+    },
+    {
+      "metric": "actif / inactif",
+      "sources": [
+        "chatter_daily.ca"
+      ],
+      "formula": "active = (Σ chatter_daily.ca sur période) > 0 (strict, aucun seuil €)",
+      "where": "rpc"
+    },
+    {
+      "metric": "n_active / n_inactive",
+      "sources": [
+        "period_snapshot_kpi.n_active",
+        "chatter_daily.ca"
+      ],
+      "formula": "Lecture du snapshot (figé pour le header) ; recomputable = count(chatters où Σca>0) et total-n_active. Surfacé via RPC.",
+      "where": "rpc"
+    },
+    {
+      "metric": "com (commission / paie)",
+      "sources": [
+        "chatter_daily.ca"
+      ],
+      "formula": "round(Σ chatter_daily.ca * 0.10, 2) — JAMAIS stockée (dérivée). Seuil low_perf : com<200€",
+      "where": "rpc"
+    },
+    {
+      "metric": "taux_conv (taux de conversion)",
+      "sources": [
+        "chatter_daily.propose",
+        "chatter_daily.vendu"
+      ],
+      "formula": "100*Σvendu/Σpropose (recalcul pondéré) ; NE JAMAIS moyenner taux jour ; peut dépasser 100 (600 si propose=0)",
+      "where": "rpc"
+    },
+    {
+      "metric": "présence active/idle + pres_pct + idle_pct",
+      "sources": [
+        "chatter_daily.presence_active_h",
+        "chatter_daily.presence_idle_h"
+      ],
+      "formula": "pres_pct = Σactive_h/42*100 ; idle_pct = Σidle_h/(Σactive_h+Σidle_h)*100 ; days_worked = round(Σactive_h/7)",
+      "where": "vue"
+    },
+    {
+      "metric": "réactivité moyenne (SLA)",
+      "sources": [
+        "chatter_daily.reactivite_sec"
+      ],
+      "formula": "avg(reactivite_sec) en ignorant les NULL ('-') ; NE PAS convertir NULL en 0",
+      "where": "rpc"
+    },
+    {
+      "metric": "CA par heure active (productivité)",
+      "sources": [
+        "chatter_daily.ca",
+        "chatter_daily.presence_active_h"
+      ],
+      "formula": "Σca/NULLIF(Σactive_h,0) (garde division par zéro)",
+      "where": "rpc"
+    },
+    {
+      "metric": "quota compliance ok_days/7 + OK/KO + sévérité carte",
+      "sources": [
+        "chatter_daily",
+        "quotas",
+        "chatters.team_id"
+      ],
+      "formula": "par jour et par métrique [presence_h, reactivite_s, medias_proposes, conv_pct, ca] : higher-is-better OK si v>=quota ; reactivite OK si 0<v<=quota ; ok_days = count(jours OK) ; sévérité selon nb KO (0->opportunity,1->notable,2->warning,>=3->critical)",
+      "where": "rpc"
+    },
+    {
+      "metric": "team aggregates (total/ppv/tips/renew)",
+      "sources": [
+        "creator_daily",
+        "creators.team_id",
+        "creator_transfers"
+      ],
+      "formula": "Σ creator_daily.{ca,ca_ppv,ca_tips,ca_renew} group by team, en rattachant chaque jour de creator_daily à l'équipe VALIDE à cette date (creator_transfers)",
+      "where": "rpc"
+    },
+    {
+      "metric": "team active / planned / per",
+      "sources": [
+        "chatter_daily.ca",
+        "chatter_creators",
+        "creator_daily.ca"
+      ],
+      "formula": "active = count(chatters de l'équipe avec Σca>0) ; planned = count(chatter_creators actifs) ; per = round(team.total/active,2)",
+      "where": "rpc"
+    },
+    {
+      "metric": "abonnés (subs_active moyen / new_subs)",
+      "sources": [
+        "creator_daily.subs_active",
+        "creator_daily.new_subs"
+      ],
+      "formula": "subs_by_model = round(avg(NULLIF(subs_active,0)),1) ; new_subs = Σ new_subs (mois et semaine selon bornes)",
+      "where": "rpc"
+    },
+    {
+      "metric": "LTV par modèle",
+      "sources": [
+        "creator_daily.ca",
+        "creator_daily.new_subs"
+      ],
+      "formula": "round(Σca/NULLIF(Σnew_subs,0),2)",
+      "where": "rpc"
+    },
+    {
+      "metric": "Pareto concentration top 10%",
+      "sources": [
+        "chatter_daily.ca"
+      ],
+      "formula": "n_top10 = max(1,round(n_actifs*0.10)) ; pct_top10 = Σca(n_top10 meilleurs)/total_ca*100 ; alerte >45 / >60",
+      "where": "rpc"
+    },
+    {
+      "metric": "badge hebdo (gamification)",
+      "sources": [
+        "chatter_daily.ca",
+        "period_snapshot_kpi.current_week_days"
+      ],
+      "formula": "monthly_eq = round(ref_daily*30) ; >4000 Commandant / >=1900 Stratège / >=1000 Recrue / sinon Gobelin",
+      "where": "app"
+    },
+    {
+      "metric": "reach (fans/messages/mots) + taux proposition PPV",
+      "sources": [
+        "chatter_daily_reach"
+      ],
+      "formula": "Σ ou distinct fans_distincts ; messages/jour ; mots/message ; taux_proposition = Σppv_proposes/Σfans_distincts",
+      "where": "rpc"
+    },
+    {
+      "metric": "mix revenu PPV vs Tips vs Renew",
+      "sources": [
+        "chatter_daily",
+        "creator_daily"
+      ],
+      "formula": "part_ppv = Σca_ppv/Σca ; part_tips = Σca_tips/Σca ; renew_share = Σca_renew/Σca (niveau modèle)",
+      "where": "vue"
+    },
+    {
+      "metric": "réattribution CA selon transfert de modèle",
+      "sources": [
+        "creator_daily.ca",
+        "creator_transfers"
+      ],
+      "formula": "pour chaque jour, équipe = to_team si date>=transfer.date sinon from_team (dernier transfert <= date) ; empêche de créditer la mauvaise équipe",
+      "where": "vue"
+    },
+    {
+      "metric": "insight scope/target/chatter_id + age_days",
+      "sources": [
+        "insights.insight_key",
+        "insights.generated_at"
+      ],
+      "formula": "scope/team_id/chatter_id/chatter_email PARSÉS du slug+titre à l'ingestion (stockés) ; age_days = now()-generated_at (dérivé, non stocké)",
+      "where": "app"
+    },
+    {
+      "metric": "leaderboard chatteurs (période)",
+      "sources": [
+        "chatter_daily"
+      ],
+      "formula": "Σca group by chatter order by ca desc ; matérialiser si la charge de lecture l'exige, rafraîchir après ingestion",
+      "where": "vue_materialisee"
+    },
+    {
+      "metric": "missed_shifts",
+      "sources": [
+        "period_snapshot_kpi.max_missed_shifts"
+      ],
+      "formula": "NON dérivable (aucune source planning/shifts) ; placeholder 0 tant qu'un planning n'est pas fourni",
+      "where": "app"
+    }
+  ],
+  "migrationDelta": [
+    "0001 — Créer la dimension teams et DÉCONFLER team/modèle : nouvelle table teams(id,name unique,lead_name,active) ; ajouter creators.team_id -> teams(id) on delete set null ; ajouter creators.excluded_reason. Migrer les 13 valeurs actuelles (Carla, Sarah...) en teams, y rattacher les creators.",
+    "0001 — chatters : SUPPRIMER unique(name,email) (email a 1 NULL + 1 doublon, name instable) ; renommer creator_id -> team_id (-> teams) ; ajouter access_revoked, config_updated_at, display_name not null ; passer email en citext ; index unique partiel on lower(email) where email is not null ; à l'ingestion nettoyer la ligne name=email et dédoublonner safidyup@gmail.com.",
+    "0001 — NOUVELLE table chatter_alias(raw_label, raw_label_norm unique, chatter_id, source) : réconciliation d'identité (pseudo/email/casse/emoji/suffixe). Bloquant pour l'exactitude des agrégats.",
+    "0001 — NOUVELLE table chatter_creators(chatter_id, creator_id, role, active, is_manual) PK(chatter_id,creator_id) : multi-modèles (assigned[]>1) ; grain de perf (chatter,modèle).",
+    "0001 — chatter_daily : AJOUTER presence_active_h numeric(5,2), presence_idle_h numeric(5,2), reactivite_sec integer (les 3 sont au JOUR dans daily_ca.csv) ; AJOUTER check(ca=ca_ppv+ca_tips), check(reactivite_sec is null or >0), checks >=0 ; NE PAS ajouter check vendu<=propose ; AJOUTER index(date). Dédupliquer/SOMMER les sessions multiples (Safidy) avant upsert.",
+    "0001 — SUPPRIMER la table chatter_period_stats et la remplacer par la vue v_chatter_period (présence/réactivité désormais dérivables du jour) ; ne plus stocker taux_conv (recalcul SUM/SUM en RPC).",
+    "0001 — NOUVELLE table chatter_daily_reach(chatter_id,date,messages,mots,fans_distincts,ppv_proposes) depuis daily_fans_distincts.csv ; REVENIR sur la suppression de fans_distincts (réel dans le CSV, 0 seulement dans data.json). Dédupliquer Safidy 2026-05-29.",
+    "0001 — NOUVELLE table chatter_creator_daily(chatter_id,creator_id,date,ca,ca_ppv,ca_tips,propose,vendu) PK(chatter_id,creator_id,date) pour la ventilation multi-modèles ; nécessite d'activer un fetch money-team par créateur (sinon peupler au grain période).",
+    "0001 — creator_daily : AJOUTER ca_ppv, ca_tips, ca_renew numeric(12,2) (breakdown journalier de dashboard/stats) ; checks >=0 ; ca (total) >= ppv+tips+renew (pas d'égalité stricte, composante 'autres').",
+    "0001 — NOUVELLE table period_snapshot_kpi(last_update PK, bornes period/prev/week/current_week, current_week_days, period_days, total_ca, total_ca_prev, n_active, n_inactive, max_missed_shifts, source, sheet_used) ; total_ca_prev NON recalculable.",
+    "0001 — quotas : re-clé de creator_id VERS team_id -> teams(id) on delete cascade ; ajouter checks (presence_h>0, reactivite_s>0, conv_pct 0..100, ca_eur>=0) ; ajouter updated_by.",
+    "0001 — REMPLACER transfers(chatter_id PK) par creator_transfers(creator_id, date, from_team_id, to_team_id, created_by) PK(creator_id,date) : déplacement de MODÈLE historisable, check(from<>to), index(to_team_id),(from_team_id).",
+    "0001 — insights : PK -> (insight_key, generated_at) pour historiser ; AJOUTER team_id, chatter_id, chatter_email, period (enum insight_period month|week), snapshot_id -> period_snapshot_kpi ; scope/target matérialisés à l'ingestion ; enum insight_scope : retirer 'day' (jamais produit) ; index(insight_key),(chatter_id),(generated_at).",
+    "0001 — insight_states : PK -> (insight_key, period) (un slug peut exister month ET week) ; ajouter snoozed_until, note ; ancrer sur le slug, pas sur le insight_pk versionné.",
+    "0001 — NOUVEAUX enums : insight_period('month','week') ; bilan_duree('5min','15min','30min','1h+') ; bilan_etat('motive','neutre','fatigue'). bilans : ajouter signal_key unique, signal_type, week_start, chatter_id (matché via alias), typer duree/etat ; NOUVELLE table optionnelle bilan_revisions(bilan_id, revision_no, ...) pour l'historique requêtable.",
+    "0001 — NOUVELLE table optionnelle insight_data_points(insight_key,generated_at,ord,label,is_meta,status,value_raw,value_num) FK cascade vers insights ; sinon conserver data_points jsonb.",
+    "0001 — Activer l'extension citext (chatters.email, insights.chatter_email).",
+    "0002 (RLS) — Étendre les policies aux nouvelles tables (chatter_daily_reach, chatter_creator_daily, chatter_alias, chatter_creators, teams, creator_transfers, period_snapshot_kpi, bilan_revisions, insight_data_points) ; quotas_read/write re-basé sur team_id ; garder l'ingestion en service-role (bypass) et les utilisateurs en lecture faits/insights + écriture état éditable.",
+    "0003 (functions) — fn_chatters_period : AJOUTER presence_active_h, presence_idle_h, idle_pct, reactivite_avg_sec, com, active (jointure chatter_daily) ; fn_creators_period : AJOUTER ca_ppv, ca_tips, ca_renew, mix ; NOUVELLES : fn_teams_period (rollup équipe + transferts), fn_quota_compliance(team,week_start) (ok_days/7 au jour), fn_pareto(period), fn_evolution(period) ; toutes en SECURITY INVOKER."
+  ],
+  "openQuestions": [
+    "Hiérarchie team vs modèle : valider le split teams (lead) 1-N creators (modèle OF). Les données actuelles sont ~1:1 (13 équipes = 13 modèles) mais CREATOR_TO_TEAM, SECONDARY_TO_PRIMARY et les transferts (Tagwalker/DIX/Kira) impliquent N modèles/équipe. Confirmer la profondeur (sinon on garde la conflation actuelle creators=team).",
+    "Définition canonique de total_ca : Σ creator_daily.ca (dashboard/stats) OU Σ chatter_daily.ca des actifs ? Les deux divergent (modèles sans dataset vs scraping). Trancher LA définition officielle affichée et documenter.",
+    "Source du grain (chatter,modèle,jour) : active-t-on un fetch money-team PAR créateur/jour (pour peupler chatter_creator_daily au JOUR) ou reste-t-on au grain période pour la ventilation multi-modèles ? Impacte le kind de la table et l'ingestion.",
+    "Clé d'identité canonique du chatteur : mypuls_user_id (API) ou email ? Certains chatteurs n'ont pas d'email (Alberic) et l'API ne couvre pas tout le monde. Définir la priorité de résolution et le fallback.",
+    "total_ca_prev : recomputer depuis chatter_daily (on a ~95 jours d'historique 03-01->06-03) OU faire confiance au chiffre figé du snapshot (same-period-prev MyPuls) ? Ils peuvent différer selon le set de chatteurs.",
+    "Portée RLS : cloisonnement par MODÈLE (profile_creators, existant) ou par ÉQUIPE (un manager gère toute son équipe) ? Si équipe, ajouter profile_teams et réécrire current_allowed_creator.",
+    "Unité de présence : stocker en heures numeric(5,2) (fidèle au CSV 11.38h) — retenu — vs minutes/secondes integer (l'ancien schéma utilisait *_min integer, non-entier pour 11.38h). Confirmer h pour éviter la perte de précision.",
+    "Redondance propose : chatter_daily.propose (daily_ca) et chatter_daily_reach.ppv_proposes (daily_fans) mesurent-ils la même chose ? Si oui, laquelle fait foi pour le taux de conversion ?",
+    "renew : ca (total) modèle inclut-il renew, ou renew est-il hors ca ? Le delta team.total != ppv+tips (~1828€ Carla) suggère 'autres' (subs/renew). Confirmer pour poser (ou non) un CHECK ca >= ppv+tips+renew.",
+    "Historisation des insights : conserver toutes les générations (PK insight_key+generated_at) pour l'audit/age, ou garder seulement la dernière (upsert) ? Coût de stockage vs traçabilité.",
+    "Devise : EUR ou USD ? numeric(12,2) suffit techniquement mais l'affichage/labels et l'agrégation multi-comptes en dépendent.",
+    "missed_shifts : existe-t-il une source de planning/shifts assignés pour le calculer, ou reste-t-il un placeholder 0 (max_missed_shifts figé dans le snapshot) ?",
+    "Matching bilans->chatter : accepter le fuzzy-match (slug minuscule/emoji/email) vers chatter_id via chatter_alias, ou conserver uniquement signal_key et résoudre le chatteur à l'affichage ? Impacte les index et la fiabilité RH.",
+    "Normalisation de category (insights) et statut : figer un référentiel category (quota/Quotas critiques/Quotas insuffisants -> une valeur) ; et l'enum insight_status côté app (resolved/in_progress/ignored/kept) vs dictionnaire (unread/read/dismissed/snoozed/done) — choisir un seul vocabulaire.",
+    "Leaderboard : vue simple (RPC) suffisante ou vue matérialisée rafraîchie après chaque ingestion (perf de lecture dashboard) ? Décider du seuil de volumétrie qui justifie la matview."
+  ]
+}
