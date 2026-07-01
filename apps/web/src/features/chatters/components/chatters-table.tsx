@@ -42,6 +42,29 @@ const eur = (n: number) =>
 const pct = (n: number) =>
   `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 
+// Couleur déterministe par modèle (même modèle => même couleur).
+const MODEL_COLORS = [
+  'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900',
+  'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900',
+  'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/50 dark:text-violet-300 dark:border-violet-900',
+  'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900',
+  'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-900',
+  'bg-teal-100 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-900',
+  'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-900',
+  'bg-pink-100 text-pink-700 border-pink-200 dark:bg-pink-950/50 dark:text-pink-300 dark:border-pink-900',
+  'bg-cyan-100 text-cyan-700 border-cyan-200 dark:bg-cyan-950/50 dark:text-cyan-300 dark:border-cyan-900',
+  'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-900',
+]
+function modelColor(name: string) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return MODEL_COLORS[h % MODEL_COLORS.length]
+}
+const STATUS_ACTIVE =
+  'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900'
+const STATUS_GHOST =
+  'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800/60 dark:text-zinc-400 dark:border-zinc-700'
+
 const canExpand = (c: ChatterRow) => c.nbModels > 0 || c.caUnattributed > 0
 const alignClass = (a?: 'right' | 'center') =>
   a === 'right' ? 'text-right' : a === 'center' ? 'text-center' : ''
@@ -105,7 +128,7 @@ const columns: ColumnDef<ChatterRow>[] = [
       return (
         <div className="flex flex-wrap gap-1">
           {shown.map((n) => (
-            <Badge key={n} variant="outline" className="font-normal">
+            <Badge key={n} variant="outline" className={cn('font-normal', modelColor(n))}>
               {n}
             </Badge>
           ))}
@@ -186,7 +209,10 @@ const columns: ColumnDef<ChatterRow>[] = [
     accessorKey: 'active',
     header: 'Statut',
     cell: ({ getValue }) => (
-      <Badge variant={(getValue() as boolean) ? 'secondary' : 'outline'}>
+      <Badge
+        variant="outline"
+        className={cn('font-medium', (getValue() as boolean) ? STATUS_ACTIVE : STATUS_GHOST)}
+      >
         {(getValue() as boolean) ? 'Actif' : 'Fantôme'}
       </Badge>
     ),
@@ -260,7 +286,11 @@ export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
                       key={`${row.id}:${m.model}`}
                       className="bg-muted/30 hover:bg-muted/30"
                     >
-                      <TableCell className="pl-8 text-muted-foreground">{m.model}</TableCell>
+                      <TableCell className="pl-8">
+                        <Badge variant="outline" className={cn('font-normal', modelColor(m.model))}>
+                          {m.model}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">—</TableCell>
                       <TableCell className="text-right tabular-nums">{eur(m.ca)}</TableCell>
                       <TableCell className="text-right text-muted-foreground">—</TableCell>
