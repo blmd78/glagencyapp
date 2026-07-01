@@ -520,6 +520,14 @@ Contexte : la page Analyse affiche **une carte par manager** avec la **liste de 
 - **Ligne du chatteur dans une carte manager** : le chatteur apparaît sous son **équipe de référence** (celle de **fin de période**) avec un **flag `team_changed_in_period`** → badge « changement d'équipe cette semaine ». On **ne ventile pas** la ligne entre deux managers.
 - **Prérequis de modèle** : **affectations chatteur↔équipe datées** (`from_date`/`to_date`) — nouvelle notion (table `chatter_team_assignments` ou dates sur `chatter_creators`) pour (a) résoudre l'équipe-du-jour et (b) **détecter le changement** afin de poser le flag automatiquement. À intégrer dans `fn_teams_period`.
 
+### Périmètre du CA — comptes privés/secondaires : ON GARDE TOUT
+**Décision** : **inclure** les comptes que l'ancien dashboard excluait (`carlaprive`, `juliepvv`, `alice_prvv` = les comptes privés/VIP de Carla, Julie, Alice). On les **stocke et on les compte**, avec un **flag `is_private`** sur `creators` pour pouvoir les filtrer **en option** — au lieu de les supprimer.
+- **Conséquence** : le **total compte** = exactement celui de MyPuls (**258 853,45 € pour juin**). Les chiffres collent partout.
+- L'ancien `excluded_accounts.json` devient un **flag**, jamais une suppression de donnée.
+- **Cible de réconciliation** : total compte juin = **258 853,45 €** (à confirmer au 1er vrai scrape, exclusions OFF ; impossible à reproduire depuis le `data.json` actuel car ces 3 comptes y sont déjà retirés).
+- **3 périmètres documentés, tous stockés** (chiffres justes = on sait lequel on affiche) :
+  `258 853 €` tous comptes (= MyPuls) ⊇ `255 338 €` hors privés ⊇ `252 856 €` attribué chatteurs. L'écart attribué↔compte = revenu **non-messagerie** (renew, media on-demand/push) — normal, non imputable à un chatteur.
+
 ## Questions ouvertes (détail technique)
 
 1. Hiérarchie team vs modèle : valider le split teams (lead) 1-N creators (modèle OF). Les données actuelles sont ~1:1 (13 équipes = 13 modèles) mais CREATOR_TO_TEAM, SECONDARY_TO_PRIMARY et les transferts (Tagwalker/DIX/Kira) impliquent N modèles/équipe. Confirmer la profondeur (sinon on garde la conflation actuelle creators=team).
