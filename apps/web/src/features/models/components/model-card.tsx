@@ -35,36 +35,45 @@ export function ModelCard({ model }: { model: ModelRow }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-          <Stat label="PPV" value={eur(model.ppv)} />
-          <Stat label="Tips" value={eur(model.tips)} />
-          <Stat label="Renew" value={eur(model.renew)} />
-        </div>
-
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>
-            {model.active} actifs / {model.planned} assignés
-          </span>
-          <span>{eur(model.per)} / chatteur</span>
-        </div>
+        {model.isPrivate ? (
+          <div className="text-xs text-muted-foreground">
+            Compte privé — détail par chatteur indisponible (hors scrape actuel).
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <Stat label="PPV" value={eur(model.ppv)} />
+              <Stat label="Tips" value={eur(model.tips)} />
+              <Stat label="Renew" value={eur(model.renew)} />
+            </div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {model.active} actifs / {model.planned} assignés
+              </span>
+              <span>{eur(model.per)} / chatteur</span>
+            </div>
+          </>
+        )}
       </CardHeader>
 
-      <CardContent className="px-0 pb-0">
-        <div className="max-h-64 divide-y overflow-y-auto border-t">
-          {model.chatters.map((c) => (
-            <div
-              key={c.name}
-              className="flex items-center justify-between gap-2 px-4 py-1.5 text-sm"
-            >
-              <span className="truncate">{c.name}</span>
-              <span className="flex shrink-0 items-center gap-3 tabular-nums">
-                <span className="text-xs text-muted-foreground">{pct(c.tauxConv)}</span>
-                <span className="w-20 text-right font-medium">{eur(c.ca)}</span>
-              </span>
-            </div>
-          ))}
-        </div>
-      </CardContent>
+      {!model.isPrivate && (
+        <CardContent className="px-0 pb-0">
+          <div className="max-h-64 divide-y overflow-y-auto border-t">
+            {model.chatters.map((c) => (
+              <div
+                key={c.name}
+                className="flex items-center justify-between gap-2 px-4 py-1.5 text-sm"
+              >
+                <span className="truncate">{c.name}</span>
+                <span className="flex shrink-0 items-center gap-3 tabular-nums">
+                  <span className="text-xs text-muted-foreground">{pct(c.tauxConv)}</span>
+                  <span className="w-20 text-right font-medium">{eur(c.ca)}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      )}
     </Card>
   )
 }

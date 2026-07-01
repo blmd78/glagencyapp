@@ -25,6 +25,8 @@ export interface ModelRow {
   per: number
   nbChatters: number
   chatters: ModelChatter[]
+  /** Compte privé (carlaprive/juliepvv/alice_prvv) : total connu, détail chatteur indisponible. */
+  isPrivate: boolean
 }
 
 export interface ModelsData {
