@@ -558,6 +558,14 @@ MyPuls expose une **API REST officielle documentée** (OpenAPI/NelmioApiDocBundl
 - **L'API = source de vérité des totaux** → **garde-fou** : Σ(chatteurs scrapés) doit coller au total compte API (PPV 142 672,88 / Tips 113 325,29). Chiffres bons partout, mécaniquement vérifiés.
 - **Identité** : `/users.user_id` stable pour le roster, mais **l'email est la clé de jointure canonique** entre endpoints (les user_id ne concordent pas d'un endpoint à l'autre) → `chatter_alias`/email restent nécessaires.
 
+### Spike recalcul d'attribution 100 % API (2026-07-01) — chiffres OK, identité = verrou
+Testé sur **Sarah (creator 221)**, PPV juin, recalcul **100 % API** (transactions `team/money` réelles attribuées via `message_id → sender_user_id` des `team/messages`) **vs data.json** (vérité MyPuls scrapée) :
+- **Montants reproductibles** ✅ : join `message_id` à **98 %** (666/681 tx), Σ API 12 793 € ≈ « Média privé » 13 105 € (−2,4 %), et **matchs au centime** dès que l'identité s'aligne (`ntcharlette` 181,82=181,82 ; `lucasnyaina` 996,37=996,37 ; `aholouakoele` 4954 vs 4887 = +1,4 %).
+- **Verrou = IDENTITÉ** ⚠️ : le `sender_user_id` des messages est un **ID opaque** (le message ne porte **ni email ni nom**), dans un espace qui **ne concorde ni avec `/users` ni avec `messages/stats`** (89/681 non résolus). data.json a aussi son bazar (« Josias » = josiasbossou52@gmail.com). ⇒ les bons montants tombent sur le **mauvais chatteur** tant que l'identité n'est pas résolue.
+- **Tips** : portent aussi un `message_id` → même mécanisme (reste à valider). **Présence/réactivité** : hors API (réactivité dérivable des timestamps de `team/messages`).
+
+**Conséquence stratégie** : le **100 % API est atteignable** (chiffres prouvés), mais exige (1) une **résolution d'identité robuste** `sender_user_id → chatteur canonique` (= le gros du travail, c'est `chatter_alias`), (2) valider les tips, (3) dériver la réactivité. **Cutover SÛR** : construire le recalcul API en gardant le scrape `money-team` comme **oracle de validation** ; ne couper le scrape que quand le recalcul **matche une période complète** (tous modèles, PPV+tips, identité résolue). → objectif « plus de scrape » atteint **sans jamais risquer un chiffre faux**.
+
 ## Questions ouvertes (détail technique)
 
 1. Hiérarchie team vs modèle : valider le split teams (lead) 1-N creators (modèle OF). Les données actuelles sont ~1:1 (13 équipes = 13 modèles) mais CREATOR_TO_TEAM, SECONDARY_TO_PRIMARY et les transferts (Tagwalker/DIX/Kira) impliquent N modèles/équipe. Confirmer la profondeur (sinon on garde la conflation actuelle creators=team).
