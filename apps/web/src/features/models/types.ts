@@ -13,7 +13,20 @@ export interface ModelChatter {
 export interface ModelRow {
   id: string
   name: string
+  /** CA total du compte (tous types) — colonne autoritaire (= MyPuls). */
   total: number
+  /** Nouveaux abonnés sur la période. */
+  newSubs: number
+  /** Renouvellements (nombre). */
+  renouv: number
+  /** Ventes (PPV+MOD+PUSH+TIPS, nombre). */
+  ventes: number
+  /** CA messagerie+médias (PPV+MOD+PUSH+TIPS). */
+  caMsg: number
+  /** LTV / nouvel abonné. */
+  ltv: number
+  /** Part du CA total (%). */
+  part: number
   ppv: number
   tips: number
   renew: number

@@ -1,8 +1,8 @@
-import { ModelCard } from './components/model-card'
+import { ModelsTable } from './components/models-table'
 import { RevenueScopeNote } from '@/components/revenue-scope-note'
 import type { ModelsData } from './types'
 
-/** Template Modèles : grille de cartes par modèle. Aucun fetch. */
+/** Template Modèles : table façon « Comparatif modèles ». Aucun fetch. */
 export function ModelsTemplate({ data }: { data: ModelsData }) {
   const priv = data.models.filter((m) => m.isPrivate).length
 
@@ -17,11 +17,7 @@ export function ModelsTemplate({ data }: { data: ModelsData }) {
 
       <RevenueScopeNote active="allAccounts" />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {data.models.map((m) => (
-          <ModelCard key={m.id} model={m} />
-        ))}
-      </div>
+      <ModelsTable models={data.models} />
     </div>
   )
 }
