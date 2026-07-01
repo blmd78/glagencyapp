@@ -510,6 +510,16 @@ _Bloquantes pour figer certaines policies/définitions, mais **pas** pour constr
 18. 0002 (RLS) — Étendre les policies aux nouvelles tables (chatter_daily_reach, chatter_creator_daily, chatter_alias, chatter_creators, teams, creator_transfers, period_snapshot_kpi, bilan_revisions, insight_data_points) ; quotas_read/write re-basé sur team_id ; garder l'ingestion en service-role (bypass) et les utilisateurs en lecture faits/insights + écriture état éditable.
 19. 0003 (functions) — fn_chatters_period : AJOUTER presence_active_h, presence_idle_h, idle_pct, reactivite_avg_sec, com, active (jointure chatter_daily) ; fn_creators_period : AJOUTER ca_ppv, ca_tips, ca_renew, mix ; NOUVELLES : fn_teams_period (rollup équipe + transferts), fn_quota_compliance(team,week_start) (ok_days/7 au jour), fn_pareto(period), fn_evolution(period) ; toutes en SECURITY INVOKER.
 
+## Décisions validées (avec le gérant de projet)
+
+### Changement d'équipe d'un chatteur en cours de période — page « Analyse » (cartes par manager)
+Contexte : la page Analyse affiche **une carte par manager** avec la **liste de ses chatteurs** + les chiffres agrégés. Un chatteur peut **changer d'équipe en cours de semaine** → l'attribution des chiffres est ambiguë.
+
+**Décision (gérant)** : ne PAS chercher à ventiler parfaitement la ligne du chatteur ; **juste l'indiquer**.
+- **Agrégats d'équipe (totaux de la carte)** : attribués au **grain JOUR** → chaque jour compte pour l'équipe **de ce jour-là**. Totaux justes, **aucun double comptage** (résolu gratuitement par le grain jour).
+- **Ligne du chatteur dans une carte manager** : le chatteur apparaît sous son **équipe de référence** (celle de **fin de période**) avec un **flag `team_changed_in_period`** → badge « changement d'équipe cette semaine ». On **ne ventile pas** la ligne entre deux managers.
+- **Prérequis de modèle** : **affectations chatteur↔équipe datées** (`from_date`/`to_date`) — nouvelle notion (table `chatter_team_assignments` ou dates sur `chatter_creators`) pour (a) résoudre l'équipe-du-jour et (b) **détecter le changement** afin de poser le flag automatiquement. À intégrer dans `fn_teams_period`.
+
 ## Questions ouvertes (détail technique)
 
 1. Hiérarchie team vs modèle : valider le split teams (lead) 1-N creators (modèle OF). Les données actuelles sont ~1:1 (13 équipes = 13 modèles) mais CREATOR_TO_TEAM, SECONDARY_TO_PRIMARY et les transferts (Tagwalker/DIX/Kira) impliquent N modèles/équipe. Confirmer la profondeur (sinon on garde la conflation actuelle creators=team).
