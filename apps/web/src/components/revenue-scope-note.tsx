@@ -5,28 +5,29 @@ const eur = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits:
 
 /**
  * Périmètres emboîtés du CA de juin — mêmes chiffres sur chaque onglet (cohérence garantie).
- * `attributed` = total onglet Chatteurs ; `allAccounts` = total onglet Modèles (= MyPuls).
+ * `attributed` = total onglet Chatteurs (money-team, PPV+Tips attribués à un chatteur).
+ * `messaging`  = messagerie tous comptes (API by_type : Média privé + Pourboires).
+ * `allAccounts`= total onglet Modèles = total MyPuls (tous types, tous comptes).
  * ⚠️ Constantes de référence tant que la base n'est pas alimentée ; à dériver du scrape en SQL.
  */
 export const REVENUE_SCOPE = {
-  attributed: 252856, // Σ CA attribué chatteurs (messagerie PPV+Tips)
-  allAccounts: 258853, // total tous comptes MyPuls (= page « Comparatif modèles », privés inclus)
+  attributed: 252856,
+  messaging: 255998,
+  allAccounts: 258853,
 } as const
-
-/** CA des 3 comptes privés (Alice/Carla/Julie privés) — inclus dans allAccounts, hors messagerie chatteur. */
-const PRIVATE_ACCOUNTS = 3424
 
 type ScopeKey = keyof typeof REVENUE_SCOPE
 
 const SCOPES: { key: ScopeKey; label: string }[] = [
   { key: 'attributed', label: 'Attribué chatteurs' },
-  { key: 'allAccounts', label: 'Total tous comptes (MyPuls)' },
+  { key: 'messaging', label: 'Messagerie tous comptes' },
+  { key: 'allAccounts', label: 'Total MyPuls' },
 ]
 
 /** Bandeau de réconciliation de périmètre. `active` met en avant le total de l'onglet courant. */
 export function RevenueScopeNote({ active }: { active: ScopeKey }) {
-  const gap = REVENUE_SCOPE.allAccounts - REVENUE_SCOPE.attributed
-  const nonMessaging = gap - PRIVATE_ACCOUNTS
+  const notAttributed = REVENUE_SCOPE.messaging - REVENUE_SCOPE.attributed
+  const offMessaging = REVENUE_SCOPE.allAccounts - REVENUE_SCOPE.messaging
 
   return (
     <div className="rounded-xl border bg-muted/30 p-4">
@@ -58,12 +59,12 @@ export function RevenueScopeNote({ active }: { active: ScopeKey }) {
           </Fragment>
         ))}
       </div>
-      <p className="mt-2.5 text-xs text-muted-foreground">
-        Écart {eur(gap)} (pas une erreur) :{' '}
-        <b className="text-foreground">+{eur(PRIVATE_ACCOUNTS)}</b> comptes privés
-        (Alice/Carla/Julie privés) ·{' '}
-        <b className="text-foreground">+{eur(nonMessaging)}</b> revenus hors messagerie (renew,
-        médias on-demand/push, non imputables à un chatteur).
+      <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+        Écart {eur(REVENUE_SCOPE.allAccounts - REVENUE_SCOPE.attributed)} (pas une erreur) :{' '}
+        <b className="text-foreground">+{eur(notAttributed)}</b> messagerie non attribuée à un
+        chatteur (comptes privés + rattachement) ·{' '}
+        <b className="text-foreground">+{eur(offMessaging)}</b> hors messagerie (Médias push,
+        Media On Demand, Renouvellement abo.).
       </p>
     </div>
   )
