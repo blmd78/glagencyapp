@@ -1,15 +1,21 @@
-// Template de la feature « chatters » — reçoit les données en props et appelle les composants.
-// Convention archi-web : AUCUN fetch ici (la récup se fait dans app/(dash)/chatters/page.tsx).
+import { ChattersTable } from './components/chatters-table'
+import type { ChattersData } from './types'
 
-export interface ChattersTemplateProps {
-  data?: unknown // TODO: typer (cf. ./types)
-}
+/** Template Chatteurs : compose la table à partir des données reçues. Aucun fetch. */
+export function ChattersTemplate({ data }: { data: ChattersData }) {
+  const totalCa = data.chatters.reduce((sum, c) => sum + c.ca, 0)
+  const active = data.chatters.filter((c) => c.active).length
 
-export function ChattersTemplate({ data: _data }: ChattersTemplateProps = {}) {
   return (
-    <section className="space-y-2">
-      <h1 className="text-xl font-semibold">Chatters</h1>
-      <p className="text-sm text-muted-foreground">TODO — feature « chatters »</p>
-    </section>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Chatteurs</h1>
+        <p className="text-sm text-muted-foreground">
+          {data.period} · {data.chatters.length} chatteurs ({active} actifs) · CA
+          total {totalCa.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+        </p>
+      </div>
+      <ChattersTable chatters={data.chatters} />
+    </div>
   )
 }
