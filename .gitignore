@@ -30,3 +30,7 @@ coverage/
 
 # Fixtures de données locales (business sensible) — remplacées par Supabase
 apps/web/src/features/**/_data/
+
+# Ingestion : dumps bruts + logs (données business)
+apps/ingestion/raw/
+apps/ingestion/logs/
