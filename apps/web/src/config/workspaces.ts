@@ -41,7 +41,7 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/overview', label: 'Overview', icon: LayoutDashboard },
       { href: '/chatter/insights', label: 'Insights', icon: Lightbulb },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare },
-      { href: '/chatter/teams', label: 'Équipes', icon: Users },
+      { href: '/chatter/modeles', label: 'Modèles', icon: Users },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse },
       { href: '/chatter/quotas', label: 'Quotas', icon: Target },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator },

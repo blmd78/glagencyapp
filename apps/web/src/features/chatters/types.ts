@@ -40,6 +40,8 @@ export interface ChatterRow {
   /** CA non rattaché à un modèle (identité à résoudre) — 0 si tout est ventilé. */
   caUnattributed: number
   models: ChatterModel[]
+  /** Modèles assignés (API /users) = le "modele_id" ; peut différer de `models` (= où il a fait du CA). */
+  assignedModels: string[]
 }
 
 export interface ChattersData {
