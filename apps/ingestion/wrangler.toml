@@ -24,4 +24,5 @@ cpu_ms = 300000
 #   wrangler secret put MYPULS_EMAIL
 #   wrangler secret put MYPULS_PASSWORD
 #   wrangler secret put MYPULS_API_KEY
+#   wrangler secret put TRIGGER_TOKEN   # optionnel : autorise le déclenchement manuel par HTTP
 # NE PAS mettre DATABASE_URL (inutile au Worker : supabase-js parle en REST via SUPABASE_URL).

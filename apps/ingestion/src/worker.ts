@@ -9,8 +9,11 @@ import { runPipeline } from './pipeline'
  *
  * Secrets : injectés en bindings via `wrangler secret put` (jamais dans le repo). Le code
  * métier lit `process.env` (createAdminClient, login) → on recopie les bindings dans
- * `process.env` au démarrage du handler. `fetch()` permet un déclenchement manuel pour
- * tester après déploiement (`wrangler dev --test-scheduled` ou un GET sur l'URL du Worker).
+ * `process.env` au démarrage du handler. `fetch()` permet un déclenchement manuel APRÈS
+ * déploiement, protégé par le secret TRIGGER_TOKEN (`Authorization: Bearer <token>`) —
+ * l'URL workers.dev est publique, sans garde un simple crawler lancerait une ingestion en
+ * pleine journée (données partielles). Sans TRIGGER_TOKEN posé → toujours 403.
+ * En local, `wrangler dev --test-scheduled` passe par /__scheduled (pas par fetch).
  */
 type Bindings = Record<string, string | undefined>
 type Ctx = { waitUntil(promise: Promise<unknown>): void }
@@ -32,9 +35,19 @@ export default {
     )
   },
 
-  async fetch(_req: unknown, env: Bindings, ctx: Ctx): Promise<Response> {
+  async fetch(req: Request, env: Bindings, ctx: Ctx): Promise<Response> {
+    const token = env.TRIGGER_TOKEN
+    const auth = req.headers.get('authorization')
+    if (!token || auth !== `Bearer ${token}`) {
+      return new Response('forbidden\n', { status: 403 })
+    }
     bindEnv(env)
-    ctx.waitUntil(runPipeline())
+    ctx.waitUntil(
+      runPipeline().then(
+        () => console.log('[ingestion] OK (trigger manuel)'),
+        (err: unknown) => console.error('[ingestion] ÉCHEC (trigger manuel)', err),
+      ),
+    )
     return new Response('pipeline déclenché\n')
   },
 }

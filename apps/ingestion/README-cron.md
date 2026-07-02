@@ -34,17 +34,21 @@ pnpm exec wrangler secret put SUPABASE_SECRET_KEY   # clé service-role (BYPASS 
 pnpm exec wrangler secret put MYPULS_EMAIL
 pnpm exec wrangler secret put MYPULS_PASSWORD
 pnpm exec wrangler secret put MYPULS_API_KEY
+pnpm exec wrangler secret put TRIGGER_TOKEN         # optionnel : autorise le déclenchement HTTP
 # NE PAS mettre DATABASE_URL (inutile : supabase-js parle en REST via SUPABASE_URL).
 
 # 3) Déployer (esbuild bundle les @glagency/* en TS + cheerio, pas besoin de tsx)
-pnpm deploy
+pnpm run deploy        # ⚠️ « run » obligatoire : `pnpm deploy` seul = commande interne pnpm
 
 # 4) Tester sans attendre le cron
 #    - en local : simule le déclenchement scheduled
 pnpm cf:dev            # puis, dans un autre terminal : curl "http://localhost:8799/__scheduled"
-#    - en prod : un GET sur l'URL du Worker déclenche runPipeline (handler fetch)
+#    - en prod : GET sur l'URL du Worker avec `Authorization: Bearer $TRIGGER_TOKEN`
+#      (sans TRIGGER_TOKEN posé → 403 systématique : l'URL workers.dev est publique,
+#       un déclenchement anonyme en journée créerait des données partielles)
 #    - suivre les logs en direct :
 pnpm exec wrangler tail
+# ⚠️ tout déclenchement manuel = VRAIE ingestion → à faire en soirée uniquement.
 ```
 
 Le Cron Trigger (`wrangler.toml` → `[triggers] crons = ["59 23 * * *"]`, **UTC**) tourne 24/7,
