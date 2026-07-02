@@ -2,15 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
 import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
-const round1 = (n: number) => Math.round(n * 10) / 10
-const round2 = (n: number) => Math.round(n * 100) / 100
-const conv = (v: number, p: number) => (p ? round1((v / p) * 100) : 0)
+import { conv, round2 } from '@/lib/format'
 
 /**
  * Onglet Modèles agrégé sur la période (datepicker du header).
- * Source : `creator_daily` (CA/PPV/tips/renew/abonnés) + `chatter_creator_daily`
- * (détail par chatteur) + `chatter_creators` (chatteurs assignés).
- * ⚠️ `renouv` (nombre de renouvellements) n'existe pas au grain jour → 0 pour l'instant.
+ * Source : `creator_daily` (CA/PPV/tips/renew/abonnés/renouvellements) +
+ * `chatter_creator_daily` (détail par chatteur) + `chatter_creators` (chatteurs assignés).
  */
 export async function getModels(period: Period): Promise<ModelsData> {
   const supabase = await createClient()

@@ -1,7 +1,6 @@
 import { Fragment } from 'react'
 import { cn } from '@/lib/utils'
-
-const eur = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
+import { eur } from '@/lib/format'
 
 /**
  * Périmètres emboîtés du CA sur la période sélectionnée (calculés en base, pas de constante).

@@ -8,12 +8,8 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
+import { eur, pct } from '@/lib/format'
 import type { ChatterRow } from '../types'
-
-const eur = (n: number) =>
-  `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
-const pct = (n: number) =>
-  `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 
 const STATUS_ACTIVE =
   'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900'

@@ -16,6 +16,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { type Workspace, workspaceHome } from '@/config/workspaces'
+import { withPeriod } from '@/lib/nav'
 
 /** Switcher de face (Chatteurs / Marketing) en tête de sidebar — façon team-switcher. */
 export function WorkspaceSwitcher({
@@ -31,15 +32,7 @@ export function WorkspaceSwitcher({
   const ActiveIcon = active.icon
 
   // Conserve la période du header (`?from&to`) en changeant de face.
-  const goTo = (w: Workspace) => {
-    const period = new URLSearchParams()
-    for (const key of ['from', 'to'] as const) {
-      const v = searchParams.get(key)
-      if (v) period.set(key, v)
-    }
-    const qs = period.toString()
-    router.push(qs ? `${workspaceHome(w)}?${qs}` : workspaceHome(w))
-  }
+  const goTo = (w: Workspace) => router.push(withPeriod(workspaceHome(w), searchParams))
 
   return (
     <SidebarMenu>

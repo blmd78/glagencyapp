@@ -9,15 +9,8 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
+import { eur, eur2, num, pct } from '@/lib/format'
 import type { ModelRow } from '../types'
-
-const eur = (n: number) =>
-  `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
-const eur2 = (n: number) =>
-  `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-const pct = (n: number) =>
-  `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
-const num = (n: number) => n.toLocaleString('fr-FR')
 
 /** Petit ⓘ d'aide dans un en-tête de colonne (provider local : la table n'en a pas). */
 function HeaderInfo({ text }: { text: string }) {

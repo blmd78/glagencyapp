@@ -2,9 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
 import type { ChatterModel, ChatterRow, ChattersData } from '../types'
 
-const round1 = (n: number) => Math.round(n * 10) / 10
-const round2 = (n: number) => Math.round(n * 100) / 100
-const conv = (v: number, p: number) => (p ? round1((v / p) * 100) : 0)
+import { conv, round1, round2 } from '@/lib/format'
 
 /** Barème de commission par défaut (10 % du CA) — à remplacer par la vraie config plus tard. */
 const COM_RATE = 0.1

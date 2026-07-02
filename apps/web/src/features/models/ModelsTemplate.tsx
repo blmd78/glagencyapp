@@ -1,7 +1,6 @@
 import { ModelsTable } from './components/models-table'
+import { eur } from '@/lib/format'
 import type { ModelsData } from './types'
-
-const eur = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
 
 /** Template Modèles : table façon « Comparatif modèles ». Aucun fetch. */
 export function ModelsTemplate({ data }: { data: ModelsData }) {

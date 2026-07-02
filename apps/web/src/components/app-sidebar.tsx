@@ -16,6 +16,7 @@ import {
 import { WORKSPACES, workspaceForPath } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
+import { withPeriod } from '@/lib/nav'
 
 export function AppSidebar({
   userEmail,
@@ -28,18 +29,6 @@ export function AppSidebar({
   const searchParams = useSearchParams()
   const active = workspaceForPath(pathname)
   const items = active.nav.filter((item) => !item.adminOnly || isAdmin)
-
-  // La période choisie dans le header (`?from&to`) doit survivre au changement d'onglet :
-  // on la reporte sur chaque lien de nav. Sans sélection, aucun param → défaut (mois courant).
-  const period = new URLSearchParams()
-  for (const key of ['from', 'to'] as const) {
-    const v = searchParams.get(key)
-    if (v) period.set(key, v)
-  }
-  const withPeriod = (href: string) => {
-    const qs = period.toString()
-    return qs ? `${href}?${qs}` : href
-  }
 
   return (
     <Sidebar collapsible="icon">
@@ -57,7 +46,7 @@ export function AppSidebar({
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                    <Link href={withPeriod(item.href)}>
+                    <Link href={withPeriod(item.href, searchParams)}>
                       <Icon />
                       <span>{item.label}</span>
                     </Link>
