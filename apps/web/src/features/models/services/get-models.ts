@@ -67,8 +67,6 @@ export async function getModels(period: Period): Promise<ModelsData> {
     byCh.set(r.chatter_id, c)
   }
 
-  const grandTotal = [...agg.values()].reduce((s, a) => s + a.total, 0)
-
   const models: ModelRow[] = (creators ?? [])
     .filter((c) => !c.excluded)
     .map((c) => {
@@ -95,7 +93,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
         ventes: chattersArr.reduce((s, x) => s + x.vendu, 0),
         caMsg: a.ppv + a.tips,
         ltv: a.newSubs ? round2(a.total / a.newSubs) : 0,
-        part: grandTotal ? round1((a.total / grandTotal) * 100) : 0,
+        part: 0, // % rempli après filtrage (plus fort reste → somme 100 %)
         ppv: a.ppv,
         tips: a.tips,
         renew: a.renew,
@@ -109,6 +107,27 @@ export async function getModels(period: Period): Promise<ModelsData> {
     })
     .filter((m) => m.total > 0 || m.nbChatters > 0)
     .sort((a, b) => b.total - a.total)
+
+  // Part CA : arrondi « plus fort reste » sur les modèles affichés → la colonne somme
+  // toujours à 100 % (total agence = somme des modèles visibles ; exclus non comptés).
+  const shownTotal = models.reduce((s, m) => s + m.total, 0)
+  if (shownTotal > 0) {
+    const exact = models.map((m) => (m.total / shownTotal) * 100)
+    const parts = exact.map((x) => Math.floor(x))
+    let rest = Math.round(100 - parts.reduce((s, x) => s + x, 0))
+    exact
+      .map((x, i) => ({ i, frac: x - Math.floor(x) }))
+      .sort((a, b) => b.frac - a.frac)
+      .forEach(({ i }) => {
+        if (rest > 0) {
+          parts[i] += 1
+          rest--
+        }
+      })
+    models.forEach((m, i) => {
+      m.part = parts[i] ?? 0
+    })
+  }
 
   return { period: period.label, models }
 }

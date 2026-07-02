@@ -134,7 +134,7 @@ const columns: ColumnDef<ModelRow>[] = [
     header: ({ column }) => (
       <div className="flex items-center justify-end gap-1.5">
         <Sortable column={column} label="Part CA" className="justify-end" />
-        <HeaderInfo text="Poids du modèle dans le CA de l'agence sur la période sélectionnée. Calcul : CA du modèle ÷ CA total (somme de tous les modèles) × 100. Les % affichés sont arrondis à l'entier — leur somme peut donner 99 à 101 %, alors que les parts exactes font bien 100 %." />
+        <HeaderInfo text="Poids du modèle dans le CA de l'agence sur la période sélectionnée. Calcul : CA du modèle ÷ CA total des modèles affichés × 100. Arrondi au plus fort reste → la colonne somme exactement à 100 %." />
       </div>
     ),
     cell: ({ getValue }) => <PartBar value={getValue() as number} />,
