@@ -2,21 +2,20 @@ name = "glagency-ingestion"
 main = "src/worker.ts"
 compatibility_date = "2024-11-01"
 # nodejs_compat : fournit process, node:crypto (randomUUID), Buffer… utilisés par le code
-# métier + supabase-js. cheerio est du JS pur → bundlé par esbuild sans polyfill node:*.
+# métier + supabase-js. Le parsing money-team utilise HTMLRewriter (natif runtime), PAS cheerio.
 compatibility_flags = ["nodejs_compat"]
 
-# Cron Trigger (UTC). 23:59 UTC ≈ 01:59 Paris (été) → on capture la journée Paris qui
-# vient de se terminer (jour COMPLET), et le pipeline rattrape aussi dernier jour connu →
-# aujourd'hui. Idempotent (upsert), donc re-capturer un jour ne pose aucun problème.
+# Cron Trigger (UTC). 21:49 UTC = 23h49 Paris en ÉTÉ (CEST). ⚠️ GitHub/Cloudflare cron
+# ignorent l'heure d'été → 2 lignes (mois disjoints) pour rester à 23h49 Paris toute l'année :
+#   avril→octobre : été  (UTC+2) → 21h49 UTC   |   nov→mars : hiver (UTC+1) → 22h49 UTC
+# Le pipeline rattrape aussi du dernier jour connu → aujourd'hui ; idempotent (upsert).
 [triggers]
-crons = ["59 23 * * *"]
+crons = ["49 21 * 4-10 *", "49 22 * 1-3,11-12 *"]
 
-# Le parsing cheerio (pages money-team ~2 Mo) consomme du vrai CPU → dépasse le plan Free.
-# cpu_ms nécessite le plan Workers Paid. Sur Free : soit une seule journée légère passe,
-# soit faire le backfill des jours passés via un run Node local (`pnpm start`) puis laisser
-# le Worker au quotidien.
-[limits]
-cpu_ms = 300000
+# PAS de [limits] cpu_ms : cette directive exige le plan Paid (erreur 100328 sur Free).
+# Sur le plan Free, la limite par défaut de 10 ms CPU/invocation s'applique. Le parser
+# money-team a été réécrit en HTMLRewriter (streaming natif) pour tenir dans ce budget —
+# cheerio (~110 ms) ne passerait pas. CPU réel à surveiller dans les métriques du dashboard.
 
 # --- Secrets à injecter AVANT le 1er run (jamais dans ce fichier ni dans git) ---
 #   wrangler secret put SUPABASE_URL

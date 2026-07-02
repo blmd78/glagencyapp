@@ -5,10 +5,18 @@ import {
   fetchDashboardStats,
   fetchDashboardSubscriptions,
   login,
+  type MoneyTeamDay,
 } from '@glagency/mypuls'
 import { createAdminClient } from '@glagency/db'
 
 type Db = ReturnType<typeof createAdminClient>
+/** Récupère+parse la page money-team d'un jour. Injectable : Node=cheerio, Worker=HTMLRewriter. */
+type FetchMoneyTeam = (day: string, cookie: string) => Promise<MoneyTeamDay>
+
+/** Dépendances runtime injectables (défauts = implémentations Node/cheerio). */
+export interface PipelineDeps {
+  fetchMoneyTeam?: FetchMoneyTeam
+}
 
 /**
  * Pipeline quotidien → upsert creator_daily. Sources par ordre de priorité :
@@ -124,8 +132,9 @@ async function ingestChatterDay(
   aliasToChatter: Map<string, string>,
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
+  fetchMoneyTeam: FetchMoneyTeam,
 ): Promise<void> {
-  const mt = await fetchMoneyTeamDay(day, cookie)
+  const mt = await fetchMoneyTeam(day, cookie)
 
   // Résolution chatteur via chatter_alias (label normalisé → chatter_id) : robuste aux variantes
   // de casse/accents. Bootstrap : un label inconnu crée l'alias (et le chatteur si vraiment
@@ -298,7 +307,8 @@ async function ingestCreatorDay(
   )
 }
 
-export async function runPipeline(explicitDay?: string): Promise<void> {
+export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {}): Promise<void> {
+  const fetchMoneyTeam = deps.fetchMoneyTeam ?? fetchMoneyTeamDay
   const db = createAdminClient()
 
   const { data: creators, error } = await db
@@ -390,7 +400,7 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
     try {
       await ingestCreatorDay(db, day, dash, nameToId, pseudoToName)
       if (cookie)
-        await ingestChatterDay(db, day, cookie, nameToChatter, aliasToChatter, nameToId, pseudoToName)
+        await ingestChatterDay(db, day, cookie, nameToChatter, aliasToChatter, nameToId, pseudoToName, fetchMoneyTeam)
     } catch (e) {
       console.warn(`[ingestion] jour ${day} échoué (ignoré, on continue) :`, (e as Error).message)
     }

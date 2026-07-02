@@ -30,22 +30,24 @@ export interface MoneyTeamDay {
 // Espaces séparateurs FR : espace, insécable (00A0), fine insécable (202F), fine (2009).
 const SPACES = /[\s   ]/g
 
+// Helpers de parsing exportés : réutilisés par le parser HTMLRewriter (Worker) pour produire
+// STRICTEMENT le même résultat que cheerio (une seule source de vérité par champ).
 // Montant FR « 1 212,44 EUR » → 1212.44.
-function money(s: string): number {
+export function money(s: string): number {
   const t = s.replace(/EUR/gi, '').replace(SPACES, '').replace(',', '.').trim()
   const n = parseFloat(t)
   return Number.isFinite(n) ? n : 0
 }
-function int(s: string): number {
+export function int(s: string): number {
   const m = /-?\d+/.exec(s.replace(SPACES, ''))
   return m ? parseInt(m[0], 10) : 0
 }
-function intOrNull(s: string): number | null {
+export function intOrNull(s: string): number | null {
   const m = /\d+/.exec(s)
   return m ? parseInt(m[0], 10) : null
 }
 // « 9h 24m » → 9.4 (heures).
-function hours(s: string): number {
+export function hours(s: string): number {
   const h = /(\d+)\s*h/.exec(s)?.[1]
   const m = /(\d+)\s*m/.exec(s)?.[1]
   return (h ? +h : 0) + (m ? +m : 0) / 60
@@ -55,6 +57,13 @@ function addDay(day: string): string {
   const d = new Date(`${day}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() + 1)
   return d.toISOString().slice(0, 10)
+}
+
+/** URL money-team d'un jour (bornes datetime-local = début du jour → début du lendemain). */
+export function moneyTeamUrl(day: string): string {
+  const start = `${day}T00:00`
+  const end = `${addDay(day)}T00:00`
+  return `${BASE_URL}/creator/messaging-money-team?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
 }
 
 export function parseMoneyTeam(html: string): MoneyTeamDay {
@@ -121,10 +130,9 @@ export function parseMoneyTeam(html: string): MoneyTeamDay {
  * Le dashboard attribue chaque transaction à son chatteur (contrairement à l'API).
  */
 export async function fetchMoneyTeamDay(day: string, cookie: string): Promise<MoneyTeamDay> {
-  const start = `${day}T00:00`
-  const end = `${addDay(day)}T00:00`
-  const url = `${BASE_URL}/creator/messaging-money-team?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`
-  const res = await fetch(url, { headers: { Cookie: cookie, 'User-Agent': UA, Accept: 'text/html' } })
+  const res = await fetch(moneyTeamUrl(day), {
+    headers: { Cookie: cookie, 'User-Agent': UA, Accept: 'text/html' },
+  })
   if (!res.ok) throw new Error(`GET messaging-money-team ${res.status} (${day})`)
   if (res.url.includes('/login')) throw new Error('money-team: session expirée (redirigé vers /login)')
   return parseMoneyTeam(await res.text())

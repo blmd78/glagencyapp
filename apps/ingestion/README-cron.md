@@ -1,28 +1,11 @@
 # Ingestion journalière
 
-Worker **Node/TS** : `apps/ingestion`. Capture MyPuls → Supabase au grain **jour**.
-Deux entrypoints, même logique (`src/pipeline.ts` `runPipeline()`) :
-- `src/main.ts` — **CLI local** (`pnpm start [YYYY-MM-DD]`), lit le `.env`. C'est aussi lui
-  que lance le cron **GitHub Actions** (mécanisme ACTIF, cf. section ci-dessous).
-- `src/worker.ts` — **Cloudflare Worker** (Cron Trigger), secrets en bindings.
-  **Non déployé** : exige le plan Workers Paid (5 $/mois), gardé si on change d'avis.
-
-## Cron en production : GitHub Actions (gratuit — ACTIF)
-
-`.github/workflows/ingestion.yml` : **23h49 Paris toute l'année**, via 2 lignes cron (UTC,
-mois disjoints) car GitHub cron ignore l'heure d'été → `49 21 * 4-10 *` (été, 21h49 UTC) +
-`49 22 * 1-3,11-12 *` (hiver, 22h49 UTC). `pnpm --filter @glagency/ingestion start` sur un
-runner Ubuntu. Gratuit (~2 min/nuit sur les 2000 min/mois du plan Free ; repo privé OK).
-Minute à :49 car le cron GitHub est best-effort et sature au top de l'heure (retards à :00).
-
-- **Secrets** (une fois) : repo GitHub → Settings → Secrets and variables → **Actions** →
-  `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `MYPULS_EMAIL`, `MYPULS_PASSWORD`, `MYPULS_API_KEY`.
-- **Test sans polluer** : onglet Actions → « Ingestion MyPuls » → Run workflow →
-  `day = 2026-07-01` (jour déjà complet, idempotent).
-- **Suivi** : onglet Actions = logs de chaque nuit + email automatique si un run échoue.
-- ⚠️ Cron désactivé par GitHub après **60 jours sans commit** (email d'alerte, un clic pour
-  réactiver). Les runs planifiés peuvent glisser de quelques minutes (file GitHub) — sans
-  impact, la journée Paris est finie depuis 2 h.
+`apps/ingestion` capture MyPuls → Supabase au grain **jour**. Deux entrypoints, même logique
+métier (`src/pipeline.ts` `runPipeline()`) :
+- `src/main.ts` — **CLI local** (`pnpm start [YYYY-MM-DD]`), lit le `.env`. Utilise le parser
+  money-team **cheerio** (Node). Sert au dev / backfill.
+- `src/worker.ts` — **Cloudflare Worker** (Cron Trigger) = **mécanisme de prod ACTIF**.
+  Utilise le parser money-team **HTMLRewriter** (cf. plus bas), secrets en bindings.
 
 ## Ce que fait un run (par jour)
 1. **`creator_daily`** — **dashboard prioritaire** : `dashboard/stats` (CA complet ventilé :
@@ -36,58 +19,54 @@ Minute à :49 car le cron GitHub est best-effort et sature au top de l'heure (re
 **Sans argument** (= le cron) : re-capture depuis le dernier jour connu (souvent partiel) →
 aujourd'hui. Idempotent (upsert) → ni trou, ni doublon. Un jour précis : `pnpm start 2026-07-01`.
 
-## Déploiement Cloudflare Worker (cible)
+## Prod : Cloudflare Worker (plan Free, gratuit — ACTIF)
 
-Prérequis : plan **Workers Paid** (le parsing cheerio des pages ~2 Mo dépasse le CPU du Free ;
-cf. `[limits] cpu_ms` dans `wrangler.toml`).
+Déployé sur `glagency-ingestion.<compte>.workers.dev`. Cron Trigger (`wrangler.toml`) :
+**23h49 Paris toute l'année**, via 2 lignes UTC (les crons Cloudflare ignorent l'heure d'été) :
+`49 21 * 4-10 *` (été, 21h49 UTC) + `49 22 * 1-3,11-12 *` (hiver, 22h49 UTC).
 
+### Pourquoi HTMLRewriter et pas cheerio
+Le plan **Free** ne permet pas la directive `[limits] cpu_ms` (erreur 100328). Le parser
+money-team a donc été réécrit de **cheerio** (construit un DOM complet, ~110 ms CPU sur la page
+de 1,75 Mo) vers **HTMLRewriter** (parseur natif streaming en Rust, `src/money-team-hr.ts`) qui
+ne matche que les cellules ciblées. **Mesure réelle sur le Worker déployé** : run complet =
+**~70 ms CPU** (`outcome=ok`), sortie identique champ-par-champ à cheerio (vérifié). Le CLI Node
+garde cheerio ; le Worker injecte HTMLRewriter via `runPipeline(day, { fetchMoneyTeam })`.
+
+### (Re)déployer
 ```bash
 cd apps/ingestion
-
-# 1) Se connecter (ouvre le navigateur)
-pnpm exec wrangler login
-
-# 2) Injecter les secrets (une fois ; jamais dans git). Valeurs = celles du .env.
+pnpm exec wrangler login            # une fois (ouvre le navigateur)
+pnpm run deploy                     # ⚠️ « run » obligatoire : `pnpm deploy` = commande interne pnpm
+```
+Secrets (une fois, jamais dans git ; déjà posés) :
+```bash
 pnpm exec wrangler secret put SUPABASE_URL          # https://<ref>.supabase.co
 pnpm exec wrangler secret put SUPABASE_SECRET_KEY   # clé service-role (BYPASS RLS)
 pnpm exec wrangler secret put MYPULS_EMAIL
 pnpm exec wrangler secret put MYPULS_PASSWORD
 pnpm exec wrangler secret put MYPULS_API_KEY
-pnpm exec wrangler secret put TRIGGER_TOKEN         # optionnel : autorise le déclenchement HTTP
-# NE PAS mettre DATABASE_URL (inutile : supabase-js parle en REST via SUPABASE_URL).
-
-# 3) Déployer (esbuild bundle les @glagency/* en TS + cheerio, pas besoin de tsx)
-pnpm run deploy        # ⚠️ « run » obligatoire : `pnpm deploy` seul = commande interne pnpm
-
-# 4) Tester sans attendre le cron
-#    - en local : simule le déclenchement scheduled
-pnpm cf:dev            # puis, dans un autre terminal : curl "http://localhost:8799/__scheduled"
-#    - en prod : GET sur l'URL du Worker avec `Authorization: Bearer $TRIGGER_TOKEN`
-#      (sans TRIGGER_TOKEN posé → 403 systématique : l'URL workers.dev est publique,
-#       un déclenchement anonyme en journée créerait des données partielles)
-#    - suivre les logs en direct :
-pnpm exec wrangler tail
-# ⚠️ tout déclenchement manuel = VRAIE ingestion → à faire en soirée uniquement.
+pnpm exec wrangler secret put TRIGGER_TOKEN         # protège le déclenchement HTTP manuel
+# PAS DATABASE_URL (inutile : supabase-js parle en REST via SUPABASE_URL).
 ```
 
-Le Cron Trigger (`wrangler.toml` → `[triggers] crons = ["59 23 * * *"]`, **UTC**) tourne 24/7,
-indépendant du Mac. 23:59 UTC ≈ 01:59 Paris (été) → capture la journée Paris **complète** qui
-vient de se terminer.
+### Tester / suivre
+- **Déclenchement manuel** (VRAIE ingestion → soirée uniquement, sinon jour partiel) :
+  `curl -H "Authorization: Bearer <TRIGGER_TOKEN>" "https://…workers.dev/?day=2026-07-01"`.
+  `?day=` rejoue un jour précis (idempotent) ; sans lui = rattrapage jusqu'à aujourd'hui.
+  Sans le bon token → 403 (l'URL workers.dev est publique).
+- **Vérif du parser sans déployer** : `pnpm cf:dev` puis
+  `curl -X POST --data-binary @raw/pages/creator-messaging-money-team.html localhost:8799/__parse-moneyteam`
+  (route de debug, désactivée en prod quand `TRIGGER_TOKEN` est posé).
+- **Logs + CPU en direct** : `pnpm exec wrangler tail --format json` (champ `cpuTime`).
+- **Métriques** : dashboard Cloudflare → Worker → Metrics (CPU time, invocations, erreurs).
 
 ### Backfill des jours passés
-Le rattrapage part du dernier jour connu. Pour combler un gros trou (>quelques jours) sans
-saturer les limites subrequests du Worker, seeder en local d'abord :
-`pnpm start 2026-07-02` (répéter par jour), puis laisser le Worker au quotidien.
+Le rattrapage part du dernier jour connu. Pour un gros trou, seeder en local :
+`pnpm start 2026-07-02` (par jour), puis laisser le Worker au quotidien.
 
-### À faire avant mise en ligne
+### À faire avant mise en ligne définitive
 - **Roter** `MYPULS_PASSWORD`, `MYPULS_API_KEY`, `SUPABASE_SECRET_KEY` et le mot de passe
-  Postgres (auto-marqués « à ROTER » dans `.env`), puis mettre à jour les secrets Worker.
-- **Vérifier que le login web marche** : la RLS est désormais active (migration `0004`), donc
-  l'app n'affiche les données qu'aux utilisateurs **authentifiés**. La clé publishable seule
-  ne lit plus rien (trou fermé).
-
-## Cron local (stopgap, historique)
-```
-59 23 * * * cd <repo>/apps/ingestion && <node absolu> --import tsx src/main.ts >> <repo>/apps/ingestion/logs/cron.log 2>&1
-```
-⚠️ Dépend du Mac réveillé + Full Disk Access pour `/usr/sbin/cron`. Remplacé par le Worker.
+  Postgres (marqués « à ROTER » dans `.env`), puis refaire les `wrangler secret put`.
+- ⚠️ CPU ~70 ms/run : confortable pour un cron nocturne, mais si Cloudflare durcit
+  l'application de la limite CPU du Free, surveiller les `outcome` dans les métriques.

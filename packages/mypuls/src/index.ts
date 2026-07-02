@@ -5,5 +5,8 @@ export { fetchTeamMoney } from './endpoints/team-money'
 export type { MoneyTx } from './endpoints/team-money'
 export { fetchMoneyTeamDay, parseMoneyTeam } from './endpoints/money-team'
 export type { ChatterSummary, MoneyTeamTx, MoneyTeamDay } from './endpoints/money-team'
+// Réutilisés par le parser HTMLRewriter (Worker) : mêmes helpers/URL que cheerio.
+export { money, int, intOrNull, hours, moneyTeamUrl } from './endpoints/money-team'
+export { UA } from './client'
 export { fetchDashboardStats, fetchDashboardSubscriptions } from './endpoints/dashboard'
 export type { DashboardStats, DashboardSubscriptions, StatsDataset, SubsDataset } from './endpoints/dashboard'
