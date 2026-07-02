@@ -19,9 +19,9 @@ export function ChattersTemplate({ data }: { data: ChattersData }) {
         <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="text-sm font-medium">Aucune donnée chatteur sur cette période</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Le détail par chatteur n'est pour l'instant disponible que pour juin (snapshot) —
-            l'ingestion quotidienne par chatteur n'est pas encore active. Sélectionne une période
-            couvrant juin pour voir les données.
+            Aucune activité chatteur enregistrée sur la plage sélectionnée. Les données par
+            chatteur sont ingérées chaque soir depuis le 30 juin — choisis une période couvrant
+            ces jours.
           </p>
         </div>
       ) : (
