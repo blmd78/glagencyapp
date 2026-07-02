@@ -1,0 +1,37 @@
+# Cron d'ingestion MyPuls → Supabase (remplace le Worker Cloudflare : plan Free CF = 10 ms
+# CPU, insuffisant pour le parsing cheerio ; GitHub Actions est gratuit et sans limite CPU).
+# Secrets requis (repo → Settings → Secrets and variables → Actions) :
+#   SUPABASE_URL, SUPABASE_SECRET_KEY, MYPULS_EMAIL, MYPULS_PASSWORD, MYPULS_API_KEY
+# ⚠️ GitHub désactive le cron après 60 jours sans commit (email d'alerte, ré-activable en 1 clic).
+name: Ingestion MyPuls
+
+on:
+  schedule:
+    - cron: '59 23 * * *' # UTC ≈ 01h59 Paris (été) → capture la journée Paris complète
+  workflow_dispatch:
+    inputs:
+      day:
+        description: 'Jour précis YYYY-MM-DD (vide = rattrapage auto depuis le dernier jour connu)'
+        required: false
+
+concurrency: ingestion
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # lit `packageManager` du package.json racine
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @glagency/ingestion start ${{ inputs.day }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          MYPULS_EMAIL: ${{ secrets.MYPULS_EMAIL }}
+          MYPULS_PASSWORD: ${{ secrets.MYPULS_PASSWORD }}
+          MYPULS_API_KEY: ${{ secrets.MYPULS_API_KEY }}

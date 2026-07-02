@@ -2,8 +2,25 @@
 
 Worker **Node/TS** : `apps/ingestion`. Capture MyPuls → Supabase au grain **jour**.
 Deux entrypoints, même logique (`src/pipeline.ts` `runPipeline()`) :
-- `src/main.ts` — **CLI local** (`pnpm start [YYYY-MM-DD]`), lit le `.env`.
+- `src/main.ts` — **CLI local** (`pnpm start [YYYY-MM-DD]`), lit le `.env`. C'est aussi lui
+  que lance le cron **GitHub Actions** (mécanisme ACTIF, cf. section ci-dessous).
 - `src/worker.ts` — **Cloudflare Worker** (Cron Trigger), secrets en bindings.
+  **Non déployé** : exige le plan Workers Paid (5 $/mois), gardé si on change d'avis.
+
+## Cron en production : GitHub Actions (gratuit — ACTIF)
+
+`.github/workflows/ingestion.yml` : cron `59 23 * * *` **UTC** (≈ 01h59 Paris l'été) →
+`pnpm --filter @glagency/ingestion start` sur un runner Ubuntu. Gratuit (~2 min/nuit sur
+les 2000 min/mois du plan Free ; repo privé OK).
+
+- **Secrets** (une fois) : repo GitHub → Settings → Secrets and variables → **Actions** →
+  `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `MYPULS_EMAIL`, `MYPULS_PASSWORD`, `MYPULS_API_KEY`.
+- **Test sans polluer** : onglet Actions → « Ingestion MyPuls » → Run workflow →
+  `day = 2026-07-01` (jour déjà complet, idempotent).
+- **Suivi** : onglet Actions = logs de chaque nuit + email automatique si un run échoue.
+- ⚠️ Cron désactivé par GitHub après **60 jours sans commit** (email d'alerte, un clic pour
+  réactiver). Les runs planifiés peuvent glisser de quelques minutes (file GitHub) — sans
+  impact, la journée Paris est finie depuis 2 h.
 
 ## Ce que fait un run (par jour)
 1. **`creator_daily`** — **dashboard prioritaire** : `dashboard/stats` (CA complet ventilé :
