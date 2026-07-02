@@ -45,6 +45,15 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `WorkspaceSwitcher`) affiche la nav de cette face. Ajouter/remplir une face = éditer
   `WORKSPACES` + créer les routes sous son `basePath`. Ne pas réintroduire de routes à plat.
 
+## Données MyPuls — workflow d'ajout
+
+Benoit donne les URLs MyPuls **dans le chat** (pas de fichier d'inventaire). Pour chaque page :
+
+1. `pnpm --filter @glagency/ingestion capture <url>` → sauvegarde le brut authentifié
+   (login auto via `MYPULS_EMAIL`/`MYPULS_PASSWORD`) dans `apps/ingestion/raw/pages/`.
+2. Inspecter le fichier capturé, écrire le parser dans `packages/mypuls/src/endpoints/`.
+3. Brancher dans `apps/ingestion` (pipeline → Supabase), puis dans la feature web.
+
 ## Design
 
 Spec : `docs/superpowers/specs/2026-06-30-glagency-dashboard-design.md`.
