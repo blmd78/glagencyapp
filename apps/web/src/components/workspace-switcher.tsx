@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronsUpDown } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,8 +26,20 @@ export function WorkspaceSwitcher({
   active: Workspace
 }) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { isMobile } = useSidebar()
   const ActiveIcon = active.icon
+
+  // Conserve la période du header (`?from&to`) en changeant de face.
+  const goTo = (w: Workspace) => {
+    const period = new URLSearchParams()
+    for (const key of ['from', 'to'] as const) {
+      const v = searchParams.get(key)
+      if (v) period.set(key, v)
+    }
+    const qs = period.toString()
+    router.push(qs ? `${workspaceHome(w)}?${qs}` : workspaceHome(w))
+  }
 
   return (
     <SidebarMenu>
@@ -62,7 +74,7 @@ export function WorkspaceSwitcher({
               return (
                 <DropdownMenuItem
                   key={w.id}
-                  onClick={() => router.push(workspaceHome(w))}
+                  onClick={() => goTo(w)}
                   className="gap-2 p-2"
                 >
                   <div className="flex size-6 items-center justify-center rounded-md border">
