@@ -3,7 +3,7 @@
 import * as React from 'react'
 import { endOfMonth, format, startOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { CalendarIcon } from 'lucide-react'
+import { CalendarIcon, Loader2 } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
@@ -13,10 +13,18 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 /**
- * Sélecteur de période partagé (header du (dash), donc présent sur toutes les pages).
- * État = URL search params `?from=YYYY-MM-DD&to=YYYY-MM-DD` : persistant à la navigation
- * et lisible côté serveur (les pages RSC feront `await searchParams` pour filtrer).
+ * Sélecteur de période partagé (header du (dash), présent sur toutes les pages).
+ * État = URL search params `?from=YYYY-MM-DD&to=YYYY-MM-DD` : persistant, partageable,
+ * lisible côté serveur (les pages RSC `await searchParams` -> re-query Supabase).
  * Défaut (URL vide) = mois en cours.
+ *
+ * Perf / normes :
+ *  - on ne pousse l'URL (= on ne re-render le serveur) QUE lorsque la plage est
+ *    complète (from + to) -> un seul refetch par sélection, pas deux ;
+ *  - navigation enveloppée dans `useTransition` -> `isPending` alimente l'indicateur
+ *    de chargement et l'ancienne UI reste affichée pendant le refetch (stale-while-
+ *    revalidate, pas de flash) ;
+ *  - `router.replace` (pas `push`) -> aucune entrée d'historique parasite.
  */
 function parseDate(value: string | null): Date | undefined {
   if (!value) return undefined
@@ -30,49 +38,76 @@ export function DateRangePicker({ className }: { className?: string }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [open, setOpen] = React.useState(false)
+  const [isPending, startTransition] = React.useTransition()
 
-  const now = new Date()
-  const urlFrom = parseDate(searchParams.get('from'))
-  const urlTo = parseDate(searchParams.get('to'))
-  // défaut = mois en cours sélectionné
-  const range = urlFrom
-    ? { from: urlFrom, to: urlTo }
-    : { from: startOfMonth(now), to: endOfMonth(now) }
+  const now = React.useMemo(() => new Date(), [])
 
-  function handleSelect(next: DateRange | undefined) {
+  // Plage appliquée (depuis l'URL) : sert de label + de base au calendrier.
+  // Type inféré `{ from: Date; to: Date | undefined }` -> `from` toujours défini.
+  const applied = React.useMemo(() => {
+    const from = parseDate(searchParams.get('from'))
+    const to = parseDate(searchParams.get('to'))
+    // Défaut = du 1er du mois à AUJOURD'HUI (pas la fin du mois).
+    return from ? { from, to } : { from: startOfMonth(now), to: now }
+  }, [searchParams, now])
+
+  // Sélection en cours dans le calendrier, découplée de l'URL : permet d'afficher le
+  // 1er clic sans déclencher de navigation.
+  const [draft, setDraft] = React.useState<DateRange | undefined>(applied)
+
+  function commit(range: DateRange) {
+    if (!range.from) return
     const params = new URLSearchParams(searchParams.toString())
-    if (next?.from) params.set('from', toParam(next.from))
-    else params.delete('from')
-    if (next?.to) params.set('to', toParam(next.to))
-    else params.delete('to')
-    const qs = params.toString()
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
-    if (next?.from && next?.to) setOpen(false)
+    params.set('from', toParam(range.from))
+    params.set('to', toParam(range.to ?? range.from))
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+    })
+    setOpen(false)
   }
 
-  const label = range.to
-    ? `${format(range.from, 'd MMM', { locale: fr })} – ${format(range.to, 'd MMM yyyy', { locale: fr })}`
-    : format(range.from, 'd MMM yyyy', { locale: fr })
+  function handleSelect(next: DateRange | undefined) {
+    setDraft(next)
+    // Navigation (donc refetch) UNIQUEMENT quand la plage est complète.
+    if (next?.from && next?.to) commit(next)
+  }
+
+  const label = applied.to
+    ? `${format(applied.from, 'd MMM', { locale: fr })} – ${format(applied.to, 'd MMM yyyy', { locale: fr })}`
+    : format(applied.from, 'd MMM yyyy', { locale: fr })
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) setDraft(applied) // ré-aligne le calendrier sur la plage appliquée
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           size="sm"
+          aria-busy={isPending}
           className={cn('gap-2 font-normal', className)}
         >
-          <CalendarIcon className="h-4 w-4" />
+          {isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CalendarIcon className="h-4 w-4" />
+          )}
           <span className="tabular-nums">{label}</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="end">
         <Calendar
           mode="range"
-          defaultMonth={range.from}
-          selected={range}
+          defaultMonth={applied.from}
+          selected={draft}
           onSelect={handleSelect}
           numberOfMonths={2}
+          disabled={{ after: now }}
+          endMonth={endOfMonth(now)}
           locale={fr}
           autoFocus
         />

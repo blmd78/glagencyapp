@@ -33,6 +33,12 @@ export interface ModelSubs {
   subs: number
 }
 
+/** Point quotidien du graphe CA. `revenue: null` = jour après aujourd'hui (pas de donnée). */
+export interface DailyPoint {
+  date: string
+  revenue: number | null
+}
+
 export type InsightSeverity = 'critical' | 'warning' | 'opportunity' | 'insight'
 
 /** Un point d'attention issu du moteur d'insights (règles). */
@@ -54,5 +60,7 @@ export interface OverviewData {
   kpis: Kpi[]
   caByModel: ModelCa[]
   subsByModel: ModelSubs[]
+  /** Série quotidienne du CA sur la période (tous les jours ; null après aujourd'hui). */
+  daily: DailyPoint[]
   insights: Insight[]
 }

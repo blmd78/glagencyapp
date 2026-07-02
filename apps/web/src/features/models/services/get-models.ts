@@ -1,17 +1,114 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import type { ModelsData } from '../types'
+import { createClient } from '@/lib/supabase/server'
+import type { Period } from '@/lib/period'
+import type { ModelChatter, ModelRow, ModelsData } from '../types'
+
+const round1 = (n: number) => Math.round(n * 10) / 10
+const round2 = (n: number) => Math.round(n * 100) / 100
+const conv = (v: number, p: number) => (p ? round1((v / p) * 100) : 0)
 
 /**
- * Source de l'onglet Modèles.
- * ⚠️ Temporaire : fixture juin (data.json.teams réorganisé, gitignorée).
- * TODO : RPC Supabase (agrégation creator_daily + chatter_creator_daily). Signature stable.
+ * Onglet Modèles agrégé sur la période (datepicker du header).
+ * Source : `creator_daily` (CA/PPV/tips/renew/abonnés) + `chatter_creator_daily`
+ * (détail par chatteur) + `chatter_creators` (chatteurs assignés).
+ * ⚠️ `renouv` (nombre de renouvellements) n'existe pas au grain jour → 0 pour l'instant.
  */
-export async function getModels(): Promise<ModelsData> {
-  try {
-    const path = join(process.cwd(), 'src/features/models/_data/june-models.json')
-    return JSON.parse(readFileSync(path, 'utf-8')) as ModelsData
-  } catch {
-    return { period: '', models: [] }
+export async function getModels(period: Period): Promise<ModelsData> {
+  const supabase = await createClient()
+
+  const [{ data: creators }, { data: cd }, { data: ccd }, { data: cc }, { data: chatters }] =
+    await Promise.all([
+      supabase.from('creators').select('id, name, is_private, excluded'),
+      supabase
+        .from('creator_daily')
+        .select('creator_id, ca, ca_ppv, ca_tips, ca_renew, new_subs')
+        .gte('date', period.from)
+        .lte('date', period.to),
+      supabase
+        .from('chatter_creator_daily')
+        .select('creator_id, chatter_id, ca, ca_ppv, ca_tips, propose, vendu')
+        .gte('date', period.from)
+        .lte('date', period.to),
+      supabase.from('chatter_creators').select('creator_id, chatter_id').eq('active', true),
+      supabase.from('chatters').select('id, display_name'),
+    ])
+
+  const chName = new Map((chatters ?? []).map((c) => [c.id, c.display_name]))
+
+  const agg = new Map<string, { total: number; ppv: number; tips: number; renew: number; newSubs: number }>()
+  for (const r of cd ?? []) {
+    const a = agg.get(r.creator_id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0 }
+    a.total += r.ca ?? 0
+    a.ppv += r.ca_ppv ?? 0
+    a.tips += r.ca_tips ?? 0
+    a.renew += r.ca_renew ?? 0
+    a.newSubs += r.new_subs ?? 0
+    agg.set(r.creator_id, a)
   }
+
+  const planned = new Map<string, number>()
+  for (const r of cc ?? []) planned.set(r.creator_id, (planned.get(r.creator_id) ?? 0) + 1)
+
+  const breakdown = new Map<
+    string,
+    Map<string, { ca: number; ppv: number; tips: number; propose: number; vendu: number }>
+  >()
+  for (const r of ccd ?? []) {
+    let byCh = breakdown.get(r.creator_id)
+    if (!byCh) {
+      byCh = new Map()
+      breakdown.set(r.creator_id, byCh)
+    }
+    const c = byCh.get(r.chatter_id) ?? { ca: 0, ppv: 0, tips: 0, propose: 0, vendu: 0 }
+    c.ca += r.ca ?? 0
+    c.ppv += r.ca_ppv ?? 0
+    c.tips += r.ca_tips ?? 0
+    c.propose += r.propose ?? 0
+    c.vendu += r.vendu ?? 0
+    byCh.set(r.chatter_id, c)
+  }
+
+  const grandTotal = [...agg.values()].reduce((s, a) => s + a.total, 0)
+
+  const models: ModelRow[] = (creators ?? [])
+    .filter((c) => !c.excluded)
+    .map((c) => {
+      const a = agg.get(c.id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0 }
+      const byCh = breakdown.get(c.id) ?? new Map()
+      const chattersArr: ModelChatter[] = [...byCh.entries()]
+        .map(([id, x]) => ({
+          name: chName.get(id) ?? '—',
+          ca: x.ca,
+          ppv: x.ppv,
+          tips: x.tips,
+          propose: x.propose,
+          vendu: x.vendu,
+          tauxConv: conv(x.vendu, x.propose),
+        }))
+        .sort((p, q) => q.ca - p.ca)
+      const active = chattersArr.filter((x) => x.ca > 0).length
+      return {
+        id: c.id,
+        name: c.name,
+        total: a.total,
+        newSubs: a.newSubs,
+        renouv: 0,
+        ventes: chattersArr.reduce((s, x) => s + x.vendu, 0),
+        caMsg: a.ppv + a.tips,
+        ltv: a.newSubs ? round2(a.total / a.newSubs) : 0,
+        part: grandTotal ? round1((a.total / grandTotal) * 100) : 0,
+        ppv: a.ppv,
+        tips: a.tips,
+        renew: a.renew,
+        active,
+        planned: planned.get(c.id) ?? 0,
+        per: active ? round2(a.total / active) : 0,
+        nbChatters: chattersArr.length,
+        chatters: chattersArr,
+        isPrivate: c.is_private,
+      }
+    })
+    .filter((m) => m.total > 0 || m.nbChatters > 0)
+    .sort((a, b) => b.total - a.total)
+
+  return { period: period.label, models }
 }

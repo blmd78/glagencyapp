@@ -15,9 +15,21 @@ export function ChattersTemplate({ data }: { data: ChattersData }) {
         </p>
       </div>
 
-      <RevenueScopeNote active="attributed" />
-
-      <ChattersTable chatters={data.chatters} />
+      {data.chatters.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <p className="text-sm font-medium">Aucune donnée chatteur sur cette période</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+            Le détail par chatteur n'est pour l'instant disponible que pour juin (snapshot) —
+            l'ingestion quotidienne par chatteur n'est pas encore active. Sélectionne une période
+            couvrant juin pour voir les données.
+          </p>
+        </div>
+      ) : (
+        <>
+          <RevenueScopeNote active="attributed" />
+          <ChattersTable chatters={data.chatters} />
+        </>
+      )}
     </div>
   )
 }

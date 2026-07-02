@@ -1,8 +1,14 @@
 import { getOverview } from '@/features/overview/services/get-overview'
 import { OverviewTemplate } from '@/features/overview/OverviewTemplate'
+import { resolvePeriod } from '@/lib/period'
 
-// La page récupère la donnée (via le service de la feature) et la passe au template.
-export default async function OverviewPage() {
-  const data = await getOverview()
+// La page résout la période (datepicker du header) et la passe au service.
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>
+}) {
+  const period = resolvePeriod(await searchParams)
+  const data = await getOverview(period)
   return <OverviewTemplate data={data} />
 }
