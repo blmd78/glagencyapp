@@ -6,11 +6,16 @@
 name: Ingestion MyPuls
 
 on:
-  # 21h49 UTC = 23h49 Paris en ÉTÉ (CEST, UTC+2). ⚠️ GitHub cron ignore l'heure d'été :
-  # en HIVER (CET, UTC+1) ça tombera à 22h49 Paris. Minute à :49 (pas :00) car le cron
-  # GitHub est best-effort et accumule des retards au top de l'heure.
+  # Objectif : 23h49 Paris TOUTE L'ANNÉE. GitHub cron est en UTC et ignore l'heure d'été,
+  # donc on met 2 lignes (les mois sont disjoints → jamais de double run) :
+  #   - avril→octobre  : été  (CEST, UTC+2) → 21h49 UTC = 23h49 Paris
+  #   - nov→mars       : hiver (CET,  UTC+1) → 22h49 UTC = 23h49 Paris
+  # Les ~2 semaines autour des bascules DST (fin mars / fin octobre) peuvent être à 1 h
+  # près — sans impact (run nocturne, jour rattrapé la nuit suivante). Minute :49 (pas :00)
+  # car le cron GitHub est best-effort et sature au top de l'heure.
   schedule:
-    - cron: '49 21 * * *'
+    - cron: '49 21 * 4-10 *'
+    - cron: '49 22 * 1-3,11-12 *'
   workflow_dispatch:
     inputs:
       day:
