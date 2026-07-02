@@ -6,17 +6,20 @@ const round1 = (n: number) => Math.round(n * 10) / 10
 const round2 = (n: number) => Math.round(n * 100) / 100
 const conv = (v: number, p: number) => (p ? round1((v / p) * 100) : 0)
 
+/** Barème de commission par défaut (10 % du CA) — à remplacer par la vraie config plus tard. */
+const COM_RATE = 0.1
+
 /**
  * Onglet Chatteurs agrégé sur la période (datepicker du header).
  * Filtrage fait EN BASE (WHERE date BETWEEN from AND to) : on ne récupère que les
  * lignes de la période. Source : `chatter_daily` (agrégat chatteur) + `chatter_creator_daily`
- * (ventilation par modèle) + `chatter_creators` (modèles assignés).
- * ⚠️ `com` (commission) n'existe pas au grain jour → 0 pour l'instant.
+ * (ventilation par modèle) + `chatter_creators` (modèles assignés). `creator_daily` sert au
+ * bandeau de périmètre (total agence vs messagerie vs attribué).
  */
 export async function getChatters(period: Period): Promise<ChattersData> {
   const supabase = await createClient()
 
-  const [{ data: chatters }, { data: teams }, { data: creators }, { data: chd }, { data: ccd }, { data: cc }] =
+  const [{ data: chatters }, { data: teams }, { data: creators }, { data: chd }, { data: ccd }, { data: cc }, { data: crd }] =
     await Promise.all([
       supabase.from('chatters').select('id, display_name, email, active, team_id'),
       supabase.from('teams').select('id, name'),
@@ -32,6 +35,11 @@ export async function getChatters(period: Period): Promise<ChattersData> {
         .gte('date', period.from)
         .lte('date', period.to),
       supabase.from('chatter_creators').select('chatter_id, creator_id').eq('active', true),
+      supabase
+        .from('creator_daily')
+        .select('ca, ca_ppv, ca_tips')
+        .gte('date', period.from)
+        .lte('date', period.to),
     ])
 
   const teamName = new Map((teams ?? []).map((t) => [t.id, t.name]))
@@ -105,7 +113,7 @@ export async function getChatters(period: Period): Promise<ChattersData> {
         ca: a.ca,
         ppv: a.ppv,
         tips: a.tips,
-        com: 0,
+        com: round2(a.ca * COM_RATE),
         propose: a.propose,
         vendu: a.vendu,
         tauxConv: conv(a.vendu, a.propose),
@@ -122,5 +130,15 @@ export async function getChatters(period: Period): Promise<ChattersData> {
     })
     .sort((p, q) => q.ca - p.ca)
 
-  return { period: period.label, chatters: rows }
+  // Périmètres emboîtés du CA sur la période (attribué ⊂ messagerie ⊂ total agence).
+  const attributed = (chd ?? []).reduce((s, r) => s + (r.ca ?? 0), 0)
+  const messaging = (crd ?? []).reduce((s, r) => s + (r.ca_ppv ?? 0) + (r.ca_tips ?? 0), 0)
+  const allAccounts = (crd ?? []).reduce((s, r) => s + (r.ca ?? 0), 0)
+  const scope = {
+    attributed: round2(attributed),
+    messaging: round2(messaging),
+    allAccounts: round2(allAccounts),
+  }
+
+  return { period: period.label, chatters: rows, scope }
 }

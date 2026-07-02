@@ -4,19 +4,18 @@ import { cn } from '@/lib/utils'
 const eur = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
 
 /**
- * Périmètres emboîtés du CA de juin — mêmes chiffres sur chaque onglet (cohérence garantie).
- * `attributed` = total onglet Chatteurs (money-team, PPV+Tips attribués à un chatteur).
- * `messaging`  = messagerie tous comptes (API by_type : Média privé + Pourboires).
- * `allAccounts`= total onglet Modèles = total MyPuls (tous types, tous comptes).
- * ⚠️ Constantes de référence tant que la base n'est pas alimentée ; à dériver du scrape en SQL.
+ * Périmètres emboîtés du CA sur la période sélectionnée (calculés en base, pas de constante).
+ * `attributed` = total onglet Chatteurs (Σ chatter_daily : PPV+Tips attribués à un chatteur).
+ * `messaging`  = messagerie tous comptes (Σ creator_daily PPV+Tips).
+ * `allAccounts`= total onglet Modèles = total MyPuls (Σ creator_daily, tous types).
  */
-export const REVENUE_SCOPE = {
-  attributed: 252856,
-  messaging: 255998,
-  allAccounts: 258853,
-} as const
+export interface RevenueScope {
+  attributed: number
+  messaging: number
+  allAccounts: number
+}
 
-type ScopeKey = keyof typeof REVENUE_SCOPE
+type ScopeKey = keyof RevenueScope
 
 const SCOPES: { key: ScopeKey; label: string }[] = [
   { key: 'attributed', label: 'Attribué chatteurs' },
@@ -25,14 +24,23 @@ const SCOPES: { key: ScopeKey; label: string }[] = [
 ]
 
 /** Bandeau de réconciliation de périmètre. `active` met en avant le total de l'onglet courant. */
-export function RevenueScopeNote({ active }: { active: ScopeKey }) {
-  const notAttributed = REVENUE_SCOPE.messaging - REVENUE_SCOPE.attributed
-  const offMessaging = REVENUE_SCOPE.allAccounts - REVENUE_SCOPE.messaging
+export function RevenueScopeNote({
+  scope,
+  active,
+  periodLabel,
+}: {
+  scope: RevenueScope
+  active: ScopeKey
+  periodLabel: string
+}) {
+  const notAttributed = Math.max(0, scope.messaging - scope.attributed)
+  const offMessaging = Math.max(0, scope.allAccounts - scope.messaging)
+  const gap = Math.round(scope.allAccounts - scope.attributed)
 
   return (
     <div className="rounded-xl border bg-muted/30 p-4">
       <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Périmètre du CA · juin 2026
+        Périmètre du CA · {periodLabel}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {SCOPES.map((s, i) => (
@@ -53,19 +61,21 @@ export function RevenueScopeNote({ active }: { active: ScopeKey }) {
                   s.key === active && 'text-primary',
                 )}
               >
-                {eur(REVENUE_SCOPE[s.key])}
+                {eur(scope[s.key])}
               </div>
             </div>
           </Fragment>
         ))}
       </div>
-      <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
-        Écart {eur(REVENUE_SCOPE.allAccounts - REVENUE_SCOPE.attributed)} (pas une erreur) :{' '}
-        <b className="text-foreground">+{eur(notAttributed)}</b> messagerie non attribuée à un
-        chatteur (comptes privés + rattachement) ·{' '}
-        <b className="text-foreground">+{eur(offMessaging)}</b> hors messagerie (Médias push,
-        Media On Demand, Renouvellement abo.).
-      </p>
+      {gap > 0 && (
+        <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+          Écart {eur(gap)} (pas une erreur) :{' '}
+          <b className="text-foreground">+{eur(notAttributed)}</b> messagerie non attribuée à un
+          chatteur (comptes privés + rattachement) ·{' '}
+          <b className="text-foreground">+{eur(offMessaging)}</b> hors messagerie (Médias push,
+          Media On Demand, Renouvellement abo.).
+        </p>
+      )}
     </div>
   )
 }

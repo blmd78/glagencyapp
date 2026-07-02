@@ -1,3 +1,5 @@
+import type { RevenueScope } from '@/components/revenue-scope-note'
+
 /**
  * Contrat de données de l'onglet Chatteurs.
  * Forme identique à ce que renverra le RPC Supabase (agrégation période sur
@@ -47,4 +49,6 @@ export interface ChatterRow {
 export interface ChattersData {
   period: string
   chatters: ChatterRow[]
+  /** Périmètres emboîtés du CA (attribué ⊂ messagerie ⊂ total agence) pour la période. */
+  scope: RevenueScope
 }
