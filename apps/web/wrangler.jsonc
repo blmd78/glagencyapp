@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "glagency-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-04-01",
+  // nodejs_compat requis par OpenNext (Node APIs polyfillées dans le runtime Worker).
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  }
+  // Les 2 vars Supabase sont NEXT_PUBLIC_* → inlinées au build depuis .env.local (rien à mettre
+  // ici). ⚠️ Pour un build CI/Cloudflare (sans .env.local), les définir dans l'env de build.
+}

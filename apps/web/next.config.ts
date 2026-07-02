@@ -7,3 +7,8 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
+
+// Déploiement Cloudflare Workers via OpenNext : active le binding runtime en `next dev`
+// (getCloudflareContext) — sans effet sur le build de prod. Cf. wrangler.jsonc + open-next.config.ts.
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare'
+initOpenNextCloudflareForDev()
