@@ -135,14 +135,19 @@ const columns: ColumnDef<ModelRow>[] = [
   },
 ]
 
-/** Détail déplié : les chatteurs qui ont produit sur ce modèle. */
+/**
+ * Détail déplié : les chatteurs qui ont produit sur ce modèle.
+ * « Proposé » (et donc la conv) n'existe pas au grain chatteur × modèle (MyPuls ne le
+ * ventile pas) → on n'affiche que le nombre de ventes ; la conv reste au niveau chatteur.
+ */
 function modelSubRows(row: Row<ModelRow>) {
   return row.original.chatters.map((c) => (
     <TableRow key={`${row.id}:${c.name}`} className="bg-muted/30 hover:bg-muted/30">
       <TableCell className="pl-9 font-medium">{c.name}</TableCell>
       <TableCell className="text-right tabular-nums">{eur(c.ca)}</TableCell>
       <TableCell colSpan={5} className="text-right text-xs text-muted-foreground">
-        PPV {eur(c.ppv)} · Tips {eur(c.tips)} · {c.propose}/{c.vendu} vendus · conv {pct(c.tauxConv)}
+        PPV {eur(c.ppv)} · Tips {eur(c.tips)} · {c.vendu} vendu{c.vendu > 1 ? 's' : ''}
+        {c.propose > 0 ? ` · conv ${pct(c.tauxConv)}` : ''}
       </TableCell>
     </TableRow>
   ))

@@ -166,10 +166,14 @@ function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.ppv)}</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.tips)}</TableCell>
+          {/* « Proposé » n'existe pas au grain chatteur × modèle (non ventilé par MyPuls) :
+              tiret plutôt qu'un faux 0, et pas de conv (division par zéro). */}
           <TableCell className="text-right tabular-nums">
-            {m.propose} / {m.vendu}
+            {m.propose > 0 ? m.propose : '—'} / {m.vendu}
           </TableCell>
-          <TableCell className="text-right tabular-nums">{pct(m.tauxConv)}</TableCell>
+          <TableCell className="text-right tabular-nums">
+            {m.propose > 0 ? pct(m.tauxConv) : '—'}
+          </TableCell>
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-center text-muted-foreground">—</TableCell>
