@@ -38,6 +38,10 @@ function addDays(day: string, n: number): string {
   return iso(d)
 }
 
+// Normalise un label scrapé (casse + espaces) → clé de rapprochement `chatter_alias`.
+// On NE retire PAS les accents : « José » et « Jose » peuvent être deux personnes distinctes.
+const normLabel = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+
 /** Valeurs dashboard d'un (modèle, jour) : CA ventilé (€) + abonnés (comptes). */
 interface DashDay {
   ca: number
@@ -57,7 +61,7 @@ async function fetchDashboardRange(
   from: string,
   to: string,
   cookie: string,
-  pseudoToName: (p: string) => string | null,
+  resolveCreator: (creatorId: number, label: string) => string | null,
 ): Promise<Map<string, Map<string, DashDay>>> {
   const [stats, subs] = await Promise.all([
     fetchDashboardStats(from, to, cookie),
@@ -78,7 +82,7 @@ async function fetchDashboardRange(
     return e
   }
   for (const ds of stats.datasets) {
-    const name = pseudoToName(ds.label)
+    const name = resolveCreator(ds.creatorId, ds.label)
     if (!name) continue
     stats.labels.forEach((date, i) => {
       const e = entry(date, name)
@@ -89,7 +93,7 @@ async function fetchDashboardRange(
     })
   }
   for (const ds of subs.newSubsDatasets) {
-    const name = pseudoToName(ds.label)
+    const name = resolveCreator(ds.creatorId, ds.label)
     if (!name) continue
     subs.labels.forEach((date, i) => {
       const e = entry(date, name)
@@ -98,7 +102,7 @@ async function fetchDashboardRange(
     })
   }
   for (const ds of subs.totalSubsDatasets) {
-    const name = pseudoToName(ds.label)
+    const name = resolveCreator(ds.creatorId, ds.label)
     if (!name) continue
     subs.labels.forEach((date, i) => {
       entry(date, name).subsActive += ds.data[i] ?? 0
@@ -116,50 +120,90 @@ async function ingestChatterDay(
   db: Db,
   day: string,
   cookie: string,
-  chatterId: Map<string, string>,
+  nameToChatter: Map<string, string>,
+  aliasToChatter: Map<string, string>,
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
 ): Promise<void> {
   const mt = await fetchMoneyTeamDay(day, cookie)
 
-  // Crée les chatteurs inconnus (résumé + détail).
-  const names = new Set<string>()
-  for (const c of mt.chatters) if (c.name) names.add(c.name.trim())
-  for (const t of mt.transactions) if (t.chatter) names.add(t.chatter.trim())
-  const missing = [...names].filter((n) => n && !chatterId.has(n))
-  if (missing.length) {
-    const toInsert = missing.map((n) => ({
-      id: randomUUID(),
-      display_name: n,
-      active: true,
-      access_revoked: false,
-    }))
-    const { error } = await db.from('chatters').insert(toInsert)
+  // Résolution chatteur via chatter_alias (label normalisé → chatter_id) : robuste aux variantes
+  // de casse/accents. Bootstrap : un label inconnu crée l'alias (et le chatteur si vraiment
+  // nouveau) → les runs suivants mappent de façon déterministe.
+  const rawNames = new Set<string>()
+  for (const c of mt.chatters) if (c.name) rawNames.add(c.name.trim())
+  for (const t of mt.transactions) if (t.chatter) rawNames.add(t.chatter.trim())
+
+  const resolved = new Map<string, string>() // label brut → chatter_id
+  const newChatters: { id: string; display_name: string; active: boolean; access_revoked: boolean }[] = []
+  const newAliases: { chatter_id: string; raw_label: string; raw_label_norm: string; source: string }[] = []
+  for (const raw of rawNames) {
+    if (!raw) continue
+    const norm = normLabel(raw)
+    let cid = aliasToChatter.get(norm) ?? nameToChatter.get(raw)
+    if (!cid) {
+      cid = randomUUID()
+      newChatters.push({ id: cid, display_name: raw, active: true, access_revoked: false })
+      nameToChatter.set(raw, cid)
+    }
+    if (!aliasToChatter.has(norm)) {
+      newAliases.push({ chatter_id: cid, raw_label: raw, raw_label_norm: norm, source: 'scrape' })
+      aliasToChatter.set(norm, cid)
+    }
+    resolved.set(raw, cid)
+  }
+  if (newChatters.length) {
+    const { error } = await db.from('chatters').insert(newChatters)
     if (error) throw error
-    for (const r of toInsert) chatterId.set(r.display_name, r.id)
+  }
+  if (newAliases.length) {
+    const { error } = await db.from('chatter_alias').upsert(newAliases, { onConflict: 'raw_label' })
+    if (error) throw error
   }
 
-  // chatter_daily (ca = ppv + tips → respecte le CHECK).
-  const cdRows = mt.chatters
-    .map((c) => {
-      const ppv = round(c.caPpv)
-      const tips = round(c.caTips)
-      return {
-        chatter_id: chatterId.get(c.name.trim())!,
-        date: day,
-        ca: round(ppv + tips),
-        ca_ppv: ppv,
-        ca_tips: tips,
-        propose: c.propose,
-        vendu: c.vendu,
-        presence_active_h: round(c.presenceActiveH),
-        presence_idle_h: round(c.presenceIdleH),
-        reactivite_sec: c.reactiviteSec,
-      }
-    })
-    .filter((r) => r.chatter_id)
+  // chatter_daily — agrégé par chatter_id (deux lignes résumé peuvent viser le même chatteur
+  // via une variante de label). ca = ppv + tips → respecte le CHECK.
+  const cdAgg = new Map<
+    string,
+    { ppv: number; tips: number; propose: number; vendu: number; pa: number; pi: number; react: number[] }
+  >()
+  for (const c of mt.chatters) {
+    const cid = resolved.get(c.name.trim())
+    if (!cid) continue
+    const a = cdAgg.get(cid) ?? { ppv: 0, tips: 0, propose: 0, vendu: 0, pa: 0, pi: 0, react: [] }
+    a.ppv += c.caPpv
+    a.tips += c.caTips
+    a.propose += c.propose
+    a.vendu += c.vendu
+    a.pa += c.presenceActiveH
+    a.pi += c.presenceIdleH
+    if (c.reactiviteSec != null) a.react.push(c.reactiviteSec)
+    cdAgg.set(cid, a)
+  }
+  const cdRows = [...cdAgg.entries()].map(([chatter_id, a]) => {
+    const ppv = round(a.ppv)
+    const tips = round(a.tips)
+    return {
+      chatter_id,
+      date: day,
+      ca: round(ppv + tips),
+      ca_ppv: ppv,
+      ca_tips: tips,
+      propose: a.propose,
+      vendu: a.vendu,
+      presence_active_h: round(a.pa),
+      presence_idle_h: round(a.pi),
+      reactivite_sec: a.react.length
+        ? Math.round(a.react.reduce((s, x) => s + x, 0) / a.react.length)
+        : null,
+    }
+  })
+  // Remplacement par jour : chatter_daily reflète UNIQUEMENT le scrape courant (supprime les
+  // lignes d'un mapping/roster antérieur). Gardé par length → un scrape vide ne vide rien.
   if (cdRows.length) {
-    const { error } = await db.from('chatter_daily').upsert(cdRows, { onConflict: 'chatter_id,date' })
+    const del = await db.from('chatter_daily').delete().eq('date', day)
+    if (del.error) throw del.error
+    const { error } = await db.from('chatter_daily').insert(cdRows)
     if (error) throw error
   }
 
@@ -169,7 +213,7 @@ async function ingestChatterDay(
     { chatter_id: string; creator_id: string; ca: number; ppv: number; tips: number; vendu: number }
   >()
   for (const t of mt.transactions) {
-    const cid = chatterId.get(t.chatter.trim())
+    const cid = resolved.get(t.chatter.trim())
     const cname = pseudoToName(t.creator)
     const crid = cname ? nameToId.get(cname) : undefined
     if (!cid || !crid) continue
@@ -193,9 +237,9 @@ async function ingestChatterDay(
     vendu: p.vendu,
   }))
   if (ccdRows.length) {
-    const { error } = await db
-      .from('chatter_creator_daily')
-      .upsert(ccdRows, { onConflict: 'chatter_id,creator_id,date' })
+    const del = await db.from('chatter_creator_daily').delete().eq('date', day)
+    if (del.error) throw del.error
+    const { error } = await db.from('chatter_creator_daily').insert(ccdRows)
     if (error) throw error
   }
   console.log(`[ingestion] ${day}: money-team → ${cdRows.length} chatteurs, ${ccdRows.length} paires`)
@@ -257,13 +301,32 @@ async function ingestCreatorDay(
 export async function runPipeline(explicitDay?: string): Promise<void> {
   const db = createAdminClient()
 
-  const { data: creators, error } = await db.from('creators').select('id, name, is_private')
+  const { data: creators, error } = await db
+    .from('creators')
+    .select('id, name, is_private, mypuls_creator_id')
   if (error) throw error
   const nameToId = new Map((creators ?? []).map((c) => [c.name as string, c.id as string]))
   const mains = (creators ?? []).filter((c) => !c.is_private).map((c) => c.name as string)
   const pseudoToName = (pseudo: string): string | null => {
     const p = (pseudo || '').toLowerCase()
     return PRIV[p] ?? mains.find((n) => p.includes(n.toLowerCase())) ?? null
+  }
+
+  // Résolution modèle : par mypuls_creator_id (déterministe) sinon par pseudo (fallback) + backfill
+  // de l'id → dès le 2e run le mapping est stable même si le pseudo affiché change.
+  const idToName = new Map<string, string>()
+  for (const c of creators ?? []) {
+    if (c.mypuls_creator_id) idToName.set(c.mypuls_creator_id, c.name as string)
+  }
+  const creatorBackfill = new Map<string, string>() // nom modèle → mypuls_creator_id à persister
+  const resolveCreator = (creatorId: number, label: string): string | null => {
+    const byId = idToName.get(String(creatorId))
+    if (byId) return byId
+    const byName = pseudoToName(label)
+    if (byName && nameToId.has(byName) && !idToName.has(String(creatorId))) {
+      creatorBackfill.set(byName, String(creatorId))
+    }
+    return byName
   }
 
   // Session web pour l'attribution par chatteur (dashboard money-team). Optionnelle :
@@ -275,8 +338,11 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
     console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
   }
   const { data: chatterRows } = await db.from('chatters').select('id, display_name')
-  const chatterId = new Map<string, string>()
-  for (const c of chatterRows ?? []) if (c.display_name) chatterId.set(c.display_name.trim(), c.id)
+  const nameToChatter = new Map<string, string>()
+  for (const c of chatterRows ?? []) if (c.display_name) nameToChatter.set(c.display_name.trim(), c.id)
+  const { data: aliasRows } = await db.from('chatter_alias').select('chatter_id, raw_label_norm')
+  const aliasToChatter = new Map<string, string>()
+  for (const a of aliasRows ?? []) aliasToChatter.set(a.raw_label_norm, a.chatter_id)
 
   const today = iso(new Date())
   const yesterday = addDays(today, -1)
@@ -302,8 +368,18 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
   let dash: Map<string, Map<string, DashDay>> | null = null
   if (cookie && first && last) {
     try {
-      dash = await fetchDashboardRange(first, last, cookie, pseudoToName)
+      dash = await fetchDashboardRange(first, last, cookie, resolveCreator)
       console.log(`[ingestion] dashboard: séries ${first} → ${last} OK`)
+      // Persiste les ids résolus par fallback pseudo → runs suivants déterministes.
+      for (const [name, mypulsId] of creatorBackfill) {
+        const id = nameToId.get(name)
+        if (!id) continue
+        await db.from('creators').update({ mypuls_creator_id: mypulsId }).eq('id', id).is('mypuls_creator_id', null)
+        idToName.set(mypulsId, name)
+      }
+      if (creatorBackfill.size) {
+        console.log(`[ingestion] mypuls_creator_id backfill : ${creatorBackfill.size} modèle(s)`)
+      }
     } catch (e) {
       console.warn('[ingestion] dashboard indisponible → fallback /team/money :', (e as Error).message)
     }
@@ -313,7 +389,8 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
     // Un jour qui échoue (429/500, session…) ne doit pas avorter le rattrapage des autres.
     try {
       await ingestCreatorDay(db, day, dash, nameToId, pseudoToName)
-      if (cookie) await ingestChatterDay(db, day, cookie, chatterId, nameToId, pseudoToName)
+      if (cookie)
+        await ingestChatterDay(db, day, cookie, nameToChatter, aliasToChatter, nameToId, pseudoToName)
     } catch (e) {
       console.warn(`[ingestion] jour ${day} échoué (ignoré, on continue) :`, (e as Error).message)
     }
