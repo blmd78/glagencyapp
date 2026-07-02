@@ -1,0 +1,27 @@
+name = "glagency-ingestion"
+main = "src/worker.ts"
+compatibility_date = "2024-11-01"
+# nodejs_compat : fournit process, node:crypto (randomUUID), Buffer… utilisés par le code
+# métier + supabase-js. cheerio est du JS pur → bundlé par esbuild sans polyfill node:*.
+compatibility_flags = ["nodejs_compat"]
+
+# Cron Trigger (UTC). 23:59 UTC ≈ 01:59 Paris (été) → on capture la journée Paris qui
+# vient de se terminer (jour COMPLET), et le pipeline rattrape aussi dernier jour connu →
+# aujourd'hui. Idempotent (upsert), donc re-capturer un jour ne pose aucun problème.
+[triggers]
+crons = ["59 23 * * *"]
+
+# Le parsing cheerio (pages money-team ~2 Mo) consomme du vrai CPU → dépasse le plan Free.
+# cpu_ms nécessite le plan Workers Paid. Sur Free : soit une seule journée légère passe,
+# soit faire le backfill des jours passés via un run Node local (`pnpm start`) puis laisser
+# le Worker au quotidien.
+[limits]
+cpu_ms = 300000
+
+# --- Secrets à injecter AVANT le 1er run (jamais dans ce fichier ni dans git) ---
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SECRET_KEY
+#   wrangler secret put MYPULS_EMAIL
+#   wrangler secret put MYPULS_PASSWORD
+#   wrangler secret put MYPULS_API_KEY
+# NE PAS mettre DATABASE_URL (inutile au Worker : supabase-js parle en REST via SUPABASE_URL).

@@ -1,6 +1,3 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import { dirname, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import {
   fetchTeamMoney,
@@ -204,9 +201,61 @@ async function ingestChatterDay(
   console.log(`[ingestion] ${day}: money-team → ${cdRows.length} chatteurs, ${ccdRows.length} paires`)
 }
 
+/**
+ * `creator_daily` d'un jour : dashboard prioritaire (CA complet ventilé + abonnés),
+ * `/team/money` (API) en fallback par modèle. Union des modèles vus par les deux sources.
+ */
+async function ingestCreatorDay(
+  db: Db,
+  day: string,
+  dash: Map<string, Map<string, DashDay>> | null,
+  nameToId: Map<string, string>,
+  pseudoToName: (p: string) => string | null,
+): Promise<void> {
+  const tx = await fetchTeamMoney(day)
+  const agg = new Map<string, { ca: number; ppv: number; tips: number; renew: number }>()
+  for (const t of tx) {
+    const name = pseudoToName(t.creator)
+    if (!name) continue
+    const a = agg.get(name) ?? { ca: 0, ppv: 0, tips: 0, renew: 0 }
+    const amt = Number(t.amount) || 0
+    a.ca += amt
+    if (t.type === 'Média privé') a.ppv += amt
+    else if (t.type === 'Pourboires') a.tips += amt
+    else if (t.type === 'Renouvellement abonnement') a.renew += amt
+    agg.set(name, a)
+  }
+  const dd = dash?.get(day)
+  const names = new Set([...agg.keys(), ...(dd?.keys() ?? [])])
+  const rows = [...names]
+    .filter((n) => nameToId.has(n))
+    .map((n) => {
+      const a = agg.get(n)
+      const d = dd?.get(n)
+      return {
+        creator_id: nameToId.get(n)!,
+        date: day,
+        ca: round(d ? d.ca : (a?.ca ?? 0)),
+        ca_ppv: round(d ? d.ppv : (a?.ppv ?? 0)),
+        ca_tips: round(d ? d.tips : (a?.tips ?? 0)),
+        ca_renew: round(d ? d.renew : (a?.renew ?? 0)),
+        subs_active: d?.subsActive ?? 0,
+        new_subs: d?.newSubs ?? 0,
+        renew_subs: d?.renewals ?? 0,
+      }
+    })
+  if (rows.length) {
+    const { error } = await db.from('creator_daily').upsert(rows, { onConflict: 'creator_id,date' })
+    if (error) throw error
+  }
+  const subsTotal = rows.reduce((s, r) => s + r.new_subs, 0)
+  console.log(
+    `[ingestion] ${day}: ${tx.length} tx → ${rows.length} modèles (${dd ? 'dashboard' : 'api'}, +${subsTotal} subs)`,
+  )
+}
+
 export async function runPipeline(explicitDay?: string): Promise<void> {
   const db = createAdminClient()
-  const rawDir = resolve(dirname(fileURLToPath(import.meta.url)), '../raw')
 
   const { data: creators, error } = await db.from('creators').select('id, name, is_private')
   if (error) throw error
@@ -261,63 +310,12 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
   }
 
   for (const day of days) {
-    const tx = await fetchTeamMoney(day)
-    mkdirSync(rawDir, { recursive: true })
-    writeFileSync(
-      resolve(rawDir, `${day}.json`),
-      JSON.stringify({ date: day, count: tx.length, tx }, null, 1),
-    )
-
-    const agg = new Map<string, { ca: number; ppv: number; tips: number; renew: number }>()
-    for (const t of tx) {
-      const name = pseudoToName(t.creator)
-      if (!name) continue
-      const a = agg.get(name) ?? { ca: 0, ppv: 0, tips: 0, renew: 0 }
-      const amt = Number(t.amount) || 0
-      a.ca += amt
-      if (t.type === 'Média privé') a.ppv += amt
-      else if (t.type === 'Pourboires') a.tips += amt
-      else if (t.type === 'Renouvellement abonnement') a.renew += amt
-      agg.set(name, a)
-    }
-    // Fusion : dashboard prioritaire (CA complet : + abo/mod/push/live, et abonnés),
-    // transactions API en fallback par modèle. Union des modèles vus par les deux sources.
-    const dd = dash?.get(day)
-    const names = new Set([...agg.keys(), ...(dd?.keys() ?? [])])
-    const rows = [...names]
-      .filter((n) => nameToId.has(n))
-      .map((n) => {
-        const a = agg.get(n)
-        const d = dd?.get(n)
-        return {
-          creator_id: nameToId.get(n)!,
-          date: day,
-          ca: round(d ? d.ca : (a?.ca ?? 0)),
-          ca_ppv: round(d ? d.ppv : (a?.ppv ?? 0)),
-          ca_tips: round(d ? d.tips : (a?.tips ?? 0)),
-          ca_renew: round(d ? d.renew : (a?.renew ?? 0)),
-          subs_active: d?.subsActive ?? 0,
-          new_subs: d?.newSubs ?? 0,
-          renew_subs: d?.renewals ?? 0,
-        }
-      })
-    if (rows.length) {
-      const { error: upErr } = await db
-        .from('creator_daily')
-        .upsert(rows, { onConflict: 'creator_id,date' })
-      if (upErr) throw upErr
-    }
-    const subsTotal = rows.reduce((s, r) => s + r.new_subs, 0)
-    console.log(
-      `[ingestion] ${day}: ${tx.length} tx → ${rows.length} modèles (${dd ? 'dashboard' : 'api'}, +${subsTotal} subs)`,
-    )
-
-    if (cookie) {
-      try {
-        await ingestChatterDay(db, day, cookie, chatterId, nameToId, pseudoToName)
-      } catch (e) {
-        console.warn(`[ingestion] money-team ${day} échoué :`, (e as Error).message)
-      }
+    // Un jour qui échoue (429/500, session…) ne doit pas avorter le rattrapage des autres.
+    try {
+      await ingestCreatorDay(db, day, dash, nameToId, pseudoToName)
+      if (cookie) await ingestChatterDay(db, day, cookie, chatterId, nameToId, pseudoToName)
+    } catch (e) {
+      console.warn(`[ingestion] jour ${day} échoué (ignoré, on continue) :`, (e as Error).message)
     }
   }
 }

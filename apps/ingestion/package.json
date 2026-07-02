@@ -7,6 +7,8 @@
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
     "capture": "tsx src/capture.ts",
+    "cf:dev": "wrangler dev --test-scheduled --port 8799",
+    "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,6 +19,7 @@
   "devDependencies": {
     "@types/node": "^22",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^3.90.0"
   }
 }
