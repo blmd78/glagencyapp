@@ -1,6 +1,6 @@
 'use client'
 
-import { Bar, BarChart, CartesianGrid, XAxis } from 'recharts'
+import { Bar, BarChart, CartesianGrid, Cell, XAxis } from 'recharts'
 import {
   Card,
   CardContent,
@@ -21,8 +21,9 @@ const chartConfig = {
 } satisfies ChartConfig
 
 /**
- * CA quotidien sur la période. L'axe montre tous les jours ; les jours après aujourd'hui
- * ont `revenue: null` → pas de barre (recharts les saute).
+ * CA quotidien sur le(s) mois entier(s) couvrant la période sélectionnée. Les jours hors
+ * sélection sont atténués et exclus du total ; les jours après aujourd'hui ont
+ * `revenue: null` → pas de barre (recharts les saute).
  */
 export function RevenueChart({
   data,
@@ -31,7 +32,7 @@ export function RevenueChart({
   data: DailyPoint[]
   periodLabel: string
 }) {
-  const total = data.reduce((s, d) => s + (d.revenue ?? 0), 0)
+  const total = data.reduce((s, d) => s + (d.inPeriod ? (d.revenue ?? 0) : 0), 0)
 
   return (
     <Card className="pt-0">
@@ -69,7 +70,11 @@ export function RevenueChart({
                 />
               }
             />
-            <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+            <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4}>
+              {data.map((d) => (
+                <Cell key={d.date} fillOpacity={d.inPeriod ? 1 : 0.25} />
+              ))}
+            </Bar>
           </BarChart>
         </ChartContainer>
       </CardContent>

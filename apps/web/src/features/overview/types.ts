@@ -33,10 +33,15 @@ export interface ModelSubs {
   subs: number
 }
 
-/** Point quotidien du graphe CA. `revenue: null` = jour après aujourd'hui (pas de donnée). */
+/**
+ * Point quotidien du graphe CA. La série couvre toujours le(s) mois entier(s) de la
+ * période sélectionnée. `revenue: null` = jour après aujourd'hui (pas de donnée) ;
+ * `inPeriod: false` = jour du mois hors sélection (affiché atténué, exclu du total).
+ */
 export interface DailyPoint {
   date: string
   revenue: number | null
+  inPeriod: boolean
 }
 
 export type InsightSeverity = 'critical' | 'warning' | 'opportunity' | 'insight'
