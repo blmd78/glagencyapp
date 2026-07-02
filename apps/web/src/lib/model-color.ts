@@ -13,8 +13,30 @@ export const MODEL_COLORS = [
   'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-900',
 ]
 
-export function modelColor(name: string): string {
+/** Variante « barre pleine » (même teinte que le badge), pour les graphes. */
+export const MODEL_BAR_COLORS = [
+  'bg-blue-500',
+  'bg-emerald-500',
+  'bg-violet-500',
+  'bg-amber-500',
+  'bg-rose-500',
+  'bg-teal-500',
+  'bg-indigo-500',
+  'bg-pink-500',
+  'bg-cyan-500',
+  'bg-orange-500',
+]
+
+function hash(name: string): number {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  return MODEL_COLORS[h % MODEL_COLORS.length]
+  return h
+}
+
+export function modelColor(name: string): string {
+  return MODEL_COLORS[hash(name) % MODEL_COLORS.length]
+}
+
+export function modelBarColor(name: string): string {
+  return MODEL_BAR_COLORS[hash(name) % MODEL_BAR_COLORS.length]
 }
