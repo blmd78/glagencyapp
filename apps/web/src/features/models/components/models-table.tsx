@@ -1,9 +1,10 @@
 'use client'
 
 import { type ColumnDef, type Row } from '@tanstack/react-table'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Info } from 'lucide-react'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,28 @@ const eur2 = (n: number) =>
 const pct = (n: number) =>
   `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 const num = (n: number) => n.toLocaleString('fr-FR')
+
+/** Petit ⓘ d'aide dans un en-tête de colonne (provider local : la table n'en a pas). */
+function HeaderInfo({ text }: { text: string }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="En savoir plus"
+            className="text-muted-foreground/60 transition-colors hover:text-foreground"
+          >
+            <Info className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[16rem] text-xs font-normal leading-relaxed">
+          {text}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 /** Petite jauge « part du CA » (barre + %). */
 function PartBar({ value }: { value: number }) {
@@ -93,7 +116,12 @@ const columns: ColumnDef<ModelRow>[] = [
   },
   {
     accessorKey: 'part',
-    header: ({ column }) => <Sortable column={column} label="Part CA" className="justify-end" />,
+    header: ({ column }) => (
+      <div className="flex items-center justify-end gap-1.5">
+        <Sortable column={column} label="Part CA" className="justify-end" />
+        <HeaderInfo text="Poids du modèle dans le CA de l'agence sur la période sélectionnée. Calcul : CA du modèle ÷ CA total (somme de tous les modèles) × 100. La barre visualise ce pourcentage." />
+      </div>
+    ),
     cell: ({ getValue }) => <PartBar value={getValue() as number} />,
     meta: { align: 'right' },
   },
