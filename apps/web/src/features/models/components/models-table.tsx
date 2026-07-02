@@ -86,13 +86,23 @@ const columns: ColumnDef<ModelRow>[] = [
   },
   {
     accessorKey: 'newSubs',
-    header: ({ column }) => <Sortable column={column} label="Nouv. subs" className="justify-end" />,
+    header: ({ column }) => (
+      <div className="flex items-center justify-end gap-1.5">
+        <Sortable column={column} label="Nouv. subs" className="justify-end" />
+        <HeaderInfo text="Nouveaux abonnés gagnés par le modèle sur la période. Source : stats d'abonnements MyPuls (dashboard) — pas encore ingérées, d'où les 0 actuels." />
+      </div>
+    ),
     cell: ({ getValue }) => <span className="tabular-nums text-muted-foreground">{num(getValue() as number)}</span>,
     meta: { align: 'right' },
   },
   {
     accessorKey: 'renouv',
-    header: 'Renouv.',
+    header: () => (
+      <div className="flex items-center justify-end gap-1.5">
+        <span>Renouv.</span>
+        <HeaderInfo text="Renouvellements d'abonnement sur la période. Source : stats d'abonnements MyPuls — pas encore ingérées, d'où les 0 actuels." />
+      </div>
+    ),
     cell: ({ getValue }) => <span className="tabular-nums text-muted-foreground">{num(getValue() as number)}</span>,
     meta: { align: 'right' },
   },
@@ -110,7 +120,12 @@ const columns: ColumnDef<ModelRow>[] = [
   },
   {
     accessorKey: 'ltv',
-    header: ({ column }) => <Sortable column={column} label="LTV / sub" className="justify-end" />,
+    header: ({ column }) => (
+      <div className="flex items-center justify-end gap-1.5">
+        <Sortable column={column} label="LTV / sub" className="justify-end" />
+        <HeaderInfo text="Revenu moyen par nouvel abonné. Calcul : CA total du modèle ÷ nombre de nouveaux abonnés. Vaut 0 tant qu'aucun nouvel abonné n'est ingéré sur la période." />
+      </div>
+    ),
     cell: ({ getValue }) => <span className="tabular-nums text-muted-foreground">{eur2(getValue() as number)}</span>,
     meta: { align: 'right' },
   },
