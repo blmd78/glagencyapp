@@ -6,10 +6,11 @@
 name: Ingestion MyPuls
 
 on:
-  # 23h43 UTC ≈ 01h43 Paris (été) → capture la journée Paris complète. Minute décalée
-  # à :43 (pas :00 ni :59) : le cron GitHub est best-effort et sature au top de l'heure.
+  # 21h49 UTC = 23h49 Paris en ÉTÉ (CEST, UTC+2). ⚠️ GitHub cron ignore l'heure d'été :
+  # en HIVER (CET, UTC+1) ça tombera à 22h49 Paris. Minute à :49 (pas :00) car le cron
+  # GitHub est best-effort et accumule des retards au top de l'heure.
   schedule:
-    - cron: '43 23 * * *'
+    - cron: '49 21 * * *'
   workflow_dispatch:
     inputs:
       day:

@@ -9,10 +9,12 @@ Deux entrypoints, même logique (`src/pipeline.ts` `runPipeline()`) :
 
 ## Cron en production : GitHub Actions (gratuit — ACTIF)
 
-`.github/workflows/ingestion.yml` : cron `43 23 * * *` **UTC** (≈ 01h43 Paris l'été) →
-`pnpm --filter @glagency/ingestion start` sur un runner Ubuntu. Gratuit (~2 min/nuit sur
-les 2000 min/mois du plan Free ; repo privé OK). Minute à :43 car le cron GitHub est
-best-effort et sature au top de l'heure (retards de 30-60 min possibles à :00).
+`.github/workflows/ingestion.yml` : cron `49 21 * * *` **UTC** = **23h49 Paris en été**
+(CEST). ⚠️ GitHub cron ignore l'heure d'été → en **hiver** ça tombe à **22h49 Paris**
+(pour garder 23h49 toute l'année il faudrait 2 lignes cron + un filtre de mois, pas
+nécessaire ici). `pnpm --filter @glagency/ingestion start` sur un runner Ubuntu. Gratuit
+(~2 min/nuit sur les 2000 min/mois du plan Free ; repo privé OK). Minute à :49 car le cron
+GitHub est best-effort et sature au top de l'heure (retards de 30-60 min possibles à :00).
 
 - **Secrets** (une fois) : repo GitHub → Settings → Secrets and variables → **Actions** →
   `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `MYPULS_EMAIL`, `MYPULS_PASSWORD`, `MYPULS_API_KEY`.
