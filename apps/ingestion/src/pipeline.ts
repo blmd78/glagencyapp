@@ -2,21 +2,29 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { fetchTeamMoney, fetchMoneyTeamDay, login } from '@glagency/mypuls'
+import {
+  fetchTeamMoney,
+  fetchMoneyTeamDay,
+  fetchDashboardStats,
+  fetchDashboardSubscriptions,
+  login,
+} from '@glagency/mypuls'
 import { createAdminClient } from '@glagency/db'
 
 type Db = ReturnType<typeof createAdminClient>
 
 /**
- * Pipeline quotidien : /team/money (par jour) → agrégation par modèle → upsert creator_daily.
- * Idempotent (upsert `creator_id,date`). Auto-cicatrisant : sans argument, rattrape les jours
- * complets manquants (max(date)+1 → hier) + capture aujourd'hui (partiel, complété demain).
+ * Pipeline quotidien → upsert creator_daily. Sources par ordre de priorité :
+ * dashboard/stats + dashboard/subscriptions (session web : CA complet ventilé + nouveaux
+ * abonnés + abonnés actifs), fallback /team/money (API : messagerie seule) si le dashboard
+ * est indisponible. Idempotent (upsert `creator_id,date`). Auto-cicatrisant : sans argument,
+ * rattrape depuis le dernier jour connu (souvent partiel) jusqu'à aujourd'hui.
  * Écrit aussi le brut dans apps/ingestion/raw/<date>.json.
  *
  * Attribution par chatteur : depuis le dashboard money-team (session web, l'API ne donne
  * pas l'expéditeur) → chatter_daily + chatter_creator_daily. Cf. ingestChatterDay.
  *
- * TODO (suite) : new_subs/subs_active via /creators/{id}/stats ; runRules → insights.
+ * TODO (suite) : runRules → insights.
  */
 
 const PRIV: Record<string, string> = {
@@ -31,6 +39,75 @@ function addDays(day: string, n: number): string {
   const d = new Date(day + 'T00:00:00Z')
   d.setUTCDate(d.getUTCDate() + n)
   return iso(d)
+}
+
+/** Valeurs dashboard d'un (modèle, jour) : CA ventilé (€) + abonnés (comptes). */
+interface DashDay {
+  ca: number
+  ppv: number
+  tips: number
+  renew: number
+  newSubs: number
+  renewals: number
+  subsActive: number
+}
+
+/**
+ * Séries dashboard sur [from..to] (bornes incluses) → Map<date, Map<nom modèle, DashDay>>.
+ * `+=` partout : plusieurs pseudos MyPuls peuvent pointer vers le même modèle.
+ */
+async function fetchDashboardRange(
+  from: string,
+  to: string,
+  cookie: string,
+  pseudoToName: (p: string) => string | null,
+): Promise<Map<string, Map<string, DashDay>>> {
+  const [stats, subs] = await Promise.all([
+    fetchDashboardStats(from, to, cookie),
+    fetchDashboardSubscriptions(from, to, cookie),
+  ])
+  const out = new Map<string, Map<string, DashDay>>()
+  const entry = (date: string, name: string): DashDay => {
+    let m = out.get(date)
+    if (!m) {
+      m = new Map()
+      out.set(date, m)
+    }
+    let e = m.get(name)
+    if (!e) {
+      e = { ca: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0, renewals: 0, subsActive: 0 }
+      m.set(name, e)
+    }
+    return e
+  }
+  for (const ds of stats.datasets) {
+    const name = pseudoToName(ds.label)
+    if (!name) continue
+    stats.labels.forEach((date, i) => {
+      const e = entry(date, name)
+      e.ca += ds.data[i] ?? 0
+      e.ppv += ds.breakdown.ppv?.[i] ?? 0
+      e.tips += ds.breakdown.tips?.[i] ?? 0
+      e.renew += ds.breakdown.renew?.[i] ?? 0
+    })
+  }
+  for (const ds of subs.newSubsDatasets) {
+    const name = pseudoToName(ds.label)
+    if (!name) continue
+    subs.labels.forEach((date, i) => {
+      const e = entry(date, name)
+      e.newSubs += ds.data[i] ?? 0
+      e.renewals += ds.renewals?.[i] ?? 0
+    })
+  }
+  for (const ds of subs.totalSubsDatasets) {
+    const name = pseudoToName(ds.label)
+    if (!name) continue
+    subs.labels.forEach((date, i) => {
+      entry(date, name).subsActive += ds.data[i] ?? 0
+    })
+  }
+  return out
 }
 
 /**
@@ -171,6 +248,18 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
     days = all.slice(-MAX_CATCHUP)
   }
 
+  // Séries dashboard (CA ventilé + abonnés) en une passe pour toute la fenêtre.
+  const [first, last] = [days[0], days[days.length - 1]]
+  let dash: Map<string, Map<string, DashDay>> | null = null
+  if (cookie && first && last) {
+    try {
+      dash = await fetchDashboardRange(first, last, cookie, pseudoToName)
+      console.log(`[ingestion] dashboard: séries ${first} → ${last} OK`)
+    } catch (e) {
+      console.warn('[ingestion] dashboard indisponible → fallback /team/money :', (e as Error).message)
+    }
+  }
+
   for (const day of days) {
     const tx = await fetchTeamMoney(day)
     mkdirSync(rawDir, { recursive: true })
@@ -191,25 +280,37 @@ export async function runPipeline(explicitDay?: string): Promise<void> {
       else if (t.type === 'Renouvellement abonnement') a.renew += amt
       agg.set(name, a)
     }
-    const rows = [...agg]
-      .filter(([n]) => nameToId.has(n))
-      .map(([n, a]) => ({
-        creator_id: nameToId.get(n)!,
-        date: day,
-        ca: round(a.ca),
-        ca_ppv: round(a.ppv),
-        ca_tips: round(a.tips),
-        ca_renew: round(a.renew),
-        subs_active: 0,
-        new_subs: 0,
-      }))
+    // Fusion : dashboard prioritaire (CA complet : + abo/mod/push/live, et abonnés),
+    // transactions API en fallback par modèle. Union des modèles vus par les deux sources.
+    const dd = dash?.get(day)
+    const names = new Set([...agg.keys(), ...(dd?.keys() ?? [])])
+    const rows = [...names]
+      .filter((n) => nameToId.has(n))
+      .map((n) => {
+        const a = agg.get(n)
+        const d = dd?.get(n)
+        return {
+          creator_id: nameToId.get(n)!,
+          date: day,
+          ca: round(d ? d.ca : (a?.ca ?? 0)),
+          ca_ppv: round(d ? d.ppv : (a?.ppv ?? 0)),
+          ca_tips: round(d ? d.tips : (a?.tips ?? 0)),
+          ca_renew: round(d ? d.renew : (a?.renew ?? 0)),
+          subs_active: d?.subsActive ?? 0,
+          new_subs: d?.newSubs ?? 0,
+          renew_subs: d?.renewals ?? 0,
+        }
+      })
     if (rows.length) {
       const { error: upErr } = await db
         .from('creator_daily')
         .upsert(rows, { onConflict: 'creator_id,date' })
       if (upErr) throw upErr
     }
-    console.log(`[ingestion] ${day}: ${tx.length} tx → ${rows.length} modèles`)
+    const subsTotal = rows.reduce((s, r) => s + r.new_subs, 0)
+    console.log(
+      `[ingestion] ${day}: ${tx.length} tx → ${rows.length} modèles (${dd ? 'dashboard' : 'api'}, +${subsTotal} subs)`,
+    )
 
     if (cookie) {
       try {

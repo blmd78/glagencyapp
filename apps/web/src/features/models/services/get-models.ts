@@ -20,7 +20,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
       supabase.from('creators').select('id, name, is_private, excluded'),
       supabase
         .from('creator_daily')
-        .select('creator_id, ca, ca_ppv, ca_tips, ca_renew, new_subs')
+        .select('creator_id, ca, ca_ppv, ca_tips, ca_renew, new_subs, renew_subs')
         .gte('date', period.from)
         .lte('date', period.to),
       supabase
@@ -34,14 +34,18 @@ export async function getModels(period: Period): Promise<ModelsData> {
 
   const chName = new Map((chatters ?? []).map((c) => [c.id, c.display_name]))
 
-  const agg = new Map<string, { total: number; ppv: number; tips: number; renew: number; newSubs: number }>()
+  const agg = new Map<
+    string,
+    { total: number; ppv: number; tips: number; renew: number; newSubs: number; renewals: number }
+  >()
   for (const r of cd ?? []) {
-    const a = agg.get(r.creator_id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0 }
+    const a = agg.get(r.creator_id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0, renewals: 0 }
     a.total += r.ca ?? 0
     a.ppv += r.ca_ppv ?? 0
     a.tips += r.ca_tips ?? 0
     a.renew += r.ca_renew ?? 0
     a.newSubs += r.new_subs ?? 0
+    a.renewals += r.renew_subs ?? 0
     agg.set(r.creator_id, a)
   }
 
@@ -70,7 +74,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
   const models: ModelRow[] = (creators ?? [])
     .filter((c) => !c.excluded)
     .map((c) => {
-      const a = agg.get(c.id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0 }
+      const a = agg.get(c.id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0, renewals: 0 }
       const byCh = breakdown.get(c.id) ?? new Map()
       const chattersArr: ModelChatter[] = [...byCh.entries()]
         .map(([id, x]) => ({
@@ -89,7 +93,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
         name: c.name,
         total: a.total,
         newSubs: a.newSubs,
-        renouv: 0,
+        renouv: a.renewals,
         ventes: chattersArr.reduce((s, x) => s + x.vendu, 0),
         caMsg: a.ppv + a.tips,
         ltv: a.newSubs ? round2(a.total / a.newSubs) : 0,

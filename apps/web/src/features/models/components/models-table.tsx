@@ -89,7 +89,7 @@ const columns: ColumnDef<ModelRow>[] = [
     header: ({ column }) => (
       <div className="flex items-center justify-end gap-1.5">
         <Sortable column={column} label="Nouv. subs" className="justify-end" />
-        <HeaderInfo text="Nouveaux abonnés gagnés par le modèle sur la période. Source : stats d'abonnements MyPuls (dashboard) — pas encore ingérées, d'où les 0 actuels." />
+        <HeaderInfo text="Nouveaux abonnés (premiers abonnements) gagnés par le modèle sur la période. Source : stats d'abonnements MyPuls (dashboard)." />
       </div>
     ),
     cell: ({ getValue }) => <span className="tabular-nums text-muted-foreground">{num(getValue() as number)}</span>,
@@ -100,7 +100,7 @@ const columns: ColumnDef<ModelRow>[] = [
     header: () => (
       <div className="flex items-center justify-end gap-1.5">
         <span>Renouv.</span>
-        <HeaderInfo text="Renouvellements d'abonnement sur la période. Source : stats d'abonnements MyPuls — pas encore ingérées, d'où les 0 actuels." />
+        <HeaderInfo text="Nombre de renouvellements / ré-abonnements sur la période. Source : stats d'abonnements MyPuls (dashboard)." />
       </div>
     ),
     cell: ({ getValue }) => <span className="tabular-nums text-muted-foreground">{num(getValue() as number)}</span>,
@@ -123,7 +123,7 @@ const columns: ColumnDef<ModelRow>[] = [
     header: ({ column }) => (
       <div className="flex items-center justify-end gap-1.5">
         <Sortable column={column} label="LTV / sub" className="justify-end" />
-        <HeaderInfo text="Revenu moyen par nouvel abonné. Calcul : CA total du modèle ÷ nombre de nouveaux abonnés. Vaut 0 tant qu'aucun nouvel abonné n'est ingéré sur la période." />
+        <HeaderInfo text="Revenu moyen par nouvel abonné (lifetime value). Calcul : CA total du modèle ÷ nombre de nouveaux abonnés. = 0 si le modèle n'a aucun nouvel abonné sur la période." />
       </div>
     ),
     cell: ({ getValue }) => <span className="tabular-nums text-muted-foreground">{eur2(getValue() as number)}</span>,

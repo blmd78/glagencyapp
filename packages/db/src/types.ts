@@ -272,6 +272,7 @@ export type Database = {
           creator_id: string
           date: string
           new_subs: number
+          renew_subs: number
           subs_active: number
         }
         Insert: {
@@ -282,6 +283,7 @@ export type Database = {
           creator_id: string
           date: string
           new_subs?: number
+          renew_subs?: number
           subs_active?: number
         }
         Update: {
@@ -292,6 +294,7 @@ export type Database = {
           creator_id?: string
           date?: string
           new_subs?: number
+          renew_subs?: number
           subs_active?: number
         }
         Relationships: [
