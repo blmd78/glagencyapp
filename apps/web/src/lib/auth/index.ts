@@ -16,3 +16,16 @@ export async function requireUser() {
   if (!user) redirect('/login')
   return user
 }
+
+/** Profil applicatif (rôle + display_name) de l'utilisateur courant, ou null. */
+export async function getProfile() {
+  const user = await getUser()
+  if (!user) return null
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, role, display_name')
+    .eq('id', user.id)
+    .single()
+  return data
+}
