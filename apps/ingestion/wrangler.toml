@@ -1,4 +1,7 @@
 name = "glagency-ingestion"
+# Compte Cloudflare cible VERROUILLÉ (benoitgasnier.pro@gmail.com) — empêche un déploiement
+# accidentel sur un autre compte si le CLI est logué ailleurs (ex. holyware2000).
+account_id = "091614e14d100aaca55e45c25011d4a8"
 main = "src/worker.ts"
 compatibility_date = "2024-11-01"
 # nodejs_compat : fournit process, node:crypto (randomUUID), Buffer… utilisés par le code

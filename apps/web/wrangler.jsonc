@@ -1,6 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "glagency-web",
+  // Compte Cloudflare cible VERROUILLÉ (benoitgasnier.pro@gmail.com) — empêche un déploiement
+  // accidentel sur un autre compte si le CLI est logué ailleurs.
+  "account_id": "091614e14d100aaca55e45c25011d4a8",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-04-01",
   // nodejs_compat requis par OpenNext (Node APIs polyfillées dans le runtime Worker).
