@@ -5,7 +5,9 @@
   // accidentel sur un autre compte si le CLI est logué ailleurs.
   "account_id": "091614e14d100aaca55e45c25011d4a8",
   "main": ".open-next/worker.js",
-  "compatibility_date": "2025-04-01",
+  // ≥ 2025-08-16 requis par @sentry/nextjs : introduit https.request dans workerd,
+  // sans quoi le SDK ne peut pas envoyer les events.
+  "compatibility_date": "2025-08-16",
   // nodejs_compat requis par OpenNext (Node APIs polyfillées dans le runtime Worker).
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
