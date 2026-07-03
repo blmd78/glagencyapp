@@ -40,6 +40,11 @@ interface DataTableProps<T> {
   renderSubRows?: (row: Row<T>) => ReactNode
   /** Libellé du compteur (ex. `n => `${n} chatteur(s)``). */
   countLabel?: (n: number) => string
+  /**
+   * Identité stable des lignes (ex. `(r) => r.id`). Sans elle, TanStack keye par index :
+   * une ligne dépliée pointerait vers une AUTRE entité après changement de données/tri.
+   */
+  getRowId?: (row: T) => string
 }
 
 /** Data-table shadcn/TanStack réutilisable : filtre + tri + pagination + lignes dépliables. */
@@ -53,6 +58,7 @@ export function DataTable<T>({
   getRowCanExpand,
   renderSubRows,
   countLabel,
+  getRowId,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -64,6 +70,7 @@ export function DataTable<T>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getRowCanExpand,
+    getRowId,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

@@ -13,6 +13,11 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  // Workers Logs (gratuit en Free : 200k événements/jour partagés par compte, rétention 3 jours).
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
   }
   // Les 2 vars Supabase sont NEXT_PUBLIC_* → inlinées au build depuis .env.local (rien à mettre
   // ici). ⚠️ Pour un build CI/Cloudflare (sans .env.local), les définir dans l'env de build.

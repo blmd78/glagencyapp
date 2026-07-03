@@ -61,6 +61,14 @@ export const WORKSPACES: Workspace[] = [
 
 export const DEFAULT_WORKSPACE = WORKSPACES[0]
 
+/** Slug d'accès d'une page = dernier segment de son href (`/chatter/modeles` → `modeles`). */
+export const pageSlug = (href: string) => href.split('/').pop() as string
+
+/** Pages cochables dans la gestion des membres (tout sauf Membres, admin only). */
+export const PAGE_CHOICES = DEFAULT_WORKSPACE.nav
+  .filter((n) => !n.adminOnly)
+  .map((n) => ({ slug: pageSlug(n.href), label: n.label, icon: n.icon }))
+
 /** Face active déduite de l'URL (fallback : face par défaut). */
 export function workspaceForPath(pathname: string): Workspace {
   return (

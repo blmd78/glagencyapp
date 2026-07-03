@@ -13,7 +13,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import { WORKSPACES, workspaceForPath } from '@/config/workspaces'
+import { WORKSPACES, workspaceForPath, pageSlug } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { withPeriod } from '@/lib/nav'
@@ -21,14 +21,19 @@ import { withPeriod } from '@/lib/nav'
 export function AppSidebar({
   userEmail,
   isAdmin,
+  allowedPages,
 }: {
   userEmail: string
   isAdmin?: boolean
+  /** Slugs autorisés pour un rôle `user` (ignoré si admin). */
+  allowedPages?: string[]
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const active = workspaceForPath(pathname)
-  const items = active.nav.filter((item) => !item.adminOnly || isAdmin)
+  const items = active.nav.filter((item) =>
+    isAdmin ? true : !item.adminOnly && (allowedPages ?? []).includes(pageSlug(item.href)),
+  )
 
   return (
     <Sidebar collapsible="icon">

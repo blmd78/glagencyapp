@@ -14,7 +14,8 @@
   "dependencies": {
     "@glagency/core": "workspace:*",
     "@glagency/db": "workspace:*",
-    "@glagency/mypuls": "workspace:*"
+    "@glagency/mypuls": "workspace:*",
+    "@sentry/cloudflare": "^10.63.0"
   },
   "devDependencies": {
     "@types/node": "^22",
