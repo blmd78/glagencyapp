@@ -364,6 +364,36 @@ export type Database = {
           },
         ]
       }
+      ingest_runs: {
+        Row: {
+          error: string | null
+          finished_at: string
+          id: string
+          started_at: string
+          status: string
+          summary: Json
+          triggered_by: string
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string
+          id?: string
+          started_at: string
+          status: string
+          summary?: Json
+          triggered_by: string
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string
+          id?: string
+          started_at?: string
+          status?: string
+          summary?: Json
+          triggered_by?: string
+        }
+        Relationships: []
+      }
       period_snapshot_kpi: {
         Row: {
           current_week_days: number
@@ -461,22 +491,76 @@ export type Database = {
         Row: {
           created_at: string
           display_name: string | null
+          email: string | null
           id: string
-          role: Database["public"]["Enums"]["app_role"]
+          pages: string[]
+          role: string
         }
         Insert: {
           created_at?: string
           display_name?: string | null
+          email?: string | null
           id: string
-          role?: Database["public"]["Enums"]["app_role"]
+          pages?: string[]
+          role?: string
         }
         Update: {
           created_at?: string
           display_name?: string | null
+          email?: string | null
           id?: string
-          role?: Database["public"]["Enums"]["app_role"]
+          pages?: string[]
+          role?: string
         }
         Relationships: []
+      }
+      quotas: {
+        Row: {
+          ca_eur: number
+          conv_pct: number
+          medias_proposes: number
+          presence_h: number
+          reactivite_s: number
+          team_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ca_eur: number
+          conv_pct: number
+          medias_proposes: number
+          presence_h: number
+          reactivite_s: number
+          team_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ca_eur?: number
+          conv_pct?: number
+          medias_proposes?: number
+          presence_h?: number
+          reactivite_s?: number
+          team_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotas_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: true
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotas_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teams: {
         Row: {
@@ -510,7 +594,6 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      app_role: "admin" | "manager" | "member"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -638,7 +721,6 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "manager", "member"],
     },
   },
 } as const
