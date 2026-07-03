@@ -6,12 +6,16 @@ import type { RevenueScope } from '@/components/revenue-scope-note'
  * chatter_daily + chatter_creator_daily) — seul `get-chatters.ts` changera.
  */
 
-/** Détail par modèle (sommable : argent + volume). */
+/** Détail par compte OF (sommable : argent + volume). */
 export interface ChatterModel {
+  /** id du compte OF (creators.id) — clé stable, deux comptes peuvent partager un nom. */
+  creatorId: string
   model: string
   ca: number
   ppv: number
   tips: number
+  /** Commission sur ce modèle (ca × barème). */
+  com: number
   propose: number
   vendu: number
   /** Recalculé Σvendu/Σpropose (jamais la moyenne des %). */
@@ -29,13 +33,15 @@ export interface ChatterRow {
   ca: number
   ppv: number
   tips: number
-  com: number
-  propose: number
+  /** null en mode restreint (com globale non calculable sur un périmètre partiel). */
+  com: number | null
+  /** null en mode restreint (« proposé » n'existe qu'au grain tous-modèles). */
+  propose: number | null
   vendu: number
-  // Non sommables (niveau chatteur uniquement)
-  tauxConv: number
-  presenceActiveH: number
-  presenceIdleH: number
+  // Non sommables (niveau chatteur uniquement) — null en mode restreint (source admin-only)
+  tauxConv: number | null
+  presenceActiveH: number | null
+  presenceIdleH: number | null
   reactiviteS: number | null
   // Ventilation
   nbModels: number
@@ -49,6 +55,8 @@ export interface ChatterRow {
 export interface ChattersData {
   period: string
   chatters: ChatterRow[]
-  /** Périmètres emboîtés du CA (attribué ⊂ messagerie ⊂ total agence) pour la période. */
-  scope: RevenueScope
+  /** Périmètres emboîtés du CA — null en mode restreint (total agence invisible). */
+  scope: RevenueScope | null
+  /** true = rôle `user` : données limitées à ses modèles (RLS), colonnes globales masquées. */
+  restricted: boolean
 }

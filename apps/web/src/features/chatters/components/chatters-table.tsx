@@ -8,15 +8,14 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
+import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, pct } from '@/lib/format'
 import type { ChatterRow } from '../types'
 
-const STATUS_ACTIVE =
-  'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-900'
-const STATUS_GHOST =
-  'bg-zinc-100 text-zinc-500 border-zinc-200 dark:bg-zinc-800/60 dark:text-zinc-400 dark:border-zinc-700'
+// Couleurs de statut partagées (recette badge shadcn) : lib/status-color.ts.
 
-const canExpand = (c: ChatterRow) => c.nbModels > 0 || c.caUnattributed > 0
+// Dépliable dès qu'il y a des lignes modèle (y compris à 0) ou un reliquat non ventilé.
+const canExpand = (c: ChatterRow) => c.models.length > 0 || c.caUnattributed > 0
 
 const columns: ColumnDef<ChatterRow>[] = [
   {
@@ -58,12 +57,12 @@ const columns: ColumnDef<ChatterRow>[] = [
       return (
         <div className="flex flex-wrap gap-1">
           {shown.map((n) => (
-            <Badge key={n} variant="outline" className={cn('font-normal', modelColor(n))}>
+            <Badge key={n} className={modelColor(n)}>
               {n}
             </Badge>
           ))}
           {extra > 0 && (
-            <Badge variant="outline" className="font-normal text-muted-foreground">
+            <Badge variant="secondary" className="text-muted-foreground">
               +{extra}
             </Badge>
           )}
@@ -82,9 +81,10 @@ const columns: ColumnDef<ChatterRow>[] = [
   {
     accessorKey: 'com',
     header: 'Com.',
-    cell: ({ getValue }) => (
-      <span className="tabular-nums text-muted-foreground">{eur(getValue() as number)}</span>
-    ),
+    cell: ({ getValue }) => {
+      const v = getValue() as number | null
+      return <span className="tabular-nums text-muted-foreground">{v === null ? '—' : eur(v)}</span>
+    },
     meta: { align: 'right' },
   },
   {
@@ -104,7 +104,9 @@ const columns: ColumnDef<ChatterRow>[] = [
     header: 'Prop./Vendu',
     cell: ({ row }) => (
       <span className="tabular-nums">
-        {row.original.propose} / {row.original.vendu}
+        {row.original.propose === null
+          ? row.original.vendu
+          : `${row.original.propose} / ${row.original.vendu}`}
       </span>
     ),
     meta: { align: 'right' },
@@ -112,7 +114,10 @@ const columns: ColumnDef<ChatterRow>[] = [
   {
     accessorKey: 'tauxConv',
     header: ({ column }) => <Sortable column={column} label="Conv." className="justify-end" />,
-    cell: ({ getValue }) => <span className="tabular-nums">{pct(getValue() as number)}</span>,
+    cell: ({ getValue }) => {
+      const v = getValue() as number | null
+      return <span className="tabular-nums">{v === null ? '—' : pct(v)}</span>
+    },
     meta: { align: 'right' },
   },
   {
@@ -120,7 +125,9 @@ const columns: ColumnDef<ChatterRow>[] = [
     header: 'Présence',
     cell: ({ row }) => (
       <span className="tabular-nums text-muted-foreground">
-        {Math.round(row.original.presenceActiveH)}h / {Math.round(row.original.presenceIdleH)}h
+        {row.original.presenceActiveH === null || row.original.presenceIdleH === null
+          ? '—'
+          : `${Math.round(row.original.presenceActiveH)}h / ${Math.round(row.original.presenceIdleH)}h`}
       </span>
     ),
     meta: { align: 'right' },
@@ -140,8 +147,7 @@ const columns: ColumnDef<ChatterRow>[] = [
     header: 'Statut',
     cell: ({ getValue }) => (
       <Badge
-        variant="outline"
-        className={cn('font-medium', (getValue() as boolean) ? STATUS_ACTIVE : STATUS_GHOST)}
+        className={(getValue() as boolean) ? STATUS_COLORS.positive : STATUS_COLORS.neutral}
       >
         {(getValue() as boolean) ? 'Actif' : 'Fantôme'}
       </Badge>
@@ -155,15 +161,15 @@ function chatterSubRows(row: Row<ChatterRow>) {
   return (
     <>
       {row.original.models.map((m) => (
-        <TableRow key={`${row.id}:${m.model}`} className="bg-muted/30 hover:bg-muted/30">
+        <TableRow key={`${row.id}:${m.creatorId}`} className="bg-muted/30 hover:bg-muted/30">
           <TableCell className="pl-8">
-            <Badge variant="outline" className={cn('font-normal', modelColor(m.model))}>
-              {m.model}
-            </Badge>
+            <Badge className={modelColor(m.model)}>{m.model}</Badge>
           </TableCell>
           <TableCell className="text-muted-foreground">—</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.ca)}</TableCell>
-          <TableCell className="text-right text-muted-foreground">—</TableCell>
+          <TableCell className="text-right tabular-nums text-muted-foreground">
+            {eur(m.com)}
+          </TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.ppv)}</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.tips)}</TableCell>
           {/* « Proposé » n'existe pas au grain chatteur × modèle (non ventilé par MyPuls) :
@@ -203,6 +209,7 @@ export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
       filterColumnId="name"
       filterPlaceholder="Filtrer par chatteur…"
       initialSorting={[{ id: 'ca', desc: true }]}
+      getRowId={(c) => c.id}
       getRowCanExpand={(row) => canExpand(row.original)}
       renderSubRows={chatterSubRows}
       countLabel={(n) => `${n} chatteur(s)`}
