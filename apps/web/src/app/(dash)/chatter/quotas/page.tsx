@@ -1,6 +1,10 @@
+import { getQuotas } from '@/features/quotas/services/get-quotas'
+import { requireAccess } from '@/lib/auth'
 import { QuotasTemplate } from '@/features/quotas/QuotasTemplate'
 
+// Page de config (seuils journaliers + exclusions) — pas de filtre période.
 export default async function QuotasPage() {
-  // TODO: récupérer les données via @/features/quotas/services + @/lib/supabase/server
-  return <QuotasTemplate />
+  await requireAccess('quotas')
+  const data = await getQuotas()
+  return <QuotasTemplate data={data} />
 }

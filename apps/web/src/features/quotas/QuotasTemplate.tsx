@@ -1,15 +1,39 @@
-// Template de la feature « quotas » — reçoit les données en props et appelle les composants.
-// Convention archi-web : AUCUN fetch ici (la récup se fait dans app/(dash)/quotas/page.tsx).
+import { QuotasEditor } from './components/quotas-editor'
+import { ExclusionsEditor } from './components/exclusions-editor'
+import type { QuotasData } from './types'
 
-export interface QuotasTemplateProps {
-  data?: unknown // TODO: typer (cf. ./types)
-}
+/** Template Quotas : seuils journaliers par équipe + exclusion LTV des comptes privés. Aucun fetch. */
+export function QuotasTemplate({ data }: { data: QuotasData }) {
+  const configured = data.teams.filter((t) => t.quota !== null).length
 
-export function QuotasTemplate({ data: _data }: QuotasTemplateProps = {}) {
   return (
-    <section className="space-y-2">
-      <h1 className="text-xl font-semibold">Quotas</h1>
-      <p className="text-sm text-muted-foreground">TODO — feature « quotas »</p>
-    </section>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Quotas</h1>
+        <p className="text-sm text-muted-foreground">
+          Seuils journaliers par modèle · {configured}/{data.teams.length} configurés · utilisés
+          pour générer les cartes Analyses chaque semaine
+        </p>
+      </div>
+
+      {data.error ? (
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <p className="text-sm font-medium text-destructive">Lecture impossible</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{data.error}</p>
+        </div>
+      ) : data.teams.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <p className="text-sm font-medium">Aucune équipe active</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+            Les équipes sont créées par l&apos;ingestion quotidienne. Reviens après le prochain
+            refresh, ou vérifie la table teams.
+          </p>
+        </div>
+      ) : (
+        <QuotasEditor teams={data.teams} />
+      )}
+
+      {!data.error && data.accounts.length > 0 && <ExclusionsEditor accounts={data.accounts} />}
+    </div>
   )
 }
