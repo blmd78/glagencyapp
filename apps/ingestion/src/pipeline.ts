@@ -384,10 +384,13 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     const start = last ?? yesterday
     const all: string[] = []
     for (let d = start; d <= today; d = addDays(d, 1)) all.push(d)
-    days = all.slice(-(deps.maxCatchup ?? MAX_CATCHUP))
+    // ⚠️ Tronquer côté ANCIEN (slice(0, N)) : le prochain run repart de max(date) — si on
+    // gardait les jours récents, les anciens deviendraient des trous définitifs (max(date)
+    // aurait déjà avancé) ; en gardant les anciens, la fenêtre avance jusqu'à résorption.
+    days = all.slice(0, deps.maxCatchup ?? MAX_CATCHUP)
     if (days.length < all.length) {
       warnings.push(
-        `rattrapage tronqué à ${days.length} jour(s) sur ${all.length} en retard (cap sous-requêtes Worker) — se résorbe aux runs suivants`,
+        `rattrapage tronqué à ${days.length} jour(s) sur ${all.length} en retard (cap sous-requêtes Worker) — reprendra à ${days[days.length - 1]}+1 au prochain run`,
       )
     }
   }
