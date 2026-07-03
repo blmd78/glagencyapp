@@ -1,5 +1,6 @@
 import { loadEnv } from './env'
 import { runPipeline } from './pipeline'
+import { recordRun } from './record-run'
 
 // Charge le .env racine avant tout (le client Supabase lit process.env).
 loadEnv()
@@ -8,13 +9,15 @@ loadEnv()
 const arg = process.argv[2]
 const explicitDay = arg && /^\d{4}-\d{2}-\d{2}$/.test(arg) ? arg : undefined
 
+const startedAt = new Date()
 runPipeline(explicitDay)
-  .then(() => {
-    console.log('[ingestion] OK')
+  .then(async (summary) => {
+    console.log(`[ingestion] ${summary.status.toUpperCase()}`, JSON.stringify(summary))
+    await recordRun('local', startedAt, { summary })
     process.exit(0)
   })
-  .catch((err: unknown) => {
+  .catch(async (err: unknown) => {
     console.error('[ingestion] ÉCHEC', err)
-    // TODO: notify (Telegram/email) avant de sortir
+    await recordRun('local', startedAt, { error: err })
     process.exit(1)
   })

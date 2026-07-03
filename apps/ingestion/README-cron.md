@@ -22,8 +22,10 @@ aujourd'hui. Idempotent (upsert) → ni trou, ni doublon. Un jour précis : `pnp
 ## Prod : Cloudflare Worker (plan Free, gratuit — ACTIF)
 
 Déployé sur `glagency-ingestion.<compte>.workers.dev`. Cron Trigger (`wrangler.toml`) :
-**23h49 Paris toute l'année**, via 2 lignes UTC (les crons Cloudflare ignorent l'heure d'été) :
-`49 21 * 4-10 *` (été, 21h49 UTC) + `49 22 * 1-3,11-12 *` (hiver, 22h49 UTC).
+**00h05 Paris toute l'année** — juste après minuit ET après le snapshot abonnés MyPuls de
+23h59, donc la journée capturée est **complète** (à 23h49 on ratait les ventes 23h49–minuit
++ le snapshot → écarts vs MyPuls chaque matin). 2 lignes UTC (les crons Cloudflare ignorent
+l'heure d'été) : `5 22 * 4-10 *` (été, 22h05 UTC) + `5 23 * 1-3,11-12 *` (hiver, 23h05 UTC).
 
 ### Pourquoi HTMLRewriter et pas cheerio
 Le plan **Free** ne permet pas la directive `[limits] cpu_ms` (erreur 100328). Le parser

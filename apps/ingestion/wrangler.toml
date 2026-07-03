@@ -8,12 +8,22 @@ compatibility_date = "2024-11-01"
 # métier + supabase-js. Le parsing money-team utilise HTMLRewriter (natif runtime), PAS cheerio.
 compatibility_flags = ["nodejs_compat"]
 
-# Cron Trigger (UTC). 21:49 UTC = 23h49 Paris en ÉTÉ (CEST). ⚠️ GitHub/Cloudflare cron
-# ignorent l'heure d'été → 2 lignes (mois disjoints) pour rester à 23h49 Paris toute l'année :
-#   avril→octobre : été  (UTC+2) → 21h49 UTC   |   nov→mars : hiver (UTC+1) → 22h49 UTC
-# Le pipeline rattrape aussi du dernier jour connu → aujourd'hui ; idempotent (upsert).
+# Cron Trigger : 23h05 UTC toute l'année = 00h05 Paris l'hiver, 01h05 Paris l'été —
+# toujours APRÈS minuit Paris et après le snapshot abonnés MyPuls de 23h59 → la journée
+# capturée est COMPLÈTE. Une seule ligne : l'ancien découpage été/hiver par mois entiers
+# (« 4-10 » / « 1-3,11-12 ») laissait un trou la dernière semaine d'octobre (la bascule a
+# lieu le DERNIER dimanche du mois) où le run partait à 23h05 Paris, AVANT minuit → jour
+# partiel. À 23h05 UTC, la date UTC = la journée Paris qui vient de finir (été comme
+# hiver) → le rattrapage « dernier jour connu → aujourd'hui(UTC) » la capture bien.
+# Idempotent (upsert). ⚠️ Aligné avec MONITOR_CONFIG dans src/worker.ts — modifier les 2.
 [triggers]
-crons = ["49 21 * 4-10 *", "49 22 * 1-3,11-12 *"]
+crons = ["5 23 * * *"]
+
+# Workers Logs (gratuit en Free : 200k événements/jour partagés par compte, rétention
+# 3 jours, recherche dans le dashboard). L'historique durable des runs = table ingest_runs.
+[observability]
+enabled = true
+head_sampling_rate = 1
 
 # PAS de [limits] cpu_ms : cette directive exige le plan Paid (erreur 100328 sur Free).
 # Sur le plan Free, la limite par défaut de 10 ms CPU/invocation s'applique. Le parser
@@ -27,4 +37,5 @@ crons = ["49 21 * 4-10 *", "49 22 * 1-3,11-12 *"]
 #   wrangler secret put MYPULS_PASSWORD
 #   wrangler secret put MYPULS_API_KEY
 #   wrangler secret put TRIGGER_TOKEN   # optionnel : autorise le déclenchement manuel par HTTP
+#   wrangler secret put SENTRY_DSN      # watcher : erreurs + cron monitor (absent → SDK inactif)
 # NE PAS mettre DATABASE_URL (inutile au Worker : supabase-js parle en REST via SUPABASE_URL).

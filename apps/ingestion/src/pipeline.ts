@@ -8,6 +8,7 @@ import {
   type MoneyTeamDay,
 } from '@glagency/mypuls'
 import { createAdminClient } from '@glagency/db'
+import { summarizeRun, type IngestDayResult, type IngestRunSummary } from '@glagency/core'
 
 type Db = ReturnType<typeof createAdminClient>
 /** Récupère+parse la page money-team d'un jour. Injectable : Node=cheerio, Worker=HTMLRewriter. */
@@ -16,6 +17,14 @@ type FetchMoneyTeam = (day: string, cookie: string) => Promise<MoneyTeamDay>
 /** Dépendances runtime injectables (défauts = implémentations Node/cheerio). */
 export interface PipelineDeps {
   fetchMoneyTeam?: FetchMoneyTeam
+  /**
+   * Cap de la fenêtre de rattrapage (défaut MAX_CATCHUP=60, OK en Node). Le Worker doit
+   * passer une valeur BASSE : le plan Free plafonne à 50 sous-requêtes/invocation, et un
+   * run coûte ~13 appels fixes + ~8 par jour (MyPuls + Supabase + Sentry) — au-delà de
+   * ~4 jours, les fetch suivants échouent (y compris ingest_runs et Sentry). Le
+   * rattrapage étant auto-cicatrisant nuit après nuit, un cap bas se résorbe seul.
+   */
+  maxCatchup?: number
 }
 
 /**
@@ -133,7 +142,7 @@ async function ingestChatterDay(
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
   fetchMoneyTeam: FetchMoneyTeam,
-): Promise<void> {
+): Promise<{ chatterRows: number; pairRows: number }> {
   const mt = await fetchMoneyTeam(day, cookie)
 
   // Résolution chatteur via chatter_alias (label normalisé → chatter_id) : robuste aux variantes
@@ -252,6 +261,7 @@ async function ingestChatterDay(
     if (error) throw error
   }
   console.log(`[ingestion] ${day}: money-team → ${cdRows.length} chatteurs, ${ccdRows.length} paires`)
+  return { chatterRows: cdRows.length, pairRows: ccdRows.length }
 }
 
 /**
@@ -264,7 +274,7 @@ async function ingestCreatorDay(
   dash: Map<string, Map<string, DashDay>> | null,
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
-): Promise<void> {
+): Promise<{ rows: number; source: 'dashboard' | 'api' }> {
   const tx = await fetchTeamMoney(day)
   const agg = new Map<string, { ca: number; ppv: number; tips: number; renew: number }>()
   for (const t of tx) {
@@ -305,9 +315,12 @@ async function ingestCreatorDay(
   console.log(
     `[ingestion] ${day}: ${tx.length} tx → ${rows.length} modèles (${dd ? 'dashboard' : 'api'}, +${subsTotal} subs)`,
   )
+  return { rows: rows.length, source: dd ? 'dashboard' : 'api' }
 }
 
-export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {}): Promise<void> {
+export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {}): Promise<IngestRunSummary> {
+  const startedMs = Date.now()
+  const warnings: string[] = []
   const fetchMoneyTeam = deps.fetchMoneyTeam ?? fetchMoneyTeamDay
   const db = createAdminClient()
 
@@ -345,6 +358,7 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
   try {
     cookie = (await login()).cookie
   } catch (e) {
+    warnings.push(`login money-team échoué → chatteurs ignorés : ${(e as Error).message}`)
     console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
   }
   const { data: chatterRows } = await db.from('chatters').select('id, display_name')
@@ -370,7 +384,12 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     const start = last ?? yesterday
     const all: string[] = []
     for (let d = start; d <= today; d = addDays(d, 1)) all.push(d)
-    days = all.slice(-MAX_CATCHUP)
+    days = all.slice(-(deps.maxCatchup ?? MAX_CATCHUP))
+    if (days.length < all.length) {
+      warnings.push(
+        `rattrapage tronqué à ${days.length} jour(s) sur ${all.length} en retard (cap sous-requêtes Worker) — se résorbe aux runs suivants`,
+      )
+    }
   }
 
   // Séries dashboard (CA ventilé + abonnés) en une passe pour toute la fenêtre.
@@ -391,18 +410,41 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
         console.log(`[ingestion] mypuls_creator_id backfill : ${creatorBackfill.size} modèle(s)`)
       }
     } catch (e) {
+      warnings.push(`dashboard indisponible → fallback /team/money : ${(e as Error).message}`)
       console.warn('[ingestion] dashboard indisponible → fallback /team/money :', (e as Error).message)
     }
   }
 
+  const dayResults: IngestDayResult[] = []
   for (const day of days) {
     // Un jour qui échoue (429/500, session…) ne doit pas avorter le rattrapage des autres.
+    const result: IngestDayResult = { date: day, creatorRows: 0, chatterRows: 0, pairRows: 0, source: 'api' }
     try {
-      await ingestCreatorDay(db, day, dash, nameToId, pseudoToName)
-      if (cookie)
-        await ingestChatterDay(db, day, cookie, nameToChatter, aliasToChatter, nameToId, pseudoToName, fetchMoneyTeam)
+      const creator = await ingestCreatorDay(db, day, dash, nameToId, pseudoToName)
+      result.creatorRows = creator.rows
+      result.source = creator.source
+      if (cookie) {
+        const chatter = await ingestChatterDay(
+          db, day, cookie, nameToChatter, aliasToChatter, nameToId, pseudoToName, fetchMoneyTeam,
+        )
+        result.chatterRows = chatter.chatterRows
+        result.pairRows = chatter.pairRows
+      }
     } catch (e) {
+      result.error = (e as Error).message
       console.warn(`[ingestion] jour ${day} échoué (ignoré, on continue) :`, (e as Error).message)
     }
+    dayResults.push(result)
   }
+
+  return summarizeRun({
+    loginOk: cookie !== null,
+    dashboardOk: dash !== null,
+    // Rejeu explicite d'un jour : les règles « zéro ligne » ne s'appliquent pas
+    // (un vieux jour légitimement vide n'est pas une dégradation).
+    catchup: !explicitDay,
+    days: dayResults,
+    warnings,
+    durationMs: Date.now() - startedMs,
+  })
 }
