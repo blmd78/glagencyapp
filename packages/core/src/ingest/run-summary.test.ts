@@ -83,14 +83,18 @@ describe('summarizeRun', () => {
     expect(s.status).toBe('degraded')
   })
 
-  it('dashboard KO mais fallback API OK → ok (simple warning, pas une dégradation)', () => {
+  // Décision revue le 2026-07-03 : dashboard KO ⇒ DEGRADED. Le fallback /team/money
+  // écrit des creator_daily PARTIELS (messagerie seule, subs à 0) qui peuvent écraser
+  // un jour déjà complet de la fenêtre, et le run suivant sort ce jour de la fenêtre
+  // (régression permanente). Sans degraded, aucune alerte Sentry → invisible.
+  it('dashboard KO (fallback API) → degraded : le fallback partiel peut écraser un jour complet', () => {
     const s = summarizeRun({
       ...base,
       dashboardOk: false,
       warnings: ['dashboard indisponible → fallback /team/money'],
       days: [day({ source: 'api' })],
     })
-    expect(s.status).toBe('ok')
+    expect(s.status).toBe('degraded')
     expect(s.warnings).toContain('dashboard indisponible → fallback /team/money')
   })
 

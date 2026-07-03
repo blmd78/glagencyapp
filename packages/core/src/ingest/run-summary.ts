@@ -40,7 +40,10 @@ export function summarizeRun(input: {
   const totalChatterRows = input.days.reduce((s, d) => s + d.chatterRows, 0)
   const failedDays = input.days.filter((d) => d.error)
 
-  let degraded = !input.loginOk || failedDays.length > 0
+  // dashboardOk=false compte aussi : le fallback /team/money écrit des creator_daily
+  // PARTIELS (messagerie seule, subs à 0) qui peuvent écraser un jour déjà complet —
+  // il faut l'alerte (Sentry ne fire que sur degraded) pour rejouer le jour à la main.
+  let degraded = !input.loginOk || !input.dashboardOk || failedDays.length > 0
 
   // Les règles « zéro ligne » ne valent que pour un rattrapage : rejouer explicitement
   // un vieux jour légitimement vide n'est pas une dégradation.

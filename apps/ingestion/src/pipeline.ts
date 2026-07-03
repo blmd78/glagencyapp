@@ -55,9 +55,34 @@ function addDays(day: string, n: number): string {
   return iso(d)
 }
 
-// Normalise un label scrapé (casse + espaces) → clé de rapprochement `chatter_alias`.
+// Normalise un label scrapé → clé de rapprochement `chatter_alias` : casse, espaces,
+// et retrait de tout ce qui n'est ni lettre ni chiffre (emojis, apostrophes…) —
+// le même chatteur apparaît « Kwasi 🎯 » sur une page modèle et « Kwasi » sur une autre
+// (constaté le 03/07 : 3 doublons fantômes créés à cause de ça).
 // On NE retire PAS les accents : « José » et « Jose » peuvent être deux personnes distinctes.
-const normLabel = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
+// Le HTML money-team peut livrer des entités non décodées (constaté : « SOS&#039;GOD »).
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ',
+  rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', eacute: 'é', egrave: 'è', agrave: 'à', ccedil: 'ç',
+}
+const decodeEntities = (s: string) =>
+  s
+    .replace(/&#x([0-9a-f]+);/gi, (m, n) => {
+      const cp = parseInt(n, 16)
+      return cp <= 0x10ffff ? String.fromCodePoint(cp) : m
+    })
+    .replace(/&#(\d+);/g, (m, n) => {
+      const cp = Number(n)
+      return cp <= 0x10ffff ? String.fromCodePoint(cp) : m
+    })
+    .replace(/&([a-z]+);/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? m)
+
+const normLabel = (s: string) =>
+  decodeEntities(s)
+    .replace(/\s*\(accès révoqué\)\s*$/i, '') // suffixe CSV d'état, pas d'identité
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '') // retire symboles ET espaces : « Mk (Ghost) » ≡ « Mk(Ghost) »
 
 /** Valeurs dashboard d'un (modèle, jour) : CA ventilé (€) + abonnés (comptes). */
 interface DashDay {
@@ -139,18 +164,22 @@ async function ingestChatterDay(
   cookie: string,
   nameToChatter: Map<string, string>,
   aliasToChatter: Map<string, string>,
+  emailToChatter: Map<string, string>,
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
   fetchMoneyTeam: FetchMoneyTeam,
-): Promise<{ chatterRows: number; pairRows: number }> {
+): Promise<{ chatterRows: number; pairRows: number; newChatterNames: string[]; droppedTx: string[] }> {
   const mt = await fetchMoneyTeam(day, cookie)
 
   // Résolution chatteur via chatter_alias (label normalisé → chatter_id) : robuste aux variantes
   // de casse/accents. Bootstrap : un label inconnu crée l'alias (et le chatteur si vraiment
   // nouveau) → les runs suivants mappent de façon déterministe.
+  // Un SEUL chemin de fabrication du label (décodage entités + trim) : la résolution
+  // utilise la même clé que l'enregistrement — sinon un label à entité HTML se perd.
+  const labelOf = (s: string) => decodeEntities(s).trim()
   const rawNames = new Set<string>()
-  for (const c of mt.chatters) if (c.name) rawNames.add(c.name.trim())
-  for (const t of mt.transactions) if (t.chatter) rawNames.add(t.chatter.trim())
+  for (const c of mt.chatters) if (c.name) rawNames.add(labelOf(c.name))
+  for (const t of mt.transactions) if (t.chatter) rawNames.add(labelOf(t.chatter))
 
   const resolved = new Map<string, string>() // label brut → chatter_id
   const newChatters: { id: string; display_name: string; active: boolean; access_revoked: boolean }[] = []
@@ -158,7 +187,7 @@ async function ingestChatterDay(
   for (const raw of rawNames) {
     if (!raw) continue
     const norm = normLabel(raw)
-    let cid = aliasToChatter.get(norm) ?? nameToChatter.get(raw)
+    let cid = aliasToChatter.get(norm) ?? nameToChatter.get(raw) ?? emailToChatter.get(norm)
     if (!cid) {
       cid = randomUUID()
       newChatters.push({ id: cid, display_name: raw, active: true, access_revoked: false })
@@ -186,7 +215,7 @@ async function ingestChatterDay(
     { ppv: number; tips: number; propose: number; vendu: number; pa: number; pi: number; react: number[] }
   >()
   for (const c of mt.chatters) {
-    const cid = resolved.get(c.name.trim())
+    const cid = resolved.get(labelOf(c.name))
     if (!cid) continue
     const a = cdAgg.get(cid) ?? { ppv: 0, tips: 0, propose: 0, vendu: 0, pa: 0, pi: 0, react: [] }
     a.ppv += c.caPpv
@@ -230,11 +259,16 @@ async function ingestChatterDay(
     string,
     { chatter_id: string; creator_id: string; ca: number; ppv: number; tips: number; vendu: number }
   >()
+  const dropped = new Map<string, number>() // raison → montant perdu (invariant : jamais silencieux)
   for (const t of mt.transactions) {
-    const cid = resolved.get(t.chatter.trim())
+    const cid = resolved.get(labelOf(t.chatter))
     const cname = pseudoToName(t.creator)
     const crid = cname ? nameToId.get(cname) : undefined
-    if (!cid || !crid) continue
+    if (!cid || !crid) {
+      const reason = !cid ? `chatteur non résolu « ${labelOf(t.chatter) || '(vide)'} »` : `modèle inconnu « ${t.creator} »`
+      dropped.set(reason, (dropped.get(reason) ?? 0) + t.amount)
+      continue
+    }
     const key = `${cid}|${crid}`
     const p = pair.get(key) ?? { chatter_id: cid, creator_id: crid, ca: 0, ppv: 0, tips: 0, vendu: 0 }
     p.ca += t.amount
@@ -261,7 +295,12 @@ async function ingestChatterDay(
     if (error) throw error
   }
   console.log(`[ingestion] ${day}: money-team → ${cdRows.length} chatteurs, ${ccdRows.length} paires`)
-  return { chatterRows: cdRows.length, pairRows: ccdRows.length }
+  return {
+    chatterRows: cdRows.length,
+    pairRows: ccdRows.length,
+    newChatterNames: newChatters.map((c) => c.display_name),
+    droppedTx: [...dropped.entries()].map(([reason, amount]) => `${reason} : ${amount.toFixed(2)} €`),
+  }
 }
 
 /**
@@ -361,12 +400,24 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     warnings.push(`login money-team échoué → chatteurs ignorés : ${(e as Error).message}`)
     console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
   }
-  const { data: chatterRows } = await db.from('chatters').select('id, display_name')
+  // Ces deux selects sont le SOCLE de la résolution d'identité : un échec silencieux
+  // donnerait des maps vides → duplication massive + re-pointage des alias. On THROW.
+  const { data: chatterRows, error: chattersErr } = await db.from('chatters').select('id, display_name, email')
+  if (chattersErr) throw chattersErr
   const nameToChatter = new Map<string, string>()
-  for (const c of chatterRows ?? []) if (c.display_name) nameToChatter.set(c.display_name.trim(), c.id)
-  const { data: aliasRows } = await db.from('chatter_alias').select('chatter_id, raw_label_norm')
+  const emailToChatter = new Map<string, string>()
+  for (const c of chatterRows ?? []) {
+    if (c.display_name) nameToChatter.set(c.display_name.trim(), c.id)
+    // Les pages money-team étiquettent parfois par EMAIL (constaté sur juin) : repli
+    // de rapprochement label → email connu, à la même normalisation que les alias.
+    if (c.email) emailToChatter.set(normLabel(c.email), c.id)
+  }
+  const { data: aliasRows, error: aliasErr } = await db.from('chatter_alias').select('chatter_id, raw_label_norm')
+  if (aliasErr) throw aliasErr
   const aliasToChatter = new Map<string, string>()
-  for (const a of aliasRows ?? []) aliasToChatter.set(a.raw_label_norm, a.chatter_id)
+  // Re-normalise les norms STOCKÉS (posés avant le durcissement de normLabel — emojis,
+  // apostrophes) : la clé du map suit toujours la normalisation courante.
+  for (const a of aliasRows ?? []) aliasToChatter.set(normLabel(a.raw_label_norm), a.chatter_id)
 
   const today = iso(new Date())
   const yesterday = addDays(today, -1)
@@ -380,10 +431,16 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
       .order('date', { ascending: false })
       .limit(1)
     const last = (mx?.[0]?.date as string | undefined) ?? undefined
-    // Re-capture depuis le dernier jour connu (souvent partiel → complété) jusqu'à aujourd'hui.
-    const start = last ?? yesterday
+    // Le cron tourne APRÈS minuit Paris : le dernier jour en base est déjà COMPLET —
+    // on repart au jour SUIVANT (décision 2026-07-03 ; l'ancienne re-capture datait du
+    // cron d'avant-minuit qui capturait une journée en cours). Le rattrapage couvre
+    // toujours les nuits sautées (last+1 → today).
+    const start = last ? addDays(last, 1) : yesterday
     const all: string[] = []
     for (let d = start; d <= today; d = addDays(d, 1)) all.push(d)
+    // Fenêtre vide (run relancé alors qu'aujourd'hui est déjà en base) : re-scrape
+    // d'aujourd'hui (idempotent) plutôt qu'un run à zéro jour marqué degraded à tort.
+    if (all.length === 0) all.push(today)
     // ⚠️ Tronquer côté ANCIEN (slice(0, N)) : le prochain run repart de max(date) — si on
     // gardait les jours récents, les anciens deviendraient des trous définitifs (max(date)
     // aurait déjà avancé) ; en gardant les anciens, la fenêtre avance jusqu'à résorption.
@@ -428,10 +485,22 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
       result.source = creator.source
       if (cookie) {
         const chatter = await ingestChatterDay(
-          db, day, cookie, nameToChatter, aliasToChatter, nameToId, pseudoToName, fetchMoneyTeam,
+          db, day, cookie, nameToChatter, aliasToChatter, emailToChatter, nameToId, pseudoToName, fetchMoneyTeam,
         )
         result.chatterRows = chatter.chatterRows
         result.pairRows = chatter.pairRows
+        // Invariant produit : aucune valeur orpheline — un label inconnu crée une
+        // identité, mais on ALERTE pour repérer un éventuel doublon (emoji, rename…).
+        if (chatter.newChatterNames.length) {
+          warnings.push(
+            `${day} : nouveau(x) chatteur(s) créé(s) — ${chatter.newChatterNames.join(', ')} — vérifier doublon d'identité`,
+          )
+        }
+        // Invariant : aucune transaction ne disparaît en silence — si la ventilation en
+        // a écarté (chatteur non résolu / modèle inconnu), on le crie dans le journal.
+        if (chatter.droppedTx.length) {
+          warnings.push(`${day} : transactions NON ventilées — ${chatter.droppedTx.join(' · ')}`)
+        }
       }
     } catch (e) {
       result.error = (e as Error).message
