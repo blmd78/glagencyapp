@@ -47,14 +47,23 @@ Supabase Free.
   Le wrapper capture l'exception du `scheduled()`, la re-throw (l'invocation apparaît en
   échec côté Cloudflare) et flush via `waitUntil` — **aucun `flush()` manuel**.
 - **Cron monitor** : `Sentry.withMonitor('ingestion-mypuls-nightly', run, monitorConfig)`.
-  Le double cron été/hiver (`5 22 * 4-10 *` / `5 23 * 1-3,11-12 *`) ne rentre pas dans un
-  crontab unique → **schedule de type `interval` 1 jour** + `checkinMargin` ≥ 90 min.
-  Détecte un cron qui **ne tourne pas** (missed check-in), pas seulement qui plante.
-  Le plan gratuit inclut 1 cron monitor — c'est celui-là.
+  Le cron passe à une ligne unique **`5 23 * * *`** (= 00h05 Paris l'hiver, 01h05 l'été,
+  toujours après minuit et le snapshot 23h59) — l'ancien découpage été/hiver par mois
+  entiers laissait un trou la dernière semaine d'octobre (bascule le dernier dimanche) où
+  le run partait avant minuit Paris. Le monitor utilise le **même crontab** (aligné, à
+  modifier ensemble). Détecte un cron qui **ne tourne pas** (missed check-in), pas
+  seulement qui plante. Le plan gratuit inclut 1 cron monitor — c'est celui-là.
+- **Cap de rattrapage côté Worker** : `maxCatchup: 3` (plan Free = 50 sous-requêtes par
+  invocation ; ~13 appels fixes + ~8/jour). Au-delà, warning « rattrapage tronqué » dans
+  le résumé ; auto-cicatrisant nuit après nuit. Le CLI local (Node, sans limite) reste
+  l'outil de backfill massif.
 - **Résumé de run structuré** : `runPipeline` retourne un objet
   `{ status: 'ok'|'degraded'|'failed', days: [{ date, creatorRows, chatterRows, errors }],
   warnings, loginOk, durationMs }` au lieu d'avaler les échecs partiels.
-  - `degraded` = login money-team KO, jour(s) en échec, ou 0 ligne upsertée.
+  - `degraded` = login money-team KO, jour(s) en échec, 0 ligne creator upsertée, ou
+    **login OK avec 0 ligne chatter** (markup money-team cassé : les parseurs renvoient
+    vide sans throw). Les règles « zéro ligne » ne s'appliquent pas au rejeu explicite
+    d'un jour (`catchup: false`).
   - Si `degraded` → `Sentry.captureMessage` (niveau warning) → alerte email.
   - Le résumé est **inséré dans `ingest_runs`** (nouvelle migration) :
     `id, started_at, finished_at, status, trigger ('cron'|'http'|'local'), summary jsonb, error text`.
