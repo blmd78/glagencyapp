@@ -44,7 +44,10 @@ export function ModelRanking({
                 <span className={cn('size-2.5 shrink-0 rounded-full', modelBarColor(item.name))} />
                 <span className="truncate">{item.name}</span>
                 {item.isPrivate && (
-                  <Badge variant="outline" className="shrink-0 px-1 text-[10px] font-normal">
+                  <Badge
+                    variant="secondary"
+                    className="shrink-0 px-1 text-[10px] font-normal text-muted-foreground"
+                  >
                     privé
                   </Badge>
                 )}

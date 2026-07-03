@@ -1,25 +1,14 @@
 import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { STATUS_COLORS } from '@/lib/status-color'
 import type { Insight, InsightSeverity } from '../types'
 
 const SEVERITY: Record<InsightSeverity, { border: string; badge: string }> = {
-  critical: {
-    border: 'border-l-red-500',
-    badge: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
-  },
-  warning: {
-    border: 'border-l-amber-500',
-    badge: 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300',
-  },
-  opportunity: {
-    border: 'border-l-emerald-500',
-    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
-  },
-  insight: {
-    border: 'border-l-blue-500',
-    badge: 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300',
-  },
+  critical: { border: 'border-l-red-500', badge: STATUS_COLORS.danger },
+  warning: { border: 'border-l-amber-500', badge: STATUS_COLORS.warning },
+  opportunity: { border: 'border-l-green-500', badge: STATUS_COLORS.positive },
+  insight: { border: 'border-l-blue-500', badge: STATUS_COLORS.info },
 }
 
 /** Un point d'attention : liseré + badge colorés par sévérité, actions repliables. */
@@ -34,7 +23,7 @@ export function InsightCard({ insight }: { insight: Insight }) {
             <span className="text-lg leading-none">{insight.icon}</span>
             <h3 className="text-sm font-semibold leading-snug">{insight.title}</h3>
           </div>
-          <Badge className={cn('shrink-0 border-transparent', sev.badge)}>{insight.category}</Badge>
+          <Badge className={cn('shrink-0', sev.badge)}>{insight.category}</Badge>
         </div>
         {insight.team !== 'all' && (
           <p className="text-xs text-muted-foreground">Équipe {insight.team}</p>

@@ -4,19 +4,10 @@
  * en basculant `services/get-overview.ts` sur la vraie source, l'affichage ne bouge pas.
  */
 
-export interface Kpi {
-  key: string
-  /** Libellé de la carte, ex. « CA du mois ». */
-  label: string
-  /** Valeur déjà formatée, ex. « 258 853 € ». */
-  value: string
-  /** Variation en % vs période précédente (null si non calculée). */
-  deltaPct: number | null
-  /** Phrase de tendance, ex. « En hausse vs mai ». */
-  trendLabel: string
-  /** Sous-titre discret, ex. « mai ≈ 244 756 € ». */
-  hint: string
-}
+// Kpi vit désormais dans @/components/kpi-card (partagé entre features) ; ré-exporté ici
+// pour que le contrat OverviewData reste auto-suffisant.
+import type { Kpi } from '@/components/kpi-card'
+export type { Kpi }
 
 /** CA d'un modèle sur la période (rang décroissant). */
 export interface ModelCa {

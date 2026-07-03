@@ -68,8 +68,9 @@ export async function getModels(period: Period): Promise<ModelsData> {
     byCh.set(r.chatter_id, c)
   }
 
+  // `excluded` = exclusion du calcul LTV UNIQUEMENT (page Santé) — la page Modèles
+  // montre TOUS les comptes, exclus compris (décision 2026-07-03, page Quotas).
   const models: ModelRow[] = (creators ?? [])
-    .filter((c) => !c.excluded)
     .map((c) => {
       const a = agg.get(c.id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0, renewals: 0 }
       const byCh = breakdown.get(c.id) ?? new Map()
@@ -110,7 +111,8 @@ export async function getModels(period: Period): Promise<ModelsData> {
     .sort((a, b) => b.total - a.total)
 
   // Part CA : arrondi « plus fort reste » sur les modèles affichés → la colonne somme
-  // toujours à 100 % (total agence = somme des modèles visibles ; exclus non comptés).
+  // toujours à 100 % (total = somme des modèles visibles, exclus LTV compris — le flag
+  // excluded ne joue que sur la page Santé).
   const shownTotal = models.reduce((s, m) => s + m.total, 0)
   if (shownTotal > 0) {
     const exact = models.map((m) => (m.total / shownTotal) * 100)

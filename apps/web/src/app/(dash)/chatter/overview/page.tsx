@@ -1,4 +1,5 @@
 import { getOverview } from '@/features/overview/services/get-overview'
+import { requireAccess } from '@/lib/auth'
 import { OverviewTemplate } from '@/features/overview/OverviewTemplate'
 import { resolvePeriod } from '@/lib/period'
 
@@ -8,6 +9,7 @@ export default async function OverviewPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
+  await requireAccess('overview')
   const period = resolvePeriod(await searchParams)
   const data = await getOverview(period)
   return <OverviewTemplate data={data} />

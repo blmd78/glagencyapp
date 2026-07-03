@@ -60,9 +60,7 @@ const columns: ColumnDef<ModelRow>[] = [
             !row.getCanExpand() && 'opacity-0',
           )}
         />
-        <Badge variant="outline" className={cn('font-normal', modelColor(row.original.name))}>
-          {row.original.name}
-        </Badge>
+        <Badge className={modelColor(row.original.name)}>{row.original.name}</Badge>
         {row.original.isPrivate && (
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">privé</span>
         )}
@@ -162,6 +160,7 @@ export function ModelsTable({ models }: { models: ModelRow[] }) {
       filterPlaceholder="Filtrer par modèle…"
       initialSorting={[{ id: 'total', desc: true }]}
       pageSize={20}
+      getRowId={(m) => m.id}
       getRowCanExpand={(row) => row.original.chatters.length > 0}
       renderSubRows={modelSubRows}
       countLabel={(n) => `${n} modèle(s)`}
