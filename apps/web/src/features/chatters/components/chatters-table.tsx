@@ -168,7 +168,7 @@ function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-muted-foreground">—</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.ca)}</TableCell>
           <TableCell className="text-right tabular-nums text-muted-foreground">
-            {eur(m.com)}
+            {m.com === null ? '—' : eur(m.com)}
           </TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.ppv)}</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.tips)}</TableCell>

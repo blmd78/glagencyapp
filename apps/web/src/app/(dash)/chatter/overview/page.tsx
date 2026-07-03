@@ -9,8 +9,8 @@ export default async function OverviewPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  await requireAccess('overview')
+  const profile = await requireAccess('overview')
   const period = resolvePeriod(await searchParams)
-  const data = await getOverview(period)
+  const data = await getOverview(period, { restricted: profile.role !== 'admin' })
   return <OverviewTemplate data={data} />
 }

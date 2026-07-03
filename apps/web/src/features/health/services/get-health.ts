@@ -19,14 +19,20 @@ const statusOf = (ltv: number | null): LtvStatus | null =>
  * semaine calendaire en cours (lundi) ∩ période. Plan de rattrapage :
  * manque = cible × Σnew_subs − Σca, étalé sur les jours restants du mois.
  */
-export async function getHealth(period: Period): Promise<HealthData> {
+export async function getHealth(
+  period: Period,
+  opts: { restricted?: boolean } = {},
+): Promise<HealthData> {
+  // Rôle `user` : la RLS limite creator_daily à SES modèles — les chiffres restent justes
+  // mais le périmètre n'est plus « l'agence » → l'UI ré-étiquette (cf. HealthTemplate).
+  const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
   const [{ data: creators }, { data: cd }, { data: ccd }, { data: chatters }] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
     supabase
       .from('creator_daily')
-      .select('creator_id, date, ca, subs_active, new_subs, renew_subs')
+      .select('creator_id, date, ca, new_subs, renew_subs')
       .gte('date', period.from)
       .lte('date', period.to),
     supabase
@@ -135,14 +141,19 @@ export async function getHealth(period: Period): Promise<HealthData> {
   const allNew = [...agg.values()].reduce((s, a) => s + a.newSubs, 0)
   const ltv = ltvOf(includedCa, totalNew)
   const today = new Date()
+  const todayIso = format(today, 'yyyy-MM-dd')
   const remainingDays = Math.max(0, endOfMonth(today).getDate() - today.getDate())
   const missing = Math.max(0, round2(LTV_TARGET * totalNew - includedCa))
+  // Un plan de rattrapage n'a de sens que si la période inclut AUJOURD'HUI (sur un mois
+  // clos, il n'y a rien à rattraper) ; le dernier jour du mois, il reste la journée en cours.
+  const periodIsLive = period.from <= todayIso && todayIso <= period.to
+  const planDays = Math.max(1, remainingDays)
   const plan =
-    ltv !== null && missing > 0 && remainingDays > 0
+    ltv !== null && missing > 0 && periodIsLive
       ? {
           missing,
-          perDay: Math.ceil(missing / remainingDays),
-          remainingDays,
+          perDay: Math.ceil(missing / planDays),
+          remainingDays: planDays,
           objective: round2(LTV_TARGET * totalNew),
           realized: round2(includedCa),
           subs: totalNew,
@@ -172,7 +183,7 @@ export async function getHealth(period: Period): Promise<HealthData> {
       value: num(allNew),
       deltaPct: null,
       trendLabel: 'Premier abo all-time du fan',
-      hint: 'tous modèles',
+      hint: restricted ? 'tes modèles' : 'tous modèles',
     },
     {
       key: 'below',
@@ -196,6 +207,7 @@ export async function getHealth(period: Period): Promise<HealthData> {
 
   return {
     periodLabel: period.label,
+    restricted,
     target: LTV_TARGET,
     ltv,
     status: statusOf(ltv),

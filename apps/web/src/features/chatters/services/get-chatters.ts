@@ -25,27 +25,34 @@ export async function getChatters(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
+  // En restreint, les tables admin-only (chatter_daily, teams) et le bandeau de périmètre
+  // (creator_daily) ne sont pas interrogés : résultats vides et ignorés de toute façon.
+  const skip = Promise.resolve({ data: null })
   const [{ data: chatters }, { data: teams }, { data: creators }, { data: chd }, { data: ccd }, { data: cc }, { data: crd }] =
     await Promise.all([
       supabase.from('chatters').select('id, display_name, email, active, team_id'),
-      supabase.from('teams').select('id, name'),
+      restricted ? skip : supabase.from('teams').select('id, name'),
       supabase.from('creators').select('id, name, is_secondary, primary_creator_id'),
-      supabase
-        .from('chatter_daily')
-        .select('chatter_id, ca, ca_ppv, ca_tips, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
-        .gte('date', period.from)
-        .lte('date', period.to),
+      restricted
+        ? skip
+        : supabase
+            .from('chatter_daily')
+            .select('chatter_id, ca, ca_ppv, ca_tips, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
+            .gte('date', period.from)
+            .lte('date', period.to),
       supabase
         .from('chatter_creator_daily')
         .select('chatter_id, creator_id, ca, ca_ppv, ca_tips, propose, vendu')
         .gte('date', period.from)
         .lte('date', period.to),
       supabase.from('chatter_creators').select('chatter_id, creator_id').eq('active', true),
-      supabase
-        .from('creator_daily')
-        .select('ca, ca_ppv, ca_tips')
-        .gte('date', period.from)
-        .lte('date', period.to),
+      restricted
+        ? skip
+        : supabase
+            .from('creator_daily')
+            .select('ca, ca_ppv, ca_tips')
+            .gte('date', period.from)
+            .lte('date', period.to),
     ])
 
   const teamName = new Map((teams ?? []).map((t) => [t.id, t.name]))
@@ -110,18 +117,16 @@ export async function getChatters(
     m.set(r.creator_id, c)
   }
 
-  const assigned = new Map<string, string[]>()
+  // Une seule map (ids) — les noms s'en dérivent via crName (dédupliqués pour l'affichage).
   const assignedIds = new Map<string, Set<string>>()
   for (const r of cc ?? []) {
-    const n = crName.get(r.creator_id)
-    if (!n) continue
-    const arr = assigned.get(r.chatter_id) ?? []
-    if (!arr.includes(n)) arr.push(n)
-    assigned.set(r.chatter_id, arr)
+    if (!crName.has(r.creator_id)) continue
     const ids = assignedIds.get(r.chatter_id) ?? new Set()
     ids.add(r.creator_id)
     assignedIds.set(r.chatter_id, ids)
   }
+  const assignedNames = (id: string) =>
+    [...new Set([...(assignedIds.get(id) ?? [])].map((cid) => crName.get(cid) as string))]
 
   const rows: ChatterRow[] = [...agg.entries()]
     .map(([id, a]) => {
@@ -146,7 +151,7 @@ export async function getChatters(
           ca: x.ca,
           ppv: x.ppv,
           tips: x.tips,
-          com: round2(x.ca * COM_RATE),
+          com: restricted ? null : round2(x.ca * COM_RATE),
           propose: x.propose,
           vendu: x.vendu,
           tauxConv: conv(x.vendu, x.propose),
@@ -171,10 +176,9 @@ export async function getChatters(
         reactiviteS: a.react.length
           ? Math.round(a.react.reduce((s, x) => s + x, 0) / a.react.length)
           : null,
-        nbModels: models.filter((m) => m.ca > 0).length,
         caUnattributed: round2(a.ca - attributed),
         models,
-        assignedModels: assigned.get(id) ?? [],
+        assignedModels: assignedNames(id),
       }
     })
     .sort((p, q) => q.ca - p.ca)
@@ -192,5 +196,5 @@ export async function getChatters(
         allAccounts: round2(allAccounts),
       }
 
-  return { period: period.label, chatters: rows, scope, restricted }
+  return { period: period.label, chatters: rows, scope }
 }

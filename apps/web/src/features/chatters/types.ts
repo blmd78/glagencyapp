@@ -14,8 +14,8 @@ export interface ChatterModel {
   ca: number
   ppv: number
   tips: number
-  /** Commission sur ce modèle (ca × barème). */
-  com: number
+  /** Commission sur ce modèle (ca × barème) — null en mode restreint. */
+  com: number | null
   propose: number
   vendu: number
   /** Recalculé Σvendu/Σpropose (jamais la moyenne des %). */
@@ -44,7 +44,6 @@ export interface ChatterRow {
   presenceIdleH: number | null
   reactiviteS: number | null
   // Ventilation
-  nbModels: number
   /** CA non rattaché à un modèle (identité à résoudre) — 0 si tout est ventilé. */
   caUnattributed: number
   models: ChatterModel[]
@@ -57,6 +56,4 @@ export interface ChattersData {
   chatters: ChatterRow[]
   /** Périmètres emboîtés du CA — null en mode restreint (total agence invisible). */
   scope: RevenueScope | null
-  /** true = rôle `user` : données limitées à ses modèles (RLS), colonnes globales masquées. */
-  restricted: boolean
 }

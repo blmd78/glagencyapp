@@ -43,7 +43,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse },
-      { href: '/chatter/quotas', label: 'Quotas', icon: Target },
+      // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
+      // et `teams` est admin-only en RLS — un user y verrait une page vide).
+      { href: '/chatter/quotas', label: 'Quotas', icon: Target, adminOnly: true },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true },
     ],
@@ -64,10 +66,17 @@ export const DEFAULT_WORKSPACE = WORKSPACES[0]
 /** Slug d'accès d'une page = dernier segment de son href (`/chatter/modeles` → `modeles`). */
 export const pageSlug = (href: string) => href.split('/').pop() as string
 
-/** Pages cochables dans la gestion des membres (tout sauf Membres, admin only). */
+/**
+ * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
+ * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
+ */
+export const PAGE_SLUGS = ['overview', 'insights', 'chatters', 'modeles', 'health', 'compta'] as const
+export type PageSlug = (typeof PAGE_SLUGS)[number]
+
+/** Pages cochables dans la gestion des membres (= nav non-admin, dans l'ordre de la sidebar). */
 export const PAGE_CHOICES = DEFAULT_WORKSPACE.nav
-  .filter((n) => !n.adminOnly)
-  .map((n) => ({ slug: pageSlug(n.href), label: n.label, icon: n.icon }))
+  .filter((n) => !n.adminOnly && (PAGE_SLUGS as readonly string[]).includes(pageSlug(n.href)))
+  .map((n) => ({ slug: pageSlug(n.href) as PageSlug, label: n.label, icon: n.icon }))
 
 /** Face active déduite de l'URL (fallback : face par défaut). */
 export function workspaceForPath(pathname: string): Workspace {

@@ -39,6 +39,8 @@ export interface ModelHealth {
 
 export interface HealthData {
   periodLabel: string
+  /** true = rôle `user` : chiffres RLS-limités à ses modèles (l'UI ré-étiquette). */
+  restricted: boolean
   /** Cible LTV (€ / nouvel abonné). */
   target: number
   /** Jauge agence. */

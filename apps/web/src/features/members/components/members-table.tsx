@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Loader2, Pencil, ShieldCheck, Trash2 } from 'lucide-react'
@@ -41,13 +41,25 @@ const initials = (name: string) =>
 function RowActions({ member, creators }: { member: Member; creators: { id: string; name: string }[] }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   if (member.role === 'admin') return null
 
-  const remove = () =>
+  // Le dialog reste OUVERT tant que la suppression n'a pas réussi : un échec s'affiche
+  // dedans au lieu de disparaître silencieusement (Result ignoré = admin qui croit à un bug).
+  const remove = (e: React.MouseEvent) => {
+    e.preventDefault()
+    setError(null)
     startTransition(async () => {
-      await deleteMember(member.id)
+      const res = await deleteMember(member.id)
+      if (!res.success) {
+        setError(res.error)
+        return
+      }
+      setConfirmOpen(false)
       router.refresh()
     })
+  }
 
   return (
     <div className="flex justify-end gap-1.5">
@@ -60,7 +72,7 @@ function RowActions({ member, creators }: { member: Member; creators: { id: stri
           </Button>
         }
       />
-      <AlertDialog>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogTrigger asChild>
           <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
             {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
@@ -74,10 +86,11 @@ function RowActions({ member, creators }: { member: Member; creators: { id: stri
               connecter. Les données du CRM ne sont pas touchées.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogCancel disabled={pending}>Annuler</AlertDialogCancel>
             <AlertDialogAction onClick={remove} className="bg-red-600 text-white hover:bg-red-700">
-              Supprimer
+              {pending ? 'Suppression…' : 'Supprimer'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -177,7 +190,7 @@ export function MembersTable({
           return {
             key: id,
             node: (
-              <Badge key={id} variant="outline" className={cn('font-normal', modelColor(name))}>
+              <Badge key={id} className={modelColor(name)}>
                 {name}
               </Badge>
             ),

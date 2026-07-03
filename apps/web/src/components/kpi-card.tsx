@@ -60,3 +60,22 @@ export function KpiCard({ kpi, accent }: { kpi: Kpi; accent?: string }) {
     </Card>
   )
 }
+
+// Liseré coloré par carte (ordre = ordre des KPIs).
+const DEFAULT_ACCENTS = [
+  'border-t-blue-500',
+  'border-t-emerald-500',
+  'border-t-violet-500',
+  'border-t-amber-500',
+]
+
+/** Grille responsive de cartes KPI — wrapper partagé (overview, health…). */
+export function KpiGrid({ kpis, accents = DEFAULT_ACCENTS }: { kpis: Kpi[]; accents?: string[] }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {kpis.map((kpi, i) => (
+        <KpiCard key={kpi.key} kpi={kpi} accent={accents[i % accents.length]} />
+      ))}
+    </div>
+  )
+}

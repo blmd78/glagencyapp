@@ -10,10 +10,19 @@ const round1 = (n: number) => Math.round(n * 10) / 10
 /**
  * Overview agrégée sur la période choisie (datepicker du header).
  * Source : `creator_daily` (CA/modèle/abonnés/série) + `chatter_daily` (actifs/com).
- * Tout vient de la DB (ingestion quotidienne 23h59) ; insights vides tant que le
- * moteur de règles @glagency/core n'est pas branché.
+ * Tout vient de la DB (ingestion quotidienne) ; insights vides tant que le moteur de
+ * règles @glagency/core n'est pas branché.
+ *
+ * Mode `restricted` (rôle `user`) : `chatter_daily` est admin-only en RLS (retournerait
+ * [] SANS erreur → KPIs à 0 mensongers). Les KPIs chatteurs se calculent alors depuis
+ * `chatter_creator_daily` (limité par la RLS à SES modèles) et la carte « Sous 200 € de
+ * com » disparaît (la com se définit sur le CA TOTAL d'un chatteur, incalculable ici).
  */
-export async function getOverview(period: Period): Promise<OverviewData> {
+export async function getOverview(
+  period: Period,
+  opts: { restricted?: boolean } = {},
+): Promise<OverviewData> {
+  const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
   // Le graphe CA quotidien couvre toujours le(s) mois entier(s) de la sélection :
@@ -30,7 +39,7 @@ export async function getOverview(period: Period): Promise<OverviewData> {
         .gte('date', chartFrom)
         .lte('date', chartTo),
       supabase
-        .from('chatter_daily')
+        .from(restricted ? 'chatter_creator_daily' : 'chatter_daily')
         .select('chatter_id, ca')
         .gte('date', period.from)
         .lte('date', period.to),
@@ -95,11 +104,15 @@ export async function getOverview(period: Period): Promise<OverviewData> {
   const avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
   const lowCom = [...caByChatter.values()].filter((v) => v * COM_RATE < COM_FLOOR).length
 
+  const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
-    { key: 'ca', label: 'CA total', value: eur(totalCa), deltaPct: null, trendLabel: 'Total', hint: period.label },
-    { key: 'active', label: 'Chatteurs actifs', value: `${active} / ${totalChatters ?? 0}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: 'sur la période' },
-    { key: 'avgCa', label: 'CA moyen / chatteur', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: `${int(active)} chatteurs avec CA` },
-    { key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(caByChatter.size)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'chatteurs sous le seuil' },
+    { key: 'ca', label: 'CA total', value: eur(totalCa), deltaPct: null, trendLabel: restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
+    { key: 'active', label: 'Chatteurs actifs', value: `${active} / ${totalChatters ?? 0}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: scopeHint },
+    { key: 'avgCa', label: 'CA moyen / chatteur', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatteurs, ${scopeHint}` : `${int(active)} chatteurs avec CA` },
+    // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
+    ...(restricted
+      ? []
+      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(caByChatter.size)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'chatteurs sous le seuil' } satisfies Kpi]),
   ]
 
   // Insights : vides tant que le moteur de règles @glagency/core n'est pas branché.

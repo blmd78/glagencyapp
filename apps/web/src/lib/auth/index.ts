@@ -1,14 +1,20 @@
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import type { PageSlug } from '@/config/workspaces'
 
-/** Utilisateur courant (ou null) — valide le JWT côté serveur. */
-export async function getUser() {
+/**
+ * Utilisateur courant (ou null) — valide le JWT côté serveur.
+ * `cache()` : mémoïsé PAR REQUÊTE (layout + garde de page appellent tous deux getProfile →
+ * sans ça, 2 validations JWT + 2 SELECT profiles par affichage).
+ */
+export const getUser = cache(async () => {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   return user
-}
+})
 
 /** Garde : redirige vers /login si pas de session. */
 export async function requireUser() {
@@ -26,8 +32,8 @@ export interface Profile {
   email: string | null
 }
 
-/** Profil applicatif de l'utilisateur courant (RLS : chacun lit le sien), ou null. */
-export async function getProfile(): Promise<Profile | null> {
+/** Profil applicatif de l'utilisateur courant (RLS : chacun lit le sien), ou null. Mémoïsé par requête. */
+export const getProfile = cache(async (): Promise<Profile | null> => {
   const user = await getUser()
   if (!user) return null
   const supabase = await createClient()
@@ -44,14 +50,18 @@ export async function getProfile(): Promise<Profile | null> {
     displayName: data.display_name,
     email: data.email ?? user.email ?? null,
   }
-}
+})
 
-/** Garde de page : admin passe toujours ; `user` doit avoir le slug dans profiles.pages. */
-export async function requireAccess(slug: string): Promise<Profile> {
+/**
+ * Garde de page : admin passe toujours ; `user` doit avoir le slug dans profiles.pages.
+ * Sans aucune page → /no-access (PAS /login : l'utilisateur est authentifié, le renvoyer
+ * au login créerait un rebond infini login ↔ overview).
+ */
+export async function requireAccess(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
   if (profile.role !== 'admin' && !profile.pages.includes(slug)) {
-    redirect(profile.pages[0] ? `/chatter/${profile.pages[0]}` : '/login')
+    redirect(profile.pages[0] ? `/chatter/${profile.pages[0]}` : '/no-access')
   }
   return profile
 }

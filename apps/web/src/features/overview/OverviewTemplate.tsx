@@ -1,4 +1,4 @@
-import { SectionCards } from './components/section-cards'
+import { KpiGrid } from '@/components/kpi-card'
 import { RevenueChart } from './components/revenue-chart'
 import type { OverviewData } from './types'
 
@@ -16,7 +16,7 @@ export function OverviewTemplate({ data }: { data: OverviewData }) {
         </p>
       </div>
 
-      <SectionCards kpis={data.kpis} />
+      <KpiGrid kpis={data.kpis} />
 
       <RevenueChart data={data.daily} periodLabel={data.periodLabel} />
     </div>

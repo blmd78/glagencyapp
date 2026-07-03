@@ -1,7 +1,7 @@
 import { TrendingUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { eur, num } from '@/lib/format'
-import { HealthCards } from './components/health-cards'
+import { KpiGrid } from '@/components/kpi-card'
 import { LtvGauge } from './components/ltv-gauge'
 import { ModelHealthCard } from './components/model-health-card'
 import { StatusBadge } from './components/status-badge'
@@ -24,6 +24,7 @@ export function HealthTemplate({ data }: { data: HealthData }) {
         <h1 className="text-2xl font-semibold tracking-tight">État de santé</h1>
         <p className="text-sm text-muted-foreground">
           {data.periodLabel} · objectif LTV {data.target} € / nouvel abonné
+          {data.restricted && ' · périmètre : tes modèles assignés'}
         </p>
       </div>
 
@@ -31,13 +32,13 @@ export function HealthTemplate({ data }: { data: HealthData }) {
         <Card className="py-4">
           <CardContent className="flex flex-col items-center gap-1 px-8">
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              LTV agence
+              {data.restricted ? 'LTV — tes modèles' : 'LTV agence'}
             </span>
             <LtvGauge ltv={data.ltv} status={data.status} target={data.target} size="lg" />
             <StatusBadge status={data.status} />
           </CardContent>
         </Card>
-        <HealthCards kpis={data.kpis} />
+        <KpiGrid kpis={data.kpis} />
       </div>
 
       {data.plan && (

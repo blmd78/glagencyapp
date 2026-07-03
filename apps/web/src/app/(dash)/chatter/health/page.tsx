@@ -8,8 +8,8 @@ export default async function HealthPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  await requireAccess('health')
+  const profile = await requireAccess('health')
   const period = resolvePeriod(await searchParams)
-  const data = await getHealth(period)
+  const data = await getHealth(period, { restricted: profile.role !== 'admin' })
   return <HealthTemplate data={data} />
 }

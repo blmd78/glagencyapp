@@ -44,26 +44,33 @@ export async function saveQuotas(raw: SaveQuotasInput): Promise<ActionResult> {
   const errors: string[] = []
   let wrote = false
 
-  if (upserts.length > 0) {
-    const { error } = await supabase.from('quotas').upsert(
-      upserts.map((q) => ({
-        team_id: q.teamId,
-        presence_h: q.presenceH,
-        reactivite_s: q.reactiviteS,
-        medias_proposes: q.mediasProposes,
-        conv_pct: q.convPct,
-        ca_eur: q.caEur,
-        updated_at: new Date().toISOString(),
-        updated_by: userId,
-      })),
-    )
-    if (error) errors.push(`sauvegarde des seuils : ${error.message}`)
+  // Upsert et delete portent sur des team_id DISJOINTS (l'éditeur route chaque équipe
+  // vers l'un OU l'autre) → indépendants, exécutés en parallèle.
+  const [upRes, delRes] = await Promise.all([
+    upserts.length > 0
+      ? supabase.from('quotas').upsert(
+          upserts.map((q) => ({
+            team_id: q.teamId,
+            presence_h: q.presenceH,
+            reactivite_s: q.reactiviteS,
+            medias_proposes: q.mediasProposes,
+            conv_pct: q.convPct,
+            ca_eur: q.caEur,
+            updated_at: new Date().toISOString(),
+            updated_by: userId,
+          })),
+        )
+      : Promise.resolve(null),
+    deletes.length > 0
+      ? supabase.from('quotas').delete().in('team_id', deletes)
+      : Promise.resolve(null),
+  ])
+  if (upRes) {
+    if (upRes.error) errors.push(`sauvegarde des seuils : ${upRes.error.message}`)
     else wrote = true
   }
-
-  if (deletes.length > 0) {
-    const { error } = await supabase.from('quotas').delete().in('team_id', deletes)
-    if (error) errors.push(`retrait des quotas vidés : ${error.message}`)
+  if (delRes) {
+    if (delRes.error) errors.push(`retrait des quotas vidés : ${delRes.error.message}`)
     else wrote = true
   }
 
@@ -97,21 +104,27 @@ export async function saveExclusions(raw: SaveExclusionsInput): Promise<ActionRe
   const errors: string[] = []
   let wrote = false
 
-  if (exclude.length > 0) {
-    const { error } = await supabase
-      .from('creators')
-      .update({ excluded: true, excluded_reason: 'Exclu LTV (page Quotas)' })
-      .in('id', exclude)
-    if (error) errors.push(`exclusion : ${error.message}`)
+  // Ids disjoints par construction (une case = exclu OU inclus) → écritures parallèles.
+  const [exRes, incRes] = await Promise.all([
+    exclude.length > 0
+      ? supabase
+          .from('creators')
+          .update({ excluded: true, excluded_reason: 'Exclu LTV (page Quotas)' })
+          .in('id', exclude)
+      : Promise.resolve(null),
+    include.length > 0
+      ? supabase
+          .from('creators')
+          .update({ excluded: false, excluded_reason: null })
+          .in('id', include)
+      : Promise.resolve(null),
+  ])
+  if (exRes) {
+    if (exRes.error) errors.push(`exclusion : ${exRes.error.message}`)
     else wrote = true
   }
-
-  if (include.length > 0) {
-    const { error } = await supabase
-      .from('creators')
-      .update({ excluded: false, excluded_reason: null })
-      .in('id', include)
-    if (error) errors.push(`ré-inclusion : ${error.message}`)
+  if (incRes) {
+    if (incRes.error) errors.push(`ré-inclusion : ${incRes.error.message}`)
     else wrote = true
   }
 

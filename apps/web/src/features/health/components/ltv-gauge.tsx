@@ -4,9 +4,10 @@ import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from 'recharts'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
 import type { LtvStatus } from '../types'
 
-// Couleurs de statut (tailwind emerald/amber/red 500) — recharts exige un fill littéral.
+// Couleurs de statut alignées sur lib/status-color.ts (green/amber/red) — recharts exige
+// un fill littéral, d'où les hex (tailwind green-500 / amber-500 / red-500).
 const FILL: Record<LtvStatus, string> = {
-  sain: '#10b981',
+  sain: '#22c55e',
   moyen: '#f59e0b',
   critique: '#ef4444',
 }

@@ -16,7 +16,9 @@ export async function getMembers(): Promise<MembersData> {
   ])
   const byProfile = new Map<string, string[]>()
   for (const l of links ?? []) {
-    byProfile.set(l.profile_id, [...(byProfile.get(l.profile_id) ?? []), l.creator_id])
+    const arr = byProfile.get(l.profile_id)
+    if (arr) arr.push(l.creator_id)
+    else byProfile.set(l.profile_id, [l.creator_id])
   }
   const members: Member[] = (profiles ?? []).map((p) => ({
     id: p.id,

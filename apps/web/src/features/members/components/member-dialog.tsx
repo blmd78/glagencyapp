@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { PAGE_CHOICES } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
@@ -151,21 +150,29 @@ export function MemberDialog({
                     onCheckedChange={() => toggle(models, setModels, c.id)}
                     disabled={pending}
                   />
-                  <Badge variant="outline" className={cn('font-normal', modelColor(c.name))}>
-                    {c.name}
-                  </Badge>
+                  <Badge className={modelColor(c.name)}>{c.name}</Badge>
                 </label>
               ))}
             </div>
           </div>
 
+          {pages.size === 0 && (
+            <p className="text-xs text-muted-foreground">
+              Coche au moins une page — sans page, le compte n&apos;aurait accès à rien.
+            </p>
+          )}
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </div>
 
         <DialogFooter>
           <Button
             onClick={submit}
-            disabled={pending || !displayName.trim() || (!member && !email.includes('@'))}
+            disabled={
+              pending ||
+              !displayName.trim() ||
+              pages.size === 0 ||
+              (!member && !email.includes('@'))
+            }
             className="w-full sm:w-auto"
           >
             {pending && <Loader2 className="size-4 animate-spin" />}
