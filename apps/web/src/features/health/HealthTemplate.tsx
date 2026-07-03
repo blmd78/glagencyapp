@@ -7,17 +7,12 @@ import { ModelHealthCard } from './components/model-health-card'
 import { StatusBadge } from './components/status-badge'
 import type { HealthData } from './types'
 
-const dayLabel = (iso: string | null) =>
-  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : null
-
 /**
  * Template État de santé — tracker d'objectif LTV (repris de l'ancien dashboard) :
  * jauge agence + KPIs, plan de rattrapage vers la cible, cartes par modèle.
  * Aucun fetch ici (convention app → feature(template) → composants).
  */
 export function HealthTemplate({ data }: { data: HealthData }) {
-  const last = dayLabel(data.lastDay)
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -72,7 +67,7 @@ export function HealthTemplate({ data }: { data: HealthData }) {
         </h2>
         <div className="grid gap-3 lg:grid-cols-2">
           {data.models.map((m) => (
-            <ModelHealthCard key={m.id} model={m} target={data.target} lastDayLabel={last} />
+            <ModelHealthCard key={m.id} model={m} target={data.target} />
           ))}
         </div>
       </div>
@@ -90,7 +85,7 @@ export function HealthTemplate({ data }: { data: HealthData }) {
           </div>
           <div className="grid gap-3 lg:grid-cols-2">
             {data.excludedModels.map((m) => (
-              <ModelHealthCard key={m.id} model={m} target={data.target} lastDayLabel={last} />
+              <ModelHealthCard key={m.id} model={m} target={data.target} />
             ))}
           </div>
         </div>

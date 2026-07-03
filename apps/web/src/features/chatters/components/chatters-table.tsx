@@ -1,9 +1,17 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import { type ColumnDef, type Row } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
@@ -41,15 +49,9 @@ const columns: ColumnDef<ChatterRow>[] = [
     id: 'models',
     header: 'Modèles',
     cell: ({ row }) => {
-      // Priorité à l'assignation API (le "modele_id"), sinon modèles où il a fait du CA.
-      const names =
-        row.original.assignedModels.length > 0
-          ? row.original.assignedModels
-          : row.original.models.length > 0
-            ? row.original.models.map((m) => m.model)
-            : row.original.team
-              ? [row.original.team]
-              : []
+      // Raccord avec la période filtrée : uniquement les modèles où il a fait de
+      // l'argent sur la plage (pas d'assignation statique — table figée au 01/07).
+      const names = row.original.models.map((m) => m.model)
       if (names.length === 0)
         return <span className="text-muted-foreground">—</span>
       const shown = names.slice(0, 4)
@@ -202,9 +204,27 @@ function chatterSubRows(row: Row<ChatterRow>) {
 }
 
 export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
+  const [modelId, setModelId] = useState('all')
+
+  // Options du sélecteur : les comptes OF présents dans les données de la période
+  // (dédupliqués par creator_id — deux comptes peuvent partager un nom).
+  const modelOptions = useMemo(() => {
+    const byId = new Map<string, string>()
+    for (const c of chatters) for (const m of c.models) byId.set(m.creatorId, m.model)
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [chatters])
+
+  const filtered = useMemo(
+    () =>
+      modelId === 'all'
+        ? chatters
+        : chatters.filter((c) => c.models.some((m) => m.creatorId === modelId)),
+    [chatters, modelId],
+  )
+
   return (
     <DataTable
-      data={chatters}
+      data={filtered}
       columns={columns}
       filterColumnId="name"
       filterPlaceholder="Filtrer par chatteur…"
@@ -213,6 +233,21 @@ export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
       getRowCanExpand={(row) => canExpand(row.original)}
       renderSubRows={chatterSubRows}
       countLabel={(n) => `${n} chatteur(s)`}
+      toolbar={
+        <Select value={modelId} onValueChange={setModelId}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Tous les modèles" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous les modèles</SelectItem>
+            {modelOptions.map(([id, name]) => (
+              <SelectItem key={id} value={id}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      }
     />
   )
 }

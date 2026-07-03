@@ -13,7 +13,6 @@ export type LtvStatus = 'sain' | 'moyen' | 'critique'
 export interface HealthChatter {
   name: string
   ca: number
-  vendu: number
 }
 
 export interface ModelHealth {
@@ -28,8 +27,6 @@ export interface ModelHealth {
   renewSubs: number
   /** Part du CA total affiché, en %. */
   part: number
-  /** LTV du dernier jour ingéré (null si pas de données ce jour-là). */
-  lastDayLtv: number | null
   /** LTV de la semaine calendaire en cours (null si hors période / pas de données). */
   weekLtv: number | null
   /** € manquants sur la période pour atteindre la cible (0 si atteinte). */
@@ -59,8 +56,6 @@ export interface HealthData {
     realized: number
     subs: number
   } | null
-  /** Dernier jour ingéré (YYYY-MM-DD), pour légender les lignes « dernier jour ». */
-  lastDay: string | null
   /** Comptes inclus dans le calcul LTV (jauge, plan, KPIs). */
   models: ModelHealth[]
   /** Comptes exclus de la LTV (page Quotas) mais avec des données sur la période — affichés à part. */

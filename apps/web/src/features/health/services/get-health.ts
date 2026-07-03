@@ -37,14 +37,13 @@ export async function getHealth(
       .lte('date', period.to),
     supabase
       .from('chatter_creator_daily')
-      .select('creator_id, chatter_id, ca, vendu')
+      .select('creator_id, chatter_id, ca')
       .gte('date', period.from)
       .lte('date', period.to),
     supabase.from('chatters').select('id, display_name'),
   ])
 
   const rows = cd ?? []
-  const lastDay = rows.reduce<string | null>((mx, r) => (mx === null || r.date > mx ? r.date : mx), null)
   const weekFrom = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
 
   // Agrégats par modèle : période, dernier jour, semaine en cours.
@@ -52,23 +51,16 @@ export async function getHealth(
     ca: number
     newSubs: number
     renewSubs: number
-    dayCa: number
-    daySubs: number
     weekCa: number
     weekSubs: number
   }
   const agg = new Map<string, Acc>()
   for (const r of rows) {
     const a =
-      agg.get(r.creator_id) ??
-      { ca: 0, newSubs: 0, renewSubs: 0, dayCa: 0, daySubs: 0, weekCa: 0, weekSubs: 0 }
+      agg.get(r.creator_id) ?? { ca: 0, newSubs: 0, renewSubs: 0, weekCa: 0, weekSubs: 0 }
     a.ca += r.ca ?? 0
     a.newSubs += r.new_subs ?? 0
     a.renewSubs += r.renew_subs ?? 0
-    if (r.date === lastDay) {
-      a.dayCa += r.ca ?? 0
-      a.daySubs += r.new_subs ?? 0
-    }
     if (r.date >= weekFrom) {
       a.weekCa += r.ca ?? 0
       a.weekSubs += r.new_subs ?? 0
@@ -78,16 +70,15 @@ export async function getHealth(
 
   // Chatteurs par modèle (ventilation transactions).
   const chName = new Map((chatters ?? []).map((c) => [c.id, c.display_name ?? '—']))
-  const byModel = new Map<string, Map<string, { ca: number; vendu: number }>>()
+  const byModel = new Map<string, Map<string, { ca: number }>>()
   for (const r of ccd ?? []) {
     let m = byModel.get(r.creator_id)
     if (!m) {
       m = new Map()
       byModel.set(r.creator_id, m)
     }
-    const c = m.get(r.chatter_id) ?? { ca: 0, vendu: 0 }
+    const c = m.get(r.chatter_id) ?? { ca: 0 }
     c.ca += r.ca ?? 0
-    c.vendu += r.vendu ?? 0
     m.set(r.chatter_id, c)
   }
 
@@ -100,7 +91,7 @@ export async function getHealth(
       if (!a || (a.ca <= 0 && a.newSubs <= 0)) return []
       const ltv = ltvOf(a.ca, a.newSubs)
       const chattersArr: HealthChatter[] = [...(byModel.get(c.id) ?? new Map()).entries()]
-        .map(([id, x]) => ({ name: chName.get(id) ?? '—', ca: round2(x.ca), vendu: x.vendu }))
+        .map(([id, x]) => ({ name: chName.get(id) ?? '—', ca: round2(x.ca) }))
         .filter((x) => x.ca > 0)
         .sort((p, q) => q.ca - p.ca)
       return [
@@ -114,7 +105,6 @@ export async function getHealth(
           newSubs: a.newSubs,
           renewSubs: a.renewSubs,
           part: totalCa > 0 ? round1((a.ca / totalCa) * 100) : 0,
-          lastDayLtv: ltvOf(a.dayCa, a.daySubs),
           weekLtv: ltvOf(a.weekCa, a.weekSubs),
           missingToTarget: Math.max(0, round2(LTV_TARGET * a.newSubs - a.ca)),
           chatters: chattersArr,
@@ -213,7 +203,6 @@ export async function getHealth(
     status: statusOf(ltv),
     kpis,
     plan,
-    lastDay,
     models,
     excludedModels,
   }

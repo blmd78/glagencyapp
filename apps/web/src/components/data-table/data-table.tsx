@@ -45,6 +45,8 @@ interface DataTableProps<T> {
    * une ligne dépliée pointerait vers une AUTRE entité après changement de données/tri.
    */
   getRowId?: (row: T) => string
+  /** Contrôles additionnels rendus à côté de la barre de recherche (ex. un Select). */
+  toolbar?: ReactNode
 }
 
 /** Data-table shadcn/TanStack réutilisable : filtre + tri + pagination + lignes dépliables. */
@@ -59,6 +61,7 @@ export function DataTable<T>({
   renderSubRows,
   countLabel,
   getRowId,
+  toolbar,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -83,13 +86,18 @@ export function DataTable<T>({
 
   return (
     <div className="flex flex-col gap-3">
-      {filterColumnId && (
-        <Input
-          placeholder={filterPlaceholder}
-          value={(table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ''}
-          onChange={(e) => table.getColumn(filterColumnId)?.setFilterValue(e.target.value)}
-          className="max-w-xs"
-        />
+      {(filterColumnId || toolbar) && (
+        <div className="flex flex-wrap items-center gap-2">
+          {filterColumnId && (
+            <Input
+              placeholder={filterPlaceholder}
+              value={(table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ''}
+              onChange={(e) => table.getColumn(filterColumnId)?.setFilterValue(e.target.value)}
+              className="max-w-xs"
+            />
+          )}
+          {toolbar}
+        </div>
       )}
 
       <div className="rounded-xl border">

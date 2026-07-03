@@ -11,8 +11,10 @@ const COM_RATE = 0.1
  * Onglet Chatteurs agrégé sur la période (datepicker du header).
  * Filtrage fait EN BASE (WHERE date BETWEEN from AND to) : on ne récupère que les
  * lignes de la période. Source : `chatter_daily` (agrégat chatteur) + `chatter_creator_daily`
- * (ventilation par modèle) + `chatter_creators` (modèles assignés). `creator_daily` sert au
- * bandeau de périmètre (total agence vs messagerie vs attribué).
+ * (ventilation par modèle). `creator_daily` sert au bandeau de périmètre.
+ * Règle d'affichage : un modèle n'apparaît (badge + sous-ligne) QUE s'il a rapporté
+ * de l'argent dans la période filtrée — pas d'assignation statique (chatter_creators
+ * est un instantané du 2026-07-01, plus alimenté, donc trompeur).
  *
  * Mode `restricted` (rôle `user`) : `chatter_daily`/`teams` sont admin-only en RLS →
  * l'agrégat se construit depuis `chatter_creator_daily` (limité par la RLS à SES modèles).
@@ -28,11 +30,11 @@ export async function getChatters(
   // En restreint, les tables admin-only (chatter_daily, teams) et le bandeau de périmètre
   // (creator_daily) ne sont pas interrogés : résultats vides et ignorés de toute façon.
   const skip = Promise.resolve({ data: null })
-  const [{ data: chatters }, { data: teams }, { data: creators }, { data: chd }, { data: ccd }, { data: cc }, { data: crd }] =
+  const [{ data: chatters }, { data: teams }, { data: creators }, { data: chd }, { data: ccd }, { data: crd }] =
     await Promise.all([
       supabase.from('chatters').select('id, display_name, email, active, team_id'),
       restricted ? skip : supabase.from('teams').select('id, name'),
-      supabase.from('creators').select('id, name, is_secondary, primary_creator_id'),
+      supabase.from('creators').select('id, name'),
       restricted
         ? skip
         : supabase
@@ -45,7 +47,6 @@ export async function getChatters(
         .select('chatter_id, creator_id, ca, ca_ppv, ca_tips, propose, vendu')
         .gte('date', period.from)
         .lte('date', period.to),
-      supabase.from('chatter_creators').select('chatter_id, creator_id').eq('active', true),
       restricted
         ? skip
         : supabase
@@ -58,18 +59,6 @@ export async function getChatters(
   const teamName = new Map((teams ?? []).map((t) => [t.id, t.name]))
   const crName = new Map((creators ?? []).map((c) => [c.id, c.name]))
   const chMeta = new Map((chatters ?? []).map((c) => [c.id, c]))
-
-  // Décision produit : chaque compte OF reste une ligne DISTINCTE dans la ventilation
-  // (« Carla » et « Carla (privé) » séparés). On garde le lien principal → secondaires
-  // uniquement pour créer les lignes à 0 des comptes couverts mais sans production.
-  const secondariesOf = new Map<string, string[]>()
-  for (const c of creators ?? []) {
-    if (c.is_secondary && c.primary_creator_id) {
-      const arr = secondariesOf.get(c.primary_creator_id) ?? []
-      arr.push(c.id)
-      secondariesOf.set(c.primary_creator_id, arr)
-    }
-  }
 
   const agg = new Map<
     string,
@@ -117,34 +106,15 @@ export async function getChatters(
     m.set(r.creator_id, c)
   }
 
-  // Une seule map (ids) — les noms s'en dérivent via crName (dédupliqués pour l'affichage).
-  const assignedIds = new Map<string, Set<string>>()
-  for (const r of cc ?? []) {
-    if (!crName.has(r.creator_id)) continue
-    const ids = assignedIds.get(r.chatter_id) ?? new Set()
-    ids.add(r.creator_id)
-    assignedIds.set(r.chatter_id, ids)
-  }
-  const assignedNames = (id: string) =>
-    [...new Set([...(assignedIds.get(id) ?? [])].map((cid) => crName.get(cid) as string))]
-
   const rows: ChatterRow[] = [...agg.entries()]
     .map(([id, a]) => {
       const meta = chMeta.get(id)
-      const byCr: Map<string, { ca: number; ppv: number; tips: number; propose: number; vendu: number }> =
-        new Map(bd.get(id) ?? [])
+      const byCr = bd.get(id) ?? new Map<string, { ca: number; ppv: number; tips: number; propose: number; vendu: number }>()
 
-      // Lignes à 0 : les comptes couverts par le chatteur (modèles assignés + leurs
-      // comptes secondaires, ex. « Carla (privé) ») apparaissent même sans production.
-      for (const cid of assignedIds.get(id) ?? []) {
-        for (const covered of [cid, ...(secondariesOf.get(cid) ?? [])]) {
-          if (!byCr.has(covered)) {
-            byCr.set(covered, { ca: 0, ppv: 0, tips: 0, propose: 0, vendu: 0 })
-          }
-        }
-      }
-
+      // Raccord avec la période filtrée : seuls les comptes qui ont rapporté de
+      // l'argent apparaissent (chaque compte OF reste une ligne distincte).
       const models: ChatterModel[] = [...byCr.entries()]
+        .filter(([, x]) => x.ca > 0)
         .map(([cid, x]) => ({
           creatorId: cid,
           model: crName.get(cid) ?? '—',
@@ -178,7 +148,6 @@ export async function getChatters(
           : null,
         caUnattributed: round2(a.ca - attributed),
         models,
-        assignedModels: assignedNames(id),
       }
     })
     .sort((p, q) => q.ca - p.ca)

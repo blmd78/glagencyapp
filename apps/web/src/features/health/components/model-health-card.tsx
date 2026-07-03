@@ -15,15 +15,7 @@ import { StatusBadge } from './status-badge'
  * Carte santé d'un modèle (reprise de l'ancien dashboard) : jauge LTV + chiffres période,
  * LTV du dernier jour / de la semaine, manque vs cible, et chatteurs dépliables.
  */
-export function ModelHealthCard({
-  model,
-  target,
-  lastDayLabel,
-}: {
-  model: ModelHealth
-  target: number
-  lastDayLabel: string | null
-}) {
+export function ModelHealthCard({ model, target }: { model: ModelHealth; target: number }) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -44,11 +36,6 @@ export function ModelHealthCard({
               </span>
             </div>
             <div className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-              {model.lastDayLtv !== null && lastDayLabel && (
-                <span className="tabular-nums">
-                  Dernier jour ({lastDayLabel}) : <b>{eur2(model.lastDayLtv)}</b>/sub
-                </span>
-              )}
               {model.weekLtv !== null && (
                 <span className="flex items-center gap-1 tabular-nums">
                   <CalendarDays className="size-3" /> Cette semaine :{' '}
@@ -83,9 +70,7 @@ export function ModelHealthCard({
                     className="flex items-baseline justify-between gap-2 rounded bg-muted/40 px-2 py-1 text-xs"
                   >
                     <span className="truncate">{c.name}</span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">
-                      {eur(c.ca)} · {num(c.vendu)} vendu{c.vendu > 1 ? 's' : ''}
-                    </span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{eur(c.ca)}</span>
                   </li>
                 ))}
               </ul>
