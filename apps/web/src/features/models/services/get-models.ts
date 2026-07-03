@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
@@ -15,16 +16,28 @@ export async function getModels(period: Period): Promise<ModelsData> {
   const [{ data: creators }, { data: cd }, { data: ccd }, { data: cc }, { data: chatters }] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private, excluded'),
-      supabase
-        .from('creator_daily')
-        .select('creator_id, ca, ca_ppv, ca_tips, ca_renew, new_subs, renew_subs')
-        .gte('date', period.from)
-        .lte('date', period.to),
-      supabase
-        .from('chatter_creator_daily')
-        .select('creator_id, chatter_id, ca, ca_ppv, ca_tips, propose, vendu')
-        .gte('date', period.from)
-        .lte('date', period.to),
+      // Tables journalières : fetchAll (pagination PostgREST, tri = PK).
+      fetchAll((f, t) =>
+        supabase
+          .from('creator_daily')
+          .select('creator_id, ca, ca_ppv, ca_tips, ca_renew, new_subs, renew_subs')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('creator_id')
+          .order('date')
+          .range(f, t),
+      ),
+      fetchAll((f, t) =>
+        supabase
+          .from('chatter_creator_daily')
+          .select('creator_id, chatter_id, ca, ca_ppv, ca_tips, propose, vendu')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('chatter_id')
+          .order('creator_id')
+          .order('date')
+          .range(f, t),
+      ),
       supabase.from('chatter_creators').select('creator_id, chatter_id').eq('active', true),
       supabase.from('chatters').select('id, display_name'),
     ])

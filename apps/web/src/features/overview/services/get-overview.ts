@@ -1,5 +1,6 @@
 import { eachDayOfInterval, endOfMonth, format, startOfMonth } from 'date-fns'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { DailyPoint, Insight, Kpi, ModelCa, ModelSubs, OverviewData } from '../types'
 
@@ -33,16 +34,41 @@ export async function getOverview(
   const [{ data: creators }, { data: cd }, { data: chd }, { count: totalChatters }] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private'),
-      supabase
-        .from('creator_daily')
-        .select('date, ca, new_subs, creator_id')
-        .gte('date', chartFrom)
-        .lte('date', chartTo),
-      supabase
-        .from(restricted ? 'chatter_creator_daily' : 'chatter_daily')
-        .select('chatter_id, ca')
-        .gte('date', period.from)
-        .lte('date', period.to),
+      // Tables journalières : fetchAll (pagination PostgREST, tri = PK).
+      fetchAll((f, t) =>
+        supabase
+          .from('creator_daily')
+          .select('date, ca, new_subs, creator_id')
+          .gte('date', chartFrom)
+          .lte('date', chartTo)
+          .order('creator_id')
+          .order('date')
+          .range(f, t),
+      ),
+      // Deux branches distinctes : la pagination stable exige le tri sur la PK
+      // complète, qui diffère entre les deux tables.
+      restricted
+        ? fetchAll((f, t) =>
+            supabase
+              .from('chatter_creator_daily')
+              .select('chatter_id, ca')
+              .gte('date', period.from)
+              .lte('date', period.to)
+              .order('chatter_id')
+              .order('creator_id')
+              .order('date')
+              .range(f, t),
+          )
+        : fetchAll((f, t) =>
+            supabase
+              .from('chatter_daily')
+              .select('chatter_id, ca')
+              .gte('date', period.from)
+              .lte('date', period.to)
+              .order('chatter_id')
+              .order('date')
+              .range(f, t),
+          ),
       supabase.from('chatters').select('*', { count: 'exact', head: true }),
     ])
 

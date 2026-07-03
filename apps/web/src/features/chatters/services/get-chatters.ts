@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { ChatterModel, ChatterRow, ChattersData } from '../types'
 
@@ -29,6 +30,8 @@ export async function getChatters(
 
   // En restreint, les tables admin-only (chatter_daily, teams) et le bandeau de périmètre
   // (creator_daily) ne sont pas interrogés : résultats vides et ignorés de toute façon.
+  // Tables journalières : fetchAll (pagination) — le volume dépasse 1000 lignes dès
+  // ~10 jours de plage, et PostgREST tronque en silence. Tri = PK (pagination stable).
   const skip = Promise.resolve({ data: null })
   const [{ data: chatters }, { data: teams }, { data: creators }, { data: chd }, { data: ccd }, { data: crd }] =
     await Promise.all([
@@ -37,23 +40,39 @@ export async function getChatters(
       supabase.from('creators').select('id, name'),
       restricted
         ? skip
-        : supabase
-            .from('chatter_daily')
-            .select('chatter_id, ca, ca_ppv, ca_tips, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
-            .gte('date', period.from)
-            .lte('date', period.to),
-      supabase
-        .from('chatter_creator_daily')
-        .select('chatter_id, creator_id, ca, ca_ppv, ca_tips, propose, vendu')
-        .gte('date', period.from)
-        .lte('date', period.to),
+        : fetchAll((f, t) =>
+            supabase
+              .from('chatter_daily')
+              .select('chatter_id, ca, ca_ppv, ca_tips, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
+              .gte('date', period.from)
+              .lte('date', period.to)
+              .order('chatter_id')
+              .order('date')
+              .range(f, t),
+          ),
+      fetchAll((f, t) =>
+        supabase
+          .from('chatter_creator_daily')
+          .select('chatter_id, creator_id, ca, ca_ppv, ca_tips, propose, vendu')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('chatter_id')
+          .order('creator_id')
+          .order('date')
+          .range(f, t),
+      ),
       restricted
         ? skip
-        : supabase
-            .from('creator_daily')
-            .select('ca, ca_ppv, ca_tips')
-            .gte('date', period.from)
-            .lte('date', period.to),
+        : fetchAll((f, t) =>
+            supabase
+              .from('creator_daily')
+              .select('ca, ca_ppv, ca_tips')
+              .gte('date', period.from)
+              .lte('date', period.to)
+              .order('creator_id')
+              .order('date')
+              .range(f, t),
+          ),
     ])
 
   const teamName = new Map((teams ?? []).map((t) => [t.id, t.name]))

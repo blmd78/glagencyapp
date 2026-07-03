@@ -1,5 +1,6 @@
 import { endOfMonth, startOfWeek, format } from 'date-fns'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import { round1, round2, eur, num } from '@/lib/format'
 import type { HealthChatter, HealthData, Kpi, LtvStatus, ModelHealth } from '../types'
