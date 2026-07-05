@@ -76,7 +76,10 @@ describe('buildQuotaInsights', () => {
   })
 
   it('tous quotas atteints → carte « saine » (severity ok)', () => {
-    const days = ['2026-06-30', '2026-07-01'].map((d) => goodDay(d, 300))
+    // 6 jours à 8h = 48h ≥ 42h attendues (7h/j × 6 j) — la présence se juge au TOTAL hebdo.
+    const days = ['2026-06-29', '2026-06-30', '2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04'].map(
+      (d) => goodDay(d, 300),
+    )
     const modelDays = days.map((d) => ({
       chatterId: JASUN,
       creatorId: CARLA,
@@ -113,16 +116,24 @@ describe('buildQuotaInsights', () => {
     )[0]!
     expect(critical.severity).toBe('critical')
     expect(critical.title).toContain('3/5 quotas manqués')
+    // Plan aligné sur les cases rouges : 3 manqués (présence, médias, CA) = 3 sections.
+    expect(critical.actionPlan.match(/^\[/gm)).toHaveLength(3)
+    expect(critical.actionPlan).toContain('[PRÉSENCE]')
+    expect(critical.actionPlan).toContain('[MÉDIAS PROPOSÉS]')
+    expect(critical.actionPlan).toContain('[CA]')
 
-    // Un seul manqué (CA) → warning.
+    // Un seul manqué (CA) → warning : 6 jours pleins (48h ≥ 42h de présence) mais CA faible.
+    const goodDays = ['2026-06-29', '2026-06-30', '2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04'].map(
+      (d) => goodDay(d, 10),
+    )
     const warning = buildQuotaInsights(
       baseInput({
         evaluated: {
           start: '2026-06-30',
           label: 'sem.',
           daysWithData: 7,
-          days: [goodDay('2026-06-30', 10)],
-          modelDays,
+          days: goodDays,
+          modelDays: goodDays.map((d) => ({ chatterId: JASUN, creatorId: CARLA, date: d.date, ca: 10 })),
         },
       }),
     )[0]!
@@ -155,7 +166,8 @@ describe('buildQuotaInsights', () => {
       }),
     )[0]!
     expect(card.kpis.find((k) => k.label === 'Réactivité')?.ok).toBe(false)
-    expect(card.title).toContain('2/5')
+    // 1 seul jour travaillé : présence 8h/42h manquée aussi (+ CA) → 3/5.
+    expect(card.title).toContain('3/5')
   })
 
   it('semaine partielle : titre suffixé « n j de données »', () => {
@@ -189,7 +201,9 @@ describe('buildQuotaInsights', () => {
         },
       }),
     )[0]!
-    expect(card.body).toContain('En difficulté')
-    expect(card.actionPlan).toContain('[SEMAINE EN COURS]')
+    expect(card.week?.struggling).toBe(true)
+    expect(card.week?.label).toContain('07/07')
+    // 5 €/j en cours vs 10 €/j en S-1 → −50 %.
+    expect(card.week?.deltaPct).toBe(-50)
   })
 })

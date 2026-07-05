@@ -80,6 +80,71 @@ function DailyList({ title, dailies }: { title: string; dailies: DailyCa[] }) {
   )
 }
 
+/** Plan d'action rendu en sections structurées ([CA], [PRÉSENCE]…) au lieu d'un bloc de texte. */
+function PlanSections({ plan }: { plan: string }) {
+  const sections = plan.split('\n\n').filter(Boolean)
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      {sections.map((sec, i) => {
+        const lines = sec.split('\n')
+        const m = (lines[0] ?? '').match(/^\[([^\]]+)\]\s*(.*)$/)
+        const title = m?.[1] ?? ''
+        const intro = m ? m[2] : (lines[0] ?? '')
+        return (
+          <div key={i} className="rounded-md border-l-2 border-red-400 bg-muted/40 p-3">
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              {title && (
+                <span className="text-[10px] font-bold uppercase tracking-wide text-red-600 dark:text-red-400">
+                  {title}
+                </span>
+              )}
+              <span className="text-xs font-medium">{intro}</span>
+            </div>
+            <ul className="mt-1.5 flex flex-col gap-1 text-xs leading-relaxed">
+              {lines.slice(1).map((l, j) =>
+                l.startsWith('- ') ? (
+                  <li key={j} className="flex gap-1.5">
+                    <span className="text-muted-foreground">•</span>
+                    <span>{l.slice(2)}</span>
+                  </li>
+                ) : (
+                  <li key={j} className="font-medium">{l}</li>
+                ),
+              )}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Infobulle ⓘ : détail CA jour par jour d'un modèle. */
+function DailyInfo({ label, weekStart, dailies }: { label: string; weekStart: string; dailies: DailyCa[] | undefined }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={`Détail CA/jour — ${label}`}
+            className="self-center text-muted-foreground/60 transition-colors hover:text-foreground"
+          >
+            <Info className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" className="text-xs font-normal">
+          {Array.isArray(dailies) ? (
+            <DailyList title="Semaine passée (S-1)" dailies={fillWeek(weekStart, dailies)} />
+          ) : (
+            <span>Détail indisponible pour cette génération.</span>
+          )}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  )
+}
+
 /** Carte insight « quotas hebdo » : chips, split modèles S-1/semaine en cours, plan, statuts. */
 export function InsightCard({ insight }: { insight: InsightRow }) {
   const router = useRouter()
@@ -123,6 +188,9 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
         </CollapsibleTrigger>
         <CollapsibleContent>
       <CardContent className="flex flex-col gap-3 px-4 pb-4">
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-4 lg:items-start lg:gap-4">
+        {/* ── Colonne gauche (3/4) : l'analyse S-1 ── */}
+        <div className="flex min-w-0 flex-col gap-3 lg:col-span-3">
         <p className="whitespace-pre-line text-sm text-muted-foreground">{insight.body}</p>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -136,8 +204,17 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
                   : 'border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30',
               )}
             >
-              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                {k.label}
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  {k.label}
+                </span>
+                {k.label === 'CA' && insight.models.length === 1 && insight.models[0] && (
+                  <DailyInfo
+                    label={insight.models[0].name}
+                    weekStart={insight.weekStart}
+                    dailies={insight.models[0].dailies}
+                  />
+                )}
               </div>
               <div
                 className={cn(
@@ -152,45 +229,15 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
           ))}
         </div>
 
-        {insight.models.length > 0 && (
+        {insight.models.length > 1 && (
           <div className="flex flex-col gap-1.5 rounded-md bg-muted/40 p-2.5">
             <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              {insight.models.length > 1 ? 'Split par modèle (prorata)' : 'CA par modèle'}
+              Split par modèle (prorata)
             </span>
             {insight.models.map((m) => (
               <div key={m.name} className="flex flex-wrap items-baseline gap-x-2 text-xs">
                 <Badge className={modelColor(m.name)}>{m.name}</Badge>
-                <TooltipProvider delayDuration={150}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label={`Détail CA/jour — ${m.name}`}
-                        className="self-center text-muted-foreground/60 transition-colors hover:text-foreground"
-                      >
-                        <Info className="size-3.5" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="flex gap-4 text-xs font-normal">
-                      {Array.isArray(m.dailies) ? (
-                        <>
-                          <DailyList title="S-1" dailies={fillWeek(insight.weekStart, m.dailies)} />
-                          <DailyList
-                            title="En cours"
-                            dailies={fillWeek(
-                              isoAddDays(insight.weekStart, 7),
-                              m.weekDailies ?? [],
-                              new Date().toISOString().slice(0, 10),
-                            )}
-                          />
-                        </>
-                      ) : (
-                        // Génération antérieure à l'ajout du détail : ne pas fabriquer de faux 0.
-                        <span>Détail indisponible pour cette génération.</span>
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <DailyInfo label={m.name} weekStart={insight.weekStart} dailies={m.dailies} />
                 <span className="tabular-nums">
                   S-1 : {eur(m.ca)} / {eur(m.expected)} attendus · {num(m.days)} j ·{' '}
                   <b>{eur(m.days > 0 ? m.ca / m.days : 0)}/j</b>
@@ -205,11 +252,6 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
                     {pct(m.pct)}
                   </b>
                 </span>
-                {m.weekDays > 0 && (
-                  <span className="tabular-nums text-muted-foreground">
-                    · en cours : {eur(m.weekCa)} ({num(m.weekDays)} j · {eur(m.weekCa / m.weekDays)}/j)
-                  </span>
-                )}
               </div>
             ))}
           </div>
@@ -222,12 +264,61 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
             Plan d&apos;action — management
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <p className="mt-2 whitespace-pre-line rounded-md border-l-2 border-amber-500 bg-muted/40 p-3 text-xs leading-relaxed">
-              {insight.actionPlan}
-            </p>
+            <PlanSections plan={insight.actionPlan} />
           </CollapsibleContent>
         </Collapsible>
         )}
+        </div>
+
+        {/* ── Colonne droite (1/4) : suivi de la semaine en cours, côte à côte ── */}
+        {insight.week && (
+          <div className="flex flex-col gap-2 rounded-md border bg-muted/20 p-3 lg:col-span-1">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Semaine en cours
+            </span>
+            <span className="text-[10px] tabular-nums text-muted-foreground">{insight.week.label}</span>
+            <Badge
+              className={cn(
+                'w-fit text-xs',
+                insight.week.struggling ? STATUS_COLORS.danger : STATUS_COLORS.positive,
+              )}
+            >
+              {insight.week.struggling ? 'En difficulté' : 'Dans la cible'}
+            </Badge>
+            <span className="text-xl font-semibold tabular-nums">{eur(insight.week.ca)}</span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {eur(insight.week.perDay)}/j · j{num(insight.week.days)}/7
+            </span>
+            {insight.week.deltaPct != null && (
+              <span
+                className={cn(
+                  'text-xs font-semibold tabular-nums',
+                  insight.week.deltaPct > 10
+                    ? 'text-green-600 dark:text-green-400'
+                    : insight.week.deltaPct < -10
+                      ? 'text-red-600 dark:text-red-400'
+                      : 'text-amber-600 dark:text-amber-400',
+                )}
+              >
+                {insight.week.deltaPct > 10 ? '↗' : insight.week.deltaPct < -10 ? '↘' : '→'}{' '}
+                {insight.week.deltaPct > 0 ? '+' : ''}
+                {insight.week.deltaPct} % vs S-1
+              </span>
+            )}
+            {insight.models.some((m) => m.weekDays > 0) && (
+              <div className="flex flex-col gap-1 border-t pt-2 text-xs tabular-nums text-muted-foreground">
+                {insight.models
+                  .filter((m) => m.weekDays > 0)
+                  .map((m) => (
+                    <span key={m.name}>
+                      {m.name} : {eur(m.weekCa)} ({num(m.weekDays)} j)
+                    </span>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+        </div>
 
         <div className="flex flex-col gap-2 border-t pt-3">
           <textarea

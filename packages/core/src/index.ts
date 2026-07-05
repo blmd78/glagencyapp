@@ -15,4 +15,5 @@ export type {
   InsightKpi,
   InsightModelSplit,
   InsightDraft,
+  WeekTracking,
 } from './insights/quotas-hebdo'

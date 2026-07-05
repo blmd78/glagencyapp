@@ -155,6 +155,7 @@ export async function generateWeeklyInsights(
         action_plan: d.actionPlan,
         kpis: d.kpis as unknown as Json,
         models: d.models as unknown as Json,
+        week: d.week as unknown as Json,
       })),
     )
     if (error) throw error

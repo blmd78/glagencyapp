@@ -84,16 +84,31 @@ export interface InsightModelSplit {
   weekDailies: DailyCa[]
 }
 
+/** Suivi de la semaine en cours (bloc séparé de l'analyse S-1 dans l'UI). */
+export interface WeekTracking {
+  label: string
+  days: number
+  ca: number
+  perDay: number
+  /** true = rythme < 80 % du CA/j de S-1. */
+  struggling: boolean
+  /** Évolution du CA/j vs S-1 en % (null si pas de référence exploitable). */
+  deltaPct: number | null
+}
+
 export interface InsightDraft {
   key: string
   weekStart: string
   severity: 'critical' | 'warning' | 'ok'
   chatterId: string
   title: string
+  /** Synthèse S-1 en UNE ligne compacte (pas de prose). */
   body: string
+  /** Une section par quota manqué — TOUJOURS aligné sur le nombre de chips rouges. */
   actionPlan: string
   kpis: InsightKpi[]
   models: InsightModelSplit[]
+  week: WeekTracking | null
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -198,7 +213,11 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     const t = dominantTargets(agg, targetsByModel)
     if (!t) continue // aucun modèle avec quotas configurés → rien d'évaluable
 
-    // ── Les 5 quotas (moyennes journalières sur jours actifs, cibles = /jour) ──
+    // ── Les 5 quotas. Présence = TOTAL hebdo vs 7h × 6 j (méthodo Benoit : 42h/sem
+    // obligatoires) ; les autres en moyenne journalière sur jours actifs. ──
+    const expectedDays = Math.min(6, evaluated.daysWithData)
+    const expectedPresence = t.presenceH * expectedDays
+    const idleTolerance = expectedDays * 1 // 1h de pause tolérée par jour
     const presenceAvg = agg.presence / days
     const mediasAvg = agg.propose / days
     const conv = agg.propose > 0 ? (agg.vendu / agg.propose) * 100 : null
@@ -211,9 +230,9 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     const kpis: InsightKpi[] = [
       {
         label: 'Présence',
-        value: `${r1(presenceAvg)}h/j`,
-        target: `${t.presenceH}h/j`,
-        ok: presenceAvg >= t.presenceH,
+        value: `${r1(agg.presence)}h`,
+        target: `${r1(expectedPresence)}h (${t.presenceH}h/j × ${expectedDays} j)`,
+        ok: agg.presence >= expectedPresence,
       },
       {
         label: 'Réactivité',
@@ -272,48 +291,54 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
       })
       .sort((a, b) => b.ca - a.ca)
 
-    // ── Semaine en cours (suivi global) ──
-    let weekLine = ''
-    let weekStruggling = false
-    if (currentWeek && weekChatter) {
-      const wDays = weekChatter.activeDays.length
-      const wPerDay = wDays > 0 ? weekChatter.ca / wDays : 0
-      weekStruggling = wPerDay < caPerDay * 0.8
-      weekLine = `Semaine en cours (${currentWeek.label}) : ${eur(weekChatter.ca)} · ${eur(wPerDay)}/j (j${wDays}/7) — ${
-        weekStruggling ? 'En difficulté' : 'Dans la cible'
-      }`
-    } else if (currentWeek) {
-      weekStruggling = true
-      weekLine = `Semaine en cours (${currentWeek.label}) : 0 € — aucune activité — En difficulté`
+    // ── Suivi semaine en cours : bloc STRUCTURÉ, séparé de l'analyse S-1 ──
+    let week: WeekTracking | null = null
+    if (currentWeek) {
+      const wDays = weekChatter?.activeDays.length ?? 0
+      const wCa = weekChatter?.ca ?? 0
+      const wPerDay = wDays > 0 ? wCa / wDays : 0
+      week = {
+        label: currentWeek.label,
+        days: wDays,
+        ca: r2(wCa),
+        perDay: r2(wPerDay),
+        struggling: wDays === 0 || wPerDay < caPerDay * 0.8,
+        deltaPct: caPerDay > 0 && wDays > 0 ? Math.round((wPerDay / caPerDay - 1) * 100) : null,
+      }
     }
 
-    // ── Body ──
+    // ── Synthèse S-1 : UNE ligne compacte, zéro prose ──
     const level = levelOf(caPerDay)
-    const body = [
-      `${evaluated.label} : ${eur(agg.ca)} · ${eur(caPerDay)}/j (${days} j actifs) — niveau ${level}.`,
-      `Présence : ${r1(presenceAvg)}h/j (cible ${t.presenceH}h/j) · idle ${r1(agg.idle / days)}h/j.`,
-      weekLine,
-    ]
-      .filter(Boolean)
-      .join('\n')
+    const body = `${days} j actif${days > 1 ? 's' : ''} · niveau ${level} · idle ${r1(agg.idle)}h (toléré ${idleTolerance}h/sem)`
 
-    // ── Plan d'action (sections uniquement pour les volets en échec) ──
+    // ── Plan d'action : UNE section par case rouge, dans l'ordre des chips ──
     const plan: string[] = []
-    const caOk = kpis.find((k) => k.label === 'CA')?.ok ?? true
-    const presenceOk = kpis.find((k) => k.label === 'Présence')?.ok ?? true
-    if (!caOk) {
+    const ko = (label: string) => kpis.find((k) => k.label === label)?.ok === false
+    if (ko('Présence')) {
       plan.push(
-        `[CA]\nCA sous l'attendu : ${eur(agg.ca)} pour ${eur(expected)} attendus (prorata modèles).\n- RDV avec ${name} en début de semaine — analyser les causes (présence ? scripts ? fans assignés ?).\n- Objectif minimal cette semaine : ${eur(caPerDay * 1.2)}/j (+20 % vs ${evaluated.label}).\n- Croiser le CA avec le taux de conv. et le nb de médias proposés.\nSi situation récurrente (2ᵉ semaine consécutive) :\n- Convocation bureau + rapport.\n- Plan de redressement sur 2 semaines avec objectifs journaliers.`,
+        `[PRÉSENCE] ${r1(agg.presence)}h sur ${r1(expectedPresence)}h attendues (${t.presenceH}h/j × ${expectedDays} j).\n- Vérifier l'idle MyPuls : 1h de pause/j tolérée, soit ${idleTolerance}h/semaine — ici ${r1(agg.idle)}h.\n- Idle > ${idleTolerance}h/sem : soit il erre sur son PC sans vraiment travailler, soit MyPuls reste allumé après déconnexion (ça fausse aussi la réactivité et les autres stats).\n- Sous les ${r1(expectedPresence)}h obligatoires : rendez-vous au bureau avec le manager + explication à Axel.`,
       )
     }
-    if (!presenceOk) {
+    if (ko('Réactivité')) {
       plan.push(
-        `[PRÉSENCE]\nPrésence insuffisante : ${r1(presenceAvg)}h/j pour ${t.presenceH}h/j attendus.\n- Vérifier les temps idle sur MyPuls : max 1h/j toléré (ici ${r1(agg.idle / days)}h/j).\n- Si idle élevé : MyPuls probablement laissé allumé sans travailler — fausse aussi la réactivité.\n- Si présence réelle < cible sur la semaine : convocation bureau + rapport.`,
+        `[RÉACTIVITÉ] ${react === null ? '—' : Math.round(react) + 's'} de moyenne pour ≤ ${t.reactiviteS}s (5 min).\n- Regarder immédiatement ce qu'il fait : nombre d'assignations — trop de conversations = ingérable, rééquilibrer.\n- Vérifier qu'il se DÉCONNECTE bien de MyPuls en pause et en fin de shift (sinon le temps de réponse gonfle).\n- Vérifier la désassignation de toutes ses conversations en fin de shift.\n- Regarder le délai entre le dernier message et le média envoyé.\n- Analyser en partage d'écran sa vitesse d'écriture — si c'est le problème : exercices de frappe, 2/jour minimum pendant 7 jours, à chaque fin de shift.`,
       )
     }
-    if (weekStruggling && weekLine) {
+    if (ko('Médias prop.')) {
       plan.push(
-        `[SEMAINE EN COURS]\n${weekLine}\n- Ne pas attendre vendredi — point AUJOURD'HUI avec ${name}.\n- Objectif de rattrapage immédiat : viser ${eur(caPerDay)}/j minimum.`,
+        `[MÉDIAS PROPOSÉS] ${r1(mediasAvg)}/j pour ${t.mediasProposes}/j minimum (médias PAYANTS uniquement).\n- Comparer ses messages envoyés et ses médias proposés aux chiffres d'avant.\n- Vérifier son activité générale dans l'outil d'analyse MyPuls (était-il vraiment actif ?).\n- Sanctions déjà existantes → convocation directe ; sinon message personnel demandant une explication, puis bureau pour présenter le bilan si anomalie.`,
+      )
+    }
+    if (ko('Taux conv.')) {
+      plan.push(
+        `[CONVERSION] ${conv === null ? '—' : r1(conv) + ' %'} pour ${t.convPct} % minimum.\n- Croiser le taux avec le nombre de médias proposés : peu de médias + taux bas → proposer plus de médias payants ; beaucoup de médias + taux bas → travailler le closing au moment de la vente.\n- Analyser ce qui se passe après l'envoi du média : pourquoi le fan n'achète pas ? (script, temps de réponse).\n- Vérifier les euros reçus : un fan qui paye plus peut justifier une stratégie différente.`,
+      )
+    }
+    if (ko('CA')) {
+      plan.push(
+        expected > 0 && agg.ca < expected * 0.6
+          ? `[CA] Situation critique : ${eur(agg.ca)} réalisés pour ${eur(expected)} attendus (prorata modèles).\n- RDV avec ${name} en début de semaine : analyser les causes (présence ? scripts ? fans assignés ?).\n- Objectif minimal cette semaine : ${eur(caPerDay * 1.2)}/j (+20 % vs S-1).\n- Croiser le CA avec le taux de conv. et le nb de médias proposés.\n- Identifier les fans à fort potentiel non relancés ou mal suivis.\nSi situation récurrente (2ᵉ semaine consécutive) :\n- Convocation bureau + rapport à Axel.\n- Plan de redressement sur 2 semaines avec objectifs journaliers.`
+          : `[CA] Recul notable : ${eur(agg.ca)} réalisés pour ${eur(expected)} attendus (prorata modèles).\n- Point individuel en début de semaine avec ${name} — objectif : ${eur(agg.ca * 1.15)} cette semaine (+15 %).\n- Analyser si les fans assignés ont bien été relancés.\n- Vérifier les créneaux horaires : shifts complets et bien couverts.\n- Point de mi-semaine mercredi — ajuster si pas de reprise.`,
       )
     }
 
@@ -329,6 +354,7 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
       actionPlan: plan.join('\n\n'),
       kpis,
       models,
+      week,
     })
   }
 

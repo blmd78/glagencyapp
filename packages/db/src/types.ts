@@ -437,6 +437,7 @@ export type Database = {
           models: Json
           severity: string
           title: string
+          week: Json | null
           week_start: string
         }
         Insert: {
@@ -449,6 +450,7 @@ export type Database = {
           models?: Json
           severity: string
           title: string
+          week?: Json | null
           week_start: string
         }
         Update: {
@@ -461,6 +463,7 @@ export type Database = {
           models?: Json
           severity?: string
           title?: string
+          week?: Json | null
           week_start?: string
         }
         Relationships: [

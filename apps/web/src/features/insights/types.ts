@@ -1,5 +1,5 @@
-import type { InsightKpi, InsightModelSplit } from '@glagency/core'
-export type { InsightKpi, InsightModelSplit }
+import type { InsightKpi, InsightModelSplit, WeekTracking } from '@glagency/core'
+export type { InsightKpi, InsightModelSplit, WeekTracking }
 
 /** Contrat de la page Insights — cartes hebdo « quotas » (dernière génération par clé). */
 
@@ -17,6 +17,7 @@ export interface InsightRow {
   generatedAt: string
   status: InsightStatus
   note: string | null
+  week: WeekTracking | null
 }
 
 export interface InsightsData {
