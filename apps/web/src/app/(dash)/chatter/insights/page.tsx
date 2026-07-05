@@ -1,8 +1,11 @@
+import { getInsights } from '@/features/insights/services/get-insights'
 import { InsightsTemplate } from '@/features/insights/InsightsTemplate'
 import { requireAccess } from '@/lib/auth'
 
+// La page montre TOUJOURS S-1 (dernière semaine complète générée), comparée à la
+// semaine en cours dans les cartes — bascule automatique chaque lundi, pas de sélecteur.
 export default async function InsightsPage() {
   await requireAccess('insights')
-  // TODO: récupérer les données via @/features/insights/services + @/lib/supabase/server
-  return <InsightsTemplate />
+  const data = await getInsights()
+  return <InsightsTemplate data={data} />
 }

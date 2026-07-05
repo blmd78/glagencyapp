@@ -394,6 +394,85 @@ export type Database = {
         }
         Relationships: []
       }
+      insight_states: {
+        Row: {
+          insight_key: string
+          note: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          insight_key: string
+          note?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          insight_key?: string
+          note?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insight_states_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      insights: {
+        Row: {
+          action_plan: string
+          body: string
+          chatter_id: string
+          generated_at: string
+          insight_key: string
+          kpis: Json
+          models: Json
+          severity: string
+          title: string
+          week_start: string
+        }
+        Insert: {
+          action_plan: string
+          body: string
+          chatter_id: string
+          generated_at?: string
+          insight_key: string
+          kpis?: Json
+          models?: Json
+          severity: string
+          title: string
+          week_start: string
+        }
+        Update: {
+          action_plan?: string
+          body?: string
+          chatter_id?: string
+          generated_at?: string
+          insight_key?: string
+          kpis?: Json
+          models?: Json
+          severity?: string
+          title?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insights_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       period_snapshot_kpi: {
         Row: {
           current_week_days: number

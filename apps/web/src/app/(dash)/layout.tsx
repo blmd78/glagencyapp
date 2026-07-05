@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
+import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { AppSidebar } from '@/components/app-sidebar'
 import { DateRangePicker } from '@/components/date-range-picker'
 import {
@@ -13,6 +14,8 @@ import { Separator } from '@/components/ui/separator'
 export default async function DashLayout({ children }: { children: ReactNode }) {
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  // Badge « à traiter » de l'onglet Insights (RLS-scopé : 0 pour un rôle user en v1).
+  const insightsCount = await getOpenInsightsCount()
 
   return (
     <SidebarProvider>
@@ -20,6 +23,7 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
         userEmail={profile.email ?? ''}
         isAdmin={profile.role === 'admin'}
         allowedPages={profile.pages}
+        insightsCount={insightsCount}
       />
       <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">

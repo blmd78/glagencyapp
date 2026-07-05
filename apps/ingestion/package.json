@@ -9,7 +9,8 @@
     "capture": "tsx src/capture.ts",
     "cf:dev": "wrangler dev --test-scheduled --port 8799",
     "deploy": "wrangler deploy",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "insights": "tsx src/gen-insights.ts"
   },
   "dependencies": {
     "@glagency/core": "workspace:*",

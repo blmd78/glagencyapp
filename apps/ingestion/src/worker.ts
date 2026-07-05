@@ -3,6 +3,8 @@ import type { IngestRunSummary } from '@glagency/core'
 import { runPipeline } from './pipeline'
 import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
 import { recordRun, type IngestTrigger } from './record-run'
+import { generateWeeklyInsights } from './insights'
+import { createAdminClient } from '@glagency/db'
 
 /**
  * Entrypoint Cloudflare Worker.
@@ -68,6 +70,15 @@ async function runAndRecord(triggeredBy: IngestTrigger, day?: string): Promise<I
       )
     }
     await recordRun(triggeredBy, startedAt, { summary })
+    // Insights hebdo « quotas » : régénérés après chaque run (la ligne « semaine en
+    // cours » se rafraîchit ; clés stables → les statuts UI survivent). Un échec ici
+    // ne casse PAS le run d'ingestion.
+    try {
+      const ins = await generateWeeklyInsights(createAdminClient())
+      console.log(`[insights] ${ins.generated} carte(s) — semaine du ${ins.weekStart}`)
+    } catch (e) {
+      console.warn('[insights] génération échouée (run OK par ailleurs) :', (e as Error).message)
+    }
     return summary
   } catch (err) {
     console.error(`[ingestion] ÉCHEC (${triggeredBy})`, err)

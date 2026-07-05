@@ -9,6 +9,7 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
@@ -22,11 +23,14 @@ export function AppSidebar({
   userEmail,
   isAdmin,
   allowedPages,
+  insightsCount = 0,
 }: {
   userEmail: string
   isAdmin?: boolean
   /** Slugs autorisés pour un rôle `user` (ignoré si admin). */
   allowedPages?: string[]
+  /** Cartes insights « à traiter » (badge sur l'onglet Insights). */
+  insightsCount?: number
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -56,6 +60,9 @@ export function AppSidebar({
                       <span>{item.label}</span>
                     </Link>
                   </SidebarMenuButton>
+                  {item.href.endsWith('/insights') && insightsCount > 0 && (
+                    <SidebarMenuBadge>{insightsCount}</SidebarMenuBadge>
+                  )}
                 </SidebarMenuItem>
               )
             })}
