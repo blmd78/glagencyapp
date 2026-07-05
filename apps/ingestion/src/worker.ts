@@ -88,11 +88,20 @@ async function runAndRecord(triggeredBy: IngestTrigger, day?: string): Promise<I
 }
 
 const handler = {
-  async scheduled(_controller: unknown, env: Bindings, _ctx: Ctx): Promise<void> {
+  async scheduled(controller: { noRetry(): void }, env: Bindings, _ctx: Ctx): Promise<void> {
     bindEnv(env)
     // Awaité (pas de waitUntil) : un crash marque l'invocation cron en échec côté
     // Cloudflare, est capturé par withSentry, et passe le check-in du monitor en error.
-    await Sentry.withMonitor(MONITOR_SLUG, () => runAndRecord('cron'), MONITOR_CONFIG)
+    try {
+      await Sentry.withMonitor(MONITOR_SLUG, () => runAndRecord('cron'), MONITOR_CONFIG)
+    } catch (err) {
+      // Structure MyPuls inattendue = échec non transitoire : relancer le même scrape
+      // dans la foulée ne peut pas réussir — on épargne le retry Cloudflare.
+      if (/parse|html|selector|introuvable|invalide/i.test((err as Error)?.message ?? '')) {
+        controller.noRetry()
+      }
+      throw err
+    }
   },
 
   async fetch(req: Request, env: Bindings, ctx: Ctx): Promise<Response> {

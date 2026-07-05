@@ -1,9 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-// NB: le skill archi-web nomme ce fichier `proxy.ts` ; Next.js exige `middleware.ts`.
-// Rôle : refresh de la session Supabase (cookies) + check OPTIMISTE (redirige si pas de
-// session). L'autorisation réelle (par modèle) reste portée par la RLS côté base.
+// NB : Next 16 déprécie `middleware.ts` au profit de `proxy.ts`, MAIS l'adaptateur
+// @opennextjs/cloudflare (1.20.x) ne bundle que la convention middleware — le rename
+// casse le build OpenNext (copyTracedFiles). À refaire avec l'Adapter API officielle.
+// Rôle : refresh de la session Supabase (cookies) + check OPTIMISTE (redirige si pas
+// de session). L'autorisation réelle (par modèle) reste portée par la RLS côté base.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request })
 

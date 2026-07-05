@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { ChevronRight, Info, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -147,7 +146,6 @@ function DailyInfo({ label, weekStart, dailies }: { label: string; weekStart: st
 
 /** Carte insight « quotas hebdo » : chips, split modèles S-1/semaine en cours, plan, statuts. */
 export function InsightCard({ insight }: { insight: InsightRow }) {
-  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [note, setNote] = useState(insight.note ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -159,9 +157,8 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
       const res = await setInsightState({ key: insight.key, status, note: note.trim() || null })
       if (!res.success) {
         setError(res.error)
-        return
       }
-      router.refresh()
+      // Pas de router.refresh() : revalidatePath dans l'action renvoie déjà l'UI fraîche.
     })
   }
 
