@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import { Providers } from '@/providers'
+import { ThemeProvider } from '@/components/theme-provider'
 
 export const metadata: Metadata = {
   title: 'glagency — dashboard',
@@ -13,9 +14,13 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="fr">
+    // suppressHydrationWarning : next-themes pose la classe `dark` sur <html>
+    // avant l'hydratation (choix persisté) — divergence SSR/client attendue.
+    <html lang="fr" suppressHydrationWarning>
       <body className="antialiased">
-        <Providers>{children}</Providers>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
+          <Providers>{children}</Providers>
+        </ThemeProvider>
       </body>
     </html>
   )

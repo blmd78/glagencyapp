@@ -1,6 +1,7 @@
 'use client'
 
-import { ChevronsUpDown, LogOut } from 'lucide-react'
+import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -22,6 +23,7 @@ import { createClient } from '@/lib/supabase/client'
 export function NavUser({ email }: { email: string }) {
   const router = useRouter()
   const { isMobile } = useSidebar()
+  const { resolvedTheme, setTheme } = useTheme()
   const initials = (email.trim()[0] ?? '?').toUpperCase()
 
   async function logout() {
@@ -57,6 +59,17 @@ export function NavUser({ email }: { email: string }) {
             <DropdownMenuLabel className="truncate font-normal text-muted-foreground">
               {email}
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {/* Icône/libellé pilotés par la classe `dark` (CSS) : aucun risque
+                d'écart d'hydratation, pas besoin de garde `mounted`. */}
+            <DropdownMenuItem
+              onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+            >
+              <Moon className="dark:hidden" />
+              <Sun className="hidden dark:block" />
+              <span className="dark:hidden">Thème sombre</span>
+              <span className="hidden dark:inline">Thème clair</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={logout}>
               <LogOut />
