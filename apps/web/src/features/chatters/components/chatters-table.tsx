@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { DataTable } from '@/components/data-table/data-table'
+import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
@@ -124,7 +125,12 @@ const columns: ColumnDef<ChatterRow>[] = [
   },
   {
     id: 'presence',
-    header: 'Présence',
+    header: () => (
+      <div className="flex items-center justify-end gap-1.5">
+        <span>Présence</span>
+        <HeaderInfo text="Heures cumulées sur la période : actives / inactives. Actif = en train de chatter ; inactif (idle) = connecté sans activité. Source : page money-team MyPuls." />
+      </div>
+    ),
     cell: ({ row }) => (
       <span className="tabular-nums text-muted-foreground">
         {row.original.presenceActiveH === null || row.original.presenceIdleH === null
@@ -136,7 +142,12 @@ const columns: ColumnDef<ChatterRow>[] = [
   },
   {
     accessorKey: 'reactiviteS',
-    header: 'Réact.',
+    header: () => (
+      <div className="flex items-center justify-end gap-1.5">
+        <span>Réact.</span>
+        <HeaderInfo text="Temps de réponse moyen aux fans, en secondes (moyenne des jours de la période). Plus bas = mieux. Source : page money-team MyPuls." />
+      </div>
+    ),
     cell: ({ getValue }) => (
       <span className="tabular-nums text-muted-foreground">
         {getValue() != null ? `${getValue()}s` : '—'}

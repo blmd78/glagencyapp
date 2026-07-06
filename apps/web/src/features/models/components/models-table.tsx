@@ -1,38 +1,16 @@
 'use client'
 
 import { type ColumnDef, type Row } from '@tanstack/react-table'
-import { ChevronRight, Info } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { DataTable } from '@/components/data-table/data-table'
+import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { eur, eur2, num, pct } from '@/lib/format'
 import type { ModelRow } from '../types'
-
-/** Petit ⓘ d'aide dans un en-tête de colonne (provider local : la table n'en a pas). */
-function HeaderInfo({ text }: { text: string }) {
-  return (
-    <TooltipProvider delayDuration={150}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label="En savoir plus"
-            className="text-muted-foreground/60 transition-colors hover:text-foreground"
-          >
-            <Info className="size-3.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="max-w-[16rem] text-xs font-normal leading-relaxed">
-          {text}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  )
-}
 
 /** Petite jauge « part du CA » (barre + %). */
 function PartBar({ value }: { value: number }) {
