@@ -17,10 +17,25 @@ async function latestGeneration(supabase: Supabase, weekStart: string): Promise<
 /**
  * Cartes d'une semaine (lundi YYYY-MM-DD) ou, sans argument, de la dernière semaine
  * générée : dernière génération PAR CLÉ (historisées), jointe aux états de traitement.
- * RLS : admin uniquement en v1 — un rôle `user` reçoit 0 ligne (état vide propre).
+ * Cloisonnement v2 (migration 0016) : la RLS ne livre à un rôle `user` que les cartes
+ * touchant SES modèles ; `restricted` masque EN PLUS le contenu multi-modèles
+ * (splits des modèles non assignés, chips globales) quand la carte déborde.
  */
-export async function getInsights(week?: string | null): Promise<InsightsData> {
+export async function getInsights(
+  week?: string | null,
+  opts: { restricted?: boolean } = {},
+): Promise<InsightsData> {
+  const restricted = opts.restricted ?? false
   const supabase = await createClient()
+
+  // Modèles accessibles (RLS 0008 : un rôle user ne lit que SES creators).
+  let mineIds: Set<string> = new Set()
+  let mineNames: Set<string> = new Set()
+  if (restricted) {
+    const { data: mine } = await supabase.from('creators').select('id, name')
+    mineIds = new Set((mine ?? []).map((c) => c.id))
+    mineNames = new Set((mine ?? []).map((c) => c.name))
+  }
 
   let weekStart = week ?? null
   if (!weekStart) {
@@ -59,6 +74,14 @@ export async function getInsights(week?: string | null): Promise<InsightsData> {
     if (seen.has(r.insight_key)) continue // ceinture (une génération = une ligne par clé)
     seen.add(r.insight_key)
     const st = stateByKey.get(r.insight_key)
+    // Masquage par modèle : les vieux splits (avant 0016) n'ont pas creatorId → repli nom.
+    const allModels = (r.models ?? []) as unknown as InsightModelSplit[]
+    const models = restricted
+      ? allModels.filter((m) => (m.creatorId ? mineIds.has(m.creatorId) : mineNames.has(m.name)))
+      : allModels
+    // Les chips globales (kpis, suivi semaine) agrègent TOUS les modèles du chatteur :
+    // on ne les garde que si la carte est entièrement dans le périmètre de l'utilisateur.
+    const full = !restricted || models.length === allModels.length
     insights.push({
       key: r.insight_key,
       weekStart: r.week_start,
@@ -66,13 +89,13 @@ export async function getInsights(week?: string | null): Promise<InsightsData> {
       title: r.title,
       body: r.body,
       actionPlan: r.action_plan,
-      kpis: (r.kpis ?? []) as unknown as InsightKpi[],
-      models: (r.models ?? []) as unknown as InsightModelSplit[],
+      kpis: full ? ((r.kpis ?? []) as unknown as InsightKpi[]) : [],
+      models,
       generatedAt: r.generated_at,
       status: (st?.status ?? 'new') as InsightStatus,
       note: st?.note ?? null,
       bilan: (st?.bilan ?? null) as unknown as InsightBilan | null,
-      week: (r.week ?? null) as unknown as WeekTracking | null,
+      week: full ? ((r.week ?? null) as unknown as WeekTracking | null) : null,
       updatedAt: st?.updated_at ?? null,
       updatedBy: st?.updated_by ?? null,
       updatedByName: st?.updated_by ? (nameById.get(st.updated_by) ?? '—') : null,

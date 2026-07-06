@@ -136,6 +136,8 @@ export async function generateWeeklyInsights(
         action_plan: d.actionPlan,
         kpis: d.kpis as unknown as Json,
         models: d.models as unknown as Json,
+        // Cloisonnement RLS : les modèles concernés par la carte, en ids stables.
+        creator_ids: d.models.map((m) => m.creatorId),
         week: d.week as unknown as Json,
       })),
     )

@@ -6,6 +6,6 @@ import { requireAccess } from '@/lib/auth'
 // semaine en cours dans les cartes — bascule automatique chaque lundi, pas de sélecteur.
 export default async function InsightsPage() {
   const profile = await requireAccess('insights')
-  const data = await getInsights()
+  const data = await getInsights(undefined, { restricted: profile.role !== 'admin' })
   return <InsightsTemplate data={data} isAdmin={profile.role === 'admin'} currentUserId={profile.id} />
 }

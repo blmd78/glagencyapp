@@ -69,6 +69,8 @@ export interface DailyCa {
 }
 
 export interface InsightModelSplit {
+  /** id du compte OF (creators.id) — sert au cloisonnement RLS et au groupement par modèle. */
+  creatorId: string
   name: string
   days: number
   ca: number
@@ -277,6 +279,7 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
         const wkCa = wk ? modelCa(wk) : 0
         const wkExp = target && wk ? wk.size * target.caEur : 0
         return {
+          creatorId,
           name: modelNames[creatorId] ?? '—',
           days: pm.size,
           ca: r2(ca),
