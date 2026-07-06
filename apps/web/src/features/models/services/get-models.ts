@@ -3,7 +3,7 @@ import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
-import { conv, round2 } from '@/lib/format'
+import { conv, round2 , ltvOf } from '@/lib/format'
 
 /**
  * Onglet Modèles agrégé sur la période (datepicker du header).
@@ -107,7 +107,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
         renouv: a.renewals,
         ventes: chattersArr.reduce((s, x) => s + x.vendu, 0),
         caMsg: a.ppv + a.tips,
-        ltv: a.newSubs ? round2(a.total / a.newSubs) : 0,
+        ltv: ltvOf(a.total, a.newSubs) ?? 0,
         part: 0, // % rempli après filtrage (plus fort reste → somme 100 %)
         ppv: a.ppv,
         tips: a.tips,

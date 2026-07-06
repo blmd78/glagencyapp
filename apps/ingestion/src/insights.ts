@@ -4,6 +4,9 @@ import {
   type ChatterModelDayInput,
   type QuotaTargets,
   type WeekWindow,
+  mondayOf,
+  addDays,
+  weekLabel,
 } from '@glagency/core'
 import { createAdminClient, type Json } from '@glagency/db'
 
@@ -17,30 +20,6 @@ type Db = ReturnType<typeof createAdminClient>
  * ancrés sur la clé stable) survivent. Appelé après chaque run du Worker + CLI locale.
  */
 
-const iso = (d: Date) => d.toISOString().slice(0, 10)
-
-/** Lundi de la semaine du jour donné (dates UTC, cohérent avec les dates d'ingestion). */
-function mondayOf(day: string): string {
-  const d = new Date(`${day}T00:00:00Z`)
-  const dow = (d.getUTCDay() + 6) % 7 // 0 = lundi
-  d.setUTCDate(d.getUTCDate() - dow)
-  return iso(d)
-}
-
-function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return iso(d)
-}
-
-const frDay = (day: string) =>
-  new Date(`${day}T00:00:00Z`).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: 'UTC',
-  })
-
-const weekLabel = (start: string) => `sem. ${frDay(start)}–${frDay(addDays(start, 6))}`
 
 async function fetchWindow(db: Db, start: string, end: string): Promise<Omit<WeekWindow, 'label'>> {
   const [{ data: chd, error: e1 }, { data: ccd, error: e2 }] = await Promise.all([

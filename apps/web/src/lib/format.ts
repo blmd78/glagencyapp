@@ -13,3 +13,7 @@ export const num = (n: number) => n.toLocaleString('fr-FR')
 
 /** Taux de conversion recalculé Σvendu/Σproposé (jamais la moyenne des %). */
 export const conv = (v: number, p: number) => (p ? round1((v / p) * 100) : 0)
+
+/** LTV = CA ÷ nouveaux abonnés (null si aucun abonné) — formule unique de l'app. */
+export const ltvOf = (ca: number, newSubs: number): number | null =>
+  newSubs > 0 ? round2(ca / newSubs) : null

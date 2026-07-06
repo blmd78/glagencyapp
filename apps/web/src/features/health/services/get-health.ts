@@ -2,7 +2,7 @@ import { endOfMonth, startOfWeek, format } from 'date-fns'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
-import { round1, round2, eur, num } from '@/lib/format'
+import { round1, round2, eur, num, ltvOf } from '@/lib/format'
 import type { HealthChatter, HealthData, Kpi, LtvStatus, ModelHealth } from '../types'
 
 /** Cible LTV (€ / nouvel abonné) et seuils de statut — hérités de l'ancien dashboard. */
@@ -83,7 +83,6 @@ export async function getHealth(
     m.set(r.chatter_id, c)
   }
 
-  const ltvOf = (ca: number, subs: number) => (subs > 0 ? round2(ca / subs) : null)
 
   const totalCa = [...agg.values()].reduce((s, a) => s + a.ca, 0)
   const allModels: ModelHealth[] = (creators ?? [])

@@ -111,8 +111,8 @@ export interface InsightDraft {
   week: WeekTracking | null
 }
 
-const r2 = (n: number) => Math.round(n * 100) / 100
-const r1 = (n: number) => Math.round(n * 10) / 10
+import { round1 as r1, round2 as r2 } from '../domain/dates'
+
 const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`
 
 /** Niveau gamification hérité du legacy (mois-équivalent = CA moy/j × 30). */

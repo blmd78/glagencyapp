@@ -13,6 +13,7 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num, pct } from '@/lib/format'
 import { setInsightState } from '../actions'
 import { BilanDialog, ETAT_OPTIONS } from './bilan-dialog'
+import { addDays as isoAddDays } from '@glagency/core'
 import type { DailyCa } from '@glagency/core'
 import type { InsightBilan, InsightRow, InsightStatus } from '../types'
 
@@ -42,12 +43,6 @@ const frDay = (iso: string) =>
     month: '2-digit',
     timeZone: 'UTC',
   })
-
-const isoAddDays = (day: string, n: number) => {
-  const d = new Date(`${day}T00:00:00Z`)
-  d.setUTCDate(d.getUTCDate() + n)
-  return d.toISOString().slice(0, 10)
-}
 
 /**
  * Complète une semaine (lundi `start` → +6 j) avec les jours à 0 € manquants — la
