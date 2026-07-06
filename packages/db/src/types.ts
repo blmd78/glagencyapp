@@ -650,6 +650,70 @@ export type Database = {
           },
         ]
       }
+      rest_planning_cells: {
+        Row: {
+          col: string
+          day: number
+          names: string
+          updated_at: string
+          updated_by: string | null
+          week_start: string
+        }
+        Insert: {
+          col: string
+          day: number
+          names?: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start: string
+        }
+        Update: {
+          col?: string
+          day?: number
+          names?: string
+          updated_at?: string
+          updated_by?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rest_planning_cells_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rest_planning_weeks: {
+        Row: {
+          sent_telegram: boolean
+          updated_at: string
+          updated_by: string | null
+          week_start: string
+        }
+        Insert: {
+          sent_telegram?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          week_start: string
+        }
+        Update: {
+          sent_telegram?: boolean
+          updated_at?: string
+          updated_by?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rest_planning_weeks_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           active: boolean

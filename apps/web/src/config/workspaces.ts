@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  CalendarOff,
   CalendarCheck,
   LayoutDashboard,
   Lightbulb,
@@ -42,6 +43,7 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/overview', label: 'Overview', icon: LayoutDashboard },
       { href: '/chatter/insights', label: 'Insights', icon: Lightbulb },
       { href: '/chatter/bilan', label: 'Bilan', icon: CalendarCheck },
+      { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse },
@@ -72,7 +74,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'chatters', 'modeles', 'health', 'compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'chatters', 'modeles', 'health', 'compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /** Pages cochables dans la gestion des membres (= nav non-admin, dans l'ordre de la sidebar). */
