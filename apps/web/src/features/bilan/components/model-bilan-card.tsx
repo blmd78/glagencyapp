@@ -1,101 +1,82 @@
+import { Fragment } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { eur as eur0, num } from '@/lib/format'
+import { modelColor } from '@/lib/model-color'
+import { num } from '@/lib/format'
 import type { ModelBilan } from '../types'
 
-/** « S-1 : 3 326 −142 » — référence + delta coloré (vert si ≥, rouge sinon). */
-function Ref({
-  label,
+/** Écart signé vs une référence : vert si ≥ 0, rouge sinon, « — » sans référence.
+ *  La valeur brute de la référence reste lisible au survol (title natif). */
+function Delta({
   cur,
-  ref,
-  money,
+  refValue,
+  refLabel,
+  fmt,
 }: {
-  label: string
   cur: number | null
-  ref: number | null
-  money?: boolean
+  refValue: number | null
+  refLabel: string
+  fmt: (v: number) => string
 }) {
-  const fmt = (v: number) => (money ? `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €` : num(v))
-  if (ref == null || ref === 0 || cur == null) {
-    return (
-      <span className="text-muted-foreground">
-        {label} : {ref == null || ref === 0 ? '—' : fmt(ref)}
-      </span>
-    )
+  if (refValue == null || refValue === 0 || cur == null) {
+    return <span className="text-right text-muted-foreground">—</span>
   }
-  const d = cur - ref
+  const d = cur - refValue
   return (
-    <span className="text-muted-foreground">
-      {label} : {fmt(ref)}{' '}
-      <b className={cn('tabular-nums', d >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400')}>
-        {d >= 0 ? '+' : ''}
-        {money ? `${d.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €` : num(d)}
-      </b>
+    <span
+      title={`${refLabel} : ${fmt(refValue)}`}
+      className={cn(
+        'text-right font-medium tabular-nums',
+        d >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+      )}
+    >
+      {d >= 0 ? '+' : '−'}
+      {fmt(Math.abs(d))}
     </span>
   )
 }
 
-function MetricRow({
-  label,
-  value,
-  cur,
-  prev,
-  lm,
-  money,
-}: {
-  label: string
-  value: string
-  cur: number | null
-  prev: number | null
-  lm: number | null
-  money?: boolean
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
-        <span className="text-base font-semibold tabular-nums">{value}</span>
-      </div>
-      <div className="flex flex-wrap gap-x-3 text-xs tabular-nums">
-        <Ref label="S-1" cur={cur} ref={prev} money={money} />
-        <Ref label="M-1" cur={cur} ref={lm} money={money} />
-      </div>
-    </div>
-  )
-}
+const HEAD = 'text-right text-[10px] font-medium uppercase tracking-wide text-muted-foreground'
 
-/** Carte bilan d'un modèle : nouveaux abonnés, CA net, LTV — avec S-1 et M-1 (S-4). */
+/**
+ * Carte bilan d'un modèle : une grille UNIQUE alignée en colonnes
+ * (valeur de la semaine · écart vs S-1 · écart vs M-1) — chaque métrique se lit
+ * d'un trait, les colonnes se comparent verticalement. Les références brutes
+ * (S-1/M-1) sont au survol des écarts, pas à l'écran.
+ */
 export function ModelBilanCard({ m }: { m: ModelBilan }) {
+  const eur = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`
+  const eur1 = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €`
+
+  const rows = [
+    { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v) },
+    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur },
+    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1 },
+  ] as const
+
   return (
     <Card className="py-4">
       <CardContent className="flex flex-col gap-3 px-4">
-        <div className="flex items-baseline justify-between gap-2">
-          <h3 className="font-semibold">{m.name}</h3>
-          {m.ca > 0 && <span className="text-sm tabular-nums text-muted-foreground">{eur0(m.ca)}</span>}
+        <Badge className={modelColor(m.name)}>{m.name}</Badge>
+
+        <div className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-4 gap-y-1.5 text-sm">
+          <span />
+          <span className={HEAD}>Semaine</span>
+          <span className={HEAD}>vs S-1</span>
+          <span className={HEAD}>vs M-1</span>
+
+          {rows.map((r) => (
+            <Fragment key={r.label}>
+              <span className="text-muted-foreground">{r.label}</span>
+              <span className="text-right font-semibold tabular-nums">
+                {r.cur != null && r.cur > 0 ? r.fmt(r.cur) : '—'}
+              </span>
+              <Delta cur={r.cur} refValue={r.prev} refLabel="S-1" fmt={r.fmt} />
+              <Delta cur={r.cur} refValue={r.lm} refLabel="M-1" fmt={r.fmt} />
+            </Fragment>
+          ))}
         </div>
-        <MetricRow
-          label="Nouveaux abonnés"
-          value={m.newSubs > 0 ? num(m.newSubs) : '—'}
-          cur={m.newSubs}
-          prev={m.newSubsPrev}
-          lm={m.newSubsLm}
-        />
-        <MetricRow
-          label="CA net"
-          value={m.ca > 0 ? eur0(m.ca) : '—'}
-          cur={m.ca}
-          prev={m.caPrev}
-          lm={m.caLm}
-          money
-        />
-        <MetricRow
-          label="LTV moyenne"
-          value={m.ltv != null ? `${m.ltv.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €` : '—'}
-          cur={m.ltv}
-          prev={m.ltvPrev}
-          lm={m.ltvLm}
-          money
-        />
       </CardContent>
     </Card>
   )

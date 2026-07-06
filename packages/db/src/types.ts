@@ -434,6 +434,7 @@ export type Database = {
           action_plan: string
           body: string
           chatter_id: string
+          creator_ids: string[]
           generated_at: string
           insight_key: string
           kpis: Json
@@ -447,6 +448,7 @@ export type Database = {
           action_plan: string
           body: string
           chatter_id: string
+          creator_ids?: string[]
           generated_at?: string
           insight_key: string
           kpis?: Json
@@ -460,6 +462,7 @@ export type Database = {
           action_plan?: string
           body?: string
           chatter_id?: string
+          creator_ids?: string[]
           generated_at?: string
           insight_key?: string
           kpis?: Json
