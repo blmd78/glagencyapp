@@ -4,7 +4,9 @@
   // Compte Cloudflare cible VERROUILLÉ (benoitgasnier.pro@gmail.com) — empêche un déploiement
   // accidentel sur un autre compte si le CLI est logué ailleurs.
   "account_id": "091614e14d100aaca55e45c25011d4a8",
-  "main": ".open-next/worker.js",
+  // Entrée custom : réutilise le handler OpenNext (.open-next/worker.js) enveloppé par
+  // @sentry/cloudflare pour la capture d'erreurs serveur. Cf. custom-worker.ts.
+  "main": "custom-worker.ts",
   // ≥ 2025-08-16 requis par @sentry/nextjs : introduit https.request dans workerd,
   // sans quoi le SDK ne peut pas envoyer les events.
   "compatibility_date": "2025-08-16",
@@ -18,6 +20,13 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
+  },
+  // DSN Sentry exposé au runtime du Worker (lu par custom-worker.ts via `env`). C'est un DSN
+  // PUBLIC (déjà inliné dans le bundle client via NEXT_PUBLIC_*), donc non secret — OK en clair.
+  // Ces vars ne servent qu'au wrap serveur @sentry/cloudflare ; le client garde son inline build.
+  "vars": {
+    "NEXT_PUBLIC_SENTRY_DSN": "https://8147ba4bb9a65f0c61f6c380bbc55f23@o4511670408314880.ingest.de.sentry.io/4511670422798416",
+    "NEXT_PUBLIC_SENTRY_ENVIRONMENT": "production"
   }
   // Les 2 vars Supabase sont NEXT_PUBLIC_* → inlinées au build depuis .env.local (rien à mettre
   // ici). ⚠️ Pour un build CI/Cloudflare (sans .env.local), les définir dans l'env de build.
