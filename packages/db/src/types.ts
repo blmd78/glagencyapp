@@ -396,6 +396,7 @@ export type Database = {
       }
       insight_states: {
         Row: {
+          bilan: Json | null
           insight_key: string
           note: string | null
           status: string
@@ -403,6 +404,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
+          bilan?: Json | null
           insight_key: string
           note?: string | null
           status?: string
@@ -410,6 +412,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
+          bilan?: Json | null
           insight_key?: string
           note?: string | null
           status?: string

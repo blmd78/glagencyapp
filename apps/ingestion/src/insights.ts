@@ -108,10 +108,12 @@ export async function generateWeeklyInsights(
   }
   const evaluated: WeekWindow = { ...evaluatedRaw, label: weekLabel(evaluatedRaw.start) }
   const nextMonday = addDays(evaluated.start, 7)
-  const currentWeek: WeekWindow | null =
+  // Toujours fournir la fenêtre « semaine en cours », même vide (lundi matin après la
+  // bascule : 0 jour ingéré) — la colonne UI reste visible avec un état « en attente ».
+  const currentWeek: WeekWindow =
     maxDate >= nextMonday
       ? { ...(await fetchWindow(db, nextMonday, maxDate)), label: weekLabel(nextMonday) }
-      : null
+      : { start: nextMonday, daysWithData: 0, days: [], modelDays: [], label: weekLabel(nextMonday) }
 
   // Référentiels : noms + quotas par modèle (creators.team_id → quotas).
   const [{ data: chatters }, { data: creators }, { data: quotas }] = await Promise.all([

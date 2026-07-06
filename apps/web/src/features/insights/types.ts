@@ -5,6 +5,19 @@ export type { InsightKpi, InsightModelSplit, WeekTracking }
 
 export type InsightStatus = 'new' | 'in_progress' | 'resolved' | 'ignored'
 
+/** Bilan structuré de résolution (modal repris du CRM legacy). */
+export interface InsightBilan {
+  date: string
+  duree: '5min' | '15min' | '30min' | '1h+'
+  etat: 'neutre' | 'motive' | 'fatigue' | 'demotive' | 'resistant'
+  resume: string
+  actions: string
+  objectifs: string
+  sanction: string
+  nextCheck: string
+  notes: string
+}
+
 export interface InsightRow {
   key: string
   weekStart: string
@@ -17,7 +30,11 @@ export interface InsightRow {
   generatedAt: string
   status: InsightStatus
   note: string | null
+  bilan: InsightBilan | null
   week: WeekTracking | null
+  updatedAt: string | null
+  updatedBy: string | null
+  updatedByName: string | null
 }
 
 export interface InsightsData {

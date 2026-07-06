@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { InsightKpi, InsightModelSplit, InsightRow, InsightsData, InsightStatus, WeekTracking } from '../types'
+import type { InsightBilan, InsightKpi, InsightModelSplit, InsightRow, InsightsData, InsightStatus, WeekTracking } from '../types'
 
 type Supabase = Awaited<ReturnType<typeof createClient>>
 
@@ -39,16 +39,20 @@ export async function getInsights(week?: string | null): Promise<InsightsData> {
   const genAt = await latestGeneration(supabase, weekStart)
   if (!genAt) return { weekStart, insights: [] }
 
-  const [{ data: rows }, { data: states }] = await Promise.all([
+  const [{ data: rows }, { data: states }, { data: profiles }] = await Promise.all([
     supabase
       .from('insights')
       .select('insight_key, generated_at, week_start, severity, title, body, action_plan, kpis, models, week')
       .eq('week_start', weekStart)
       .eq('generated_at', genAt),
-    supabase.from('insight_states').select('insight_key, status, note'),
+    supabase.from('insight_states').select('insight_key, status, note, bilan, updated_at, updated_by'),
+    supabase.from('profiles').select('id, display_name, email'),
   ])
 
   const stateByKey = new Map((states ?? []).map((s) => [s.insight_key, s]))
+  const nameById = new Map(
+    (profiles ?? []).map((p) => [p.id, p.display_name || p.email || '—']),
+  )
   const seen = new Set<string>()
   const insights: InsightRow[] = []
   for (const r of rows ?? []) {
@@ -67,7 +71,11 @@ export async function getInsights(week?: string | null): Promise<InsightsData> {
       generatedAt: r.generated_at,
       status: (st?.status ?? 'new') as InsightStatus,
       note: st?.note ?? null,
+      bilan: (st?.bilan ?? null) as unknown as InsightBilan | null,
       week: (r.week ?? null) as unknown as WeekTracking | null,
+      updatedAt: st?.updated_at ?? null,
+      updatedBy: st?.updated_by ?? null,
+      updatedByName: st?.updated_by ? (nameById.get(st.updated_by) ?? '—') : null,
     })
   }
   // Critiques d'abord, puis moyens, puis sains (ordre du moteur conservé ensuite).

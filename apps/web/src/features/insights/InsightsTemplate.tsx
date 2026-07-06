@@ -29,7 +29,15 @@ type StatusFilter = 'open' | InsightStatus | 'all'
  * Template Insights : sélecteur des semaines (lundi→dimanche) du mois du datepicker,
  * recherche par chatteur, filtres statut/sévérité. Aucun fetch ici.
  */
-export function InsightsTemplate({ data }: { data: InsightsData }) {
+export function InsightsTemplate({
+  data,
+  isAdmin,
+  currentUserId,
+}: {
+  data: InsightsData
+  isAdmin: boolean
+  currentUserId: string
+}) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning' | 'ok'>('all')
   const [search, setSearch] = useState('')
@@ -115,7 +123,7 @@ export function InsightsTemplate({ data }: { data: InsightsData }) {
       ) : (
         <div className="flex flex-col gap-2">
           {shown.map((i) => (
-            <InsightCard key={i.key} insight={i} />
+            <InsightCard key={i.key} insight={i} isAdmin={isAdmin} currentUserId={currentUserId} />
           ))}
         </div>
       )}

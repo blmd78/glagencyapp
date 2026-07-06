@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { ChevronRight, Info, Loader2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -12,8 +12,9 @@ import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num, pct } from '@/lib/format'
 import { setInsightState } from '../actions'
+import { BilanDialog, ETAT_OPTIONS } from './bilan-dialog'
 import type { DailyCa } from '@glagency/core'
-import type { InsightRow, InsightStatus } from '../types'
+import type { InsightBilan, InsightRow, InsightStatus } from '../types'
 
 const SEVERITY = {
   critical: { label: 'Critique', className: STATUS_COLORS.danger, border: 'border-l-red-500' },
@@ -145,22 +146,142 @@ function DailyInfo({ label, weekStart, dailies }: { label: string; weekStart: st
 }
 
 /** Carte insight « quotas hebdo » : chips, split modèles S-1/semaine en cours, plan, statuts. */
-export function InsightCard({ insight }: { insight: InsightRow }) {
+export function InsightCard({
+  insight,
+  isAdmin,
+  currentUserId,
+}: {
+  insight: InsightRow
+  isAdmin: boolean
+  currentUserId: string
+}) {
   const [pending, startTransition] = useTransition()
   const [note, setNote] = useState(insight.note ?? '')
   const [error, setError] = useState<string | null>(null)
+  const [bilanOpen, setBilanOpen] = useState(false)
+  // Optimiste : le badge/bouton changent au clic, le serveur confirme derrière.
+  const [localStatus, setLocalStatus] = useState<InsightStatus | null>(null)
+  const [clicked, setClicked] = useState<InsightStatus | null>(null)
+  const status = localStatus ?? insight.status
+  // Carte « prise » : En cours posé par quelqu'un d'autre → lecture seule (sauf admin).
+  const takenByOther =
+    status === 'in_progress' &&
+    !isAdmin &&
+    insight.updatedBy != null &&
+    insight.updatedBy !== currentUserId
+  useEffect(() => setLocalStatus(null), [insight.status])
   const sev = SEVERITY[insight.severity]
 
-  const apply = (status: InsightStatus) => {
+  const resetState = () => {
     setError(null)
+    setClicked('new')
+    const previous = { status, note }
+    setLocalStatus('new')
+    setNote('')
     startTransition(async () => {
-      const res = await setInsightState({ key: insight.key, status, note: note.trim() || null })
+      const res = await setInsightState({ key: insight.key, status: 'new', note: null, reset: true })
+      setClicked(null)
       if (!res.success) {
+        setLocalStatus(previous.status)
+        setNote(previous.note)
         setError(res.error)
       }
+    })
+  }
+
+  const apply = (next: InsightStatus, bilan?: InsightBilan) => {
+    // « Résolu » passe obligatoirement par le modal bilan (garde aussi côté serveur).
+    if (next === 'resolved' && !bilan) {
+      setBilanOpen(true)
+      return
+    }
+    setError(null)
+    setClicked(next)
+    const previous = status
+    setLocalStatus(next)
+    startTransition(async () => {
+      const res = await setInsightState({
+        key: insight.key,
+        status: next,
+        note: note.trim() || null,
+        ...(bilan ? { bilan } : {}),
+      })
+      setClicked(null)
+      if (!res.success) {
+        setLocalStatus(previous) // rollback optimiste
+        setError(res.error)
+        return
+      }
+      setBilanOpen(false)
       // Pas de router.refresh() : revalidatePath dans l'action renvoie déjà l'UI fraîche.
     })
   }
+
+  // Note + boutons de statut : placés EN FIN de plan d'action quand il y en a un
+  // (obligation de dérouler le plan avant de statuer) ; en bas de carte sinon (cartes saines).
+  const frDateTime = (iso: string) =>
+    new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+
+  const statusBlock = (
+        <div className="flex flex-col gap-2 border-t pt-3">
+          {insight.updatedBy && status !== 'new' && (
+            <span className="text-[11px] text-muted-foreground">
+              {STATUS_LABELS[status]} · par <b>{insight.updatedByName}</b>
+              {insight.updatedAt ? ` · ${frDateTime(insight.updatedAt)}` : ''}
+              {takenByOther && ' — seul lui (ou un admin) peut modifier'}
+            </span>
+          )}
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Note (action prise, contexte…)"
+            rows={1}
+            className="w-full resize-y rounded-md border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            disabled={pending || takenByOther}
+          />
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* « Nouveau » est l'état de départ, pas une action → 3 boutons + reset. */}
+            {(['in_progress', 'resolved', 'ignored'] as InsightStatus[]).map((st) => {
+              // Sortir de « Ignoré » : admin uniquement (le serveur l'impose aussi).
+              const locked = (status === 'ignored' && st !== 'ignored' && !isAdmin) || takenByOther
+              return (
+                <Button
+                  key={st}
+                  variant={status === st ? 'default' : 'outline'}
+                  size="sm"
+                  className="text-xs"
+                  disabled={pending || locked}
+                  title={locked ? 'Réservé aux admins' : undefined}
+                  onClick={() => apply(st)}
+                >
+                  {clicked === st ? <Loader2 className="size-3 animate-spin" /> : null}
+                  {STATUS_LABELS[st]}
+                </Button>
+              )
+            })}
+            {status !== 'new' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto text-xs font-semibold text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/40"
+                disabled={pending || (status === 'ignored' && !isAdmin) || takenByOther}
+                title={
+                  takenByOther
+                    ? `Pris en charge par ${insight.updatedByName}`
+                    : status === 'ignored' && !isAdmin
+                      ? 'Réservé aux admins'
+                      : 'Remettre à l’état initial'
+                }
+                onClick={resetState}
+              >
+                {clicked === 'new' ? <Loader2 className="size-3 animate-spin" /> : null}
+                Réinitialiser
+              </Button>
+            )}
+          </div>
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+        </div>
+  )
 
   return (
     <Card className={cn('border-l-4 py-0', sev.border)}>
@@ -179,8 +300,8 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
               />
             ))}
           </span>
-          <Badge className={cn('shrink-0 text-xs', STATUS_STYLE[insight.status])}>
-            {STATUS_LABELS[insight.status]}
+          <Badge className={cn('shrink-0 text-xs', STATUS_STYLE[status])}>
+            {STATUS_LABELS[status]}
           </Badge>
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -201,17 +322,8 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
                   : 'border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30',
               )}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                  {k.label}
-                </span>
-                {k.label === 'CA' && insight.models.length === 1 && insight.models[0] && (
-                  <DailyInfo
-                    label={insight.models[0].name}
-                    weekStart={insight.weekStart}
-                    dailies={insight.models[0].dailies}
-                  />
-                )}
+              <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {k.label}
               </div>
               <div
                 className={cn(
@@ -226,10 +338,10 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
           ))}
         </div>
 
-        {insight.models.length > 1 && (
+        {insight.models.length > 0 && (
           <div className="flex flex-col gap-1.5 rounded-md bg-muted/40 p-2.5">
             <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              Split par modèle (prorata)
+              {insight.models.length > 1 ? 'Split par modèle (prorata)' : 'CA par modèle'}
             </span>
             {insight.models.map((m) => (
               <div key={m.name} className="flex flex-wrap items-baseline gap-x-2 text-xs">
@@ -262,6 +374,7 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <PlanSections plan={insight.actionPlan} />
+            <div className="mt-3">{statusBlock}</div>
           </CollapsibleContent>
         </Collapsible>
         )}
@@ -277,10 +390,18 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
             <Badge
               className={cn(
                 'w-fit text-xs',
-                insight.week.struggling ? STATUS_COLORS.danger : STATUS_COLORS.positive,
+                insight.week.days === 0 && !insight.week.struggling
+                  ? STATUS_COLORS.neutral
+                  : insight.week.struggling
+                    ? STATUS_COLORS.danger
+                    : STATUS_COLORS.positive,
               )}
             >
-              {insight.week.struggling ? 'En difficulté' : 'Dans la cible'}
+              {insight.week.days === 0 && !insight.week.struggling
+                ? 'En attente de données'
+                : insight.week.struggling
+                  ? 'En difficulté'
+                  : 'Dans la cible'}
             </Badge>
             <span className="text-xl font-semibold tabular-nums">{eur(insight.week.ca)}</span>
             <span className="text-xs tabular-nums text-muted-foreground">
@@ -317,32 +438,33 @@ export function InsightCard({ insight }: { insight: InsightRow }) {
         )}
         </div>
 
-        <div className="flex flex-col gap-2 border-t pt-3">
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Note (action prise, contexte…)"
-            rows={1}
-            className="w-full resize-y rounded-md border bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            disabled={pending}
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {(Object.keys(STATUS_LABELS) as InsightStatus[]).map((s) => (
-              <Button
-                key={s}
-                variant={insight.status === s ? 'default' : 'outline'}
-                size="sm"
-                className="text-xs"
-                disabled={pending}
-                onClick={() => apply(s)}
-              >
-                {pending ? <Loader2 className="size-3 animate-spin" /> : null}
-                {STATUS_LABELS[s]}
-              </Button>
-            ))}
+        {insight.bilan && status !== 'new' && (
+          <div className="flex flex-col gap-1 rounded-md border-l-2 border-green-500 bg-muted/40 p-2.5 text-xs">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-green-700 dark:text-green-400">
+              Bilan du {frDay(insight.bilan.date)} · {insight.bilan.duree} ·{' '}
+              {ETAT_OPTIONS.find(([v]) => v === insight.bilan?.etat)?.[1] ?? insight.bilan.etat}
+            </span>
+            <p className="whitespace-pre-line">{insight.bilan.resume}</p>
+            {insight.bilan.actions && <p><b>Actions :</b> {insight.bilan.actions}</p>}
+            {insight.bilan.objectifs && <p><b>Objectifs :</b> {insight.bilan.objectifs}</p>}
+            {insight.bilan.sanction && <p><b>Sanction si non tenu :</b> {insight.bilan.sanction}</p>}
+            {insight.bilan.nextCheck && <p><b>Prochain checkpoint :</b> {frDay(insight.bilan.nextCheck)}</p>}
+            {insight.bilan.notes && <p className="text-muted-foreground">{insight.bilan.notes}</p>}
           </div>
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-        </div>
+        )}
+
+        {bilanOpen && (
+          <BilanDialog
+            open={bilanOpen}
+            onOpenChange={setBilanOpen}
+            title={insight.title}
+            initial={insight.bilan}
+            pending={pending}
+            onSave={(b) => apply('resolved', b)}
+          />
+        )}
+
+        {insight.actionPlan.trim() === '' && statusBlock}
       </CardContent>
         </CollapsibleContent>
       </Collapsible>

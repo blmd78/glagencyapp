@@ -302,14 +302,18 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
         days: wDays,
         ca: r2(wCa),
         perDay: r2(wPerDay),
-        struggling: wDays === 0 || wPerDay < caPerDay * 0.8,
+        // « En difficulté » seulement si la semaine a démarré (données globales) :
+        // un chatteur absent d'une semaine active = en difficulté ; une semaine qui
+        // vient de basculer (0 jour ingéré pour tous) = simple attente, pas une alerte.
+        struggling:
+          currentWeek.daysWithData > 0 && (wDays === 0 || wPerDay < caPerDay * 0.8),
         deltaPct: caPerDay > 0 && wDays > 0 ? Math.round((wPerDay / caPerDay - 1) * 100) : null,
       }
     }
 
     // ── Synthèse S-1 : UNE ligne compacte, zéro prose ──
     const level = levelOf(caPerDay)
-    const body = `${days} j actif${days > 1 ? 's' : ''} · niveau ${level} · idle ${r1(agg.idle)}h (toléré ${idleTolerance}h/sem)`
+    const body = `${days} j actif${days > 1 ? 's' : ''} · ${eur(agg.ca)} (${eur(caPerDay)}/j) · niveau ${level} · présence ${r1(agg.presence)}h · idle ${r1(agg.idle)}h`
 
     // ── Plan d'action : UNE section par case rouge, dans l'ordre des chips ──
     const plan: string[] = []
