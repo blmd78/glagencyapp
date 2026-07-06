@@ -43,3 +43,21 @@ export function modelColor(name: string): string {
 export function modelBarColor(name: string): string {
   return MODEL_BAR_COLORS[hash(name) % MODEL_BAR_COLORS.length]
 }
+
+/** Hex des barres (recharts exige un fill littéral) — MÊME ordre que MODEL_BAR_COLORS. */
+export const MODEL_HEX_COLORS = [
+  '#3b82f6', // blue-500
+  '#22c55e', // green-500
+  '#0ea5e9', // sky-500
+  '#a855f7', // purple-500
+  '#ef4444', // red-500
+  '#f97316', // orange-500
+  '#14b8a6', // teal-500
+  '#ec4899', // pink-500
+  '#6366f1', // indigo-500
+  '#f59e0b', // amber-500
+]
+
+export function modelHexColor(name: string): string {
+  return MODEL_HEX_COLORS[hash(name) % MODEL_HEX_COLORS.length]
+}
