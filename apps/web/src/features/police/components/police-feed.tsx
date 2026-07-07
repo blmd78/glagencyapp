@@ -9,13 +9,13 @@ import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { eur2max as eur } from '@/lib/format'
 import { deletePoliceEntry, updatePoliceMalus } from '../actions'
 import { malusEditFormSchema, type MalusEditForm } from '../schema'
 import type { PoliceData, PoliceEntry } from '../types'
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-const eur = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`
 
 interface Group {
   chatterId: string

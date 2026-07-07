@@ -1,32 +1,15 @@
-'use client'
-
-import { useTransition } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 import { frDayShort as frDay } from '@glagency/core'
-import { LoadingDots } from '@/components/loading-dots'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { KpiGrid } from '@/components/kpi-card'
 import { ModelBilanCard } from './components/model-bilan-card'
+import { WeekSwitcher } from './components/week-switcher'
 import type { BilanData } from './types'
 
-/** Template Bilan hebdomadaire : sélecteur de semaine, 4 KPI, une carte par modèle. */
+/**
+ * Template Bilan hebdomadaire (Server Component) : 4 KPI + une carte par modèle.
+ * Le seul îlot client est `WeekSwitcher` (sélecteur de semaine) ; KPIs et cartes restent
+ * rendus côté serveur, passés en `children`.
+ */
 export function BilanTemplate({ data }: { data: BilanData }) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [pending, startTransition] = useTransition()
-
-  const selectWeek = (start: string) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('week', start)
-    startTransition(() => router.push(`?${next.toString()}`))
-  }
-
   const kpis = [
     {
       key: 'ca',
@@ -63,45 +46,26 @@ export function BilanTemplate({ data }: { data: BilanData }) {
   ]
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <WeekSwitcher
+      weeks={data.weeks}
+      current={data.week.start}
+      header={
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Bilan hebdomadaire</h1>
-          <p className="text-sm text-muted-foreground">Par modèle · comparé à S-1 et au mois dernier (S-4)</p>
+          <p className="text-sm text-muted-foreground">
+            Par modèle · comparé à S-1 et au mois dernier (S-4)
+          </p>
         </div>
-        <div className="ml-auto">
-          <Select value={data.week.start} onValueChange={selectWeek} disabled={pending}>
-            <SelectTrigger className="h-9 w-56 text-sm tabular-nums">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {data.weeks.map((w) => (
-                <SelectItem key={w.start} value={w.start} className="text-sm tabular-nums">
-                  {w.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="relative flex flex-col gap-6">
-        {pending && (
-          <div className="absolute inset-0 z-10 flex items-start justify-center pt-24">
-            <LoadingDots />
-          </div>
-        )}
-        <div className={pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'}>
+      }
+    >
       <KpiGrid kpis={kpis} />
-      </div>
 
-      <div className={pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'}>
       {data.models.length === 0 ? (
         <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
           Aucune donnée sur cette semaine.
         </p>
       ) : (
-        <>
+        <div className="flex flex-col gap-6">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {data.models.filter((m) => !m.excluded).map((m) => (
               <ModelBilanCard key={m.id} m={m} />
@@ -119,10 +83,8 @@ export function BilanTemplate({ data }: { data: BilanData }) {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
-      </div>
-      </div>
-    </div>
+    </WeekSwitcher>
   )
 }

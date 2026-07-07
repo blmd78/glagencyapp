@@ -9,6 +9,9 @@ export { round1, round2 }
 export const eur = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €`
 export const eur2 = (n: number) =>
   `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+/** € avec jusqu'à 2 décimales (aucune si entier) — ex. montants de malus. */
+export const eur2max = (n: number) =>
+  `${n.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`
 export const pct = (n: number) => `${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`
 export const num = (n: number) => n.toLocaleString('fr-FR')
 export const int = (n: number) => Math.round(n).toLocaleString('fr-FR')

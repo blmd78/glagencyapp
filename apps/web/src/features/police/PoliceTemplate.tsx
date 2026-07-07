@@ -10,11 +10,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
+import { eur2max as eur } from '@/lib/format'
 import { ControlPanel } from './components/control-panel'
 import { PoliceFeed } from './components/police-feed'
 import type { PoliceData } from './types'
-
-const eur = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 2 })} €`
 
 /** KPIs du jour au format des cartes partagées (cohérent avec Overview/Santé). */
 function policeKpis(data: PoliceData): Kpi[] {

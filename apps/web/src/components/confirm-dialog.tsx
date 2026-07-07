@@ -17,8 +17,10 @@ import { cn } from '@/lib/utils'
 
 /**
  * Confirmation obligatoire avant une action destructive (règle app : jamais de suppression
- * au clic direct). Reste ouvert avec un spinner pendant l'action, puis se ferme.
- * `onConfirm` peut être asynchrone.
+ * au clic direct). Reste ouvert avec un spinner pendant l'action.
+ * `onConfirm` peut être asynchrone ; s'il **renvoie une string**, celle-ci est affichée comme
+ * erreur et le dialog RESTE ouvert (échec serveur visible au lieu d'une fermeture silencieuse).
+ * Renvoie `void` / rien → succès → fermeture.
  */
 export function ConfirmDialog({
   trigger,
@@ -34,31 +36,47 @@ export function ConfirmDialog({
   description?: ReactNode
   confirmLabel?: string
   cancelLabel?: string
-  onConfirm: () => void | Promise<void>
+  onConfirm: () => void | string | Promise<void | string>
   destructive?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleConfirm = async (e: React.MouseEvent) => {
     e.preventDefault() // garder le dialog ouvert pendant l'action
     setBusy(true)
+    setError(null)
     try {
-      await onConfirm()
+      const res = await onConfirm()
+      if (typeof res === 'string') {
+        setError(res) // échec → reste ouvert avec le message
+        return
+      }
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue')
     } finally {
       setBusy(false)
-      setOpen(false)
     }
   }
 
   return (
-    <AlertDialog open={open} onOpenChange={(next) => !busy && setOpen(next)}>
+    <AlertDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (busy) return
+        setOpen(next)
+        if (!next) setError(null)
+      }}
+    >
       <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={busy}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
