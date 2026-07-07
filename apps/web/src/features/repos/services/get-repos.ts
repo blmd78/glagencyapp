@@ -1,5 +1,6 @@
+import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import type { ReposData, WeekChoice } from '../types'
+import { REPOS_COLUMNS, type ReposCell, type ReposData, type WeekChoice } from '../types'
 
 const DAY_MS = 86_400_000
 
@@ -25,42 +26,89 @@ function weekLabel(start: string): string {
  */
 export async function getRepos(week?: string | null): Promise<ReposData> {
   const supabase = await createClient()
+  // Résolution des NOMS + listes (modèles/chatteurs) via le client admin : la page repos est un
+  // outil opérationnel agence-wide (tous les modèles/chatteurs doivent être lisibles), alors que
+  // le RLS de creators/chatters cloisonne par modèle assigné. L'accès à la page est déjà garanti
+  // par requireAccess('repos') en amont ; les DONNÉES du planning restent, elles, sur le client RLS.
+  const admin = createAdminClient()
 
   const currentMonday = mondayOf(new Date())
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : currentMonday
 
-  // Sélecteur : semaine prochaine + courante + 8 passées.
+  // Sélecteur : 4 semaines à venir (planification en avance) + courante + 8 passées.
+  // Ordre : future la plus proche en haut → passées en bas (offsets +4 … -8).
   const base = new Date(`${currentMonday}T00:00:00Z`).getTime()
-  const weeks: WeekChoice[] = Array.from({ length: 10 }, (_, i) => {
-    const start = iso(new Date(base + (1 - i) * 7 * DAY_MS))
+  const weeks: WeekChoice[] = Array.from({ length: 13 }, (_, i) => {
+    const start = iso(new Date(base + (4 - i) * 7 * DAY_MS))
     return { start, label: weekLabel(start) }
   })
 
-  const [{ data: cellRows }, { data: weekRow }, { data: chatterRows }] = await Promise.all([
-    supabase
-      .from('rest_planning_cells')
-      .select('day, col, names')
-      .eq('week_start', weekStart),
+  const [
+    { data: cellRows },
+    { data: weekRow },
+    { data: chatterRows },
+    { data: creatorRows },
+    { data: memberRows },
+  ] = await Promise.all([
+    supabase.from('rest_planning_cells').select('day, col, names, chatter_ids').eq('week_start', weekStart),
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
-    supabase.from('chatters').select('display_name, team_id').eq('active', true).order('display_name'),
+    admin.from('chatters').select('id, display_name, active'),
+    admin.from('creators').select('id, name, active'),
+    supabase
+      .from('rest_planning_column_members')
+      .select('col, effective_from, creator_ids')
+      .lte('effective_from', weekStart)
+      .order('effective_from', { ascending: true }),
   ])
 
-  const cells: Record<number, Record<string, string>> = {}
+  // Chatteurs (cellules) : id → nom (tous, inactifs inclus) + options actifs.
+  const chatterById: Record<string, string> = {}
+  for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
+  const chatterOptions = (chatterRows ?? [])
+    .filter((c) => c.active && c.display_name)
+    .map((c) => ({ id: c.id, name: c.display_name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // Modèles (header) : id → nom + options actifs.
+  const creatorById: Record<string, string> = {}
+  for (const c of creatorRows ?? []) if (c.id && c.name) creatorById[c.id] = c.name
+  const creatorOptions = (creatorRows ?? [])
+    .filter((c) => c.active && c.name)
+    .map((c) => ({ id: c.id, name: c.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // Compo effective par colonne = dernier effective_from ≤ weekStart (rows triées asc → dernier gagne).
+  const memberByCol: Record<string, string[]> = {}
+  for (const m of memberRows ?? []) memberByCol[m.col] = m.creator_ids ?? []
+
+  // Colonnes résolues : label = noms des modèles (join) sinon défaut du code.
+  const columns = REPOS_COLUMNS.map((c) => {
+    const creatorIds = memberByCol[c.key] ?? []
+    const label = creatorIds.length
+      ? creatorIds.map((id) => creatorById[id] ?? '?').join(' + ')
+      : c.label
+    return { key: c.key, label, encadrement: c.encadrement, creatorIds }
+  })
+
+  // Cellules { chatterIds, names }.
+  const cells: Record<number, Record<string, ReposCell>> = {}
   for (const r of cellRows ?? []) {
-    cells[r.day] = { ...(cells[r.day] ?? {}), [r.col]: r.names }
+    cells[r.day] = {
+      ...(cells[r.day] ?? {}),
+      [r.col]: { chatterIds: r.chatter_ids ?? [], names: r.names ?? '' },
+    }
   }
 
   return {
     weekStart,
     weekLabel: weekLabel(weekStart),
+    columns,
     cells,
+    creatorById,
+    creatorOptions,
+    chatterById,
+    chatterOptions,
     sentTelegram: weekRow?.sent_telegram ?? false,
     weeks,
-    chatterNames: (chatterRows ?? []).map((c) => c.display_name).filter(Boolean),
-    chatterTeams: Object.fromEntries(
-      (chatterRows ?? [])
-        .filter((c) => c.display_name && c.team_id)
-        .map((c) => [c.display_name, c.team_id as string]),
-    ),
   }
 }
