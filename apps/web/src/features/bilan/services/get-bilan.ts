@@ -113,6 +113,11 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   // pour ne pas fausser le ratio (même règle que la page Santé).
   const totalCa = r2(models.reduce((s, m) => s + m.ca, 0))
   const totalNewSubs = models.reduce((s, m) => s + m.newSubs, 0)
+  // Mêmes règles sur les fenêtres de référence (S-1 / M-1) — pour les écarts des totaux.
+  const totalCaPrev = r2(models.reduce((s, m) => s + m.caPrev, 0))
+  const totalCaLm = r2(models.reduce((s, m) => s + m.caLm, 0))
+  const totalNewSubsPrev = models.reduce((s, m) => s + m.newSubsPrev, 0)
+  const totalNewSubsLm = models.reduce((s, m) => s + m.newSubsLm, 0)
   const pub = models.filter((m) => !m.excluded)
   const pubCa = pub.reduce((s, m) => s + m.ca, 0)
   const pubSubs = pub.reduce((s, m) => s + m.newSubs, 0)
@@ -122,8 +127,20 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     prevWeek: prev,
     lastMonthWeek: lm,
     totalCa,
+    totalCaPrev,
+    totalCaLm,
     totalNewSubs,
+    totalNewSubsPrev,
+    totalNewSubsLm,
     avgLtv: ltvFormula(pubCa, pubSubs),
+    avgLtvPrev: ltvFormula(
+      pub.reduce((s, m) => s + m.caPrev, 0),
+      pub.reduce((s, m) => s + m.newSubsPrev, 0),
+    ),
+    avgLtvLm: ltvFormula(
+      pub.reduce((s, m) => s + m.caLm, 0),
+      pub.reduce((s, m) => s + m.newSubsLm, 0),
+    ),
     models,
     weeks,
   }

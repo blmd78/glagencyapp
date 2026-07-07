@@ -6,33 +6,37 @@ import { modelColor } from '@/lib/model-color'
 import { num } from '@/lib/format'
 import type { ModelBilan } from '../types'
 
-/** Écart signé vs une référence : vert si ≥ 0, rouge sinon, « — » sans référence.
- *  La valeur brute de la référence reste lisible au survol (title natif). */
-function Delta({
+/** Cellule de référence : le VRAI montant de la période (S-1/M-1), suivi de
+ *  l'écart signé entre parenthèses (vert si ≥ 0, rouge sinon). « — » sans donnée. */
+function RefCell({
   cur,
   refValue,
-  refLabel,
   fmt,
+  fmtDelta,
 }: {
   cur: number | null
   refValue: number | null
-  refLabel: string
   fmt: (v: number) => string
+  fmtDelta: (v: number) => string
 }) {
-  if (refValue == null || refValue === 0 || cur == null) {
+  if (refValue == null || refValue === 0) {
     return <span className="text-right text-muted-foreground">—</span>
   }
-  const d = cur - refValue
+  const d = cur != null ? cur - refValue : null
   return (
-    <span
-      title={`${refLabel} : ${fmt(refValue)}`}
-      className={cn(
-        'text-right font-medium tabular-nums',
-        d >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+    <span className="text-right tabular-nums whitespace-nowrap">
+      {fmt(refValue)}
+      {d != null && (
+        <span
+          className={cn(
+            'ml-1 font-medium',
+            d >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+          )}
+        >
+          ({d >= 0 ? '+' : '−'}
+          {fmtDelta(Math.abs(d))})
+        </span>
       )}
-    >
-      {d >= 0 ? '+' : '−'}
-      {fmt(Math.abs(d))}
     </span>
   )
 }
@@ -41,18 +45,19 @@ const HEAD = 'text-right text-[10px] font-medium uppercase tracking-wide text-mu
 
 /**
  * Carte bilan d'un modèle : une grille UNIQUE alignée en colonnes
- * (valeur de la semaine · écart vs S-1 · écart vs M-1) — chaque métrique se lit
- * d'un trait, les colonnes se comparent verticalement. Les références brutes
- * (S-1/M-1) sont au survol des écarts, pas à l'écran.
+ * (Semaine · S-1 · M-1). Les colonnes de référence montrent le VRAI montant de la
+ * période avec l'écart signé entre parenthèses — ex. « 20 936 € (+3 623) ».
  */
 export function ModelBilanCard({ m }: { m: ModelBilan }) {
   const eur = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`
   const eur1 = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €`
 
+  const int = (v: number) => Math.round(v).toLocaleString('fr-FR')
+  const dec1 = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })
   const rows = [
-    { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v) },
-    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur },
-    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1 },
+    { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int },
+    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: int },
+    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1, fmtDelta: dec1 },
   ] as const
 
   return (
@@ -63,8 +68,8 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
         <div className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-4 gap-y-1.5 text-sm">
           <span />
           <span className={HEAD}>Semaine</span>
-          <span className={HEAD}>vs S-1</span>
-          <span className={HEAD}>vs M-1</span>
+          <span className={HEAD}>S-1</span>
+          <span className={HEAD}>M-1</span>
 
           {rows.map((r) => (
             <Fragment key={r.label}>
@@ -72,8 +77,8 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
               <span className="text-right font-semibold tabular-nums">
                 {r.cur != null && r.cur > 0 ? r.fmt(r.cur) : '—'}
               </span>
-              <Delta cur={r.cur} refValue={r.prev} refLabel="S-1" fmt={r.fmt} />
-              <Delta cur={r.cur} refValue={r.lm} refLabel="M-1" fmt={r.fmt} />
+              <RefCell cur={r.cur} refValue={r.prev} fmt={r.fmt} fmtDelta={r.fmtDelta} />
+              <RefCell cur={r.cur} refValue={r.lm} fmt={r.fmt} fmtDelta={r.fmtDelta} />
             </Fragment>
           ))}
         </div>

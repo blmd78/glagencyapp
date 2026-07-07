@@ -34,9 +34,15 @@ export interface BilanData {
   prevWeek: BilanWeekRef
   lastMonthWeek: BilanWeekRef
   totalCa: number
+  totalCaPrev: number
+  totalCaLm: number
   totalNewSubs: number
+  totalNewSubsPrev: number
+  totalNewSubsLm: number
   /** LTV moyenne globale (null si aucun nouvel abonné). */
   avgLtv: number | null
+  avgLtvPrev: number | null
+  avgLtvLm: number | null
   models: ModelBilan[]
   /** Semaines complètes proposées au sélecteur (la plus récente d'abord). */
   weeks: WeekChoice[]
