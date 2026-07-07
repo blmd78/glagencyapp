@@ -49,9 +49,17 @@ export interface ChatterRow {
   models: ChatterModel[]
 }
 
+/** Top du dernier jour ingéré — noms seuls (export partageable sans chiffres). */
+export interface DailyRanking {
+  date: string
+  names: string[]
+}
+
 export interface ChattersData {
   period: string
   chatters: ChatterRow[]
+  /** null en mode restreint (classement agence complet réservé admin). */
+  dailyRanking: DailyRanking | null
   /** Périmètres emboîtés du CA — null en mode restreint (total agence invisible). */
   scope: RevenueScope | null
 }
