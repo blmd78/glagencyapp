@@ -1,23 +1,11 @@
+import { addDays, frDayShort, isoDate, mondayOf } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { REPOS_COLUMNS, type ReposCell, type ReposData, type WeekChoice } from '../types'
 
-const DAY_MS = 86_400_000
-
-const iso = (d: Date) => d.toISOString().slice(0, 10)
-
-/** Lundi (UTC) de la semaine contenant `d`. */
-function mondayOf(d: Date): string {
-  const day = (d.getUTCDay() + 6) % 7 // 0 = lundi
-  return iso(new Date(d.getTime() - day * DAY_MS))
-}
-
-const frShort = (isoDate: string) =>
-  new Date(`${isoDate}T00:00:00`).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
-
+/** Libellé spécifique repos « Lundi 06/07 au Dimanche 12/07 » (dates via @glagency/core, UTC-safe). */
 function weekLabel(start: string): string {
-  const end = iso(new Date(new Date(`${start}T00:00:00Z`).getTime() + 6 * DAY_MS))
-  return `Lundi ${frShort(start)} au Dimanche ${frShort(end)}`
+  return `Lundi ${frDayShort(start)} au Dimanche ${frDayShort(addDays(start, 6))}`
 }
 
 /**
@@ -32,10 +20,8 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
   // par requireAccess('repos') en amont ; les DONNÉES du planning restent, elles, sur le client RLS.
   const admin = createAdminClient()
 
-  const currentMonday = mondayOf(new Date())
+  const currentMonday = mondayOf(isoDate(new Date()))
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : currentMonday
-
-  const base = new Date(`${currentMonday}T00:00:00Z`).getTime()
 
   const [
     { data: cellRows },
@@ -59,7 +45,7 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
   ])
 
   // Sélecteur : semaines avec données (range) + semaine en cours + semaine +1. Future en haut.
-  const nextMonday = iso(new Date(base + 7 * DAY_MS))
+  const nextMonday = addDays(currentMonday, 7)
   const weekSet = new Set<string>([currentMonday, nextMonday])
   for (const r of dataWeekRows ?? []) if (r.week_start) weekSet.add(r.week_start)
   const weeks: WeekChoice[] = [...weekSet]

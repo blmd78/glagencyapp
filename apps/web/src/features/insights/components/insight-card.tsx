@@ -13,7 +13,7 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num, pct } from '@/lib/format'
 import { setInsightState } from '../actions'
 import { BilanDialog, ETAT_OPTIONS } from './bilan-dialog'
-import { addDays as isoAddDays } from '@glagency/core'
+import { addDays as isoAddDays, frWeekdayShort } from '@glagency/core'
 import type { DailyCa } from '@glagency/core'
 import type { InsightBilan, InsightRow, InsightStatus } from '../types'
 
@@ -35,14 +35,6 @@ const STATUS_STYLE: Record<InsightStatus, string> = {
   resolved: STATUS_COLORS.positive,
   ignored: STATUS_COLORS.neutral,
 }
-
-const frDay = (iso: string) =>
-  new Date(`${iso}T00:00:00Z`).toLocaleDateString('fr-FR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: 'UTC',
-  })
 
 /**
  * Complète une semaine (lundi `start` → +6 j) avec les jours à 0 € manquants — la
@@ -68,7 +60,7 @@ function DailyList({ title, dailies }: { title: string; dailies: DailyCa[] }) {
       <span className="font-medium">{title}</span>
       {dailies.map((d) => (
         <span key={d.date} className={cn('tabular-nums', d.ca === 0 && 'text-muted-foreground')}>
-          {frDay(d.date)} — {eur(d.ca)}
+          {frWeekdayShort(d.date)} — {eur(d.ca)}
         </span>
       ))}
     </div>
@@ -436,14 +428,14 @@ export function InsightCard({
         {insight.bilan && status !== 'new' && (
           <div className="flex flex-col gap-1 rounded-md border-l-2 border-green-500 bg-muted/40 p-2.5 text-xs">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-green-700 dark:text-green-400">
-              Bilan du {frDay(insight.bilan.date)} · {insight.bilan.duree} ·{' '}
+              Bilan du {frWeekdayShort(insight.bilan.date)} · {insight.bilan.duree} ·{' '}
               {ETAT_OPTIONS.find(([v]) => v === insight.bilan?.etat)?.[1] ?? insight.bilan.etat}
             </span>
             <p className="whitespace-pre-line">{insight.bilan.resume}</p>
             {insight.bilan.actions && <p><b>Actions :</b> {insight.bilan.actions}</p>}
             {insight.bilan.objectifs && <p><b>Objectifs :</b> {insight.bilan.objectifs}</p>}
             {insight.bilan.sanction && <p><b>Sanction si non tenu :</b> {insight.bilan.sanction}</p>}
-            {insight.bilan.nextCheck && <p><b>Prochain checkpoint :</b> {frDay(insight.bilan.nextCheck)}</p>}
+            {insight.bilan.nextCheck && <p><b>Prochain checkpoint :</b> {frWeekdayShort(insight.bilan.nextCheck)}</p>}
             {insight.bilan.notes && <p className="text-muted-foreground">{insight.bilan.notes}</p>}
           </div>
         )}

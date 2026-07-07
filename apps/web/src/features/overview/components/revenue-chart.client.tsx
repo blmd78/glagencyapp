@@ -1,5 +1,6 @@
 'use client'
 
+import { frDayLong, frDayMonthShort } from '@glagency/core'
 import { Bar, BarChart, CartesianGrid, Cell, XAxis } from 'recharts'
 import {
   Card,
@@ -53,7 +54,7 @@ export function RevenueChart({
               tickMargin={8}
               minTickGap={24}
               tickFormatter={(value: string) =>
-                new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                frDayMonthShort(value)
               }
             />
             <ChartTooltip
@@ -62,7 +63,7 @@ export function RevenueChart({
                 <ChartTooltipContent
                   indicator="dot"
                   labelFormatter={(value) =>
-                    new Date(value).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
+                    frDayLong(value)
                   }
                   formatter={(value) => (
                     <span className="tabular-nums">{Number(value).toLocaleString('fr-FR')} €</span>

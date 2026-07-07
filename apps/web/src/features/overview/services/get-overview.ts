@@ -1,4 +1,4 @@
-import { eachDayOfInterval, endOfMonth, format, startOfMonth } from 'date-fns'
+import { addDays, endOfMonth, isoDate, startOfMonth } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
@@ -28,8 +28,8 @@ export async function getOverview(
 
   // Le graphe CA quotidien couvre toujours le(s) mois entier(s) de la sélection :
   // on élargit la requête `creator_daily`, mais KPIs/classements restent bornés à la période.
-  const chartFrom = format(startOfMonth(new Date(`${period.from}T00:00:00`)), 'yyyy-MM-dd')
-  const chartTo = format(endOfMonth(new Date(`${period.to}T00:00:00`)), 'yyyy-MM-dd')
+  const chartFrom = startOfMonth(period.from)
+  const chartTo = endOfMonth(period.to)
 
   const [{ data: creators }, { data: cd }, { data: chd }, { count: totalChatters }] =
     await Promise.all([
@@ -104,18 +104,15 @@ export async function getOverview(
   // aujourd'hui ; les jours hors sélection sont marqués `inPeriod: false` (affichés atténués).
   const perDay = new Map<string, number>()
   for (const r of monthRows) perDay.set(r.date, (perDay.get(r.date) ?? 0) + (r.ca ?? 0))
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const daily: DailyPoint[] = eachDayOfInterval({
-    start: new Date(`${chartFrom}T00:00:00`),
-    end: new Date(`${chartTo}T00:00:00`),
-  }).map((d) => {
-    const key = format(d, 'yyyy-MM-dd')
-    return {
+  const today = isoDate(new Date())
+  const daily: DailyPoint[] = []
+  for (let key = chartFrom; key <= chartTo; key = addDays(key, 1)) {
+    daily.push({
       date: key,
       revenue: key <= today ? (perDay.get(key) ?? 0) : null,
       inPeriod: key >= period.from && key <= period.to,
-    }
-  })
+    })
+  }
 
   // Chatteurs : actifs, CA moyen et commission. Com = 10 % du CA en dur (cf. spec design —
   // à remplacer par la config de barème quand elle existera).

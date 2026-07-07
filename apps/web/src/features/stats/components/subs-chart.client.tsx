@@ -13,11 +13,9 @@ import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
 import { modelColor, modelHexColor } from '@/lib/model-color'
+import { frDayLong, frDayMonthShort } from '@glagency/core'
 import { num } from '@/lib/format'
 import type { StatsData } from '../types'
-
-const frDay = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
 
 /**
  * Tooltip façon MyPuls : le jour, puis chaque modèle trié par abonnés décroissants,
@@ -46,7 +44,7 @@ function DayTooltip({
   if (!rows.length) return null
   return (
     <div className="min-w-52 rounded-lg border bg-popover p-3 text-popover-foreground shadow-md">
-      <p className="mb-2 text-sm font-semibold">{frDay(label)}</p>
+      <p className="mb-2 text-sm font-semibold">{frDayLong(label)}</p>
       <div className="flex flex-col gap-1">
         {rows.map((r) => (
           <div key={r.name} className="flex items-baseline justify-between gap-4 text-xs">
@@ -175,7 +173,7 @@ export function SubsChart({ data }: { data: StatsData }) {
                 tickMargin={8}
                 minTickGap={24}
                 tickFormatter={(v: string) =>
-                  new Date(v).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                  frDayMonthShort(v)
                 }
               />
               <YAxis tickLine={false} axisLine={false} width={40} />
