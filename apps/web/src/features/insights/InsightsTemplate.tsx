@@ -18,18 +18,11 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
+import { addDays, frDayLong } from '@glagency/core'
 import { modelColor } from '@/lib/model-color'
 import { InsightCard } from './components/insight-card'
-import type { InsightRow, InsightsData, InsightStatus } from './types'
-
-const frDate = (iso: string) =>
-  new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })
-
-const weekEnd = (monday: string) => {
-  const d = new Date(`${monday}T00:00:00`)
-  d.setDate(d.getDate() + 6)
-  return d.toISOString().slice(0, 10)
-}
+import { RankingTable, type RankMetric } from './components/ranking-table'
+import type { InsightRow, InsightsData, InsightStatus, RankingData } from './types'
 
 type StatusFilter = 'open' | InsightStatus | 'all'
 
@@ -39,16 +32,19 @@ type StatusFilter = 'open' | InsightStatus | 'all'
  */
 export function InsightsTemplate({
   data,
+  ranking,
   isAdmin,
   currentUserId,
 }: {
   data: InsightsData
+  ranking: RankingData
   isAdmin: boolean
   currentUserId: string
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning' | 'ok'>('all')
   const [modelFilter, setModelFilter] = useState('all')
+  const [rankBy, setRankBy] = useState<'none' | RankMetric>('none')
   const [search, setSearch] = useState('')
 
   // Options du filtre modèle : les modèles présents dans les cartes reçues
@@ -93,7 +89,7 @@ export function InsightsTemplate({
         <h1 className="text-2xl font-semibold tracking-tight">Insights</h1>
         <p className="text-sm text-muted-foreground">
           {data.weekStart
-            ? `S-1 · semaine du ${frDate(data.weekStart)} au ${frDate(weekEnd(data.weekStart))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
+            ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
             : 'Analyses hebdomadaires des quotas par chatteur'}
         </p>
       </div>
@@ -152,11 +148,26 @@ export function InsightsTemplate({
                 <SelectItem value="ok" className="text-xs">Sain</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={rankBy} onValueChange={(v) => setRankBy(v as 'none' | RankMetric)}>
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue placeholder="Classement par…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none" className="text-xs">— Aucun (cartes)</SelectItem>
+                <SelectItem value="ca" className="text-xs">CA</SelectItem>
+                <SelectItem value="presence" className="text-xs">Présence</SelectItem>
+                <SelectItem value="propose" className="text-xs">Média proposé</SelectItem>
+                <SelectItem value="conv" className="text-xs">Taux de conversion</SelectItem>
+                <SelectItem value="react" className="text-xs">Réactivité</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {rankBy !== 'none' ? (
+        <RankingTable ranking={ranking} metric={rankBy} />
+      ) : shown.length === 0 ? (
         <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
           {data.insights.length === 0
             ? 'Aucune analyse pour cette semaine — les cartes sont générées chaque nuit après l’ingestion.'

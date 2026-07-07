@@ -1,4 +1,5 @@
 import { getInsights } from '@/features/insights/services/get-insights'
+import { getRanking } from '@/features/insights/services/get-ranking'
 import { InsightsTemplate } from '@/features/insights/InsightsTemplate'
 import { requireAccess } from '@/lib/auth'
 
@@ -7,5 +8,13 @@ import { requireAccess } from '@/lib/auth'
 export default async function InsightsPage() {
   const profile = await requireAccess('insights')
   const data = await getInsights(undefined, { restricted: profile.role !== 'admin' })
-  return <InsightsTemplate data={data} isAdmin={profile.role === 'admin'} currentUserId={profile.id} />
+  const ranking = await getRanking(data.weekStart)
+  return (
+    <InsightsTemplate
+      data={data}
+      ranking={ranking}
+      isAdmin={profile.role === 'admin'}
+      currentUserId={profile.id}
+    />
+  )
 }

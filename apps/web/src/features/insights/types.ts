@@ -42,3 +42,19 @@ export interface InsightsData {
   weekStart: string | null
   insights: InsightRow[]
 }
+
+/** Une ligne du classement global (métriques agrégées sur la semaine des insights). */
+export interface RankingRow {
+  chatterId: string
+  chatterName: string
+  ca: number
+  presenceH: number
+  propose: number
+  convPct: number | null // null si propose = 0
+  reactSec: number | null // null si aucune journée mesurée
+}
+
+export interface RankingData {
+  weekStart: string
+  rows: RankingRow[]
+}
