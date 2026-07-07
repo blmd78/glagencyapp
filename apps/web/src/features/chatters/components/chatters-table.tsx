@@ -1,17 +1,19 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { frWeekdayDate } from '@glagency/core'
 import { type ColumnDef, type Row } from '@tanstack/react-table'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Download } from 'lucide-react'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { Combobox } from '@/components/ui/combobox'
+import { Button } from '@/components/ui/button'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { DataTable } from '@/components/data-table/data-table'
 import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
@@ -19,7 +21,7 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, pct } from '@/lib/format'
-import type { ChatterRow } from '../types'
+import type { ChatterRow, DailyRanking } from '../types'
 
 // Couleurs de statut partagées (recette badge shadcn) : lib/status-color.ts.
 
@@ -214,7 +216,31 @@ function chatterSubRows(row: Row<ChatterRow>) {
   )
 }
 
-export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
+/** Fichier texte partageable : rang + nom, aucun chiffre (médailles pour le podium). */
+function downloadRanking(r: DailyRanking, top: number) {
+  const dateFr = frWeekdayDate(r.date)
+  const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`)
+  const lines = [
+    `🏆 Classement du ${dateFr}`,
+    '',
+    ...r.names.slice(0, top).map((name, i) => `${medal(i)} ${name}`),
+  ]
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `classement-${r.date}.txt`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export function ChattersTable({
+  chatters,
+  dailyRanking = null,
+}: {
+  chatters: ChatterRow[]
+  dailyRanking?: DailyRanking | null
+}) {
   const [modelId, setModelId] = useState('all')
 
   // Options du sélecteur : les comptes OF présents dans les données de la période
@@ -245,19 +271,36 @@ export function ChattersTable({ chatters }: { chatters: ChatterRow[] }) {
       renderSubRows={chatterSubRows}
       countLabel={(n) => `${n} chatteur(s)`}
       toolbar={
-        <Select value={modelId} onValueChange={setModelId}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Tous les modèles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les modèles</SelectItem>
-            {modelOptions.map(([id, name]) => (
-              <SelectItem key={id} value={id}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <>
+          <Combobox
+            value={modelId}
+            onChange={setModelId}
+            className="w-44"
+            searchPlaceholder="Rechercher un modèle…"
+            options={[
+              { value: 'all', label: 'Tous les modèles' },
+              ...modelOptions.map(([id, name]) => ({ value: id, label: name })),
+            ]}
+          />
+          {dailyRanking && dailyRanking.names.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5">
+                  <Download className="size-3.5" />
+                  Classement du jour
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => downloadRanking(dailyRanking, 10)}>
+                  Top 10
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => downloadRanking(dailyRanking, 15)}>
+                  Top 15
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </>
       }
     />
   )

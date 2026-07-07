@@ -29,7 +29,7 @@ export function ChattersTemplate({ data }: { data: ChattersData }) {
           {data.scope && (
             <RevenueScopeNote scope={data.scope} active="attributed" periodLabel={data.period} />
           )}
-          <ChattersTable chatters={data.chatters} />
+          <ChattersTable chatters={data.chatters} dailyRanking={data.dailyRanking} />
         </>
       )}
     </div>
