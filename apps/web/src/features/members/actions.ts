@@ -4,27 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { requireAdmin } from '@/lib/auth'
-import { PAGE_CHOICES } from '@/config/workspaces'
+import { memberInput, memberUpdateInput } from './schema'
 
 /**
  * Mutations de la page Membres. Toutes : zod → garde admin → client SERVICE-ROLE
  * (auth.admin.* exige la clé secrète). La garde requireAdmin() est le contrôle d'accès ;
  * la RLS reste la ceinture pour tout ce qui passe par le client session.
  */
-
-const SLUGS = PAGE_CHOICES.map((p) => p.slug as string)
-
-const memberInput = z.object({
-  email: z.string().email(),
-  displayName: z.string().trim().min(1).max(60),
-  // min(1) : un compte sans aucune page serait inutilisable (atterrit sur /no-access).
-  pages: z
-    .array(z.string())
-    .min(1)
-    .max(SLUGS.length)
-    .refine((xs) => xs.every((x) => SLUGS.includes(x)), { message: 'Page inconnue' }),
-  creatorIds: z.array(z.string().uuid()).max(50),
-})
 
 type Result = { success: true } | { success: false; error: string }
 type Admin = ReturnType<typeof createAdminClient>
@@ -104,11 +90,9 @@ export async function createMember(input: unknown): Promise<Result> {
   return { success: true }
 }
 
-const updateInput = memberInput.omit({ email: true }).extend({ id: z.string().uuid() })
-
 export async function updateMember(input: unknown): Promise<Result> {
   await requireAdmin()
-  const parsed = updateInput.safeParse(input)
+  const parsed = memberUpdateInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
   const { id, displayName, pages, creatorIds } = parsed.data
 

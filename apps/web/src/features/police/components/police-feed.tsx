@@ -1,13 +1,16 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { Trash2, TriangleAlert, Gavel, Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
+import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { deletePoliceEntry, updatePoliceMalus } from '../actions'
+import { malusEditFormSchema, type MalusEditForm } from '../schema'
 import type { PoliceData, PoliceEntry } from '../types'
 
 const time = (iso: string) =>
@@ -169,32 +172,33 @@ function EntryRow({
 /** Édition inline d'un malus (montant + note) — accessible à tout accès `police`. */
 function MalusEdit({ e }: { e: PoliceEntry }) {
   const [open, setOpen] = useState(false)
-  const [amount, setAmount] = useState(String(e.amountEur))
-  const [note, setNote] = useState(e.note ?? '')
-  const [pending, startTransition] = useTransition()
-  const [err, setErr] = useState<string | null>(null)
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<MalusEditForm>({
+    resolver: zodResolver(malusEditFormSchema),
+    defaultValues: { amount: String(e.amountEur), note: e.note ?? '' },
+  })
 
-  const save = () => {
-    const amountEur = Number(amount.replace(',', '.'))
-    if (!Number.isFinite(amountEur) || amountEur < 0) {
-      setErr('Montant invalide.')
+  const save = handleSubmit(async (values) => {
+    const res = await updatePoliceMalus({
+      id: e.id,
+      amountEur: Number(values.amount.replace(',', '.')),
+      note: values.note?.trim() || undefined,
+    })
+    if (!res.success) {
+      setError('root', { message: res.error })
       return
     }
-    setErr(null)
-    startTransition(async () => {
-      const res = await updatePoliceMalus({ id: e.id, amountEur, note: note.trim() || undefined })
-      if (!res.success) setErr(res.error)
-      else setOpen(false)
-    })
-  }
+    setOpen(false)
+  })
 
   const onOpenChange = (next: boolean) => {
     setOpen(next)
-    if (next) {
-      setAmount(String(e.amountEur))
-      setNote(e.note ?? '')
-      setErr(null)
-    }
+    if (next) reset({ amount: String(e.amountEur), note: e.note ?? '' })
   }
 
   return (
@@ -209,7 +213,7 @@ function MalusEdit({ e }: { e: PoliceEntry }) {
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="end">
-        <div className="flex flex-col gap-2">
+        <form onSubmit={save} className="flex flex-col gap-2">
           <span className="text-xs font-medium">Modifier le malus — {e.chatterName}</span>
           <div className="flex gap-2">
             <Input
@@ -217,23 +221,22 @@ function MalusEdit({ e }: { e: PoliceEntry }) {
               inputMode="decimal"
               min={0}
               step="0.5"
-              value={amount}
-              onChange={(ev) => setAmount(ev.target.value)}
               placeholder="Montant €"
               className="h-8 w-24 text-sm"
+              {...register('amount')}
             />
-            <Input
-              value={note}
-              onChange={(ev) => setNote(ev.target.value)}
-              placeholder="Raison"
-              className="h-8 flex-1 text-sm"
-            />
+            <Input placeholder="Raison" className="h-8 flex-1 text-sm" {...register('note')} />
           </div>
-          {err && <p className="text-xs text-red-600 dark:text-red-400">{err}</p>}
-          <Button size="sm" onClick={save} disabled={pending} className="self-end">
+          {errors.amount && (
+            <p className="text-xs text-red-600 dark:text-red-400">{errors.amount.message}</p>
+          )}
+          {errors.root && (
+            <p className="text-xs text-red-600 dark:text-red-400">{errors.root.message}</p>
+          )}
+          <ActionButton type="submit" size="sm" pending={isSubmitting} className="self-end">
             Enregistrer
-          </Button>
-        </div>
+          </ActionButton>
+        </form>
       </PopoverContent>
     </Popover>
   )

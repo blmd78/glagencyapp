@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { POLICE_ERRORS, SHIFTS } from './types'
+import { warningInput, malusInput, updateMalusInput } from './schema'
 
 type Result = { success: true } | { success: false; error: string }
 
@@ -19,16 +19,10 @@ async function requirePolice() {
   return profile
 }
 
-const dayZ = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
-const shiftZ = z.enum(SHIFTS).optional()
-const errorKeyZ = z.enum(POLICE_ERRORS.map((e) => e.key) as [string, ...string[]])
-
 export async function addPoliceWarning(raw: unknown): Promise<Result> {
   const profile = await requirePolice()
   if (!profile) return { success: false, error: 'Accès refusé' }
-  const p = z
-    .object({ day: dayZ, chatterId: z.string().uuid(), errorKey: errorKeyZ, shift: shiftZ })
-    .safeParse(raw)
+  const p = warningInput.safeParse(raw)
   if (!p.success) return { success: false, error: 'Saisie invalide' }
 
   const supabase = await createClient()
@@ -49,16 +43,7 @@ export async function addPoliceWarning(raw: unknown): Promise<Result> {
 export async function addPoliceMalus(raw: unknown): Promise<Result> {
   const profile = await requirePolice()
   if (!profile) return { success: false, error: 'Accès refusé' }
-  const p = z
-    .object({
-      day: dayZ,
-      chatterId: z.string().uuid(),
-      amountEur: z.number().min(0).max(100_000),
-      errorKey: errorKeyZ.optional(),
-      note: z.string().max(500).optional(),
-      shift: shiftZ,
-    })
-    .safeParse(raw)
+  const p = malusInput.safeParse(raw)
   if (!p.success) return { success: false, error: 'Saisie invalide' }
 
   const supabase = await createClient()
@@ -80,13 +65,7 @@ export async function addPoliceMalus(raw: unknown): Promise<Result> {
 export async function updatePoliceMalus(raw: unknown): Promise<Result> {
   const profile = await requirePolice()
   if (!profile) return { success: false, error: 'Accès refusé' }
-  const p = z
-    .object({
-      id: z.string().uuid(),
-      amountEur: z.number().min(0).max(100_000),
-      note: z.string().max(500).optional(),
-    })
-    .safeParse(raw)
+  const p = updateMalusInput.safeParse(raw)
   if (!p.success) return { success: false, error: 'Saisie invalide' }
 
   const supabase = await createClient()

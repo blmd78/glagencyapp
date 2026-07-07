@@ -73,7 +73,7 @@ export function PoliceTemplate({ data, isAdmin }: { data: PoliceData; isAdmin: b
           pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'
         }
       >
-        <ControlPanel data={data} chatterId={chatterId} onChatterChange={setChatterId} />
+        <ControlPanel data={data} onChatterChange={setChatterId} />
         <div className="mt-4">
           <PoliceFeed
             data={data}

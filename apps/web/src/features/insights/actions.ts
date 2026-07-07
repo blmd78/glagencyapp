@@ -4,20 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireAccess } from '@/lib/auth'
+import { bilanSchema } from './schema'
 
 /** Changement de statut / note d'une carte. Client SESSION : la RLS (admin-only) est la garde réelle. */
-
-const bilanSchema = z.object({
-  date: z.string().min(1),
-  duree: z.enum(['5min', '15min', '30min', '1h+']),
-  etat: z.enum(['neutre', 'motive', 'fatigue', 'demotive', 'resistant']),
-  resume: z.string().trim().min(10, 'Résumé trop court — quelques phrases minimum').max(2000),
-  actions: z.string().max(2000).default(''),
-  objectifs: z.string().max(2000).default(''),
-  sanction: z.string().max(500).default(''),
-  nextCheck: z.string().max(30).default(''),
-  notes: z.string().max(2000).default(''),
-})
 
 const input = z
   .object({
