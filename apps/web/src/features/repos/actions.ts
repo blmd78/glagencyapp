@@ -22,6 +22,7 @@ const cellInput = z.object({
   weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   day: z.number().int().min(0).max(6),
   col: z.string().min(1).max(30),
+  chatterIds: z.array(z.string().uuid()).max(200),
   names: z.string().max(1000),
 })
 
@@ -30,7 +31,7 @@ export async function saveReposCell(raw: unknown): Promise<Result> {
   if (!profile) return { success: false, error: 'Accès refusé' }
   const parsed = cellInput.safeParse(raw)
   if (!parsed.success) return { success: false, error: 'Saisie invalide' }
-  const { weekStart, day, col, names } = parsed.data
+  const { weekStart, day, col, chatterIds, names } = parsed.data
 
   const supabase = await createClient()
   const { error } = await supabase.from('rest_planning_cells').upsert(
@@ -38,11 +39,42 @@ export async function saveReposCell(raw: unknown): Promise<Result> {
       week_start: weekStart,
       day,
       col,
+      chatter_ids: chatterIds,
       names: names.trim(),
       updated_at: new Date().toISOString(),
       updated_by: profile.id,
     },
     { onConflict: 'week_start,day,col' },
+  )
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/chatter/repos')
+  return { success: true }
+}
+
+// Édition de la compo (MODÈLES) d'une colonne — réservée admin (garde back + policy RLS is_admin).
+const colMembersInput = z.object({
+  col: z.enum(['g1', 'g2', 'g3', 'g4', 'g5', 'g6']), // colonnes modèles uniquement
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  creatorIds: z.array(z.string().uuid()).max(50),
+})
+
+export async function saveReposColumnMembers(raw: unknown): Promise<Result> {
+  const profile = await getProfile()
+  if (!profile || profile.role !== 'admin') return { success: false, error: 'Accès refusé' }
+  const parsed = colMembersInput.safeParse(raw)
+  if (!parsed.success) return { success: false, error: 'Saisie invalide' }
+  const { col, effectiveFrom, creatorIds } = parsed.data
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('rest_planning_column_members').upsert(
+    {
+      col,
+      effective_from: effectiveFrom,
+      creator_ids: creatorIds,
+      updated_at: new Date().toISOString(),
+      updated_by: profile.id,
+    },
+    { onConflict: 'col,effective_from' },
   )
   if (error) return { success: false, error: error.message }
   revalidatePath('/chatter/repos')
