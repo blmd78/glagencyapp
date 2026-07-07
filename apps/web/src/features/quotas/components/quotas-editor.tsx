@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Button } from '@/components/ui/button'
+import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -180,9 +180,9 @@ export function QuotasEditor({ teams }: { teams: QuotaTeamRow[] }) {
       </div>
 
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={!dirty || isPending}>
-          {isPending ? 'Sauvegarde…' : 'Sauvegarder'}
-        </Button>
+        <ActionButton onClick={handleSave} disabled={!dirty} pending={isPending}>
+          Sauvegarder
+        </ActionButton>
         {status && (
           <p
             className={cn(

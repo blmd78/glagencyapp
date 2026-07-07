@@ -2,7 +2,7 @@
 
 import * as React from 'react'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { ActionButton } from '@/components/action-button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { cn } from '@/lib/utils'
 import { saveExclusions } from '../actions'
@@ -108,9 +108,9 @@ export function ExclusionsEditor({ accounts }: { accounts: ExclusionAccountRow[]
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="outline" onClick={handleSave} disabled={!dirty || isPending}>
-          {isPending ? 'Sauvegarde…' : 'Sauvegarder les exclusions'}
-        </Button>
+        <ActionButton variant="outline" onClick={handleSave} disabled={!dirty} pending={isPending}>
+          Sauvegarder les exclusions
+        </ActionButton>
         {status && (
           <p
             className={cn(
