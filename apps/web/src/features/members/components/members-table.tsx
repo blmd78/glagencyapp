@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Loader2, Pencil, ShieldCheck, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -39,7 +38,6 @@ const initials = (name: string) =>
 
 /** Colonne Actions : Modifier (dialog) + Supprimer (confirmation) — admins non éditables. */
 function RowActions({ member, creators }: { member: Member; creators: { id: string; name: string }[] }) {
-  const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -57,7 +55,6 @@ function RowActions({ member, creators }: { member: Member; creators: { id: stri
         return
       }
       setConfirmOpen(false)
-      router.refresh()
     })
   }
 

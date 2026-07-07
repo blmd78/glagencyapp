@@ -1,12 +1,9 @@
-import { addDays, endOfMonth, isoDate, startOfMonth } from '@glagency/core'
+import { addDays, endOfMonth, isoDate, round1, startOfMonth } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
+import { eur, int } from '@/lib/format'
 import type { DailyPoint, Insight, Kpi, ModelCa, ModelSubs, OverviewData } from '../types'
-
-const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`
-const int = (n: number) => Math.round(n).toLocaleString('fr-FR')
-const round1 = (n: number) => Math.round(n * 10) / 10
 
 /**
  * Overview agrégée sur la période choisie (datepicker du header).

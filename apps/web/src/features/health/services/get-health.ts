@@ -1,4 +1,4 @@
-import { endOfMonth, startOfWeek, format } from 'date-fns'
+import { daysBetween, endOfMonth, isoDate, mondayOf } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
@@ -45,7 +45,7 @@ export async function getHealth(
   ])
 
   const rows = cd ?? []
-  const weekFrom = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd')
+  const weekFrom = mondayOf(isoDate(new Date()))
 
   // Agrégats par modèle : période, dernier jour, semaine en cours.
   interface Acc {
@@ -130,9 +130,8 @@ export async function getHealth(
   // qui doit tout compter (seuls jauge et plan LTV se limitent aux inclus).
   const allNew = [...agg.values()].reduce((s, a) => s + a.newSubs, 0)
   const ltv = ltvOf(includedCa, totalNew)
-  const today = new Date()
-  const todayIso = format(today, 'yyyy-MM-dd')
-  const remainingDays = Math.max(0, endOfMonth(today).getDate() - today.getDate())
+  const todayIso = isoDate(new Date())
+  const remainingDays = Math.max(0, daysBetween(todayIso, endOfMonth(todayIso)))
   const missing = Math.max(0, round2(LTV_TARGET * totalNew - includedCa))
   // Un plan de rattrapage n'a de sens que si la période inclut AUJOURD'HUI (sur un mois
   // clos, il n'y a rien à rattraper) ; le dernier jour du mois, il reste la journée en cours.

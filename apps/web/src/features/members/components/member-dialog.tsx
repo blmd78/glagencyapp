@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
@@ -41,7 +40,6 @@ export function MemberDialog({
   creators: { id: string; name: string }[]
   trigger: ReactNode
 }) {
-  const router = useRouter()
   const [open, setOpen] = useState(false)
 
   const {
@@ -74,7 +72,6 @@ export function MemberDialog({
       return
     }
     setOpen(false)
-    router.refresh()
   })
 
   return (

@@ -3,7 +3,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { frDayShort } from '@glagency/core'
 import { DataTable } from '@/components/data-table/data-table'
-import { eur, num } from '@/lib/format'
+import { eur, num, pct } from '@/lib/format'
 import type { RankingData, RankingRow } from '../types'
 
 export type RankMetric = 'general' | 'ca' | 'presence' | 'propose' | 'conv' | 'react'
@@ -41,7 +41,7 @@ const METRICS: Record<BaseMetric, MetricDef> = {
   conv: {
     label: 'Taux de conversion',
     get: (r) => r.convPct,
-    fmt: (v) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`,
+    fmt: (v) => pct(v),
     dir: 'desc',
   },
   react: { label: 'Réactivité', get: (r) => r.reactSec, fmt: (v) => `${v} s`, dir: 'asc' },
