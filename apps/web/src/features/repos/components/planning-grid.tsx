@@ -418,7 +418,7 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                         value={cell.chatterIds}
                         options={data.chatterOptions}
                         nameById={data.chatterById}
-                        allowCustom
+                        allowCustom={c.encadrement}
                         customValue={cell.names}
                         searchPlaceholder="Rechercher un chatteur…"
                         customPlaceholder="Autre (manager, policier…)"

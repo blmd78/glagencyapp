@@ -1,11 +1,19 @@
 'use client'
 
 import { useMemo, useState, type ReactNode } from 'react'
-import { Plus } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import { cn } from '@/lib/utils'
 import type { EntityOption } from '../types'
 
 /** Tokens d'un texte libre (séparés par virgules/retours), vides filtrés. */
@@ -37,8 +45,9 @@ export interface EntityMultiSelectProps {
 }
 
 /**
- * Multi-select générique (modèles OU chatteurs) : popover avec recherche + coches, plus un champ
- * texte libre optionnel. Sauvegarde à la fermeture. Le rendu du déclencheur est délégué à l'appelant.
+ * Combobox MULTIPLE générique (modèles OU chatteurs) : Popover + Command (recherche + clavier),
+ * coches persistantes, plus un champ texte libre optionnel. Sauvegarde à la fermeture.
+ * Le rendu du déclencheur est délégué à l'appelant.
  */
 export function EntityMultiSelect({
   trigger,
@@ -52,7 +61,6 @@ export function EntityMultiSelect({
   onCommit,
 }: EntityMultiSelectProps) {
   const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<string[]>(value)
   const [customTokens, setCustomTokens] = useState<string[]>(() => tokensOf(customValue))
   const [custom, setCustom] = useState('')
@@ -66,9 +74,6 @@ export function EntityMultiSelect({
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [options, selected, nameById])
-
-  const needle = search.trim().toLowerCase()
-  const shown = needle ? allOptions.filter((o) => o.name.toLowerCase().includes(needle)) : allOptions
 
   const toggle = (id: string) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -85,7 +90,6 @@ export function EntityMultiSelect({
     if (next) {
       setSelected(value) // re-sync à l'ouverture (source = serveur)
       setCustomTokens(tokensOf(customValue))
-      setSearch('')
       setCustom('')
     } else {
       onCommit({ ids: selected, names: allowCustom ? customTokens.join(', ') : '' })
@@ -95,31 +99,31 @@ export function EntityMultiSelect({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent className="w-64 p-2" align="start">
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={searchPlaceholder}
-          className="mb-2 h-8 text-xs"
-        />
-        <div className="max-h-56 overflow-y-auto pr-1">
-          {shown.length === 0 && (
-            <p className="px-1 py-2 text-xs text-muted-foreground">Aucun résultat.</p>
-          )}
-          {shown.map((o) => (
-            <label
-              key={o.id}
-              className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-muted/60"
-            >
-              <Checkbox checked={selected.includes(o.id)} onCheckedChange={() => toggle(o.id)} />
-              <span className="truncate">{o.name}</span>
-            </label>
-          ))}
-        </div>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} />
+          <CommandList>
+            <CommandEmpty>Aucun résultat.</CommandEmpty>
+            <CommandGroup>
+              {allOptions.map((o) => (
+                <CommandItem key={o.id} value={o.name} onSelect={() => toggle(o.id)}>
+                  <Check
+                    className={cn(
+                      'size-4',
+                      selected.includes(o.id) ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  <span className="truncate">{o.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+
         {allowCustom && (
-          <>
+          <div className="border-t p-2">
             {customTokens.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1 border-t pt-2">
+              <div className="mb-2 flex flex-wrap gap-1">
                 {customTokens.map((t) => (
                   <button
                     key={t}
@@ -133,7 +137,7 @@ export function EntityMultiSelect({
                 ))}
               </div>
             )}
-            <div className="mt-2 flex items-center gap-1.5 border-t pt-2">
+            <div className="flex items-center gap-1.5">
               <Input
                 value={custom}
                 onChange={(e) => setCustom(e.target.value)}
@@ -146,11 +150,17 @@ export function EntityMultiSelect({
                 placeholder={customPlaceholder}
                 className="h-8 text-xs"
               />
-              <Button type="button" variant="outline" size="sm" className="h-8 px-2" onClick={addCustom}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 px-2"
+                onClick={addCustom}
+              >
                 <Plus className="size-3.5" />
               </Button>
             </div>
-          </>
+          </div>
         )}
       </PopoverContent>
     </Popover>

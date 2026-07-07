@@ -35,13 +35,7 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
   const currentMonday = mondayOf(new Date())
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : currentMonday
 
-  // Sélecteur : 4 semaines à venir (planification en avance) + courante + 8 passées.
-  // Ordre : future la plus proche en haut → passées en bas (offsets +4 … -8).
   const base = new Date(`${currentMonday}T00:00:00Z`).getTime()
-  const weeks: WeekChoice[] = Array.from({ length: 13 }, (_, i) => {
-    const start = iso(new Date(base + (4 - i) * 7 * DAY_MS))
-    return { start, label: weekLabel(start) }
-  })
 
   const [
     { data: cellRows },
@@ -49,6 +43,7 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
     { data: chatterRows },
     { data: creatorRows },
     { data: memberRows },
+    { data: dataWeekRows },
   ] = await Promise.all([
     supabase.from('rest_planning_cells').select('day, col, names, chatter_ids').eq('week_start', weekStart),
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
@@ -59,7 +54,18 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
       .select('col, effective_from, creator_ids')
       .lte('effective_from', weekStart)
       .order('effective_from', { ascending: true }),
+    // Semaines qui ont des données saisies (la « range ») — pour le sélecteur.
+    supabase.from('rest_planning_cells').select('week_start'),
   ])
+
+  // Sélecteur : semaines avec données (range) + semaine en cours + semaine +1. Future en haut.
+  const nextMonday = iso(new Date(base + 7 * DAY_MS))
+  const weekSet = new Set<string>([currentMonday, nextMonday])
+  for (const r of dataWeekRows ?? []) if (r.week_start) weekSet.add(r.week_start)
+  const weeks: WeekChoice[] = [...weekSet]
+    .sort()
+    .reverse()
+    .map((start) => ({ start, label: weekLabel(start) }))
 
   // Chatteurs (cellules) : id → nom (tous, inactifs inclus) + options actifs.
   const chatterById: Record<string, string> = {}
