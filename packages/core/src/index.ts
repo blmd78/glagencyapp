@@ -17,4 +17,21 @@ export type {
   InsightDraft,
   WeekTracking,
 } from './insights/quotas-hebdo'
-export { isoDate, addDays, mondayOf, frDayShort, weekLabel, round1, round2 } from './domain/dates'
+export {
+  isoDate,
+  addDays,
+  mondayOf,
+  frDayShort,
+  frDayMonthShort,
+  frDayLong,
+  frWeekdayShort,
+  frWeekdayLong,
+  frWeekdayDate,
+  frDateNumeric,
+  startOfMonth,
+  endOfMonth,
+  daysBetween,
+  weekLabel,
+  round1,
+  round2,
+} from './domain/dates'
