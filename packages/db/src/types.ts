@@ -263,6 +263,281 @@ export type Database = {
           },
         ]
       }
+      compta_day_entries: {
+        Row: {
+          bonus: number
+          chatter_id: string
+          date: string
+          handoffs: number
+          malus: number
+          note: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bonus?: number
+          chatter_id: string
+          date: string
+          handoffs?: number
+          malus?: number
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bonus?: number
+          chatter_id?: string
+          date?: string
+          handoffs?: number
+          malus?: number
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_day_entries_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_day_entries_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compta_debts: {
+        Row: {
+          amount: string
+          created_at: string
+          id: string
+          model: string | null
+          name: string
+          note: string | null
+          settled: boolean
+          settled_at: string | null
+        }
+        Insert: {
+          amount: string
+          created_at?: string
+          id?: string
+          model?: string | null
+          name: string
+          note?: string | null
+          settled?: boolean
+          settled_at?: string | null
+        }
+        Update: {
+          amount?: string
+          created_at?: string
+          id?: string
+          model?: string | null
+          name?: string
+          note?: string | null
+          settled?: boolean
+          settled_at?: string | null
+        }
+        Relationships: [
+
+        ]
+      }
+      compta_payments: {
+        Row: {
+          amount: number
+          chatter_id: string
+          covered_days: string[] | null
+          created_at: string
+          id: string
+          month: string
+          note: string | null
+          paid_at: string
+          paid_by: string | null
+        }
+        Insert: {
+          amount: number
+          chatter_id: string
+          covered_days?: string[] | null
+          created_at?: string
+          id?: string
+          month: string
+          note?: string | null
+          paid_at?: string
+          paid_by?: string | null
+        }
+        Update: {
+          amount?: number
+          chatter_id?: string
+          covered_days?: string[] | null
+          created_at?: string
+          id?: string
+          month?: string
+          note?: string | null
+          paid_at?: string
+          paid_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_payments_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_payments_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compta_primes: {
+        Row: {
+          amount: string
+          chatter_id: string
+          note: string | null
+          paid_at: string | null
+          status: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount?: string
+          chatter_id: string
+          note?: string | null
+          paid_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: string
+          chatter_id?: string
+          note?: string | null
+          paid_at?: string | null
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_primes_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_primes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compta_settings: {
+        Row: {
+          chatter_id: string
+          fixed_amount: number
+          is_setter: boolean
+          mode: string
+          rate: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          chatter_id: string
+          fixed_amount?: number
+          is_setter?: boolean
+          mode?: string
+          rate?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chatter_id?: string
+          fixed_amount?: number
+          is_setter?: boolean
+          mode?: string
+          rate?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_settings_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compta_week_entries: {
+        Row: {
+          bonus: number
+          chatter_id: string
+          fixe_setter: number
+          handoffs: number
+          malus: number
+          note: string | null
+          updated_at: string
+          updated_by: string | null
+          week_start: string
+        }
+        Insert: {
+          bonus?: number
+          chatter_id: string
+          fixe_setter?: number
+          handoffs?: number
+          malus?: number
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          week_start: string
+        }
+        Update: {
+          bonus?: number
+          chatter_id?: string
+          fixe_setter?: number
+          handoffs?: number
+          malus?: number
+          note?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_week_entries_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_week_entries_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creator_daily: {
         Row: {
           ca: number
@@ -575,6 +850,255 @@ export type Database = {
           },
         ]
       }
+      mkt_link_daily: {
+        Row: {
+          clicks: number
+          conversions: number
+          date: string
+          link_id: string
+          revenue_eur: number
+        }
+        Insert: {
+          clicks?: number
+          conversions?: number
+          date: string
+          link_id: string
+          revenue_eur?: number
+        }
+        Update: {
+          clicks?: number
+          conversions?: number
+          date?: string
+          link_id?: string
+          revenue_eur?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_link_daily_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_links: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_src: string
+          creator_id: string | null
+          cum_clicks: number
+          cum_conversions: number
+          cum_revenue_eur: number
+          id: string
+          last_seen: string | null
+          mypuls_creator_id: string | null
+          name: string
+          type: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_src?: string
+          creator_id?: string | null
+          cum_clicks?: number
+          cum_conversions?: number
+          cum_revenue_eur?: number
+          id?: string
+          last_seen?: string | null
+          mypuls_creator_id?: string | null
+          name: string
+          type?: string
+          url?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_src?: string
+          creator_id?: string | null
+          cum_clicks?: number
+          cum_conversions?: number
+          cum_revenue_eur?: number
+          id?: string
+          last_seen?: string | null
+          mypuls_creator_id?: string | null
+          name?: string
+          type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_links_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_social_accounts: {
+        Row: {
+          active: boolean
+          created_at: string
+          creator_id: string | null
+          handle: string
+          id: string
+          platform: string
+          staff_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          creator_id?: string | null
+          handle: string
+          id?: string
+          platform: string
+          staff_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          creator_id?: string | null
+          handle?: string
+          id?: string
+          platform?: string
+          staff_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_social_accounts_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_social_accounts_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_social_daily: {
+        Row: {
+          account_id: string
+          date: string
+          delta_followers: number | null
+          engagement_24h: number | null
+          followers: number | null
+          posts_24h: number | null
+          status: string | null
+          views_24h: number | null
+        }
+        Insert: {
+          account_id: string
+          date: string
+          delta_followers?: number | null
+          engagement_24h?: number | null
+          followers?: number | null
+          posts_24h?: number | null
+          status?: string | null
+          views_24h?: number | null
+        }
+        Update: {
+          account_id?: string
+          date?: string
+          delta_followers?: number | null
+          engagement_24h?: number | null
+          followers?: number | null
+          posts_24h?: number | null
+          status?: string | null
+          views_24h?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_social_daily_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_social_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_staff: {
+        Row: {
+          active: boolean
+          bonus_eur: number
+          color: string
+          created_at: string
+          fixed_eur: number
+          id: string
+          name: string
+          payment_method: string
+          pct: number
+          rate_ig: number
+          rate_tw: number
+          role: string
+        }
+        Insert: {
+          active?: boolean
+          bonus_eur?: number
+          color?: string
+          created_at?: string
+          fixed_eur?: number
+          id?: string
+          name: string
+          payment_method?: string
+          pct?: number
+          rate_ig?: number
+          rate_tw?: number
+          role?: string
+        }
+        Update: {
+          active?: boolean
+          bonus_eur?: number
+          color?: string
+          created_at?: string
+          fixed_eur?: number
+          id?: string
+          name?: string
+          payment_method?: string
+          pct?: number
+          rate_ig?: number
+          rate_tw?: number
+          role?: string
+        }
+        Relationships: []
+      }
+      mkt_staff_links: {
+        Row: {
+          link_id: string
+          staff_id: string
+        }
+        Insert: {
+          link_id: string
+          staff_id: string
+        }
+        Update: {
+          link_id?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_staff_links_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_staff_links_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -652,6 +1176,7 @@ export type Database = {
       }
       rest_planning_cells: {
         Row: {
+          chatter_ids: string[]
           col: string
           day: number
           names: string
@@ -660,6 +1185,7 @@ export type Database = {
           week_start: string
         }
         Insert: {
+          chatter_ids?: string[]
           col: string
           day: number
           names?: string
@@ -668,6 +1194,7 @@ export type Database = {
           week_start: string
         }
         Update: {
+          chatter_ids?: string[]
           col?: string
           day?: number
           names?: string
@@ -678,6 +1205,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "rest_planning_cells_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rest_planning_column_members: {
+        Row: {
+          col: string
+          creator_ids: string[]
+          effective_from: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          col: string
+          creator_ids?: string[]
+          effective_from: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          col?: string
+          creator_ids?: string[]
+          effective_from?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rest_planning_column_members_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
