@@ -13,7 +13,7 @@ import { PlanningGrid } from './components/planning-grid'
 import type { ReposData } from './types'
 
 /** Template Planning repos : sélecteur de semaine + grille éditable. Aucun fetch. */
-export function ReposTemplate({ data }: { data: ReposData }) {
+export function ReposTemplate({ data, isAdmin }: { data: ReposData; isAdmin: boolean }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -50,7 +50,7 @@ export function ReposTemplate({ data }: { data: ReposData }) {
       </div>
 
       <div className={pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'}>
-        <PlanningGrid key={data.weekStart} data={data} />
+        <PlanningGrid key={data.weekStart} data={data} isAdmin={isAdmin} />
       </div>
     </div>
   )
