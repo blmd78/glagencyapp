@@ -154,6 +154,7 @@ export function InsightsTemplate({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none" className="text-xs">— Aucun (cartes)</SelectItem>
+                <SelectItem value="general" className="text-xs">Général (5 critères)</SelectItem>
                 <SelectItem value="ca" className="text-xs">CA</SelectItem>
                 <SelectItem value="presence" className="text-xs">Présence</SelectItem>
                 <SelectItem value="propose" className="text-xs">Média proposé</SelectItem>
