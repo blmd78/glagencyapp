@@ -4,9 +4,9 @@ import { useMemo, useState, useTransition } from 'react'
 import { Check, Copy, Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { cn } from '@/lib/utils'
 import { saveReposCell, saveReposColumnMembers, setReposSent } from '../actions'
-import { EntityMultiSelect } from './entity-multiselect'
 import { JOURS, REPOS_COLUMNS, type ReposCell, type ReposData } from '../types'
 
 /** Tokens d'un texte libre (séparés par virgules), vides filtrés. */
@@ -20,6 +20,11 @@ const tokensOf = (s: string) =>
 const normName = (s: string) => s.toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '')
 
 const EMPTY_CELL: ReposCell = { chatterIds: [], names: '' }
+
+// Couleurs des chips (repos posé / sur-repos / modèle).
+const CHIP_GREEN = 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
+const CHIP_RED = 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+const CHIP_VIOLET = 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
 
 /**
  * Grille hebdo : 7 jours × colonnes de modèles. Cellule = chatteurs au repos (multi-select),
@@ -74,16 +79,29 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.cells, overrides])
 
-  /** Chips d'une cellule : chatteurs (IDs résolus) puis texte libre, avec drapeau sur-repos. */
+  /** Chips d'une cellule : chatteurs (IDs résolus) puis texte libre (legacy), avec drapeau sur-repos. */
   function cellChips(day: number, col: string) {
     const c = cellValue(day, col)
     const over = overByCol.get(col) ?? { ids: new Set<string>(), txt: new Set<string>() }
-    const chips: { key: string; label: string; over: boolean }[] = []
+    const chips: { key: string; label: string; over: boolean; id?: string; token?: string }[] = []
     for (const id of c.chatterIds)
-      chips.push({ key: id, label: data.chatterById[id] ?? '?', over: over.ids.has(id) })
+      chips.push({ key: id, label: data.chatterById[id] ?? '?', over: over.ids.has(id), id })
     for (const t of tokensOf(c.names))
-      chips.push({ key: `txt:${t}`, label: t, over: over.txt.has(normName(t)) })
+      chips.push({ key: `txt:${t}`, label: t, over: over.txt.has(normName(t)), token: t })
     return chips
+  }
+
+  /** Retrait direct d'un chip de cellule (croix) — id chatteur ou token texte legacy. */
+  function removeCellChip(day: number, col: string, chip: { id?: string; token?: string }) {
+    const cur = cellValue(day, col)
+    commitCell(day, col, {
+      ids: chip.id ? cur.chatterIds.filter((x) => x !== chip.id) : cur.chatterIds,
+      names: chip.token
+        ? tokensOf(cur.names)
+            .filter((t) => t !== chip.token)
+            .join(', ')
+        : cur.names,
+    })
   }
 
   function commitCell(day: number, col: string, next: { ids: string[]; names: string }) {
@@ -275,13 +293,10 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
     setTimeout(() => setCopied(false), 2000)
   }
 
-  /** Chips violets des modèles d'une colonne (header). */
-  const creatorChips = (creatorIds: string[]) =>
+  /** Chips violets STATIQUES des modèles d'une colonne (header non-admin). */
+  const creatorChipsStatic = (creatorIds: string[]) =>
     creatorIds.map((id) => (
-      <span
-        key={id}
-        className="rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-800 dark:bg-violet-950 dark:text-violet-300"
-      >
+      <span key={id} className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_VIOLET)}>
         {data.creatorById[id] ?? '?'}
       </span>
     ))
@@ -327,10 +342,11 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                     </th>
                   )
                 }
-                // Colonnes modèles : chips violets (+ crayon admin).
+                // Colonnes modèles : chips violets (affichage inchangé) — clic admin →
+                // combobox multiple (chips + croix + saisie dans le popover).
                 const chips = c.creatorIds.length ? (
                   <span className="flex flex-wrap items-center gap-1">
-                    {creatorChips(c.creatorIds)}
+                    {creatorChipsStatic(c.creatorIds)}
                   </span>
                 ) : (
                   <span className="text-xs text-muted-foreground">{c.label}</span>
@@ -338,7 +354,7 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                 return (
                   <th key={c.key} className={cn('px-2 pb-2 text-left', border)}>
                     {isAdmin ? (
-                      <EntityMultiSelect
+                      <ComboboxMultiple
                         trigger={
                           <button
                             type="button"
@@ -350,10 +366,11 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                           </button>
                         }
                         value={c.creatorIds}
-                        options={data.creatorOptions}
-                        nameById={data.creatorById}
-                        searchPlaceholder="Rechercher un modèle…"
-                        onCommit={({ ids }) => commitColumn(c.key, ids)}
+                        options={data.creatorOptions.map((o) => ({ value: o.id, label: o.name }))}
+                        labelById={data.creatorById}
+                        onChange={(ids) => commitColumn(c.key, ids)}
+                        chipClassName={CHIP_VIOLET}
+                        placeholder="Rechercher un modèle…"
                       />
                     ) : (
                       chips
@@ -370,11 +387,12 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                 {columns.map((c, i) => {
                   const border =
                     c.encadrement && columns[i - 1] && !columns[i - 1].encadrement && 'border-l'
-                  const chips = cellChips(day, c.key)
                   const cell = cellValue(day, c.key)
+                  const chips = cellChips(day, c.key)
+                  const over = overByCol.get(c.key) ?? { ids: new Set<string>(), txt: new Set<string>() }
                   return (
                     <td key={c.key} className={cn('p-1 align-top', border)}>
-                      <EntityMultiSelect
+                      <ComboboxMultiple
                         trigger={
                           <button
                             type="button"
@@ -397,9 +415,7 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                                     }
                                     className={cn(
                                       'rounded px-1.5 py-0.5 text-xs font-medium',
-                                      ch.over
-                                        ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-                                        : 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
+                                      ch.over ? CHIP_RED : CHIP_GREEN,
                                     )}
                                   >
                                     {ch.label}
@@ -416,13 +432,27 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                           </button>
                         }
                         value={cell.chatterIds}
-                        options={data.chatterOptions}
-                        nameById={data.chatterById}
-                        allowCustom={c.encadrement}
-                        customValue={cell.names}
-                        searchPlaceholder="Rechercher un chatteur…"
-                        customPlaceholder="Autre (manager, policier…)"
-                        onCommit={(next) => commitCell(day, c.key, next)}
+                        options={data.chatterOptions.map((o) => ({ value: o.id, label: o.name }))}
+                        labelById={data.chatterById}
+                        // Le combobox ne gère que les IDs — les noms texte legacy restent
+                        // intacts (chips retirables via leur croix dans le popover, cf. extraChips).
+                        onChange={(ids) => commitCell(day, c.key, { ids, names: cell.names })}
+                        chipClassName={(id) => (over.ids.has(id) ? CHIP_RED : CHIP_GREEN)}
+                        chipTitle={(id) =>
+                          over.ids.has(id)
+                            ? `${data.chatterById[id] ?? '?'} : plus de 2 repos cette semaine`
+                            : undefined
+                        }
+                        extraChips={tokensOf(cell.names).map((t) => ({
+                          key: `txt:${t}`,
+                          label: t,
+                          className: over.txt.has(normName(t)) ? CHIP_RED : CHIP_GREEN,
+                          title: over.txt.has(normName(t))
+                            ? `${t} : plus de 2 repos cette semaine`
+                            : undefined,
+                          onRemove: () => removeCellChip(day, c.key, { token: t }),
+                        }))}
+                        placeholder="Rechercher un chatteur…"
                       />
                     </td>
                   )
