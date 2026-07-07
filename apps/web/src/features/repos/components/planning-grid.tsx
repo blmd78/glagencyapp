@@ -158,8 +158,17 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
       columns.map((c) => wrap(cellChips(day, c.key).map((ch) => ch.label), COL_W - PAD * 2)),
     )
     const rowH = cellLines.map((cols) => Math.max(...cols.map((l) => l.length)) * LINE_H + PAD * 2)
+    // En-têtes : modèles = noms wrappés (chips violets) ; encadrement = libellé de rôle.
+    const headerLines = columns.map((c) =>
+      c.encadrement || !c.creatorIds.length
+        ? [c.label]
+        : wrap(
+            c.creatorIds.map((id) => data.creatorById[id] ?? '?'),
+            COL_W - PAD * 2,
+          ),
+    )
     const HEADER_H = 64
-    const THEAD_H = 34
+    const THEAD_H = Math.max(2, ...headerLines.map((l) => l.length)) * LINE_H + PAD * 2
     const COUNT_H = 34
     const height = HEADER_H + THEAD_H + rowH.reduce((a, b) => a + b, 0) + COUNT_H + 12
 
@@ -179,11 +188,26 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
     let y = HEADER_H
     ctx.fillStyle = '#f4f4f5'
     ctx.fillRect(0, y, width, THEAD_H)
-    ctx.fillStyle = '#374151'
-    ctx.font = font(11, 600)
-    ctx.fillText('JOUR', 16, y + 21)
+    // Fond violet clair sous les colonnes modèles (chips à l'écran).
     columns.forEach((c, i) => {
-      ctx.fillText(c.label.toUpperCase(), DAY_W + i * COL_W + PAD, y + 21)
+      if (!c.encadrement && c.creatorIds.length) {
+        ctx.fillStyle = '#ede9fe' // violet-100
+        ctx.fillRect(DAY_W + i * COL_W, y, COL_W, THEAD_H)
+      }
+    })
+    ctx.font = font(11, 600)
+    ctx.fillStyle = '#374151'
+    ctx.fillText('JOUR', 16, y + PAD + 9)
+    columns.forEach((c, i) => {
+      const isModel = !c.encadrement && c.creatorIds.length > 0
+      ctx.fillStyle = isModel ? '#6d28d9' : '#374151' // violet-700 / gris
+      headerLines[i].forEach((line, li) => {
+        ctx.fillText(
+          isModel ? line : line.toUpperCase(),
+          DAY_W + i * COL_W + PAD,
+          y + PAD + 9 + li * LINE_H,
+        )
+      })
     })
     y += THEAD_H
 
