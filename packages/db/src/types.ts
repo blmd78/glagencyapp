@@ -820,6 +820,60 @@ export type Database = {
         }
         Relationships: []
       }
+      police_entries: {
+        Row: {
+          id: string
+          chatter_id: string
+          controller_id: string | null
+          occurred_on: string
+          kind: string
+          error_key: string | null
+          amount_eur: number
+          note: string | null
+          shift: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          chatter_id: string
+          controller_id?: string | null
+          occurred_on?: string
+          kind: string
+          error_key?: string | null
+          amount_eur?: number
+          note?: string | null
+          shift?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          chatter_id?: string
+          controller_id?: string | null
+          occurred_on?: string
+          kind?: string
+          error_key?: string | null
+          amount_eur?: number
+          note?: string | null
+          shift?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "police_entries_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "police_entries_controller_id_fkey"
+            columns: ["controller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_creators: {
         Row: {
           creator_id: string
