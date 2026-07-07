@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { Badge } from '@/components/ui/badge'
 import {
   Collapsible,
@@ -127,17 +128,16 @@ export function InsightsTemplate({
             </Button>
           ))}
           <div className="ml-auto flex items-center gap-2">
-            <Select value={modelFilter} onValueChange={setModelFilter}>
-              <SelectTrigger className="h-8 w-44 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs">Tous les modèles</SelectItem>
-                {modelOptions.map((n) => (
-                  <SelectItem key={n} value={n} className="text-xs">{n}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={modelFilter}
+              onChange={setModelFilter}
+              className="h-8 w-44 text-xs"
+              searchPlaceholder="Rechercher un modèle…"
+              options={[
+                { value: 'all', label: 'Tous les modèles' },
+                ...modelOptions.map((n) => ({ value: n, label: n })),
+              ]}
+            />
             <Select
               value={severityFilter}
               onValueChange={(v) => setSeverityFilter(v as typeof severityFilter)}

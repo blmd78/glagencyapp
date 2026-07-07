@@ -10,13 +10,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { ChartContainer, ChartTooltip, type ChartConfig } from '@/components/ui/chart'
 import { modelColor, modelHexColor } from '@/lib/model-color'
 import { num } from '@/lib/format'
@@ -131,21 +125,16 @@ export function SubsChart({ data }: { data: StatsData }) {
           <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
             {num(totals.renouv)} renouv.
           </Badge>
-          <Select value={model} onValueChange={setModel}>
-            <SelectTrigger className="h-8 w-44 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">
-                Tous les modèles
-              </SelectItem>
-              {data.models.map((m) => (
-                <SelectItem key={m.name} value={m.name} className="text-xs">
-                  {m.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Combobox
+            value={model}
+            onChange={setModel}
+            className="h-8 w-44 text-xs"
+            searchPlaceholder="Rechercher un modèle…"
+            options={[
+              { value: 'all', label: 'Tous les modèles' },
+              ...data.models.map((m) => ({ value: m.name, label: m.name })),
+            ]}
+          />
         </div>
         {/* Légende : identité fixe par modèle — ou les deux mesures quand un modèle est filtré. */}
         <div className="flex flex-wrap items-center gap-1 pt-1">
