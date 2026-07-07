@@ -6,7 +6,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
+import { getProfile, type Profile } from '@/lib/auth'
+import { getChatterScope } from '@/lib/scope'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
 type Result = { success: true } | { success: false; error: string }
@@ -19,11 +20,19 @@ async function requirePolice() {
   return profile
 }
 
+/** Garde périmètre : un non-admin ne peut agir que sur les chatteurs de SES modèles. */
+async function chatterInScope(profile: Profile, chatterId: string): Promise<boolean> {
+  const scope = await getChatterScope(profile)
+  return scope.chatterIds === null || scope.chatterIds.has(chatterId)
+}
+
 export async function addPoliceWarning(raw: unknown): Promise<Result> {
   const profile = await requirePolice()
   if (!profile) return { success: false, error: 'Accès refusé' }
   const p = warningInput.safeParse(raw)
   if (!p.success) return { success: false, error: 'Saisie invalide' }
+  if (!(await chatterInScope(profile, p.data.chatterId)))
+    return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
 
   const supabase = await createClient()
   const { error } = await supabase.from('police_entries').insert({
@@ -45,6 +54,8 @@ export async function addPoliceMalus(raw: unknown): Promise<Result> {
   if (!profile) return { success: false, error: 'Accès refusé' }
   const p = malusInput.safeParse(raw)
   if (!p.success) return { success: false, error: 'Saisie invalide' }
+  if (!(await chatterInScope(profile, p.data.chatterId)))
+    return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
 
   const supabase = await createClient()
   const { error } = await supabase.from('police_entries').insert({
@@ -69,6 +80,16 @@ export async function updatePoliceMalus(raw: unknown): Promise<Result> {
   if (!p.success) return { success: false, error: 'Saisie invalide' }
 
   const supabase = await createClient()
+  // Garde périmètre : un non-admin ne peut pas éditer le malus d'une autre équipe par id.
+  if (profile.role !== 'admin') {
+    const { data: entry } = await supabase
+      .from('police_entries')
+      .select('chatter_id')
+      .eq('id', p.data.id)
+      .maybeSingle()
+    if (!entry || !(await chatterInScope(profile, entry.chatter_id)))
+      return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
+  }
   const { error } = await supabase
     .from('police_entries')
     .update({ amount_eur: p.data.amountEur, note: p.data.note ?? null })

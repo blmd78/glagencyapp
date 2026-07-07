@@ -1,6 +1,8 @@
 import { addDays, frWeekdayLong, isoDate } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
+import { getChatterScope } from '@/lib/scope'
+import type { Profile } from '@/lib/auth'
 import { POLICE_ERRORS, type PoliceData, type PoliceEntry } from '../types'
 
 const ERROR_LABEL: Record<string, string> = Object.fromEntries(
@@ -9,10 +11,13 @@ const ERROR_LABEL: Record<string, string> = Object.fromEntries(
 
 /**
  * Journal « Police » d'un jour (YYYY-MM-DD, défaut = aujourd'hui).
- * RLS : admin ou page `police`. Noms/listes résolus via client admin (agence-wide, comme repos).
+ * RLS : admin ou page `police`. Noms résolus via client admin ; pour un non-admin, options,
+ * journal, KPIs et compteur d'avertissements sont CLOISONNÉS à ses chatteurs (lib/scope).
  */
-export async function getPolice(day?: string | null): Promise<PoliceData> {
+export async function getPolice(day: string | null | undefined, profile: Profile): Promise<PoliceData> {
   const supabase = await createClient()
+  const scope = await getChatterScope(profile)
+  const inScope = (id: string) => scope.chatterIds === null || scope.chatterIds.has(id)
   const admin = createAdminClient()
 
   const today = isoDate(new Date())
@@ -42,15 +47,16 @@ export async function getPolice(day?: string | null): Promise<PoliceData> {
   for (const p of profileRows ?? []) if (p.id && p.display_name) controllerName[p.id] = p.display_name
 
   const chatterOptions = (chatterRows ?? [])
-    .filter((c) => c.active && c.display_name)
+    .filter((c) => c.active && c.display_name && inScope(c.id))
     .map((c) => ({ id: c.id, name: c.display_name as string }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   const warningsByChatter: Record<string, number> = {}
   for (const w of recentWarns ?? [])
-    warningsByChatter[w.chatter_id] = (warningsByChatter[w.chatter_id] ?? 0) + 1
+    if (inScope(w.chatter_id))
+      warningsByChatter[w.chatter_id] = (warningsByChatter[w.chatter_id] ?? 0) + 1
 
-  const entries: PoliceEntry[] = (rows ?? []).map((r) => ({
+  const entries: PoliceEntry[] = (rows ?? []).filter((r) => inScope(r.chatter_id)).map((r) => ({
     id: r.id,
     chatterId: r.chatter_id,
     chatterName: chatterName[r.chatter_id] ?? '?',

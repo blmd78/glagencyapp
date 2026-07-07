@@ -10,6 +10,6 @@ export default async function ReposPage({
 }) {
   const profile = await requireAccess('repos')
   const { week } = await searchParams
-  const data = await getRepos(week ?? null)
+  const data = await getRepos(week ?? null, profile)
   return <ReposTemplate data={data} isAdmin={profile.role === 'admin'} />
 }

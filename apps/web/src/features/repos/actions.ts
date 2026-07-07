@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
+import { getChatterScope } from '@/lib/scope'
 
 type Result = { success: true } | { success: false; error: string }
 
@@ -31,9 +32,30 @@ export async function saveReposCell(raw: unknown): Promise<Result> {
   if (!profile) return { success: false, error: 'Accès refusé' }
   const parsed = cellInput.safeParse(raw)
   if (!parsed.success) return { success: false, error: 'Saisie invalide' }
-  const { weekStart, day, col, chatterIds, names } = parsed.data
+  const { weekStart, day, col } = parsed.data
+  let { chatterIds, names } = parsed.data
 
   const supabase = await createClient()
+
+  // Non-admin : sa vue est cloisonnée à ses chatteurs (cf. get-repos) → MERGE non destructif.
+  // On rejette tout id soumis hors scope, on préserve les ids hors scope existants et le texte
+  // legacy (invisible pour lui) — sinon il écraserait des repos qu'il ne voit pas.
+  const scope = await getChatterScope(profile)
+  if (scope.chatterIds !== null) {
+    if (chatterIds.some((id) => !scope.chatterIds!.has(id)))
+      return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
+    const { data: existing } = await supabase
+      .from('rest_planning_cells')
+      .select('chatter_ids, names')
+      .eq('week_start', weekStart)
+      .eq('day', day)
+      .eq('col', col)
+      .maybeSingle()
+    const hidden = (existing?.chatter_ids ?? []).filter((id) => !scope.chatterIds!.has(id))
+    chatterIds = [...hidden, ...chatterIds]
+    names = existing?.names ?? ''
+  }
+
   const { error } = await supabase.from('rest_planning_cells').upsert(
     {
       week_start: weekStart,

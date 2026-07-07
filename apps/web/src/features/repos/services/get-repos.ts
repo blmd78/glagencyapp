@@ -1,6 +1,8 @@
 import { addDays, frDayShort, isoDate, mondayOf } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
+import { getChatterScope } from '@/lib/scope'
+import type { Profile } from '@/lib/auth'
 import { REPOS_COLUMNS, type ReposCell, type ReposData, type WeekChoice } from '../types'
 
 /** Libellé spécifique repos « Lundi 06/07 au Dimanche 12/07 » (dates via @glagency/core, UTC-safe). */
@@ -11,9 +13,12 @@ function weekLabel(start: string): string {
 /**
  * Planning des repos d'une semaine (lundi YYYY-MM-DD) — semaine courante par défaut.
  * RLS : admin ou page `repos` accordée (sous-managers) ; sinon 0 ligne.
+ * Non-admin : vue et options CLOISONNÉES aux chatteurs/modèles assignés au manager
+ * (cf. lib/scope + spec scope-chatteurs-manager) ; le serveur préserve le hors-scope à l'écriture.
  */
-export async function getRepos(week?: string | null): Promise<ReposData> {
+export async function getRepos(week: string | null | undefined, profile: Profile): Promise<ReposData> {
   const supabase = await createClient()
+  const scope = await getChatterScope(profile)
   // Résolution des NOMS + listes (modèles/chatteurs) via le client admin : la page repos est un
   // outil opérationnel agence-wide (tous les modèles/chatteurs doivent être lisibles), alors que
   // le RLS de creators/chatters cloisonne par modèle assigné. L'accès à la page est déjà garanti
@@ -74,20 +79,31 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
   for (const m of memberRows ?? []) memberByCol[m.col] = m.creator_ids ?? []
 
   // Colonnes résolues : label = noms des modèles (join) sinon défaut du code.
+  // Non-admin : seules les colonnes modèles recoupant SES modèles (l'encadrement reste).
   const columns = REPOS_COLUMNS.map((c) => {
     const creatorIds = memberByCol[c.key] ?? []
     const label = creatorIds.length
       ? creatorIds.map((id) => creatorById[id] ?? '?').join(' + ')
       : c.label
     return { key: c.key, label, encadrement: c.encadrement, creatorIds }
-  })
+  }).filter(
+    (c) =>
+      scope.creatorIds === null ||
+      c.encadrement ||
+      c.creatorIds.some((id) => scope.creatorIds!.has(id)),
+  )
 
-  // Cellules { chatterIds, names }.
+  // Cellules { chatterIds, names } — non-admin : IDs ∩ scope, texte legacy masqué
+  // (le hors-scope est préservé côté serveur à l'écriture, cf. saveReposCell).
   const cells: Record<number, Record<string, ReposCell>> = {}
   for (const r of cellRows ?? []) {
+    const ids: string[] = r.chatter_ids ?? []
     cells[r.day] = {
       ...(cells[r.day] ?? {}),
-      [r.col]: { chatterIds: r.chatter_ids ?? [], names: r.names ?? '' },
+      [r.col]: {
+        chatterIds: scope.chatterIds === null ? ids : ids.filter((id) => scope.chatterIds!.has(id)),
+        names: scope.chatterIds === null ? (r.names ?? '') : '',
+      },
     }
   }
 
@@ -99,7 +115,10 @@ export async function getRepos(week?: string | null): Promise<ReposData> {
     creatorById,
     creatorOptions,
     chatterById,
-    chatterOptions,
+    chatterOptions:
+      scope.chatterIds === null
+        ? chatterOptions
+        : chatterOptions.filter((o) => scope.chatterIds!.has(o.id)),
     sentTelegram: weekRow?.sent_telegram ?? false,
     weeks,
   }

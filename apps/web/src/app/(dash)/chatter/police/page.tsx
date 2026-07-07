@@ -10,6 +10,6 @@ export default async function PolicePage({
 }) {
   const profile = await requireAccess('police')
   const { day } = await searchParams
-  const data = await getPolice(day ?? null)
+  const data = await getPolice(day ?? null, profile)
   return <PoliceTemplate data={data} isAdmin={profile.role === 'admin'} />
 }
