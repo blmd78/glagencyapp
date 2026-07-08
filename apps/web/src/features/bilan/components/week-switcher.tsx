@@ -63,7 +63,9 @@ export function WeekSwitcher({
             <LoadingDots />
           </div>
         )}
-        <div className={pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'}>
+        <div
+          className={`flex flex-col gap-6 ${pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'}`}
+        >
           {children}
         </div>
       </div>

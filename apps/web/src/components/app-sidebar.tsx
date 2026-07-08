@@ -60,7 +60,11 @@ export function AppSidebar({
               return (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton asChild isActive={isActive} tooltip={item.label}>
-                    <Link href={withPeriod(item.href, searchParams)}>
+                    {/* prefetch=false : sans ça, Next pré-charge en RSC TOUS les liens
+                        visibles de la sidebar d'un coup (~12 routes × 2 → rafale
+                        d'invocations concurrentes sur le même isolate 128 Mo → Error 1102
+                        « exceededResources »). On charge la page seulement au clic. */}
+                    <Link href={withPeriod(item.href, searchParams)} prefetch={false}>
                       <Icon />
                       <span>{item.label}</span>
                     </Link>
