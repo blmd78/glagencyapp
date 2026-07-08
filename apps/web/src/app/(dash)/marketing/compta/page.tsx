@@ -8,7 +8,7 @@ export default async function MktStaffPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  await requireAccess('mkt-compta')
+  const profile = await requireAccess('mkt-compta')
   const period = resolvePeriod(await searchParams)
-  return <MktStaffTemplate data={await getMktStaff(period)} />
+  return <MktStaffTemplate data={await getMktStaff(period)} isAdmin={profile.role === 'admin'} />
 }
