@@ -1,14 +1,13 @@
-import { getMktStaff } from '@/features/marketing/services/get-staff'
-import { MktStaffTemplate } from '@/features/marketing/StaffTemplate'
 import { requireAccess } from '@/lib/auth'
-import { resolvePeriod } from '@/lib/period'
 
-export default async function MktStaffPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string; to?: string }>
-}) {
-  const profile = await requireAccess('mkt-compta')
-  const period = resolvePeriod(await searchParams)
-  return <MktStaffTemplate data={await getMktStaff(period)} isAdmin={profile.role === 'admin'} />
+// TODO — compta marketing : la vraie page (paie du staff) part avec le wagon compta
+// chatteurs. Même placeholder que /chatter/compta en attendant.
+export default async function MktComptaPage() {
+  await requireAccess('mkt-compta')
+  return (
+    <section className="space-y-2">
+      <h1 className="text-xl font-semibold">Compta</h1>
+      <p className="text-sm text-muted-foreground">TODO — feature « compta »</p>
+    </section>
+  )
 }
