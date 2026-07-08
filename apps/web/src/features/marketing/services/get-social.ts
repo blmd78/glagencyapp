@@ -9,7 +9,7 @@ import type { MktSocialData, MktSocialRow } from '../types'
  * vues/engagement = somme des fenêtres 24 h de la période.
  */
 export async function getMktSocial(
-  platform: 'instagram' | 'twitter',
+  platform: 'instagram' | 'twitter' | 'telegram',
   period: Period,
 ): Promise<MktSocialData> {
   const supabase = await createClient()

@@ -16,11 +16,11 @@ compatibility_flags = ["nodejs_compat"]
 # partiel. À 23h05 UTC, la date UTC = la journée Paris qui vient de finir (été comme
 # hiver) → le rattrapage « dernier jour connu → aujourd'hui(UTC) » la capture bien.
 # Idempotent (upsert). ⚠️ Aligné avec MONITOR_CONFIG dans src/worker.ts — modifier les 2.
-# 23h20 UTC : pipeline MARKETING liens de tracking · 23h35 UTC : pipeline MARKETING
-# comptes Instagram (Apify) — invocations séparées du run chatteurs pour rester sous
-# les 50 sous-requêtes/invocation du plan Free.
+# 23h20 UTC : liens de tracking · 23h35 : comptes Instagram (Apify) · 23h50 : canaux
+# Telegram (t.me/s) — invocations séparées du run chatteurs pour rester sous les
+# 50 sous-requêtes/invocation du plan Free.
 [triggers]
-crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *"]
+crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *"]
 
 # Workers Logs (gratuit en Free : 200k événements/jour partagés par compte, rétention
 # 3 jours, recherche dans le dashboard). L'historique durable des runs = table ingest_runs.

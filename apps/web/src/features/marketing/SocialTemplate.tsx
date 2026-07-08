@@ -13,7 +13,6 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import { num } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
 import { LinksCard } from './components/links-card'
-import { AddAccountDialog, SocialEntryDialog } from './components/social-entry-dialog'
 import type { MktLinkRow, MktSocialData, MktSocialRow } from './types'
 
 const signed = (v: number | null) =>
@@ -24,7 +23,9 @@ function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<
     {
       id: 'handle',
       accessorKey: 'handle',
-      header: ({ column }) => <Sortable column={column} label="Compte" />,
+      header: ({ column }) => (
+        <Sortable column={column} label={platform === 'telegram' ? 'Canal' : 'Compte'} />
+      ),
       cell: ({ getValue }) => <span className="font-medium">@{getValue() as string}</span>,
     },
     {
@@ -46,7 +47,13 @@ function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<
     },
     {
       accessorKey: 'followers',
-      header: ({ column }) => <Sortable column={column} label="Followers" className="justify-end" />,
+      header: ({ column }) => (
+        <Sortable
+          column={column}
+          label={platform === 'telegram' ? 'Membres' : 'Followers'}
+          className="justify-end"
+        />
+      ),
       cell: ({ getValue }) => {
         const v = getValue() as number | null
         return <span className="font-medium tabular-nums">{v != null ? num(v) : '—'}</span>
@@ -108,8 +115,12 @@ function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<
 }
 
 export function MktSocialTemplate({ data, links }: { data: MktSocialData; links: MktLinkRow[] }) {
-  const title = data.platform === 'instagram' ? 'Instagram' : 'Twitter / X'
+  const title =
+    data.platform === 'instagram' ? 'Instagram' : data.platform === 'twitter' ? 'Twitter / X' : 'Telegram'
   const ig = data.platform === 'instagram'
+  const tg = data.platform === 'telegram'
+  const person = tg ? 'Membres' : 'Followers'
+  const unit = tg ? 'canaux' : 'comptes'
   const [tab, setTab] = useState<'comptes' | 'liens'>('comptes')
   const active = data.accounts.filter((a) => a.active)
   const ok = active.filter((a) => a.status === 'ok').length
@@ -120,9 +131,9 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
     {
       ...base,
       key: 'followers',
-      label: 'Followers cumulés',
+      label: `${person} cumulés`,
       value: num(data.totals.followers),
-      hint: 'somme du dernier relevé de chaque compte',
+      hint: `somme du dernier relevé de chaque ${tg ? 'canal' : 'compte'}`,
       info: ig
         ? 'Photo quotidienne prise par le scrape Apify de chaque nuit (23h35).'
         : 'Dernier relevé saisi par l’équipe (bouton « Saisie du jour »).',
@@ -130,7 +141,7 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
     {
       ...base,
       key: 'delta',
-      label: 'Followers gagnés',
+      label: `${person} gagnés`,
       value: signed(deltaFollowers),
       hint: 'sur la période affichée',
       info: 'Somme des variations de followers de chaque compte entre son premier et son dernier relevé de la période.',
@@ -148,7 +159,7 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
     {
       ...base,
       key: 'accounts',
-      label: 'Comptes sains',
+      label: tg ? 'Canaux sains' : 'Comptes sains',
       value: `${ok} / ${active.length}`,
       hint: 'statut ok au dernier relevé',
       info: 'Comptes actifs dont le dernier relevé est « ok » — les autres sont privés, introuvables (bannis/renommés) ou sans relevé.',
@@ -160,18 +171,12 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
           <p className="text-sm text-muted-foreground">
-            {data.period} · {data.accounts.length} comptes · {num(data.totals.followers)} followers
-            cumulés
+            {data.period} · {data.accounts.length} {unit} · {num(data.totals.followers)}{' '}
+            {person.toLowerCase()} cumulés
           </p>
         </div>
-        {/* Instagram : collecte automatique (Apify) → pas de saisie manuelle ; Twitter :
-            la saisie de l'équipe reste la seule source de données. */}
-        {!ig && (
-          <div className="ml-auto flex gap-2">
-            <AddAccountDialog platform={data.platform} />
-            <SocialEntryDialog platform={data.platform} accounts={data.accounts} />
-          </div>
-        )}
+        {/* Aucune saisie manuelle : Instagram et Telegram sont collectés automatiquement,
+            Twitter attend son automate (décision Benoît : pas de mode manuel). */}
       </div>
 
       <KpiGrid kpis={kpis} />
@@ -180,8 +185,8 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
           s'arrêtent au dernier jour du flux Discord legacy. */}
       {data.lastDate && data.lastDate < new Date().toISOString().slice(0, 10) && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-          Dernier relevé : {frDateNumeric(data.lastDate)} — la
-          collecte quotidienne sera branchée ({data.platform === 'instagram' ? 'Apify' : 'API X'}).
+          Dernier relevé : {frDateNumeric(data.lastDate)} —{' '}
+          {ig ? 'la collecte Apify tourne chaque nuit.' : 'pense à la saisie du jour.'}
         </p>
       )}
 
@@ -189,7 +194,7 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
       <Tabs value={tab} onValueChange={(v) => setTab(v as 'comptes' | 'liens')}>
         <TabsList>
           <TabsTrigger value="comptes">
-            Comptes
+            {tg ? 'Canaux' : 'Comptes'}
             <span className="ml-1.5 tabular-nums opacity-60">{data.accounts.length}</span>
           </TabsTrigger>
           <TabsTrigger value="liens">
@@ -208,7 +213,7 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
           initialSorting={[{ id: 'followers', desc: true }]}
           pageSize={15}
           getRowId={(a) => a.id}
-          countLabel={(n) => `${n} compte(s)`}
+          countLabel={(n) => (tg ? `${n} canal/aux` : `${n} compte(s)`)}
         />
       ) : (
         <LinksCard links={links} period={data.period} />

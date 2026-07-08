@@ -1,9 +1,12 @@
+import { getMktSocial } from '@/features/marketing/services/get-social'
 import { getLinkRows } from '@/features/marketing/services/get-links'
-import { LinksCard } from '@/features/marketing/components/links-card'
+import { MktSocialTemplate } from '@/features/marketing/SocialTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 
-// Canal Telegram : uniquement des liens de tracking (pas de comptes sociaux suivis).
+// Canal Telegram — même DA que Instagram/Twitter : KPIs, onglets Canaux/Liens.
+// Les canaux s'ajoutent via « + Compte » (saisie manuelle des membres/vues en
+// attendant l'automate t.me / bot officiel).
 export default async function MktTelegramPage({
   searchParams,
 }: {
@@ -11,14 +14,6 @@ export default async function MktTelegramPage({
 }) {
   await requireAccess('mkt-telegram')
   const period = resolvePeriod(await searchParams)
-  const links = (await getLinkRows(period)).filter((l) => l.type === 'telegram')
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Telegram</h1>
-        <p className="text-sm text-muted-foreground">{period.label} · funnel Telegram</p>
-      </div>
-      <LinksCard links={links} period={period.label} />
-    </div>
-  )
+  const [data, links] = await Promise.all([getMktSocial('telegram', period), getLinkRows(period)])
+  return <MktSocialTemplate data={data} links={links.filter((l) => l.type === 'telegram')} />
 }

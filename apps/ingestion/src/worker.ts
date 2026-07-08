@@ -5,6 +5,7 @@ import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
 import { recordRun, type IngestTrigger } from './record-run'
 import { runMarketing } from './marketing'
 import { runMarketingSocial } from './marketing-social'
+import { runMarketingTelegram } from './marketing-telegram'
 import { generateWeeklyInsights } from './insights'
 import { createAdminClient } from '@glagency/db'
 
@@ -46,6 +47,7 @@ const DEPS = { fetchMoneyTeam: fetchMoneyTeamDayHR, maxCatchup: 3 }
 const MONITOR_SLUG = 'ingestion-mypuls-nightly'
 const MONITOR_MKT_SLUG = 'ingestion-marketing-nightly'
 const MONITOR_SOCIAL_SLUG = 'ingestion-marketing-social-nightly'
+const MONITOR_TG_SLUG = 'ingestion-marketing-telegram-nightly'
 const MONITOR_CONFIG = {
   schedule: { type: 'crontab', value: '5 23 * * *' },
   timezone: 'Etc/UTC',
@@ -57,7 +59,7 @@ const MONITOR_CONFIG = {
 
 /** Run marketing (liens ou social) + log + trace ingest_runs + warning Sentry si dégradé. */
 async function runJobAndLog<T extends { status: string; warnings: string[] }>(
-  job: 'marketing' | 'marketing-social',
+  job: 'marketing' | 'marketing-social' | 'marketing-telegram',
   run: () => Promise<T>,
   triggeredBy: IngestTrigger,
 ): Promise<T> {
@@ -158,6 +160,16 @@ const handler = {
       )
       return
     }
+    // 23h50 UTC = canaux Telegram (pages publiques t.me/s — no-op tant qu'aucun canal
+    // n'est déclaré dans mkt_social_accounts).
+    if (controller.cron === '50 23 * * *') {
+      await Sentry.withMonitor(
+        MONITOR_TG_SLUG,
+        () => runJobAndLog('marketing-telegram', runMarketingTelegram, 'cron'),
+        { ...MONITOR_CONFIG, schedule: { type: 'crontab', value: '50 23 * * *' } },
+      )
+      return
+    }
     // Awaité (pas de waitUntil) : un crash marque l'invocation cron en échec côté
     // Cloudflare, est capturé par withSentry, et passe le check-in du monitor en error.
     try {
@@ -197,6 +209,16 @@ const handler = {
     bindEnv(env)
     // `?day=YYYY-MM-DD` : rejoue un jour précis (idempotent) — pour tester/backfill sans
     // déclencher le rattrapage jusqu'à aujourd'hui (qui écrirait un jour partiel).
+    // `?job=telegram` : déclenche le scrape des canaux Telegram seul (idempotent).
+    if (url.searchParams.get('job') === 'telegram') {
+      try {
+        const summary = await runJobAndLog('marketing-telegram', runMarketingTelegram, 'http')
+        return Response.json(summary)
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec telegram : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
     // `?job=social` : déclenche le scrape Instagram seul (idempotent).
     if (url.searchParams.get('job') === 'social') {
       try {
