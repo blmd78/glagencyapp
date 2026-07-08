@@ -1047,6 +1047,7 @@ export type Database = {
           posts_24h: number | null
           status: string | null
           views_24h: number | null
+          views_total: number | null
         }
         Insert: {
           account_id: string
@@ -1057,6 +1058,7 @@ export type Database = {
           posts_24h?: number | null
           status?: string | null
           views_24h?: number | null
+          views_total?: number | null
         }
         Update: {
           account_id?: string
@@ -1067,6 +1069,7 @@ export type Database = {
           posts_24h?: number | null
           status?: string | null
           views_24h?: number | null
+          views_total?: number | null
         }
         Relationships: [
           {

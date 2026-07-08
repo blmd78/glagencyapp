@@ -3,8 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -17,6 +16,7 @@ import { Sortable } from '@/components/data-table/sortable'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num } from '@/lib/format'
+import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from './actions'
 import { typeBadge } from './components/type-badge'
 import type { MktLinkRow, MktLinksData } from './types'
@@ -165,31 +165,62 @@ export function MktLiensTemplate({ data }: { data: MktLinksData }) {
   const countOf = (t: TypeTab) =>
     t === 'all' ? data.links.length : data.links.filter((l) => l.type === t).length
 
+  const base = { deltaPct: null, trendLabel: '' }
+  const kpis = [
+    {
+      ...base,
+      key: 'rev',
+      label: 'Revenus',
+      value: eur(totals.revenueEur),
+      hint: tab === 'all' ? 'tous canaux' : `canal ${TABS.find((t) => t.key === tab)?.label}`,
+      info: 'Somme des revenus quotidiens des liens affichés (onglet courant) sur la période — source MyPuls.',
+    },
+    {
+      ...base,
+      key: 'conv',
+      label: 'Abonnés (conv.)',
+      value: num(totals.conversions),
+      hint: 'clics devenus abonnés',
+      info: 'Somme des conversions des liens affichés — la colonne « Abonnés (Conv.) » de MyPuls.',
+    },
+    {
+      ...base,
+      key: 'clicks',
+      label: 'Clics',
+      value: num(totals.clicks),
+      hint: 'sur la période',
+      info: 'Somme des clics quotidiens des liens affichés (source MyPuls).',
+    },
+    {
+      ...base,
+      key: 'taux',
+      label: 'Taux de conversion',
+      value: totals.clicks > 0 ? `${(Math.round((totals.conversions / totals.clicks) * 1000) / 10).toLocaleString('fr-FR')} %` : '—',
+      hint: 'abonnés ÷ clics',
+      info: 'Conversions ÷ clics des liens affichés — calculé chez nous.',
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Liens de tracking</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.period} · {num(totals.clicks)} clics · {num(totals.conversions)} subs ·{' '}
-          {eur(totals.revenueEur)}
-        </p>
+        <p className="text-sm text-muted-foreground">{data.period}</p>
       </div>
 
+      <KpiGrid kpis={kpis} />
+
       {/* Onglets par type de lien (mêmes familles que la page legacy). */}
-      <div className="flex flex-wrap gap-1.5">
-        {TABS.map((t) => (
-          <Button
-            key={t.key}
-            variant={tab === t.key ? 'default' : 'outline'}
-            size="sm"
-            className={cn('h-8', tab !== t.key && 'text-muted-foreground')}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            <span className="ml-1 tabular-nums opacity-60">{countOf(t.key)}</span>
-          </Button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TypeTab)}>
+        <TabsList>
+          {TABS.map((t) => (
+            <TabsTrigger key={t.key} value={t.key}>
+              {t.label}
+              <span className="ml-1.5 tabular-nums opacity-60">{countOf(t.key)}</span>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
       <DataTable
         key={tab}

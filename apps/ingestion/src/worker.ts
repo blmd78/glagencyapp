@@ -4,6 +4,7 @@ import { runPipeline } from './pipeline'
 import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
 import { recordRun, type IngestTrigger } from './record-run'
 import { runMarketing } from './marketing'
+import { runMarketingSocial } from './marketing-social'
 import { generateWeeklyInsights } from './insights'
 import { createAdminClient } from '@glagency/db'
 
@@ -44,6 +45,7 @@ const DEPS = { fetchMoneyTeam: fetchMoneyTeamDayHR, maxCatchup: 3 }
 // Détecte un cron manqué (missed check-in) — invisible pour toute alerte interne.
 const MONITOR_SLUG = 'ingestion-mypuls-nightly'
 const MONITOR_MKT_SLUG = 'ingestion-marketing-nightly'
+const MONITOR_SOCIAL_SLUG = 'ingestion-marketing-social-nightly'
 const MONITOR_CONFIG = {
   schedule: { type: 'crontab', value: '5 23 * * *' },
   timezone: 'Etc/UTC',
@@ -52,6 +54,30 @@ const MONITOR_CONFIG = {
   failureIssueThreshold: 1,
   recoveryThreshold: 1,
 } as const
+
+/** Run marketing (liens ou social) + log + trace ingest_runs + warning Sentry si dégradé. */
+async function runJobAndLog<T extends { status: string; warnings: string[] }>(
+  job: 'marketing' | 'marketing-social',
+  run: () => Promise<T>,
+  triggeredBy: IngestTrigger,
+): Promise<T> {
+  const startedAt = new Date()
+  try {
+    const summary = await run()
+    console.log(`[${job}] ${summary.status.toUpperCase()} (${triggeredBy})`, JSON.stringify(summary))
+    if (summary.status === 'degraded') {
+      Sentry.captureMessage(`[${job}] run dégradé : ${summary.warnings.join(' | ')}`, 'warning')
+    }
+    await recordRun(triggeredBy, startedAt, {
+      summary: { job, ...summary } as unknown as Parameters<typeof recordRun>[2]['summary'],
+    })
+    return summary
+  } catch (err) {
+    console.error(`[${job}] ÉCHEC (${triggeredBy})`, err)
+    await recordRun(triggeredBy, startedAt, { error: err })
+    throw err
+  }
+}
 
 /** Run marketing + log + trace ingest_runs + warning Sentry si dégradé. Re-throw les crashs. */
 async function runMarketingAndLog(triggeredBy: IngestTrigger): Promise<Awaited<ReturnType<typeof runMarketing>>> {
@@ -122,6 +148,16 @@ const handler = {
       })
       return
     }
+    // 23h35 UTC = comptes Instagram via Apify (invocation dédiée : le poll de l'actor
+    // consomme ~40 sous-requêtes à lui seul).
+    if (controller.cron === '35 23 * * *') {
+      await Sentry.withMonitor(
+        MONITOR_SOCIAL_SLUG,
+        () => runJobAndLog('marketing-social', runMarketingSocial, 'cron'),
+        { ...MONITOR_CONFIG, schedule: { type: 'crontab', value: '35 23 * * *' }, maxRuntime: 60 },
+      )
+      return
+    }
     // Awaité (pas de waitUntil) : un crash marque l'invocation cron en échec côté
     // Cloudflare, est capturé par withSentry, et passe le check-in du monitor en error.
     try {
@@ -161,6 +197,16 @@ const handler = {
     bindEnv(env)
     // `?day=YYYY-MM-DD` : rejoue un jour précis (idempotent) — pour tester/backfill sans
     // déclencher le rattrapage jusqu'à aujourd'hui (qui écrirait un jour partiel).
+    // `?job=social` : déclenche le scrape Instagram seul (idempotent).
+    if (url.searchParams.get('job') === 'social') {
+      try {
+        const summary = await runJobAndLog('marketing-social', runMarketingSocial, 'http')
+        return Response.json(summary)
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec social : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
     // `?job=marketing` : déclenche le pipeline marketing seul (idempotent).
     if (url.searchParams.get('job') === 'marketing') {
       try {
