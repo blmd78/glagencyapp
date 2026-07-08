@@ -1,12 +1,14 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Pencil, Plus, Search, Wallet } from 'lucide-react'
+import { Search, Wallet } from 'lucide-react'
+import { ActionButton } from '@/components/action-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -31,48 +33,24 @@ import {
 import { KpiGrid } from '@/components/kpi-card'
 import { cn } from '@/lib/utils'
 import { eur, num } from '@/lib/format'
-import { recordStaffPayment, saveStaff, saveStaffAssignments } from './actions'
-import { MultiPicker } from './components/multi-picker'
+import { recordStaffPayment } from './actions'
+import { PAYMENT_OPTIONS } from './schema'
 import type { MktStaffData, MktStaffRow } from './types'
-
-const PAYMENT_OPTIONS = ['virement', 'paypal', 'crypto', 'autre']
-const COLORS = ['#6c63ff', '#00d4aa', '#1d9bf0', '#e1306c', '#f59e0b', '#22c55e', '#ef4444', '#a855f7']
-
-const emptyStaff: MktStaffRow = {
-  id: '',
-  name: '',
-  role: 'va',
-  color: COLORS[0],
-  fixedEur: 100,
-  rateTw: 0.25,
-  rateIg: 0.01,
-  bonusEur: 0,
-  pct: 0,
-  paymentMethod: 'virement',
-  active: true,
-  linkIds: [],
-  igAccountIds: [],
-  pay: { days: 0, fixed: 0, twConversions: 0, twVariable: 0, igViews: 0, igVariable: 0, bonus: 0, pctBase: 0, pctAmount: 0, total: 0 },
-  paid: 0,
-  remaining: 0,
-}
 
 /** Détail lisible du calcul (sous le nom, comme les hints de la compta chatteurs). */
 function payDetail(s: MktStaffRow): string {
   const parts = [`fixe ${eur(s.pay.fixed)}`]
   if (s.role === 'manager') parts.push(`${s.pct.toLocaleString('fr-FR')} % du pôle ${eur(s.pay.pctAmount)}`)
   else {
-    if (s.linkIds.length) parts.push(`TW ${num(s.pay.twConversions)} subs → ${eur(s.pay.twVariable)}`)
-    if (s.igAccountIds.length) parts.push(`IG ${num(s.pay.igViews)} vues → ${eur(s.pay.igVariable)}`)
+    if (s.linkIds.length) parts.push(`${num(s.pay.twConversions)} subs → ${eur(s.pay.twVariable)}`)
+    if (s.igAccountIds.length) parts.push(`${num(s.pay.igViews)} vues → ${eur(s.pay.igVariable)}`)
     if (s.pay.bonus > 0) parts.push(`prime ${eur(s.pay.bonus)}`)
   }
   return parts.join(' · ')
 }
 
-export function MktStaffTemplate({ data }: { data: MktStaffData }) {
+export function MktStaffTemplate({ data, isAdmin }: { data: MktStaffData; isAdmin: boolean }) {
   const [search, setSearch] = useState('')
-  const [editing, setEditing] = useState<MktStaffRow | null>(null)
-  const [form, setForm] = useState<MktStaffRow>(emptyStaff)
   const [paying, setPaying] = useState<MktStaffRow | null>(null)
   const [payAmount, setPayAmount] = useState(0)
   const [payMethod, setPayMethod] = useState('virement')
@@ -112,44 +90,12 @@ export function MktStaffTemplate({ data }: { data: MktStaffData }) {
   const needle = search.trim().toLowerCase()
   const rows = needle ? data.staff.filter((s) => s.name.toLowerCase().includes(needle)) : data.staff
 
-  const openEdit = (s: MktStaffRow | null) => {
-    setForm(s ? { ...s } : { ...emptyStaff })
-    setEditing(s ?? emptyStaff)
-    setError('')
-  }
   const openPay = (s: MktStaffRow) => {
     setPaying(s)
     setPayAmount(s.remaining || s.pay.total)
     setPayMethod(s.paymentMethod)
     setError('')
   }
-
-  const submitEdit = () =>
-    startTransition(async () => {
-      const res = await saveStaff({
-        id: form.id || null,
-        name: form.name,
-        role: form.role,
-        color: form.color,
-        fixedEur: form.fixedEur,
-        rateTw: form.rateTw,
-        rateIg: form.rateIg,
-        bonusEur: form.bonusEur,
-        pct: form.pct,
-        paymentMethod: form.paymentMethod,
-        active: form.active,
-      })
-      if (!res.success) return setError(res.error)
-      if (form.id) {
-        const res2 = await saveStaffAssignments({
-          staffId: form.id,
-          linkIds: form.linkIds,
-          igAccountIds: form.igAccountIds,
-        })
-        if (!res2.success) return setError(res2.error)
-      }
-      setEditing(null)
-    })
 
   const submitPay = () =>
     startTransition(async () => {
@@ -165,19 +111,6 @@ export function MktStaffTemplate({ data }: { data: MktStaffData }) {
       setPaying(null)
     })
 
-  const numField = (label: string, key: keyof MktStaffRow, step = '0.01') => (
-    <div className="grid gap-1.5">
-      <Label htmlFor={`f-${key}`}>{label}</Label>
-      <Input
-        id={`f-${key}`}
-        type="number"
-        step={step}
-        value={String(form[key] ?? 0)}
-        onChange={(e) => setForm((f) => ({ ...f, [key]: Number(e.target.value) }))}
-      />
-    </div>
-  )
-
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -187,10 +120,6 @@ export function MktStaffTemplate({ data }: { data: MktStaffData }) {
             Paie du staff marketing · payes automatiques (fixe + variable), paiements suivis
           </p>
         </div>
-        <Button size="sm" className="ml-auto gap-1.5" onClick={() => openEdit(null)}>
-          <Plus className="size-4" />
-          Ajouter
-        </Button>
       </div>
 
       <KpiGrid kpis={kpis} />
@@ -246,28 +175,19 @@ export function MktStaffTemplate({ data }: { data: MktStaffData }) {
                   {s.pay.total > 0 ? (s.remaining > 0 ? eur(s.remaining) : 'Payé ✓') : '—'}
                 </TableCell>
                 <TableCell className="text-center">
-                  <div className="flex justify-center gap-1">
-                    {s.remaining > 0 && s.active && (
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="size-7"
-                        onClick={() => openPay(s)}
-                        aria-label={`Payer ${s.name}`}
-                      >
-                        <Wallet className="size-3.5" />
-                      </Button>
-                    )}
+                  {/* La fiche s'édite sur la page VA. Payer = admin (l'action est
+                      requireAdmin — sans ce garde un manager cliquait vers une erreur). */}
+                  {isAdmin && s.remaining > 0 && s.active && (
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="icon"
                       className="size-7"
-                      onClick={() => openEdit(s)}
-                      aria-label={`Modifier ${s.name}`}
+                      onClick={() => openPay(s)}
+                      aria-label={`Payer ${s.name}`}
                     >
-                      <Pencil className="size-3.5" />
+                      <Wallet className="size-3.5" />
                     </Button>
-                  </div>
+                  )}
                 </TableCell>
               </TableRow>
             ))}
@@ -287,6 +207,9 @@ export function MktStaffTemplate({ data }: { data: MktStaffData }) {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Payer {paying?.name}</DialogTitle>
+            <DialogDescription>
+              Le paiement est rattaché au mois affiché et vient réduire le « reste à payer ».
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-1.5">
@@ -324,124 +247,13 @@ export function MktStaffTemplate({ data }: { data: MktStaffData }) {
             <Button variant="ghost" onClick={() => setPaying(null)}>
               Annuler
             </Button>
-            <Button onClick={submitPay} disabled={pending || payAmount <= 0}>
-              {pending ? 'Enregistrement…' : 'Enregistrer le paiement'}
-            </Button>
+            <ActionButton onClick={submitPay} pending={pending} disabled={payAmount <= 0}>
+              Enregistrer le paiement
+            </ActionButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog fiche (taux, couleur, assignations) */}
-      <Dialog open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{form.id ? `Modifier ${form.name}` : 'Nouveau membre'}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1.5">
-                <Label htmlFor="f-name">Nom</Label>
-                <Input id="f-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Rôle</Label>
-                <Select value={form.role} onValueChange={(v) => setForm((f) => ({ ...f, role: v as 'va' | 'manager' }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="va">VA</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {numField('Fixe €/mois', 'fixedEur', '1')}
-              <div className="grid gap-1.5">
-                <Label>Paiement</Label>
-                <Select value={form.paymentMethod} onValueChange={(v) => setForm((f) => ({ ...f, paymentMethod: v }))}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_OPTIONS.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {form.role === 'va' ? (
-              <div className="grid grid-cols-3 gap-3">
-                {numField('€ / sub TW', 'rateTw')}
-                {numField('€ / 1k vues IG', 'rateIg', '0.001')}
-                {numField('Prime €', 'bonusEur', '1')}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">{numField('% du pôle', 'pct', '0.5')}</div>
-            )}
-            <div className="grid gap-1.5">
-              <Label>Couleur</Label>
-              <div className="flex gap-1.5">
-                {COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-label={`Couleur ${c}`}
-                    className={cn(
-                      'size-6 rounded-full border-2',
-                      form.color === c ? 'border-foreground' : 'border-transparent',
-                    )}
-                    style={{ backgroundColor: c }}
-                    onClick={() => setForm((f) => ({ ...f, color: c }))}
-                  />
-                ))}
-              </div>
-            </div>
-            {form.id && form.role === 'va' && (
-              <div className="grid gap-3">
-                <MultiPicker
-                  label="Liens MyPuls assignés (paye TW)"
-                  options={data.linkOptions.map((l) => ({ id: l.id, label: l.name }))}
-                  selected={form.linkIds}
-                  onChange={(ids) => setForm((f) => ({ ...f, linkIds: ids }))}
-                />
-                <MultiPicker
-                  label="Comptes Instagram assignés (paye IG)"
-                  options={data.igOptions.map((a) => ({ id: a.id, label: `@${a.handle}` }))}
-                  selected={form.igAccountIds}
-                  onChange={(ids) => setForm((f) => ({ ...f, igAccountIds: ids }))}
-                />
-              </div>
-            )}
-            {!form.id && (
-              <p className="text-xs text-muted-foreground">
-                Enregistre d&apos;abord la fiche, puis rouvre-la pour assigner liens et comptes.
-              </p>
-            )}
-            <label className="flex cursor-pointer items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.active}
-                onChange={(e) => setForm((f) => ({ ...f, active: e.target.checked }))}
-              />
-              Actif
-            </label>
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditing(null)}>
-              Annuler
-            </Button>
-            <Button onClick={submitEdit} disabled={pending || !form.name.trim()}>
-              {pending ? 'Enregistrement…' : 'Enregistrer'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

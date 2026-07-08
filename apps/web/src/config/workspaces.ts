@@ -79,6 +79,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/marketing/instagram', label: 'Instagram', icon: Instagram, slug: 'mkt-instagram' },
       { href: '/marketing/twitter', label: 'Twitter / X', icon: Twitter, slug: 'mkt-twitter' },
       { href: '/marketing/telegram', label: 'Telegram', icon: Send, slug: 'mkt-telegram' },
+      // Même patron que la face chatteurs : « VA » = les fiches (comme « Chatters »),
+      // la Compta ne fait que payer.
+      { href: '/marketing/staff', label: 'VA', icon: Users, slug: 'mkt-staff' },
       { href: '/marketing/compta', label: 'Compta', icon: Wallet, slug: 'mkt-compta' },
       { href: '/marketing/members', label: 'Membres', icon: UserCog, adminOnly: true },
     ],
@@ -94,7 +97,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'police', 'chatters', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'police', 'chatters', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /** Pages cochables dans la gestion des membres (= nav non-admin, dans l'ordre de la sidebar). */

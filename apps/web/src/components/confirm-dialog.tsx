@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -13,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 
 /**
@@ -84,7 +84,7 @@ export function ConfirmDialog({
             disabled={busy}
             className={cn(destructive && 'bg-destructive text-white hover:bg-destructive/90')}
           >
-            {busy && <Loader2 className="size-4 animate-spin" />}
+            {busy && <Spinner data-icon="inline-start" />}
             {confirmLabel}
           </AlertDialogAction>
         </AlertDialogFooter>

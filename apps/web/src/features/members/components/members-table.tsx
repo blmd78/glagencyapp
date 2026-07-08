@@ -1,7 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { Pencil, ShieldCheck, Trash2 } from 'lucide-react'
+import { Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -44,8 +44,13 @@ function RowActions({
         creators={creators}
         scope={scope}
         trigger={
-          <Button variant="outline" size="sm">
-            <Pencil className="size-3.5" /> Modifier
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            aria-label={`Modifier ${member.displayName}`}
+          >
+            <Pencil className="size-3.5" />
           </Button>
         }
       />
@@ -54,7 +59,12 @@ function RowActions({
         title={`Supprimer ${member.displayName} ?`}
         description="Son compte et ses accès sont supprimés définitivement — il ne pourra plus se connecter. Les données du CRM ne sont pas touchées."
         trigger={
-          <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-red-600 hover:text-red-700"
+            aria-label={`Supprimer ${member.displayName}`}
+          >
             <Trash2 className="size-3.5" />
           </Button>
         }
@@ -205,6 +215,18 @@ export function MembersTable({
       initialSorting={[{ id: 'createdAt', desc: false }]}
       pageSize={20}
       countLabel={(n) => `${n} membre(s)`}
+      toolbar={
+        <MemberDialog
+          creators={creators}
+          scope={scope}
+          trigger={
+            <Button size="sm" className="gap-1.5">
+              <UserPlus className="size-3.5" />
+              Nouveau membre
+            </Button>
+          }
+        />
+      }
     />
   )
 }

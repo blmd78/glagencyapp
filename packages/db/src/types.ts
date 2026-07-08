@@ -1090,6 +1090,7 @@ export type Database = {
           fixed_eur: number
           id: string
           name: string
+          owner_id: string | null
           payment_method: string
           pct: number
           rate_ig: number
@@ -1104,6 +1105,7 @@ export type Database = {
           fixed_eur?: number
           id?: string
           name: string
+          owner_id?: string | null
           payment_method?: string
           pct?: number
           rate_ig?: number
@@ -1118,6 +1120,7 @@ export type Database = {
           fixed_eur?: number
           id?: string
           name?: string
+          owner_id?: string | null
           payment_method?: string
           pct?: number
           rate_ig?: number
@@ -1400,7 +1403,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      mkt_save_staff_assignments: {
+        Args: { p_staff: string; p_links: string[]; p_accounts: string[] }
+        Returns: undefined
+      }
     }
     Enums: {
     }

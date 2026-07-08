@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { ClipboardEdit, Plus } from 'lucide-react'
+import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,7 +28,7 @@ export function SocialEntryDialog({
   platform,
   accounts,
 }: {
-  platform: 'instagram' | 'twitter'
+  platform: 'instagram' | 'twitter' | 'telegram'
   accounts: MktSocialRow[]
 }) {
   const today = new Date().toISOString().slice(0, 10)
@@ -92,7 +93,7 @@ export function SocialEntryDialog({
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Saisie {platform === 'instagram' ? 'Instagram' : 'Twitter / X'}</DialogTitle>
+            <DialogTitle>Saisie {platform === 'instagram' ? 'Instagram' : platform === 'twitter' ? 'Twitter / X' : 'Telegram'}</DialogTitle>
             <DialogDescription>
               Followers actuels et vues des dernières 24 h par compte — seules les lignes
               renseignées sont enregistrées (delta followers calculé automatiquement).
@@ -166,9 +167,9 @@ export function SocialEntryDialog({
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={submit} disabled={pending}>
-              {pending ? 'Enregistrement…' : 'Enregistrer la saisie'}
-            </Button>
+            <ActionButton onClick={submit} pending={pending}>
+              Enregistrer la saisie
+            </ActionButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -177,7 +178,7 @@ export function SocialEntryDialog({
 }
 
 /** Ajout d'un compte de la farm à suivre. */
-export function AddAccountDialog({ platform }: { platform: 'instagram' | 'twitter' }) {
+export function AddAccountDialog({ platform }: { platform: 'instagram' | 'twitter' | 'telegram' }) {
   const [open, setOpen] = useState(false)
   const [handle, setHandle] = useState('')
   const [error, setError] = useState('')
@@ -203,7 +204,7 @@ export function AddAccountDialog({ platform }: { platform: 'instagram' | 'twitte
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Nouveau compte {platform === 'instagram' ? 'Instagram' : 'X'}</DialogTitle>
+            <DialogTitle>Nouveau {platform === 'telegram' ? 'canal Telegram' : platform === 'instagram' ? 'compte Instagram' : 'compte X'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-1.5">
             <Label htmlFor="acc-handle">Handle</Label>
@@ -219,9 +220,9 @@ export function AddAccountDialog({ platform }: { platform: 'instagram' | 'twitte
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Annuler
             </Button>
-            <Button onClick={submit} disabled={pending || !handle.trim()}>
-              {pending ? 'Ajout…' : 'Ajouter'}
-            </Button>
+            <ActionButton onClick={submit} pending={pending} disabled={!handle.trim()}>
+              Ajouter
+            </ActionButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -8,9 +8,13 @@ const r2 = (v: number) => Math.round(v * 100) / 100
 /** Agrégats par lien sur la période — socle des pages Liens et Dashboard. */
 export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
   const supabase = await createClient()
-  const [{ data: links }, { data: creators }, { data: daily }] = await Promise.all([
+  const [{ data: links }, { data: creators }, { data: staffLinks }, { data: staff }, { data: daily }] = await Promise.all([
     supabase.from('mkt_links').select('id, name, type, url, creator_id, active'),
     supabase.from('creators').select('id, name'),
+    // Assignations VA : le RLS (owner_id, migration 0025) fait qu'un manager ne récupère
+    // que SES fiches → il ne voit les étiquettes VA que sur ses propres liens.
+    supabase.from('mkt_staff_links').select('staff_id, link_id'),
+    supabase.from('mkt_staff').select('id, name, color'),
     fetchAll((f, t) =>
       supabase
         .from('mkt_link_daily')
@@ -23,6 +27,12 @@ export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
     ),
   ])
   const crName = new Map((creators ?? []).map((c) => [c.id, c.name]))
+  const staffById = new Map((staff ?? []).map((s) => [s.id, { name: s.name, color: s.color }]))
+  const staffByLink = new Map<string, { name: string; color: string }[]>()
+  for (const sl of staffLinks ?? []) {
+    const s = staffById.get(sl.staff_id)
+    if (s) staffByLink.set(sl.link_id, [...(staffByLink.get(sl.link_id) ?? []), s])
+  }
   const agg = new Map<string, { clicks: number; conversions: number; revenue: number }>()
   for (const d of daily ?? []) {
     const a = agg.get(d.link_id) ?? { clicks: 0, conversions: 0, revenue: 0 }
@@ -40,6 +50,7 @@ export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
         type: (l.type ?? 'other') as MktLinkRow['type'],
         url: l.url,
         creator: l.creator_id ? (crName.get(l.creator_id) ?? null) : null,
+        staff: staffByLink.get(l.id) ?? [],
         active: l.active,
         clicks: a.clicks,
         conversions: a.conversions,

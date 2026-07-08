@@ -1,7 +1,7 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
 import { Button, type ButtonProps } from '@/components/ui/button'
+import { Spinner } from '@/components/ui/spinner'
 
 /**
  * Bouton d'action serveur : affiche un spinner et se désactive pendant l'opération.
@@ -15,7 +15,7 @@ export function ActionButton({
 }: ButtonProps & { pending?: boolean }) {
   return (
     <Button disabled={disabled || pending} {...props}>
-      {pending && <Loader2 className="size-4 animate-spin" />}
+      {pending && <Spinner data-icon="inline-start" />}
       {children}
     </Button>
   )

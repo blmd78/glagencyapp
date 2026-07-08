@@ -1,14 +1,14 @@
 import { getMktStaff } from '@/features/marketing/services/get-staff'
-import { MktStaffTemplate } from '@/features/marketing/StaffTemplate'
+import { MktVaTemplate } from '@/features/marketing/VaTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 
-export default async function MktStaffPage({
+export default async function MktVaPage({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  const profile = await requireAccess('mkt-compta')
+  const profile = await requireAccess('mkt-staff')
   const period = resolvePeriod(await searchParams)
-  return <MktStaffTemplate data={await getMktStaff(period)} isAdmin={profile.role === 'admin'} />
+  return <MktVaTemplate data={await getMktStaff(period)} isAdmin={profile.role === 'admin'} />
 }

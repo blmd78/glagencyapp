@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -75,9 +76,9 @@ export default function LoginPage() {
                 placeholder="ton@email.fr"
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? 'Envoi…' : 'Recevoir le code'}
-              </Button>
+              <ActionButton type="submit" pending={loading} className="w-full">
+                Recevoir le code
+              </ActionButton>
             </form>
           ) : (
             <form onSubmit={verifyCode} className="space-y-3">
@@ -95,9 +96,9 @@ export default function LoginPage() {
                 placeholder="12345678"
               />
               {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? 'Vérification…' : 'Se connecter'}
-              </Button>
+              <ActionButton type="submit" pending={loading} className="w-full">
+                Se connecter
+              </ActionButton>
               <button
                 type="button"
                 className="w-full text-xs text-muted-foreground underline-offset-2 hover:underline"

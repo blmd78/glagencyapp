@@ -6,6 +6,9 @@ export interface MktLinkRow {
   type: 'twitter' | 'instagram' | 'telegram' | 'other'
   url: string
   creator: string | null
+  /** VA assignés au lien (nom + couleur de fiche) — vides pour un manager si le lien
+   *  appartient aux VA d'un autre (RLS owner_id sur mkt_staff). */
+  staff: { name: string; color: string }[]
   active: boolean
   /** Agrégats sur la période filtrée. */
   clicks: number
@@ -69,7 +72,7 @@ export interface MktSocialRow {
 
 export interface MktSocialData {
   period: string
-  platform: 'instagram' | 'twitter'
+  platform: 'instagram' | 'twitter' | 'telegram'
   accounts: MktSocialRow[]
   totals: { followers: number; viewsPeriod: number }
   /** Date du dernier relevé toutes lignes confondues (null si aucune donnée). */
@@ -91,16 +94,16 @@ export interface MktStaffRow {
   /** Assignations. */
   linkIds: string[]
   igAccountIds: string[]
+  /** Comptes Twitter suivis — affichage uniquement, aucun impact paye. */
+  twAccountIds: string[]
   /** Paye calculée sur la période. */
   pay: {
-    days: number
     fixed: number
     twConversions: number
     twVariable: number
     igViews: number
     igVariable: number
     bonus: number
-    pctBase: number
     pctAmount: number
     total: number
   }
@@ -120,6 +123,7 @@ export interface MktStaffData {
   /** 1er jour du mois de la période — mois de rattachement des paiements. */
   monthStart: string
   /** Options des sélecteurs d'assignation. */
-  linkOptions: { id: string; name: string }[]
+  linkOptions: { id: string; name: string; type: 'twitter' | 'instagram' | 'telegram' | 'other' }[]
   igOptions: { id: string; handle: string }[]
+  twOptions: { id: string; handle: string }[]
 }

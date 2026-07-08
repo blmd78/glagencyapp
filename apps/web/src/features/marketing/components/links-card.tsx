@@ -33,6 +33,32 @@ const columns: ColumnDef<MktLinkRow>[] = [
     },
   },
   {
+    id: 'staff',
+    header: 'VA',
+    cell: ({ row }) => {
+      // Badge teinté de la couleur de la fiche (cohérent avec la page VA). Un manager ne
+      // voit que SES VA ici (RLS owner_id) — le lien d'un autre manager reste « — ».
+      const staff = row.original.staff
+      if (!staff.length) return <span className="text-muted-foreground">—</span>
+      return (
+        <div className="flex flex-wrap gap-1">
+          {staff.slice(0, 2).map((s) => (
+            <Badge
+              key={s.name}
+              className="border-transparent font-medium"
+              style={{ backgroundColor: `${s.color}24`, color: s.color }}
+            >
+              {s.name}
+            </Badge>
+          ))}
+          {staff.length > 2 && (
+            <Badge variant="secondary" className="text-muted-foreground">+{staff.length - 2}</Badge>
+          )}
+        </div>
+      )
+    },
+  },
+  {
     accessorKey: 'clicks',
     header: ({ column }) => <Sortable column={column} label="Clics" className="justify-end" />,
     cell: ({ getValue }) => <span className="tabular-nums">{num(getValue() as number)}</span>,
