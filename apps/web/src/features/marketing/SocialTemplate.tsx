@@ -19,7 +19,7 @@ import type { MktLinkRow, MktSocialData, MktSocialRow } from './types'
 const signed = (v: number | null) =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString('fr-FR')}`
 
-function makeColumns(platform: 'instagram' | 'twitter'): ColumnDef<MktSocialRow>[] {
+function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<MktSocialRow>[] {
   const cols: ColumnDef<MktSocialRow>[] = [
     {
       id: 'handle',
