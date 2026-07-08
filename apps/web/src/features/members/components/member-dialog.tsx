@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { modelColor } from '@/lib/model-color'
-import { PAGE_CHOICES } from '@/config/workspaces'
+import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
 import { memberInput, type MemberForm } from '../schema'
 import type { Member } from '../types'
@@ -34,13 +34,18 @@ export function MemberDialog({
   member,
   creators,
   trigger,
+  scope = 'chatter',
 }: {
   /** Absent = création. */
   member?: Member
   creators: { id: string; name: string }[]
   trigger: ReactNode
+  /** Face dont on gère les droits — les slugs de l'autre face sont préservés côté serveur. */
+  scope?: 'chatter' | 'marketing'
 }) {
   const [open, setOpen] = useState(false)
+  const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
+  const scopeSlugs = new Set(choices.map((c) => c.slug as string))
 
   const {
     register,
@@ -51,9 +56,11 @@ export function MemberDialog({
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
     defaultValues: {
+      scope,
       email: member?.email ?? '',
       displayName: member?.displayName ?? '',
-      pages: member?.pages ?? [],
+      // Seules les pages du périmètre courant sont éditées ici.
+      pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
       creatorIds: member?.creatorIds ?? [],
     },
   })
@@ -61,12 +68,13 @@ export function MemberDialog({
   const submit = handleSubmit(async (values) => {
     const res = member
       ? await updateMember({
+          scope,
           id: member.id,
           displayName: values.displayName,
           pages: values.pages,
           creatorIds: values.creatorIds,
         })
-      : await createMember({ ...values, email: values.email.trim().toLowerCase() })
+      : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
       setError('root', { message: res.error })
       return
@@ -121,7 +129,7 @@ export function MemberDialog({
                   Pages accessibles
                 </span>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {PAGE_CHOICES.map((p) => {
+                  {choices.map((p) => {
                     const Icon = p.icon
                     return (
                       <label
@@ -148,7 +156,7 @@ export function MemberDialog({
             )}
           />
 
-          <Controller
+          {scope === 'chatter' && <Controller
             name="creatorIds"
             control={control}
             render={({ field }) => (
@@ -173,7 +181,7 @@ export function MemberDialog({
                 </div>
               </div>
             )}
-          />
+          />}
 
           {errors.root && (
             <p className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>

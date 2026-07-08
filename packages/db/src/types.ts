@@ -1153,6 +1153,47 @@ export type Database = {
           },
         ]
       }
+      mkt_staff_payments: {
+        Row: {
+          amount_eur: number
+          created_by: string | null
+          id: string
+          method: string
+          month: string
+          note: string
+          paid_at: string
+          staff_id: string
+        }
+        Insert: {
+          amount_eur: number
+          created_by?: string | null
+          id?: string
+          method?: string
+          month: string
+          note?: string
+          paid_at?: string
+          staff_id: string
+        }
+        Update: {
+          amount_eur?: number
+          created_by?: string | null
+          id?: string
+          method?: string
+          month?: string
+          note?: string
+          paid_at?: string
+          staff_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_staff_payments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
+import { isMarketingSlug } from '@/config/workspaces'
 import { requireAdmin } from '@/lib/auth'
 import { memberInput, memberUpdateInput } from './schema'
 
@@ -14,6 +15,23 @@ import { memberInput, memberUpdateInput } from './schema'
 
 type Result = { success: true } | { success: false; error: string }
 type Admin = ReturnType<typeof createAdminClient>
+
+/**
+ * Fusionne les pages : le scope courant remplace SES slugs, ceux de l'autre face sont
+ * préservés. Le droit de face `marketing` (utilisé par la RLS has_page) suit : posé dès
+ * qu'une page mkt-* est cochée, retiré sinon.
+ */
+function mergePages(existing: string[], selected: string[], scope: 'chatter' | 'marketing'): string[] {
+  const kept = existing.filter((s) => (scope === 'marketing' ? !isMarketingSlug(s) : isMarketingSlug(s)))
+  const withFace =
+    scope === 'marketing' && selected.length ? [...selected, 'marketing'] : selected
+  return [...new Set([...kept, ...withFace])]
+}
+
+const revalidateMembers = () => {
+  revalidatePath('/chatter/members')
+  revalidatePath('/marketing/members')
+}
 
 /**
  * Aligne profile_creators sur `wanted` SANS fenêtre destructrice : upsert des ajouts
@@ -64,7 +82,7 @@ export async function createMember(input: unknown): Promise<Result> {
   await requireAdmin()
   const parsed = memberInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
-  const { email, displayName, pages, creatorIds } = parsed.data
+  const { scope, email, displayName, pages, creatorIds } = parsed.data
 
   const admin = createAdminClient()
   const { data: created, error } = await admin.auth.admin.createUser({
@@ -81,12 +99,15 @@ export async function createMember(input: unknown): Promise<Result> {
   // PAS au rôle ici — l'écraser en 'user' rétrograderait un email allowlisté.
   const { error: pErr } = await admin
     .from('profiles')
-    .update({ display_name: displayName, pages })
+    .update({ display_name: displayName, pages: mergePages([], pages, scope) })
     .eq('id', uid)
   if (pErr) return { success: false, error: pErr.message }
-  const sErr = await syncAssignments(admin, uid, creatorIds)
-  if (sErr) return { success: false, error: sErr }
-  revalidatePath('/chatter/members')
+  // Les modèles assignés sont un concept de la face chatteurs uniquement.
+  if (scope === 'chatter') {
+    const sErr = await syncAssignments(admin, uid, creatorIds)
+    if (sErr) return { success: false, error: sErr }
+  }
+  revalidateMembers()
   return { success: true }
 }
 
@@ -94,20 +115,23 @@ export async function updateMember(input: unknown): Promise<Result> {
   await requireAdmin()
   const parsed = memberUpdateInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
-  const { id, displayName, pages, creatorIds } = parsed.data
+  const { scope, id, displayName, pages, creatorIds } = parsed.data
 
   const admin = createAdminClient()
   const guard = await requireEditableTarget(admin, id)
   if (guard) return { success: false, error: guard }
 
+  const { data: current } = await admin.from('profiles').select('pages').eq('id', id).single()
   const { error: pErr } = await admin
     .from('profiles')
-    .update({ display_name: displayName, pages })
+    .update({ display_name: displayName, pages: mergePages(current?.pages ?? [], pages, scope) })
     .eq('id', id)
   if (pErr) return { success: false, error: pErr.message }
-  const sErr = await syncAssignments(admin, id, creatorIds)
-  if (sErr) return { success: false, error: sErr }
-  revalidatePath('/chatter/members')
+  if (scope === 'chatter') {
+    const sErr = await syncAssignments(admin, id, creatorIds)
+    if (sErr) return { success: false, error: sErr }
+  }
+  revalidateMembers()
   return { success: true }
 }
 
@@ -122,6 +146,6 @@ export async function deleteMember(id: unknown): Promise<Result> {
   // Supprime le compte auth → profiles/profile_creators suivent par cascade FK.
   const { error } = await admin.auth.admin.deleteUser(parsed.data)
   if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/members')
+  revalidateMembers()
   return { success: true }
 }

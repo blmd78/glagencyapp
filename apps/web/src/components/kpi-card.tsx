@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { HeaderInfo } from '@/components/data-table/header-info'
 import { STATUS_COLORS } from '@/lib/status-color'
 
 /** Contrat d'une carte KPI (partagé entre features : overview, health…). */
@@ -23,6 +24,8 @@ export interface Kpi {
   trendLabel: string
   /** Sous-titre discret, ex. « mai ≈ 244 756 € ». */
   hint: string
+  /** Définition/provenance de la métrique — ⓘ au survol à côté du libellé. */
+  info?: string
 }
 
 /** Une carte KPI : libellé, valeur, badge de tendance et sous-titre. `accent` colore le liseré. */
@@ -35,7 +38,10 @@ export function KpiCard({ kpi, accent }: { kpi: Kpi; accent?: string }) {
     <Card className={cn('gap-2 border-t-4', accent)}>
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
-          <CardDescription>{kpi.label}</CardDescription>
+          <CardDescription className="flex items-center gap-1.5">
+            {kpi.label}
+            {kpi.info && <HeaderInfo text={kpi.info} />}
+          </CardDescription>
           {hasDelta && (
             <Badge
               className={cn('gap-1 text-xs', up ? STATUS_COLORS.positive : STATUS_COLORS.danger)}

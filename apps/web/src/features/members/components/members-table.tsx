@@ -11,7 +11,7 @@ import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
-import { PAGE_CHOICES } from '@/config/workspaces'
+import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { deleteMember } from '../actions'
 import { MemberDialog } from './member-dialog'
 import type { Member } from '../types'
@@ -26,7 +26,15 @@ const initials = (name: string) =>
     .toUpperCase()
 
 /** Colonne Actions : Modifier (dialog) + Supprimer (ConfirmDialog) — admins non éditables. */
-function RowActions({ member, creators }: { member: Member; creators: { id: string; name: string }[] }) {
+function RowActions({
+  member,
+  creators,
+  scope,
+}: {
+  member: Member
+  creators: { id: string; name: string }[]
+  scope: 'chatter' | 'marketing'
+}) {
   if (member.role === 'admin') return null
 
   return (
@@ -34,6 +42,7 @@ function RowActions({ member, creators }: { member: Member; creators: { id: stri
       <MemberDialog
         member={member}
         creators={creators}
+        scope={scope}
         trigger={
           <Button variant="outline" size="sm">
             <Pencil className="size-3.5" /> Modifier
@@ -77,11 +86,41 @@ function BadgeList({ items, max = 4 }: { items: { key: string; node: React.React
 export function MembersTable({
   members,
   creators,
+  scope = 'chatter',
 }: {
   members: Member[]
   creators: { id: string; name: string }[]
+  scope?: 'chatter' | 'marketing'
 }) {
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
+  const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
+
+  const modelsColumn: ColumnDef<Member>[] = scope === 'chatter' ? [
+    {
+      id: 'models',
+      header: 'Modèles',
+      cell: ({ row }) => {
+        if (row.original.role === 'admin')
+          return <span className="text-xs text-muted-foreground">tous</span>
+        const items = row.original.creatorIds.map((id) => {
+          const name = creatorName.get(id) ?? '—'
+          return {
+            key: id,
+            node: (
+              <Badge key={id} className={modelColor(name)}>
+                {name}
+              </Badge>
+            ),
+          }
+        })
+        return items.length ? (
+          <BadgeList items={items} />
+        ) : (
+          <span className="text-xs text-muted-foreground">aucun</span>
+        )
+      },
+    },
+  ] : []
 
   const columns: ColumnDef<Member>[] = [
     {
@@ -120,7 +159,7 @@ export function MembersTable({
       cell: ({ row }) => {
         if (row.original.role === 'admin')
           return <span className="text-xs text-muted-foreground">toutes</span>
-        const items = PAGE_CHOICES.filter((p) => row.original.pages.includes(p.slug)).map((p) => {
+        const items = choices.filter((p) => row.original.pages.includes(p.slug)).map((p) => {
           const Icon = p.icon
           return {
             key: p.slug,
@@ -138,30 +177,7 @@ export function MembersTable({
         )
       },
     },
-    {
-      id: 'models',
-      header: 'Modèles',
-      cell: ({ row }) => {
-        if (row.original.role === 'admin')
-          return <span className="text-xs text-muted-foreground">tous</span>
-        const items = row.original.creatorIds.map((id) => {
-          const name = creatorName.get(id) ?? '—'
-          return {
-            key: id,
-            node: (
-              <Badge key={id} className={modelColor(name)}>
-                {name}
-              </Badge>
-            ),
-          }
-        })
-        return items.length ? (
-          <BadgeList items={items} />
-        ) : (
-          <span className="text-xs text-muted-foreground">aucun</span>
-        )
-      },
-    },
+    ...modelsColumn,
     {
       accessorKey: 'createdAt',
       header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
@@ -175,7 +191,7 @@ export function MembersTable({
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => <RowActions member={row.original} creators={creators} />,
+      cell: ({ row }) => <RowActions member={row.original} creators={creators} scope={scope} />,
       meta: { align: 'right' },
     },
   ]

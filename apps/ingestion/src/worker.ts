@@ -3,6 +3,7 @@ import type { IngestRunSummary } from '@glagency/core'
 import { runPipeline } from './pipeline'
 import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
 import { recordRun, type IngestTrigger } from './record-run'
+import { runMarketing } from './marketing'
 import { generateWeeklyInsights } from './insights'
 import { createAdminClient } from '@glagency/db'
 
@@ -42,6 +43,7 @@ const DEPS = { fetchMoneyTeam: fetchMoneyTeamDayHR, maxCatchup: 3 }
 // Cron monitor Sentry : même crontab que wrangler.toml (les deux doivent rester alignés).
 // Détecte un cron manqué (missed check-in) — invisible pour toute alerte interne.
 const MONITOR_SLUG = 'ingestion-mypuls-nightly'
+const MONITOR_MKT_SLUG = 'ingestion-marketing-nightly'
 const MONITOR_CONFIG = {
   schedule: { type: 'crontab', value: '5 23 * * *' },
   timezone: 'Etc/UTC',
@@ -50,6 +52,27 @@ const MONITOR_CONFIG = {
   failureIssueThreshold: 1,
   recoveryThreshold: 1,
 } as const
+
+/** Run marketing + log + trace ingest_runs + warning Sentry si dégradé. Re-throw les crashs. */
+async function runMarketingAndLog(triggeredBy: IngestTrigger): Promise<Awaited<ReturnType<typeof runMarketing>>> {
+  const startedAt = new Date()
+  try {
+    const summary = await runMarketing()
+    console.log(`[marketing] ${summary.status.toUpperCase()} (${triggeredBy})`, JSON.stringify(summary))
+    if (summary.status === 'degraded') {
+      Sentry.captureMessage(`[marketing] run dégradé : ${summary.warnings.join(' | ')}`, 'warning')
+    }
+    // Même historique durable que le run chatteurs — le champ summary porte job: 'marketing'.
+    await recordRun(triggeredBy, startedAt, {
+      summary: { job: 'marketing', ...summary } as unknown as Parameters<typeof recordRun>[2]['summary'],
+    })
+    return summary
+  } catch (err) {
+    console.error(`[marketing] ÉCHEC (${triggeredBy})`, err)
+    await recordRun(triggeredBy, startedAt, { error: err })
+    throw err
+  }
+}
 
 function bindEnv(env: Bindings): void {
   for (const [k, v] of Object.entries(env)) {
@@ -88,8 +111,17 @@ async function runAndRecord(triggeredBy: IngestTrigger, day?: string): Promise<I
 }
 
 const handler = {
-  async scheduled(controller: { noRetry(): void }, env: Bindings, _ctx: Ctx): Promise<void> {
+  async scheduled(controller: { noRetry(): void; cron?: string }, env: Bindings, _ctx: Ctx): Promise<void> {
     bindEnv(env)
+    // 23h20 UTC = pipeline marketing (invocation dédiée, cf. wrangler.toml [triggers]).
+    // Son propre moniteur Sentry : détecte aussi un cron qui NE TOURNE PAS.
+    if (controller.cron === '20 23 * * *') {
+      await Sentry.withMonitor(MONITOR_MKT_SLUG, () => runMarketingAndLog('cron'), {
+        ...MONITOR_CONFIG,
+        schedule: { type: 'crontab', value: '20 23 * * *' },
+      })
+      return
+    }
     // Awaité (pas de waitUntil) : un crash marque l'invocation cron en échec côté
     // Cloudflare, est capturé par withSentry, et passe le check-in du monitor en error.
     try {
@@ -129,6 +161,16 @@ const handler = {
     bindEnv(env)
     // `?day=YYYY-MM-DD` : rejoue un jour précis (idempotent) — pour tester/backfill sans
     // déclencher le rattrapage jusqu'à aujourd'hui (qui écrirait un jour partiel).
+    // `?job=marketing` : déclenche le pipeline marketing seul (idempotent).
+    if (url.searchParams.get('job') === 'marketing') {
+      try {
+        const summary = await runMarketingAndLog('http')
+        return Response.json(summary)
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec marketing : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
     const dayParam = url.searchParams.get('day')
     const day = dayParam && /^\d{4}-\d{2}-\d{2}$/.test(dayParam) ? dayParam : undefined
     // AWAITÉ (pas de waitUntil) : Cloudflare annule les promesses waitUntil 30 s après

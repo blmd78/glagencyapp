@@ -34,3 +34,4 @@ apps/web/src/features/**/_data/
 # Ingestion : dumps bruts + logs (données business)
 apps/ingestion/raw/
 apps/ingestion/logs/
+.dev.vars

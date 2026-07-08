@@ -1,5 +1,10 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  Send,
+  Instagram,
+  Link2,
+  Twitter,
+  Wallet,
   ChartColumn,
   CalendarOff,
   CalendarCheck,
@@ -16,6 +21,8 @@ import {
 } from 'lucide-react'
 
 export interface NavItem {
+  /** Slug d'accès explicite (sinon dérivé du dernier segment de l'href). */
+  slug?: string
   href: string
   label: string
   icon: LucideIcon
@@ -64,8 +71,17 @@ export const WORKSPACES: Workspace[] = [
     subtitle: 'Acquisition',
     icon: Megaphone,
     basePath: '/marketing',
-    // TODO: à définir (contenu Marketing encore inconnu).
-    nav: [],
+    // Accès au pôle : droit UNIQUE `marketing` (accordé depuis /marketing/members) —
+    // le filtrage sidebar est fait au niveau de la face, pas page par page.
+    nav: [
+      { href: '/marketing/overview', label: 'Overview', icon: LayoutDashboard, slug: 'mkt-overview' },
+      { href: '/marketing/liens', label: 'Liens tracking', icon: Link2, slug: 'mkt-liens' },
+      { href: '/marketing/instagram', label: 'Instagram', icon: Instagram, slug: 'mkt-instagram' },
+      { href: '/marketing/twitter', label: 'Twitter / X', icon: Twitter, slug: 'mkt-twitter' },
+      { href: '/marketing/telegram', label: 'Telegram', icon: Send, slug: 'mkt-telegram' },
+      { href: '/marketing/compta', label: 'Compta', icon: Wallet, slug: 'mkt-compta' },
+      { href: '/marketing/members', label: 'Membres', icon: UserCog, adminOnly: true },
+    ],
   },
 ]
 
@@ -78,13 +94,24 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'police', 'chatters', 'modeles', 'stats', 'health', 'compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'police', 'chatters', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /** Pages cochables dans la gestion des membres (= nav non-admin, dans l'ordre de la sidebar). */
 export const PAGE_CHOICES = DEFAULT_WORKSPACE.nav
   .filter((n) => !n.adminOnly && (PAGE_SLUGS as readonly string[]).includes(pageSlug(n.href)))
   .map((n) => ({ slug: pageSlug(n.href) as PageSlug, label: n.label, icon: n.icon }))
+
+/** Pages cochables de la FACE MARKETING (slugs mkt-* — gérées depuis /marketing/members). */
+export const MKT_PAGE_CHOICES = (WORKSPACES.find((w) => w.id === 'marketing')?.nav ?? [])
+  .filter((n) => !n.adminOnly && n.slug)
+  .map((n) => ({ slug: n.slug as PageSlug, label: n.label, icon: n.icon }))
+
+/** Slug d'accès d'un item de nav (slug explicite sinon dérivé de l'href). */
+export const navSlug = (n: NavItem) => n.slug ?? pageSlug(n.href)
+
+/** Un slug appartient-il au périmètre marketing ? (droit de face inclus) */
+export const isMarketingSlug = (slug: string) => slug === 'marketing' || slug.startsWith('mkt-')
 
 /** Face active déduite de l'URL (fallback : face par défaut). */
 export function workspaceForPath(pathname: string): Workspace {
