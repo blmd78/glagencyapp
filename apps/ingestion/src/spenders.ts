@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node'
 import {
   fetchChatInit,
   fetchTeamMoney,
@@ -108,9 +109,8 @@ export async function ingestAllConversations(db: Db, byMypulsId: Map<string, str
   return out
 }
 
-/** CLI : `tsx src/spenders.ts [from] [to]` — sans argument : hier seul + conversations. */
-async function main() {
-  loadEnv()
+/** Cœur du run (hors Sentry) — extrait pour être wrappé par le cron monitor. */
+async function run() {
   const db = createAdminClient()
   const byMypulsId = await creatorMap(db)
 
@@ -124,6 +124,33 @@ async function main() {
   }
   await ingestAllConversations(db, byMypulsId)
   console.log('[spenders] terminé')
+}
+
+/**
+ * CLI : `tsx src/spenders.ts [from] [to]` — sans argument : hier seul + conversations.
+ * Monitoring aligné sur le worker : SENTRY_DSN absent (dev local) → SDK inactif, run
+ * identique. Sinon : cron monitor (détecte un run manqué) + capture d'exception.
+ */
+async function main() {
+  loadEnv()
+  const dsn = process.env.SENTRY_DSN
+  if (!dsn) return run()
+
+  Sentry.init({ dsn, tracesSampleRate: 0 })
+  const checkInId = Sentry.captureCheckIn(
+    { monitorSlug: 'ingestion-spenders-nightly', status: 'in_progress' },
+    { schedule: { type: 'crontab', value: '40 23 * * *' }, timezone: 'Etc/UTC', checkinMargin: 30, maxRuntime: 20 },
+  )
+  try {
+    await run()
+    Sentry.captureCheckIn({ checkInId, monitorSlug: 'ingestion-spenders-nightly', status: 'ok' })
+  } catch (err) {
+    Sentry.captureCheckIn({ checkInId, monitorSlug: 'ingestion-spenders-nightly', status: 'error' })
+    Sentry.captureException(err)
+    throw err
+  } finally {
+    await Sentry.flush(3000)
+  }
 }
 
 const isCli = process.argv[1]?.endsWith('spenders.ts')

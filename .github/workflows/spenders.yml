@@ -40,3 +40,5 @@ jobs:
           MYPULS_API_KEY: ${{ secrets.MYPULS_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          # Optionnel : absent → SDK inactif, le scrape tourne à l'identique.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
