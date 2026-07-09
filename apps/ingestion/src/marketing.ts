@@ -18,8 +18,9 @@ import { createAdminClient } from '@glagency/db'
  * Clé des liens = (mypuls_creator_id, name) : les noms ne sont uniques QUE par
  * créatrice. Le type n'est détecté qu'à la CRÉATION (corrections manuelles préservées).
  *
- * Budget sous-requêtes (plan Free : 50/invocation) : login 2 + 16 × 2 (switch + data)
- * + ~8 Supabase ≈ 44 → invocation cron dédiée (23h20 UTC), séparée du run chatteurs.
+ * Budget sous-requêtes (plan Free : 50/invocation) : login ~3 + 16 × 2 (switch en
+ * redirect MANUAL — une 302 suivie compte comme sous-requête ! — + data) + ~8 Supabase
+ * ≈ 45 → invocation cron dédiée (23h20 UTC), séparée du run chatteurs.
  */
 
 export interface MarketingRunSummary {
@@ -85,8 +86,11 @@ export async function runMarketing(opts: { backfillFrom?: string } = {}): Promis
   const byCreator = new Map<string, { creatorId: string; data: TrackingData }>()
   for (const c of creators ?? []) {
     try {
-      const sw = await fetch(`${BASE_URL}/switch-creator/${c.mypuls_creator_id}`, { headers, redirect: 'follow' })
-      if (!sw.ok) throw new Error(`switch ${sw.status}`)
+      // redirect 'manual' : le switch agit côté serveur (session), suivre la 302 ne sert
+      // à rien et chaque redirection suivie COMPTE comme sous-requête (plafond 50 crevé
+      // la 1re nuit de cron : « Too many subrequests », mort silencieuse à 23h20).
+      const sw = await fetch(`${BASE_URL}/switch-creator/${c.mypuls_creator_id}`, { headers, redirect: 'manual' })
+      if (!sw.ok && !(sw.status >= 300 && sw.status < 400)) throw new Error(`switch ${sw.status}`)
       const r = await fetch(`${BASE_URL}/tracking-stats/data`, { headers })
       if (!r.ok || !(r.headers.get('content-type') ?? '').includes('json')) {
         throw new Error(`data ${r.status}${r.url.includes('/login') ? ' (session expirée)' : ''}`)
