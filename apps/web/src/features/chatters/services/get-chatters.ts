@@ -77,12 +77,7 @@ export async function getChatters(
 
   // Champs closing CRM (colonnes chatters.role/team/shift, migration 0027) — hors RPC
   // pour ne pas toucher chatters_report ; lecture couverte par chatters_scoped_read.
-  // team/shift absents des types générés (à régénérer post-migration) → cast, comme le RPC.
-  const { data: crmRows } = (await supabase
-    .from('chatters')
-    .select('id, role, team, shift')) as unknown as {
-    data: Array<{ id: string; role: string | null; team: string | null; shift: string | null }> | null
-  }
+  const { data: crmRows } = await supabase.from('chatters').select('id, role, team, shift')
   const crmById = new Map((crmRows ?? []).map((c) => [c.id, c]))
 
   // Agrégat chatteur (header). Non restreint : depuis `totals` (déjà 1 ligne/chatteur).

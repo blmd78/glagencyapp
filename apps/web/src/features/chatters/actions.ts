@@ -20,7 +20,7 @@ export async function updateChatterCrm(raw: unknown): Promise<Result> {
   const supabase = await createClient()
   const { error } = await supabase
     .from('chatters')
-    .update({ role: p.data.role, team: p.data.team, shift: p.data.shift } as never)
+    .update({ role: p.data.role, team: p.data.team, shift: p.data.shift })
     .eq('id', p.data.chatterId)
   if (error) return { success: false, error: error.message }
   revalidatePath('/chatter/chatters')

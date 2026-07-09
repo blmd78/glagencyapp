@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       chatter_alias: {
@@ -227,6 +232,8 @@ export type Database = {
           id: string
           mypuls_user_id: string | null
           role: string | null
+          shift: string | null
+          team: string | null
           team_id: string | null
         }
         Insert: {
@@ -239,6 +246,8 @@ export type Database = {
           id?: string
           mypuls_user_id?: string | null
           role?: string | null
+          shift?: string | null
+          team?: string | null
           team_id?: string | null
         }
         Update: {
@@ -251,6 +260,8 @@ export type Database = {
           id?: string
           mypuls_user_id?: string | null
           role?: string | null
+          shift?: string | null
+          team?: string | null
           team_id?: string | null
         }
         Relationships: [
@@ -342,9 +353,7 @@ export type Database = {
           settled?: boolean
           settled_at?: string | null
         }
-        Relationships: [
-
-        ]
+        Relationships: []
       }
       compta_payments: {
         Row: {
@@ -429,7 +438,7 @@ export type Database = {
           {
             foreignKeyName: "compta_primes_chatter_id_fkey"
             columns: ["chatter_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "chatters"
             referencedColumns: ["id"]
           },
@@ -474,7 +483,7 @@ export type Database = {
           {
             foreignKeyName: "compta_settings_chatter_id_fkey"
             columns: ["chatter_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "chatters"
             referencedColumns: ["id"]
           },
@@ -757,153 +766,6 @@ export type Database = {
           },
         ]
       }
-      period_snapshot_kpi: {
-        Row: {
-          current_week_days: number
-          current_week_end: string
-          current_week_start: string
-          last_update: string
-          max_missed_shifts: number
-          n_active: number
-          n_inactive: number
-          period_days: number
-          period_end: string
-          period_prev_end: string
-          period_prev_start: string
-          period_start: string
-          sheet_used: string
-          source: string
-          total_ca: number
-          total_ca_prev: number
-          week_end: string
-          week_start: string
-        }
-        Insert: {
-          current_week_days: number
-          current_week_end: string
-          current_week_start: string
-          last_update: string
-          max_missed_shifts?: number
-          n_active: number
-          n_inactive: number
-          period_days: number
-          period_end: string
-          period_prev_end: string
-          period_prev_start: string
-          period_start: string
-          sheet_used: string
-          source: string
-          total_ca: number
-          total_ca_prev: number
-          week_end: string
-          week_start: string
-        }
-        Update: {
-          current_week_days?: number
-          current_week_end?: string
-          current_week_start?: string
-          last_update?: string
-          max_missed_shifts?: number
-          n_active?: number
-          n_inactive?: number
-          period_days?: number
-          period_end?: string
-          period_prev_end?: string
-          period_prev_start?: string
-          period_start?: string
-          sheet_used?: string
-          source?: string
-          total_ca?: number
-          total_ca_prev?: number
-          week_end?: string
-          week_start?: string
-        }
-        Relationships: []
-      }
-      police_entries: {
-        Row: {
-          id: string
-          chatter_id: string
-          controller_id: string | null
-          occurred_on: string
-          kind: string
-          error_key: string | null
-          amount_eur: number
-          note: string | null
-          shift: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          chatter_id: string
-          controller_id?: string | null
-          occurred_on?: string
-          kind: string
-          error_key?: string | null
-          amount_eur?: number
-          note?: string | null
-          shift?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          chatter_id?: string
-          controller_id?: string | null
-          occurred_on?: string
-          kind?: string
-          error_key?: string | null
-          amount_eur?: number
-          note?: string | null
-          shift?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "police_entries_chatter_id_fkey"
-            columns: ["chatter_id"]
-            isOneToOne: false
-            referencedRelation: "chatters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "police_entries_controller_id_fkey"
-            columns: ["controller_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      profile_creators: {
-        Row: {
-          creator_id: string
-          profile_id: string
-        }
-        Insert: {
-          creator_id: string
-          profile_id: string
-        }
-        Update: {
-          creator_id?: string
-          profile_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profile_creators_creator_id_fkey"
-            columns: ["creator_id"]
-            isOneToOne: false
-            referencedRelation: "creators"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profile_creators_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       mkt_link_daily: {
         Row: {
           clicks: number
@@ -1127,7 +989,15 @@ export type Database = {
           rate_tw?: number
           role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "mkt_staff_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       mkt_staff_links: {
         Row: {
@@ -1192,10 +1062,164 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "mkt_staff_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "mkt_staff_payments_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "mkt_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      period_snapshot_kpi: {
+        Row: {
+          current_week_days: number
+          current_week_end: string
+          current_week_start: string
+          last_update: string
+          max_missed_shifts: number
+          n_active: number
+          n_inactive: number
+          period_days: number
+          period_end: string
+          period_prev_end: string
+          period_prev_start: string
+          period_start: string
+          sheet_used: string
+          source: string
+          total_ca: number
+          total_ca_prev: number
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          current_week_days: number
+          current_week_end: string
+          current_week_start: string
+          last_update: string
+          max_missed_shifts?: number
+          n_active: number
+          n_inactive: number
+          period_days: number
+          period_end: string
+          period_prev_end: string
+          period_prev_start: string
+          period_start: string
+          sheet_used: string
+          source: string
+          total_ca: number
+          total_ca_prev: number
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          current_week_days?: number
+          current_week_end?: string
+          current_week_start?: string
+          last_update?: string
+          max_missed_shifts?: number
+          n_active?: number
+          n_inactive?: number
+          period_days?: number
+          period_end?: string
+          period_prev_end?: string
+          period_prev_start?: string
+          period_start?: string
+          sheet_used?: string
+          source?: string
+          total_ca?: number
+          total_ca_prev?: number
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
+      police_entries: {
+        Row: {
+          amount_eur: number
+          chatter_id: string
+          controller_id: string | null
+          created_at: string
+          error_key: string | null
+          id: string
+          kind: string
+          note: string | null
+          occurred_on: string
+          shift: string | null
+        }
+        Insert: {
+          amount_eur?: number
+          chatter_id: string
+          controller_id?: string | null
+          created_at?: string
+          error_key?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          occurred_on?: string
+          shift?: string | null
+        }
+        Update: {
+          amount_eur?: number
+          chatter_id?: string
+          controller_id?: string | null
+          created_at?: string
+          error_key?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          occurred_on?: string
+          shift?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "police_entries_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "police_entries_controller_id_fkey"
+            columns: ["controller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_creators: {
+        Row: {
+          creator_id: string
+          profile_id: string
+        }
+        Insert: {
+          creator_id: string
+          profile_id: string
+        }
+        Update: {
+          creator_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_creators_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_creators_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1403,12 +1427,23 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      chatter_first_seen: {
+        Args: never
+        Returns: {
+          chatter_id: string
+          first_seen: string
+        }[]
+      }
+      chatters_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      has_page: { Args: { slug: string }; Returns: boolean }
+      is_admin: { Args: never; Returns: boolean }
       mkt_save_staff_assignments: {
-        Args: { p_staff: string; p_links: string[]; p_accounts: string[] }
+        Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
         Returns: undefined
       }
     }
     Enums: {
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1535,8 +1570,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-    },
+    Enums: {},
   },
 } as const
-
