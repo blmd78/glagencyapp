@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur } from '@/lib/format'
-import { daysSince, isARelancer, RELANCE_SEUIL_JOURS, type SpenderRow } from '../types'
+import { daysSince, isARelancer, type SpenderRow } from '../types'
 
 /** « aujourd'hui » / « hier » / « il y a N j » — fraîcheur de la conversation. */
 function daysLabel(iso: string | null): string {
@@ -143,16 +143,8 @@ const columns: ColumnDef<SpenderRow>[] = [
   },
 ]
 
-const FILTERS = [
-  { value: 'all', label: 'Tous' },
-  { value: 'a-relancer', label: `À relancer (nous, ≥ ${RELANCE_SEUIL_JOURS} j)` },
-  { value: 'a-repondre', label: 'À répondre (lui)' },
-  { value: 'orphelins', label: 'Non assignés' },
-] as const
-
 export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
   const [model, setModel] = useState('all')
-  const [view, setView] = useState<(typeof FILTERS)[number]['value']>('all')
 
   const modelOptions = useMemo(() => {
     const byId = new Map<string, string>()
@@ -160,13 +152,10 @@ export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
     return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [spenders])
 
-  const filtered = useMemo(() => {
-    let rows = model === 'all' ? spenders : spenders.filter((s) => s.creatorId === model)
-    if (view === 'a-relancer') rows = rows.filter(isARelancer)
-    if (view === 'a-repondre') rows = rows.filter((s) => s.lastMessageIsMine === false)
-    if (view === 'orphelins') rows = rows.filter((s) => !s.chatterName && !s.assignedLabel)
-    return rows
-  }, [spenders, model, view])
+  const filtered = useMemo(
+    () => (model === 'all' ? spenders : spenders.filter((s) => s.creatorId === model)),
+    [spenders, model],
+  )
 
   return (
     <DataTable
@@ -178,24 +167,16 @@ export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
       getRowId={(s) => `${s.creatorId}:${s.fanId}`}
       countLabel={(n) => `${n} spender(s)`}
       toolbar={
-        <>
-          <Combobox
-            value={model}
-            onChange={setModel}
-            className="w-44"
-            searchPlaceholder="Rechercher un modèle…"
-            options={[
-              { value: 'all', label: 'Tous les modèles' },
-              ...modelOptions.map(([id, name]) => ({ value: id, label: name })),
-            ]}
-          />
-          <Combobox
-            value={view}
-            onChange={(v) => setView(v as typeof view)}
-            className="w-52"
-            options={FILTERS.map((f) => ({ value: f.value, label: f.label }))}
-          />
-        </>
+        <Combobox
+          value={model}
+          onChange={setModel}
+          className="w-44"
+          searchPlaceholder="Rechercher un modèle…"
+          options={[
+            { value: 'all', label: 'Tous les modèles' },
+            ...modelOptions.map(([id, name]) => ({ value: id, label: name })),
+          ]}
+        />
       }
     />
   )
