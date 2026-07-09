@@ -1454,6 +1454,41 @@ export type Database = {
           },
         ]
       }
+      spender_assignment_events: {
+        Row: {
+          changed_at: string
+          creator_id: string
+          fan_id: number
+          from_mypuls_user_id: string | null
+          id: string
+          to_mypuls_user_id: string | null
+        }
+        Insert: {
+          changed_at?: string
+          creator_id: string
+          fan_id: number
+          from_mypuls_user_id?: string | null
+          id?: string
+          to_mypuls_user_id?: string | null
+        }
+        Update: {
+          changed_at?: string
+          creator_id?: string
+          fan_id?: number
+          from_mypuls_user_id?: string | null
+          id?: string
+          to_mypuls_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spender_assignment_events_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spender_conversations: {
         Row: {
           assigned_label: string | null
