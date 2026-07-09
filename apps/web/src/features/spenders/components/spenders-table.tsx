@@ -71,33 +71,15 @@ const columns: ColumnDef<SpenderRow>[] = [
     },
   },
   {
-    accessorKey: 'caPeriode',
-    header: ({ column }) => (
-      <div className="flex items-center justify-end gap-1.5">
-        <Sortable column={column} label="CA période" className="justify-end" />
-        <HeaderInfo text="CA net dépensé sur la période sélectionnée en haut à droite (transactions datées). Le classement par défaut suit cette colonne." />
-      </div>
-    ),
-    cell: ({ getValue }) => {
-      const v = getValue() as number
-      return v > 0 ? (
-        <span className="font-medium tabular-nums">{eur(v)}</span>
-      ) : (
-        <span className="tabular-nums text-muted-foreground">—</span>
-      )
-    },
-    meta: { align: 'right' },
-  },
-  {
     accessorKey: 'ca',
     header: ({ column }) => (
       <div className="flex items-center justify-end gap-1.5">
         <Sortable column={column} label="CA total" className="justify-end" />
-        <HeaderInfo text="CA net vie entière du fan, tel que MyPuls le connaît — indépendant de la période." />
+        <HeaderInfo text="CA net vie entière du fan, tel que MyPuls le connaît (tout son historique)." />
       </div>
     ),
     cell: ({ getValue }) => (
-      <span className="tabular-nums text-muted-foreground">{eur(getValue() as number)}</span>
+      <span className="font-medium tabular-nums">{eur(getValue() as number)}</span>
     ),
     meta: { align: 'right' },
   },
@@ -163,7 +145,7 @@ export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
       columns={columns}
       filterColumnId="username"
       filterPlaceholder="Filtrer par fan…"
-      initialSorting={[{ id: 'caPeriode', desc: true }]}
+      initialSorting={[{ id: 'ca', desc: true }]}
       getRowId={(s) => `${s.creatorId}:${s.fanId}`}
       countLabel={(n) => `${n} spender(s)`}
       toolbar={

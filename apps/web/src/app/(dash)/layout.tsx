@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { AppSidebar } from '@/components/app-sidebar'
-import { DateRangePicker } from '@/components/date-range-picker'
+import { HeaderPeriod } from '@/components/header-period'
 import {
   SidebarInset,
   SidebarProvider,
@@ -32,7 +32,7 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
           <span className="text-sm font-medium">glagency</span>
           <div className="ml-auto flex items-center gap-2">
             <Suspense fallback={<div className="h-8 w-44 rounded-md border bg-muted/40" />}>
-              <DateRangePicker />
+              <HeaderPeriod />
             </Suspense>
           </div>
         </header>

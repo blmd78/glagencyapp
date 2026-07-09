@@ -1600,11 +1600,10 @@ export type Database = {
         }[]
       }
       chatters_report: { Args: { p_from: string; p_to: string }; Returns: Json }
-      crm_spenders_period_ca: {
-        Args: { p_from: string; p_to: string }
+      crm_spenders_daily: {
+        Args: never
         Returns: {
-          creator_id: string
-          fan_id: number
+          date: string
           ca: number
         }[]
       }
