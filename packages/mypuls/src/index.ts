@@ -10,3 +10,5 @@ export { money, int, intOrNull, hours, moneyTeamUrl } from './endpoints/money-te
 export { UA } from './client'
 export { fetchDashboardStats, fetchDashboardSubscriptions } from './endpoints/dashboard'
 export type { DashboardStats, DashboardSubscriptions, StatsDataset, SubsDataset } from './endpoints/dashboard'
+export { fetchChatInit, switchCreator } from './endpoints/chat'
+export type { ChatConversation } from './endpoints/chat'

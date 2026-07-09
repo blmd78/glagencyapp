@@ -648,6 +648,62 @@ export type Database = {
           },
         ]
       }
+      fan_transactions: {
+        Row: {
+          amount: number
+          attributed_mypuls_user_id: string | null
+          created_at: string
+          creator_id: string | null
+          date: string
+          fan_id: number
+          fan_username: string
+          kind: string | null
+          mypuls_creator_id: string
+          net: number
+          occurred_at: string
+          payment_id: number
+          type: string | null
+        }
+        Insert: {
+          amount: number
+          attributed_mypuls_user_id?: string | null
+          created_at?: string
+          creator_id?: string | null
+          date: string
+          fan_id: number
+          fan_username: string
+          kind?: string | null
+          mypuls_creator_id: string
+          net: number
+          occurred_at: string
+          payment_id: number
+          type?: string | null
+        }
+        Update: {
+          amount?: number
+          attributed_mypuls_user_id?: string | null
+          created_at?: string
+          creator_id?: string | null
+          date?: string
+          fan_id?: number
+          fan_username?: string
+          kind?: string | null
+          mypuls_creator_id?: string
+          net?: number
+          occurred_at?: string
+          payment_id?: number
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fan_transactions_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ingest_runs: {
         Row: {
           error: string | null
@@ -1394,6 +1450,56 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spender_conversations: {
+        Row: {
+          assigned_label: string | null
+          assigned_mypuls_user_id: string | null
+          ca_total: number
+          captured_at: string
+          creator_id: string
+          fan_id: number
+          has_unread: boolean
+          last_message_at: string | null
+          last_message_is_mine: boolean | null
+          status: string | null
+          username: string
+        }
+        Insert: {
+          assigned_label?: string | null
+          assigned_mypuls_user_id?: string | null
+          ca_total?: number
+          captured_at: string
+          creator_id: string
+          fan_id: number
+          has_unread?: boolean
+          last_message_at?: string | null
+          last_message_is_mine?: boolean | null
+          status?: string | null
+          username: string
+        }
+        Update: {
+          assigned_label?: string | null
+          assigned_mypuls_user_id?: string | null
+          ca_total?: number
+          captured_at?: string
+          creator_id?: string
+          fan_id?: number
+          has_unread?: boolean
+          last_message_at?: string | null
+          last_message_is_mine?: boolean | null
+          status?: string | null
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spender_conversations_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
             referencedColumns: ["id"]
           },
         ]

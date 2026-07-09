@@ -5,6 +5,8 @@ export interface MoneyTx {
   payment_id: number
   creator_id: number
   creator: string
+  /** Id fan MyPuls (= id de /chat/init et /fans) — présent sur les tx messagerie. */
+  fan_id?: number
   fan?: string
   amount: number
   net?: number

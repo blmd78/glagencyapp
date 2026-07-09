@@ -18,6 +18,7 @@ import {
   Calculator,
   UserCog,
   Megaphone,
+  Gem,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -55,6 +56,8 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff },
       { href: '/chatter/police', label: 'Police', icon: ShieldAlert },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare },
+      // Slug explicite `crm-spenders` (aligné sur la RLS de 0029), l'URL reste courte.
+      { href: '/chatter/spenders', label: 'Spenders', icon: Gem, slug: 'crm-spenders' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users },
       { href: '/chatter/stats', label: 'Stats', icon: ChartColumn },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse },
@@ -97,13 +100,13 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'police', 'chatters', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'repos', 'police', 'chatters', 'crm-spenders', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /** Pages cochables dans la gestion des membres (= nav non-admin, dans l'ordre de la sidebar). */
 export const PAGE_CHOICES = DEFAULT_WORKSPACE.nav
-  .filter((n) => !n.adminOnly && (PAGE_SLUGS as readonly string[]).includes(pageSlug(n.href)))
-  .map((n) => ({ slug: pageSlug(n.href) as PageSlug, label: n.label, icon: n.icon }))
+  .filter((n) => !n.adminOnly && (PAGE_SLUGS as readonly string[]).includes(n.slug ?? pageSlug(n.href)))
+  .map((n) => ({ slug: (n.slug ?? pageSlug(n.href)) as PageSlug, label: n.label, icon: n.icon }))
 
 /** Pages cochables de la FACE MARKETING (slugs mkt-* — gérées depuis /marketing/members). */
 export const MKT_PAGE_CHOICES = (WORKSPACES.find((w) => w.id === 'marketing')?.nav ?? [])

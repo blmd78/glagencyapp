@@ -7,6 +7,7 @@
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
     "capture": "tsx src/capture.ts",
+    "spenders": "tsx src/spenders.ts",
     "cf:dev": "wrangler dev --test-scheduled --port 8799",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
