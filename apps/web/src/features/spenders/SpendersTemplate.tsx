@@ -15,6 +15,8 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
     : null
 
   const caTotal = data.spenders.reduce((s, x) => s + x.ca, 0)
+  const caPeriode = data.spenders.reduce((s, x) => s + x.caPeriode, 0)
+  const actifsPeriode = data.spenders.filter((s) => s.caPeriode > 0).length
   const aRelancer = data.spenders.filter(isARelancer).length
   const aRepondre = data.spenders.filter((s) => s.lastMessageIsMine === false).length
   const orphelins = data.spenders.filter((s) => !s.chatterName && !s.assignedLabel).length
@@ -25,17 +27,18 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
       label: 'Spenders trackés',
       value: String(data.spenders.length),
       deltaPct: null,
-      trendLabel: `CA ≥ ${data.threshold} € net MyPuls`,
+      trendLabel: `${actifsPeriode} actif(s) sur ${data.period}`,
       hint: freshness ? `scrapé le ${freshness}` : '',
-      info: 'Fans dont le CA net connu de MyPuls dépasse le seuil de tracking.',
+      info: 'Fans dont le CA net vie connu de MyPuls dépasse le seuil de tracking. « Actifs » = au moins une transaction sur la période sélectionnée.',
     },
     {
       key: 'ca',
-      label: 'CA cumulé spenders',
-      value: eur(caTotal),
+      label: 'CA spenders (période)',
+      value: eur(caPeriode),
       deltaPct: null,
-      trendLabel: 'net, connu de MyPuls',
-      hint: 'somme des fiches affichées',
+      trendLabel: data.period,
+      hint: `vie entière : ${eur(caTotal)}`,
+      info: 'Somme des transactions des spenders sur la période du datepicker. Historique ingéré depuis le 1er juillet.',
     },
     {
       key: 'relancer',
