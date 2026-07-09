@@ -159,6 +159,8 @@ export function MembersTable({
           <Badge className={cn('gap-1 text-xs', STATUS_COLORS.info)}>
             <ShieldCheck className="size-3" /> Admin
           </Badge>
+        ) : (getValue() as string) === 'manager' ? (
+          <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Manager</Badge>
         ) : (
           <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>User</Badge>
         ),

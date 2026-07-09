@@ -82,7 +82,7 @@ export async function createMember(input: unknown): Promise<Result> {
   await requireAdmin()
   const parsed = memberInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
-  const { scope, email, displayName, pages, creatorIds } = parsed.data
+  const { scope, email, displayName, role, pages, creatorIds } = parsed.data
 
   const admin = createAdminClient()
   const { data: created, error } = await admin.auth.admin.createUser({
@@ -95,13 +95,22 @@ export async function createMember(input: unknown): Promise<Result> {
   }
   const uid = created.user.id
 
-  // Le trigger a posé le profil ET son rôle (allowlist → admin, sinon user) : on ne touche
-  // PAS au rôle ici — l'écraser en 'user' rétrograderait un email allowlisté.
+  // Le trigger a posé le profil ET son rôle (allowlist → admin, sinon user) : on n'écrase
+  // jamais un admin allowlisté — le rôle choisi (user/manager) n'est posé que sinon
+  // (garde .neq en plus du guard applicatif).
   const { error: pErr } = await admin
     .from('profiles')
     .update({ display_name: displayName, pages: mergePages([], pages, scope) })
     .eq('id', uid)
   if (pErr) return { success: false, error: pErr.message }
+  if (role === 'manager') {
+    const { error: rErr } = await admin
+      .from('profiles')
+      .update({ role })
+      .eq('id', uid)
+      .neq('role', 'admin')
+    if (rErr) return { success: false, error: rErr.message }
+  }
   // Les modèles assignés sont un concept de la face chatteurs uniquement.
   if (scope === 'chatter') {
     const sErr = await syncAssignments(admin, uid, creatorIds)
@@ -115,16 +124,17 @@ export async function updateMember(input: unknown): Promise<Result> {
   await requireAdmin()
   const parsed = memberUpdateInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
-  const { scope, id, displayName, pages, creatorIds } = parsed.data
+  const { scope, id, displayName, role, pages, creatorIds } = parsed.data
 
   const admin = createAdminClient()
   const guard = await requireEditableTarget(admin, id)
   if (guard) return { success: false, error: guard }
 
+  // requireEditableTarget garantit que la cible n'est pas admin → poser user/manager est sûr.
   const { data: current } = await admin.from('profiles').select('pages').eq('id', id).single()
   const { error: pErr } = await admin
     .from('profiles')
-    .update({ display_name: displayName, pages: mergePages(current?.pages ?? [], pages, scope) })
+    .update({ display_name: displayName, role, pages: mergePages(current?.pages ?? [], pages, scope) })
     .eq('id', id)
   if (pErr) return { success: false, error: pErr.message }
   if (scope === 'chatter') {

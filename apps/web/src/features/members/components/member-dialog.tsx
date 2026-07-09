@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { modelColor } from '@/lib/model-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
@@ -59,6 +66,7 @@ export function MemberDialog({
       scope,
       email: member?.email ?? '',
       displayName: member?.displayName ?? '',
+      role: member?.role === 'manager' ? 'manager' : 'user',
       // Seules les pages du périmètre courant sont éditées ici.
       pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
       creatorIds: member?.creatorIds ?? [],
@@ -71,6 +79,7 @@ export function MemberDialog({
           scope,
           id: member.id,
           displayName: values.displayName,
+          role: values.role,
           pages: values.pages,
           creatorIds: values.creatorIds,
         })
@@ -119,6 +128,27 @@ export function MemberDialog({
               <p className="text-xs text-red-600 dark:text-red-400">{errors.displayName.message}</p>
             )}
           </div>
+
+          <Controller
+            name="role"
+            control={control}
+            render={({ field }) => (
+              <div className="grid gap-1.5">
+                <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Rôle
+                </label>
+                <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          />
 
           <Controller
             name="pages"

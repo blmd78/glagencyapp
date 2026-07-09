@@ -12,6 +12,8 @@ export const memberInput = z
     scope: z.enum(['chatter', 'marketing']),
     email: z.string().email('Email invalide'),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
+    // `admin` reste piloté par l'allowlist (trigger handle_new_user), jamais posé ici.
+    role: z.enum(['user', 'manager']),
     // min(1) : un compte sans aucune page serait inutilisable (atterrit sur /no-access).
     pages: z.array(z.string()).min(1, 'Coche au moins une page'),
     creatorIds: z.array(z.string().uuid()).max(50),
@@ -28,6 +30,7 @@ export const memberUpdateInput = z
     scope: z.enum(['chatter', 'marketing']),
     id: z.string().uuid(),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
+    role: z.enum(['user', 'manager']),
     pages: z.array(z.string()).min(1, 'Coche au moins une page'),
     creatorIds: z.array(z.string().uuid()).max(50),
   })
