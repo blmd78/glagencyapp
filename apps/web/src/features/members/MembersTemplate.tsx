@@ -18,10 +18,9 @@ export function MembersTemplate({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Membres</h1>
         <p className="text-sm text-muted-foreground">
-          {data.members.length} compte(s) · connexion par code email (OTP) ·{' '}
-          {scope === 'marketing'
-            ? 'droits du pôle marketing (les droits chatteurs se gèrent depuis leur face)'
-            : 'le cloisonnement par modèle est appliqué par la base (RLS)'}
+          {data.members.length} compte(s)
+          {scope === 'marketing' &&
+            ' · droits du pôle marketing (les droits chatteurs se gèrent depuis leur face)'}
         </p>
       </div>
 
