@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
-import type { ChatterModel, ChatterRow, ChattersData } from '../types'
+import type { ChatterModel, ChatterRow, ChattersData, CrmRole, CrmShift, CrmTeam } from '../types'
 
 import { conv, round1, round2 } from '@/lib/format'
 
@@ -74,6 +74,16 @@ export async function getChatters(
   const rep = data ?? { totals: [], by_creator: [], chatters: [], scope: { attributed: 0, messaging: 0, all_accounts: 0 }, ranking: null }
 
   const chMeta = new Map(rep.chatters.map((c) => [c.id, c]))
+
+  // Champs closing CRM (colonnes chatters.role/team/shift, migration 0027) — hors RPC
+  // pour ne pas toucher chatters_report ; lecture couverte par chatters_scoped_read.
+  // team/shift absents des types générés (à régénérer post-migration) → cast, comme le RPC.
+  const { data: crmRows } = (await supabase
+    .from('chatters')
+    .select('id, role, team, shift')) as unknown as {
+    data: Array<{ id: string; role: string | null; team: string | null; shift: string | null }> | null
+  }
+  const crmById = new Map((crmRows ?? []).map((c) => [c.id, c]))
 
   // Agrégat chatteur (header). Non restreint : depuis `totals` (déjà 1 ligne/chatteur).
   // Restreint : `totals` vide → somme de la ventilation par modèle visible.
@@ -150,7 +160,10 @@ export async function getChatters(
         name: meta?.display_name ?? '—',
         email: meta?.email ?? null,
         active: meta?.active ?? false,
-        team: meta?.team ?? null,
+        managementTeam: meta?.team ?? null,
+        role: (crmById.get(id)?.role ?? null) as CrmRole | null,
+        team: (crmById.get(id)?.team ?? null) as CrmTeam | null,
+        shift: (crmById.get(id)?.shift ?? null) as CrmShift | null,
         ca: a.ca,
         ppv: a.ppv,
         tips: a.tips,

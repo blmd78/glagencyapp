@@ -6,6 +6,14 @@ import type { RevenueScope } from '@/components/revenue-scope-note'
  * chatter_daily + chatter_creator_daily) — seul `get-chatters.ts` changera.
  */
 
+// Champs closing CRM (fusion gla-workflow) — miroir des colonnes chatters.role/team/shift.
+export const CRM_ROLES = ['closer', 'setter'] as const
+export const CRM_TEAMS = ['rouge', 'bleue'] as const
+export const CRM_SHIFTS = ['matin', 'aprem', 'soir'] as const
+export type CrmRole = (typeof CRM_ROLES)[number]
+export type CrmTeam = (typeof CRM_TEAMS)[number]
+export type CrmShift = (typeof CRM_SHIFTS)[number]
+
 /** Détail par compte OF (sommable : argent + volume). */
 export interface ChatterModel {
   /** id du compte OF (creators.id) — clé stable, deux comptes peuvent partager un nom. */
@@ -28,7 +36,12 @@ export interface ChatterRow {
   name: string
   email: string | null
   active: boolean
-  team: string | null
+  /** Nom de la team de management (teams.name via team_id) — ≠ `team` closing rouge/bleue. */
+  managementTeam: string | null
+  // Closing CRM (édités via le crayon — null = pas dans le dispositif)
+  role: CrmRole | null
+  team: CrmTeam | null
+  shift: CrmShift | null
   // Sommables (= Σ modèles)
   ca: number
   ppv: number

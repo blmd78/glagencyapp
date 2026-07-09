@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, pct } from '@/lib/format'
+import { ChatterCrmDialog } from './chatter-crm-dialog'
 import type { ChatterRow, DailyRanking } from '../types'
 
 // Couleurs de statut partagées (recette badge shadcn) : lib/status-color.ts.
@@ -169,6 +170,33 @@ const columns: ColumnDef<ChatterRow>[] = [
     ),
     meta: { align: 'center' },
   },
+  {
+    id: 'crm',
+    header: 'Closing',
+    cell: ({ row }) => (
+      // stopPropagation : le dialog et ses selects sont portalés dans <body> côté DOM mais
+      // enfants de cette cellule côté React — sans ça, tout clic dans la modal bubble
+      // jusqu'au onClick d'expansion de la ligne (data-table.tsx).
+      <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {row.original.role && (
+          <Badge variant="secondary">{row.original.role === 'closer' ? 'Closer' : 'Setter'}</Badge>
+        )}
+        {row.original.team && (
+          <Badge
+            className={
+              row.original.team === 'rouge'
+                ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
+            }
+          >
+            {row.original.team === 'rouge' ? 'Rouge' : 'Bleue'}
+          </Badge>
+        )}
+        <ChatterCrmDialog chatter={row.original} />
+      </div>
+    ),
+    meta: { align: 'right' },
+  },
 ]
 
 /** Détail déplié : une ligne par modèle où le chatteur a produit + reliquat non ventilé. */
@@ -198,6 +226,7 @@ function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-center text-muted-foreground">—</TableCell>
+          <TableCell />
         </TableRow>
       ))}
       {row.original.caUnattributed > 0 && (
@@ -209,7 +238,7 @@ function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-right italic tabular-nums text-amber-600">
             {eur(row.original.caUnattributed)}
           </TableCell>
-          <TableCell colSpan={8} className="text-muted-foreground">—</TableCell>
+          <TableCell colSpan={9} className="text-muted-foreground">—</TableCell>
         </TableRow>
       )}
     </>
