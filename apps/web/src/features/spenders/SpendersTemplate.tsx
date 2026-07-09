@@ -23,19 +23,11 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
     {
       key: 'spenders',
       label: 'Spenders trackés',
-      value: String(data.spenders.length),
+      value: `${data.spenders.length} · ${eur(caTotal)}`,
       deltaPct: null,
       trendLabel: `CA ≥ ${data.threshold} € net MyPuls`,
       hint: freshness ? `scrapé le ${freshness}` : '',
-      info: 'Fans dont le CA net connu de MyPuls dépasse le seuil de tracking.',
-    },
-    {
-      key: 'ca',
-      label: 'CA cumulé spenders',
-      value: eur(caTotal),
-      deltaPct: null,
-      trendLabel: 'net, connu de MyPuls',
-      hint: 'somme des fiches affichées',
+      info: 'Fans dont le CA net connu de MyPuls dépasse le seuil de tracking, et leur CA cumulé.',
     },
     {
       key: 'relancer',
@@ -78,7 +70,7 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {kpis.map(({ accent, ...k }) => (
               <KpiCard key={k.key} kpi={k} accent={accent} />
             ))}
