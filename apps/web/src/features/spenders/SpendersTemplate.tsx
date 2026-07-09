@@ -1,7 +1,9 @@
+import { KpiCard, type Kpi } from '@/components/kpi-card'
+import { eur } from '@/lib/format'
 import { SpendersTable } from './components/spenders-table'
-import type { SpendersData } from './types'
+import { isARelancer, RELANCE_SEUIL_JOURS, type SpendersData } from './types'
 
-/** Template Spenders (CRM closing) : compose la table depuis les données scrapées. Aucun fetch. */
+/** Template Spenders (CRM closing) : KPI + table depuis les données scrapées. Aucun fetch. */
 export function SpendersTemplate({ data }: { data: SpendersData }) {
   const freshness = data.capturedAt
     ? new Date(data.capturedAt).toLocaleString('fr-FR', {
@@ -11,6 +13,50 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
         minute: '2-digit',
       })
     : null
+
+  const caTotal = data.spenders.reduce((s, x) => s + x.ca, 0)
+  const aRelancer = data.spenders.filter(isARelancer).length
+  const aRepondre = data.spenders.filter((s) => s.lastMessageIsMine === false).length
+  const orphelins = data.spenders.filter((s) => !s.chatterName && !s.assignedLabel).length
+
+  const kpis: Array<Kpi & { accent?: string }> = [
+    {
+      key: 'spenders',
+      label: 'Spenders trackés',
+      value: String(data.spenders.length),
+      deltaPct: null,
+      trendLabel: `CA ≥ ${data.threshold} € net MyPuls`,
+      hint: freshness ? `scrapé le ${freshness}` : '',
+      info: 'Fans dont le CA net connu de MyPuls dépasse le seuil de tracking.',
+    },
+    {
+      key: 'ca',
+      label: 'CA cumulé spenders',
+      value: eur(caTotal),
+      deltaPct: null,
+      trendLabel: 'net, connu de MyPuls',
+      hint: 'somme des fiches affichées',
+    },
+    {
+      key: 'relancer',
+      label: 'À relancer',
+      value: String(aRelancer),
+      deltaPct: null,
+      trendLabel: `muets depuis ≥ ${RELANCE_SEUIL_JOURS} j`,
+      hint: 'dernier message de nous, sans réponse',
+      accent: 'border-t-amber-500',
+      info: 'Conversations où le dernier message vient de nous et date de 15 jours ou plus — la file de relance Snap.',
+    },
+    {
+      key: 'orphelins',
+      label: 'Non assignés',
+      value: String(orphelins),
+      deltaPct: null,
+      trendLabel: `${aRepondre} en attente de réponse`,
+      hint: 'sans chatteur assigné dans MyPuls',
+      accent: 'border-t-red-500',
+    },
+  ]
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +77,14 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
           </p>
         </div>
       ) : (
-        <SpendersTable spenders={data.spenders} />
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {kpis.map(({ accent, ...k }) => (
+              <KpiCard key={k.key} kpi={k} accent={accent} />
+            ))}
+          </div>
+          <SpendersTable spenders={data.spenders} />
+        </>
       )}
     </div>
   )

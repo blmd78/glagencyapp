@@ -11,15 +11,15 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur } from '@/lib/format'
-import type { SpenderRow } from '../types'
+import { daysSince, isARelancer, RELANCE_SEUIL_JOURS, type SpenderRow } from '../types'
 
 /** « aujourd'hui » / « hier » / « il y a N j » — fraîcheur de la conversation. */
-function daysAgo(iso: string | null): { label: string; days: number | null } {
-  if (!iso) return { label: '—', days: null }
-  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
-  if (days <= 0) return { label: "aujourd'hui", days: 0 }
-  if (days === 1) return { label: 'hier', days: 1 }
-  return { label: `il y a ${days} j`, days }
+function daysLabel(iso: string | null): string {
+  const days = daysSince(iso)
+  if (days === null) return '—'
+  if (days <= 0) return "aujourd'hui"
+  if (days === 1) return 'hier'
+  return `il y a ${days} j`
 }
 
 const columns: ColumnDef<SpenderRow>[] = [
@@ -39,55 +39,6 @@ const columns: ColumnDef<SpenderRow>[] = [
     accessorKey: 'model',
     header: 'Modèle',
     cell: ({ getValue }) => <Badge className={modelColor(getValue() as string)}>{getValue() as string}</Badge>,
-  },
-  {
-    accessorKey: 'ca',
-    header: ({ column }) => <Sortable column={column} label="CA net" className="justify-end" />,
-    cell: ({ getValue }) => (
-      <span className="font-medium tabular-nums">{eur(getValue() as number)}</span>
-    ),
-    meta: { align: 'right' },
-  },
-  {
-    accessorKey: 'status',
-    header: 'Statut',
-    cell: ({ getValue }) => {
-      const s = getValue() as string | null
-      if (!s) return <span className="text-muted-foreground">—</span>
-      const active = s === 'Abonné'
-      return (
-        <Badge className={cn('text-xs', active ? STATUS_COLORS.positive : STATUS_COLORS.neutral)}>
-          {s}
-        </Badge>
-      )
-    },
-    meta: { align: 'center' },
-  },
-  {
-    id: 'lastMessage',
-    accessorFn: (r) => r.lastMessageAt ?? '',
-    header: ({ column }) => (
-      <div className="flex items-center gap-1.5">
-        <Sortable column={column} label="Dernier message" />
-        <HeaderInfo text="Date du dernier message de la conversation MyPuls, et qui l'a envoyé. « nous, sans réponse » = candidat à la relance Snap." />
-      </div>
-    ),
-    cell: ({ row }) => {
-      const { label, days } = daysAgo(row.original.lastMessageAt)
-      const stale = days !== null && days >= 15
-      return (
-        <div className="flex items-center gap-2">
-          <span className={cn('tabular-nums', stale ? 'font-medium text-amber-600' : 'text-muted-foreground')}>
-            {label}
-          </span>
-          {row.original.lastMessageIsMine !== null && (
-            <span className="text-xs text-muted-foreground">
-              {row.original.lastMessageIsMine ? '(nous, sans réponse)' : '(lui)'}
-            </span>
-          )}
-        </div>
-      )
-    },
   },
   {
     id: 'chatter',
@@ -114,11 +65,59 @@ const columns: ColumnDef<SpenderRow>[] = [
       )
     },
   },
+  {
+    accessorKey: 'ca',
+    header: ({ column }) => <Sortable column={column} label="CA net" className="justify-end" />,
+    cell: ({ getValue }) => (
+      <span className="font-medium tabular-nums">{eur(getValue() as number)}</span>
+    ),
+    meta: { align: 'right' },
+  },
+  {
+    id: 'lastMessage',
+    accessorFn: (r) => r.lastMessageAt ?? '',
+    header: ({ column }) => (
+      <div className="flex items-center gap-1.5">
+        <Sortable column={column} label="Dernier message" />
+        <HeaderInfo text="Date du dernier message de la conversation MyPuls, et qui l'a envoyé. « nous, sans réponse » = candidat à la relance Snap." />
+      </div>
+    ),
+    cell: ({ row }) => {
+      const stale = isARelancer(row.original)
+      return (
+        <div className="flex items-center gap-2">
+          <span className={cn('tabular-nums', stale ? 'font-medium text-amber-600' : 'text-muted-foreground')}>
+            {daysLabel(row.original.lastMessageAt)}
+          </span>
+          {row.original.lastMessageIsMine !== null && (
+            <span className="text-xs text-muted-foreground">
+              {row.original.lastMessageIsMine ? '(nous, sans réponse)' : '(lui)'}
+            </span>
+          )}
+        </div>
+      )
+    },
+  },
+  {
+    accessorKey: 'status',
+    header: 'Statut',
+    cell: ({ getValue }) => {
+      const s = getValue() as string | null
+      if (!s) return <span className="text-muted-foreground">—</span>
+      const active = s === 'Abonné'
+      return (
+        <Badge className={cn('text-xs', active ? STATUS_COLORS.positive : STATUS_COLORS.neutral)}>
+          {s}
+        </Badge>
+      )
+    },
+    meta: { align: 'center' },
+  },
 ]
 
 const FILTERS = [
   { value: 'all', label: 'Tous' },
-  { value: 'a-relancer', label: 'À relancer (nous, ≥ 15 j)' },
+  { value: 'a-relancer', label: `À relancer (nous, ≥ ${RELANCE_SEUIL_JOURS} j)` },
   { value: 'a-repondre', label: 'À répondre (lui)' },
   { value: 'orphelins', label: 'Non assignés' },
 ] as const
@@ -135,8 +134,7 @@ export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
 
   const filtered = useMemo(() => {
     let rows = model === 'all' ? spenders : spenders.filter((s) => s.creatorId === model)
-    if (view === 'a-relancer')
-      rows = rows.filter((s) => s.lastMessageIsMine === true && daysAgo(s.lastMessageAt).days! >= 15)
+    if (view === 'a-relancer') rows = rows.filter(isARelancer)
     if (view === 'a-repondre') rows = rows.filter((s) => s.lastMessageIsMine === false)
     if (view === 'orphelins') rows = rows.filter((s) => !s.chatterName && !s.assignedLabel)
     return rows

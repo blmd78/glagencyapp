@@ -6,6 +6,19 @@
 /** Seuil de tracking (CA net MyPuls) — un fan devient « spender » à partir de là. */
 export const CA_TRACKING_SEUIL = 40
 
+/** Ancienneté (jours) au-delà de laquelle une conversation muette devient « à relancer ». */
+export const RELANCE_SEUIL_JOURS = 15
+
+/** Jours entiers écoulés depuis une date ISO (null si absente). */
+export function daysSince(iso: string | null): number | null {
+  if (!iso) return null
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000)
+}
+
+/** Un spender est « à relancer » : dernier message de nous, resté sans réponse ≥ seuil. */
+export const isARelancer = (s: Pick<SpenderRow, 'lastMessageIsMine' | 'lastMessageAt'>) =>
+  s.lastMessageIsMine === true && (daysSince(s.lastMessageAt) ?? 0) >= RELANCE_SEUIL_JOURS
+
 export interface SpenderRow {
   fanId: number
   username: string
