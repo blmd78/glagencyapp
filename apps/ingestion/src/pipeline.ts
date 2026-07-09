@@ -9,6 +9,7 @@ import {
 } from '@glagency/mypuls'
 import { createAdminClient } from '@glagency/db'
 import { summarizeRun, type IngestDayResult, type IngestRunSummary } from '@glagency/core'
+import { decodeEntities, normLabel } from './norm'
 
 type Db = ReturnType<typeof createAdminClient>
 /** Récupère+parse la page money-team d'un jour. Injectable : Node=cheerio, Worker=HTMLRewriter. */
@@ -55,34 +56,8 @@ function addDays(day: string, n: number): string {
   return iso(d)
 }
 
-// Normalise un label scrapé → clé de rapprochement `chatter_alias` : casse, espaces,
-// et retrait de tout ce qui n'est ni lettre ni chiffre (emojis, apostrophes…) —
-// le même chatteur apparaît « Kwasi 🎯 » sur une page modèle et « Kwasi » sur une autre
-// (constaté le 03/07 : 3 doublons fantômes créés à cause de ça).
-// On NE retire PAS les accents : « José » et « Jose » peuvent être deux personnes distinctes.
-// Le HTML money-team peut livrer des entités non décodées (constaté : « SOS&#039;GOD »).
-const NAMED_ENTITIES: Record<string, string> = {
-  amp: '&', quot: '"', apos: "'", lt: '<', gt: '>', nbsp: ' ',
-  rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', eacute: 'é', egrave: 'è', agrave: 'à', ccedil: 'ç',
-}
-const decodeEntities = (s: string) =>
-  s
-    .replace(/&#x([0-9a-f]+);/gi, (m, n) => {
-      const cp = parseInt(n, 16)
-      return cp <= 0x10ffff ? String.fromCodePoint(cp) : m
-    })
-    .replace(/&#(\d+);/g, (m, n) => {
-      const cp = Number(n)
-      return cp <= 0x10ffff ? String.fromCodePoint(cp) : m
-    })
-    .replace(/&([a-z]+);/gi, (m, name) => NAMED_ENTITIES[name.toLowerCase()] ?? m)
-
-const normLabel = (s: string) =>
-  decodeEntities(s)
-    .replace(/\s*\(accès révoqué\)\s*$/i, '') // suffixe CSV d'état, pas d'identité
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '') // retire symboles ET espaces : « Mk (Ghost) » ≡ « Mk(Ghost) »
+// Normalisation d'un label scrapé → clé de rapprochement `chatter_alias` : voir norm.ts
+// (extraite pour être partagée avec le scrape spenders — même clé de résolution partout).
 
 /** Valeurs dashboard d'un (modèle, jour) : CA ventilé (€) + abonnés (comptes). */
 interface DashDay {

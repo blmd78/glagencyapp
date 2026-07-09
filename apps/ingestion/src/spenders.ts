@@ -9,8 +9,30 @@ import {
 } from '@glagency/mypuls'
 import { createAdminClient } from '@glagency/db'
 import { loadEnv } from './env'
+import { normLabel } from './norm'
 
 type Db = ReturnType<typeof createAdminClient>
+
+/**
+ * Résout un label d'assignation MyPuls (« Junior », « x@gmail.com ») vers NOTRE chatter_id.
+ * Même clé que le pipeline money-team (chatter_alias / display_name / email normalisés).
+ * Ne CRÉE PAS de chatteur : une assignation peut viser un manager/email hors closing —
+ * on préfère laisser null (label brut affiché) plutôt que polluer la table chatters.
+ */
+async function chatterResolver(db: Db): Promise<(label: string | null) => string | null> {
+  const [{ data: chatters }, { data: aliases }] = await Promise.all([
+    db.from('chatters').select('id, display_name, email'),
+    db.from('chatter_alias').select('chatter_id, raw_label_norm'),
+  ])
+  const byNorm = new Map<string, string>()
+  for (const c of chatters ?? []) {
+    if (c.display_name) byNorm.set(normLabel(c.display_name), c.id)
+    if (c.email) byNorm.set(normLabel(c.email), c.id)
+  }
+  // Les alias priment (variantes de casse/emoji déjà rapprochées par le pipeline).
+  for (const a of aliases ?? []) byNorm.set(normLabel(a.raw_label_norm), a.chatter_id)
+  return (label) => (label ? (byNorm.get(normLabel(label)) ?? null) : null)
+}
 
 /**
  * Ingestion CRM spenders — deux faits :
@@ -67,7 +89,12 @@ export async function ingestFanTransactions(db: Db, byMypulsId: Map<string, stri
 }
 
 /** Conversations d'un modèle → upsert spender_conversations (état courant). */
-async function ingestConversations(db: Db, creatorId: string, convs: ChatConversation[]) {
+async function ingestConversations(
+  db: Db,
+  creatorId: string,
+  convs: ChatConversation[],
+  resolveChatter: (label: string | null) => string | null,
+) {
   const capturedAt = new Date().toISOString()
   const rows = convs.map((c) => ({
     creator_id: creatorId,
@@ -80,6 +107,7 @@ async function ingestConversations(db: Db, creatorId: string, convs: ChatConvers
     has_unread: c.hasUnread ?? false,
     assigned_mypuls_user_id: c.assignUser ? String(c.assignUser.id) : null,
     assigned_label: c.assignUser?.label ?? null,
+    assigned_chatter_id: resolveChatter(c.assignUser?.label ?? null),
     captured_at: capturedAt,
   }))
   for (let i = 0; i < rows.length; i += 500) {
@@ -94,12 +122,13 @@ async function ingestConversations(db: Db, creatorId: string, convs: ChatConvers
 /** Boucle tous modèles : switch-creator → chat/init → upsert. */
 export async function ingestAllConversations(db: Db, byMypulsId: Map<string, string>) {
   const { cookie } = await login()
+  const resolveChatter = await chatterResolver(db)
   const out: Array<{ mypulsId: string; conversations: number }> = []
   for (const [mypulsId, creatorId] of byMypulsId) {
     try {
       await switchCreator(mypulsId, cookie)
       const convs = await fetchChatInit(cookie)
-      const n = await ingestConversations(db, creatorId, convs)
+      const n = await ingestConversations(db, creatorId, convs, resolveChatter)
       out.push({ mypulsId, conversations: n })
       console.log(`[spenders] creator ${mypulsId}: ${n} conversations`)
     } catch (e) {
