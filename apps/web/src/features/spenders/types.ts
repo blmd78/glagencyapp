@@ -38,17 +38,9 @@ export interface SpenderRow {
   chatterTeam: 'rouge' | 'bleue' | null
 }
 
-/** Point d'évolution : CA net des spenders capté un jour donné (depuis le début du scrape). */
-export interface SpenderDailyPoint {
-  date: string
-  ca: number
-}
-
 export interface SpendersData {
   spenders: SpenderRow[]
   /** Date du dernier passage du scrapper (fraîcheur affichée). */
   capturedAt: string | null
   threshold: number
-  /** Évolution du CA scrapé par jour (tout l'historique capté — pas de période). */
-  daily: SpenderDailyPoint[]
 }

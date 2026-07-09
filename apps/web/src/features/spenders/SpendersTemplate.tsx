@@ -1,17 +1,9 @@
 import { KpiCard, type Kpi } from '@/components/kpi-card'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
 import { eur } from '@/lib/format'
 import { SpendersTable } from './components/spenders-table'
-import { SpendersDailyChart } from './components/spenders-daily-chart'
 import { isARelancer, RELANCE_SEUIL_JOURS, type SpendersData } from './types'
 
-/** Template Spenders (CRM closing) : KPI + évolution + table. Aucun fetch. Pas de période. */
+/** Template Spenders (CRM closing) : KPI + table depuis les données scrapées. Aucun fetch. */
 export function SpendersTemplate({ data }: { data: SpendersData }) {
   const freshness = data.capturedAt
     ? new Date(data.capturedAt).toLocaleString('fr-FR', {
@@ -23,7 +15,6 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
     : null
 
   const caTotal = data.spenders.reduce((s, x) => s + x.ca, 0)
-  const caCapte = data.daily.reduce((s, d) => s + d.ca, 0)
   const aRelancer = data.spenders.filter(isARelancer).length
   const aRepondre = data.spenders.filter((s) => s.lastMessageIsMine === false).length
   const orphelins = data.spenders.filter((s) => !s.chatterName && !s.assignedLabel).length
@@ -32,20 +23,19 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
     {
       key: 'spenders',
       label: 'Spenders trackés',
-      value: `${data.spenders.length} · ${eur(caTotal)}`,
+      value: String(data.spenders.length),
       deltaPct: null,
-      trendLabel: `CA ≥ ${data.threshold} € (total vie MyPuls)`,
+      trendLabel: `CA ≥ ${data.threshold} € net MyPuls`,
       hint: freshness ? `scrapé le ${freshness}` : '',
-      info: 'Fans dont le CA net vie connu de MyPuls dépasse le seuil de tracking, et leur CA cumulé.',
     },
     {
-      key: 'capte',
-      label: 'CA capté (depuis le suivi)',
-      value: eur(caCapte),
+      key: 'ca',
+      label: 'CA cumulé spenders',
+      value: eur(caTotal),
       deltaPct: null,
-      trendLabel: 'somme de nos jours scrapés',
-      hint: 'cf. graphe d’évolution',
-      info: 'Somme de toutes les transactions captées depuis le début du scrape. Ce que les spenders ont réellement dépensé pendant qu’on les suit.',
+      trendLabel: 'total vie de chaque fan',
+      hint: 'somme des CA affichés',
+      info: 'Somme des CA vie de tous les spenders (chacun = tout son historique MyPuls). Repère de volume, pas un CA de période.',
     },
     {
       key: 'relancer',
@@ -93,19 +83,6 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
               <KpiCard key={k.key} kpi={k} accent={accent} />
             ))}
           </div>
-
-          {data.daily.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Évolution du CA spenders</CardTitle>
-                <CardDescription>CA net capté par jour, depuis le début du scrape</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <SpendersDailyChart data={data.daily} />
-              </CardContent>
-            </Card>
-          )}
-
           <SpendersTable spenders={data.spenders} />
         </>
       )}
