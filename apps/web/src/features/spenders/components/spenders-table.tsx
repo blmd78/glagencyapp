@@ -25,7 +25,12 @@ function daysLabel(iso: string | null): string {
 const columns: ColumnDef<SpenderRow>[] = [
   {
     accessorKey: 'username',
-    header: ({ column }) => <Sortable column={column} label="Fan" />,
+    header: ({ column }) => (
+      <div className="flex items-center gap-1.5">
+        <Sortable column={column} label="Fan" />
+        <HeaderInfo text="Point bleu = message non lu dans la conversation MyPuls (quelqu'un doit aller lire/répondre)." />
+      </div>
+    ),
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
         <span className="truncate font-medium">{row.original.username}</span>
@@ -66,10 +71,33 @@ const columns: ColumnDef<SpenderRow>[] = [
     },
   },
   {
+    accessorKey: 'caPeriode',
+    header: ({ column }) => (
+      <div className="flex items-center justify-end gap-1.5">
+        <Sortable column={column} label="CA période" className="justify-end" />
+        <HeaderInfo text="CA net dépensé sur la période sélectionnée en haut à droite (transactions datées). Le classement par défaut suit cette colonne." />
+      </div>
+    ),
+    cell: ({ getValue }) => {
+      const v = getValue() as number
+      return v > 0 ? (
+        <span className="font-medium tabular-nums">{eur(v)}</span>
+      ) : (
+        <span className="tabular-nums text-muted-foreground">—</span>
+      )
+    },
+    meta: { align: 'right' },
+  },
+  {
     accessorKey: 'ca',
-    header: ({ column }) => <Sortable column={column} label="CA net" className="justify-end" />,
+    header: ({ column }) => (
+      <div className="flex items-center justify-end gap-1.5">
+        <Sortable column={column} label="CA total" className="justify-end" />
+        <HeaderInfo text="CA net vie entière du fan, tel que MyPuls le connaît — indépendant de la période." />
+      </div>
+    ),
     cell: ({ getValue }) => (
-      <span className="font-medium tabular-nums">{eur(getValue() as number)}</span>
+      <span className="tabular-nums text-muted-foreground">{eur(getValue() as number)}</span>
     ),
     meta: { align: 'right' },
   },
@@ -146,7 +174,7 @@ export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
       columns={columns}
       filterColumnId="username"
       filterPlaceholder="Filtrer par fan…"
-      initialSorting={[{ id: 'ca', desc: true }]}
+      initialSorting={[{ id: 'caPeriode', desc: true }]}
       getRowId={(s) => `${s.creatorId}:${s.fanId}`}
       countLabel={(n) => `${n} spender(s)`}
       toolbar={

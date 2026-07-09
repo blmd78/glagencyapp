@@ -63,7 +63,7 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Spenders</h1>
         <p className="text-sm text-muted-foreground">
-          {data.spenders.length} fan(s) à ≥ {data.threshold} € (CA net MyPuls)
+          {data.period} · {data.spenders.length} fan(s) à ≥ {data.threshold} € (CA net MyPuls)
           {freshness && ` · données scrapées le ${freshness}`}
         </p>
       </div>

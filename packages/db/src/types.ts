@@ -1541,6 +1541,14 @@ export type Database = {
         }[]
       }
       chatters_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      crm_spenders_period_ca: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          creator_id: string
+          fan_id: number
+          ca: number
+        }[]
+      }
       has_page: { Args: { slug: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
       mkt_save_staff_assignments: {

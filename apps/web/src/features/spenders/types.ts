@@ -24,8 +24,10 @@ export interface SpenderRow {
   username: string
   creatorId: string
   model: string
-  /** CA net connu de MyPuls (scrapé — jamais saisi). */
+  /** CA net vie entière connu de MyPuls (scrapé — jamais saisi). */
   ca: number
+  /** CA net sur la période du datepicker (somme des transactions datées). */
+  caPeriode: number
   status: string | null
   lastMessageAt: string | null
   /** true = dernier message envoyé par nous (fan silencieux) — candidat relance. */
@@ -43,4 +45,6 @@ export interface SpendersData {
   /** Date du dernier passage du scrapper (fraîcheur affichée). */
   capturedAt: string | null
   threshold: number
+  /** Libellé de la période du datepicker (porte le CA période). */
+  period: string
 }
