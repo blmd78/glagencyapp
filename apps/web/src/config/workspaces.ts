@@ -18,12 +18,14 @@ import {
   Calculator,
   UserCog,
   Megaphone,
-  Gem,
+  Banknote,
   CalendarClock,
   ChartLine,
   UsersRound,
   Briefcase,
   Globe,
+  TriangleAlert,
+  Archive,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -71,6 +73,7 @@ export const WORKSPACES: Workspace[] = [
     groups: [
       { id: 'performance', label: 'Performance', icon: ChartLine },
       { id: 'equipe', label: 'Équipe', icon: UsersRound },
+      { id: 'spenders', label: 'Spenders', icon: Banknote },
       { id: 'gestion', label: 'Gestion', icon: Briefcase },
     ],
     nav: [
@@ -82,9 +85,13 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
       { href: '/chatter/police', label: 'Police', icon: ShieldAlert, group: 'equipe' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
-      // Slug explicite `crm-spenders` (aligné sur la RLS de 0029), l'URL reste courte.
-      { href: '/chatter/spenders', label: 'Spenders', icon: Gem, slug: 'crm-spenders', group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
+      // Sous-catégorie Spenders (CRM closing). Toutes les sous-pages partagent le droit
+      // `crm-spenders` (slug explicite, aligné sur la RLS de 0029).
+      { href: '/chatter/spenders/liste', label: 'Liste', icon: Banknote, slug: 'crm-spenders', group: 'spenders' },
+      { href: '/chatter/spenders/tracker', label: 'À relancer', icon: Send, slug: 'crm-spenders', group: 'spenders' },
+      { href: '/chatter/spenders/alertes', label: 'Alertes R10', icon: TriangleAlert, slug: 'crm-spenders', group: 'spenders' },
+      { href: '/chatter/spenders/archive', label: 'Archive', icon: Archive, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/stats', label: 'Stats', icon: ChartColumn, group: 'performance' },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse, group: 'performance' },
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
@@ -133,10 +140,31 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
 export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'crm-spenders', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
-/** Pages cochables dans la gestion des membres (= nav non-admin, dans l'ordre de la sidebar). */
-export const PAGE_CHOICES = DEFAULT_WORKSPACE.nav
-  .filter((n) => !n.adminOnly && (PAGE_SLUGS as readonly string[]).includes(n.slug ?? pageSlug(n.href)))
-  .map((n) => ({ slug: (n.slug ?? pageSlug(n.href)) as PageSlug, label: n.label, icon: n.icon }))
+/**
+ * Pages cochables dans la gestion des membres (= nav non-admin). Dédupliquées par slug :
+ * plusieurs sous-pages peuvent partager un droit (ex. le groupe Spenders) → une seule case,
+ * libellée par le groupe.
+ */
+export const PAGE_CHOICES = (() => {
+  const slugOf = (n: NavItem) => (n.slug ?? pageSlug(n.href)) as string
+  const items = DEFAULT_WORKSPACE.nav.filter(
+    (n) => !n.adminOnly && (PAGE_SLUGS as readonly string[]).includes(slugOf(n)),
+  )
+  const shared = new Map<string, number>()
+  for (const n of items) shared.set(slugOf(n), (shared.get(slugOf(n)) ?? 0) + 1)
+  const groupOf = new Map((DEFAULT_WORKSPACE.groups ?? []).map((g) => [g.id, g]))
+  const seen = new Set<string>()
+  const out: { slug: PageSlug; label: string; icon: LucideIcon }[] = []
+  for (const n of items) {
+    const slug = slugOf(n) as PageSlug
+    if (seen.has(slug)) continue
+    seen.add(slug)
+    // Slug partagé par plusieurs sous-pages → libellé/icône du groupe (ex. « Spenders »).
+    const g = (shared.get(slug) ?? 0) > 1 && n.group ? groupOf.get(n.group) : undefined
+    out.push({ slug, label: g?.label ?? n.label, icon: g?.icon ?? n.icon })
+  }
+  return out
+})()
 
 /** Pages cochables de la FACE MARKETING (slugs mkt-* — gérées depuis /marketing/members). */
 export const MKT_PAGE_CHOICES = (WORKSPACES.find((w) => w.id === 'marketing')?.nav ?? [])
