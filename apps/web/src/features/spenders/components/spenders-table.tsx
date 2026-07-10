@@ -84,9 +84,9 @@ const baseColumns: ColumnDef<SpenderRow>[] = [
   },
   {
     accessorKey: 'compteurR',
-    header: ({ column }) => (
+    header: () => (
       <div className="flex items-center justify-center gap-1.5">
-        <Sortable column={column} label="Relances" className="justify-center" />
+        <span>Relances</span>
         <HeaderInfo text="Compteur de relances. Le « + » enregistre une relance (max 1/jour, garanti en base). À R10 = fin de cycle (à archiver)." />
       </div>
     ),

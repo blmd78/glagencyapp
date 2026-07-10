@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { Plus, RotateCcw, Archive, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Spinner } from '@/components/ui/spinner'
 import { ActionButton } from '@/components/action-button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
@@ -47,7 +48,7 @@ export function RelanceCounter({ spender }: { spender: SpenderRow }) {
             })
           }
         >
-          <Plus className="size-3.5" />
+          {pending ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
         </Button>
       )}
       {spender.conversionPending && !spender.archived && (
