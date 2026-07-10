@@ -1,9 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { requireAccess } from '@/lib/auth'
+import { getProfile, requireAccess } from '@/lib/auth'
+import { getChatters } from '@/features/chatters/services/get-chatters'
 import { bilanSchema } from './schema'
 
 /** Changement de statut / note d'une carte. Client SESSION : la RLS (admin-only) est la garde réelle. */
@@ -68,4 +70,37 @@ export async function setInsightState(raw: unknown): Promise<Result> {
   if (error) return { success: false, error: error.message }
   revalidatePath('/chatter/insights')
   return { success: true }
+}
+
+// ── Export CSV perf chatteur × modèle (ADMIN) — matière pour une analyse IA d'affectation.
+
+/** Échappement CSV : entoure de guillemets si nécessaire, double les guillemets internes. */
+function csvCell(v: string | number | null): string {
+  const s = v == null ? '' : String(v)
+  return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+/**
+ * CSV de la performance croisée chatteur × modèle sur les 90 derniers jours (couvre tout
+ * l'historique ingéré). Réservé aux admins. Réutilise le RPC chatters_report via getChatters.
+ */
+export async function exportChattersCsv(): Promise<{ csv: string } | { error: string }> {
+  const profile = await getProfile()
+  if (!profile || profile.role !== 'admin') return { error: 'Réservé aux admins' }
+
+  // Même référence qu'Insights : la dernière semaine complète (S-1, lundi → dimanche).
+  const lundiS1 = subWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), 1)
+  const from = format(lundiS1, 'yyyy-MM-dd')
+  const to = format(addDays(lundiS1, 6), 'yyyy-MM-dd')
+  const data = await getChatters({ from, to, label: `${from} → ${to}` }, { restricted: false })
+
+  const rows: string[] = ['chatteur,modele,ca_eur,ppv_eur,tips_eur,propose,vendu,taux_conv_pct']
+  for (const c of data.chatters) {
+    for (const m of c.models) {
+      rows.push(
+        [c.name, m.model, m.ca, m.ppv, m.tips, m.propose, m.vendu, m.tauxConv].map(csvCell).join(','),
+      )
+    }
+  }
+  return { csv: rows.join('\n') }
 }

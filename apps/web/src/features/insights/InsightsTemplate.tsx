@@ -21,6 +21,7 @@ import {
 import { addDays, frDayLong } from '@glagency/core'
 import { modelColor } from '@/lib/model-color'
 import { InsightCard } from './components/insight-card'
+import { ExportCsvButton } from './components/export-csv-button'
 import { RankingTable, type RankMetric } from './components/ranking-table'
 import type { InsightRow, InsightsData, InsightStatus, RankingData } from './types'
 
@@ -85,13 +86,16 @@ export function InsightsTemplate({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Insights</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.weekStart
-            ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
-            : 'Analyses hebdomadaires des quotas par chatteur'}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Insights</h1>
+          <p className="text-sm text-muted-foreground">
+            {data.weekStart
+              ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
+              : 'Analyses hebdomadaires des quotas par chatteur'}
+          </p>
+        </div>
+        {isAdmin && <ExportCsvButton />}
       </div>
 
       {(data.insights.length > 0 || needle) && (
