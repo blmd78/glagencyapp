@@ -17,7 +17,7 @@ export function ExportCsvButton() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'perf-chatteurs-modeles.csv'
+      a.download = `${res.from}_au_${res.to}.csv`
       a.click()
       URL.revokeObjectURL(url)
     })

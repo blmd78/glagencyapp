@@ -84,7 +84,9 @@ function csvCell(v: string | number | null): string {
  * CSV de la performance croisée chatteur × modèle sur les 90 derniers jours (couvre tout
  * l'historique ingéré). Réservé aux admins. Réutilise le RPC chatters_report via getChatters.
  */
-export async function exportChattersCsv(): Promise<{ csv: string } | { error: string }> {
+export async function exportChattersCsv(): Promise<
+  { csv: string; from: string; to: string } | { error: string }
+> {
   const profile = await getProfile()
   if (!profile || profile.role !== 'admin') return { error: 'Réservé aux admins' }
 
@@ -94,13 +96,32 @@ export async function exportChattersCsv(): Promise<{ csv: string } | { error: st
   const to = format(addDays(lundiS1, 6), 'yyyy-MM-dd')
   const data = await getChatters({ from, to, label: `${from} → ${to}` }, { restricted: false })
 
-  const rows: string[] = ['chatteur,modele,ca_eur,ppv_eur,tips_eur,propose,vendu,taux_conv_pct']
+  // Présence/réactivité n'existent qu'au grain chatteur (pas par modèle) → répétées sur
+  // chaque ligne, suffixées _chatteur. Format FR (séparateur ; + virgule décimale) : avec un
+  // point décimal, Excel FR lit « 37.25 » comme du texte et « 37 » comme un nombre.
+  const frNum = (v: number | null) => (v == null ? null : String(v).replace('.', ','))
+  const rows: string[] = [
+    'chatteur;modele;presence_h_chatteur;reactivite_s_chatteur;propose;taux_conv_pct;ca_eur;ppv_eur;tips_eur;vendu',
+  ]
   for (const c of data.chatters) {
     for (const m of c.models) {
       rows.push(
-        [c.name, m.model, m.ca, m.ppv, m.tips, m.propose, m.vendu, m.tauxConv].map(csvCell).join(','),
+        [
+          c.name,
+          m.model,
+          frNum(c.presenceActiveH),
+          frNum(c.reactiviteS),
+          frNum(m.propose),
+          frNum(m.tauxConv),
+          frNum(m.ca),
+          frNum(m.ppv),
+          frNum(m.tips),
+          frNum(m.vendu),
+        ]
+          .map(csvCell)
+          .join(';'),
       )
     }
   }
-  return { csv: rows.join('\n') }
+  return { csv: rows.join('\n'), from, to }
 }
