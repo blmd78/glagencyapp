@@ -1,10 +1,17 @@
 import { KpiCard, type Kpi } from '@/components/kpi-card'
 import { eur } from '@/lib/format'
-import { SpendersTabs } from './components/spenders-tabs'
+import { SpendersView, type SpendersViewKind } from './components/spenders-view'
 import { isARelancer, R_ALERTE, type SpendersData } from './types'
 
-/** Template Spenders (CRM closing) : KPI + onglets (Liste / Tracker / Alertes R10 / Archive). */
-export function SpendersTemplate({ data }: { data: SpendersData }) {
+const META: Record<SpendersViewKind, { title: string; sub: (n: number) => string }> = {
+  liste: { title: 'Spenders', sub: (n) => `${n} fan(s) tracké(s)` },
+  tracker: { title: 'À relancer', sub: (n) => `${n} spender(s) muet(s), non relancé(s) aujourd’hui` },
+  alertes: { title: `Alertes R${R_ALERTE}`, sub: (n) => `${n} spender(s) en fin de cycle — à archiver` },
+  archive: { title: 'Archive', sub: (n) => `${n} spender(s) archivé(s)` },
+}
+
+/** Écran d'une vue de la sous-catégorie Spenders (Liste / À relancer / Alertes R10 / Archive). */
+export function SpendersTemplate({ data, view }: { data: SpendersData; view: SpendersViewKind }) {
   const freshness = data.capturedAt
     ? new Date(data.capturedAt).toLocaleString('fr-FR', {
         day: '2-digit',
@@ -15,6 +22,16 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
     : null
 
   const actifs = data.spenders.filter((s) => !s.archived)
+  const meta = META[view]
+  const shownCount =
+    view === 'archive'
+      ? data.spenders.length - actifs.length
+      : view === 'tracker'
+        ? actifs.filter(isARelancer).length
+        : view === 'alertes'
+          ? actifs.filter((s) => s.compteurR >= R_ALERTE).length
+          : actifs.length
+
   const caTotal = actifs.reduce((s, x) => s + x.ca, 0)
   const aRelancer = actifs.filter(isARelancer).length
   const alertesR10 = actifs.filter((s) => s.compteurR >= R_ALERTE).length
@@ -55,38 +72,28 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
       trendLabel: 'fin de cycle — à archiver',
       hint: `${orphelins} non assigné(s)`,
       accent: 'border-t-red-500',
-      info: `Spenders relancés ${R_ALERTE} fois sans reconversion — à archiver ou à traiter en dernier recours.`,
     },
   ]
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Spenders</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{meta.title}</h1>
         <p className="text-sm text-muted-foreground">
-          {actifs.length} fan(s) à ≥ {data.threshold} € (CA net MyPuls)
-          {freshness && ` · données scrapées le ${freshness}`}
+          {meta.sub(shownCount)}
+          {freshness && ` · scrapé le ${freshness}`}
         </p>
       </div>
 
-      {data.spenders.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Aucun spender détecté</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Les spenders apparaissent après le passage du scrapper (conversations MyPuls à CA ≥{' '}
-            {data.threshold} €) sur les modèles qui te sont assignées.
-          </p>
+      {view === 'liste' && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {kpis.map(({ accent, ...k }) => (
+            <KpiCard key={k.key} kpi={k} accent={accent} />
+          ))}
         </div>
-      ) : (
-        <>
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {kpis.map(({ accent, ...k }) => (
-              <KpiCard key={k.key} kpi={k} accent={accent} />
-            ))}
-          </div>
-          <SpendersTabs spenders={data.spenders} />
-        </>
       )}
+
+      <SpendersView spenders={data.spenders} view={view} />
     </div>
   )
 }
