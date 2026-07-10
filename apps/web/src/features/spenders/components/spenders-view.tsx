@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { SpendersTable } from './spenders-table'
 import { ArchiveButton } from './spender-actions'
-import { isARelancer, R_ALERTE, type SpenderRow } from '../types'
+import { R_ALERTE, type SpenderRow } from '../types'
 
 export type SpendersViewKind = 'liste' | 'tracker' | 'alertes' | 'archive'
 
@@ -38,8 +38,11 @@ export function SpendersView({ spenders, view }: { spenders: SpenderRow[]; view:
   const { rows, extra } = useMemo(() => {
     const actifs = spenders.filter((s) => !s.archived)
     switch (view) {
+      // Cycle en cours (R < 10). On N'EXCLUT PAS les grisés : cocher R+1 ne doit pas faire
+      // disparaître la ligne (elle reste, bouton désactivé jusqu'à minuit). Un R10 sort
+      // naturellement (bascule en alertes).
       case 'tracker':
-        return { rows: actifs.filter(isARelancer), extra: [] as ColumnDef<SpenderRow>[] }
+        return { rows: actifs.filter((s) => s.compteurR < R_ALERTE), extra: [] as ColumnDef<SpenderRow>[] }
       case 'alertes':
         return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: [alerteAction] }
       case 'archive':
