@@ -2,11 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { Search, Wallet } from 'lucide-react'
+import { ActionButton } from '@/components/action-button'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -32,17 +34,16 @@ import { KpiGrid } from '@/components/kpi-card'
 import { cn } from '@/lib/utils'
 import { eur, num } from '@/lib/format'
 import { recordStaffPayment } from './actions'
+import { PAYMENT_OPTIONS } from './schema'
 import type { MktStaffData, MktStaffRow } from './types'
-
-const PAYMENT_OPTIONS = ['virement', 'paypal', 'crypto', 'autre']
 
 /** Détail lisible du calcul (sous le nom, comme les hints de la compta chatteurs). */
 function payDetail(s: MktStaffRow): string {
   const parts = [`fixe ${eur(s.pay.fixed)}`]
   if (s.role === 'manager') parts.push(`${s.pct.toLocaleString('fr-FR')} % du pôle ${eur(s.pay.pctAmount)}`)
   else {
-    if (s.linkIds.length) parts.push(`TW ${num(s.pay.twConversions)} subs → ${eur(s.pay.twVariable)}`)
-    if (s.igAccountIds.length) parts.push(`IG ${num(s.pay.igViews)} vues → ${eur(s.pay.igVariable)}`)
+    if (s.linkIds.length) parts.push(`${num(s.pay.twConversions)} subs → ${eur(s.pay.twVariable)}`)
+    if (s.igAccountIds.length) parts.push(`${num(s.pay.igViews)} vues → ${eur(s.pay.igVariable)}`)
     if (s.pay.bonus > 0) parts.push(`prime ${eur(s.pay.bonus)}`)
   }
   return parts.join(' · ')
@@ -206,6 +207,9 @@ export function MktStaffTemplate({ data, isAdmin }: { data: MktStaffData; isAdmi
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Payer {paying?.name}</DialogTitle>
+            <DialogDescription>
+              Le paiement est rattaché au mois affiché et vient réduire le « reste à payer ».
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
             <div className="grid gap-1.5">
@@ -243,9 +247,9 @@ export function MktStaffTemplate({ data, isAdmin }: { data: MktStaffData; isAdmi
             <Button variant="ghost" onClick={() => setPaying(null)}>
               Annuler
             </Button>
-            <Button onClick={submitPay} disabled={pending || payAmount <= 0}>
-              {pending ? 'Enregistrement…' : 'Enregistrer le paiement'}
-            </Button>
+            <ActionButton onClick={submitPay} pending={pending} disabled={payAmount <= 0}>
+              Enregistrer le paiement
+            </ActionButton>
           </DialogFooter>
         </DialogContent>
       </Dialog>
