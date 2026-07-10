@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 
 // Vue « liste » de la sous-catégorie Spenders (CRM closing). Toutes partagent le droit crm-spenders.
 export default async function SpendersViewlistePage() {
-  await requireAccess('crm-spenders')
+  const profile = await requireAccess('crm-spenders')
   const data = await getSpenders()
-  return <SpendersTemplate data={data} view="liste" />
+  return <SpendersTemplate data={data} view="liste" isAdmin={profile.role === 'admin'} />
 }

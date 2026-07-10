@@ -23,7 +23,7 @@ function daysLabel(iso: string | null): string {
   return `il y a ${days} j`
 }
 
-const baseColumns: ColumnDef<SpenderRow>[] = [
+const makeColumns = (isAdmin: boolean): ColumnDef<SpenderRow>[] => [
   {
     accessorKey: 'username',
     header: ({ column }) => (
@@ -90,7 +90,7 @@ const baseColumns: ColumnDef<SpenderRow>[] = [
         <HeaderInfo text="Compteur de relances. Le « + » enregistre une relance (max 1/jour, garanti en base). À R10 = fin de cycle (à archiver)." />
       </div>
     ),
-    cell: ({ row }) => <RelanceCounter spender={row.original} />,
+    cell: ({ row }) => <RelanceCounter spender={row.original} isAdmin={isAdmin} />,
     meta: { align: 'center' },
   },
   {
@@ -134,10 +134,12 @@ const baseColumns: ColumnDef<SpenderRow>[] = [
 export function SpendersTable({
   spenders,
   extra = [],
+  isAdmin = false,
 }: {
   spenders: SpenderRow[]
   /** Colonnes ajoutées en fin (ex. actions du tracker). */
   extra?: ColumnDef<SpenderRow>[]
+  isAdmin?: boolean
 }) {
   const [model, setModel] = useState('all')
 
@@ -152,7 +154,7 @@ export function SpendersTable({
     [spenders, model],
   )
 
-  const columns = useMemo(() => [...baseColumns, ...extra], [extra])
+  const columns = useMemo(() => [...makeColumns(isAdmin), ...extra], [extra, isAdmin])
 
   return (
     <DataTable

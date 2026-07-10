@@ -11,7 +11,15 @@ const META: Record<SpendersViewKind, { title: string; sub: (n: number) => string
 }
 
 /** Écran d'une vue de la sous-catégorie Spenders (Liste / À relancer / Alertes R10 / Archive). */
-export function SpendersTemplate({ data, view }: { data: SpendersData; view: SpendersViewKind }) {
+export function SpendersTemplate({
+  data,
+  view,
+  isAdmin,
+}: {
+  data: SpendersData
+  view: SpendersViewKind
+  isAdmin?: boolean
+}) {
   const freshness = data.capturedAt
     ? new Date(data.capturedAt).toLocaleString('fr-FR', {
         day: '2-digit',
@@ -93,7 +101,7 @@ export function SpendersTemplate({ data, view }: { data: SpendersData; view: Spe
         </div>
       )}
 
-      <SpendersView spenders={data.spenders} view={view} />
+      <SpendersView spenders={data.spenders} view={view} isAdmin={isAdmin} />
     </div>
   )
 }

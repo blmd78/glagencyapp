@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 
 // Vue « alertes » de la sous-catégorie Spenders (CRM closing). Toutes partagent le droit crm-spenders.
 export default async function SpendersViewalertesPage() {
-  await requireAccess('crm-spenders')
+  const profile = await requireAccess('crm-spenders')
   const data = await getSpenders()
-  return <SpendersTemplate data={data} view="alertes" />
+  return <SpendersTemplate data={data} view="alertes" isAdmin={profile.role === 'admin'} />
 }

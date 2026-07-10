@@ -1720,6 +1720,7 @@ export type Database = {
         Row: {
           archived: boolean
           archived_at: string | null
+          compteur_base: number
           compteur_reset_at: string | null
           creator_id: string
           fan_id: number
@@ -1728,6 +1729,7 @@ export type Database = {
         Insert: {
           archived?: boolean
           archived_at?: string | null
+          compteur_base?: number
           compteur_reset_at?: string | null
           creator_id: string
           fan_id: number
@@ -1736,6 +1738,7 @@ export type Database = {
         Update: {
           archived?: boolean
           archived_at?: string | null
+          compteur_base?: number
           compteur_reset_at?: string | null
           creator_id?: string
           fan_id?: number

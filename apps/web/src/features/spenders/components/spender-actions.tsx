@@ -1,7 +1,15 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, RotateCcw, Archive, ArchiveRestore } from 'lucide-react'
+import { Plus, RotateCcw, Archive, ArchiveRestore, Pencil } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Spinner } from '@/components/ui/spinner'
@@ -9,10 +17,61 @@ import { ActionButton } from '@/components/action-button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/status-color'
-import { addRelance, resetCompteur, setArchived } from '../actions'
+import { addRelance, resetCompteur, setArchived, setCompteur } from '../actions'
 import { R_ALERTE, type SpenderRow } from '../types'
 
 type Target = Pick<SpenderRow, 'creatorId' | 'fanId'>
+
+/** Crayon ADMIN : force la valeur du compteur R (correction / initialisation). */
+function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState(String(spender.compteurR))
+  const [error, setError] = useState<string | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function submit() {
+    const n = Number(value)
+    if (!Number.isInteger(n) || n < 0 || n > 99) return setError('Entier entre 0 et 99')
+    startTransition(async () => {
+      const res = await setCompteur({ creatorId: spender.creatorId, fanId: spender.fanId, value: n })
+      if (!res.success) return setError(res.error)
+      setError(null)
+      setOpen(false)
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="icon" variant="ghost" className="size-6 text-muted-foreground" title="Forcer la valeur de R (admin)">
+          <Pencil className="size-3.5" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-xs">
+        <DialogHeader>
+          <DialogTitle>Compteur R — {spender.username}</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <Input
+            type="number"
+            min={0}
+            max={99}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            autoFocus
+          />
+          <p className="text-xs text-muted-foreground">
+            Force R à cette valeur ; les prochaines relances reprennent à partir de là.
+          </p>
+          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+          <ActionButton pending={pending} onClick={submit} className="self-end">
+            Enregistrer
+          </ActionButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 /**
  * Compteur R{n} + bouton « + » pour incrémenter (1 relance/jour). Le « + » est désactivé
@@ -20,7 +79,7 @@ type Target = Pick<SpenderRow, 'creatorId' | 'fanId'>
  * contrainte unique DB (spender, jour Paris) : un clic forcé/rejoué est rejeté par Postgres,
  * l'action renvoie « Déjà relancé aujourd'hui ». Caché à R10 (cycle fini) ou si archivé.
  */
-export function RelanceCounter({ spender }: { spender: SpenderRow }) {
+export function RelanceCounter({ spender, isAdmin }: { spender: SpenderRow; isAdmin?: boolean }) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const r = spender.compteurR
@@ -30,6 +89,7 @@ export function RelanceCounter({ spender }: { spender: SpenderRow }) {
   return (
     <div className="flex items-center justify-center gap-1.5">
       <Badge className={cn('tabular-nums', color)}>R{r}</Badge>
+      {isAdmin && <SetCompteurDialog spender={spender} />}
       {canRelance && (
         <Button
           size="icon"

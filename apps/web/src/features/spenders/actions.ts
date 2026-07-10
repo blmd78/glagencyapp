@@ -7,7 +7,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { relanceInput, targetInput } from './schema'
+import { relanceInput, setCompteurInput, targetInput } from './schema'
 
 type Result = { success: true } | { success: false; error: string }
 
@@ -71,6 +71,27 @@ export async function resetCompteur(raw: unknown): Promise<Result> {
   const supabase = await createClient()
   const { error } = await supabase.from('spender_crm').upsert(
     { creator_id: p.data.creatorId, fan_id: p.data.fanId, compteur_reset_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { onConflict: 'creator_id,fan_id' },
+  )
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/chatter/spenders')
+  return { success: true }
+}
+
+/**
+ * Force la valeur du compteur R (ADMIN uniquement). Pose la base + reborne le cycle à
+ * maintenant → R = valeur, et les « + » suivants reprennent à valeur+1.
+ */
+export async function setCompteur(raw: unknown): Promise<Result> {
+  const profile = await getProfile()
+  if (!profile || profile.role !== 'admin') return { success: false, error: 'Réservé aux admins' }
+  const p = setCompteurInput.safeParse(raw)
+  if (!p.success) return { success: false, error: 'Valeur invalide (0–99)' }
+
+  const supabase = await createClient()
+  const now = new Date().toISOString()
+  const { error } = await supabase.from('spender_crm').upsert(
+    { creator_id: p.data.creatorId, fan_id: p.data.fanId, compteur_base: p.data.value, compteur_reset_at: now, updated_at: now },
     { onConflict: 'creator_id,fan_id' },
   )
   if (error) return { success: false, error: error.message }

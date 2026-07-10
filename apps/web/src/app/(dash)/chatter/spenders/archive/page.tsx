@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 
 // Vue « archive » de la sous-catégorie Spenders (CRM closing). Toutes partagent le droit crm-spenders.
 export default async function SpendersViewarchivePage() {
-  await requireAccess('crm-spenders')
+  const profile = await requireAccess('crm-spenders')
   const data = await getSpenders()
-  return <SpendersTemplate data={data} view="archive" />
+  return <SpendersTemplate data={data} view="archive" isAdmin={profile.role === 'admin'} />
 }

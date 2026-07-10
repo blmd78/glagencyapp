@@ -34,7 +34,15 @@ const archiveAction: ColumnDef<SpenderRow> = {
 }
 
 /** Une vue de la sous-catégorie Spenders : filtre les spenders + action de fin de cycle. */
-export function SpendersView({ spenders, view }: { spenders: SpenderRow[]; view: SpendersViewKind }) {
+export function SpendersView({
+  spenders,
+  view,
+  isAdmin,
+}: {
+  spenders: SpenderRow[]
+  view: SpendersViewKind
+  isAdmin?: boolean
+}) {
   const { rows, extra } = useMemo(() => {
     const actifs = spenders.filter((s) => !s.archived)
     switch (view) {
@@ -52,5 +60,5 @@ export function SpendersView({ spenders, view }: { spenders: SpenderRow[]; view:
     }
   }, [spenders, view])
 
-  return <SpendersTable spenders={rows} extra={extra} />
+  return <SpendersTable spenders={rows} extra={extra} isAdmin={isAdmin} />
 }
