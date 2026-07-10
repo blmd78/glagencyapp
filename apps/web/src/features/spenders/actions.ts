@@ -69,8 +69,10 @@ export async function resetCompteur(raw: unknown): Promise<Result> {
   if (!p.success) return { success: false, error: 'Saisie invalide' }
 
   const supabase = await createClient()
+  const now = new Date().toISOString()
+  // Remet R à 0 : base à 0 ET reborne (sinon un R forcé par un admin resterait).
   const { error } = await supabase.from('spender_crm').upsert(
-    { creator_id: p.data.creatorId, fan_id: p.data.fanId, compteur_reset_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { creator_id: p.data.creatorId, fan_id: p.data.fanId, compteur_base: 0, compteur_reset_at: now, updated_at: now },
     { onConflict: 'creator_id,fan_id' },
   )
   if (error) return { success: false, error: error.message }
