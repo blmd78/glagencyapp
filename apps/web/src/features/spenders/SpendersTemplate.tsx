@@ -1,9 +1,9 @@
 import { KpiCard, type Kpi } from '@/components/kpi-card'
 import { eur } from '@/lib/format'
-import { SpendersTable } from './components/spenders-table'
-import { isARelancer, RELANCE_SEUIL_JOURS, type SpendersData } from './types'
+import { SpendersTabs } from './components/spenders-tabs'
+import { isARelancer, R_ALERTE, type SpendersData } from './types'
 
-/** Template Spenders (CRM closing) : KPI + table depuis les données scrapées. Aucun fetch. */
+/** Template Spenders (CRM closing) : KPI + onglets (Liste / Tracker / Alertes R10 / Archive). */
 export function SpendersTemplate({ data }: { data: SpendersData }) {
   const freshness = data.capturedAt
     ? new Date(data.capturedAt).toLocaleString('fr-FR', {
@@ -14,16 +14,17 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
       })
     : null
 
-  const caTotal = data.spenders.reduce((s, x) => s + x.ca, 0)
-  const aRelancer = data.spenders.filter(isARelancer).length
-  const aRepondre = data.spenders.filter((s) => s.lastMessageIsMine === false).length
-  const orphelins = data.spenders.filter((s) => !s.chatterName && !s.assignedLabel).length
+  const actifs = data.spenders.filter((s) => !s.archived)
+  const caTotal = actifs.reduce((s, x) => s + x.ca, 0)
+  const aRelancer = actifs.filter(isARelancer).length
+  const alertesR10 = actifs.filter((s) => s.compteurR >= R_ALERTE).length
+  const orphelins = actifs.filter((s) => !s.chatterName && !s.assignedLabel).length
 
   const kpis: Array<Kpi & { accent?: string }> = [
     {
       key: 'spenders',
       label: 'Spenders trackés',
-      value: String(data.spenders.length),
+      value: String(actifs.length),
       deltaPct: null,
       trendLabel: `CA ≥ ${data.threshold} € net MyPuls`,
       hint: freshness ? `scrapé le ${freshness}` : '',
@@ -35,26 +36,26 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
       deltaPct: null,
       trendLabel: 'total vie de chaque fan',
       hint: 'somme des CA affichés',
-      info: 'Somme des CA vie de tous les spenders (chacun = tout son historique MyPuls). Repère de volume, pas un CA de période.',
+      info: 'Somme des CA vie de tous les spenders actifs (chacun = tout son historique MyPuls). Repère de volume, pas un CA de période.',
     },
     {
       key: 'relancer',
       label: 'À relancer',
       value: String(aRelancer),
       deltaPct: null,
-      trendLabel: `muets depuis ≥ ${RELANCE_SEUIL_JOURS} j`,
-      hint: 'dernier message de nous, sans réponse',
+      trendLabel: 'muets, non relancés aujourd’hui',
+      hint: 'dernier message de nous',
       accent: 'border-t-amber-500',
-      info: 'Conversations où le dernier message vient de nous et date de 15 jours ou plus — la file de relance Snap.',
     },
     {
-      key: 'orphelins',
-      label: 'Non assignés',
-      value: String(orphelins),
+      key: 'alertes',
+      label: `Alertes R${R_ALERTE}`,
+      value: String(alertesR10),
       deltaPct: null,
-      trendLabel: `${aRepondre} en attente de réponse`,
-      hint: 'sans chatteur assigné dans MyPuls',
+      trendLabel: 'fin de cycle — à archiver',
+      hint: `${orphelins} non assigné(s)`,
       accent: 'border-t-red-500',
+      info: `Spenders relancés ${R_ALERTE} fois sans reconversion — à archiver ou à traiter en dernier recours.`,
     },
   ]
 
@@ -63,7 +64,7 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Spenders</h1>
         <p className="text-sm text-muted-foreground">
-          {data.spenders.length} fan(s) à ≥ {data.threshold} € (CA net MyPuls)
+          {actifs.length} fan(s) à ≥ {data.threshold} € (CA net MyPuls)
           {freshness && ` · données scrapées le ${freshness}`}
         </p>
       </div>
@@ -83,7 +84,7 @@ export function SpendersTemplate({ data }: { data: SpendersData }) {
               <KpiCard key={k.key} kpi={k} accent={accent} />
             ))}
           </div>
-          <SpendersTable spenders={data.spenders} />
+          <SpendersTabs spenders={data.spenders} />
         </>
       )}
     </div>

@@ -1,0 +1,102 @@
+'use server'
+
+// Server Actions du tracker spenders (relances R1→R10, reset, archive) — supabase-js + RLS.
+// Droit : admin ou page `crm-spenders`. Le cloisonnement par modèle est appliqué par la RLS
+// (policies de 0034) ; on garde ici le contrôle d'accès de page + la validation zod.
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { getProfile } from '@/lib/auth'
+import { relanceInput, targetInput } from './schema'
+
+type Result = { success: true } | { success: false; error: string }
+
+async function requireCrm() {
+  const profile = await getProfile()
+  if (!profile) return null
+  if (profile.role !== 'admin' && !profile.pages.includes('crm-spenders')) return null
+  return profile
+}
+
+/**
+ * Enregistre une relance. Le numéro R est figé = compteur courant + 1 (relances depuis le
+ * dernier reset). L'unicité (creator_id, fan_id, jour_paris) garantit « 1 relance/jour ».
+ */
+export async function addRelance(raw: unknown): Promise<Result> {
+  const profile = await requireCrm()
+  if (!profile) return { success: false, error: 'Accès refusé' }
+  const p = relanceInput.safeParse(raw)
+  if (!p.success) return { success: false, error: 'Saisie invalide' }
+
+  const supabase = await createClient()
+  const { data: crm } = await supabase
+    .from('spender_crm')
+    .select('compteur_reset_at')
+    .eq('creator_id', p.data.creatorId)
+    .eq('fan_id', p.data.fanId)
+    .maybeSingle()
+
+  let q = supabase
+    .from('relances')
+    .select('id', { count: 'exact', head: true })
+    .eq('creator_id', p.data.creatorId)
+    .eq('fan_id', p.data.fanId)
+  if (crm?.compteur_reset_at) q = q.gt('created_at', crm.compteur_reset_at)
+  const { count } = await q
+
+  const { error } = await supabase.from('relances').insert({
+    creator_id: p.data.creatorId,
+    fan_id: p.data.fanId,
+    chatter_id: p.data.chatterId,
+    created_by: profile.id,
+    numero_r: (count ?? 0) + 1,
+    note: p.data.note ?? null,
+  })
+  if (error) {
+    // Violation de l'unique (creator_id, fan_id, jour_paris) = déjà relancé aujourd'hui.
+    if (error.code === '23505') return { success: false, error: 'Déjà relancé aujourd’hui' }
+    return { success: false, error: error.message }
+  }
+  revalidatePath('/chatter/spenders')
+  return { success: true }
+}
+
+/** Remet le compteur R à zéro (le fan a reconverti) : borne le cycle à maintenant. */
+export async function resetCompteur(raw: unknown): Promise<Result> {
+  const profile = await requireCrm()
+  if (!profile) return { success: false, error: 'Accès refusé' }
+  const p = targetInput.safeParse(raw)
+  if (!p.success) return { success: false, error: 'Saisie invalide' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('spender_crm').upsert(
+    { creator_id: p.data.creatorId, fan_id: p.data.fanId, compteur_reset_at: new Date().toISOString(), updated_at: new Date().toISOString() },
+    { onConflict: 'creator_id,fan_id' },
+  )
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/chatter/spenders')
+  return { success: true }
+}
+
+/** Archive / désarchive un spender (au bout du cycle R10, ou réactivé). */
+export async function setArchived(raw: unknown, archived: boolean): Promise<Result> {
+  const profile = await requireCrm()
+  if (!profile) return { success: false, error: 'Accès refusé' }
+  const p = targetInput.safeParse(raw)
+  if (!p.success) return { success: false, error: 'Saisie invalide' }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('spender_crm').upsert(
+    {
+      creator_id: p.data.creatorId,
+      fan_id: p.data.fanId,
+      archived,
+      archived_at: archived ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'creator_id,fan_id' },
+  )
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/chatter/spenders')
+  return { success: true }
+}

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur } from '@/lib/format'
-import { daysSince, isARelancer, type SpenderRow } from '../types'
+import { daysSince, isARelancer, R_ALERTE, type SpenderRow } from '../types'
 
 /** « aujourd'hui » / « hier » / « il y a N j » — fraîcheur de la conversation. */
 function daysLabel(iso: string | null): string {
@@ -22,7 +22,7 @@ function daysLabel(iso: string | null): string {
   return `il y a ${days} j`
 }
 
-const columns: ColumnDef<SpenderRow>[] = [
+const baseColumns: ColumnDef<SpenderRow>[] = [
   {
     accessorKey: 'username',
     header: ({ column }) => (
@@ -78,10 +78,34 @@ const columns: ColumnDef<SpenderRow>[] = [
         <HeaderInfo text="CA net vie entière du fan, tel que MyPuls le connaît (tout son historique)." />
       </div>
     ),
-    cell: ({ getValue }) => (
-      <span className="font-medium tabular-nums">{eur(getValue() as number)}</span>
-    ),
+    cell: ({ getValue }) => <span className="font-medium tabular-nums">{eur(getValue() as number)}</span>,
     meta: { align: 'right' },
+  },
+  {
+    accessorKey: 'compteurR',
+    header: ({ column }) => (
+      <div className="flex items-center justify-center gap-1.5">
+        <Sortable column={column} label="R" className="justify-center" />
+        <HeaderInfo text="Nombre de relances Snap depuis le dernier reset. À R10 = fin de cycle (alerte, à archiver)." />
+      </div>
+    ),
+    cell: ({ row }) => {
+      const r = row.original.compteurR
+      return (
+        <div className="flex items-center justify-center gap-1">
+          <Badge
+            className={cn(
+              'tabular-nums',
+              r >= R_ALERTE ? STATUS_COLORS.danger : r > 0 ? STATUS_COLORS.warning : STATUS_COLORS.neutral,
+            )}
+          >
+            R{r}
+          </Badge>
+          {row.original.grise && <span className="text-[10px] text-muted-foreground">grisé</span>}
+        </div>
+      )
+    },
+    meta: { align: 'center' },
   },
   {
     id: 'lastMessage',
@@ -89,7 +113,7 @@ const columns: ColumnDef<SpenderRow>[] = [
     header: ({ column }) => (
       <div className="flex items-center gap-1.5">
         <Sortable column={column} label="Dernier message" />
-        <HeaderInfo text="Date du dernier message de la conversation MyPuls, et qui l'a envoyé. « nous, sans réponse » = candidat à la relance Snap." />
+        <HeaderInfo text="Date du dernier message MyPuls, et qui l'a envoyé. « nous, sans réponse » = candidat relance." />
       </div>
     ),
     cell: ({ row }) => {
@@ -114,9 +138,8 @@ const columns: ColumnDef<SpenderRow>[] = [
     cell: ({ getValue }) => {
       const s = getValue() as string | null
       if (!s) return <span className="text-muted-foreground">—</span>
-      const active = s === 'Abonné'
       return (
-        <Badge className={cn('text-xs', active ? STATUS_COLORS.positive : STATUS_COLORS.neutral)}>
+        <Badge className={cn('text-xs', s === 'Abonné' ? STATUS_COLORS.positive : STATUS_COLORS.neutral)}>
           {s}
         </Badge>
       )
@@ -125,7 +148,14 @@ const columns: ColumnDef<SpenderRow>[] = [
   },
 ]
 
-export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
+export function SpendersTable({
+  spenders,
+  extra = [],
+}: {
+  spenders: SpenderRow[]
+  /** Colonnes ajoutées en fin (ex. actions du tracker). */
+  extra?: ColumnDef<SpenderRow>[]
+}) {
   const [model, setModel] = useState('all')
 
   const modelOptions = useMemo(() => {
@@ -138,6 +168,8 @@ export function SpendersTable({ spenders }: { spenders: SpenderRow[] }) {
     () => (model === 'all' ? spenders : spenders.filter((s) => s.creatorId === model)),
     [spenders, model],
   )
+
+  const columns = useMemo(() => [...baseColumns, ...extra], [extra])
 
   return (
     <DataTable

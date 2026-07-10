@@ -1450,6 +1450,64 @@ export type Database = {
           },
         ]
       }
+      relances: {
+        Row: {
+          chatter_id: string | null
+          created_at: string
+          created_by: string | null
+          creator_id: string
+          fan_id: number
+          id: string
+          jour_paris: string
+          note: string | null
+          numero_r: number
+        }
+        Insert: {
+          chatter_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          creator_id: string
+          fan_id: number
+          id?: string
+          jour_paris?: string
+          note?: string | null
+          numero_r: number
+        }
+        Update: {
+          chatter_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          creator_id?: string
+          fan_id?: number
+          id?: string
+          jour_paris?: string
+          note?: string | null
+          numero_r?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relances_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relances_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relances_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rest_planning_cells: {
         Row: {
           chatter_ids: string[]
@@ -1658,6 +1716,41 @@ export type Database = {
           },
         ]
       }
+      spender_crm: {
+        Row: {
+          archived: boolean
+          archived_at: string | null
+          compteur_reset_at: string | null
+          creator_id: string
+          fan_id: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          archived_at?: string | null
+          compteur_reset_at?: string | null
+          creator_id: string
+          fan_id: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          archived_at?: string | null
+          compteur_reset_at?: string | null
+          creator_id?: string
+          fan_id?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spender_crm_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           active: boolean
@@ -1700,6 +1793,29 @@ export type Database = {
         Returns: {
           date: string
           ca: number
+        }[]
+      }
+      crm_spenders_tracker: {
+        Args: { p_seuil?: number }
+        Returns: {
+          creator_id: string
+          fan_id: number
+          username: string
+          model: string
+          ca_total: number
+          status: string | null
+          last_message_at: string | null
+          last_message_is_mine: boolean | null
+          has_unread: boolean
+          assigned_chatter_id: string | null
+          chatter_name: string | null
+          chatter_team: string | null
+          assigned_label: string | null
+          compteur_r: number
+          derniere_relance_at: string | null
+          relance_today: boolean
+          conversion_pending: boolean
+          archived: boolean
         }[]
       }
       has_page: { Args: { slug: string }; Returns: boolean }
