@@ -19,9 +19,9 @@ export type RelanceInput = z.infer<typeof relanceInput>
 export const targetInput = z.object(target)
 export type TargetInput = z.infer<typeof targetInput>
 
-/** Correction admin du compteur R (valeur forcée, dans le cycle 1–10). */
+/** Correction admin du compteur R (valeur forcée, 0–10). */
 export const setCompteurInput = z.object({
   ...target,
-  value: z.number().int().min(1).max(10),
+  value: z.number().int().min(0).max(10),
 })
 export type SetCompteurInput = z.infer<typeof setCompteurInput>

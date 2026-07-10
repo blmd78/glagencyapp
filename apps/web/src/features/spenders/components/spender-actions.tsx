@@ -31,7 +31,7 @@ function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
 
   function submit() {
     const n = Number(value)
-    if (!Number.isInteger(n) || n < 1 || n > 10) return setError('Entier entre 1 et 10')
+    if (!Number.isInteger(n) || n < 0 || n > 10) return setError('Entier entre 0 et 10')
     startTransition(async () => {
       const res = await setCompteur({ creatorId: spender.creatorId, fanId: spender.fanId, value: n })
       if (!res.success) return setError(res.error)
@@ -54,7 +54,7 @@ function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
         <div className="flex flex-col gap-3">
           <Input
             type="number"
-            min={1}
+            min={0}
             max={10}
             value={value}
             onChange={(e) => setValue(e.target.value)}
