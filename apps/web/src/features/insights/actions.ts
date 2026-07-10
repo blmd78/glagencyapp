@@ -96,12 +96,13 @@ export async function exportChattersCsv(): Promise<
   const to = format(addDays(lundiS1, 6), 'yyyy-MM-dd')
   const data = await getChatters({ from, to, label: `${from} → ${to}` }, { restricted: false })
 
-  // Présence/réactivité n'existent qu'au grain chatteur (pas par modèle) → répétées sur
-  // chaque ligne, suffixées _chatteur. Format FR (séparateur ; + virgule décimale) : avec un
-  // point décimal, Excel FR lit « 37.25 » comme du texte et « 37 » comme un nombre.
+  // Présence/réactivité/proposé/taux de conv n'existent qu'au grain chatteur — « proposé »
+  // n'est pas ventilable par modèle (l'ingestion insère 0, cf. pipeline.ts) → colonnes
+  // _chatteur répétées sur chaque ligne. Format FR (séparateur ; + virgule décimale) : avec
+  // un point décimal, Excel FR lit « 37.25 » comme du texte et « 37 » comme un nombre.
   const frNum = (v: number | null) => (v == null ? null : String(v).replace('.', ','))
   const rows: string[] = [
-    'chatteur;modele;presence_h_chatteur;reactivite_s_chatteur;propose;taux_conv_pct;ca_eur;ppv_eur;tips_eur;vendu',
+    'chatteur;modele;presence_h_chatteur;reactivite_s_chatteur;propose_chatteur;taux_conv_pct_chatteur;ca_eur;ppv_eur;tips_eur;vendu',
   ]
   for (const c of data.chatters) {
     for (const m of c.models) {
@@ -111,8 +112,8 @@ export async function exportChattersCsv(): Promise<
           m.model,
           frNum(c.presenceActiveH),
           frNum(c.reactiviteS),
-          frNum(m.propose),
-          frNum(m.tauxConv),
+          frNum(c.propose),
+          frNum(c.tauxConv),
           frNum(m.ca),
           frNum(m.ppv),
           frNum(m.tips),
