@@ -5,7 +5,7 @@ import { isARelancer, R_ALERTE, type SpendersData } from './types'
 
 const META: Record<SpendersViewKind, { title: string; sub: (n: number) => string }> = {
   liste: { title: 'Spenders', sub: (n) => `${n} fan(s) tracké(s)` },
-  tracker: { title: 'À relancer', sub: (n) => `${n} spender(s) muet(s), non relancé(s) aujourd’hui` },
+  tracker: { title: 'À relancer', sub: (n) => `${n} spender(s) à cocher aujourd’hui (R < ${R_ALERTE})` },
   alertes: { title: `Alertes R${R_ALERTE}`, sub: (n) => `${n} spender(s) en fin de cycle — à archiver` },
   archive: { title: 'Archive', sub: (n) => `${n} spender(s) archivé(s)` },
 }
@@ -60,8 +60,8 @@ export function SpendersTemplate({ data, view }: { data: SpendersData; view: Spe
       label: 'À relancer',
       value: String(aRelancer),
       deltaPct: null,
-      trendLabel: 'muets, non relancés aujourd’hui',
-      hint: 'dernier message de nous',
+      trendLabel: 'non relancés aujourd’hui',
+      hint: `cycle en cours (R < ${R_ALERTE})`,
       accent: 'border-t-amber-500',
     },
     {

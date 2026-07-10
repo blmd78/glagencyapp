@@ -6,10 +6,7 @@
 /** Seuil de tracking (CA net MyPuls) — un fan devient « spender » à partir de là. */
 export const CA_TRACKING_SEUIL = 40
 
-/** Ancienneté (jours) au-delà de laquelle une conversation muette devient « à relancer ». */
-export const RELANCE_SEUIL_JOURS = 15
-
-/** Compteur de relances au bout duquel on déclenche l'alerte (fin de cycle). */
+/** Compteur de relances au bout duquel on déclenche l'alerte / l'archivage (fin de cycle). */
 export const R_ALERTE = 10
 
 /** Jours entiers écoulés depuis une date ISO (null si absente). */
@@ -19,16 +16,12 @@ export function daysSince(iso: string | null): number | null {
 }
 
 /**
- * Un spender est « à relancer » : dernier message de nous, sans réponse ≥ seuil, PAS déjà
- * relancé aujourd'hui, PAS archivé. C'est la file de travail des closers.
+ * File de travail « à relancer aujourd'hui » : spender actif, PAS déjà relancé aujourd'hui
+ * (non grisé), cycle PAS terminé (R < 10). Gestion manuelle : le closer coche une relance/jour.
+ * À R10 le spender bascule en alertes (à archiver), donc sort de cette file.
  */
-export const isARelancer = (
-  s: Pick<SpenderRow, 'lastMessageIsMine' | 'lastMessageAt' | 'grise' | 'archived'>,
-) =>
-  !s.archived &&
-  !s.grise &&
-  s.lastMessageIsMine === true &&
-  (daysSince(s.lastMessageAt) ?? 0) >= RELANCE_SEUIL_JOURS
+export const isARelancer = (s: Pick<SpenderRow, 'grise' | 'archived' | 'compteurR'>) =>
+  !s.archived && !s.grise && s.compteurR < R_ALERTE
 
 export interface SpenderRow {
   fanId: number

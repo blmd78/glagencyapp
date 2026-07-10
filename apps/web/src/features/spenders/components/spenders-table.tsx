@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur } from '@/lib/format'
-import { daysSince, isARelancer, R_ALERTE, type SpenderRow } from '../types'
+import { daysSince, R_ALERTE, type SpenderRow } from '../types'
 
 /** « aujourd'hui » / « hier » / « il y a N j » — fraîcheur de la conversation. */
 function daysLabel(iso: string | null): string {
@@ -116,21 +116,18 @@ const baseColumns: ColumnDef<SpenderRow>[] = [
         <HeaderInfo text="Date du dernier message MyPuls, et qui l'a envoyé. « nous, sans réponse » = candidat relance." />
       </div>
     ),
-    cell: ({ row }) => {
-      const stale = isARelancer(row.original)
-      return (
-        <div className="flex items-center gap-2">
-          <span className={cn('tabular-nums', stale ? 'font-medium text-amber-600' : 'text-muted-foreground')}>
-            {daysLabel(row.original.lastMessageAt)}
+    cell: ({ row }) => (
+      <div className="flex items-center gap-2">
+        <span className="tabular-nums text-muted-foreground">
+          {daysLabel(row.original.lastMessageAt)}
+        </span>
+        {row.original.lastMessageIsMine !== null && (
+          <span className="text-xs text-muted-foreground">
+            {row.original.lastMessageIsMine ? '(nous)' : '(lui)'}
           </span>
-          {row.original.lastMessageIsMine !== null && (
-            <span className="text-xs text-muted-foreground">
-              {row.original.lastMessageIsMine ? '(nous, sans réponse)' : '(lui)'}
-            </span>
-          )}
-        </div>
-      )
-    },
+        )}
+      </div>
+    ),
   },
   {
     accessorKey: 'status',
