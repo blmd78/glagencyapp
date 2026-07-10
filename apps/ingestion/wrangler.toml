@@ -19,8 +19,16 @@ compatibility_flags = ["nodejs_compat"]
 # 23h20 UTC : liens de tracking · 23h35 : comptes Instagram (Apify) · 23h50 : canaux
 # Telegram (t.me/s) — invocations séparées du run chatteurs pour rester sous les
 # 50 sous-requêtes/invocation du plan Free.
+# 00h00 UTC : scrape spenders. Une invocation ne peut pas traiter les 16 modèles (10 ms
+# CPU + 50 sous-req/invocation Free) → l'orchestrateur fait un FAN-OUT : 1 mini-requête
+# self par modèle (?job=spenders&model=…), chacune = invocation séparée à son propre budget.
+# 5 crons = plafond Free par COMPTE (pas par worker) : ce slot est le dernier.
 [triggers]
-crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *"]
+crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *", "0 0 * * *"]
+
+# URL publique du worker : l'orchestrateur spenders s'auto-appelle pour le fan-out.
+[vars]
+WORKER_SELF_URL = "https://glagency-ingestion.glagencyapp.workers.dev"
 
 # Workers Logs (gratuit en Free : 200k événements/jour partagés par compte, rétention
 # 3 jours, recherche dans le dashboard). L'historique durable des runs = table ingest_runs.

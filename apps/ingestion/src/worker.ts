@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/cloudflare'
+import { login } from '@glagency/mypuls'
 import type { IngestRunSummary } from '@glagency/core'
 import { runPipeline } from './pipeline'
 import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
@@ -7,6 +8,12 @@ import { runMarketing } from './marketing'
 import { runMarketingSocial } from './marketing-social'
 import { runMarketingTelegram } from './marketing-telegram'
 import { generateWeeklyInsights } from './insights'
+import {
+  chatterResolver,
+  creatorMap,
+  ingestFanTransactions,
+  ingestOneModel,
+} from './spenders-core'
 import { createAdminClient } from '@glagency/db'
 
 /**
@@ -48,6 +55,66 @@ const MONITOR_SLUG = 'ingestion-mypuls-nightly'
 const MONITOR_MKT_SLUG = 'ingestion-marketing-nightly'
 const MONITOR_SOCIAL_SLUG = 'ingestion-marketing-social-nightly'
 const MONITOR_TG_SLUG = 'ingestion-marketing-telegram-nightly'
+const MONITOR_SPENDERS_SLUG = 'ingestion-spenders-nightly'
+const SPENDERS_CRON = '0 0 * * *'
+
+const iso = (d: Date) => d.toISOString().slice(0, 10)
+
+/**
+ * Orchestrateur du scrape spenders (fan-out). Le plan Free plafonne à 10 ms CPU + 50
+ * sous-req PAR INVOCATION : impossible de traiter les 16 modèles (16k conversations) en une
+ * fois. Solution : cette invocation fait le léger (transactions de la veille via l'API
+ * token) puis lance UNE mini-requête par modèle vers `?job=spenders&model=…` — chaque
+ * mini-requête est une invocation séparée, avec son propre budget, qui scrape 1 modèle.
+ * Pas de cookie partagé : chaque mini-invocation re-login (switch-creator est lié à la
+ * session — un cookie partagé en parallèle ferait lire le mauvais modèle).
+ */
+async function runSpendersOrchestrator(env: Bindings) {
+  const startedAt = new Date()
+  const db = createAdminClient()
+  const byMypulsId = await creatorMap(db)
+  const yesterday = iso(new Date(Date.now() - 24 * 3600 * 1000))
+  const warnings: string[] = []
+
+  try {
+    const tx = await ingestFanTransactions(db, byMypulsId, yesterday)
+    console.log(`[spenders] transactions ${tx.day}: ${tx.upserted}/${tx.fetched}`)
+  } catch (err) {
+    warnings.push(`transactions: ${(err as Error).message}`)
+  }
+
+  const selfUrl = env.WORKER_SELF_URL
+  if (!selfUrl || !env.TRIGGER_TOKEN) {
+    throw new Error('WORKER_SELF_URL / TRIGGER_TOKEN requis pour le fan-out spenders')
+  }
+  const results = await Promise.allSettled(
+    [...byMypulsId].map(([mypulsId, creatorId]) =>
+      fetch(`${selfUrl}?job=spenders&model=${mypulsId}&creator=${creatorId}`, {
+        headers: { Authorization: `Bearer ${env.TRIGGER_TOKEN}` },
+      }).then(async (r) => {
+        if (!r.ok) throw new Error(`modèle ${mypulsId}: HTTP ${r.status} ${await r.text()}`)
+        return r.json()
+      }),
+    ),
+  )
+  const ok = results.filter((r) => r.status === 'fulfilled').length
+  for (const r of results) if (r.status === 'rejected') warnings.push(String(r.reason))
+  console.log(`[spenders] fan-out : ${ok}/${byMypulsId.size} modèles OK`)
+
+  const status = warnings.length ? 'degraded' : 'ok'
+  await recordRun('cron', startedAt, {
+    summary: { job: 'spenders', modelsOk: ok, total: byMypulsId.size, warnings } as unknown as Parameters<typeof recordRun>[2]['summary'],
+  })
+  return { status, modelsOk: ok, total: byMypulsId.size, warnings }
+}
+
+/** Une mini-invocation : scrape UN modèle (login isolé → switch → chat/init → upsert). */
+async function scrapeOneModel(mypulsId: string, creatorId: string): Promise<number> {
+  const db = createAdminClient()
+  const { cookie } = await login()
+  const resolveChatter = await chatterResolver(db)
+  return ingestOneModel(db, cookie, mypulsId, creatorId, resolveChatter)
+}
 const MONITOR_CONFIG = {
   schedule: { type: 'crontab', value: '5 23 * * *' },
   timezone: 'Etc/UTC',
@@ -170,6 +237,16 @@ const handler = {
       )
       return
     }
+    // Minuit UTC = scrape spenders (transactions veille + fan-out 1 invocation/modèle).
+    // Après les runs marketing pour ne pas cumuler la charge du compte.
+    if (controller.cron === SPENDERS_CRON) {
+      await Sentry.withMonitor(MONITOR_SPENDERS_SLUG, () => runSpendersOrchestrator(env), {
+        ...MONITOR_CONFIG,
+        schedule: { type: 'crontab', value: SPENDERS_CRON },
+        maxRuntime: 120,
+      })
+      return
+    }
     // Awaité (pas de waitUntil) : un crash marque l'invocation cron en échec côté
     // Cloudflare, est capturé par withSentry, et passe le check-in du monitor en error.
     try {
@@ -237,6 +314,30 @@ const handler = {
       } catch (err) {
         Sentry.captureException(err)
         return new Response(`échec marketing : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
+    // `?job=spenders&model=<mypulsId>&creator=<uuid>` : mini-invocation du fan-out —
+    // scrape 1 modèle (appelée par l'orchestrateur cron, ou à la main pour tester).
+    if (url.searchParams.get('job') === 'spenders') {
+      const model = url.searchParams.get('model')
+      const creator = url.searchParams.get('creator')
+      if (!model || !creator) return new Response('model & creator requis\n', { status: 400 })
+      try {
+        const n = await scrapeOneModel(model, creator)
+        return Response.json({ model, conversations: n })
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec spenders modèle ${model} : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
+    // `?job=spenders-orchestrate` : déclenche le fan-out complet à la main (test).
+    if (url.searchParams.get('job') === 'spenders-orchestrate') {
+      try {
+        const summary = await runSpendersOrchestrator(env)
+        return Response.json(summary)
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec spenders : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
       }
     }
     const dayParam = url.searchParams.get('day')
