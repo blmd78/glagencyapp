@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur } from '@/lib/format'
-import { daysSince, R_ALERTE, type SpenderRow } from '../types'
+import { RelanceCounter } from './spender-actions'
+import { daysSince, type SpenderRow } from '../types'
 
 /** « aujourd'hui » / « hier » / « il y a N j » — fraîcheur de la conversation. */
 function daysLabel(iso: string | null): string {
@@ -85,26 +86,11 @@ const baseColumns: ColumnDef<SpenderRow>[] = [
     accessorKey: 'compteurR',
     header: ({ column }) => (
       <div className="flex items-center justify-center gap-1.5">
-        <Sortable column={column} label="R" className="justify-center" />
-        <HeaderInfo text="Nombre de relances Snap depuis le dernier reset. À R10 = fin de cycle (alerte, à archiver)." />
+        <Sortable column={column} label="Relances" className="justify-center" />
+        <HeaderInfo text="Compteur de relances. Le « + » enregistre une relance (max 1/jour, garanti en base). À R10 = fin de cycle (à archiver)." />
       </div>
     ),
-    cell: ({ row }) => {
-      const r = row.original.compteurR
-      return (
-        <div className="flex items-center justify-center gap-1">
-          <Badge
-            className={cn(
-              'tabular-nums',
-              r >= R_ALERTE ? STATUS_COLORS.danger : r > 0 ? STATUS_COLORS.warning : STATUS_COLORS.neutral,
-            )}
-          >
-            R{r}
-          </Badge>
-          {row.original.grise && <span className="text-[10px] text-muted-foreground">grisé</span>}
-        </div>
-      )
-    },
+    cell: ({ row }) => <RelanceCounter spender={row.original} />,
     meta: { align: 'center' },
   },
   {

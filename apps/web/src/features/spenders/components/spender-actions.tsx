@@ -1,87 +1,73 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Send, RotateCcw, Archive, ArchiveRestore } from 'lucide-react'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
+import { Plus, RotateCcw, Archive, ArchiveRestore } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { ActionButton } from '@/components/action-button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { cn } from '@/lib/utils'
+import { STATUS_COLORS } from '@/lib/status-color'
 import { addRelance, resetCompteur, setArchived } from '../actions'
-import type { SpenderRow } from '../types'
+import { R_ALERTE, type SpenderRow } from '../types'
 
 type Target = Pick<SpenderRow, 'creatorId' | 'fanId'>
 
-/** Bouton « Relancé » : note optionnelle → enregistre la relance (compteur R+1). */
-export function RelanceButton({ spender }: { spender: SpenderRow }) {
-  const [open, setOpen] = useState(false)
-  const [note, setNote] = useState('')
-  const [error, setError] = useState<string | null>(null)
+/**
+ * Compteur R{n} + bouton « + » pour incrémenter (1 relance/jour). Le « + » est désactivé
+ * après la relance du jour (grisé). La sécurité RÉELLE contre le double-comptage est la
+ * contrainte unique DB (spender, jour Paris) : un clic forcé/rejoué est rejeté par Postgres,
+ * l'action renvoie « Déjà relancé aujourd'hui ». Caché à R10 (cycle fini) ou si archivé.
+ */
+export function RelanceCounter({ spender }: { spender: SpenderRow }) {
   const [pending, startTransition] = useTransition()
-
-  function submit() {
-    startTransition(async () => {
-      const res = await addRelance({
-        creatorId: spender.creatorId,
-        fanId: spender.fanId,
-        chatterId: spender.chatterId,
-        note: note.trim() || undefined,
-      })
-      if (!res.success) return setError(res.error)
-      setError(null)
-      setNote('')
-      setOpen(false)
-    })
-  }
+  const [error, setError] = useState<string | null>(null)
+  const r = spender.compteurR
+  const canRelance = !spender.archived && r < R_ALERTE
+  const color = r >= R_ALERTE ? STATUS_COLORS.danger : r > 0 ? STATUS_COLORS.warning : STATUS_COLORS.neutral
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" className="gap-1.5" disabled={spender.grise}>
-          <Send className="size-3.5" />
-          {spender.grise ? 'Relancé' : 'Relancer'}
+    <div className="flex items-center justify-center gap-1.5">
+      <Badge className={cn('tabular-nums', color)}>R{r}</Badge>
+      {canRelance && (
+        <Button
+          size="icon"
+          variant="outline"
+          className="size-6"
+          disabled={spender.grise || pending}
+          title={spender.grise ? 'Déjà relancé aujourd’hui' : `Enregistrer une relance (R${r + 1})`}
+          onClick={() =>
+            startTransition(async () => {
+              const res = await addRelance({
+                creatorId: spender.creatorId,
+                fanId: spender.fanId,
+                chatterId: spender.chatterId,
+              })
+              setError(res.success ? null : res.error)
+            })
+          }
+        >
+          <Plus className="size-3.5" />
         </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Relancer {spender.username}</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">
-            Passe en R{spender.compteurR + 1}. Le spender sera grisé jusqu’à minuit.
-          </p>
-          <Textarea
-            placeholder="Note (optionnel) — ce qui a été dit, la vibe…"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={3}
-          />
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-          <ActionButton pending={pending} onClick={submit} className="self-end gap-1.5">
-            <Send className="size-3.5" />
-            Enregistrer la relance
-          </ActionButton>
-        </div>
-      </DialogContent>
-    </Dialog>
+      )}
+      {spender.conversionPending && !spender.archived && (
+        <ResetButton target={spender} title="Le fan a reconverti — remettre le compteur à zéro" />
+      )}
+      {error && <span className="text-[10px] text-red-600 dark:text-red-400">{error}</span>}
+    </div>
   )
 }
 
 /** Bouton « Reset compteur » — proposé quand le fan a reconverti. */
-export function ResetButton({ target }: { target: Target }) {
+export function ResetButton({ target, title }: { target: Target; title?: string }) {
   const [pending, startTransition] = useTransition()
   return (
     <ActionButton
-      size="sm"
+      size="icon"
       variant="ghost"
       pending={pending}
-      className="gap-1.5 text-muted-foreground"
+      className="size-6 text-muted-foreground"
+      title={title ?? 'Remettre le compteur R à zéro'}
       onClick={() =>
         startTransition(async () => {
           await resetCompteur({ creatorId: target.creatorId, fanId: target.fanId })
@@ -89,7 +75,6 @@ export function ResetButton({ target }: { target: Target }) {
       }
     >
       <RotateCcw className="size-3.5" />
-      Reset R
     </ActionButton>
   )
 }

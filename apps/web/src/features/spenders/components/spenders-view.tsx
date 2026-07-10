@@ -3,38 +3,25 @@
 import { useMemo } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { SpendersTable } from './spenders-table'
-import { RelanceButton, ResetButton, ArchiveButton } from './spender-actions'
+import { ArchiveButton } from './spender-actions'
 import { isARelancer, R_ALERTE, type SpenderRow } from '../types'
 
 export type SpendersViewKind = 'liste' | 'tracker' | 'alertes' | 'archive'
 
-/** Colonne d'action Relancer (+ Reset proposé si le fan a reconverti). */
-const relanceAction: ColumnDef<SpenderRow> = {
-  id: 'action',
-  header: '',
-  cell: ({ row }) => (
-    <div className="flex items-center justify-end gap-1">
-      {row.original.conversionPending && <ResetButton target={row.original} />}
-      <RelanceButton spender={row.original} />
-    </div>
-  ),
-  meta: { align: 'right' },
-}
+// Relancer (+) et Reset vivent dans la colonne « Relances » (RelanceCounter) — ici on
+// n'ajoute que l'action de fin de cycle : archiver (alertes) ou réactiver (archive).
 
-/** Colonne d'action des alertes R10 : Reset (si reconverti) + Archiver. */
 const alerteAction: ColumnDef<SpenderRow> = {
   id: 'action',
   header: '',
   cell: ({ row }) => (
-    <div className="flex items-center justify-end gap-1">
-      {row.original.conversionPending && <ResetButton target={row.original} />}
+    <div className="flex justify-end">
       <ArchiveButton target={row.original} archived={false} />
     </div>
   ),
   meta: { align: 'right' },
 }
 
-/** Colonne d'action de l'archive : Réactiver. */
 const archiveAction: ColumnDef<SpenderRow> = {
   id: 'action',
   header: '',
@@ -46,21 +33,21 @@ const archiveAction: ColumnDef<SpenderRow> = {
   meta: { align: 'right' },
 }
 
-/** Une vue de la sous-catégorie Spenders : filtre les spenders + colonne d'action adaptée. */
+/** Une vue de la sous-catégorie Spenders : filtre les spenders + action de fin de cycle. */
 export function SpendersView({ spenders, view }: { spenders: SpenderRow[]; view: SpendersViewKind }) {
-  const { rows, action } = useMemo(() => {
+  const { rows, extra } = useMemo(() => {
     const actifs = spenders.filter((s) => !s.archived)
     switch (view) {
       case 'tracker':
-        return { rows: actifs.filter(isARelancer), action: relanceAction }
+        return { rows: actifs.filter(isARelancer), extra: [] as ColumnDef<SpenderRow>[] }
       case 'alertes':
-        return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), action: alerteAction }
+        return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: [alerteAction] }
       case 'archive':
-        return { rows: spenders.filter((s) => s.archived), action: archiveAction }
+        return { rows: spenders.filter((s) => s.archived), extra: [archiveAction] }
       default:
-        return { rows: actifs, action: relanceAction }
+        return { rows: actifs, extra: [] as ColumnDef<SpenderRow>[] }
     }
   }, [spenders, view])
 
-  return <SpendersTable spenders={rows} extra={[action]} />
+  return <SpendersTable spenders={rows} extra={extra} />
 }
