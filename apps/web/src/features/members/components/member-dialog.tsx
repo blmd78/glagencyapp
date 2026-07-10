@@ -70,6 +70,7 @@ export function MemberDialog({
       // Seules les pages du périmètre courant sont éditées ici.
       pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
       creatorIds: member?.creatorIds ?? [],
+      workLink: member?.workLink ?? '',
     },
   })
 
@@ -82,6 +83,7 @@ export function MemberDialog({
           role: values.role,
           pages: values.pages,
           creatorIds: values.creatorIds,
+          workLink: values.workLink,
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
@@ -126,6 +128,23 @@ export function MemberDialog({
             <Input placeholder="Marco" disabled={isSubmitting} {...register('displayName')} />
             {errors.displayName && (
               <p className="text-xs text-red-600 dark:text-red-400">{errors.displayName.message}</p>
+            )}
+          </div>
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Lien outil de travail (optionnel)
+            </label>
+            <Input
+              type="url"
+              placeholder="https://notion.so/…"
+              disabled={isSubmitting}
+              {...register('workLink')}
+            />
+            <p className="text-xs text-muted-foreground">
+              Le membre le retrouve dans son menu utilisateur, en bas de la sidebar.
+            </p>
+            {errors.workLink && (
+              <p className="text-xs text-red-600 dark:text-red-400">{errors.workLink.message}</p>
             )}
           </div>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronsUpDown, LogOut, Moon, Sun } from 'lucide-react'
+import { ChevronsUpDown, ExternalLink, LogOut, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -20,11 +20,26 @@ import {
 } from '@/components/ui/sidebar'
 import { createClient } from '@/lib/supabase/client'
 
-export function NavUser({ email }: { email: string }) {
+export function NavUser({
+  email,
+  workLink = '',
+}: {
+  email: string
+  /** Lien « outil de travail » du membre (posé par l'admin dans Membres) — '' = pas d'entrée. */
+  workLink?: string
+}) {
   const router = useRouter()
   const { isMobile } = useSidebar()
   const { resolvedTheme, setTheme } = useTheme()
   const initials = (email.trim()[0] ?? '?').toUpperCase()
+  // Libellé = domaine du lien (« notion.so », « t.me »…) ; l'URL complète en title.
+  const workHost = (() => {
+    try {
+      return workLink ? new URL(workLink).hostname.replace(/^www\./, '') : null
+    } catch {
+      return null
+    }
+  })()
 
   async function logout() {
     await createClient().auth.signOut()
@@ -60,6 +75,17 @@ export function NavUser({ email }: { email: string }) {
               {email}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {workHost && (
+              <>
+                <DropdownMenuItem asChild>
+                  <a href={workLink} target="_blank" rel="noopener noreferrer" title={workLink}>
+                    <ExternalLink />
+                    <span className="truncate">Mon outil — {workHost}</span>
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {/* Icône/libellé pilotés par la classe `dark` (CSS) : aucun risque
                 d'écart d'hydratation, pas besoin de garde `mounted`. */}
             <DropdownMenuItem

@@ -28,7 +28,7 @@ export async function getOverview(
   const chartFrom = startOfMonth(period.from)
   const chartTo = endOfMonth(period.to)
 
-  const [{ data: creators }, { data: cd }, { data: chd }, { count: totalChatters }] =
+  const [{ data: creators }, { data: cd }, { data: chd }, denomBase] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private'),
       // Tables journalières : fetchAll (pagination PostgREST, tri = PK).
@@ -66,7 +66,25 @@ export async function getOverview(
               .order('date')
               .range(f, t),
           ),
-      supabase.from('chatters').select('*', { count: 'exact', head: true }),
+      // Dénominateur « Chatteurs actifs X / Y » : la RLS de `chatters` est tout-ou-rien
+      // (un membre avec ≥1 modèle lit TOUTES les lignes) → en restricted, Y se compte
+      // depuis `chatter_creators` (scopée à SES modèles, même source que getChatterScope).
+      // Set (pas .size) : complété plus bas par les chatteurs à CA sur la période dont la
+      // liaison a été désactivée depuis — sinon X > Y possible. fetchAll : cap PostgREST.
+      restricted
+        ? fetchAll((f, t) =>
+            supabase
+              .from('chatter_creators')
+              .select('chatter_id')
+              .eq('active', true)
+              .order('chatter_id')
+              .order('creator_id')
+              .range(f, t),
+          ).then(({ data }) => new Set((data ?? []).map((r) => r.chatter_id).filter(Boolean)))
+        : supabase
+            .from('chatters')
+            .select('*', { count: 'exact', head: true })
+            .then(({ count }) => count ?? 0),
     ])
 
   const meta = new Map((creators ?? []).map((c) => [c.id, { name: c.name, isPrivate: c.is_private }]))
@@ -123,11 +141,16 @@ export async function getOverview(
   const active = activeCas.length
   const avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
   const lowCom = [...caByChatter.values()].filter((v) => v * COM_RATE < COM_FLOOR).length
+  // Y du KPI « Chatteurs actifs X / Y » : admin = count global ; restricted = liaisons
+  // actives ∪ chatteurs avec CA sur la période (liaison désactivée depuis) — X ≤ Y garanti.
+  const withCa = [...caByChatter.entries()].filter(([, v]) => v > 0).map(([id]) => id)
+  const totalChatters =
+    typeof denomBase === 'number' ? denomBase : new Set([...denomBase, ...withCa]).size
 
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
     { key: 'ca', label: 'CA total', value: eur(totalCa), deltaPct: null, trendLabel: restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
-    { key: 'active', label: 'Chatteurs actifs', value: `${active} / ${totalChatters ?? 0}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: scopeHint },
+    { key: 'active', label: 'Chatteurs actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: scopeHint },
     { key: 'avgCa', label: 'CA moyen / chatteur', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatteurs, ${scopeHint}` : `${int(active)} chatteurs avec CA` },
     // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
     ...(restricted

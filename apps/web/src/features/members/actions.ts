@@ -82,7 +82,7 @@ export async function createMember(input: unknown): Promise<Result> {
   await requireAdmin()
   const parsed = memberInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
-  const { scope, email, displayName, role, pages, creatorIds } = parsed.data
+  const { scope, email, displayName, role, pages, creatorIds, workLink } = parsed.data
 
   const admin = createAdminClient()
   const { data: created, error } = await admin.auth.admin.createUser({
@@ -100,7 +100,7 @@ export async function createMember(input: unknown): Promise<Result> {
   // (garde .neq en plus du guard applicatif).
   const { error: pErr } = await admin
     .from('profiles')
-    .update({ display_name: displayName, pages: mergePages([], pages, scope) })
+    .update({ display_name: displayName, pages: mergePages([], pages, scope), work_link: workLink })
     .eq('id', uid)
   if (pErr) return { success: false, error: pErr.message }
   if (role === 'manager') {
@@ -124,7 +124,7 @@ export async function updateMember(input: unknown): Promise<Result> {
   await requireAdmin()
   const parsed = memberUpdateInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
-  const { scope, id, displayName, role, pages, creatorIds } = parsed.data
+  const { scope, id, displayName, role, pages, creatorIds, workLink } = parsed.data
 
   const admin = createAdminClient()
   const guard = await requireEditableTarget(admin, id)
@@ -134,7 +134,7 @@ export async function updateMember(input: unknown): Promise<Result> {
   const { data: current } = await admin.from('profiles').select('pages').eq('id', id).single()
   const { error: pErr } = await admin
     .from('profiles')
-    .update({ display_name: displayName, role, pages: mergePages(current?.pages ?? [], pages, scope) })
+    .update({ display_name: displayName, role, pages: mergePages(current?.pages ?? [], pages, scope), work_link: workLink })
     .eq('id', id)
   if (pErr) return { success: false, error: pErr.message }
   if (scope === 'chatter') {

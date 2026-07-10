@@ -1280,6 +1280,98 @@ export type Database = {
           },
         ]
       }
+      planning_blocks: {
+        Row: {
+          badge: string
+          bullets: Json
+          color: string
+          created_at: string
+          id: string
+          planning_id: string
+          position: number
+          section: string
+          time_end: string
+          time_start: string
+          title: string
+        }
+        Insert: {
+          badge?: string
+          bullets?: Json
+          color?: string
+          created_at?: string
+          id?: string
+          planning_id: string
+          position?: number
+          section: string
+          time_end: string
+          time_start: string
+          title: string
+        }
+        Update: {
+          badge?: string
+          bullets?: Json
+          color?: string
+          created_at?: string
+          id?: string
+          planning_id?: string
+          position?: number
+          section?: string
+          time_end?: string
+          time_start?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planning_blocks_planning_id_fkey"
+            columns: ["planning_id"]
+            isOneToOne: false
+            referencedRelation: "plannings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plannings: {
+        Row: {
+          annex_note: string
+          annexes: Json
+          id: string
+          pause_note: string
+          priority_allowed: string
+          priority_body: string
+          priority_forbidden: string
+          priority_title: string
+          profile_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          annex_note?: string
+          annexes?: Json
+          id?: string
+          pause_note?: string
+          priority_allowed?: string
+          priority_body?: string
+          priority_forbidden?: string
+          priority_title?: string
+          profile_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          annex_note?: string
+          annexes?: Json
+          id?: string
+          pause_note?: string
+          priority_allowed?: string
+          priority_body?: string
+          priority_forbidden?: string
+          priority_title?: string
+          profile_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1288,6 +1380,7 @@ export type Database = {
           id: string
           pages: string[]
           role: string
+          work_link: string
         }
         Insert: {
           created_at?: string
@@ -1296,6 +1389,7 @@ export type Database = {
           id: string
           pages?: string[]
           role?: string
+          work_link?: string
         }
         Update: {
           created_at?: string
@@ -1304,6 +1398,7 @@ export type Database = {
           id?: string
           pages?: string[]
           role?: string
+          work_link?: string
         }
         Relationships: []
       }

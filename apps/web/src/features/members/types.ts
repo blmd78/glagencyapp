@@ -9,6 +9,8 @@ export interface Member {
   pages: string[]
   /** Modèles assignés (profile_creators). */
   creatorIds: string[]
+  /** Lien « outil de travail » ('' = aucun) — affiché dans le menu utilisateur du membre. */
+  workLink: string
   createdAt: string
 }
 

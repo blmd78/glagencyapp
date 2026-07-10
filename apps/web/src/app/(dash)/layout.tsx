@@ -24,6 +24,7 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
         isAdmin={profile.role === 'admin'}
         allowedPages={profile.pages}
         insightsCount={insightsCount}
+        workLink={profile.workLink}
       />
       <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">

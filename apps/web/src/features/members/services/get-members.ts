@@ -7,7 +7,7 @@ export async function getMembers(): Promise<MembersData> {
   const [{ data: profiles }, { data: links }, { data: creators }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, email, display_name, role, pages, created_at')
+      .select('id, email, display_name, role, pages, work_link, created_at')
       .order('created_at'),
     supabase.from('profile_creators').select('profile_id, creator_id'),
     // TOUS les comptes (privés inclus) : `excluded` ne concerne que les calculs (LTV,
@@ -27,6 +27,7 @@ export async function getMembers(): Promise<MembersData> {
     role: p.role === 'admin' ? 'admin' : p.role === 'manager' ? 'manager' : 'user',
     pages: p.pages ?? [],
     creatorIds: byProfile.get(p.id) ?? [],
+    workLink: p.work_link ?? '',
     createdAt: p.created_at,
   }))
   return { members, creators: creators ?? [] }

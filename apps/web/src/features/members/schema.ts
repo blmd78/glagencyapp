@@ -7,6 +7,14 @@ import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 const CHATTER_SLUGS = PAGE_CHOICES.map((p) => p.slug as string)
 const MKT_SLUGS = MKT_PAGE_CHOICES.map((p) => p.slug as string)
 
+// Lien « outil de travail » (optionnel) : vide ou une URL http(s) — le membre le
+// retrouve dans son menu utilisateur en bas de sidebar.
+const workLink = z
+  .string()
+  .trim()
+  .max(300, 'Lien trop long')
+  .refine((v) => v === '' || /^https?:\/\/\S+$/i.test(v), 'Lien invalide (http/https)')
+
 export const memberInput = z
   .object({
     scope: z.enum(['chatter', 'marketing']),
@@ -17,6 +25,7 @@ export const memberInput = z
     // min(1) : un compte sans aucune page serait inutilisable (atterrit sur /no-access).
     pages: z.array(z.string()).min(1, 'Coche au moins une page'),
     creatorIds: z.array(z.string().uuid()).max(50),
+    workLink,
   })
   .refine(
     (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),
@@ -33,6 +42,7 @@ export const memberUpdateInput = z
     role: z.enum(['user', 'manager']),
     pages: z.array(z.string()).min(1, 'Coche au moins une page'),
     creatorIds: z.array(z.string().uuid()).max(50),
+    workLink,
   })
   .refine(
     (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),

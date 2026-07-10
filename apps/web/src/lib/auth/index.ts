@@ -30,6 +30,8 @@ export interface Profile {
   pages: string[]
   displayName: string | null
   email: string | null
+  /** Lien « outil de travail » posé par l'admin (Membres) — '' = aucun. */
+  workLink: string
 }
 
 /** Profil applicatif de l'utilisateur courant (RLS : chacun lit le sien), ou null. Mémoïsé par requête. */
@@ -39,7 +41,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createClient()
   const { data } = await supabase
     .from('profiles')
-    .select('id, role, pages, display_name, email')
+    .select('id, role, pages, display_name, email, work_link')
     .eq('id', user.id)
     .single()
   if (!data) return null
@@ -49,6 +51,7 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
     pages: data.pages ?? [],
     displayName: data.display_name,
     email: data.email ?? user.email ?? null,
+    workLink: data.work_link ?? '',
   }
 })
 
