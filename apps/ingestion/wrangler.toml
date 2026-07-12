@@ -24,7 +24,11 @@ compatibility_flags = ["nodejs_compat"]
 # self par modèle (?job=spenders&model=…), chacune = invocation séparée à son propre budget.
 # 5 crons = plafond Free par COMPTE (pas par worker) : ce slot est le dernier.
 [triggers]
-crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *", "0 0 * * *"]
+# Crons marketing DÉSACTIVÉS temporairement (2026-07-12) — réactiver en restaurant la
+# ligne complète ci-dessous. ⚠️ Mettre les monitors Sentry ingestion-marketing-* en pause
+# (Crons → monitor → Pause), sinon ils alertent « missed check-in » chaque nuit.
+# crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *", "0 0 * * *"]
+crons = ["5 23 * * *", "0 0 * * *"]
 
 # URL publique du worker : l'orchestrateur spenders s'auto-appelle pour le fan-out.
 [vars]
