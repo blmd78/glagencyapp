@@ -30,9 +30,17 @@ compatibility_flags = ["nodejs_compat"]
 # crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *", "0 0 * * *"]
 crons = ["5 23 * * *", "0 0 * * *"]
 
-# URL publique du worker : l'orchestrateur spenders s'auto-appelle pour le fan-out.
+# URL publique du worker : sert de base d'URL aux mini-requêtes du fan-out spenders.
+# ⚠️ Les appels passent par le Service Binding SELF ci-dessous, PAS par un fetch() public :
+# un worker ne peut pas fetcher un worker de la même zone (soi-même inclus) — erreur 1042.
 [vars]
 WORKER_SELF_URL = "https://glagency-ingestion.glagencyapp.workers.dev"
+
+# Service Binding du worker vers LUI-MÊME : canal worker→worker officiel Cloudflare,
+# chaque appel = une invocation séparée avec son propre budget CPU/sous-requêtes.
+[[services]]
+binding = "SELF"
+service = "glagency-ingestion"
 
 # Workers Logs (gratuit en Free : 200k événements/jour partagés par compte, rétention
 # 3 jours, recherche dans le dashboard). L'historique durable des runs = table ingest_runs.

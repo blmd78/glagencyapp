@@ -46,15 +46,12 @@ async function main() {
   if (!dsn) return run()
 
   Sentry.init({ dsn, tracesSampleRate: 0 })
-  const checkInId = Sentry.captureCheckIn(
-    { monitorSlug: 'ingestion-spenders-nightly', status: 'in_progress' },
-    { schedule: { type: 'crontab', value: '40 23 * * *' }, timezone: 'Etc/UTC', checkinMargin: 30, maxRuntime: 20 },
-  )
+  // PAS de cron check-in ici : le monitor ingestion-spenders-nightly appartient au worker
+  // (cron minuit UTC). Un run CLI ad hoc qui check-in sur le même slug réécrit la config du
+  // monitor et, s'il est interrompu (Ctrl-C), déclenche un faux « timeout » (incident 10/07).
   try {
     await run()
-    Sentry.captureCheckIn({ checkInId, monitorSlug: 'ingestion-spenders-nightly', status: 'ok' })
   } catch (err) {
-    Sentry.captureCheckIn({ checkInId, monitorSlug: 'ingestion-spenders-nightly', status: 'error' })
     Sentry.captureException(err)
     throw err
   } finally {

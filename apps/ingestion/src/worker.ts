@@ -41,7 +41,10 @@ import { createAdminClient } from '@glagency/db'
  * HTMLRewriter et renvoie le JSON → permet de comparer au parser cheerio sans déployer.
  * Désactivée en prod (refusée si TRIGGER_TOKEN est posé, i.e. secret présent).
  */
-type Bindings = Record<string, string | undefined>
+type Bindings = Record<string, string | undefined> & {
+  /** Service Binding du worker vers lui-même (fan-out spenders) — cf. wrangler.toml [[services]]. */
+  SELF?: { fetch(url: string, init?: { headers?: Record<string, string> }): Promise<Response> }
+}
 type Ctx = { waitUntil(promise: Promise<unknown>): void }
 
 // maxCatchup 3 : plan Free = 50 sous-requêtes/invocation, un run coûte ~13 appels fixes
@@ -83,14 +86,17 @@ async function runSpendersOrchestrator(env: Bindings) {
     warnings.push(`transactions: ${(err as Error).message}`)
   }
 
-  const selfUrl = env.WORKER_SELF_URL
-  if (!selfUrl || !env.TRIGGER_TOKEN) {
-    throw new Error('WORKER_SELF_URL / TRIGGER_TOKEN requis pour le fan-out spenders')
+  // Fan-out via le Service Binding SELF : un fetch() global vers sa propre URL workers.dev
+  // est interdit par Cloudflare (erreur 1042) — le binding est le canal worker→worker prévu,
+  // et chaque appel reste une invocation séparée avec son propre budget.
+  const { SELF: self, WORKER_SELF_URL: selfUrl, TRIGGER_TOKEN: triggerToken } = env
+  if (!self || !selfUrl || !triggerToken) {
+    throw new Error('binding SELF / WORKER_SELF_URL / TRIGGER_TOKEN requis pour le fan-out spenders')
   }
   const results = await Promise.allSettled(
     [...byMypulsId].map(([mypulsId, creatorId]) =>
-      fetch(`${selfUrl}?job=spenders&model=${mypulsId}&creator=${creatorId}`, {
-        headers: { Authorization: `Bearer ${env.TRIGGER_TOKEN}` },
+      self.fetch(`${selfUrl}?job=spenders&model=${mypulsId}&creator=${creatorId}`, {
+        headers: { Authorization: `Bearer ${triggerToken}` },
       }).then(async (r) => {
         if (!r.ok) throw new Error(`modèle ${mypulsId}: HTTP ${r.status} ${await r.text()}`)
         return r.json()
@@ -102,9 +108,17 @@ async function runSpendersOrchestrator(env: Bindings) {
   console.log(`[spenders] fan-out : ${ok}/${byMypulsId.size} modèles OK`)
 
   const status = warnings.length ? 'degraded' : 'ok'
+  if (status === 'degraded') {
+    Sentry.captureMessage(`[spenders] run dégradé : ${warnings.join(' | ')}`, 'warning')
+  }
   await recordRun('cron', startedAt, {
-    summary: { job: 'spenders', modelsOk: ok, total: byMypulsId.size, warnings } as unknown as Parameters<typeof recordRun>[2]['summary'],
+    summary: { job: 'spenders', status, modelsOk: ok, total: byMypulsId.size, warnings } as unknown as Parameters<typeof recordRun>[2]['summary'],
   })
+  // 0 modèle passé = échec franc, pas un run dégradé : re-throw pour que le check-in du
+  // monitor Sentry passe en error (sinon le monitor reste vert alors que rien n'a tourné).
+  if (byMypulsId.size > 0 && ok === 0) {
+    throw new Error(`[spenders] fan-out : 0/${byMypulsId.size} modèles OK — ${warnings[0] ?? 'cf. ingest_runs'}`)
+  }
   return { status, modelsOk: ok, total: byMypulsId.size, warnings }
 }
 
