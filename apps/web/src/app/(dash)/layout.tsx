@@ -4,6 +4,7 @@ import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { AppSidebar } from '@/components/app-sidebar'
 import { HeaderPeriod } from '@/components/header-period'
+import { KeepAlive } from '@/components/keep-alive'
 import {
   SidebarInset,
   SidebarProvider,
@@ -19,6 +20,7 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
 
   return (
     <SidebarProvider>
+      <KeepAlive />
       <AppSidebar
         userEmail={profile.email ?? ''}
         isAdmin={profile.role === 'admin'}
