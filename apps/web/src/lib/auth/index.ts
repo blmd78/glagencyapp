@@ -4,16 +4,18 @@ import { createClient } from '@/lib/supabase/server'
 import type { PageSlug } from '@/config/workspaces'
 
 /**
- * Utilisateur courant (ou null) — valide le JWT côté serveur.
+ * Utilisateur courant (ou null) — valide le JWT côté serveur via getClaims() : validation
+ * LOCALE de la signature (clés ES256 du projet, JWKS mis en cache), pas d'aller-retour
+ * réseau vers Supabase Auth à chaque page (ce que faisait auth.getUser()).
  * `cache()` : mémoïsé PAR REQUÊTE (layout + garde de page appellent tous deux getProfile →
  * sans ça, 2 validations JWT + 2 SELECT profiles par affichage).
  */
 export const getUser = cache(async () => {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  return user
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
+  if (!claims?.sub) return null
+  return { id: claims.sub, email: (claims.email as string | undefined) ?? null }
 })
 
 /** Garde : redirige vers /login si pas de session. */

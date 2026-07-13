@@ -1,7 +1,8 @@
 'use client'
 
+import { useRef } from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import {
   Collapsible,
@@ -47,7 +48,18 @@ export function AppSidebar({
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { state, isMobile, setOpen } = useSidebar()
+  // Prefetch AU SURVOL (et non au mount) : le prefetch par défaut de <Link> précharge les
+  // ~12 routes de la sidebar d'un coup → rafale d'invocations concurrentes sur Workers Free
+  // (Error 1102). Au survol, UNE route part à la fois, ~200 ms avant le clic → le fallback
+  // (loading.tsx) s'affiche instantanément au clic au lieu d'attendre le premier octet.
+  const prefetched = useRef(new Set<string>())
+  const prefetchOnHover = (href: string) => {
+    if (prefetched.current.has(href)) return
+    prefetched.current.add(href)
+    router.prefetch(href)
+  }
   const active = workspaceForPath(pathname)
   // Chaque item se filtre par SON slug (les pages marketing portent des slugs mkt-*
   // pour ne pas entrer en collision avec ceux de la face chatteurs : overview, compta…).
@@ -69,14 +81,12 @@ export function AppSidebar({
 
   const renderDirect = (item: (typeof items)[number]) => {
     const Icon = item.icon
+    const href = withPeriod(item.href, searchParams)
     return (
       <SidebarMenuItem key={item.href}>
         <SidebarMenuButton asChild isActive={isActivePath(item.href)} tooltip={item.label}>
-          {/* prefetch=false : sans ça, Next pré-charge en RSC TOUS les liens
-              visibles de la sidebar d'un coup (~12 routes × 2 → rafale
-              d'invocations concurrentes sur le même isolate 128 Mo → Error 1102
-              « exceededResources »). On charge la page seulement au clic. */}
-          <Link href={withPeriod(item.href, searchParams)} prefetch={false}>
+          {/* prefetch=false + prefetch au survol : cf. prefetchOnHover ci-dessus. */}
+          <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)}>
             <Icon />
             <span>{item.label}</span>
           </Link>
@@ -133,11 +143,12 @@ export function AppSidebar({
                       <SidebarMenuSub>
                         {group.items.map((item) => {
                           const Icon = item.icon
+                          const href = withPeriod(item.href, searchParams)
                           return (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActivePath(item.href)}>
-                                {/* Même règle prefetch=false que les items directs. */}
-                                <Link href={withPeriod(item.href, searchParams)} prefetch={false}>
+                                {/* Même règle prefetch survol que les items directs. */}
+                                <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)}>
                                   <Icon />
                                   <span>{item.label}</span>
                                 </Link>

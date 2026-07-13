@@ -30,9 +30,11 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims() : valide le JWT LOCALEMENT (clés ES256 du projet, JWKS mis en cache) au
+  // lieu d'un aller-retour HTTP vers Supabase Auth à CHAQUE requête (ce que fait getUser).
+  // Le refresh de session reste géré par @supabase/ssr (setAll ci-dessus) à l'expiration.
+  const { data } = await supabase.auth.getClaims()
+  const user = data?.claims ?? null
 
   const { pathname } = request.nextUrl
   const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth')

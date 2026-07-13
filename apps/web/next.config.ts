@@ -4,6 +4,13 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Packages workspace consommés en TS source → transpilés par Next.
   transpilePackages: ['@glagency/core', '@glagency/db'],
+  experimental: {
+    // Cache client du router : re-naviguer vers une page visitée il y a < 60 s la sert
+    // depuis le cache du navigateur (0 aller-retour serveur → instantané). Acceptable :
+    // les données changent la nuit (ingestion) ; les Server Actions revalidatePath →
+    // une mutation invalide immédiatement la page concernée malgré la fenêtre.
+    staleTimes: { dynamic: 60 },
+  },
 }
 
 // withSentryConfig retiré volontairement : il ré-instrumente les fonctions serveur et tire
