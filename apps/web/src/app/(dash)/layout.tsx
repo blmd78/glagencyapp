@@ -5,6 +5,7 @@ import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { AppSidebar } from '@/components/app-sidebar'
 import { HeaderPeriod } from '@/components/header-period'
 import { KeepAlive } from '@/components/keep-alive'
+import { NavPendingOverlay, NavTransitionProvider } from '@/components/nav-transition'
 import {
   SidebarInset,
   SidebarProvider,
@@ -20,6 +21,7 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
 
   return (
     <SidebarProvider>
+      <NavTransitionProvider>
       <KeepAlive />
       <AppSidebar
         userEmail={profile.email ?? ''}
@@ -39,8 +41,13 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
             </Suspense>
           </div>
         </header>
-        <div className="flex min-w-0 flex-1 flex-col gap-4 p-6">{children}</div>
+        {/* `relative` : ancre l'overlay de navigation (loader pleine zone dès le clic). */}
+        <div className="relative flex min-w-0 flex-1 flex-col gap-4 p-6">
+          <NavPendingOverlay />
+          {children}
+        </div>
       </SidebarInset>
+      </NavTransitionProvider>
     </SidebarProvider>
   )
 }

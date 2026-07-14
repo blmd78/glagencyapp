@@ -1,9 +1,9 @@
 'use client'
 
 import { useRef } from 'react'
-import Link, { useLinkStatus } from 'next/link'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronRight, Loader2 } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -28,19 +28,8 @@ import {
 import { WORKSPACES, workspaceForPath, navSlug, isMarketingSlug } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
+import { useNavTransition } from '@/components/nav-transition'
 import { withPeriod } from '@/lib/nav'
-
-/**
- * Spinner sur l'onglet cliqué pendant la navigation : feedback à 0 ms même quand le
- * serveur est froid (cold start Workers 2-3 s) — l'utilisateur voit que le clic est pris.
- * useLinkStatus doit vivre DANS le <Link> concerné.
- */
-function LinkPending() {
-  const { pending } = useLinkStatus()
-  return pending ? (
-    <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin text-muted-foreground" />
-  ) : null
-}
 
 export function AppSidebar({
   userEmail,
@@ -72,6 +61,14 @@ export function AppSidebar({
     prefetched.current.add(href)
     router.prefetch(href)
   }
+  // Navigation via transition : l'overlay pleine page (cf. nav-transition.tsx) apparaît à
+  // 0 ms au clic. Les clics modifiés (cmd/ctrl/shift = nouvel onglet…) gardent le natif.
+  const { navigate } = useNavTransition()
+  const navClick = (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    e.preventDefault()
+    navigate(href)
+  }
   const active = workspaceForPath(pathname)
   // Chaque item se filtre par SON slug (les pages marketing portent des slugs mkt-*
   // pour ne pas entrer en collision avec ceux de la face chatteurs : overview, compta…).
@@ -98,10 +95,9 @@ export function AppSidebar({
       <SidebarMenuItem key={item.href}>
         <SidebarMenuButton asChild isActive={isActivePath(item.href)} tooltip={item.label}>
           {/* prefetch=false + prefetch au survol : cf. prefetchOnHover ci-dessus. */}
-          <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)}>
+          <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)} onClick={navClick(href)}>
             <Icon />
             <span>{item.label}</span>
-            <LinkPending />
           </Link>
         </SidebarMenuButton>
         {item.href.endsWith('/insights') && insightsCount > 0 && (
@@ -161,10 +157,9 @@ export function AppSidebar({
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActivePath(item.href)}>
                                 {/* Même règle prefetch survol que les items directs. */}
-                                <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)}>
+                                <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)} onClick={navClick(href)}>
                                   <Icon />
                                   <span>{item.label}</span>
-                                  <LinkPending />
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
