@@ -1,10 +1,6 @@
-import { getSpenders } from '@/features/spenders/services/get-spenders'
-import { SpendersTemplate } from '@/features/spenders/SpendersTemplate'
-import { requireAccess } from '@/lib/auth'
+import { SpendersScreen } from '@/features/spenders/components/spenders-screen'
 
-// Vue « alertes » de la sous-catégorie Spenders (CRM closing). Toutes partagent le droit crm-spenders.
-export default async function SpendersViewalertesPage() {
-  // Garde + données en PARALLÈLE : la RLS protège la lecture, la garde ne sert qu'à rediriger.
-  const [profile, data] = await Promise.all([requireAccess('crm-spenders'), getSpenders()])
-  return <SpendersTemplate data={data} view="alertes" isAdmin={profile.role === 'admin'} />
+// Vue « alertes » — garde et données dans le layout partagé (fetch unique pour les 4 vues).
+export default function SpendersViewalertesPage() {
+  return <SpendersScreen view="alertes" />
 }

@@ -20,12 +20,16 @@ export function SpendersTemplate({
   view: SpendersViewKind
   isAdmin?: boolean
 }) {
+  // timeZone explicite : ce composant est désormais rendu côté CLIENT (via
+  // spenders-screen) — SSR Workers (UTC) et navigateur (Paris) doivent produire LE MÊME
+  // texte, sinon mismatch d'hydratation à chaque hard load (même règle que LastRelance).
   const freshness = data.capturedAt
     ? new Date(data.capturedAt).toLocaleString('fr-FR', {
         day: '2-digit',
         month: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
+        timeZone: 'Europe/Paris',
       })
     : null
 

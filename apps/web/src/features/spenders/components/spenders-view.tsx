@@ -1,9 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useOptimistic, useRef, useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useOptimistic, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { prefetchFull, withPeriod } from '@/lib/nav'
 import { SpendersTable } from './spenders-table'
 import { ArchiveButton } from './spender-actions'
 import {
@@ -14,8 +12,6 @@ import {
 import { R_ALERTE, type SpenderRow } from '../types'
 
 export type SpendersViewKind = 'liste' | 'tracker' | 'alertes' | 'archive'
-
-const ALL_VIEWS: SpendersViewKind[] = ['liste', 'tracker', 'alertes', 'archive']
 
 // Relancer (cases R1→R10) et Reset vivent dans les colonnes du tracker — ici on
 // n'ajoute que l'action de fin de cycle : archiver (alertes) ou réactiver (archive).
@@ -56,29 +52,9 @@ export function SpendersView({
   // (cocher une case sort la ligne de la file À L'INSTANT, comme le fera le serveur).
   // Si une action échoue, React revient tout seul à l'état serveur (revert automatique).
   const [optimistic, apply] = useOptimistic(spenders, applyPatch)
-  // Resync post-action des vues sœurs : toute Server Action purge le CACHE ROUTER ENTIER
-  // (Next 16) — sans ça, basculer liste/tracker/alertes juste après avoir coché repartait
-  // au serveur (le sweep sidebar met jusqu'à ~50 s à repasser). L'arrivée de données
-  // serveur fraîches (identité de `spenders`) = signal de revalidation → on re-précharge
-  // les 3 autres vues en décalé (300 ms — pas de rafale).
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const firstData = useRef(true)
-  useEffect(() => {
-    if (firstData.current) {
-      firstData.current = false // l'arrivée initiale est couverte par le sweep sidebar
-      return
-    }
-    const timers = ALL_VIEWS.filter((v) => v !== view).map((v, i) =>
-      setTimeout(
-        () => prefetchFull(router, withPeriod(`/chatter/spenders/${v}`, searchParams)),
-        300 + i * 300,
-      ),
-    )
-    return () => timers.forEach(clearTimeout)
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- déclencheur voulu : la
-    // donnée serveur uniquement (les patchs optimistes ne changent pas `spenders`).
-  }, [spenders])
+  // (Pas de resync des vues sœurs ici : depuis le layout partagé spenders, les données
+  // vivent AU-DESSUS des pages — changer de vue ne re-télécharge rien, et après une
+  // action le layout revalidé arrive dans la réponse du POST.)
   // Erreurs d'action AU NIVEAU VUE : le patch sort souvent la ligne de la vue → le bouton
   // cliqué est démonté avant la réponse, un setState local y serait perdu (revue).
   const [actionError, setActionError] = useState<string | null>(null)
