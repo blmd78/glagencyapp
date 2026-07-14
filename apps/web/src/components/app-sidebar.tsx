@@ -98,6 +98,7 @@ export function AppSidebar({
     let i = 0
     let stop = false
     let t: ReturnType<typeof setTimeout>
+    let hiddenAt = 0
     const steady = Math.max(1200, Math.floor(50_000 / Math.max(1, allHrefs.length)))
     const tick = () => {
       if (stop) return
@@ -106,12 +107,30 @@ export function AppSidebar({
         if (href && !isActivePath(href)) prefetchFull(router, href)
         i++
       }
+      // i < longueur = sweep rapide (démarrage OU re-sweep de retour d'absence).
       t = setTimeout(tick, i < allHrefs.length ? 400 : steady)
     }
+    // Retour après une vraie absence (> 45 s, cache client expiré pendant qu'on avait le
+    // dos tourné) : re-sweep ÉCLAIR de tous les onglets + ping immédiat pour réveiller un
+    // worker — UNE reprise réveille tout, au lieu de re-payer chaque lien un par un.
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now()
+        return
+      }
+      if (hiddenAt && Date.now() - hiddenAt > 45_000) {
+        i = 0
+        clearTimeout(t)
+        void fetch('/api/ping', { cache: 'no-store' })
+        t = setTimeout(tick, 100)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
     t = setTimeout(tick, 800)
     return () => {
       stop = true
       clearTimeout(t)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- relancer le sweep quand la
     // liste d'onglets change suffit ; pathname/prefetch sont stables ou lus à la volée.
