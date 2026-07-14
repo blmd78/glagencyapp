@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
 import { addRelance } from '../actions'
+import { useSpendersOptimistic } from './spenders-optimistic-context'
 import { R_ALERTE, type SpenderRow } from '../types'
 
 /** 1..10 — une colonne par relance sur la vue tracker. */
@@ -21,7 +22,7 @@ export const R_STEPS = Array.from({ length: R_ALERTE }, (_, i) => i + 1)
 export function RelanceCheck({ spender, n }: { spender: SpenderRow; n: number }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const { apply, fail } = useSpendersOptimistic()
   const checked = n <= spender.compteurR
   const next = spender.compteurR + 1
   const clickable = !checked && !spender.grise && !spender.archived
@@ -38,23 +39,32 @@ export function RelanceCheck({ spender, n }: { spender: SpenderRow; n: number })
     <button
       type="button"
       disabled={!clickable || pending}
-      title={error ?? title}
+      title={title}
       aria-label={title}
       onClick={() =>
         startTransition(async () => {
+          // Optimiste : coche + « la ligne sort de la file » À L'INSTANT du clic ; si le
+          // serveur refuse, le revert automatique fait réapparaître la ligne. L'erreur
+          // passe par fail() (niveau vue) : ce composant est démonté dès le patch.
+          apply({
+            type: 'relance',
+            creatorId: spender.creatorId,
+            fanId: spender.fanId,
+            at: new Date().toISOString(),
+          })
           try {
             const res = await addRelance({
               creatorId: spender.creatorId,
               fanId: spender.fanId,
               chatterId: spender.chatterId,
             })
-            if (res.success) return setError(null)
+            if (res.success) return
             // Ex. « Déjà relancé aujourd'hui » (course entre deux closers / onglet resté
             // ouvert après minuit) : resynchronise la ligne au lieu de la laisser incohérente.
-            setError(res.error)
+            fail(`${spender.username} : ${res.error}`)
             router.refresh()
           } catch {
-            setError('Erreur réseau — relance non enregistrée')
+            fail(`${spender.username} : erreur réseau — relance non enregistrée`)
           }
         })
       }
@@ -66,7 +76,6 @@ export function RelanceCheck({ spender, n }: { spender: SpenderRow; n: number })
           : clickable
             ? 'border-input hover:border-muted-foreground'
             : 'border-input/60 opacity-40',
-        error && 'border-red-500',
       )}
     >
       {pending ? (

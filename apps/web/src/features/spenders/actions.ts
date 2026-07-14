@@ -23,18 +23,22 @@ async function requireCrm() {
  * dernier reset). L'unicité (creator_id, fan_id, jour_paris) garantit « 1 relance/jour ».
  */
 export async function addRelance(raw: unknown): Promise<Result> {
-  const profile = await requireCrm()
-  if (!profile) return { success: false, error: 'Accès refusé' }
   const p = relanceInput.safeParse(raw)
   if (!p.success) return { success: false, error: 'Saisie invalide' }
 
+  // Garde + lecture CRM en PARALLÈLE (indépendants — la RLS protège la lecture) :
+  // une vague d'aller-retour de moins sur le chemin de chaque clic de relance.
   const supabase = await createClient()
-  const { data: crm } = await supabase
-    .from('spender_crm')
-    .select('compteur_reset_at')
-    .eq('creator_id', p.data.creatorId)
-    .eq('fan_id', p.data.fanId)
-    .maybeSingle()
+  const [profile, { data: crm }] = await Promise.all([
+    requireCrm(),
+    supabase
+      .from('spender_crm')
+      .select('compteur_reset_at')
+      .eq('creator_id', p.data.creatorId)
+      .eq('fan_id', p.data.fanId)
+      .maybeSingle(),
+  ])
+  if (!profile) return { success: false, error: 'Accès refusé' }
 
   let q = supabase
     .from('relances')

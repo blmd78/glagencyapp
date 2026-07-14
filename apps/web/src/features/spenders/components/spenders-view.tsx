@@ -1,9 +1,14 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useMemo, useOptimistic, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { SpendersTable } from './spenders-table'
 import { ArchiveButton } from './spender-actions'
+import {
+  applyPatch,
+  SpendersOptimisticCtx,
+  type SpenderPatch,
+} from './spenders-optimistic-context'
 import { R_ALERTE, type SpenderRow } from '../types'
 
 export type SpendersViewKind = 'liste' | 'tracker' | 'alertes' | 'archive'
@@ -43,8 +48,31 @@ export function SpendersView({
   view: SpendersViewKind
   isAdmin?: boolean
 }) {
+  // Optimistic UI : les lignes affichées = état serveur + patchs des actions en cours
+  // (cocher une case sort la ligne de la file À L'INSTANT, comme le fera le serveur).
+  // Si une action échoue, React revient tout seul à l'état serveur (revert automatique).
+  const [optimistic, apply] = useOptimistic(spenders, applyPatch)
+  // Erreurs d'action AU NIVEAU VUE : le patch sort souvent la ligne de la vue → le bouton
+  // cliqué est démonté avant la réponse, un setState local y serait perdu (revue).
+  const [actionError, setActionError] = useState<string | null>(null)
+  const ctx = useMemo(
+    () => ({
+      apply: (p: SpenderPatch) => {
+        setActionError(null) // nouvelle action = on repart propre
+        apply(p)
+      },
+      fail: setActionError,
+    }),
+    [apply],
+  )
+  useEffect(() => {
+    if (!actionError) return
+    const t = setTimeout(() => setActionError(null), 8000)
+    return () => clearTimeout(t)
+  }, [actionError])
+
   const { rows, extra } = useMemo(() => {
-    const actifs = spenders.filter((s) => !s.archived)
+    const actifs = optimistic.filter((s) => !s.archived)
     const none = [] as ColumnDef<SpenderRow>[]
     switch (view) {
       // Cycle en cours (R < 10) — le masquage « relancés aujourd'hui » vit dans
@@ -54,19 +82,26 @@ export function SpendersView({
       case 'alertes':
         return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: [alerteAction] }
       case 'archive':
-        return { rows: spenders.filter((s) => s.archived), extra: [archiveAction] }
+        return { rows: optimistic.filter((s) => s.archived), extra: [archiveAction] }
       default:
         return { rows: actifs, extra: none }
     }
-  }, [spenders, view])
+  }, [optimistic, view])
 
   return (
-    <SpendersTable
-      spenders={rows}
-      extra={extra}
-      isAdmin={isAdmin}
-      tracker={view === 'tracker'}
-      readOnlyRelances={view === 'liste'}
-    />
+    <SpendersOptimisticCtx.Provider value={ctx}>
+      {actionError && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          {actionError}
+        </p>
+      )}
+      <SpendersTable
+        spenders={rows}
+        extra={extra}
+        isAdmin={isAdmin}
+        tracker={view === 'tracker'}
+        readOnlyRelances={view === 'liste'}
+      />
+    </SpendersOptimisticCtx.Provider>
   )
 }
