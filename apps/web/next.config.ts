@@ -5,11 +5,13 @@ const nextConfig: NextConfig = {
   // Packages workspace consommés en TS source → transpilés par Next.
   transpilePackages: ['@glagency/core', '@glagency/db'],
   experimental: {
-    // Cache client du router : re-naviguer vers une page visitée il y a < 60 s la sert
+    // Cache client du router : re-naviguer vers une page visitée il y a < 300 s la sert
     // depuis le cache du navigateur (0 aller-retour serveur → instantané). Acceptable :
-    // les données changent la nuit (ingestion) ; les Server Actions revalidatePath →
-    // une mutation invalide immédiatement la page concernée malgré la fenêtre.
-    staleTimes: { dynamic: 60 },
+    // les données changent la nuit (ingestion), les Server Actions revalidatePath (une
+    // mutation invalide immédiatement), et spenders a son auto-refresh 3 min. 300 s (et
+    // non 60) : le sweep de préchargement de la sidebar cycle en ~250 s — chaque entrée
+    // est re-préchargée AVANT d'expirer, avec ~80 % de rendus serveur de fond en moins.
+    staleTimes: { dynamic: 300 },
   },
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -50,6 +50,53 @@ interface DataTableProps<T> {
   /** false = long scroll : toutes les lignes rendues, footer sans boutons de page. */
   paginated?: boolean
 }
+
+/**
+ * Ligne MÉMOÏSÉE : sans elle, chaque re-render du tableau (frappe dans le filtre, patch
+ * optimiste, refresh) reconstruisait TOUTES les lignes matérialisées — après un scroll
+ * profond en long scroll, plusieurs secondes de gel. Comparaison par identité de la
+ * donnée (`row.original`) : seules les lignes dont la donnée a changé re-rendent.
+ * (Les instances Row de TanStack changent à chaque données ; leurs méthodes restent
+ * valides — elles délèguent par id à l'instance de table, qui est stable.)
+ */
+function DataTableRowInner<T>({
+  row,
+  expanded,
+  renderSubRows,
+}: {
+  row: Row<T>
+  expanded: boolean
+  renderSubRows?: (row: Row<T>) => ReactNode
+}) {
+  return (
+    <>
+      <TableRow
+        className={cn(row.getCanExpand() && 'cursor-pointer')}
+        onClick={() => row.getCanExpand() && row.toggleExpanded()}
+      >
+        {row.getVisibleCells().map((cell) => (
+          <TableCell
+            key={cell.id}
+            className={cn(
+              alignClass(cell.column.columnDef.meta?.align),
+              cell.column.columnDef.meta?.className,
+            )}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        ))}
+      </TableRow>
+      {expanded && renderSubRows?.(row)}
+    </>
+  )
+}
+const DataTableRow = memo(
+  DataTableRowInner,
+  (prev, next) =>
+    prev.row.original === next.row.original &&
+    prev.row.id === next.row.id &&
+    prev.expanded === next.expanded,
+) as typeof DataTableRowInner
 
 /** Data-table shadcn/TanStack réutilisable : filtre + tri + pagination + lignes dépliables. */
 export function DataTable<T>({
@@ -104,7 +151,9 @@ export function DataTable<T>({
   // On rend un premier bloc, puis la suite se matérialise à l'approche du bas (sentinelle
   // IntersectionObserver, marge 600 px → couture invisible en scroll normal). Le cap ne
   // fait que croître : un patch optimiste / filtre ne re-téléporte jamais en haut.
-  const CHUNK = 60
+  // 30 : ~450 composants au premier paint du tracker (30×15) — le SSR + l'hydratation du
+  // premier écran restent légers, la suite arrive au scroll.
+  const CHUNK = 30
   const [visibleCount, setVisibleCount] = useState(CHUNK)
   const sentinelRef = useRef<HTMLTableRowElement | null>(null)
   const allRows = table.getRowModel().rows
@@ -163,25 +212,12 @@ export function DataTable<T>({
           </TableHeader>
           <TableBody>
             {rows.map((row) => (
-              <Fragment key={row.id}>
-                <TableRow
-                  className={cn(row.getCanExpand() && 'cursor-pointer')}
-                  onClick={() => row.getCanExpand() && row.toggleExpanded()}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        alignClass(cell.column.columnDef.meta?.align),
-                        cell.column.columnDef.meta?.className,
-                      )}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-                {row.getIsExpanded() && renderSubRows?.(row)}
-              </Fragment>
+              <DataTableRow
+                key={row.id}
+                row={row}
+                expanded={row.getIsExpanded()}
+                renderSubRows={renderSubRows}
+              />
             ))}
             {hasMore && (
               <TableRow ref={sentinelRef}>

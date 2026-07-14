@@ -38,6 +38,10 @@ const archiveAction: ColumnDef<SpenderRow> = {
   meta: { align: 'right' },
 }
 
+// Hoisté : une identité STABLE entre renders — un `[]` créé dans le useMemo changeait
+// l'identité de `extra` à chaque patch optimiste/refresh → recalcul des colonnes en aval.
+const NO_EXTRA: ColumnDef<SpenderRow>[] = []
+
 /** Une vue de la sous-catégorie Spenders : filtre les spenders + action de fin de cycle. */
 export function SpendersView({
   spenders,
@@ -76,18 +80,17 @@ export function SpendersView({
 
   const { rows, extra } = useMemo(() => {
     const actifs = optimistic.filter((s) => !s.archived)
-    const none = [] as ColumnDef<SpenderRow>[]
     switch (view) {
       // Cycle en cours (R < 10) — le masquage « relancés aujourd'hui » vit dans
       // SpendersTable (après le filtre modèle). Un R10 sort naturellement (→ alertes).
       case 'tracker':
-        return { rows: actifs.filter((s) => s.compteurR < R_ALERTE), extra: none }
+        return { rows: actifs.filter((s) => s.compteurR < R_ALERTE), extra: NO_EXTRA }
       case 'alertes':
         return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: [alerteAction] }
       case 'archive':
         return { rows: optimistic.filter((s) => s.archived), extra: [archiveAction] }
       default:
-        return { rows: actifs, extra: none }
+        return { rows: actifs, extra: NO_EXTRA }
     }
   }, [optimistic, view])
 

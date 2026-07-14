@@ -20,10 +20,13 @@ export function daysSince(iso: string | null): number | null {
  * (jour_paris en base), pas en heures glissantes : une relance avant-hier 18h est
  * « en retard » dès ce matin, pas à 18h.
  */
+// Hoisté : Intl.DateTimeFormat est coûteux à construire (~70×) et cette fonction tourne
+// pour chaque ligne du tracker à chaque rendu.
+const PARIS_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' })
+
 export function parisDaysSince(iso: string | null): number | null {
   if (!iso) return null
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' })
-  const dayUTC = (d: Date) => Date.parse(`${fmt.format(d)}T00:00:00Z`)
+  const dayUTC = (d: Date) => Date.parse(`${PARIS_DAY.format(d)}T00:00:00Z`)
   return Math.round((dayUTC(new Date()) - dayUTC(new Date(iso))) / 86_400_000)
 }
 

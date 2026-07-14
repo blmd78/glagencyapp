@@ -14,11 +14,13 @@ import {
 import { Separator } from '@/components/ui/separator'
 
 export default async function DashLayout({ children }: { children: ReactNode }) {
-  // En PARALLÈLE : le badge est RLS-scopé par les cookies, il ne dépend pas du profil
-  // (sans session il retourne 0 et le redirect part quand même). Ce layout re-rend à
-  // chaque hard load ET à chaque réponse de Server Action → chaque vague séquentielle
-  // économisée se sent sur toutes les actions.
-  const [profile, insightsCount] = await Promise.all([getProfile(), getOpenInsightsCount()])
+  // Le badge insights est SORTI du chemin bloquant : la promesse (non attendue) est
+  // passée à la sidebar qui la lit via use() sous Suspense — le premier octet du document
+  // (CSS, sidebar, shell) n'attend plus que le profil, le badge streame ensuite. Vaut sur
+  // chaque hard load ET chaque réponse de Server Action (ce layout re-rend aux deux).
+  // .catch inline : une erreur du badge ne doit pas casser la page (0 = pas de badge).
+  const insightsCountPromise = getOpenInsightsCount().catch(() => 0)
+  const profile = await getProfile()
   if (!profile) redirect('/login')
 
   return (
@@ -29,7 +31,7 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
         userEmail={profile.email ?? ''}
         isAdmin={profile.role === 'admin'}
         allowedPages={profile.pages}
-        insightsCount={insightsCount}
+        insightsCountPromise={insightsCountPromise}
         workLink={profile.workLink}
       />
       <SidebarInset className="min-w-0">

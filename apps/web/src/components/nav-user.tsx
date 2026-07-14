@@ -18,7 +18,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { createClient } from '@/lib/supabase/client'
 
 export function NavUser({
   email,
@@ -42,6 +41,10 @@ export function NavUser({
   })()
 
   async function logout() {
+    // Import DYNAMIQUE : supabase-js complet (239 Ko bruts / 62 Ko gzip) ne sert ici qu'au
+    // clic déconnexion — en import statique il partait dans le bundle critique de TOUTES
+    // les pages du dash (mesuré à ~15 % du First Load JS gzip).
+    const { createClient } = await import('@/lib/supabase/client')
     await createClient().auth.signOut()
     router.push('/login')
     router.refresh()

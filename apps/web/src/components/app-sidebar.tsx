@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo } from 'react'
+import { Suspense, use, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
@@ -31,19 +31,28 @@ import { NavUser } from '@/components/nav-user'
 import { useNavTransition } from '@/components/nav-transition-context'
 import { prefetchFull, withPeriod } from '@/lib/nav'
 
+/**
+ * Badge « à traiter » : lit la promesse du layout via use() sous Suspense — le compteur
+ * streame APRÈS le shell au lieu de bloquer le premier octet de toutes les pages.
+ */
+function InsightsBadge({ promise }: { promise: Promise<number> }) {
+  const count = use(promise)
+  return count > 0 ? <SidebarMenuBadge>{count}</SidebarMenuBadge> : null
+}
+
 export function AppSidebar({
   userEmail,
   isAdmin,
   allowedPages,
-  insightsCount = 0,
+  insightsCountPromise,
   workLink = '',
 }: {
   userEmail: string
   isAdmin?: boolean
   /** Slugs autorisés pour un rôle `user` (ignoré si admin). */
   allowedPages?: string[]
-  /** Cartes insights « à traiter » (badge sur l'onglet Insights). */
-  insightsCount?: number
+  /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
+  insightsCountPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
   workLink?: string
 }) {
@@ -68,9 +77,16 @@ export function AppSidebar({
   const active = workspaceForPath(pathname)
   // Chaque item se filtre par SON slug (les pages marketing portent des slugs mkt-*
   // pour ne pas entrer en collision avec ceux de la face chatteurs : overview, compta…).
-  const items = active.nav.filter((item) =>
-    isAdmin ? true : !item.adminOnly && (allowedPages ?? []).includes(navSlug(item)),
-  )
+  // Mémoïsé sur des PRIMITIVES : sans ça, `items` (et allHrefs) changeaient d'identité à
+  // chaque re-rendu de la sidebar et l'effet du sweep se relançait en permanence.
+  const pagesKey = (allowedPages ?? []).join(',')
+  const period = `${searchParams.get('from') ?? ''}|${searchParams.get('to') ?? ''}`
+  const items = useMemo(() => {
+    const allowed = new Set(pagesKey ? pagesKey.split(',') : [])
+    return active.nav.filter((item) =>
+      isAdmin ? true : !item.adminOnly && allowed.has(navSlug(item)),
+    )
+  }, [active, isAdmin, pagesKey])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —
   // un groupe sans item visible disparaît.
   const directTop = items.filter((i) => !i.group && !i.bottom)
@@ -84,41 +100,67 @@ export function AppSidebar({
 
   const isActivePath = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
-  // Préchargement de FOND de tous les onglets visibles : sweep initial UNE route à la
-  // fois (400 ms d'écart — jamais de rafale concurrente, cause de l'Error 1102 d'origine),
-  // puis boucle dont la cadence est CALÉE sur staleTimes : cycle complet ≤ ~50 s pour que
-  // chaque entrée soit re-préchargée AVANT d'expirer (60 s) — sinon le clic repart au
-  // serveur, visible surtout sur les routes lourdes (spenders). Onglet caché : pause
-  // (quota Workers Free). Le cache de segments dédoublonne les entrées encore fraîches.
-  const allHrefs = useMemo(
-    () => items.map((i) => withPeriod(i.href, searchParams)),
-    [items, searchParams],
-  )
+  // Préchargement de FOND de tous les onglets visibles. Règles issues de l'audit perf :
+  // démarre APRÈS window load + idle (le sweep concurrençait le chargement critique du
+  // hard load — ~1 Mo + 17 rendus serveur dans la fenêtre des 4 s), routes lourdes
+  // (spenders) en FIN de sweep, une route à la fois (jamais de rafale — Error 1102),
+  // cadence calée sur staleTimes (300 s) : cycle ≤ ~250 s. Onglet caché : pause. Pas de
+  // préchauffage sur connexion contrainte (saveData/2g).
+  const allHrefs = useMemo(() => {
+    const sp = new URLSearchParams()
+    const [from, to] = period.split('|')
+    if (from) sp.set('from', from)
+    if (to) sp.set('to', to)
+    const heavy = (href: string) => Number(href.startsWith('/chatter/spenders/'))
+    return [...items]
+      .sort((a, b) => heavy(a.href) - heavy(b.href))
+      .map((i) => withPeriod(i.href, sp))
+  }, [items, period])
   useEffect(() => {
+    const conn = (
+      navigator as { connection?: { saveData?: boolean; effectiveType?: string } }
+    ).connection
+    if (conn?.saveData || conn?.effectiveType === '2g' || conn?.effectiveType === 'slow-2g') return
+
     let i = 0
     let stop = false
-    let t: ReturnType<typeof setTimeout>
+    let t: ReturnType<typeof setTimeout> | undefined
     let hiddenAt = 0
-    const steady = Math.max(1200, Math.floor(50_000 / Math.max(1, allHrefs.length)))
+    const steady = Math.max(4000, Math.floor(250_000 / Math.max(1, allHrefs.length)))
     const tick = () => {
       if (stop) return
       if (!document.hidden) {
         const href = allHrefs[i % allHrefs.length]
-        if (href && !isActivePath(href)) prefetchFull(router, href)
+        // Comparaison sur le pathname SEUL : href porte ?from&to — sans strip, la page
+        // ACTIVE elle-même se re-préchargeait en rendu serveur complet à chaque cycle.
+        if (href && !isActivePath(href.split('?')[0])) prefetchFull(router, href)
         i++
       }
       // i < longueur = sweep rapide (démarrage OU re-sweep de retour d'absence).
       t = setTimeout(tick, i < allHrefs.length ? 400 : steady)
     }
-    // Retour après une vraie absence (> 45 s, cache client expiré pendant qu'on avait le
-    // dos tourné) : re-sweep ÉCLAIR de tous les onglets + ping immédiat pour réveiller un
-    // worker — UNE reprise réveille tout, au lieu de re-payer chaque lien un par un.
+    const startAfterIdle = () => {
+      if (stop) return
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(
+          () => {
+            if (!stop) t = setTimeout(tick, 200)
+          },
+          { timeout: 4000 },
+        )
+      } else {
+        t = setTimeout(tick, 1500)
+      }
+    }
+    // Retour après une vraie absence (> 4 min ≈ fenêtre staleTimes, cache expiré) :
+    // re-sweep ÉCLAIR + ping immédiat — UNE reprise réveille tout, au lieu de re-payer
+    // chaque lien un par un.
     const onVisibility = () => {
       if (document.hidden) {
         hiddenAt = Date.now()
         return
       }
-      if (hiddenAt && Date.now() - hiddenAt > 45_000) {
+      if (hiddenAt && Date.now() - hiddenAt > 240_000) {
         i = 0
         clearTimeout(t)
         void fetch('/api/ping', { cache: 'no-store' })
@@ -126,11 +168,13 @@ export function AppSidebar({
       }
     }
     document.addEventListener('visibilitychange', onVisibility)
-    t = setTimeout(tick, 800)
+    if (document.readyState === 'complete') startAfterIdle()
+    else window.addEventListener('load', startAfterIdle, { once: true })
     return () => {
       stop = true
       clearTimeout(t)
       document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('load', startAfterIdle)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- relancer le sweep quand la
     // liste d'onglets change suffit ; pathname/prefetch sont stables ou lus à la volée.
@@ -148,8 +192,10 @@ export function AppSidebar({
             <span>{item.label}</span>
           </Link>
         </SidebarMenuButton>
-        {item.href.endsWith('/insights') && insightsCount > 0 && (
-          <SidebarMenuBadge>{insightsCount}</SidebarMenuBadge>
+        {item.href.endsWith('/insights') && insightsCountPromise && (
+          <Suspense fallback={null}>
+            <InsightsBadge promise={insightsCountPromise} />
+          </Suspense>
         )}
       </SidebarMenuItem>
     )

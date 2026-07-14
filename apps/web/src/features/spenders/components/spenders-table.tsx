@@ -31,6 +31,15 @@ function daysLabel(iso: string | null): string {
  * timeZone explicite : le SSR (Workers, UTC) et le navigateur doivent rendre LE MÊME
  * jour — sinon mismatch d'hydratation sur les relances de nuit.
  */
+// Formateurs hoistés (toLocaleDateString avec options = un Intl.DateTimeFormat neuf par
+// appel, ~70× plus lent — × 2 par ligne × ~1 700 lignes possibles).
+const FR_DATE_FULL = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' })
+const FR_DAY_MONTH = new Intl.DateTimeFormat('fr-FR', {
+  day: '2-digit',
+  month: '2-digit',
+  timeZone: 'Europe/Paris',
+})
+
 function LastRelance({ iso }: { iso: string | null }) {
   if (!iso) return null
   const late = (parisDaysSince(iso) ?? 0) >= 2
@@ -40,9 +49,9 @@ function LastRelance({ iso }: { iso: string | null }) {
         'shrink-0 text-xs tabular-nums',
         late ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground',
       )}
-      title={`Dernière relance le ${new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })}${late ? ' — en retard' : ''}`}
+      title={`Dernière relance le ${FR_DATE_FULL.format(new Date(iso))}${late ? ' — en retard' : ''}`}
     >
-      {new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Paris' })}
+      {FR_DAY_MONTH.format(new Date(iso))}
     </span>
   )
 }
