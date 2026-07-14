@@ -2,6 +2,11 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // React Compiler (stable Next 16) : mémoïsation AUTOMATIQUE à la compilation —
+  // useMemo/useCallback/React.memo insérés par analyse du code, plus besoin de les
+  // poser à la main (la classe de bugs « tout le tableau re-rend » disparaît à la racine).
+  // Compatible OpenNext/Vercel (transformation de build, indépendante de l'hébergeur).
+  reactCompiler: true,
   // Packages workspace consommés en TS source → transpilés par Next.
   transpilePackages: ['@glagency/core', '@glagency/db'],
   experimental: {
