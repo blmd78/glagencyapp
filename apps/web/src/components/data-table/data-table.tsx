@@ -47,6 +47,8 @@ interface DataTableProps<T> {
   getRowId?: (row: T) => string
   /** Contrôles additionnels rendus à côté de la barre de recherche (ex. un Select). */
   toolbar?: ReactNode
+  /** false = long scroll : toutes les lignes rendues, footer sans boutons de page. */
+  paginated?: boolean
 }
 
 /** Data-table shadcn/TanStack réutilisable : filtre + tri + pagination + lignes dépliables. */
@@ -62,6 +64,7 @@ export function DataTable<T>({
   countLabel,
   getRowId,
   toolbar,
+  paginated = true,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -78,7 +81,8 @@ export function DataTable<T>({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Long scroll (paginated=false) : pas de row model de pagination → toutes les lignes.
+    ...(paginated && { getPaginationRowModel: getPaginationRowModel() }),
     initialState: { pagination: { pageSize } },
     // Sans ça, TOUT changement de référence de `data` (revalidatePath après une action,
     // ex. cocher une relance) téléporte l'utilisateur en page 1. On garde la page…
@@ -162,27 +166,29 @@ export function DataTable<T>({
         <div className="text-sm text-muted-foreground">
           {countLabel ? countLabel(count) : count}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Précédent
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Suivant
-          </Button>
-        </div>
+        {paginated && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Suivant
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   )

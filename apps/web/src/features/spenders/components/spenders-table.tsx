@@ -256,6 +256,7 @@ export function SpendersTable({
           : [{ id: 'ca', desc: true }]
       }
       getRowId={(s) => `${s.creatorId}:${s.fanId}`}
+      paginated={false}
       countLabel={(n) => `${n} spender(s)`}
       toolbar={
         <>
