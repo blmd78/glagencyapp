@@ -20,16 +20,20 @@ export function NavTransitionProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={{ navigate, pending }}>{children}</Ctx.Provider>
 }
 
+/**
+ * Contexte de navigation, ou null hors provider. Ne throw JAMAIS en render : un décalage
+ * de modules (chunk périmé après déploiement, HMR qui mélange ancien/nouveau) rendait toute
+ * l'app inutilisable en boucle « Fast Refresh full reload » — sans provider on dégrade en
+ * navigation <Link> native, c'est tout.
+ */
 export function useNavTransition() {
-  const ctx = useContext(Ctx)
-  if (!ctx) throw new Error('useNavTransition doit être utilisé sous NavTransitionProvider')
-  return ctx
+  return useContext(Ctx)
 }
 
 /** Overlay posé sur la zone de contenu (parent en `relative`) pendant une navigation. */
 export function NavPendingOverlay() {
-  const { pending } = useNavTransition()
-  if (!pending) return null
+  const ctx = useNavTransition()
+  if (!ctx?.pending) return null
   return (
     <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70">
       <LoadingDots />

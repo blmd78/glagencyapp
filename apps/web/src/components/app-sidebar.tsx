@@ -63,11 +63,12 @@ export function AppSidebar({
   }
   // Navigation via transition : l'overlay pleine page (cf. nav-transition.tsx) apparaît à
   // 0 ms au clic. Les clics modifiés (cmd/ctrl/shift = nouvel onglet…) gardent le natif.
-  const { navigate } = useNavTransition()
+  // navCtx null (provider absent, chunk périmé) → on laisse le <Link> naviguer nativement.
+  const navCtx = useNavTransition()
   const navClick = (href: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
-    if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
+    if (!navCtx || e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
     e.preventDefault()
-    navigate(href)
+    navCtx.navigate(href)
   }
   const active = workspaceForPath(pathname)
   // Chaque item se filtre par SON slug (les pages marketing portent des slugs mkt-*
