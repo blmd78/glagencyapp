@@ -8,7 +8,7 @@ import { R_ALERTE, type SpenderRow } from '../types'
 
 export type SpendersViewKind = 'liste' | 'tracker' | 'alertes' | 'archive'
 
-// Relancer (+) et Reset vivent dans la colonne « Relances » (RelanceCounter) — ici on
+// Relancer (cases R1→R10) et Reset vivent dans les colonnes du tracker — ici on
 // n'ajoute que l'action de fin de cycle : archiver (alertes) ou réactiver (archive).
 
 const alerteAction: ColumnDef<SpenderRow> = {
@@ -45,20 +45,28 @@ export function SpendersView({
 }) {
   const { rows, extra } = useMemo(() => {
     const actifs = spenders.filter((s) => !s.archived)
+    const none = [] as ColumnDef<SpenderRow>[]
     switch (view) {
-      // Cycle en cours (R < 10). On N'EXCLUT PAS les grisés : cocher R+1 ne doit pas faire
-      // disparaître la ligne (elle reste, bouton désactivé jusqu'à minuit). Un R10 sort
-      // naturellement (bascule en alertes).
+      // Cycle en cours (R < 10) — le masquage « relancés aujourd'hui » vit dans
+      // SpendersTable (après le filtre modèle). Un R10 sort naturellement (→ alertes).
       case 'tracker':
-        return { rows: actifs.filter((s) => s.compteurR < R_ALERTE), extra: [] as ColumnDef<SpenderRow>[] }
+        return { rows: actifs.filter((s) => s.compteurR < R_ALERTE), extra: none }
       case 'alertes':
         return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: [alerteAction] }
       case 'archive':
         return { rows: spenders.filter((s) => s.archived), extra: [archiveAction] }
       default:
-        return { rows: actifs, extra: [] as ColumnDef<SpenderRow>[] }
+        return { rows: actifs, extra: none }
     }
   }, [spenders, view])
 
-  return <SpendersTable spenders={rows} extra={extra} isAdmin={isAdmin} />
+  return (
+    <SpendersTable
+      spenders={rows}
+      extra={extra}
+      isAdmin={isAdmin}
+      tracker={view === 'tracker'}
+      readOnlyRelances={view === 'liste'}
+    />
+  )
 }

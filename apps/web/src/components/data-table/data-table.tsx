@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -80,7 +80,18 @@ export function DataTable<T>({
     getExpandedRowModel: getExpandedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: { pagination: { pageSize } },
+    // Sans ça, TOUT changement de référence de `data` (revalidatePath après une action,
+    // ex. cocher une relance) téléporte l'utilisateur en page 1. On garde la page…
+    autoResetPageIndex: false,
   })
+
+  // …mais TanStack ne re-clampe pas un pageIndex hors bornes quand les données
+  // rétrécissent (page vide sinon) : on clampe nous-mêmes.
+  const pageCount = table.getPageCount()
+  const pageIndex = table.getState().pagination.pageIndex
+  useEffect(() => {
+    if (pageIndex > 0 && pageIndex >= pageCount) table.setPageIndex(Math.max(0, pageCount - 1))
+  }, [pageCount, pageIndex, table])
 
   const count = table.getFilteredRowModel().rows.length
 
@@ -106,7 +117,13 @@ export function DataTable<T>({
             {table.getHeaderGroups().map((hg) => (
               <TableRow key={hg.id} className="bg-muted/50">
                 {hg.headers.map((h) => (
-                  <TableHead key={h.id} className={alignClass(h.column.columnDef.meta?.align)}>
+                  <TableHead
+                    key={h.id}
+                    className={cn(
+                      alignClass(h.column.columnDef.meta?.align),
+                      h.column.columnDef.meta?.className,
+                    )}
+                  >
                     {h.isPlaceholder
                       ? null
                       : flexRender(h.column.columnDef.header, h.getContext())}
@@ -125,7 +142,10 @@ export function DataTable<T>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
-                      className={alignClass(cell.column.columnDef.meta?.align)}
+                      className={cn(
+                        alignClass(cell.column.columnDef.meta?.align),
+                        cell.column.columnDef.meta?.className,
+                      )}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>

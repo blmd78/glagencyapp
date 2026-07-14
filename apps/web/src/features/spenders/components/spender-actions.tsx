@@ -79,7 +79,19 @@ function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
  * contrainte unique DB (spender, jour Paris) : un clic forcé/rejoué est rejeté par Postgres,
  * l'action renvoie « Déjà relancé aujourd'hui ». Caché à R10 (cycle fini) ou si archivé.
  */
-export function RelanceCounter({ spender, isAdmin }: { spender: SpenderRow; isAdmin?: boolean }) {
+export function RelanceCounter({
+  spender,
+  isAdmin,
+  withAdd = true,
+  withEdit = true,
+}: {
+  spender: SpenderRow
+  isAdmin?: boolean
+  /** false = pas de bouton « + » (tracker : les cases R1→R10 font déjà le cochage). */
+  withAdd?: boolean
+  /** false = pas de crayon admin (Liste = pure consultation). */
+  withEdit?: boolean
+}) {
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const r = spender.compteurR
@@ -89,8 +101,8 @@ export function RelanceCounter({ spender, isAdmin }: { spender: SpenderRow; isAd
   return (
     <div className="flex items-center justify-center gap-1.5">
       <Badge className={cn('tabular-nums', color)}>R{r}</Badge>
-      {isAdmin && <SetCompteurDialog spender={spender} />}
-      {canRelance && (
+      {withEdit && isAdmin && <SetCompteurDialog spender={spender} />}
+      {withAdd && canRelance && (
         <Button
           size="icon"
           variant="outline"
@@ -111,7 +123,7 @@ export function RelanceCounter({ spender, isAdmin }: { spender: SpenderRow; isAd
           {pending ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
         </Button>
       )}
-      {spender.conversionPending && !spender.archived && (
+      {withEdit && spender.conversionPending && !spender.archived && (
         <ResetButton target={spender} title="Le fan a reconverti — remettre le compteur à zéro" />
       )}
       {error && <span className="text-[10px] text-red-600 dark:text-red-400">{error}</span>}

@@ -2,11 +2,13 @@ import { type Column } from '@tanstack/react-table'
 import { ArrowUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// Alignement de colonne porté par la meta (façon shadcn data-table). Augmentation globale.
+// Alignement/largeur de colonne portés par la meta (façon shadcn data-table). Augmentation globale.
 declare module '@tanstack/react-table' {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface ColumnMeta<TData, TValue> {
     align?: 'right' | 'center'
+    /** Classes appliquées au <th> ET au <td> (ex. `w-12` pour une colonne étroite). */
+    className?: string
   }
 }
 
