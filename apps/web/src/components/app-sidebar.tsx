@@ -1,9 +1,9 @@
 'use client'
 
 import { useRef } from 'react'
-import Link from 'next/link'
+import Link, { useLinkStatus } from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Loader2 } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -29,6 +29,18 @@ import { WORKSPACES, workspaceForPath, navSlug, isMarketingSlug } from '@/config
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { withPeriod } from '@/lib/nav'
+
+/**
+ * Spinner sur l'onglet cliqué pendant la navigation : feedback à 0 ms même quand le
+ * serveur est froid (cold start Workers 2-3 s) — l'utilisateur voit que le clic est pris.
+ * useLinkStatus doit vivre DANS le <Link> concerné.
+ */
+function LinkPending() {
+  const { pending } = useLinkStatus()
+  return pending ? (
+    <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin text-muted-foreground" />
+  ) : null
+}
 
 export function AppSidebar({
   userEmail,
@@ -89,6 +101,7 @@ export function AppSidebar({
           <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)}>
             <Icon />
             <span>{item.label}</span>
+            <LinkPending />
           </Link>
         </SidebarMenuButton>
         {item.href.endsWith('/insights') && insightsCount > 0 && (
@@ -151,6 +164,7 @@ export function AppSidebar({
                                 <Link href={href} prefetch={false} onMouseEnter={() => prefetchOnHover(href)}>
                                   <Icon />
                                   <span>{item.label}</span>
+                                  <LinkPending />
                                 </Link>
                               </SidebarMenuSubButton>
                             </SidebarMenuSubItem>
