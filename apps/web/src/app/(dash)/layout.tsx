@@ -4,7 +4,7 @@ import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { AppSidebar } from '@/components/app-sidebar'
 import { HeaderPeriod } from '@/components/header-period'
-import { KeepAlive } from '@/components/keep-alive'
+import { LoadingDots } from '@/components/loading-dots'
 import { NavPendingOverlay, NavTransitionProvider } from '@/components/nav-transition'
 import {
   SidebarInset,
@@ -13,11 +13,30 @@ import {
 } from '@/components/ui/sidebar'
 import { Separator } from '@/components/ui/separator'
 
-export default async function DashLayout({ children }: { children: ReactNode }) {
+/**
+ * Cache Components (PPR) : le layout externe est SANS accès runtime → il se pré-rend en
+ * coquille statique servie instantanément ; tout ce qui dépend des cookies (profil,
+ * badge, contenu) vit dans DashDynamic, streamé sous Suspense au moment de la requête.
+ */
+export default function DashLayout({ children }: { children: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-svh flex-1 items-center justify-center">
+          <LoadingDots />
+        </div>
+      }
+    >
+      <DashDynamic>{children}</DashDynamic>
+    </Suspense>
+  )
+}
+
+async function DashDynamic({ children }: { children: ReactNode }) {
   // Le badge insights est SORTI du chemin bloquant : la promesse (non attendue) est
-  // passée à la sidebar qui la lit via use() sous Suspense — le premier octet du document
-  // (CSS, sidebar, shell) n'attend plus que le profil, le badge streame ensuite. Vaut sur
-  // chaque hard load ET chaque réponse de Server Action (ce layout re-rend aux deux).
+  // passée à la sidebar qui la lit via use() sous Suspense — le shell n'attend que le
+  // profil, le badge streame ensuite. Vaut sur chaque hard load ET chaque réponse de
+  // Server Action (ce layout re-rend aux deux).
   // .catch inline : une erreur du badge ne doit pas casser la page (0 = pas de badge).
   const insightsCountPromise = getOpenInsightsCount().catch(() => 0)
   const profile = await getProfile()
@@ -26,7 +45,6 @@ export default async function DashLayout({ children }: { children: ReactNode }) 
   return (
     <SidebarProvider>
       <NavTransitionProvider>
-      <KeepAlive />
       <AppSidebar
         userEmail={profile.email ?? ''}
         isAdmin={profile.role === 'admin'}

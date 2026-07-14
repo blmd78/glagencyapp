@@ -1,7 +1,7 @@
-// Keep-alive : pingé par le navigateur (cf. components/keep-alive.tsx) pour garder
-// l'isolate Workers chaud. Plan Free = éviction agressive → un isolate froid paie ~0,6 s
-// de CPU à parser le bundle Next (~13 Mo) avant de répondre (mesuré : cpuTimeP99 595 ms,
-// wallTimeP99 2,8 s). 204 sans corps ni querie : coût quasi nul (≤ 1 ms CPU à chaud).
+// Endpoint de vie minimal. Sous Cache Components il est PRÉ-RENDU statiquement (servi
+// par le CDN, coût nul). Conservé pour les clients encore sur l'ancien bundle (worker
+// Cloudflare gelé) qui le pingent — le keep-alive côté client a été retiré : sur Vercel,
+// les instances restent chaudes d'elles-mêmes (Fluid compute).
 export function GET() {
-  return new Response(null, { status: 204 })
+  return new Response('ok', { status: 200 })
 }

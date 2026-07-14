@@ -19,7 +19,13 @@ export function SpendersAutoRefresh() {
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState !== 'visible') return
-      if (document.querySelector('[role="dialog"]')) return
+      // Uniquement les dialogs VISIBLES : sous Cache Components, des pages cachées
+      // peuvent rester montées (display:none) avec leur dialog dans le DOM — un simple
+      // querySelector suspendrait le refresh indéfiniment (revue PPR).
+      const dialogOuvert = [...document.querySelectorAll('[role="dialog"]')].some((el) =>
+        (el as HTMLElement).checkVisibility?.() ?? true,
+      )
+      if (dialogOuvert) return
       lastRefresh.current = Date.now()
       router.refresh()
     }

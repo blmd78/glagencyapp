@@ -7,10 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "cf:build": "opennextjs-cloudflare build",
-    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@glagency/core": "workspace:*",
@@ -53,7 +50,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.20.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22",
     "@types/react": "^19",

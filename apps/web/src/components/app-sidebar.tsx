@@ -104,8 +104,9 @@ export function AppSidebar({
   // démarre APRÈS window load + idle (le sweep concurrençait le chargement critique du
   // hard load — ~1 Mo + 17 rendus serveur dans la fenêtre des 4 s), routes lourdes
   // (spenders) en FIN de sweep, une route à la fois (jamais de rafale — Error 1102),
-  // cadence calée sur staleTimes (300 s) : cycle ≤ ~250 s. Onglet caché : pause. Pas de
-  // préchauffage sur connexion contrainte (saveData/2g).
+  // cadence calée sur la fraîcheur du full-prefetch (~300 s — défaut interne
+  // staleTimes.static de Next sous Cache Components) : cycle ≤ ~250 s. Onglet caché :
+  // pause. Pas de préchauffage sur connexion contrainte (saveData/2g).
   const allHrefs = useMemo(() => {
     const sp = new URLSearchParams()
     const [from, to] = period.split('|')
@@ -152,9 +153,10 @@ export function AppSidebar({
         t = setTimeout(tick, 1500)
       }
     }
-    // Retour après une vraie absence (> 4 min ≈ fenêtre staleTimes, cache expiré) :
-    // re-sweep ÉCLAIR + ping immédiat — UNE reprise réveille tout, au lieu de re-payer
-    // chaque lien un par un.
+    // Retour après une vraie absence (> 4 min ≈ fenêtre de fraîcheur, cache expiré) :
+    // re-sweep ÉCLAIR — UNE reprise re-précharge tout, au lieu de re-payer chaque lien
+    // un par un. (Le premier prefetch réveille la fonction serveur au passage — plus
+    // besoin de ping dédié depuis la bascule Vercel.)
     const onVisibility = () => {
       if (document.hidden) {
         hiddenAt = Date.now()
@@ -163,7 +165,6 @@ export function AppSidebar({
       if (hiddenAt && Date.now() - hiddenAt > 240_000) {
         i = 0
         clearTimeout(t)
-        void fetch('/api/ping', { cache: 'no-store' })
         t = setTimeout(tick, 100)
       }
     }
