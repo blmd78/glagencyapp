@@ -4,7 +4,7 @@
  */
 
 /** Seuil de tracking (CA net MyPuls) — un fan devient « spender » à partir de là. */
-export const CA_TRACKING_SEUIL = 40
+export const CA_TRACKING_SEUIL = 6
 
 /** Compteur de relances au bout duquel on déclenche l'alerte / l'archivage (fin de cycle). */
 export const R_ALERTE = 10

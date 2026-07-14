@@ -1,15 +1,22 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { SpendersDataCtx, type SpendersShared } from './spenders-data-context'
+import { useMemo, type ReactNode } from 'react'
+import { SpendersDataCtx } from './spenders-data-context'
+import { decodeSpenders, type SpendersWireData } from '../wire'
 
-/** Pont layout (RSC) → contexte client : porte les données spenders vers les 4 vues. */
+/**
+ * Pont layout (RSC) → contexte client : reçoit le payload en TUPLES compacts (cf. wire.ts)
+ * et le redéploie en objets SpenderRow une seule fois (useMemo) pour les 4 vues.
+ */
 export function SpendersDataProvider({
-  value,
+  wire,
+  isAdmin,
   children,
 }: {
-  value: SpendersShared
+  wire: SpendersWireData
+  isAdmin: boolean
   children: ReactNode
 }) {
+  const value = useMemo(() => ({ data: decodeSpenders(wire), isAdmin }), [wire, isAdmin])
   return <SpendersDataCtx.Provider value={value}>{children}</SpendersDataCtx.Provider>
 }
