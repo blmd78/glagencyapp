@@ -93,18 +93,43 @@ async function runSpendersOrchestrator(env: Bindings) {
   if (!self || !selfUrl || !triggerToken) {
     throw new Error('binding SELF / WORKER_SELF_URL / TRIGGER_TOKEN requis pour le fan-out spenders')
   }
-  const results = await Promise.allSettled(
-    [...byMypulsId].map(([mypulsId, creatorId]) =>
-      self.fetch(`${selfUrl}?job=spenders&model=${mypulsId}&creator=${creatorId}`, {
-        headers: { Authorization: `Bearer ${triggerToken}` },
-      }).then(async (r) => {
-        if (!r.ok) throw new Error(`modèle ${mypulsId}: HTTP ${r.status} ${await r.text()}`)
-        return r.json()
-      }),
-    ),
-  )
-  const ok = results.filter((r) => r.status === 'fulfilled').length
-  for (const r of results) if (r.status === 'rejected') warnings.push(String(r.reason))
+  // EN SÉRIE, PAS EN RAFALE : chaque mini-invocation fait SON login MyPuls — 16 logins
+  // simultanés déclenchent le rate-limit (429 « login refusé ») au-delà de ~10 (run du
+  // 2026-07-14 : 10/16). Lancement séquentiel espacé de 2 s, puis une SECONDE CHANCE
+  // après 15 s de pause pour les refusés (le rate-limit se relâche). Wall time ~2-5 min :
+  // sans enjeu pour une invocation cron ; le budget CPU/sous-requêtes ne change pas.
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+  const scrape = async (mypulsId: string, creatorId: string) => {
+    const r = await self.fetch(`${selfUrl}?job=spenders&model=${mypulsId}&creator=${creatorId}`, {
+      headers: { Authorization: `Bearer ${triggerToken}` },
+    })
+    if (!r.ok) throw new Error(`modèle ${mypulsId}: HTTP ${r.status} ${await r.text()}`)
+    return r.json()
+  }
+  let ok = 0
+  const failed: Array<[string, string]> = []
+  for (const [mypulsId, creatorId] of byMypulsId) {
+    try {
+      await scrape(mypulsId, creatorId)
+      ok++
+    } catch {
+      failed.push([mypulsId, creatorId])
+    }
+    await sleep(2000)
+  }
+  if (failed.length) {
+    console.log(`[spenders] ${failed.length} modèle(s) refusé(s) — seconde chance dans 15 s`)
+    await sleep(15_000)
+    for (const [mypulsId, creatorId] of failed) {
+      try {
+        await scrape(mypulsId, creatorId)
+        ok++
+      } catch (err) {
+        warnings.push(String(err))
+      }
+      await sleep(3000)
+    }
+  }
   console.log(`[spenders] fan-out : ${ok}/${byMypulsId.size} modèles OK`)
 
   const status = warnings.length ? 'degraded' : 'ok'
