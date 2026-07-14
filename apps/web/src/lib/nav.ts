@@ -15,3 +15,16 @@ export function withPeriod(
   const qs = period.toString()
   return qs ? `${href}?${qs}` : href
 }
+
+/**
+ * Prefetch COMPLET d'une route (contenu inclus) : le prefetch par défaut de Next ne
+ * précharge que la coquille (loading.tsx) des routes dynamiques — le clic repartirait au
+ * serveur. `kind:'full'` + staleTimes → clic servi 100 % du cache client. L'option est
+ * absente du type public d'AppRouterInstance (API interne stable), d'où le cast local.
+ */
+export function prefetchFull(router: { prefetch(href: string): void }, href: string): void {
+  ;(router.prefetch as (href: string, opts?: { kind: 'auto' | 'full' | 'temporary' }) => void)(
+    href,
+    { kind: 'full' },
+  )
+}

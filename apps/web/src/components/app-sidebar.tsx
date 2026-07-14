@@ -29,7 +29,7 @@ import { WORKSPACES, workspaceForPath, navSlug, isMarketingSlug } from '@/config
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { useNavTransition } from '@/components/nav-transition-context'
-import { withPeriod } from '@/lib/nav'
+import { prefetchFull, withPeriod } from '@/lib/nav'
 
 export function AppSidebar({
   userEmail,
@@ -55,12 +55,7 @@ export function AppSidebar({
   // (loading.tsx) des routes dynamiques — le clic repartait quand même au serveur, donc
   // à la loterie du cold start Workers (2-3 s). 'full' précharge le contenu ENTIER :
   // dans la fenêtre staleTimes (60 s), le clic est servi 100 % depuis le cache client.
-  const prefetchFull = (href: string) =>
-    (router.prefetch as (href: string, opts?: { kind: 'auto' | 'full' | 'temporary' }) => void)(
-      href,
-      { kind: 'full' },
-    )
-  const prefetchOnHover = prefetchFull
+  const prefetchOnHover = (href: string) => prefetchFull(router, href)
   // Navigation via transition : l'overlay pleine page (cf. nav-transition.tsx) apparaît à
   // 0 ms au clic. Les clics modifiés (cmd/ctrl/shift = nouvel onglet…) gardent le natif.
   // navCtx null (provider absent, chunk périmé) → on laisse le <Link> naviguer nativement.
@@ -91,11 +86,10 @@ export function AppSidebar({
 
   // Préchargement de FOND de tous les onglets visibles : sweep initial UNE route à la
   // fois (400 ms d'écart — jamais de rafale concurrente, cause de l'Error 1102 d'origine),
-  // puis boucle lente (~5 s/route) pour rester dans la fenêtre staleTimes de 60 s.
-  // Résultat : après quelques secondes sur la première page, chaque clic d'onglet est
-  // servi depuis le cache client (0 aller-retour serveur, 0 loterie cold start). Le cache
-  // de segments de Next dédoublonne : re-précharger une entrée fraîche ne refait PAS de
-  // requête. Effet de bord bienvenu : le trafic régulier garde des isolates chauds.
+  // puis boucle dont la cadence est CALÉE sur staleTimes : cycle complet ≤ ~50 s pour que
+  // chaque entrée soit re-préchargée AVANT d'expirer (60 s) — sinon le clic repart au
+  // serveur, visible surtout sur les routes lourdes (spenders). Onglet caché : pause
+  // (quota Workers Free). Le cache de segments dédoublonne les entrées encore fraîches.
   const allHrefs = useMemo(
     () => items.map((i) => withPeriod(i.href, searchParams)),
     [items, searchParams],
@@ -104,12 +98,15 @@ export function AppSidebar({
     let i = 0
     let stop = false
     let t: ReturnType<typeof setTimeout>
+    const steady = Math.max(1200, Math.floor(50_000 / Math.max(1, allHrefs.length)))
     const tick = () => {
       if (stop) return
-      const href = allHrefs[i % allHrefs.length]
-      if (href && !isActivePath(href)) prefetchFull(href)
-      i++
-      t = setTimeout(tick, i < allHrefs.length ? 400 : 5000)
+      if (!document.hidden) {
+        const href = allHrefs[i % allHrefs.length]
+        if (href && !isActivePath(href)) prefetchFull(router, href)
+        i++
+      }
+      t = setTimeout(tick, i < allHrefs.length ? 400 : steady)
     }
     t = setTimeout(tick, 800)
     return () => {
