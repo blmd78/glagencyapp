@@ -7,6 +7,10 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 // Rôle : refresh de la session Supabase (cookies) + check OPTIMISTE (redirige si pas
 // de session). L'autorisation réelle (par modèle) reste portée par la RLS côté base.
 export async function middleware(request: NextRequest) {
+  // /api/ping (keep-alive) : réchauffer l'isolate, rien d'autre — sans early-return chaque
+  // ping paie createServerClient + getClaims et, sans session, suit la redirection /login.
+  if (request.nextUrl.pathname === '/api/ping') return NextResponse.next()
+
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(

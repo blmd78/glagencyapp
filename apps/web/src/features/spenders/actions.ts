@@ -57,7 +57,9 @@ export async function addRelance(raw: unknown): Promise<Result> {
     if (error.code === '23505') return { success: false, error: 'Déjà relancé aujourd’hui' }
     return { success: false, error: error.message }
   }
-  revalidatePath('/chatter/spenders')
+  // Scope 'layout' : couvre les 4 vraies vues (/liste, /tracker, /alertes, /archive) —
+  // '/chatter/spenders' seul ne cible que la page de redirection, pas le sous-arbre.
+  revalidatePath('/chatter/spenders', 'layout')
   return { success: true }
 }
 
@@ -76,7 +78,9 @@ export async function resetCompteur(raw: unknown): Promise<Result> {
     { onConflict: 'creator_id,fan_id' },
   )
   if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/spenders')
+  // Scope 'layout' : couvre les 4 vraies vues (/liste, /tracker, /alertes, /archive) —
+  // '/chatter/spenders' seul ne cible que la page de redirection, pas le sous-arbre.
+  revalidatePath('/chatter/spenders', 'layout')
   return { success: true }
 }
 
@@ -97,7 +101,9 @@ export async function setCompteur(raw: unknown): Promise<Result> {
     { onConflict: 'creator_id,fan_id' },
   )
   if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/spenders')
+  // Scope 'layout' : couvre les 4 vraies vues (/liste, /tracker, /alertes, /archive) —
+  // '/chatter/spenders' seul ne cible que la page de redirection, pas le sous-arbre.
+  revalidatePath('/chatter/spenders', 'layout')
   return { success: true }
 }
 
@@ -120,6 +126,8 @@ export async function setArchived(raw: unknown, archived: boolean): Promise<Resu
     { onConflict: 'creator_id,fan_id' },
   )
   if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/spenders')
+  // Scope 'layout' : couvre les 4 vraies vues (/liste, /tracker, /alertes, /archive) —
+  // '/chatter/spenders' seul ne cible que la page de redirection, pas le sous-arbre.
+  revalidatePath('/chatter/spenders', 'layout')
   return { success: true }
 }

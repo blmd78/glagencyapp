@@ -110,15 +110,17 @@ export async function getInsights(
 /** Compteur sidebar : cartes de la dernière semaine encore à traiter (new/in_progress). RLS-scopé. */
 export async function getOpenInsightsCount(): Promise<number> {
   const supabase = await createClient()
+  // 1 requête pour (dernière semaine, dernière génération) au lieu de 2 en série — ce
+  // compteur est dans le chemin bloquant du layout (chaque hard load + chaque action).
   const { data: latest } = await supabase
     .from('insights')
-    .select('week_start')
+    .select('week_start, generated_at')
     .order('week_start', { ascending: false })
+    .order('generated_at', { ascending: false })
     .limit(1)
   const weekStart = latest?.[0]?.week_start
-  if (!weekStart) return 0
-  const genAt = await latestGeneration(supabase, weekStart)
-  if (!genAt) return 0
+  const genAt = latest?.[0]?.generated_at
+  if (!weekStart || !genAt) return 0
   const [{ data: rows }, { data: states }] = await Promise.all([
     // Dernière génération uniquement + les « saines » ne comptent pas comme « à traiter ».
     supabase

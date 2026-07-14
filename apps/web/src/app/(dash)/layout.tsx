@@ -14,10 +14,12 @@ import {
 import { Separator } from '@/components/ui/separator'
 
 export default async function DashLayout({ children }: { children: ReactNode }) {
-  const profile = await getProfile()
+  // En PARALLÈLE : le badge est RLS-scopé par les cookies, il ne dépend pas du profil
+  // (sans session il retourne 0 et le redirect part quand même). Ce layout re-rend à
+  // chaque hard load ET à chaque réponse de Server Action → chaque vague séquentielle
+  // économisée se sent sur toutes les actions.
+  const [profile, insightsCount] = await Promise.all([getProfile(), getOpenInsightsCount()])
   if (!profile) redirect('/login')
-  // Badge « à traiter » de l'onglet Insights (RLS-scopé : 0 pour un rôle user en v1).
-  const insightsCount = await getOpenInsightsCount()
 
   return (
     <SidebarProvider>

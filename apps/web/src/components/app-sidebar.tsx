@@ -1,6 +1,5 @@
 'use client'
 
-import { useRef } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
@@ -28,7 +27,7 @@ import {
 import { WORKSPACES, workspaceForPath, navSlug, isMarketingSlug } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
-import { useNavTransition } from '@/components/nav-transition'
+import { useNavTransition } from '@/components/nav-transition-context'
 import { withPeriod } from '@/lib/nav'
 
 export function AppSidebar({
@@ -53,14 +52,10 @@ export function AppSidebar({
   const { state, isMobile, setOpen } = useSidebar()
   // Prefetch AU SURVOL (et non au mount) : le prefetch par défaut de <Link> précharge les
   // ~12 routes de la sidebar d'un coup → rafale d'invocations concurrentes sur Workers Free
-  // (Error 1102). Au survol, UNE route part à la fois, ~200 ms avant le clic → le fallback
-  // (loading.tsx) s'affiche instantanément au clic au lieu d'attendre le premier octet.
-  const prefetched = useRef(new Set<string>())
-  const prefetchOnHover = (href: string) => {
-    if (prefetched.current.has(href)) return
-    prefetched.current.add(href)
-    router.prefetch(href)
-  }
+  // (Error 1102). Au survol, UNE route part à la fois, ~200 ms avant le clic. Pas de
+  // dédup maison : le cache de segments de Next dédoublonne et gère la fraîcheur (un Set
+  // one-shot empêchait de re-précharger après expiration staleTimes ou une mutation).
+  const prefetchOnHover = (href: string) => router.prefetch(href)
   // Navigation via transition : l'overlay pleine page (cf. nav-transition.tsx) apparaît à
   // 0 ms au clic. Les clics modifiés (cmd/ctrl/shift = nouvel onglet…) gardent le natif.
   // navCtx null (provider absent, chunk périmé) → on laisse le <Link> naviguer nativement.
