@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -99,6 +99,31 @@ export function DataTable<T>({
 
   const count = table.getFilteredRowModel().rows.length
 
+  // Long scroll : rendu PROGRESSIF. Rendre les ~1 700 lignes spenders d'un coup (tracker :
+  // × 10 cases cliquables ≈ 17 000 composants) figeait la page ~5 s à chaque affichage.
+  // On rend un premier bloc, puis la suite se matérialise à l'approche du bas (sentinelle
+  // IntersectionObserver, marge 600 px → couture invisible en scroll normal). Le cap ne
+  // fait que croître : un patch optimiste / filtre ne re-téléporte jamais en haut.
+  const CHUNK = 60
+  const [visibleCount, setVisibleCount] = useState(CHUNK)
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null)
+  const allRows = table.getRowModel().rows
+  const rows = paginated ? allRows : allRows.slice(0, visibleCount)
+  const hasMore = !paginated && allRows.length > visibleCount
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setVisibleCount((c) => c + CHUNK)
+      },
+      { rootMargin: '600px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, visibleCount])
+
   return (
     <div className="flex flex-col gap-3">
       {(filterColumnId || toolbar) && (
@@ -137,7 +162,7 @@ export function DataTable<T>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows.map((row) => (
+            {rows.map((row) => (
               <Fragment key={row.id}>
                 <TableRow
                   className={cn(row.getCanExpand() && 'cursor-pointer')}
@@ -158,6 +183,16 @@ export function DataTable<T>({
                 {row.getIsExpanded() && renderSubRows?.(row)}
               </Fragment>
             ))}
+            {hasMore && (
+              <TableRow ref={sentinelRef}>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-10 text-center text-xs text-muted-foreground"
+                >
+                  …
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </div>
