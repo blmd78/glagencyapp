@@ -1,6 +1,8 @@
 import { addDays, frDayShort as frDay, isoDate, mondayOf, round1 as r1, round2 as r2 } from '@glagency/core'
 import { ltvOf as ltvFormula } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
+import type { PostgrestError } from '@supabase/supabase-js'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { BilanData, ModelBilan, WeekChoice } from '../types'
 
 /** Semaines complètes (lun→dim) COUVERTES PAR LA BASE, la plus récente d'abord
@@ -20,6 +22,14 @@ function completeWeeks(today: string, minDate: string | null): WeekChoice[] {
 interface Agg {
   ca: number
   newSubs: number
+}
+
+/** Ligne de `creator_script_daily` (0042, hors types générés → typée à la main). */
+interface ScriptRow {
+  creator_id: string
+  date: string
+  position: number | null
+  revenue_day: number | null
 }
 
 /**
@@ -48,20 +58,37 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   const prev = { start: addDays(start, -7), end: addDays(end, -7) }
   const lm = { start: addDays(start, -28), end: addDays(end, -28) }
 
-  // Une seule plage couvrante [M-1 .. semaine] puis bucketing par fenêtre (volumes faibles).
+  // Tables journalières : fetchAll (pagination PostgREST, tri = PK complète) — sur 5
+  // semaines, creator_script_daily (créatrice × script × jour) dépasse 1000 lignes bien
+  // avant creator_daily → sans ça, totaux et « hors S1 » tronqués EN SILENCE.
   const [{ data: rows, error }, { data: creators, error: e2 }, scriptsRes] = await Promise.all([
-    supabase
-      .from('creator_daily')
-      .select('creator_id, date, ca, new_subs')
-      .gte('date', lm.start)
-      .lte('date', end),
+    fetchAll((f, t) =>
+      supabase
+        .from('creator_daily')
+        .select('creator_id, date, ca, new_subs')
+        .gte('date', lm.start)
+        .lte('date', end)
+        .order('creator_id')
+        .order('date')
+        .range(f, t),
+    ),
     supabase.from('creators').select('id, name, excluded'),
     // Snapshots scripts MyPuls (0042, hors types générés) : deltas jour, position 1 = badge N°1.
-    supabase
-      .from('creator_script_daily' as never)
-      .select('creator_id, date, position, revenue_day')
-      .gte('date', lm.start)
-      .lte('date', end),
+    fetchAll<ScriptRow>(
+      (f, t) =>
+        supabase
+          .from('creator_script_daily' as never)
+          .select('creator_id, date, position, revenue_day')
+          .gte('date', lm.start)
+          .lte('date', end)
+          .order('creator_id' as never)
+          .order('script_id' as never)
+          .order('date' as never)
+          .range(f, t) as unknown as PromiseLike<{
+          data: ScriptRow[] | null
+          error: PostgrestError | null
+        }>,
+    ),
   ])
   if (error) throw error
   if (e2) throw e2
@@ -100,12 +127,8 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     prev: new Map(),
     lm: new Map(),
   }
-  const scriptRows = ((scriptsRes as { data: unknown }).data ?? []) as Array<{
-    creator_id: string
-    date: string
-    position: number | null
-    revenue_day: number | null
-  }>
+  // Erreur scripts NON bloquante (comme avant) : pas de snapshots → pas de badge, page valide.
+  const scriptRows: ScriptRow[] = scriptsRes.data ?? []
   for (const r of scriptRows) {
     const win =
       r.date >= start && r.date <= end
