@@ -75,17 +75,18 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
 }
 
 /**
- * Membres pouvant recevoir un planning (sélecteur admin) — managers d'abord.
- * Un ADMIN ne planifie que les membres ; un SUPERADMIN voit aussi les admins (il peut
- * leur faire un planning). Les superadmins ne sont jamais dans le sélecteur.
+ * Personnes pouvant recevoir un planning (sélecteur) — managers d'abord.
+ * SUPERADMIN : membres + admins (il fait et modifie le planning des admins).
+ * ADMIN : membres uniquement (il ne voit pas les plannings des admins).
+ * Les superadmins ne figurent jamais dans le sélecteur.
  */
 export async function getPlanningMembers(includeAdmins: boolean): Promise<PlanningMember[]> {
   const supabase = await createClient()
-  const excluded = includeAdmins ? ['superadmin'] : ['superadmin', 'admin']
+  const excluded = includeAdmins ? '(superadmin)' : '(superadmin,admin)'
   const { data } = await supabase
     .from('profiles')
     .select('id, display_name, email, role')
-    .not('role', 'in', `(${excluded.join(',')})`)
+    .not('role', 'in', excluded)
     .order('role')
     .order('display_name')
   return (data ?? []).map((p) => ({

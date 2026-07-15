@@ -15,10 +15,19 @@ export default async function PlanningPage({
   const isAdmin = profile.role === 'admin'
 
   if (!isAdmin) {
-    return <PlanningTemplate data={await getPlanning(profile.id)} isAdmin={false} members={[]} />
+    return (
+      <PlanningTemplate
+        data={await getPlanning(profile.id)}
+        isAdmin={false}
+        canEdit={false}
+        members={[]}
+      />
+    )
   }
 
-  // Superadmin : peut aussi planifier les admins ; admin : membres uniquement.
+  // Superadmin : sélecteur membres + admins ; admin : membres uniquement. Toute cible
+  // visible est donc éditable par son spectateur (la garde requireCanEdit + la RLS 0039
+  // restent la défense contre un appel d'action forgé vers le planning d'un admin).
   const members = await getPlanningMembers(profile.superadmin)
   const { membre } = await searchParams
   const target = membre && members.some((m) => m.id === membre) ? membre : (members[0]?.id ?? null)
@@ -26,6 +35,7 @@ export default async function PlanningPage({
     <PlanningTemplate
       data={target ? await getPlanning(target) : null}
       isAdmin
+      canEdit
       members={members}
     />
   )

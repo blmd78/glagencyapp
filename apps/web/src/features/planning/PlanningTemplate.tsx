@@ -40,10 +40,13 @@ function Bullet({ text }: { text: string }) {
 export function PlanningTemplate({
   data,
   isAdmin,
+  canEdit,
   members,
 }: {
   data: PlanningData | null
   isAdmin: boolean
+  /** Édition : le planning d'un ADMIN est réservé aux superadmins (consultation sinon). */
+  canEdit: boolean
   members: PlanningMember[]
 }) {
   const router = useRouter()
@@ -198,7 +201,7 @@ export function PlanningTemplate({
                         </span>
                       </div>
                       {/* pr-20 admin : réserve la place des boutons ✏️/🗑 en absolu. */}
-                      <div className={cn('min-w-0 flex-1 px-4 py-3', isAdmin && 'pr-20')}>
+                      <div className={cn('min-w-0 flex-1 px-4 py-3', canEdit && 'pr-20')}>
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold">{b.title}</h3>
                           {b.badge && (
@@ -218,7 +221,7 @@ export function PlanningTemplate({
                           </ul>
                         )}
                       </div>
-                      {isAdmin && (
+                      {canEdit && (
                         <div className="absolute right-2 top-2 flex gap-1">
                           <Button
                             variant="ghost"
@@ -262,7 +265,7 @@ export function PlanningTemplate({
             {data ? 'Aucun planning défini' : 'Aucun membre sélectionné'}
           </p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            {isAdmin
+            {canEdit
               ? data
                 ? 'Ajoute un premier bloc pour construire le planning de ce membre.'
                 : 'Choisis un membre dans le sélecteur pour créer son planning.'
@@ -322,7 +325,7 @@ export function PlanningTemplate({
       )}
 
       {/* ── Dialogs admin */}
-      {isAdmin && data && (
+      {canEdit && data && (
         <>
           <BlockDialog
             profileId={data.profileId}

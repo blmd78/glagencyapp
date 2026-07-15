@@ -11,10 +11,27 @@ import { blockInput, metaInput } from './schema'
 
 type Result = { success: true } | { success: false; error: string }
 
-async function requireAdminSafe() {
+/**
+ * Garde d'écriture : admin requis, ET le planning d'un ADMIN (ou superadmin) n'est
+ * modifiable que par un superadmin — les admins le consultent seulement.
+ */
+async function requireCanEdit(
+  targetProfileId: string,
+): Promise<{ profile: NonNullable<Awaited<ReturnType<typeof getProfile>>> } | { error: string }> {
   const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') return null
-  return profile
+  if (!profile || profile.role !== 'admin') return { error: 'Accès réservé à l’admin' }
+  if (!profile.superadmin) {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', targetProfileId)
+      .single()
+    if (data && (data.role === 'admin' || data.role === 'superadmin')) {
+      return { error: 'Le planning d’un admin est géré par un superadmin' }
+    }
+  }
+  return { profile }
 }
 
 /**
@@ -38,11 +55,12 @@ async function ensurePlanning(
 
 /** Crée ou modifie un bloc horaire du planning d'un membre. */
 export async function saveBlock(raw: unknown): Promise<Result> {
-  const admin = await requireAdminSafe()
-  if (!admin) return { success: false, error: 'Accès réservé à l’admin' }
   const parsed = blockInput.safeParse(raw)
   if (!parsed.success) return { success: false, error: 'Saisie invalide' }
   const d = parsed.data
+  const guard = await requireCanEdit(d.profileId)
+  if ('error' in guard) return { success: false, error: guard.error }
+  const admin = guard.profile
   const supabase = await createClient()
 
   const planning = await ensurePlanning(supabase, d.profileId, admin.id)
@@ -88,11 +106,25 @@ export async function saveBlock(raw: unknown): Promise<Result> {
 
 /** Supprime un bloc horaire. */
 export async function deleteBlock(raw: unknown): Promise<Result> {
-  const admin = await requireAdminSafe()
-  if (!admin) return { success: false, error: 'Accès réservé à l’admin' }
   const parsed = z.uuid().safeParse(raw)
   if (!parsed.success) return { success: false, error: 'Saisie invalide' }
   const supabase = await createClient()
+  // Résout le propriétaire du planning AVANT la garde : le planning d'un admin n'est
+  // modifiable (bloc par bloc compris) que par un superadmin.
+  const { data: blk } = await supabase
+    .from('planning_blocks')
+    .select('planning_id')
+    .eq('id', parsed.data)
+    .single()
+  if (!blk) return { success: false, error: 'Bloc introuvable' }
+  const { data: pl } = await supabase
+    .from('plannings')
+    .select('profile_id')
+    .eq('id', blk.planning_id)
+    .single()
+  if (!pl) return { success: false, error: 'Planning introuvable' }
+  const guard = await requireCanEdit(pl.profile_id)
+  if ('error' in guard) return { success: false, error: guard.error }
   const { error } = await supabase.from('planning_blocks').delete().eq('id', parsed.data)
   if (error) return { success: false, error: error.message }
   revalidatePath('/chatter/planning')
@@ -101,11 +133,12 @@ export async function deleteBlock(raw: unknown): Promise<Result> {
 
 /** Enregistre l'encart priorité, la note de pause et les tâches annexes. */
 export async function savePlanningMeta(raw: unknown): Promise<Result> {
-  const admin = await requireAdminSafe()
-  if (!admin) return { success: false, error: 'Accès réservé à l’admin' }
   const parsed = metaInput.safeParse(raw)
   if (!parsed.success) return { success: false, error: 'Saisie invalide' }
   const d = parsed.data
+  const guard = await requireCanEdit(d.profileId)
+  if ('error' in guard) return { success: false, error: guard.error }
+  const admin = guard.profile
   const supabase = await createClient()
 
   const planning = await ensurePlanning(supabase, d.profileId, admin.id)
