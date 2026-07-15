@@ -109,9 +109,18 @@ export function parseScripts(html: string): CreatorScript[] {
   return [...byId.values()].sort((a, b) => (a.sequence ?? 999) - (b.sequence ?? 999))
 }
 
-/** Scripts du modèle en contexte de session (appeler switchCreator avant). */
-export async function fetchScripts(cookie: string): Promise<CreatorScript[]> {
-  const res = await fetch(`${BASE_URL}/scripts`, {
+/**
+ * Scripts du modèle en contexte de session (appeler switchCreator avant).
+ * SANS `range`, MyPuls fenêtre les stats sur ~30 jours glissants (piège vérifié le
+ * 2026-07-15) — toujours passer un `range` explicite : un jour précis (`from = to`)
+ * pour la mesure quotidienne, ou une plage large pour un cumul all-time.
+ */
+export async function fetchScripts(
+  cookie: string,
+  range?: { from: string; to: string },
+): Promise<CreatorScript[]> {
+  const qs = range ? `?from=${range.from}&to=${range.to}` : ''
+  const res = await fetch(`${BASE_URL}/scripts${qs}`, {
     headers: { Cookie: cookie, 'User-Agent': UA, Accept: 'text/html' },
   })
   if (!res.ok) throw new Error(`GET /scripts ${res.status}`)

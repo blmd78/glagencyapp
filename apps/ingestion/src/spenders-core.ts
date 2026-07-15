@@ -102,31 +102,30 @@ async function ingestConversations(
   return rows.length
 }
 
+/** Borne basse « all-time » pour le cumul des scripts (avant toute donnée MyPuls). */
+const SCRIPTS_EPOCH = '2020-01-01'
+
 /**
- * Snapshot quotidien des scripts du modèle en contexte (page /scripts, stats CUMULÉES) →
- * upsert `creator_script_daily` avec deltas jour vs dernier snapshot (mécanique cumuls
- * marketing 0019). `date` = veille (le cron tourne ~00-02h UTC, le cumul clôt le jour J-1).
- * Premier snapshot d'un script → deltas NULL (inconnus, exclus des sommes côté web).
+ * Mesure quotidienne des scripts du modèle en contexte : la page /scripts accepte
+ * `from`/`to`, on interroge donc DIRECTEMENT le jour J (mesure exacte, pas de deltas de
+ * cumuls — sans paramètre la page est fenêtrée sur ~30 jours glissants, piège vérifié)
+ * + un second fetch all-time pour les colonnes *_cum. `day` = veille par défaut
+ * (le cron tourne ~00-02h UTC, il clôt le jour J-1).
  */
-export async function ingestScriptsSnapshot(db: Db, cookie: string, creatorId: string): Promise<number> {
-  const scripts = await fetchScripts(cookie)
-  if (!scripts.length) return 0
-  const date = new Date(Date.now() - 24 * 3600 * 1000).toISOString().slice(0, 10)
+export async function ingestScriptsSnapshot(
+  db: Db,
+  cookie: string,
+  creatorId: string,
+  day?: string,
+): Promise<number> {
+  const date = day ?? new Date(Date.now() - 24 * 3600 * 1000).toISOString().slice(0, 10)
+  const dayScripts = await fetchScripts(cookie, { from: date, to: date })
+  if (!dayScripts.length) return 0
+  const allTime = await fetchScripts(cookie, { from: SCRIPTS_EPOCH, to: new Date().toISOString().slice(0, 10) })
+  const cumBy = new Map(allTime.map((s) => [s.scriptId, s]))
 
-  const { data: prev, error: prevErr } = await db
-    .from('creator_script_daily' as never)
-    .select('script_id, sales_cum, revenue_cum, date')
-    .eq('creator_id', creatorId)
-    .lt('date', date)
-    .order('date', { ascending: false })
-  if (prevErr) throw new Error(`creator_script_daily (lecture): ${prevErr.message}`)
-  const prevBy = new Map<number, { sales_cum: number; revenue_cum: number }>()
-  for (const p of (prev ?? []) as unknown as Array<{ script_id: number; sales_cum: number; revenue_cum: number }>) {
-    if (!prevBy.has(p.script_id)) prevBy.set(p.script_id, p)
-  }
-
-  const rows = scripts.map((s) => {
-    const p = prevBy.get(s.scriptId)
+  const rows = dayScripts.map((s) => {
+    const c = cumBy.get(s.scriptId)
     return {
       creator_id: creatorId,
       script_id: s.scriptId,
@@ -138,13 +137,12 @@ export async function ingestScriptsSnapshot(db: Db, cookie: string, creatorId: s
       msg_count: s.msgCount,
       media_count: s.mediaCount,
       price_total: s.priceTotal,
-      sends_cum: s.sends,
-      unique_fans_cum: s.uniqueFans,
-      sales_cum: s.sales,
-      revenue_cum: s.revenue,
-      // max(0, …) : une remise à zéro côté MyPuls (script recréé) ne produit pas de delta négatif.
-      sales_day: p ? Math.max(0, s.sales - p.sales_cum) : null,
-      revenue_day: p ? Math.max(0, s.revenue - p.revenue_cum) : null,
+      sends_cum: c?.sends ?? 0,
+      unique_fans_cum: c?.uniqueFans ?? 0,
+      sales_cum: c?.sales ?? 0,
+      revenue_cum: c?.revenue ?? 0,
+      sales_day: s.sales,
+      revenue_day: s.revenue,
     }
   })
   const { error } = await db

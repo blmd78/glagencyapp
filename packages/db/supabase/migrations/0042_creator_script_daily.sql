@@ -1,7 +1,7 @@
--- 0042 — Snapshot quotidien des scripts MyPuls par modèle (page /scripts).
--- MyPuls n'expose que des stats CUMULÉES depuis toujours : on snapshote chaque nuit
--- (greffé sur la mini-invocation du fan-out spenders) et on dérive les deltas jour
--- (même mécanique que les cumuls marketing, 0019). `date` = jour clos (veille du run).
+-- 0042 — Mesure quotidienne des scripts MyPuls par modèle (page /scripts).
+-- La page accepte `from`/`to` : le run nocturne (greffé sur la mini-invocation du
+-- fan-out spenders) interroge directement le jour J (mesure exacte) + un fetch
+-- all-time pour les colonnes *_cum. `date` = jour clos (veille du run).
 create table if not exists creator_script_daily (
   creator_id uuid not null references creators(id) on delete cascade,
   script_id bigint not null,
@@ -14,12 +14,12 @@ create table if not exists creator_script_daily (
   msg_count int not null default 0,
   media_count int not null default 0,
   price_total numeric not null default 0,
-  -- Cumuls MyPuls au moment du snapshot (depuis toujours).
+  -- Cumuls all-time MyPuls au moment de la capture.
   sends_cum int not null default 0,
   unique_fans_cum int not null default 0,
   sales_cum int not null default 0,
   revenue_cum numeric not null default 0,
-  -- Deltas vs snapshot précédent. NULL = premier snapshot (delta inconnu, à exclure des sommes).
+  -- Mesure EXACTE du jour (fetch from=to=jour). NULL = jamais mesuré (à exclure des sommes).
   sales_day int,
   revenue_day numeric,
   captured_at timestamptz not null default now(),
