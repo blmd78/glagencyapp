@@ -166,6 +166,13 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   const totalCaLm = r2(models.reduce((s, m) => s + m.caLm, 0))
   const totalNewSubsPrev = models.reduce((s, m) => s + m.newSubsPrev, 0)
   const totalNewSubsLm = models.reduce((s, m) => s + m.newSubsLm, 0)
+  // Total global « hors S1 » (€) : somme des scripts ≠ Pos 1 sur la semaine courante.
+  let totalHorsS1: number | null = null
+  for (const sa of scriptWins.cur.values()) {
+    if (!sa.mesure) continue
+    totalHorsS1 = (totalHorsS1 ?? 0) + sa.autres
+  }
+
   const pub = models.filter((m) => !m.excluded)
   const pubCa = pub.reduce((s, m) => s + m.ca, 0)
   const pubSubs = pub.reduce((s, m) => s + m.newSubs, 0)
@@ -180,6 +187,7 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     totalNewSubs,
     totalNewSubsPrev,
     totalNewSubsLm,
+    totalHorsS1,
     avgLtv: ltvFormula(pubCa, pubSubs),
     avgLtvPrev: ltvFormula(
       pub.reduce((s, m) => s + m.caPrev, 0),

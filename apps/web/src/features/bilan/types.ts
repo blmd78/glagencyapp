@@ -44,6 +44,9 @@ export interface BilanData {
   totalNewSubs: number
   totalNewSubsPrev: number
   totalNewSubsLm: number
+  /** CA total « hors script 1 » de la semaine (somme des scripts ≠ Pos 1, tous modèles) —
+   *  null si aucune mesure sur la semaine. */
+  totalHorsS1: number | null
   /** LTV moyenne globale (null si aucun nouvel abonné). */
   avgLtv: number | null
   avgLtvPrev: number | null

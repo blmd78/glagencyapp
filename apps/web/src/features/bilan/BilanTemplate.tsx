@@ -17,7 +17,11 @@ export function BilanTemplate({ data }: { data: BilanData }) {
       value: `${Math.round(data.totalCa).toLocaleString('fr-FR')} €`,
       deltaPct: null,
       trendLabel: '',
-      hint: '',
+      // Total des scripts hors Pos 1 (tous modèles) — vide tant qu'aucune mesure.
+      hint:
+        data.totalHorsS1 != null && data.totalCa > 0
+          ? `dont hors S1 : ${Math.round(data.totalHorsS1).toLocaleString('fr-FR')} € (${Math.round((100 * data.totalHorsS1) / data.totalCa)} %)`
+          : '',
     },
     {
       key: 'subs',
