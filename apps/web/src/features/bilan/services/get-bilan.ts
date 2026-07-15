@@ -1,8 +1,6 @@
 import { addDays, frDayShort as frDay, isoDate, mondayOf, round1 as r1, round2 as r2 } from '@glagency/core'
 import { ltvOf as ltvFormula } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
-import type { PostgrestError } from '@supabase/supabase-js'
-import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { BilanData, ModelBilan, WeekChoice } from '../types'
 
 /** Semaines complètes (lun→dim) COUVERTES PAR LA BASE, la plus récente d'abord
@@ -24,12 +22,26 @@ interface Agg {
   newSubs: number
 }
 
-/** Ligne de `creator_script_daily` (0042, hors types générés → typée à la main). */
-interface ScriptRow {
-  creator_id: string
-  date: string
-  position: number | null
-  revenue_day: number | null
+/** Forme brute renvoyée par le RPC `bilan_report` (migration 0045) — 3 fenêtres agrégées EN BASE. */
+interface BilanReport {
+  by_creator: Array<{
+    creator_id: string
+    ca_cur: number | null
+    ns_cur: number | null
+    ca_prev: number | null
+    ns_prev: number | null
+    ca_lm: number | null
+    ns_lm: number | null
+  }>
+  script: Array<{
+    creator_id: string
+    autres_cur: number | null
+    mesure_cur: boolean
+    autres_prev: number | null
+    mesure_prev: boolean
+    autres_lm: number | null
+    mesure_lm: boolean
+  }>
 }
 
 /**
@@ -58,62 +70,35 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   const prev = { start: addDays(start, -7), end: addDays(end, -7) }
   const lm = { start: addDays(start, -28), end: addDays(end, -28) }
 
-  // Tables journalières : fetchAll (pagination PostgREST, tri = PK complète) — sur 5
-  // semaines, creator_script_daily (créatrice × script × jour) dépasse 1000 lignes bien
-  // avant creator_daily → sans ça, totaux et « hors S1 » tronqués EN SILENCE.
-  const [{ data: rows, error }, { data: creators, error: e2 }, scriptsRes] = await Promise.all([
-    fetchAll((f, t) =>
-      supabase
-        .from('creator_daily')
-        .select('creator_id, date, ca, new_subs')
-        .gte('date', lm.start)
-        .lte('date', end)
-        .order('creator_id')
-        .order('date')
-        .range(f, t),
-    ),
+  // Agrégation EN BASE (migration 0045 bilan_report, SECURITY INVOKER = RLS appliquée) :
+  // les 3 fenêtres (cur/prev/lm) sont sommées en Postgres → plus de fetchAll de milliers
+  // de lignes ni de bucketing JS. Non typé (Functions vide) → cast.
+  const [rpcRes, { data: creators, error: e2 }] = await Promise.all([
+    supabase.rpc('bilan_report' as never, {
+      p_start: start,
+      p_end: end,
+      p_prev_start: prev.start,
+      p_prev_end: prev.end,
+      p_lm_start: lm.start,
+      p_lm_end: lm.end,
+    } as never) as unknown as PromiseLike<{ data: BilanReport | null; error: { message: string } | null }>,
     supabase.from('creators').select('id, name, excluded'),
-    // Snapshots scripts MyPuls (0042, hors types générés) : deltas jour, position 1 = badge N°1.
-    fetchAll<ScriptRow>(
-      (f, t) =>
-        supabase
-          .from('creator_script_daily' as never)
-          .select('creator_id, date, position, revenue_day')
-          .gte('date', lm.start)
-          .lte('date', end)
-          .order('creator_id' as never)
-          .order('script_id' as never)
-          .order('date' as never)
-          .range(f, t) as unknown as PromiseLike<{
-          data: ScriptRow[] | null
-          error: PostgrestError | null
-        }>,
-    ),
   ])
-  if (error) throw error
+  if (rpcRes.error) throw new Error(rpcRes.error.message)
   if (e2) throw e2
+  const rep = rpcRes.data ?? { by_creator: [], script: [] }
 
+  // Fenêtres CA/abonnés par modèle (déjà sommées par le RPC). ltvOf(0,0)=null → remplir
+  // les 3 fenêtres pour chaque modèle est équivalent à ne créer l'entrée que si présente.
   const windows: Record<'cur' | 'prev' | 'lm', Map<string, Agg>> = {
     cur: new Map(),
     prev: new Map(),
     lm: new Map(),
   }
-  const bump = (win: Map<string, Agg>, id: string, ca: number, ns: number) => {
-    const a = win.get(id) ?? { ca: 0, newSubs: 0 }
-    a.ca += ca
-    a.newSubs += ns
-    win.set(id, a)
-  }
-  for (const r of rows ?? []) {
-    const win =
-      r.date >= start && r.date <= end
-        ? windows.cur
-        : r.date >= prev.start && r.date <= prev.end
-          ? windows.prev
-          : r.date >= lm.start && r.date <= lm.end
-            ? windows.lm
-            : null
-    if (win) bump(win, r.creator_id, r.ca ?? 0, r.new_subs ?? 0)
+  for (const r of rep.by_creator) {
+    windows.cur.set(r.creator_id, { ca: Number(r.ca_cur) || 0, newSubs: Number(r.ns_cur) || 0 })
+    windows.prev.set(r.creator_id, { ca: Number(r.ca_prev) || 0, newSubs: Number(r.ns_prev) || 0 })
+    windows.lm.set(r.creator_id, { ca: Number(r.ca_lm) || 0, newSubs: Number(r.ns_lm) || 0 })
   }
 
   // CA scripté par fenêtre : autres = somme des scripts HORS N°1 (position ≠ 1),
@@ -127,22 +112,13 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     prev: new Map(),
     lm: new Map(),
   }
-  // Erreur scripts NON bloquante (comme avant) : pas de snapshots → pas de badge, page valide.
-  const scriptRows: ScriptRow[] = scriptsRes.data ?? []
-  for (const r of scriptRows) {
-    const win =
-      r.date >= start && r.date <= end
-        ? scriptWins.cur
-        : r.date >= prev.start && r.date <= prev.end
-          ? scriptWins.prev
-          : r.date >= lm.start && r.date <= lm.end
-            ? scriptWins.lm
-            : null
-    if (!win || r.revenue_day == null) continue
-    const a = win.get(r.creator_id) ?? { autres: 0, mesure: false }
-    a.mesure = true
-    if (r.position !== 1) a.autres += r.revenue_day
-    win.set(r.creator_id, a)
+  // Scripts hors N°1 par fenêtre — déjà agrégés par le RPC (autres = Σ position≠1,
+  // mesure = ≥1 valeur jour connue). Entrée posée seulement quand mesure=true (identique
+  // au reduce JS qui ne créait l'entrée que sur une valeur non-null).
+  for (const r of rep.script) {
+    if (r.mesure_cur) scriptWins.cur.set(r.creator_id, { autres: Number(r.autres_cur) || 0, mesure: true })
+    if (r.mesure_prev) scriptWins.prev.set(r.creator_id, { autres: Number(r.autres_prev) || 0, mesure: true })
+    if (r.mesure_lm) scriptWins.lm.set(r.creator_id, { autres: Number(r.autres_lm) || 0, mesure: true })
   }
   // % = CA des scripts AUTRES que le N°1 ÷ CA total de la fenêtre (le CA non scripté
   // ne compte pas dans le numérateur — demande Benoit : « tous les scripts sauf le N°1 »).
