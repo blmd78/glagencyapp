@@ -26,6 +26,7 @@ import {
   Globe,
   TriangleAlert,
   Archive,
+  KeyRound,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -88,6 +89,8 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/police', label: 'Police', icon: ShieldAlert, group: 'equipe' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
+      // Annuaire des accès de l'équipe (repris de gla-workflow) — droit cochable dans Membres.
+      { href: '/chatter/acces', label: 'Accès', icon: KeyRound, group: 'equipe' },
       // Sous-catégorie Spenders (CRM closing). Toutes les sous-pages partagent le droit
       // `crm-spenders` (slug explicite, aligné sur la RLS de 0029).
       { href: '/chatter/spenders/liste', label: 'Liste', icon: Banknote, slug: 'crm-spenders', group: 'spenders' },
@@ -139,7 +142,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'crm-spenders', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'acces', 'crm-spenders', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**
