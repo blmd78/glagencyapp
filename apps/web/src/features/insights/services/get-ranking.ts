@@ -1,13 +1,22 @@
 import { addDays, round2 } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
+import { cacheLife, cacheTag } from 'next/cache'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { RankingData, RankingRow } from '../types'
 
 /**
  * Classement GLOBAL des chatteurs sur la semaine des insights — agrège chatter_daily via le
  * client admin (hors RLS, tous chatteurs). Chatteurs sans donnée la semaine exclus.
+ *
+ * `use cache` : SÛR car lecture 100 % GLOBALE (client admin, hors RLS) — le résultat est
+ * identique pour tous les users, aucune fuite. Clé = `weekStart` (argument). Les données ne
+ * bougent qu'à l'ingestion nocturne → cacheLife('hours'). Tag `facts-daily` : permettrait à
+ * l'ingestion d'invalider via revalidateTag('facts-daily') le jour où on le branche.
  */
 export async function getRanking(weekStart: string | null): Promise<RankingData> {
+  'use cache'
+  cacheLife('hours')
+  cacheTag('facts-daily')
   if (!weekStart) return { weekStart: '', rows: [] }
   const admin = createAdminClient()
   const weekEnd = addDays(weekStart, 6)
