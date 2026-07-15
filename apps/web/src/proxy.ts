@@ -1,12 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
-// NB : Next 16 déprécie `middleware.ts` au profit de `proxy.ts`, MAIS l'adaptateur
-// @opennextjs/cloudflare (1.20.x) ne bundle que la convention middleware — le rename
-// casse le build OpenNext (copyTracedFiles). À refaire avec l'Adapter API officielle.
+// Convention Next 16 : proxy.ts (remplace middleware.ts, déprécié — le rename était bloqué
+// par l'adaptateur OpenNext/Cloudflare, contrainte levée depuis le passage Vercel-only).
 // Rôle : refresh de la session Supabase (cookies) + check OPTIMISTE (redirige si pas
 // de session). L'autorisation réelle (par modèle) reste portée par la RLS côté base.
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // /api/ping (keep-alive) : réchauffer l'isolate, rien d'autre — sans early-return chaque
   // ping paie createServerClient + getClaims et, sans session, suit la redirection /login.
   if (request.nextUrl.pathname === '/api/ping') return NextResponse.next()
