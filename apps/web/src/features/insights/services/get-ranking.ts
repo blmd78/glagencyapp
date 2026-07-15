@@ -1,5 +1,6 @@
 import { addDays, round2 } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { RankingData, RankingRow } from '../types'
 
 /**
@@ -12,11 +13,18 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
   const weekEnd = addDays(weekStart, 6)
 
   const [{ data: daily }, { data: chatterRows }] = await Promise.all([
-    admin
-      .from('chatter_daily')
-      .select('chatter_id, ca, propose, vendu, presence_active_h, reactivite_sec')
-      .gte('date', weekStart)
-      .lte('date', weekEnd),
+    // Table journalière : fetchAll (pagination PostgREST, tri = PK). Borné à 7 jours,
+    // mais >~140 chatteurs actifs sur la semaine suffiraient à tronquer en silence.
+    fetchAll((f, t) =>
+      admin
+        .from('chatter_daily')
+        .select('chatter_id, ca, propose, vendu, presence_active_h, reactivite_sec')
+        .gte('date', weekStart)
+        .lte('date', weekEnd)
+        .order('chatter_id')
+        .order('date')
+        .range(f, t),
+    ),
     admin.from('chatters').select('id, display_name'),
   ])
 
