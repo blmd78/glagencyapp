@@ -1,7 +1,8 @@
-// Endpoint de vie minimal. Sous Cache Components il est PRÉ-RENDU statiquement (servi
-// par le CDN, coût nul). Conservé pour les clients encore sur l'ancien bundle (worker
-// Cloudflare gelé) qui le pingent — le keep-alive côté client a été retiré : sur Vercel,
-// les instances restent chaudes d'elles-mêmes (Fluid compute).
+// Endpoint de vie + MARQUEUR DE VERSION : renvoie le sha du commit construit — un curl
+// suffit pour savoir quelle version est réellement en ligne (les déploiements Vercel sont
+// silencieux ; un échec laisserait une vieille version servir sans le dire). Statique
+// (pré-rendu au build, servi par le CDN, coût nul).
 export function GET() {
-  return new Response('ok', { status: 200 })
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
+  return new Response(`ok ${sha}`, { status: 200 })
 }
