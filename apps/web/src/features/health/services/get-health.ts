@@ -1,6 +1,5 @@
 import { daysBetween, endOfMonth, isoDate, mondayOf } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import { round1, round2, eur, num, ltvOf } from '@/lib/format'
 import type { HealthChatter, HealthData, Kpi, LtvStatus, ModelHealth } from '../types'
@@ -11,6 +10,23 @@ const LTV_MOYEN = 7
 
 const statusOf = (ltv: number | null): LtvStatus | null =>
   ltv === null ? null : ltv >= LTV_TARGET ? 'sain' : ltv >= LTV_MOYEN ? 'moyen' : 'critique'
+
+/** Forme brute renvoyée par le RPC `health_report` (migration 0043) — sommes déjà agrégées EN BASE. */
+interface HealthReport {
+  /** Agrégat par modèle depuis creator_daily (RLS = ses modèles pour un `user`). */
+  by_creator: Array<{
+    creator_id: string
+    ca: number | null
+    new_subs: number | null
+    renew_subs: number | null
+    week_ca: number | null
+    week_subs: number | null
+  }>
+  /** Ventilation par (modèle, chatteur) depuis chatter_creator_daily. */
+  by_pair: Array<{ creator_id: string; chatter_id: string; ca: number | null }>
+  /** Jours distincts ingérés sur la période. */
+  measured_days: number
+}
 
 /**
  * État de santé agrégé sur la période (datepicker) — tracker d'objectif LTV.
@@ -29,38 +45,27 @@ export async function getHealth(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
-  const [{ data: creators }, { data: cd }, { data: ccd }, { data: chatters }] = await Promise.all([
-    supabase.from('creators').select('id, name, is_private, excluded'),
-    // Tables journalières : fetchAll (pagination PostgREST, tri = PK) — sans ça,
-    // troncature silencieuse à 1000 lignes (CA/LTV faux dès ~1 mois de période).
-    fetchAll((f, t) =>
-      supabase
-        .from('creator_daily')
-        .select('creator_id, date, ca, new_subs, renew_subs')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('creator_id')
-        .order('date')
-        .range(f, t),
-    ),
-    fetchAll((f, t) =>
-      supabase
-        .from('chatter_creator_daily')
-        .select('creator_id, chatter_id, ca')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('chatter_id')
-        .order('creator_id')
-        .order('date')
-        .range(f, t),
-    ),
-    supabase.from('chatters').select('id, display_name'),
-  ])
-
-  const rows = cd ?? []
+  // Lundi de la semaine courante : passé au RPC pour que la borne « semaine en cours »
+  // soit IDENTIQUE au calcul d'origine (indépendante du fuseau horaire de la base).
   const weekFrom = mondayOf(isoDate(new Date()))
 
-  // Agrégats par modèle : période, dernier jour, semaine en cours.
+  const [{ data: creators }, { data: chatters }, rpcRes] = await Promise.all([
+    supabase.from('creators').select('id, name, is_private, excluded'),
+    supabase.from('chatters').select('id, display_name'),
+    // Agrégation EN BASE (migration 0043 health_report, SECURITY INVOKER = RLS appliquée) :
+    // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
+    // milliers de lignes journalières ni de reduce JS. Non typé (Functions vide) → cast,
+    // comme chatters_report.
+    supabase.rpc('health_report' as never, {
+      p_from: period.from,
+      p_to: period.to,
+      p_week_from: weekFrom,
+    } as never) as unknown as PromiseLike<{ data: HealthReport | null; error: { message: string } | null }>,
+  ])
+  if (rpcRes.error) throw new Error(rpcRes.error.message)
+  const rep = rpcRes.data ?? { by_creator: [], by_pair: [], measured_days: 0 }
+
+  // Agrégats par modèle (période + semaine en cours) — déjà sommés par le RPC.
   interface Acc {
     ca: number
     newSubs: number
@@ -69,30 +74,27 @@ export async function getHealth(
     weekSubs: number
   }
   const agg = new Map<string, Acc>()
-  for (const r of rows) {
-    const a =
-      agg.get(r.creator_id) ?? { ca: 0, newSubs: 0, renewSubs: 0, weekCa: 0, weekSubs: 0 }
-    a.ca += r.ca ?? 0
-    a.newSubs += r.new_subs ?? 0
-    a.renewSubs += r.renew_subs ?? 0
-    if (r.date >= weekFrom) {
-      a.weekCa += r.ca ?? 0
-      a.weekSubs += r.new_subs ?? 0
-    }
-    agg.set(r.creator_id, a)
+  for (const r of rep.by_creator) {
+    agg.set(r.creator_id, {
+      ca: Number(r.ca) || 0,
+      newSubs: Number(r.new_subs) || 0,
+      renewSubs: Number(r.renew_subs) || 0,
+      weekCa: Number(r.week_ca) || 0,
+      weekSubs: Number(r.week_subs) || 0,
+    })
   }
 
   // Chatteurs par modèle (ventilation transactions).
   const chName = new Map((chatters ?? []).map((c) => [c.id, c.display_name ?? '—']))
   const byModel = new Map<string, Map<string, { ca: number }>>()
-  for (const r of ccd ?? []) {
+  for (const r of rep.by_pair) {
     let m = byModel.get(r.creator_id)
     if (!m) {
       m = new Map()
       byModel.set(r.creator_id, m)
     }
     const c = m.get(r.chatter_id) ?? { ca: 0 }
-    c.ca += r.ca ?? 0
+    c.ca += Number(r.ca) || 0
     m.set(r.chatter_id, c)
   }
 
@@ -168,7 +170,7 @@ export async function getHealth(
   const worst = below.length
     ? below.reduce((a, b) => ((a.ltv ?? 0) <= (b.ltv ?? 0) ? a : b))
     : null
-  const measuredDays = new Set(rows.map((r) => r.date)).size
+  const measuredDays = rep.measured_days
 
   const kpis: Kpi[] = [
     {
