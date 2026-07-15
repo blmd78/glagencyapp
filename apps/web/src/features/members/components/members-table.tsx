@@ -35,7 +35,7 @@ function RowActions({
   creators: { id: string; name: string }[]
   scope: 'chatter' | 'marketing'
 }) {
-  if (member.role === 'admin') return null
+  if (member.role === 'admin' || member.role === 'superadmin') return null
 
   return (
     <div className="flex justify-end gap-1.5">
@@ -110,7 +110,7 @@ export function MembersTable({
       id: 'models',
       header: 'Modèles',
       cell: ({ row }) => {
-        if (row.original.role === 'admin')
+        if (row.original.role === 'admin' || row.original.role === 'superadmin')
           return <span className="text-xs text-muted-foreground">tous</span>
         const items = row.original.creatorIds.map((id) => {
           const name = creatorName.get(id) ?? '—'
@@ -155,7 +155,11 @@ export function MembersTable({
       accessorKey: 'role',
       header: ({ column }) => <Sortable column={column} label="Rôle" />,
       cell: ({ getValue }) =>
-        (getValue() as string) === 'admin' ? (
+        (getValue() as string) === 'superadmin' ? (
+          <Badge className={cn('gap-1 text-xs', STATUS_COLORS.info)}>
+            <ShieldCheck className="size-3" /> Superadmin
+          </Badge>
+        ) : (getValue() as string) === 'admin' ? (
           <Badge className={cn('gap-1 text-xs', STATUS_COLORS.info)}>
             <ShieldCheck className="size-3" /> Admin
           </Badge>
@@ -169,7 +173,7 @@ export function MembersTable({
       id: 'pages',
       header: 'Pages',
       cell: ({ row }) => {
-        if (row.original.role === 'admin')
+        if (row.original.role === 'admin' || row.original.role === 'superadmin')
           return <span className="text-xs text-muted-foreground">toutes</span>
         const items = choices.filter((p) => row.original.pages.includes(p.slug)).map((p) => {
           const Icon = p.icon

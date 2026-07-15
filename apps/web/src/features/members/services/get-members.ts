@@ -24,7 +24,14 @@ export async function getMembers(): Promise<MembersData> {
     id: p.id,
     email: p.email ?? '—',
     displayName: p.display_name ?? (p.email ?? '').split('@')[0] ?? '—',
-    role: p.role === 'admin' ? 'admin' : p.role === 'manager' ? 'manager' : 'user',
+    role:
+      p.role === 'superadmin'
+        ? 'superadmin'
+        : p.role === 'admin'
+          ? 'admin'
+          : p.role === 'manager'
+            ? 'manager'
+            : 'user',
     pages: p.pages ?? [],
     creatorIds: byProfile.get(p.id) ?? [],
     workLink: p.work_link ?? '',

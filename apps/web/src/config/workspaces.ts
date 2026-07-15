@@ -35,6 +35,8 @@ export interface NavItem {
   label: string
   icon: LucideIcon
   adminOnly?: boolean
+  /** Réservé aux propriétaires (rôle superadmin) — ex. Membres (gestion des accès). */
+  superadminOnly?: boolean
   /** Sous-onglet (id d'un NavGroup de la face) — sans groupe, l'item est affiché direct. */
   group?: string
   /** Item direct rendu SOUS les sous-onglets (ex. Membres), au lieu d'au-dessus. */
@@ -98,7 +100,7 @@ export const WORKSPACES: Workspace[] = [
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
       { href: '/chatter/quotas', label: 'Quotas', icon: Target, adminOnly: true, group: 'performance' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
-      { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
+      { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, superadminOnly: true, bottom: true },
     ],
   },
   {
@@ -123,7 +125,7 @@ export const WORKSPACES: Workspace[] = [
       // la Compta ne fait que payer.
       { href: '/marketing/staff', label: 'VA', icon: Users, slug: 'mkt-staff', group: 'gestion' },
       { href: '/marketing/compta', label: 'Compta', icon: Wallet, slug: 'mkt-compta', group: 'gestion' },
-      { href: '/marketing/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
+      { href: '/marketing/members', label: 'Membres', icon: UserCog, adminOnly: true, superadminOnly: true, bottom: true },
     ],
   },
 ]

@@ -4,12 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { isMarketingSlug } from '@/config/workspaces'
-import { requireAdmin } from '@/lib/auth'
+import { requireSuperadmin } from '@/lib/auth'
 import { memberInput, memberUpdateInput } from './schema'
 
 /**
  * Mutations de la page Membres. Toutes : zod → garde admin → client SERVICE-ROLE
- * (auth.admin.* exige la clé secrète). La garde requireAdmin() est le contrôle d'accès ;
+ * (auth.admin.* exige la clé secrète). La garde requireSuperadmin() est le contrôle d'accès (gestion des rôles = propriétaires uniquement) ;
  * la RLS reste la ceinture pour tout ce qui passe par le client session.
  */
 
@@ -69,17 +69,19 @@ async function syncAssignments(admin: Admin, profileId: string, wanted: string[]
   return null
 }
 
-/** Cible éditable = profil existant NON admin (les admins sont pilotés par l'allowlist). */
+/** Cible éditable = profil existant NON admin/superadmin (pilotés hors de cette page). */
 async function requireEditableTarget(admin: Admin, id: string): Promise<string | null> {
   const { data: target } = await admin.from('profiles').select('role').eq('id', id).single()
   if (!target) return 'Profil introuvable'
-  if (target.role === 'admin') return 'Un admin ne se gère pas depuis cette page'
+  if (target.role === 'admin' || target.role === 'superadmin') {
+    return 'Un admin ne se gère pas depuis cette page'
+  }
   return null
 }
 
 /** Crée le compte auth (email confirmé → OTP direct), le profil, pages + modèles. */
 export async function createMember(input: unknown): Promise<Result> {
-  await requireAdmin()
+  await requireSuperadmin()
   const parsed = memberInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
   const { scope, email, displayName, role, pages, creatorIds, workLink } = parsed.data
@@ -121,7 +123,7 @@ export async function createMember(input: unknown): Promise<Result> {
 }
 
 export async function updateMember(input: unknown): Promise<Result> {
-  await requireAdmin()
+  await requireSuperadmin()
   const parsed = memberUpdateInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
   const { scope, id, displayName, role, pages, creatorIds, workLink } = parsed.data
@@ -146,7 +148,7 @@ export async function updateMember(input: unknown): Promise<Result> {
 }
 
 export async function deleteMember(id: unknown): Promise<Result> {
-  await requireAdmin()
+  await requireSuperadmin()
   const parsed = z.string().uuid().safeParse(id)
   if (!parsed.success) return { success: false, error: 'Id invalide' }
 

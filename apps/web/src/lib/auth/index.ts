@@ -27,7 +27,10 @@ export async function requireUser() {
 
 export interface Profile {
   id: string
+  /** `superadmin` en base est mappé sur 'admin' ici (il hérite de tout) — cf. `superadmin`. */
   role: 'admin' | 'user'
+  /** Propriétaire (rôle base `superadmin`) : seul à pouvoir gérer les membres/rôles. */
+  superadmin: boolean
   /** Slugs des pages autorisées (vide pour un admin = tout). */
   pages: string[]
   displayName: string | null
@@ -49,7 +52,8 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   if (!data) return null
   return {
     id: data.id,
-    role: data.role === 'admin' ? 'admin' : 'user',
+    role: data.role === 'admin' || data.role === 'superadmin' ? 'admin' : 'user',
+    superadmin: data.role === 'superadmin',
     pages: data.pages ?? [],
     displayName: data.display_name,
     email: data.email ?? user.email ?? null,
@@ -71,10 +75,18 @@ export async function requireAccess(slug: PageSlug): Promise<Profile> {
   return profile
 }
 
-/** Garde admin (page Membres, actions sensibles). */
+/** Garde admin (superadmin compris — il hérite de tout). */
 export async function requireAdmin(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
   if (profile.role !== 'admin') redirect('/chatter/overview')
+  return profile
+}
+
+/** Garde SUPERADMIN (gestion des membres/rôles — réservée aux propriétaires). */
+export async function requireSuperadmin(): Promise<Profile> {
+  const profile = await getProfile()
+  if (!profile) redirect('/login')
+  if (!profile.superadmin) redirect('/chatter/overview')
   return profile
 }

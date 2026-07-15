@@ -43,12 +43,15 @@ function InsightsBadge({ promise }: { promise: Promise<number> }) {
 export function AppSidebar({
   userEmail,
   isAdmin,
+  isSuperadmin,
   allowedPages,
   insightsCountPromise,
   workLink = '',
 }: {
   userEmail: string
   isAdmin?: boolean
+  /** Propriétaire (rôle superadmin) — seul à voir les items superadminOnly (Membres). */
+  isSuperadmin?: boolean
   /** Slugs autorisés pour un rôle `user` (ignoré si admin). */
   allowedPages?: string[]
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
@@ -83,10 +86,11 @@ export function AppSidebar({
   const period = `${searchParams.get('from') ?? ''}|${searchParams.get('to') ?? ''}`
   const items = useMemo(() => {
     const allowed = new Set(pagesKey ? pagesKey.split(',') : [])
-    return active.nav.filter((item) =>
-      isAdmin ? true : !item.adminOnly && allowed.has(navSlug(item)),
-    )
-  }, [active, isAdmin, pagesKey])
+    return active.nav.filter((item) => {
+      if (item.superadminOnly && !isSuperadmin) return false
+      return isAdmin ? true : !item.adminOnly && allowed.has(navSlug(item))
+    })
+  }, [active, isAdmin, isSuperadmin, pagesKey])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —
   // un groupe sans item visible disparaît.
   const directTop = items.filter((i) => !i.group && !i.bottom)
