@@ -1,5 +1,6 @@
 import {
   fetchChatInit,
+  fetchScripts,
   fetchTeamMoney,
   switchCreator,
   type ChatConversation,
@@ -102,6 +103,58 @@ async function ingestConversations(
 }
 
 /**
+ * Snapshot quotidien des scripts du modèle en contexte (page /scripts, stats CUMULÉES) →
+ * upsert `creator_script_daily` avec deltas jour vs dernier snapshot (mécanique cumuls
+ * marketing 0019). `date` = veille (le cron tourne ~00-02h UTC, le cumul clôt le jour J-1).
+ * Premier snapshot d'un script → deltas NULL (inconnus, exclus des sommes côté web).
+ */
+export async function ingestScriptsSnapshot(db: Db, cookie: string, creatorId: string): Promise<number> {
+  const scripts = await fetchScripts(cookie)
+  if (!scripts.length) return 0
+  const date = new Date(Date.now() - 24 * 3600 * 1000).toISOString().slice(0, 10)
+
+  const { data: prev, error: prevErr } = await db
+    .from('creator_script_daily' as never)
+    .select('script_id, sales_cum, revenue_cum, date')
+    .eq('creator_id', creatorId)
+    .lt('date', date)
+    .order('date', { ascending: false })
+  if (prevErr) throw new Error(`creator_script_daily (lecture): ${prevErr.message}`)
+  const prevBy = new Map<number, { sales_cum: number; revenue_cum: number }>()
+  for (const p of (prev ?? []) as unknown as Array<{ script_id: number; sales_cum: number; revenue_cum: number }>) {
+    if (!prevBy.has(p.script_id)) prevBy.set(p.script_id, p)
+  }
+
+  const rows = scripts.map((s) => {
+    const p = prevBy.get(s.scriptId)
+    return {
+      creator_id: creatorId,
+      script_id: s.scriptId,
+      date,
+      name: s.name,
+      sequence: s.sequence,
+      position: s.position,
+      active: s.active,
+      msg_count: s.msgCount,
+      media_count: s.mediaCount,
+      price_total: s.priceTotal,
+      sends_cum: s.sends,
+      unique_fans_cum: s.uniqueFans,
+      sales_cum: s.sales,
+      revenue_cum: s.revenue,
+      // max(0, …) : une remise à zéro côté MyPuls (script recréé) ne produit pas de delta négatif.
+      sales_day: p ? Math.max(0, s.sales - p.sales_cum) : null,
+      revenue_day: p ? Math.max(0, s.revenue - p.revenue_cum) : null,
+    }
+  })
+  const { error } = await db
+    .from('creator_script_daily' as never)
+    .upsert(rows as never[], { onConflict: 'creator_id,script_id,date' })
+  if (error) throw new Error(`creator_script_daily: ${error.message}`)
+  return rows.length
+}
+
+/**
  * Scrape UN modèle : bascule le contexte MyPuls, récupère ses conversations, upsert.
  * Le cookie de session est fourni par l'appelant (login partagé → pas de re-login par modèle).
  * C'est l'unité de travail d'une mini-invocation du Worker (fan-out).
@@ -115,7 +168,16 @@ export async function ingestOneModel(
 ): Promise<number> {
   await switchCreator(mypulsId, cookie)
   const convs = await fetchChatInit(cookie)
-  return ingestConversations(db, creatorId, convs, resolveChatter)
+  const n = await ingestConversations(db, creatorId, convs, resolveChatter)
+  // Snapshot scripts greffé sur la même invocation (+1 sous-requête) — non bloquant :
+  // un échec ici ne doit pas faire perdre les conversations déjà upsertées.
+  try {
+    const ns = await ingestScriptsSnapshot(db, cookie, creatorId)
+    console.log(`[scripts] creator ${mypulsId}: ${ns} script(s) snapshotés`)
+  } catch (e) {
+    console.warn(`[scripts] creator ${mypulsId}: ÉCHEC snapshot —`, (e as Error).message)
+  }
+  return n
 }
 
 /** Boucle SÉQUENTIELLE tous modèles (CLI Node — sans contrainte CPU). */

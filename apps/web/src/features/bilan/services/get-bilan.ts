@@ -49,13 +49,19 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   const lm = { start: addDays(start, -28), end: addDays(end, -28) }
 
   // Une seule plage couvrante [M-1 .. semaine] puis bucketing par fenêtre (volumes faibles).
-  const [{ data: rows, error }, { data: creators, error: e2 }] = await Promise.all([
+  const [{ data: rows, error }, { data: creators, error: e2 }, scriptsRes] = await Promise.all([
     supabase
       .from('creator_daily')
       .select('creator_id, date, ca, new_subs')
       .gte('date', lm.start)
       .lte('date', end),
     supabase.from('creators').select('id, name, excluded'),
+    // Snapshots scripts MyPuls (0042, hors types générés) : deltas jour, position 1 = badge N°1.
+    supabase
+      .from('creator_script_daily' as never)
+      .select('creator_id, date, position, revenue_day')
+      .gte('date', lm.start)
+      .lte('date', end),
   ])
   if (error) throw error
   if (e2) throw e2
@@ -83,6 +89,42 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     if (win) bump(win, r.creator_id, r.ca ?? 0, r.new_subs ?? 0)
   }
 
+  // CA scripté par fenêtre : s1 = script N°1, mesure = au moins un delta connu (non-null).
+  interface ScriptAgg {
+    s1: number
+    mesure: boolean
+  }
+  const scriptWins: Record<'cur' | 'prev' | 'lm', Map<string, ScriptAgg>> = {
+    cur: new Map(),
+    prev: new Map(),
+    lm: new Map(),
+  }
+  const scriptRows = ((scriptsRes as { data: unknown }).data ?? []) as Array<{
+    creator_id: string
+    date: string
+    position: number | null
+    revenue_day: number | null
+  }>
+  for (const r of scriptRows) {
+    const win =
+      r.date >= start && r.date <= end
+        ? scriptWins.cur
+        : r.date >= prev.start && r.date <= prev.end
+          ? scriptWins.prev
+          : r.date >= lm.start && r.date <= lm.end
+            ? scriptWins.lm
+            : null
+    if (!win || r.revenue_day == null) continue
+    const a = win.get(r.creator_id) ?? { s1: 0, mesure: false }
+    a.mesure = true
+    if (r.position === 1) a.s1 += r.revenue_day
+    win.set(r.creator_id, a)
+  }
+  const horsS1Of = (sa: ScriptAgg | undefined, agg: Agg | undefined): number | null => {
+    if (!sa?.mesure || !agg || agg.ca <= 0) return null
+    return Math.max(0, Math.min(100, 100 * (1 - sa.s1 / agg.ca)))
+  }
+
   const creatorById = new Map((creators ?? []).map((c) => [c.id, c]))
   const ids = new Set([...windows.cur.keys(), ...windows.prev.keys(), ...windows.lm.keys()])
   const ltvOf = (a: Agg | undefined) => (a ? ltvFormula(a.ca, a.newSubs) : null)
@@ -105,6 +147,9 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
         ltv: ltvOf(cur),
         ltvPrev: ltvOf(pv),
         ltvLm: ltvOf(lw),
+        horsS1: horsS1Of(scriptWins.cur.get(id), cur),
+        horsS1Prev: horsS1Of(scriptWins.prev.get(id), pv),
+        horsS1Lm: horsS1Of(scriptWins.lm.get(id), lw),
       }
     })
     .sort((a, b) => b.ca - a.ca)

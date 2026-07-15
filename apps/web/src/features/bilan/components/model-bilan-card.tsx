@@ -58,6 +58,8 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
     { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int },
     { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: int },
     { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1, fmtDelta: dec1 },
+    // % du CA hors script N°1 MyPuls (écarts en points) — « — » tant que pas de mesure.
+    { label: 'Hors S1', cur: m.horsS1, prev: m.horsS1Prev, lm: m.horsS1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt` },
   ] as const
 
   return (

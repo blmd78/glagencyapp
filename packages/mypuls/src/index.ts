@@ -12,3 +12,5 @@ export { fetchDashboardStats, fetchDashboardSubscriptions } from './endpoints/da
 export type { DashboardStats, DashboardSubscriptions, StatsDataset, SubsDataset } from './endpoints/dashboard'
 export { fetchChatInit, switchCreator } from './endpoints/chat'
 export type { ChatConversation } from './endpoints/chat'
+export { fetchScripts, parseScripts } from './endpoints/scripts'
+export type { CreatorScript } from './endpoints/scripts'

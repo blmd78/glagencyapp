@@ -21,6 +21,11 @@ export interface ModelBilan {
   ltv: number | null
   ltvPrev: number | null
   ltvLm: number | null
+  /** % du CA de la fenêtre réalisé HORS script N°1 MyPuls — null tant qu'aucune mesure
+   *  (les snapshots quotidiens `creator_script_daily` démarrent au déploiement). */
+  horsS1: number | null
+  horsS1Prev: number | null
+  horsS1Lm: number | null
 }
 
 export interface WeekChoice {
