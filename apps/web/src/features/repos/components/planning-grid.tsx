@@ -432,7 +432,11 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                           </button>
                         }
                         value={cell.chatterIds}
-                        options={data.chatterOptions.map((o) => ({ value: o.id, label: o.name }))}
+                        // Colonnes ENCADREMENT (Managers/Policiers) : options = profils
+                        // rôle manager ; colonnes modèles : chatteurs actifs.
+                        options={(c.encadrement ? data.managerOptions : data.chatterOptions).map(
+                          (o) => ({ value: o.id, label: o.name }),
+                        )}
                         labelById={data.chatterById}
                         // Le combobox ne gère que les IDs — les noms texte legacy restent
                         // intacts (chips retirables via leur croix dans le popover, cf. extraChips).
@@ -452,7 +456,7 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
                             : undefined,
                           onRemove: () => removeCellChip(day, c.key, { token: t }),
                         }))}
-                        placeholder="Rechercher un chatteur…"
+                        placeholder={c.encadrement ? 'Rechercher un manager…' : 'Rechercher un chatteur…'}
                       />
                     </td>
                   )

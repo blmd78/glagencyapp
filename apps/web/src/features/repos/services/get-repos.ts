@@ -32,6 +32,7 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     { data: cellRows },
     { data: weekRow },
     { data: chatterRows },
+    { data: managerRows },
     { data: creatorRows },
     { data: memberRows },
     { data: dataWeekRows },
@@ -39,6 +40,9 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     supabase.from('rest_planning_cells').select('day, col, names, chatter_ids').eq('week_start', weekStart),
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
     admin.from('chatters').select('id, display_name, active'),
+    // Colonnes ENCADREMENT (Managers/Policiers) : leur sélecteur liste les profils rôle
+    // manager — pas les chatteurs (bug remonté : « Ajouter » proposait les chatteurs).
+    admin.from('profiles').select('id, display_name').eq('role', 'manager'),
     admin.from('creators').select('id, name, active'),
     supabase
       .from('rest_planning_column_members')
@@ -59,11 +63,18 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     .map((start) => ({ start, label: weekLabel(start) }))
 
   // Chatteurs (cellules) : id → nom (tous, inactifs inclus) + options actifs.
+  // Les MANAGERS (profils) sont fusionnés dans la même map : les cellules encadrement
+  // stockent leurs ids dans chatter_ids (uuid[] sans FK) — les chips se résolvent pareil.
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
+  for (const m of managerRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
   const chatterOptions = (chatterRows ?? [])
     .filter((c) => c.active && c.display_name)
     .map((c) => ({ id: c.id, name: c.display_name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const managerOptions = (managerRows ?? [])
+    .filter((m) => m.display_name)
+    .map((m) => ({ id: m.id, name: m.display_name as string }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // Modèles (header) : id → nom + options actifs.
@@ -119,6 +130,7 @@ export async function getRepos(week: string | null | undefined, profile: Profile
       scope.chatterIds === null
         ? chatterOptions
         : chatterOptions.filter((o) => scope.chatterIds!.has(o.id)),
+    managerOptions,
     sentTelegram: weekRow?.sent_telegram ?? false,
     weeks,
   }
