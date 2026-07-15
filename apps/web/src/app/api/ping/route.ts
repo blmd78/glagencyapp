@@ -4,5 +4,8 @@
 // (pré-rendu au build, servi par le CDN, coût nul).
 export function GET() {
   const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? 'local'
-  return new Response(`ok ${sha}`, { status: 200 })
+  // État de la clé de chiffrement snap SANS l'exposer : ok / invalid (pas 32 octets) / absent.
+  const raw = process.env.SNAP_CODES_SECRET
+  const snapkey = !raw ? 'absent' : Buffer.from(raw, 'base64').length === 32 ? 'ok' : 'invalid'
+  return new Response(`ok ${sha} snapkey:${snapkey}`, { status: 200 })
 }
