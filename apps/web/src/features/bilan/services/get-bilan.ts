@@ -89,9 +89,10 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     if (win) bump(win, r.creator_id, r.ca ?? 0, r.new_subs ?? 0)
   }
 
-  // CA scripté par fenêtre : s1 = script N°1, mesure = au moins un delta connu (non-null).
+  // CA scripté par fenêtre : autres = somme des scripts HORS N°1 (position ≠ 1),
+  // mesure = au moins une valeur jour connue (non-null).
   interface ScriptAgg {
-    s1: number
+    autres: number
     mesure: boolean
   }
   const scriptWins: Record<'cur' | 'prev' | 'lm', Map<string, ScriptAgg>> = {
@@ -115,14 +116,16 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
             ? scriptWins.lm
             : null
     if (!win || r.revenue_day == null) continue
-    const a = win.get(r.creator_id) ?? { s1: 0, mesure: false }
+    const a = win.get(r.creator_id) ?? { autres: 0, mesure: false }
     a.mesure = true
-    if (r.position === 1) a.s1 += r.revenue_day
+    if (r.position !== 1) a.autres += r.revenue_day
     win.set(r.creator_id, a)
   }
+  // % = CA des scripts AUTRES que le N°1 ÷ CA total de la fenêtre (le CA non scripté
+  // ne compte pas dans le numérateur — demande Benoit : « tous les scripts sauf le N°1 »).
   const horsS1Of = (sa: ScriptAgg | undefined, agg: Agg | undefined): number | null => {
     if (!sa?.mesure || !agg || agg.ca <= 0) return null
-    return Math.max(0, Math.min(100, 100 * (1 - sa.s1 / agg.ca)))
+    return Math.max(0, Math.min(100, 100 * (sa.autres / agg.ca)))
   }
 
   const creatorById = new Map((creators ?? []).map((c) => [c.id, c]))
