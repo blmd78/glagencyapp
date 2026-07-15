@@ -13,13 +13,16 @@ function RefCell({
   refValue,
   fmt,
   fmtDelta,
+  zeroOk,
 }: {
   cur: number | null
   refValue: number | null
   fmt: (v: number) => string
   fmtDelta: (v: number) => string
+  /** true = 0 est une mesure valide à afficher (ex. « Hors S1 » d'un modèle mono-script). */
+  zeroOk?: boolean
 }) {
-  if (refValue == null || refValue === 0) {
+  if (refValue == null || (refValue === 0 && !zeroOk)) {
     return <span className="text-right text-muted-foreground">—</span>
   }
   const d = cur != null ? cur - refValue : null
@@ -55,11 +58,12 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
   const int = (v: number) => Math.round(v).toLocaleString('fr-FR')
   const dec1 = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })
   const rows = [
-    { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int },
-    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: int },
-    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1, fmtDelta: dec1 },
+    { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int, zeroOk: false },
+    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: int, zeroOk: false },
+    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1, fmtDelta: dec1, zeroOk: false },
     // % du CA hors script N°1 MyPuls (écarts en points) — « — » tant que pas de mesure.
-    { label: 'Hors S1', cur: m.horsS1, prev: m.horsS1Prev, lm: m.horsS1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt` },
+    // zeroOk : 0 % est une vraie mesure (modèle mono-script → tout le CA scripté vient du N°1).
+    { label: 'Hors S1', cur: m.horsS1, prev: m.horsS1Prev, lm: m.horsS1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt`, zeroOk: true },
   ] as const
 
   return (
@@ -77,10 +81,10 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
             <Fragment key={r.label}>
               <span className="text-muted-foreground">{r.label}</span>
               <span className="text-right font-semibold tabular-nums">
-                {r.cur != null && r.cur > 0 ? r.fmt(r.cur) : '—'}
+                {r.cur != null && (r.cur > 0 || r.zeroOk) ? r.fmt(r.cur) : '—'}
               </span>
-              <RefCell cur={r.cur} refValue={r.prev} fmt={r.fmt} fmtDelta={r.fmtDelta} />
-              <RefCell cur={r.cur} refValue={r.lm} fmt={r.fmt} fmtDelta={r.fmtDelta} />
+              <RefCell cur={r.cur} refValue={r.prev} fmt={r.fmt} fmtDelta={r.fmtDelta} zeroOk={r.zeroOk} />
+              <RefCell cur={r.cur} refValue={r.lm} fmt={r.fmt} fmtDelta={r.fmtDelta} zeroOk={r.zeroOk} />
             </Fragment>
           ))}
         </div>
