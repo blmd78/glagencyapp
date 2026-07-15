@@ -1,9 +1,30 @@
 import { createClient } from '@/lib/supabase/server'
-import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
 import { conv, round2 , ltvOf } from '@/lib/format'
+
+/** Forme brute renvoyée par le RPC `models_report` (migration 0044) — sommes agrégées EN BASE. */
+interface ModelsReport {
+  by_creator: Array<{
+    creator_id: string
+    total: number | null
+    ppv: number | null
+    tips: number | null
+    renew: number | null
+    new_subs: number | null
+    renewals: number | null
+  }>
+  by_pair: Array<{
+    creator_id: string
+    chatter_id: string
+    ca: number | null
+    ppv: number | null
+    tips: number | null
+    propose: number | null
+    vendu: number | null
+  }>
+}
 
 /**
  * Onglet Modèles agrégé sur la période (datepicker du header).
@@ -13,34 +34,20 @@ import { conv, round2 , ltvOf } from '@/lib/format'
 export async function getModels(period: Period): Promise<ModelsData> {
   const supabase = await createClient()
 
-  const [{ data: creators }, { data: cd }, { data: ccd }, { data: cc }, { data: chatters }] =
-    await Promise.all([
-      supabase.from('creators').select('id, name, is_private, excluded'),
-      // Tables journalières : fetchAll (pagination PostgREST, tri = PK).
-      fetchAll((f, t) =>
-        supabase
-          .from('creator_daily')
-          .select('creator_id, ca, ca_ppv, ca_tips, ca_renew, new_subs, renew_subs')
-          .gte('date', period.from)
-          .lte('date', period.to)
-          .order('creator_id')
-          .order('date')
-          .range(f, t),
-      ),
-      fetchAll((f, t) =>
-        supabase
-          .from('chatter_creator_daily')
-          .select('creator_id, chatter_id, ca, ca_ppv, ca_tips, propose, vendu')
-          .gte('date', period.from)
-          .lte('date', period.to)
-          .order('chatter_id')
-          .order('creator_id')
-          .order('date')
-          .range(f, t),
-      ),
-      supabase.from('chatter_creators').select('creator_id, chatter_id').eq('active', true),
-      supabase.from('chatters').select('id, display_name'),
-    ])
+  const [{ data: creators }, rpcRes, { data: cc }, { data: chatters }] = await Promise.all([
+    supabase.from('creators').select('id, name, is_private, excluded'),
+    // Agrégation EN BASE (migration 0044 models_report, SECURITY INVOKER = RLS appliquée) :
+    // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
+    // milliers de lignes journalières ni de reduce JS. Non typé (Functions vide) → cast.
+    supabase.rpc('models_report' as never, {
+      p_from: period.from,
+      p_to: period.to,
+    } as never) as unknown as PromiseLike<{ data: ModelsReport | null; error: { message: string } | null }>,
+    supabase.from('chatter_creators').select('creator_id, chatter_id').eq('active', true),
+    supabase.from('chatters').select('id, display_name'),
+  ])
+  if (rpcRes.error) throw new Error(rpcRes.error.message)
+  const rep = rpcRes.data ?? { by_creator: [], by_pair: [] }
 
   const chName = new Map((chatters ?? []).map((c) => [c.id, c.display_name]))
 
@@ -48,15 +55,15 @@ export async function getModels(period: Period): Promise<ModelsData> {
     string,
     { total: number; ppv: number; tips: number; renew: number; newSubs: number; renewals: number }
   >()
-  for (const r of cd ?? []) {
-    const a = agg.get(r.creator_id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0, renewals: 0 }
-    a.total += r.ca ?? 0
-    a.ppv += r.ca_ppv ?? 0
-    a.tips += r.ca_tips ?? 0
-    a.renew += r.ca_renew ?? 0
-    a.newSubs += r.new_subs ?? 0
-    a.renewals += r.renew_subs ?? 0
-    agg.set(r.creator_id, a)
+  for (const r of rep.by_creator) {
+    agg.set(r.creator_id, {
+      total: Number(r.total) || 0,
+      ppv: Number(r.ppv) || 0,
+      tips: Number(r.tips) || 0,
+      renew: Number(r.renew) || 0,
+      newSubs: Number(r.new_subs) || 0,
+      renewals: Number(r.renewals) || 0,
+    })
   }
 
   const planned = new Map<string, number>()
@@ -66,18 +73,18 @@ export async function getModels(period: Period): Promise<ModelsData> {
     string,
     Map<string, { ca: number; ppv: number; tips: number; propose: number; vendu: number }>
   >()
-  for (const r of ccd ?? []) {
+  for (const r of rep.by_pair) {
     let byCh = breakdown.get(r.creator_id)
     if (!byCh) {
       byCh = new Map()
       breakdown.set(r.creator_id, byCh)
     }
     const c = byCh.get(r.chatter_id) ?? { ca: 0, ppv: 0, tips: 0, propose: 0, vendu: 0 }
-    c.ca += r.ca ?? 0
-    c.ppv += r.ca_ppv ?? 0
-    c.tips += r.ca_tips ?? 0
-    c.propose += r.propose ?? 0
-    c.vendu += r.vendu ?? 0
+    c.ca += Number(r.ca) || 0
+    c.ppv += Number(r.ppv) || 0
+    c.tips += Number(r.tips) || 0
+    c.propose += Number(r.propose) || 0
+    c.vendu += Number(r.vendu) || 0
     byCh.set(r.chatter_id, c)
   }
 
