@@ -18,7 +18,6 @@ function weekLabel(start: string): string {
  */
 export async function getRepos(week: string | null | undefined, profile: Profile): Promise<ReposData> {
   const supabase = await createClient()
-  const scope = await getChatterScope(profile)
   // Résolution des NOMS + listes (modèles/chatteurs) via le client admin : la page repos est un
   // outil opérationnel agence-wide (tous les modèles/chatteurs doivent être lisibles), alors que
   // le RLS de creators/chatters cloisonne par modèle assigné. L'accès à la page est déjà garanti
@@ -29,6 +28,7 @@ export async function getRepos(week: string | null | undefined, profile: Profile
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : currentMonday
 
   const [
+    scope,
     { data: cellRows },
     { data: weekRow },
     { data: chatterRows },
@@ -37,6 +37,8 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     { data: memberRows },
     { data: dataWeekRows },
   ] = await Promise.all([
+    // Périmètre manager (1 requête pour un non-admin) — indépendant du reste.
+    getChatterScope(profile),
     supabase.from('rest_planning_cells').select('day, col, names, chatter_ids').eq('week_start', weekStart),
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
     admin.from('chatters').select('id, display_name, active'),

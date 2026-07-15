@@ -65,19 +65,21 @@ export async function getChatters(
   const supabase = await createClient()
 
   // `chatters_report` n'est pas dans les types générés (Functions vide) → cast, comme
-  // pour `chatter_first_seen` dans la feature compta.
-  const { data, error } = (await supabase.rpc('chatters_report' as never, {
-    p_from: period.from,
-    p_to: period.to,
-  } as never)) as unknown as { data: Report | null; error: { message: string } | null }
+  // pour `chatter_first_seen` dans la feature compta. En parallèle : les champs closing
+  // CRM (chatters.role/team/shift, migration 0027) — hors RPC pour ne pas toucher
+  // chatters_report ; lecture couverte par chatters_scoped_read.
+  const [rpcRes, { data: crmRows }] = await Promise.all([
+    supabase.rpc('chatters_report' as never, {
+      p_from: period.from,
+      p_to: period.to,
+    } as never) as unknown as PromiseLike<{ data: Report | null; error: { message: string } | null }>,
+    supabase.from('chatters').select('id, role, team, shift'),
+  ])
+  const { data, error } = rpcRes
   if (error) throw new Error(error.message)
   const rep = data ?? { totals: [], by_creator: [], chatters: [], scope: { attributed: 0, messaging: 0, all_accounts: 0 }, ranking: null }
 
   const chMeta = new Map(rep.chatters.map((c) => [c.id, c]))
-
-  // Champs closing CRM (colonnes chatters.role/team/shift, migration 0027) — hors RPC
-  // pour ne pas toucher chatters_report ; lecture couverte par chatters_scoped_read.
-  const { data: crmRows } = await supabase.from('chatters').select('id, role, team, shift')
   const crmById = new Map((crmRows ?? []).map((c) => [c.id, c]))
 
   // Agrégat chatteur (header). Non restreint : depuis `totals` (déjà 1 ligne/chatteur).

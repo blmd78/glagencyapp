@@ -16,16 +16,16 @@ const ERROR_LABEL: Record<string, string> = Object.fromEntries(
  */
 export async function getPolice(day: string | null | undefined, profile: Profile): Promise<PoliceData> {
   const supabase = await createClient()
-  const scope = await getChatterScope(profile)
-  const inScope = (id: string) => scope.chatterIds === null || scope.chatterIds.has(id)
   const admin = createAdminClient()
 
   const today = isoDate(new Date())
   const selected = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : today
   const since = addDays(selected, -30)
 
-  const [{ data: rows }, { data: recentWarns }, { data: chatterRows }, { data: profileRows }] =
+  const [scope, { data: rows }, { data: recentWarns }, { data: chatterRows }, { data: profileRows }] =
     await Promise.all([
+      // Périmètre manager (1 requête pour un non-admin) — indépendant du reste.
+      getChatterScope(profile),
       supabase
         .from('police_entries')
         .select('*')
@@ -40,6 +40,7 @@ export async function getPolice(day: string | null | undefined, profile: Profile
       admin.from('chatters').select('id, display_name, active'),
       admin.from('profiles').select('id, display_name'),
     ])
+  const inScope = (id: string) => scope.chatterIds === null || scope.chatterIds.has(id)
 
   const chatterName: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterName[c.id] = c.display_name
