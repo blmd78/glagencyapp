@@ -5,6 +5,16 @@ import type { Period } from '@/lib/period'
 import { eur, int } from '@/lib/format'
 import type { DailyPoint, Insight, Kpi, ModelCa, ModelSubs, OverviewData } from '../types'
 
+/** Forme brute renvoyée par le RPC `overview_report` (migration 0046) — agrégée EN BASE. */
+interface OverviewReport {
+  /** Par modèle sur la période (CA + nouveaux abonnés). */
+  by_model: Array<{ creator_id: string; ca: number | null; new_subs: number | null }>
+  /** CA total par jour sur le(s) mois du graphe. */
+  daily: Array<{ date: string; ca: number | null }>
+  /** CA par chatteur sur la période (source selon le rôle). */
+  by_chatter: Array<{ chatter_id: string; ca: number | null }>
+}
+
 /**
  * Overview agrégée sur la période choisie (datepicker du header).
  * Source : `creator_daily` (CA/modèle/abonnés/série) + `chatter_daily` (actifs/com).
@@ -28,44 +38,19 @@ export async function getOverview(
   const chartFrom = startOfMonth(period.from)
   const chartTo = endOfMonth(period.to)
 
-  const [{ data: creators }, { data: cd }, { data: chd }, denomBase] =
+  const [{ data: creators }, rpcRes, denomBase] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private'),
-      // Tables journalières : fetchAll (pagination PostgREST, tri = PK).
-      fetchAll((f, t) =>
-        supabase
-          .from('creator_daily')
-          .select('date, ca, new_subs, creator_id')
-          .gte('date', chartFrom)
-          .lte('date', chartTo)
-          .order('creator_id')
-          .order('date')
-          .range(f, t),
-      ),
-      // Deux branches distinctes : la pagination stable exige le tri sur la PK
-      // complète, qui diffère entre les deux tables.
-      restricted
-        ? fetchAll((f, t) =>
-            supabase
-              .from('chatter_creator_daily')
-              .select('chatter_id, ca')
-              .gte('date', period.from)
-              .lte('date', period.to)
-              .order('chatter_id')
-              .order('creator_id')
-              .order('date')
-              .range(f, t),
-          )
-        : fetchAll((f, t) =>
-            supabase
-              .from('chatter_daily')
-              .select('chatter_id, ca')
-              .gte('date', period.from)
-              .lte('date', period.to)
-              .order('chatter_id')
-              .order('date')
-              .range(f, t),
-          ),
+      // Agrégation EN BASE (migration 0046 overview_report, SECURITY INVOKER = RLS appliquée) :
+      // par modèle (période) + série quotidienne (mois du graphe) + CA par chatteur (période,
+      // source selon le rôle). Plus de fetchAll journalier ni de reduce JS. Non typé → cast.
+      supabase.rpc('overview_report' as never, {
+        p_period_from: period.from,
+        p_period_to: period.to,
+        p_chart_from: chartFrom,
+        p_chart_to: chartTo,
+        p_restricted: restricted,
+      } as never) as unknown as PromiseLike<{ data: OverviewReport | null; error: { message: string } | null }>,
       // Dénominateur « Chatteurs actifs X / Y » : la RLS de `chatters` est tout-ou-rien
       // (un membre avec ≥1 modèle lit TOUTES les lignes) → en restricted, Y se compte
       // depuis `chatter_creators` (scopée à SES modèles, même source que getChatterScope).
@@ -87,19 +72,20 @@ export async function getOverview(
             .then(({ count }) => count ?? 0),
     ])
 
-  const meta = new Map((creators ?? []).map((c) => [c.id, { name: c.name, isPrivate: c.is_private }]))
-  const monthRows = cd ?? []
-  const rows = monthRows.filter((r) => r.date >= period.from && r.date <= period.to)
-  const totalCa = rows.reduce((s, r) => s + (r.ca ?? 0), 0)
+  if (rpcRes.error) throw new Error(rpcRes.error.message)
+  const rep = rpcRes.data ?? { by_model: [], daily: [], by_chatter: [] }
 
-  // Agrégat par modèle
+  const meta = new Map((creators ?? []).map((c) => [c.id, { name: c.name, isPrivate: c.is_private }]))
+  const totalCa = rep.by_model.reduce((s, r) => s + (Number(r.ca) || 0), 0)
+
+  // Agrégat par modèle (déjà sommé par le RPC, regroupé par nom).
   const byModel = new Map<string, { ca: number; subs: number; isPrivate: boolean }>()
-  for (const r of rows) {
+  for (const r of rep.by_model) {
     const m = meta.get(r.creator_id)
     if (!m) continue
     const cur = byModel.get(m.name) ?? { ca: 0, subs: 0, isPrivate: m.isPrivate }
-    cur.ca += r.ca ?? 0
-    cur.subs += r.new_subs ?? 0
+    cur.ca += Number(r.ca) || 0
+    cur.subs += Number(r.new_subs) || 0
     byModel.set(m.name, cur)
   }
   const caByModel: ModelCa[] = [...byModel]
@@ -118,7 +104,7 @@ export async function getOverview(
   // Série quotidienne : TOUS les jours du/des mois couvrant la sélection ; null après
   // aujourd'hui ; les jours hors sélection sont marqués `inPeriod: false` (affichés atténués).
   const perDay = new Map<string, number>()
-  for (const r of monthRows) perDay.set(r.date, (perDay.get(r.date) ?? 0) + (r.ca ?? 0))
+  for (const r of rep.daily) perDay.set(r.date, Number(r.ca) || 0)
   const today = isoDate(new Date())
   const daily: DailyPoint[] = []
   for (let key = chartFrom; key <= chartTo; key = addDays(key, 1)) {
@@ -134,9 +120,7 @@ export async function getOverview(
   const COM_RATE = 0.1
   const COM_FLOOR = 200
   const caByChatter = new Map<string, number>()
-  for (const r of chd ?? []) {
-    caByChatter.set(r.chatter_id, (caByChatter.get(r.chatter_id) ?? 0) + (r.ca ?? 0))
-  }
+  for (const r of rep.by_chatter) caByChatter.set(r.chatter_id, Number(r.ca) || 0)
   const activeCas = [...caByChatter.values()].filter((v) => v > 0)
   const active = activeCas.length
   const avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
