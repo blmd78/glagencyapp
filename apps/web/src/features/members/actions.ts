@@ -4,12 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { isMarketingSlug } from '@/config/workspaces'
-import { requireSuperadmin } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { memberInput, memberUpdateInput } from './schema'
 
 /**
  * Mutations de la page Membres. Toutes : zod → garde admin → client SERVICE-ROLE
- * (auth.admin.* exige la clé secrète). La garde requireSuperadmin() est le contrôle d'accès (gestion des rôles = propriétaires uniquement) ;
+ * (auth.admin.* exige la clé secrète). La garde requireAdmin() est le contrôle d'accès (superadmin compris) ;
  * la RLS reste la ceinture pour tout ce qui passe par le client session.
  */
 
@@ -81,7 +81,7 @@ async function requireEditableTarget(admin: Admin, id: string): Promise<string |
 
 /** Crée le compte auth (email confirmé → OTP direct), le profil, pages + modèles. */
 export async function createMember(input: unknown): Promise<Result> {
-  await requireSuperadmin()
+  await requireAdmin()
   const parsed = memberInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
   const { scope, email, displayName, role, pages, creatorIds, workLink } = parsed.data
@@ -123,7 +123,7 @@ export async function createMember(input: unknown): Promise<Result> {
 }
 
 export async function updateMember(input: unknown): Promise<Result> {
-  await requireSuperadmin()
+  await requireAdmin()
   const parsed = memberUpdateInput.safeParse(input)
   if (!parsed.success) return { success: false, error: 'Saisie invalide (au moins une page requise)' }
   const { scope, id, displayName, role, pages, creatorIds, workLink } = parsed.data
@@ -148,7 +148,7 @@ export async function updateMember(input: unknown): Promise<Result> {
 }
 
 export async function deleteMember(id: unknown): Promise<Result> {
-  await requireSuperadmin()
+  await requireAdmin()
   const parsed = z.string().uuid().safeParse(id)
   if (!parsed.success) return { success: false, error: 'Id invalide' }
 

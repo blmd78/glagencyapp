@@ -18,7 +18,8 @@ export default async function PlanningPage({
     return <PlanningTemplate data={await getPlanning(profile.id)} isAdmin={false} members={[]} />
   }
 
-  const members = await getPlanningMembers()
+  // Superadmin : peut aussi planifier les admins ; admin : membres uniquement.
+  const members = await getPlanningMembers(profile.superadmin)
   const { membre } = await searchParams
   const target = membre && members.some((m) => m.id === membre) ? membre : (members[0]?.id ?? null)
   return (

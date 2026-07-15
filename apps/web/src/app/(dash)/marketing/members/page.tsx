@@ -1,4 +1,4 @@
-import { requireSuperadmin } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { getMembers } from '@/features/members/services/get-members'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
 
@@ -6,7 +6,7 @@ import { MembersTemplate } from '@/features/members/MembersTemplate'
 // cases = pages mkt-* (Overview, Liens, Instagram, Twitter, Telegram, Compta), pas de
 // section modèles ; les droits chatteurs d'un profil sont préservés (fusion côté serveur).
 export default async function MktMembersPage() {
-  await requireSuperadmin()
+  await requireAdmin()
   const data = await getMembers()
   return <MembersTemplate data={data} scope="marketing" />
 }
