@@ -26,6 +26,7 @@ import {
   Globe,
   TriangleAlert,
   Archive,
+  ScrollText,
   KeyRound,
   Ghost,
   IdCard,
@@ -106,6 +107,8 @@ export const WORKSPACES: Workspace[] = [
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
       { href: '/chatter/quotas', label: 'Quotas', icon: Target, adminOnly: true, group: 'performance' },
+      // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
+      { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
     ],
@@ -146,7 +149,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'crm-spenders', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

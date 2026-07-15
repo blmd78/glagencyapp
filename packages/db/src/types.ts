@@ -1607,6 +1607,54 @@ export type Database = {
           },
         ]
       }
+      script_items: {
+        Row: {
+          body: string
+          creator_id: string
+          id: string
+          kind: string
+          label: string
+          position: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body?: string
+          creator_id: string
+          id?: string
+          kind?: string
+          label?: string
+          position?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body?: string
+          creator_id?: string
+          id?: string
+          kind?: string
+          label?: string
+          position?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_items_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_items_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spender_assignment_events: {
         Row: {
           changed_at: string
@@ -1796,6 +1844,17 @@ export type Database = {
         Returns: {
           date: string
           ca: number
+        }[]
+      }
+      crm_spenders_kpis: {
+        Args: { p_seuil?: number }
+        Returns: {
+          actifs: number
+          archives: number
+          ca_total: number
+          a_relancer: number
+          alertes: number
+          orphelins: number
         }[]
       }
       crm_spenders_tracker: {
