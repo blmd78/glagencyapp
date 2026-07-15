@@ -31,16 +31,29 @@ export async function getHealth(
 
   const [{ data: creators }, { data: cd }, { data: ccd }, { data: chatters }] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
-    supabase
-      .from('creator_daily')
-      .select('creator_id, date, ca, new_subs, renew_subs')
-      .gte('date', period.from)
-      .lte('date', period.to),
-    supabase
-      .from('chatter_creator_daily')
-      .select('creator_id, chatter_id, ca')
-      .gte('date', period.from)
-      .lte('date', period.to),
+    // Tables journalières : fetchAll (pagination PostgREST, tri = PK) — sans ça,
+    // troncature silencieuse à 1000 lignes (CA/LTV faux dès ~1 mois de période).
+    fetchAll((f, t) =>
+      supabase
+        .from('creator_daily')
+        .select('creator_id, date, ca, new_subs, renew_subs')
+        .gte('date', period.from)
+        .lte('date', period.to)
+        .order('creator_id')
+        .order('date')
+        .range(f, t),
+    ),
+    fetchAll((f, t) =>
+      supabase
+        .from('chatter_creator_daily')
+        .select('creator_id, chatter_id, ca')
+        .gte('date', period.from)
+        .lte('date', period.to)
+        .order('chatter_id')
+        .order('creator_id')
+        .order('date')
+        .range(f, t),
+    ),
     supabase.from('chatters').select('id, display_name'),
   ])
 
