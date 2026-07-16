@@ -315,46 +315,10 @@ Expected: 0 erreur de frontières. S'il reste des erreurs `next/typescript` hér
 
 ---
 
-### Task 4: CI GitHub Actions minimale
+### Task 4: CI GitHub Actions — SUPPRIMÉE (décision Benoit, 2026-07-16)
 
-Spec batch 0. Garde-fou des 6 PRs du chantier.
-
-**Files:**
-- Create: `.github/workflows/ci.yml`
-
-- [ ] **Step 1: Créer `.github/workflows/ci.yml`**
-
-```yaml
-name: CI
-on:
-  pull_request:
-  push:
-    branches: [main]
-
-jobs:
-  ci:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4 # lit packageManager du package.json racine
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # typedRoutes (Task 5) : génère les types de routes AVANT tsc, hors build complet
-      - run: pnpm --filter @glagency/web exec next typegen
-      - run: pnpm typecheck
-      - run: pnpm --filter @glagency/web lint
-      - run: pnpm --filter @glagency/core test
-```
-
-- [ ] **Step 2: Vérifier en local l'équivalent**
-
-Run: `pnpm --filter @glagency/web exec next typegen && pnpm typecheck && pnpm --filter @glagency/web lint && pnpm --filter @glagency/core test`
-Expected: tout PASS.
-
-- [ ] **Step 3: Commit (après accord Benoit)** — `ci: workflow GitHub Actions (typegen + typecheck, lint, tests core)`
+Pas de CI. Les vérifications (`next typegen` + `tsc --noEmit`, `eslint .`, Vitest core)
+restent exécutées LOCALEMENT à la fin de chaque task et en fin de PR — inchangé.
 
 ---
 
