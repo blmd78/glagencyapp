@@ -3,6 +3,7 @@ import { Analytics } from '@vercel/analytics/next'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 import './globals.css'
 import { ThemeProvider } from '@/components/theme-provider'
+import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
   title: 'glagency — dashboard',
@@ -23,6 +24,9 @@ export default function RootLayout({
       <body className="antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           {children}
+          {/* DANS le ThemeProvider : son useTheme() doit suivre le thème de l'app
+              (hors provider, sonner retombe sur prefers-color-scheme de l'OS). */}
+          <Toaster position="top-right" richColors />
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />
