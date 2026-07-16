@@ -10,8 +10,8 @@ import type { RankingData, RankingRow } from '../types'
  *
  * `use cache` : SÛR car lecture 100 % GLOBALE (client admin, hors RLS) — le résultat est
  * identique pour tous les users, aucune fuite. Clé = `weekStart` (argument). Les données ne
- * bougent qu'à l'ingestion nocturne → cacheLife('hours'). Tag `facts-daily` : permettrait à
- * l'ingestion d'invalider via revalidateTag('facts-daily') le jour où on le branche.
+ * bougent qu'à l'ingestion nocturne → cacheLife('hours'). Tag `facts-daily` : invalidé par
+ * `apps/ingestion` en fin de run via `POST /api/revalidate` (`app/api/revalidate/route.ts`).
  */
 export async function getRanking(weekStart: string | null): Promise<RankingData> {
   'use cache'

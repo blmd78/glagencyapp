@@ -42,7 +42,9 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 - **Data-loading & templates** : suivre `docs/guidelines-data-loading.md` — agrégation des
   tables de faits en RPC SQL `SECURITY INVOKER` (sinon `fetchAll` obligatoire, jamais de
   `select` nu → troncature à 1000 lignes), `Template` = Server Component + feuille client,
-  `use cache` uniquement sur du global (jamais RLS cookie-bound), `proxy.ts` dans `src/`.
+  `use cache` uniquement sur du global (jamais RLS cookie-bound), `proxy.ts` dans `src/`
+  + `docs/guidelines-standard-feature.md` (squelette de feature, loading/erreurs/mutations/
+  forms — checklist nouvelle feature).
 - **2 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`) et `Marketing`
   (`/marketing/*`). Une seule source : `config/workspaces.ts` (`WORKSPACES`). La face
   active se déduit du `pathname` (`workspaceForPath`) ; la sidebar (`AppSidebar` +

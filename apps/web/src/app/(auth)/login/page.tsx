@@ -107,7 +107,7 @@ export default function LoginPage() {
                   setError(null)
                 }}
               >
-                Changer d&apos;e-mail
+                Changer d’e-mail
               </button>
             </form>
           )}
