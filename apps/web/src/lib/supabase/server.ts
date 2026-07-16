@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@glagency/db'
+import { getPublicEnv } from '@/lib/env'
 
 /**
  * Client Supabase serveur (RSC + Server Actions) — lié à la session (cookies).
@@ -12,9 +13,10 @@ import type { Database } from '@glagency/db'
  */
 export const createClient = cache(async () => {
   const cookieStore = await cookies()
+  const env = getPublicEnv()
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    env.url,
+    env.publishableKey,
     {
       cookies: {
         getAll() {

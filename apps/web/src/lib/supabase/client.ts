@@ -1,10 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { Database } from '@glagency/db'
+import { getPublicEnv } from '@/lib/env'
 
 /** Client Supabase navigateur (Client Components). */
 export function createClient() {
-  return createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  )
+  const env = getPublicEnv()
+  return createBrowserClient<Database>(env.url, env.publishableKey)
 }
