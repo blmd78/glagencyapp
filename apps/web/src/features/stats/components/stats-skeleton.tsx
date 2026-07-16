@@ -9,5 +9,12 @@ import { Skeleton } from '@/components/ui/skeleton'
  * (docs/guidelines-standard-feature.md §2 — jamais de markup de skeleton dupliqué).
  */
 export function StatsSkeleton() {
-  return <Skeleton className="h-[452px] w-full" />
+  // Seul skeleton de feature SANS KpiSkeleton embarqué → il porte lui-même l'annonce
+  // a11y (les autres l'héritent du role="status" de KpiSkeleton).
+  return (
+    <div role="status">
+      <span className="sr-only">Chargement…</span>
+      <Skeleton aria-hidden="true" className="h-[452px] w-full" />
+    </div>
+  )
 }
