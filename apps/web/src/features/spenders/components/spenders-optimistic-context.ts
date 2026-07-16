@@ -7,9 +7,11 @@ import type { SpenderRow } from '../types'
  * Optimistic UI du tracker : au clic, la ligne est patchée IMMÉDIATEMENT à l'écran
  * (compteur, grisé, archive…), l'enregistrement part en arrière-plan, et React revient
  * automatiquement à l'état serveur si l'action échoue (useOptimistic dans SpendersView).
- * `fail` remonte l'erreur au niveau de la VUE : le patch optimiste sort souvent la ligne
- * de la vue courante → le composant cliqué est démonté avant la réponse serveur, un
- * setState local d'erreur y serait un no-op silencieux (bug confirmé en revue).
+ * L'erreur d'action est un `toast.error` (sonner) posé directement au call site — pas de
+ * plomberie dédiée ici : contrairement à un setState LOCAL au composant cliqué (qui serait
+ * un no-op silencieux si le patch optimiste sort la ligne de la vue et démonte le
+ * composant avant la réponse serveur), un toast est monté à la racine (`<Toaster>`) et
+ * survit à ce démontage.
  * Module sans composant (contexte + hook + reducer) = frontière Fast Refresh saine.
  */
 
@@ -45,13 +47,11 @@ export function applyPatch(rows: SpenderRow[], patch: SpenderPatch): SpenderRow[
 export interface SpendersOptimistic {
   /** Patch optimiste immédiat (à appeler DANS une transition, avant le await de l'action). */
   apply: (patch: SpenderPatch) => void
-  /** Erreur d'action à afficher au niveau de la vue (survit au démontage de la ligne). */
-  fail: (message: string) => void
 }
 
 export const SpendersOptimisticCtx = createContext<SpendersOptimistic | null>(null)
 
-const NOOP: SpendersOptimistic = { apply: () => {}, fail: () => {} }
+const NOOP: SpendersOptimistic = { apply: () => {} }
 
 /**
  * Accès au dispatch optimiste — no-op hors provider (jamais de throw en render : sans

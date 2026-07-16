@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Plus, RotateCcw, Archive, ArchiveRestore, Pencil } from 'lucide-react'
 import {
   Dialog,
@@ -21,8 +22,8 @@ import { addRelance, resetCompteur, setArchived, setCompteur } from '../actions'
 import { useSpendersOptimistic } from './spenders-optimistic-context'
 import { R_ALERTE, type SpenderRow } from '../types'
 
-// username : sert aux messages d'erreur remontés au niveau vue (la ligne cliquée peut
-// avoir quitté la vue au moment où l'erreur arrive — cf. spenders-optimistic-context).
+// username : sert aux messages d'erreur (toast) — le patch optimiste peut avoir sorti la
+// ligne de la vue et démonté le composant cliqué avant la réponse serveur.
 type Target = Pick<SpenderRow, 'creatorId' | 'fanId' | 'username'>
 
 /** Crayon ADMIN : force la valeur du compteur R (correction / initialisation). */
@@ -31,23 +32,22 @@ function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
   const [value, setValue] = useState(String(spender.compteurR))
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-  const { apply, fail } = useSpendersOptimistic()
+  const { apply } = useSpendersOptimistic()
 
   function submit() {
     const n = Number(value)
     if (!Number.isInteger(n) || n < 0 || n > 10) return setError('Entier entre 0 et 10')
-    // Optimiste : badge à jour + dialog fermé immédiatement. L'erreur passe par fail()
-    // (niveau vue) : si la nouvelle valeur fait changer la ligne de vue, ce composant est
-    // démonté — un setState local (rouvrir le dialog) serait un no-op silencieux.
+    // Optimiste : badge à jour + dialog fermé immédiatement. L'erreur passe par un toast
+    // (survit au démontage si la nouvelle valeur fait sortir la ligne de la vue).
     setError(null)
     setOpen(false)
     startTransition(async () => {
       apply({ type: 'set-compteur', creatorId: spender.creatorId, fanId: spender.fanId, value: n })
       try {
         const res = await setCompteur({ creatorId: spender.creatorId, fanId: spender.fanId, value: n })
-        if (!res.success) fail(`${spender.username} : compteur non modifié — ${res.error}`)
+        if (!res.success) toast.error(`${spender.username} : compteur non modifié — ${res.error}`)
       } catch {
-        fail(`${spender.username} : erreur réseau — compteur non modifié`)
+        toast.error(`${spender.username} : erreur réseau — compteur non modifié`)
       }
     })
   }
@@ -105,7 +105,7 @@ export function RelanceCounter({
   withEdit?: boolean
 }) {
   const [pending, startTransition] = useTransition()
-  const { apply, fail } = useSpendersOptimistic()
+  const { apply } = useSpendersOptimistic()
   const r = spender.compteurR
   const canRelance = !spender.archived && r < R_ALERTE
   const color = r >= R_ALERTE ? STATUS_COLORS.danger : r > 0 ? STATUS_COLORS.warning : STATUS_COLORS.neutral
@@ -124,7 +124,7 @@ export function RelanceCounter({
           onClick={() =>
             startTransition(async () => {
               // Optimiste : R+1 et grisé à l'instant du clic ; revert auto si refus,
-              // erreur remontée au niveau vue (la ligne peut sortir de la vue au patch).
+              // erreur en toast (la ligne peut sortir de la vue au patch).
               apply({
                 type: 'relance',
                 creatorId: spender.creatorId,
@@ -137,9 +137,9 @@ export function RelanceCounter({
                   fanId: spender.fanId,
                   chatterId: spender.chatterId,
                 })
-                if (!res.success) fail(`${spender.username} : ${res.error}`)
+                if (!res.success) toast.error(`${spender.username} : ${res.error}`)
               } catch {
-                fail(`${spender.username} : erreur réseau — relance non enregistrée`)
+                toast.error(`${spender.username} : erreur réseau — relance non enregistrée`)
               }
             })
           }
@@ -157,7 +157,7 @@ export function RelanceCounter({
 /** Bouton « Reset compteur » — proposé quand le fan a reconverti. */
 export function ResetButton({ target, title }: { target: Target; title?: string }) {
   const [pending, startTransition] = useTransition()
-  const { apply, fail } = useSpendersOptimistic()
+  const { apply } = useSpendersOptimistic()
   return (
     <ActionButton
       size="icon"
@@ -167,14 +167,14 @@ export function ResetButton({ target, title }: { target: Target; title?: string 
       title={title ?? 'Remettre le compteur R à zéro'}
       onClick={() =>
         startTransition(async () => {
-          // Optimiste : R0 immédiat ; revert auto si refus. Erreur au niveau vue : le
-          // patch (conversionPending:false) démonte CE bouton à l'instant du clic.
+          // Optimiste : R0 immédiat ; revert auto si refus. Erreur en toast : le patch
+          // (conversionPending:false) démonte CE bouton à l'instant du clic.
           apply({ type: 'reset', creatorId: target.creatorId, fanId: target.fanId })
           try {
             const res = await resetCompteur({ creatorId: target.creatorId, fanId: target.fanId })
-            if (!res.success) fail(`${target.username} : compteur non remis à zéro — ${res.error}`)
+            if (!res.success) toast.error(`${target.username} : compteur non remis à zéro — ${res.error}`)
           } catch {
-            fail(`${target.username} : erreur réseau — compteur non remis à zéro`)
+            toast.error(`${target.username} : erreur réseau — compteur non remis à zéro`)
           }
         })
       }
@@ -187,19 +187,19 @@ export function ResetButton({ target, title }: { target: Target; title?: string 
 /** Bouton archiver (avec confirmation) / désarchiver. */
 export function ArchiveButton({ target, archived }: { target: Target; archived: boolean }) {
   const [pending, startTransition] = useTransition()
-  const { apply, fail } = useSpendersOptimistic()
+  const { apply } = useSpendersOptimistic()
   const toggle = () =>
     startTransition(async () => {
-      // Optimiste : la ligne change de vue immédiatement ; revert auto si refus. Erreur au
-      // niveau vue : ce bouton est démonté dès le patch (la ligne quitte la vue courante).
+      // Optimiste : la ligne change de vue immédiatement ; revert auto si refus. Erreur en
+      // toast : ce bouton est démonté dès le patch (la ligne quitte la vue courante).
       apply({ type: 'archive', creatorId: target.creatorId, fanId: target.fanId, archived: !archived })
       try {
-        const res = await setArchived({ creatorId: target.creatorId, fanId: target.fanId }, !archived)
+        const res = await setArchived({ creatorId: target.creatorId, fanId: target.fanId, archived: !archived })
         if (!res.success) {
-          fail(`${target.username} : ${archived ? 'réactivation' : 'archivage'} refusé — ${res.error}`)
+          toast.error(`${target.username} : ${archived ? 'réactivation' : 'archivage'} refusé — ${res.error}`)
         }
       } catch {
-        fail(`${target.username} : erreur réseau — ${archived ? 'réactivation' : 'archivage'} non enregistré`)
+        toast.error(`${target.username} : erreur réseau — ${archived ? 'réactivation' : 'archivage'} non enregistré`)
       }
     })
 

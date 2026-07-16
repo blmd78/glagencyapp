@@ -1,14 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useOptimistic, useState } from 'react'
+import { useMemo, useOptimistic } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { SpendersTable } from './spenders-table'
 import { ArchiveButton } from './spender-actions'
-import {
-  applyPatch,
-  SpendersOptimisticCtx,
-  type SpenderPatch,
-} from './spenders-optimistic-context'
+import { applyPatch, SpendersOptimisticCtx } from './spenders-optimistic-context'
 import { R_ALERTE, type SpenderRow } from '../types'
 
 export type SpendersViewKind = 'liste' | 'tracker' | 'alertes' | 'archive'
@@ -56,27 +52,12 @@ export function SpendersView({
   // (cocher une case sort la ligne de la file À L'INSTANT, comme le fera le serveur).
   // Si une action échoue, React revient tout seul à l'état serveur (revert automatique).
   const [optimistic, apply] = useOptimistic(spenders, applyPatch)
-  // (Pas de resync des vues sœurs ici : depuis le layout partagé spenders, les données
-  // vivent AU-DESSUS des pages — changer de vue ne re-télécharge rien, et après une
-  // action le layout revalidé arrive dans la réponse du POST.)
-  // Erreurs d'action AU NIVEAU VUE : le patch sort souvent la ligne de la vue → le bouton
-  // cliqué est démonté avant la réponse, un setState local y serait perdu (revue).
-  const [actionError, setActionError] = useState<string | null>(null)
-  const ctx = useMemo(
-    () => ({
-      apply: (p: SpenderPatch) => {
-        setActionError(null) // nouvelle action = on repart propre
-        apply(p)
-      },
-      fail: setActionError,
-    }),
-    [apply],
-  )
-  useEffect(() => {
-    if (!actionError) return
-    const t = setTimeout(() => setActionError(null), 8000)
-    return () => clearTimeout(t)
-  }, [actionError])
+  // Chaque page (/liste, /tracker, /alertes, /archive) fait son propre fetch (standard) —
+  // une action revalide le SEGMENT layout partagé (actions.ts) : la vue courante reçoit
+  // la donnée fraîche dans la réponse du POST, les 3 autres refetchent à leur prochaine
+  // navigation. Les erreurs d'action sont des `toast.error` posés au call site (survivent
+  // au démontage du bouton cliqué si le patch optimiste sort la ligne de la vue).
+  const ctx = useMemo(() => ({ apply }), [apply])
 
   const { rows, extra } = useMemo(() => {
     const actifs = optimistic.filter((s) => !s.archived)
@@ -96,11 +77,6 @@ export function SpendersView({
 
   return (
     <SpendersOptimisticCtx.Provider value={ctx}>
-      {actionError && (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-          {actionError}
-        </p>
-      )}
       <SpendersTable
         spenders={rows}
         extra={extra}

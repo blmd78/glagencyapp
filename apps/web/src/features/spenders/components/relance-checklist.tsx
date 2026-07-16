@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Check } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
@@ -22,7 +23,7 @@ export const R_STEPS = Array.from({ length: R_ALERTE }, (_, i) => i + 1)
 export function RelanceCheck({ spender, n }: { spender: SpenderRow; n: number }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const { apply, fail } = useSpendersOptimistic()
+  const { apply } = useSpendersOptimistic()
   const checked = n <= spender.compteurR
   const next = spender.compteurR + 1
   const clickable = !checked && !spender.grise && !spender.archived
@@ -45,7 +46,7 @@ export function RelanceCheck({ spender, n }: { spender: SpenderRow; n: number })
         startTransition(async () => {
           // Optimiste : coche + « la ligne sort de la file » À L'INSTANT du clic ; si le
           // serveur refuse, le revert automatique fait réapparaître la ligne. L'erreur
-          // passe par fail() (niveau vue) : ce composant est démonté dès le patch.
+          // passe par un toast : ce composant est démonté dès le patch.
           apply({
             type: 'relance',
             creatorId: spender.creatorId,
@@ -61,10 +62,10 @@ export function RelanceCheck({ spender, n }: { spender: SpenderRow; n: number })
             if (res.success) return
             // Ex. « Déjà relancé aujourd'hui » (course entre deux closers / onglet resté
             // ouvert après minuit) : resynchronise la ligne au lieu de la laisser incohérente.
-            fail(`${spender.username} : ${res.error}`)
+            toast.error(`${spender.username} : ${res.error}`)
             router.refresh()
           } catch {
-            fail(`${spender.username} : erreur réseau — relance non enregistrée`)
+            toast.error(`${spender.username} : erreur réseau — relance non enregistrée`)
           }
         })
       }
