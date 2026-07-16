@@ -156,6 +156,7 @@ export function InsightCard({
     !isAdmin &&
     insight.updatedBy != null &&
     insight.updatedBy !== currentUserId
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- reset local au changement de statut ; refactor prévu au batch insights (migration standard-feature)
   useEffect(() => setLocalStatus(null), [insight.status])
   const sev = SEVERITY[insight.severity]
 

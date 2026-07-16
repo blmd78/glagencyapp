@@ -118,7 +118,6 @@ export function SocialView({ data, links }: { data: MktSocialData; links: MktLin
   const ig = data.platform === 'instagram'
   const tg = data.platform === 'telegram'
   const person = tg ? 'Membres' : 'Followers'
-  const unit = tg ? 'canaux' : 'comptes'
   const [tab, setTab] = useState<'comptes' | 'liens'>('comptes')
   const active = data.accounts.filter((a) => a.active)
   const ok = active.filter((a) => a.status === 'ok').length

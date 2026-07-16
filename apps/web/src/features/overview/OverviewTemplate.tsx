@@ -12,7 +12,7 @@ export function OverviewTemplate({ data }: { data: OverviewData }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="text-sm text-muted-foreground">
-          {data.periodLabel} · vue d'ensemble de l'agence
+          {data.periodLabel} · vue d&apos;ensemble de l&apos;agence
         </p>
       </div>
 

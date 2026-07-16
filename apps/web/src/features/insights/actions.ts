@@ -5,6 +5,9 @@ import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, requireAccess } from '@/lib/auth'
+// Lecture partagée : promue dans lib/services/ à la PR pilote (plan 2026-07-16, Task 13) ;
+// disable retiré là-bas.
+// eslint-disable-next-line import-x/no-restricted-paths
 import { getChatters } from '@/features/chatters/services/get-chatters'
 import { bilanSchema } from './schema'
 

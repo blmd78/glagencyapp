@@ -1,4 +1,4 @@
-import { addDays, frDayShort as frDay, mondayOf, round1 as r1, round2 as r2, todayParis } from '@glagency/core'
+import { addDays, frDayShort as frDay, mondayOf, round2 as r2, todayParis } from '@glagency/core'
 import { ltvOf as ltvFormula } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
 import type { BilanData, ModelBilan, WeekChoice } from '../types'

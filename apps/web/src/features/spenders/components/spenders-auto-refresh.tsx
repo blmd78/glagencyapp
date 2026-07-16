@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
  */
 export function SpendersAutoRefresh() {
   const router = useRouter()
+  // eslint-disable-next-line react-hooks/purity -- timestamp d'init au premier render ; refactor prévu au batch spenders
   const lastRefresh = useRef(Date.now())
 
   useEffect(() => {

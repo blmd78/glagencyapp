@@ -15,8 +15,6 @@ import type { MktDashboardData } from './types'
 
 /** Dashboard marketing : KPIs de la période, revenus/jour, top liens, poids par créatrice. */
 export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardData; expenses: number }) {
-  const frDate = (iso: string) =>
-    new Date(`${iso}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
   const net = Math.round((data.totals.revenueEur - expenses) * 100) / 100
   const base = { deltaPct: null as number | null, trendLabel: '', hint: '', accent: undefined as string | undefined }
   const kpis = [
