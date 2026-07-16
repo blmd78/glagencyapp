@@ -23,29 +23,12 @@ export async function getQuotas(): Promise<QuotasData> {
       .order('name'),
   ])
 
-  // Ne jamais avaler une erreur : une page de config qui affiche « rien de
-  // configuré » sur un échec de lecture pousse à retaper (voire perdre) les seuils.
-  if (teamsRes.error) {
-    return {
-      teams: [],
-      accounts: [],
-      error: `Chargement des équipes impossible : ${teamsRes.error.message}`,
-    }
-  }
-  if (quotasRes.error) {
-    return {
-      teams: [],
-      accounts: [],
-      error: `Chargement des quotas impossible : ${quotasRes.error.message}`,
-    }
-  }
-  if (accountsRes.error) {
-    return {
-      teams: [],
-      accounts: [],
-      error: `Chargement des comptes impossible : ${accountsRes.error.message}`,
-    }
-  }
+  // Ne jamais avaler une erreur : jetée (jamais un soft-error renvoyé), remonte à la
+  // boundary error.tsx du workspace — même règle que toutes les autres lectures du repo
+  // (docs/guidelines-standard-feature.md §3).
+  if (teamsRes.error) throw new Error(teamsRes.error.message)
+  if (quotasRes.error) throw new Error(quotasRes.error.message)
+  if (accountsRes.error) throw new Error(accountsRes.error.message)
 
   const quotaByTeam = new Map(quotasRes.data.map((q) => [q.team_id, q]))
 

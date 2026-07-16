@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { ActionButton } from '@/components/action-button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -49,12 +50,16 @@ export function ExclusionsEditor({ accounts }: { accounts: ExclusionAccountRow[]
 
     startTransition(async () => {
       const res = await saveExclusions({ exclude, include })
-      if (res.success) setToggled(new Set()) // le serveur fait foi après un save réussi
-      setStatus(
-        res.success
-          ? { kind: 'ok', message: 'Sauvegardé — la LTV se calcule sur les comptes cochés.' }
-          : { kind: 'error', message: res.error },
-      )
+      if (!res.success) {
+        // Erreur métier/technique : message de l'action (jamais un message Supabase brut).
+        setStatus({ kind: 'error', message: res.error })
+        toast.error(res.error)
+        return
+      }
+      setToggled(new Set()) // le serveur fait foi après un save réussi
+      const message = 'Sauvegardé — la LTV se calcule sur les comptes cochés.'
+      setStatus({ kind: 'ok', message })
+      toast.success(message)
     })
   }
 

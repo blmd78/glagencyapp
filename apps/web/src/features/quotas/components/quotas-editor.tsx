@@ -1,6 +1,7 @@
 'use client'
 
 import * as React from 'react'
+import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import {
@@ -134,12 +135,16 @@ export function QuotasEditor({ teams }: { teams: QuotaTeamRow[] }) {
 
     startTransition(async () => {
       const res = await saveQuotas({ upserts, deletes })
-      if (res.success) setOverrides({}) // le serveur fait foi après un save réussi
-      setStatus(
-        res.success
-          ? { kind: 'ok', message: 'Sauvegardé — les prochaines cartes Analyses utiliseront ces seuils.' }
-          : { kind: 'error', message: res.error },
-      )
+      if (!res.success) {
+        // Erreur métier/technique : message de l'action (jamais un message Supabase brut).
+        setStatus({ kind: 'error', message: res.error })
+        toast.error(res.error)
+        return
+      }
+      setOverrides({}) // le serveur fait foi après un save réussi
+      const message = 'Sauvegardé — les prochaines cartes Analyses utiliseront ces seuils.'
+      setStatus({ kind: 'ok', message })
+      toast.success(message)
     })
   }
 

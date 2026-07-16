@@ -1,10 +1,35 @@
+import { Suspense } from 'react'
 import { getQuotas } from '@/features/quotas/services/get-quotas'
 import { requireAdmin } from '@/lib/auth'
 import { QuotasTemplate } from '@/features/quotas/QuotasTemplate'
+import { QuotasSkeleton } from '@/features/quotas/components/quotas-skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { QuotasData } from '@/features/quotas/types'
 
 // Page de config (seuils journaliers + exclusions) — pas de filtre période.
 export default async function QuotasPage() {
   await requireAdmin()
-  const data = await getQuotas()
-  return <QuotasTemplate data={data} />
+  // Kickoff SANS await : le shell (h1) s'affiche immédiatement, l'éditeur streame dans
+  // son boundary dès que la lecture répond.
+  const data = getQuotas()
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Quotas</h1>
+      <Suspense
+        fallback={
+          <div className="flex flex-col gap-6">
+            <Skeleton className="-mt-4 h-4 w-72" />
+            <QuotasSkeleton />
+          </div>
+        }
+      >
+        <QuotasContent data={data} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function QuotasContent({ data }: { data: Promise<QuotasData> }) {
+  return <QuotasTemplate data={await data} />
 }
