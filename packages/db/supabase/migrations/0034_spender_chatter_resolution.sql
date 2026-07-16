@@ -1,15 +1,15 @@
--- 0032 — Résolution de l'assignation vers NOTRE chatter_id (uuid), pas l'id MyPuls.
+-- 0034 — Résolution de l'assignation vers NOTRE chatter_id (uuid), pas l'id MyPuls.
 -- Constat : chatters.mypuls_user_id est vide (0 match) ; l'app réconcilie ses chatteurs
 -- PAR NOM via chatter_alias (comme money-team). Le scrape spenders résout donc
 -- assigned_label → chatter_id à l'ingestion et le stocke ici. L'historique d'assignation
--- (0031, basé sur l'id MyPuls inexploitable) est refait sur ce chatter_id.
+-- (0033, basé sur l'id MyPuls inexploitable) est refait sur ce chatter_id.
 
 -- 1. Conversation : chatteur résolu chez nous (null = label MyPuls non rapproché).
 alter table spender_conversations
   add column assigned_chatter_id uuid references chatters(id) on delete set null;
 create index spender_conversations_chatter_idx on spender_conversations (assigned_chatter_id);
 
--- 2. Refonte de l'historique sur le chatter_id (l'ancienne table 0031 n'a pas de données utiles).
+-- 2. Refonte de l'historique sur le chatter_id (l'ancienne table 0033 n'a pas de données utiles).
 drop trigger if exists trg_spender_assignment_change on spender_conversations;
 drop function if exists log_spender_assignment_change();
 drop table if exists spender_assignment_events;

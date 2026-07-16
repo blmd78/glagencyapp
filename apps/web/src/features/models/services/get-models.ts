@@ -4,7 +4,7 @@ import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
 import { conv, round2 , ltvOf } from '@/lib/format'
 
-/** Forme brute renvoyée par le RPC `models_report` (migration 0044) — sommes agrégées EN BASE. */
+/** Forme brute renvoyée par le RPC `models_report` (migration 0050) — sommes agrégées EN BASE. */
 interface ModelsReport {
   by_creator: Array<{
     creator_id: string
@@ -36,7 +36,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
 
   const [{ data: creators }, rpcRes, { data: cc }, { data: chatters }] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
-    // Agrégation EN BASE (migration 0044 models_report, SECURITY INVOKER = RLS appliquée) :
+    // Agrégation EN BASE (migration 0050 models_report, SECURITY INVOKER = RLS appliquée) :
     // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
     // milliers de lignes journalières ni de reduce JS. Non typé (Functions vide) → cast.
     supabase.rpc('models_report' as never, {

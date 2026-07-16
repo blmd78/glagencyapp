@@ -26,7 +26,7 @@ export default async function PlanningPage({
   }
 
   // Superadmin : sélecteur membres + admins ; admin : membres uniquement. Toute cible
-  // visible est donc éditable par son spectateur (la garde requireCanEdit + la RLS 0039
+  // visible est donc éditable par son spectateur (la garde requireCanEdit + la RLS 0043
   // restent la défense contre un appel d'action forgé vers le planning d'un admin).
   const members = await getPlanningMembers(profile.superadmin)
   const { membre } = await searchParams

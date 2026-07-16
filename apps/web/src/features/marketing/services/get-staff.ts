@@ -151,7 +151,7 @@ export async function getMktStaff(period: Period): Promise<MktStaffData> {
     monthStart,
     // Liens triés Twitter d'abord (prio Benoît : la prime subs vient des liens Twitter).
     // Anti-vol : un lien/compte déjà assigné à une fiche INVISIBLE (RLS owner_id → VA
-    // d'un autre manager) n'est pas proposé — la fonction SQL 0026 refuse de toute façon.
+    // d'un autre manager) n'est pas proposé — la fonction SQL 0028 refuse de toute façon.
     linkOptions: (links ?? [])
       .filter((l) => (l.active || visibleAssignedLinkIds.has(l.id)) && !takenLinkIds.has(l.id))
       .map((l) => ({

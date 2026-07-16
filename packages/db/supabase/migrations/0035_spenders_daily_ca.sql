@@ -1,4 +1,4 @@
--- 0033 — CA des spenders par jour (évolution), et retrait du CA « période » (la page
+-- 0035 — CA des spenders par jour (évolution), et retrait du CA « période » (la page
 -- Spenders n'a plus de datepicker : on prend tout ce qu'on scrape). SECURITY INVOKER →
 -- RLS appliquée (droit crm-spenders + cloisonnement modèle). Agrégation EN BASE.
 drop function if exists public.crm_spenders_period_ca(date, date);

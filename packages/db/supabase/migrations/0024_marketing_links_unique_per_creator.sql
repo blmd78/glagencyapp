@@ -1,4 +1,4 @@
--- 0022 — Les noms de liens MyPuls ne sont uniques QUE PAR CRÉATRICE (plusieurs
+-- 0024 — Les noms de liens MyPuls ne sont uniques QUE PAR CRÉATRICE (plusieurs
 -- créatrices ont un lien « Insta ») : l'unicité globale sur name écrasait leurs
 -- données entre elles. Unicité corrigée + purge des lignes fusionnées à tort
 -- (données dérivées : réimportées depuis la série daily officielle de MyPuls).

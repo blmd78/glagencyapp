@@ -1,4 +1,4 @@
--- 0031 — Historique des (ré)assignations de conversations spenders : 1 ligne par transition
+-- 0033 — Historique des (ré)assignations de conversations spenders : 1 ligne par transition
 -- chatteur (id MyPuls) datée. Alimenté par TRIGGER sur spender_conversations → robuste quelle
 -- que soit la source d'écriture (scan nocturne, correction manuelle). Matière du futur onglet
 -- Passation (transitions inter-shift). On ne garde PAS de snapshot quotidien : uniquement les

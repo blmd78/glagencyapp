@@ -47,7 +47,7 @@ interface Report {
  * Onglet Chatteurs agrégé sur la période (datepicker du header).
  *
  * L'agrégation (GROUP BY par chatteur, par chatteur×modèle, périmètres, classement du jour)
- * est faite EN BASE par le RPC `chatters_report` (migration 0020) : un seul aller-retour qui
+ * est faite EN BASE par le RPC `chatters_report` (migration 0017) : un seul aller-retour qui
  * renvoie quelques centaines de lignes déjà sommées. Avant, le worker tirait ~7,5k lignes
  * brutes et sommait en JS, ce qui explosait le plafond CPU 10 ms du plan Workers Free
  * (Cloudflare « Error 1102 exceeded resources ») dès que la plage s'élargissait.
@@ -66,7 +66,7 @@ export async function getChatters(
 
   // `chatters_report` n'est pas dans les types générés (Functions vide) → cast, comme
   // pour `chatter_first_seen` dans la feature compta. En parallèle : les champs closing
-  // CRM (chatters.role/team/shift, migration 0027) — hors RPC pour ne pas toucher
+  // CRM (chatters.role/team/shift, migration 0029) — hors RPC pour ne pas toucher
   // chatters_report ; lecture couverte par chatters_scoped_read.
   const [rpcRes, { data: crmRows }] = await Promise.all([
     supabase.rpc('chatters_report' as never, {

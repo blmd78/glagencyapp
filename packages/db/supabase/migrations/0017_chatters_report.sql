@@ -1,4 +1,4 @@
--- 0020 — Agrégation de l'onglet Chatteurs EN BASE (fix Cloudflare Worker « Error 1102
+-- 0017 — Agrégation de l'onglet Chatteurs EN BASE (fix Cloudflare Worker « Error 1102
 -- exceeded resources »). Avant : le worker tirait toutes les lignes brutes de
 -- chatter_daily / chatter_creator_daily / creator_daily sur la période (~7,5k lignes sur
 -- 5 semaines) puis sommait en JS. Sur le plan Workers Free (plafond CPU 10 ms/requête),

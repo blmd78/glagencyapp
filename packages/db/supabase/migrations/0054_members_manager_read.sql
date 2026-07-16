@@ -1,9 +1,9 @@
--- 0048 — Page Membres ouverte aux managers, avec RATTACHEMENT manager↔chatter :
+-- 0054 — Page Membres ouverte aux managers, avec RATTACHEMENT manager↔chatter :
 -- profiles.manager_id (posé à la création par un manager, éditable par les admins).
 -- Lecture RLS : un manager lit lui-même + SON équipe (manager_id = lui) — pas toute la
 -- liste. AUCUNE écriture manager en base : créer/modifier/supprimer ses chatters passe
 -- par le service-role gardé côté app (requireAdminOrManager + contrôles d'équipe) ;
--- l'update direct reste verrouillé admin/superadmin (0037/0038).
+-- l'update direct reste verrouillé admin/superadmin (0041/0042).
 
 -- Rattachement : le manager d'un compte (null = non rattaché). on delete set null :
 -- supprimer un manager détache ses chatters, il ne les supprime pas.

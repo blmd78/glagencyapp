@@ -17,7 +17,7 @@ async function latestGeneration(supabase: Supabase, weekStart: string): Promise<
 /**
  * Cartes d'une semaine (lundi YYYY-MM-DD) ou, sans argument, de la dernière semaine
  * générée : dernière génération PAR CLÉ (historisées), jointe aux états de traitement.
- * Cloisonnement v2 (migration 0016) : la RLS ne livre à un rôle `user` que les cartes
+ * Cloisonnement v2 (migration 0015) : la RLS ne livre à un rôle `user` que les cartes
  * touchant SES modèles ; `restricted` masque EN PLUS le contenu multi-modèles
  * (splits des modèles non assignés, chips globales) quand la carte déborde.
  */
@@ -74,7 +74,7 @@ export async function getInsights(
     if (seen.has(r.insight_key)) continue // ceinture (une génération = une ligne par clé)
     seen.add(r.insight_key)
     const st = stateByKey.get(r.insight_key)
-    // Masquage par modèle : les vieux splits (avant 0016) n'ont pas creatorId → repli nom.
+    // Masquage par modèle : les vieux splits (avant 0015) n'ont pas creatorId → repli nom.
     const allModels = (r.models ?? []) as unknown as InsightModelSplit[]
     const models = restricted
       ? allModels.filter((m) => (m.creatorId ? mineIds.has(m.creatorId) : mineNames.has(m.name)))

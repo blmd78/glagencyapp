@@ -75,7 +75,7 @@ async function syncAssignments(admin: Admin, profileId: string, wanted: string[]
 
 /**
  * Modèles autorisés pour un appelant MANAGER : ses propres profile_creators. Le scoping
- * tient au filtre .eq('profile_id', caller.id) : depuis 0048 la RLS profile_creators
+ * tient au filtre .eq('profile_id', caller.id) : depuis 0054 la RLS profile_creators
  * laisse un manager lire son équipe — elle n'est plus une ceinture pour cette requête.
  */
 async function requireOwnCreators(
@@ -161,7 +161,7 @@ async function authorizeRoleAndScope(
  * Valeur de `manager_id` à patcher (null = détaché), ou `undefined` pour ne PAS toucher la
  * colonne. Un rôle admin ne porte jamais de rattachement (il voit tout) — nettoyé quelle
  * que soit la face, sinon la fiche promue resterait visible dans la vue équipe de son
- * ex-manager (la policy 0048 ne regarde pas le rôle de la ligne). Sinon le rattachement
+ * ex-manager (la policy 0054 ne regarde pas le rôle de la ligne). Sinon le rattachement
  * est un concept de la face chatteurs ; `apply` = false pour un appelant manager en
  * édition (il ne déplace pas un rattachement — la colonne reste préservée).
  */

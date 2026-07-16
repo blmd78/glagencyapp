@@ -25,7 +25,7 @@ const staffInput = staffFields.extend({
 /**
  * Garde des fiches VA : admin, ou manager ayant la page mkt-staff. Le cloisonnement
  * fin (un manager ne touche que SES fiches) est porté par le RLS de mkt_staff
- * (owner_id = auth.uid(), migration 0025) — les requêtes passent par le client user.
+ * (owner_id = auth.uid(), migration 0027) — les requêtes passent par le client user.
  */
 async function requireMktStaffMgr() {
   const profile = await getProfile()
@@ -75,7 +75,7 @@ const assignInput = z.object({
 
 /**
  * Remplace les assignations d'un VA (liens MyPuls + comptes IG/TW) via la fonction SQL
- * mkt_save_staff_assignments (migration 0026) : UNE transaction (pas de perte à
+ * mkt_save_staff_assignments (migration 0028) : UNE transaction (pas de perte à
  * mi-chemin) et refus explicite si un lien/compte appartient déjà au VA d'un autre
  * manager (security invoker → le RLS owner_id du caller s'applique dans la fonction).
  */

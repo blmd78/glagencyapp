@@ -1,4 +1,4 @@
--- 0030 — Planning journalier par manager (page « Planning », face chatteurs).
+-- 0036 — Planning journalier par manager (page « Planning », face chatteurs).
 -- Un planning par profil (les sous-managers) : encart priorité, blocs horaires par
 -- section (matin / après-midi / soir), tâches annexes. La répartition du temps et les
 -- plages de section se CALCULENT côté web à partir des blocs (rien de dénormalisé).

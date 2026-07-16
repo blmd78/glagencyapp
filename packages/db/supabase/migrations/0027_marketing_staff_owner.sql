@@ -1,4 +1,4 @@
--- 0025 — Cloisonnement des fiches VA par manager : chaque fiche mkt_staff appartient
+-- 0027 — Cloisonnement des fiches VA par manager : chaque fiche mkt_staff appartient
 -- au profil qui l'a créée (owner_id). Un manager (droit mkt-staff) ne voit et ne
 -- modifie QUE ses fiches ; un admin voit tout. Les fiches historiques (owner_id null)
 -- restent visibles de l'admin seul.

@@ -2,7 +2,7 @@
 
 // Server Actions du tracker spenders (relances R1→R10, reset, archive) — supabase-js + RLS.
 // Droit : admin ou page `crm-spenders`. Le cloisonnement par modèle est appliqué par la RLS
-// (policies de 0034) ; on garde ici le contrôle d'accès de page + la validation zod.
+// (policies de 0038) ; on garde ici le contrôle d'accès de page + la validation zod.
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'

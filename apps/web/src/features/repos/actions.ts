@@ -1,7 +1,7 @@
 'use server'
 
 // Server Actions du planning des repos — supabase-js + RLS (page `repos` requise,
-// cf. migration 0017 : has_page('repos') en lecture ET écriture).
+// cf. migration 0016 : has_page('repos') en lecture ET écriture).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'

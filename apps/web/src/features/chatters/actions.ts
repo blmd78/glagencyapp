@@ -1,7 +1,7 @@
 'use server'
 
 // Server Action d'édition des champs closing d'un chatteur — supabase-js + RLS.
-// Droit : admin ou page `chatters` (aligné sur la policy chatters_crm_update, 0027).
+// Droit : admin ou page `chatters` (aligné sur la policy chatters_crm_update, 0029).
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'

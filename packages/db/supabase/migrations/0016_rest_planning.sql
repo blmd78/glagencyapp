@@ -1,4 +1,4 @@
--- 0017 — Planning des jours de repos (reprend la Google Sheet hebdo de l'agence) :
+-- 0016 — Planning des jours de repos (reprend la Google Sheet hebdo de l'agence) :
 -- une cellule = (semaine, jour, colonne d'équipe) → prénoms en texte libre.
 -- Accès par le système de pages (profiles.pages) : la page `repos` est cochable
 -- dans la gestion des membres → les sous-managers qui l'ont peuvent lire ET écrire.

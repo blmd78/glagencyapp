@@ -13,7 +13,7 @@ interface SnapCodeDb {
 /**
  * Codes Snap : UNE ligne par modèle actif (les modèles sans code apparaissent vides —
  * l'upsert de l'action crée la ligne à la première édition). Page admin : la RLS
- * (snap_codes admin-only, migration 0041) est la garde réelle.
+ * (snap_codes admin-only, migration 0047) est la garde réelle.
  * `snap_codes` n'est pas dans les types générés (cf. précédent chatters_report) → cast.
  */
 export async function getSnapCodes(): Promise<SnapCodesData> {

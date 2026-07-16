@@ -11,7 +11,7 @@ const LTV_MOYEN = 7
 const statusOf = (ltv: number | null): LtvStatus | null =>
   ltv === null ? null : ltv >= LTV_TARGET ? 'sain' : ltv >= LTV_MOYEN ? 'moyen' : 'critique'
 
-/** Forme brute renvoyée par le RPC `health_report` (migration 0043) — sommes déjà agrégées EN BASE. */
+/** Forme brute renvoyée par le RPC `health_report` (migration 0049) — sommes déjà agrégées EN BASE. */
 interface HealthReport {
   /** Agrégat par modèle depuis creator_daily (RLS = ses modèles pour un `user`). */
   by_creator: Array<{
@@ -52,7 +52,7 @@ export async function getHealth(
   const [{ data: creators }, { data: chatters }, rpcRes] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
     supabase.from('chatters').select('id, display_name'),
-    // Agrégation EN BASE (migration 0043 health_report, SECURITY INVOKER = RLS appliquée) :
+    // Agrégation EN BASE (migration 0049 health_report, SECURITY INVOKER = RLS appliquée) :
     // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
     // milliers de lignes journalières ni de reduce JS. Non typé (Functions vide) → cast,
     // comme chatters_report.

@@ -1,4 +1,4 @@
--- 0046 — Agrégation de l'Overview EN BASE (même motif que 0020/0043/0044/0045). Avant :
+-- 0052 — Agrégation de l'Overview EN BASE (même motif que 0017/0049/0050/0051). Avant :
 -- get-overview tirait toutes les lignes brutes de creator_daily (mois entier) +
 -- chatter_daily/chatter_creator_daily (période) puis sommait en JS. Ici : 3 agrégats en
 -- Postgres. Le service ne fait plus que la présentation (KPIs, parts %, série du graphe).

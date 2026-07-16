@@ -1,4 +1,4 @@
--- 0022 — Planning repos : compo des colonnes = MODÈLES (creators) + cellules = chatteurs en IDs.
+-- 0021 — Planning repos : compo des colonnes = MODÈLES (creators) + cellules = chatteurs en IDs.
 --
 -- Une colonne (g1…g6) est un groupe de MODÈLES (creators). Sa compo est datée
 -- (effective_from = lundi) et LOCALE au planning (ne touche jamais creators/chatters/team_id).

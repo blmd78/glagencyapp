@@ -1,4 +1,4 @@
--- 0034 — Tracker de relances (R1→R10) du CRM spenders (fusion gla-workflow).
+-- 0038 — Tracker de relances (R1→R10) du CRM spenders (fusion gla-workflow).
 -- L'ACTE de relance (sur Snap) est une saisie humaine — invisible au scrape. La DÉTECTION
 -- (qui relancer) et la VÉRIFICATION (a-t-il reparlé ?) viennent de spender_conversations.
 -- Compteur R = nb de relances depuis compteur_reset_at, PAR CONVERSATION (creator_id, fan_id).

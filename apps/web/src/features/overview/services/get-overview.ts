@@ -5,7 +5,7 @@ import type { Period } from '@/lib/period'
 import { eur, int } from '@/lib/format'
 import type { DailyPoint, Insight, Kpi, ModelCa, ModelSubs, OverviewData } from '../types'
 
-/** Forme brute renvoyée par le RPC `overview_report` (migration 0046) — agrégée EN BASE. */
+/** Forme brute renvoyée par le RPC `overview_report` (migration 0052) — agrégée EN BASE. */
 interface OverviewReport {
   /** Par modèle sur la période (CA + nouveaux abonnés). */
   by_model: Array<{ creator_id: string; ca: number | null; new_subs: number | null }>
@@ -41,7 +41,7 @@ export async function getOverview(
   const [{ data: creators }, rpcRes, denomBase] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private'),
-      // Agrégation EN BASE (migration 0046 overview_report, SECURITY INVOKER = RLS appliquée) :
+      // Agrégation EN BASE (migration 0052 overview_report, SECURITY INVOKER = RLS appliquée) :
       // par modèle (période) + série quotidienne (mois du graphe) + CA par chatteur (période,
       // source selon le rôle). Plus de fetchAll journalier ni de reduce JS. Non typé → cast.
       supabase.rpc('overview_report' as never, {

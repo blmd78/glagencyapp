@@ -1,4 +1,4 @@
--- 0035 — Correction admin du compteur R. R est dérivé (nb de relances depuis reset), donc
+-- 0039 — Correction admin du compteur R. R est dérivé (nb de relances depuis reset), donc
 -- pour « forcer R à N » sans fabriquer de fausses relances : une base ajustable. R affiché =
 -- compteur_base + relances depuis compteur_reset_at. Forcer R=N → base=N + reset=now()
 -- (repart de N ; les « + » suivants font N+1, N+2…).

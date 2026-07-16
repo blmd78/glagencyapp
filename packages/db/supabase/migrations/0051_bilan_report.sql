@@ -1,4 +1,4 @@
--- 0045 — Agrégation du Bilan hebdo EN BASE (même motif que 0020/0043/0044). Avant :
+-- 0051 — Agrégation du Bilan hebdo EN BASE (même motif que 0017/0049/0050). Avant :
 -- get-bilan tirait toutes les lignes brutes de creator_daily + creator_script_daily sur
 -- 5 semaines (fetchAll) puis bucketait en JS par fenêtre (cur/prev/lm). Ici les 3 fenêtres
 -- sont sommées en Postgres via FILTER (elles sont DISJOINTES : cur=[start,end],

@@ -1,7 +1,7 @@
 'use server'
 
 // Server Actions des scripts de chat — écriture ADMIN uniquement (garde en retour
-// d'erreur, pas de redirect), lecture cloisonnée par le RLS (migration 0036).
+// d'erreur, pas de redirect), lecture cloisonnée par le RLS (migration 0040).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'

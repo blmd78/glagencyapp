@@ -1,4 +1,4 @@
--- 0021 — Paiements du staff marketing (page Compta du pôle, même logique que la compta
+-- 0023 — Paiements du staff marketing (page Compta du pôle, même logique que la compta
 -- chatteurs : paye théorique calculée ↔ paiements enregistrés ↔ reste à payer).
 -- Un paiement est rattaché à un MOIS (les payes staff sont mensuelles).
 

@@ -99,7 +99,7 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/codes-snap', label: 'Codes Snap', icon: Ghost, adminOnly: true, group: 'acces' },
       { href: '/chatter/infos-modeles', label: 'Infos modèles', icon: IdCard, group: 'acces' },
       // Sous-catégorie Spenders (CRM closing). Toutes les sous-pages partagent le droit
-      // `crm-spenders` (slug explicite, aligné sur la RLS de 0029).
+      // `crm-spenders` (slug explicite, aligné sur la RLS de 0031).
       { href: '/chatter/spenders/liste', label: 'Liste', icon: Banknote, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/spenders/tracker', label: 'À relancer', icon: Send, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/spenders/alertes', label: 'Alertes R10', icon: TriangleAlert, slug: 'crm-spenders', group: 'spenders' },

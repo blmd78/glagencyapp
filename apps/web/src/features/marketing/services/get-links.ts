@@ -11,7 +11,7 @@ export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
   const [{ data: links }, { data: creators }, { data: staffLinks }, { data: staff }, { data: daily }] = await Promise.all([
     supabase.from('mkt_links').select('id, name, type, url, creator_id, active'),
     supabase.from('creators').select('id, name'),
-    // Assignations VA : le RLS (owner_id, migration 0025) fait qu'un manager ne récupère
+    // Assignations VA : le RLS (owner_id, migration 0027) fait qu'un manager ne récupère
     // que SES fiches → il ne voit les étiquettes VA que sur ses propres liens.
     supabase.from('mkt_staff_links').select('staff_id, link_id'),
     supabase.from('mkt_staff').select('id, name, color'),

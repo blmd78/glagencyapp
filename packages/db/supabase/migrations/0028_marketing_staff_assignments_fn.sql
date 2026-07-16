@@ -1,10 +1,10 @@
--- 0026 — Assignations VA atomiques et cloisonnées (audit pré-push) :
+-- 0028 — Assignations VA atomiques et cloisonnées (audit pré-push) :
 --   1. ATOMIQUE : le delete-puis-insert de mkt_staff_links et le clear/set des comptes
 --      se font dans UNE transaction (fonction) — plus de perte d'assignations si une
 --      écriture échoue à mi-chemin.
 --   2. ANTI-VOL : security INVOKER → le RLS du caller s'applique DANS la fonction.
 --      Un lien/compte déjà assigné à une fiche que le caller ne voit pas (RLS owner_id,
---      migration 0025) = fiche d'un autre manager → refus explicite. L'admin voit tout,
+--      migration 0027) = fiche d'un autre manager → refus explicite. L'admin voit tout,
 --      donc réassigne librement.
 
 create or replace function public.mkt_save_staff_assignments(

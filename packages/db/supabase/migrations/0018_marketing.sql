@@ -79,7 +79,7 @@ create table mkt_staff_links (
   primary key (staff_id, link_id)
 );
 
--- ── RLS : admin OU page `marketing` accordée (has_page() créé en 0017).
+-- ── RLS : admin OU page `marketing` accordée (has_page() créé en 0016).
 alter table mkt_staff enable row level security;
 alter table mkt_links enable row level security;
 alter table mkt_link_daily enable row level security;

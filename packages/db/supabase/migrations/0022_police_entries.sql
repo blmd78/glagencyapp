@@ -1,6 +1,6 @@
--- 0023 — Tracker sanctions « Police ». Journal d'avertissements (1 ligne = 1 erreur) + malus
+-- 0022 — Tracker sanctions « Police ». Journal d'avertissements (1 ligne = 1 erreur) + malus
 -- MANUELS par chatteur, rattachés chatter_id + occurred_on (repiquables en compta.malus).
--- Droits : saisie/modif = has_page('police') ; suppression = is_admin (cf. 0008/0017).
+-- Droits : saisie/modif = has_page('police') ; suppression = is_admin (cf. 0008/0016).
 create table police_entries (
   id            uuid primary key default gen_random_uuid(),
   chatter_id    uuid not null references chatters(id) on delete cascade,

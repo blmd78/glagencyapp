@@ -1,4 +1,4 @@
--- 0016 — Insights v2 « par modèle » (le v2 annoncé par 0011) : chaque carte porte les
+-- 0015 — Insights v2 « par modèle » (le v2 annoncé par 0011) : chaque carte porte les
 -- ids des modèles concernés → un rôle `user` ne voit que les cartes touchant SES
 -- modèles (profile_creators), et peut les traiter (les verrous métier restent dans
 -- l'action serveur : bilan requis pour Résolu, Ignoré réservé admin, prise en charge).

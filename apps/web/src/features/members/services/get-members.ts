@@ -3,7 +3,7 @@ import type { Member, MembersData } from '../types'
 
 /**
  * Liste des membres + modèles assignables (page admin OU manager). La RLS filtre par
- * appelant (0048) : admin = tout, manager = lui-même + son équipe (manager_id) ;
+ * appelant (0054) : admin = tout, manager = lui-même + son équipe (manager_id) ;
  * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
  */
 export async function getMembers(): Promise<MembersData> {

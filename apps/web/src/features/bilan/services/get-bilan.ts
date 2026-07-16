@@ -22,7 +22,7 @@ interface Agg {
   newSubs: number
 }
 
-/** Forme brute renvoyée par le RPC `bilan_report` (migration 0045) — 3 fenêtres agrégées EN BASE. */
+/** Forme brute renvoyée par le RPC `bilan_report` (migration 0051) — 3 fenêtres agrégées EN BASE. */
 interface BilanReport {
   by_creator: Array<{
     creator_id: string
@@ -70,7 +70,7 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   const prev = { start: addDays(start, -7), end: addDays(end, -7) }
   const lm = { start: addDays(start, -28), end: addDays(end, -28) }
 
-  // Agrégation EN BASE (migration 0045 bilan_report, SECURITY INVOKER = RLS appliquée) :
+  // Agrégation EN BASE (migration 0051 bilan_report, SECURITY INVOKER = RLS appliquée) :
   // les 3 fenêtres (cur/prev/lm) sont sommées en Postgres → plus de fetchAll de milliers
   // de lignes ni de bucketing JS. Non typé (Functions vide) → cast.
   const [rpcRes, { data: creators, error: e2 }] = await Promise.all([

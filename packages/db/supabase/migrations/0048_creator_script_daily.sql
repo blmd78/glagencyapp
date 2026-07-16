@@ -1,4 +1,4 @@
--- 0042 — Mesure quotidienne des scripts MyPuls par modèle (page /scripts).
+-- 0048 — Mesure quotidienne des scripts MyPuls par modèle (page /scripts).
 -- La page accepte `from`/`to` : le run nocturne (greffé sur la mini-invocation du
 -- fan-out spenders) interroge directement le jour J (mesure exacte) + un fetch
 -- all-time pour les colonnes *_cum. `date` = jour clos (veille du run).

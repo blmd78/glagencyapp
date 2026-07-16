@@ -1,4 +1,4 @@
--- 0029 — Faits spenders (CRM closing, fusion gla-workflow) : transactions par fan
+-- 0031 — Faits spenders (CRM closing, fusion gla-workflow) : transactions par fan
 -- (API /team/money, backfill + quotidien) et état des conversations (/chat/init par
 -- modèle). Écriture = ingestion service-role uniquement (aucune policy d'écriture).
 -- Lecture = page `crm-spenders` + cloisonnement par modèle (profile_creators).

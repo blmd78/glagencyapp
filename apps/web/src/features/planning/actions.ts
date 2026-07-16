@@ -1,7 +1,7 @@
 'use server'
 
 // Server Actions du planning journalier — écriture ADMIN uniquement (garde en retour
-// d'erreur, pas de redirect), lecture cloisonnée par le RLS (migration 0030).
+// d'erreur, pas de redirect), lecture cloisonnée par le RLS (migration 0036).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'

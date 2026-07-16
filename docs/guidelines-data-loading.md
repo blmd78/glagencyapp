@@ -29,7 +29,7 @@ ne garde que la présentation (LTV, %, tri, KPIs).
   `(modèle, jour)` = la PK de `creator_daily` → un `GROUP BY` renverrait le même nombre de
   lignes. Inutile.
 
-### Exemple (gabarit) — `models_report` (migration 0044)
+### Exemple (gabarit) — `models_report` (migration 0050)
 
 ```sql
 create or replace function public.models_report(p_from date, p_to date)
@@ -67,8 +67,8 @@ const rep = rpcRes.data ?? { by_creator: [], by_pair: [] }
 // … présentation seulement (Number(x) || 0 pour les sommes) …
 ```
 
-**Gabarits en base** : `chatters_report` (0020), `health_report` (0043), `models_report`
-(0044), `bilan_report` (0045, fenêtres via `FILTER`), `overview_report` (0046, branche
+**Gabarits en base** : `chatters_report` (0017), `health_report` (0049), `models_report`
+(0050), `bilan_report` (0051, fenêtres via `FILTER`), `overview_report` (0052, branche
 `p_restricted` via `union all` à gardes exclusives).
 
 ---

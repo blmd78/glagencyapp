@@ -1,7 +1,7 @@
 'use server'
 
 // Server Action Infos modèles — écriture ADMIN (RLS creators_admin_update en ceinture,
-// GRANT colonne infos_cle ouvert par la migration 0041).
+// GRANT colonne infos_cle ouvert par la migration 0047).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'

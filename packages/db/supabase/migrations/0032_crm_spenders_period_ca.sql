@@ -1,4 +1,4 @@
--- 0030 — CA par fan sur une période (somme de fan_transactions, bornes incluses).
+-- 0032 — CA par fan sur une période (somme de fan_transactions, bornes incluses).
 -- SECURITY INVOKER : la RLS de fan_transactions s'applique (droit crm-spenders +
 -- cloisonnement par modèle). Agrégation EN BASE (plafond CPU Workers Free).
 create or replace function public.crm_spenders_period_ca(p_from date, p_to date)

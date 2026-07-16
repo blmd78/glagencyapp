@@ -1,5 +1,5 @@
--- 0044 — Agrégation de l'onglet Modèles EN BASE (même motif que 0020 chatters_report /
--- 0043 health_report). Avant : get-models tirait toutes les lignes brutes de creator_daily
+-- 0050 — Agrégation de l'onglet Modèles EN BASE (même motif que 0017 chatters_report /
+-- 0049 health_report). Avant : get-models tirait toutes les lignes brutes de creator_daily
 -- + chatter_creator_daily sur la période (fetchAll) puis sommait en JS. Ici les GROUP BY
 -- sont faits en Postgres ; le service ne fait plus que la présentation (LTV, conv, part %).
 --

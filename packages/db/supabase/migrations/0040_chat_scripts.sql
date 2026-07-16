@@ -1,4 +1,4 @@
--- 0036 — Scripts de chat par modèle (page « Scripts », face chatteurs).
+-- 0040 — Scripts de chat par modèle (page « Scripts », face chatteurs).
 -- Un script = la séquence ORDONNÉE d'items d'un modèle : messages copiables (label en
 -- badge, ex. « MESSAGE 8 • 10€ »), notes d'attente (grises), avertissements (ambre),
 -- titres de section. Source : docs « Scripts Mym » des modèles, migrés dans le CRM.
