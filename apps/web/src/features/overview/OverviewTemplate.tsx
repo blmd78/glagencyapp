@@ -9,12 +9,9 @@ import type { OverviewData } from './types'
 export function OverviewTemplate({ data }: { data: OverviewData }) {
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.periodLabel} · vue d’ensemble de l’agence
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {data.periodLabel} · vue d’ensemble de l’agence
+      </p>
 
       <KpiGrid kpis={data.kpis} />
 

@@ -38,19 +38,20 @@ export async function getOverview(
   const chartFrom = startOfMonth(period.from)
   const chartTo = endOfMonth(period.to)
 
-  const [{ data: creators }, rpcRes, denomBase] =
+  const [{ data: creators, error: creatorsErr }, rpcRes, denomBase] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private'),
       // Agrégation EN BASE (migration 0052 overview_report, SECURITY INVOKER = RLS appliquée) :
       // par modèle (période) + série quotidienne (mois du graphe) + CA par chatteur (période,
-      // source selon le rôle). Plus de fetchAll journalier ni de reduce JS. Non typé → cast.
-      supabase.rpc('overview_report' as never, {
+      // source selon le rôle). Plus de fetchAll journalier ni de reduce JS. RPC typé (nom +
+      // args, dans packages/db/src/types.ts) — pas de `as never` (docs/guidelines-data-loading.md §1).
+      supabase.rpc('overview_report', {
         p_period_from: period.from,
         p_period_to: period.to,
         p_chart_from: chartFrom,
         p_chart_to: chartTo,
         p_restricted: restricted,
-      } as never) as unknown as PromiseLike<{ data: OverviewReport | null; error: { message: string } | null }>,
+      }),
       // Dénominateur « Chatteurs actifs X / Y » : la RLS de `chatters` est tout-ou-rien
       // (un membre avec ≥1 modèle lit TOUTES les lignes) → en restricted, Y se compte
       // depuis `chatter_creators` (scopée à SES modèles, même source que getChatterScope).
@@ -65,15 +66,24 @@ export async function getOverview(
               .order('chatter_id')
               .order('creator_id')
               .range(f, t),
-          ).then(({ data }) => new Set((data ?? []).map((r) => r.chatter_id).filter(Boolean)))
+          ).then(({ data, error }) => {
+            if (error) throw new Error(error.message)
+            return new Set((data ?? []).map((r) => r.chatter_id).filter(Boolean))
+          })
         : supabase
             .from('chatters')
             .select('*', { count: 'exact', head: true })
-            .then(({ count }) => count ?? 0),
+            .then(({ count, error }) => {
+              if (error) throw new Error(error.message)
+              return count ?? 0
+            }),
     ])
 
+  if (creatorsErr) throw new Error(creatorsErr.message)
   if (rpcRes.error) throw new Error(rpcRes.error.message)
-  const rep = rpcRes.data ?? { by_model: [], daily: [], by_chatter: [] }
+  // Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
+  // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
+  const rep = (rpcRes.data as OverviewReport | null) ?? { by_model: [], daily: [], by_chatter: [] }
 
   const meta = new Map((creators ?? []).map((c) => [c.id, { name: c.name, isPrivate: c.is_private }]))
   const totalCa = rep.by_model.reduce((s, r) => s + (Number(r.ca) || 0), 0)
