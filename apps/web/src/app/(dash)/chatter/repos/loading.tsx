@@ -1,5 +1,5 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { ReposSkeleton } from '@/features/repos/components/repos-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return <ReposSkeleton />
 }
