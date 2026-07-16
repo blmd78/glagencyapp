@@ -19,8 +19,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
 import { updateChatterCrm } from '../actions'
-import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '../types'
-import type { ChatterRow, CrmRole, CrmShift, CrmTeam } from '../types'
+import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
+import type { ChatterRow, CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 const LABELS: Record<string, string> = {
   closer: 'Closer',

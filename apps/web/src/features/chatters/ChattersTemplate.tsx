@@ -1,6 +1,6 @@
 import { ChattersTable } from './components/chatters-table'
 import { RevenueScopeNote } from '@/components/revenue-scope-note'
-import type { ChattersData } from './types'
+import type { ChattersData } from '@/lib/types/chatters'
 
 /** Template Chatteurs : compose la table à partir des données reçues. Aucun fetch. */
 export function ChattersTemplate({ data }: { data: ChattersData }) {

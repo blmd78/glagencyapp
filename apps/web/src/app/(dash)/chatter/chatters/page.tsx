@@ -1,4 +1,4 @@
-import { getChatters } from '@/features/chatters/services/get-chatters'
+import { getChatters } from '@/lib/services/get-chatters'
 import { requireAccess } from '@/lib/auth'
 import { ChattersTemplate } from '@/features/chatters/ChattersTemplate'
 import { resolvePeriod } from '@/lib/period'

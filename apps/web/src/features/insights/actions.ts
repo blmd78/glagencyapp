@@ -6,10 +6,7 @@ import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, requireAccess } from '@/lib/auth'
-// Lecture partagée : promue dans lib/services/ à la PR pilote (plan 2026-07-16, Task 13) ;
-// disable retiré là-bas.
-// eslint-disable-next-line import-x/no-restricted-paths
-import { getChatters } from '@/features/chatters/services/get-chatters'
+import { getChatters } from '@/lib/services/get-chatters'
 import { bilanSchema } from './schema'
 
 /** Changement de statut / note d'une carte. Client SESSION : la RLS (admin-only) est la garde réelle. */

@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
-import type { ChatterModel, ChatterRow, ChattersData, CrmRole, CrmShift, CrmTeam } from '../types'
+import type {
+  ChatterModel,
+  ChatterRow,
+  ChattersData,
+  CrmRole,
+  CrmShift,
+  CrmTeam,
+} from '@/lib/types/chatters'
 
 import { conv, round1, round2 } from '@/lib/format'
 
@@ -64,23 +71,29 @@ export async function getChatters(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
-  // `chatters_report` n'est pas dans les types générés (Functions vide) → cast, comme
-  // pour `chatter_first_seen` dans la feature compta. En parallèle : les champs closing
-  // CRM (chatters.role/team/shift, migration 0029) — hors RPC pour ne pas toucher
-  // chatters_report ; lecture couverte par chatters_scoped_read.
-  const [rpcRes, { data: crmRows }] = await Promise.all([
-    supabase.rpc('chatters_report' as never, {
-      p_from: period.from,
-      p_to: period.to,
-    } as never) as unknown as PromiseLike<{ data: Report | null; error: { message: string } | null }>,
+  // Champs closing CRM (chatters.role/team/shift, migration 0029) — hors RPC pour ne pas
+  // toucher chatters_report ; lecture couverte par la policy chatters_scoped_read.
+  const [rpcRes, crmRes] = await Promise.all([
+    supabase.rpc('chatters_report', { p_from: period.from, p_to: period.to }),
     supabase.from('chatters').select('id, role, team, shift'),
   ])
-  const { data, error } = rpcRes
-  if (error) throw new Error(error.message)
-  const rep = data ?? { totals: [], by_creator: [], chatters: [], scope: { attributed: 0, messaging: 0, all_accounts: 0 }, ranking: null }
+  if (rpcRes.error) throw new Error(rpcRes.error.message)
+  if (crmRes.error) throw new Error(crmRes.error.message)
+  // Le RPC est typé (nom + args) mais son retour est déclaré `Json` (types générés) →
+  // on applique le contrat local par cast. `.overrideTypes<Report>` est inapplicable ici :
+  // le garde de postgrest-js 2.110 distribue sur l'union Json et rejette tout override
+  // (cf. .superpowers/sdd/task-13-report.md). Cast du data uniquement — le nom du RPC et
+  // ses arguments restent typés nativement (plus de cast forcé sur l'appel, ni de PromiseLike).
+  const rep = (rpcRes.data as Report | null) ?? {
+    totals: [],
+    by_creator: [],
+    chatters: [],
+    scope: { attributed: 0, messaging: 0, all_accounts: 0 },
+    ranking: null,
+  }
 
   const chMeta = new Map(rep.chatters.map((c) => [c.id, c]))
-  const crmById = new Map((crmRows ?? []).map((c) => [c.id, c]))
+  const crmById = new Map((crmRes.data ?? []).map((c) => [c.id, c]))
 
   // Agrégat chatteur (header). Non restreint : depuis `totals` (déjà 1 ligne/chatteur).
   // Restreint : `totals` vide → somme de la ventilation par modèle visible.

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from './types'
+import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
 
 // Schéma PARTAGÉ client (form) ↔ serveur (action) — source unique (modèle : police).
 export const updateChatterCrmInput = z.object({

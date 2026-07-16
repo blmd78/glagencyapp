@@ -22,7 +22,7 @@ import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, pct } from '@/lib/format'
 import { ChatterCrmDialog } from './chatter-crm-dialog'
-import type { ChatterRow, DailyRanking } from '../types'
+import type { ChatterRow, DailyRanking } from '@/lib/types/chatters'
 
 // Couleurs de statut partagées (recette badge shadcn) : lib/status-color.ts.
 

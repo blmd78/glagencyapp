@@ -1,4 +1,4 @@
-import type { RevenueScope } from '@/components/revenue-scope-note'
+import type { RevenueScope } from '@/lib/types/revenue'
 
 /**
  * Contrat de données de l'onglet Chatteurs.
