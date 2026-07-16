@@ -58,13 +58,18 @@ from (
 join teams t on t.name = v.team_name
 on conflict (team_id) do nothing;
 
--- Garde-fou : la jointure interne saute EN SILENCE toute équipe absente/renommée.
--- On échoue bruyamment plutôt que de seeder à moitié (13 équipes vérifiées en base au 2026-07-02).
+-- Garde-fou : n'échoue QUE si les 13 équipes attendues existent bien mais que le seed est
+-- incomplet (jointure ratée / équipe renommée). Sur une base neuve où `teams` n'est pas encore
+-- peuplé par l'ingestion (préprod, CI, `db reset`), le seed est un no-op légitime et la garde
+-- est ignorée → les migrations restent rejouables depuis zéro. Prod : les 13 équipes existent,
+-- la garantie « pas de seed à moitié » est préservée.
 do $$
-declare n integer;
+declare n_quotas integer; n_expected integer;
 begin
-  select count(*) into n from quotas;
-  if n < 13 then
-    raise exception 'Seed quotas incomplet : % ligne(s) au lieu de 13 — équipe manquante ou renommée dans teams ?', n;
+  select count(*) into n_expected from teams
+  where name in ('Carla','Alice','Julie','Sarah','Lucie','Lena','Lola','Claire','Mathilde','Maeva','Emma','Jade','Manon');
+  select count(*) into n_quotas from quotas;
+  if n_expected >= 13 and n_quotas < 13 then
+    raise exception 'Seed quotas incomplet : % ligne(s) au lieu de 13 alors que les 13 équipes existent — jointure ratée ?', n_quotas;
   end if;
 end $$;

@@ -58,13 +58,27 @@ Benoit donne les URLs MyPuls **dans le chat** (pas de fichier d'inventaire). Pou
 2. Inspecter le fichier capturé, écrire le parser dans `packages/mypuls/src/endpoints/`.
 3. Brancher dans `apps/ingestion` (pipeline → Supabase), puis dans la feature web.
 
+## Migrations (Supabase)
+
+Migrations dans `packages/db/supabase/migrations/NNNN_slug.sql` — **séquence contiguë
+`0001..NNNN` alignée sur `schema_migrations` en prod** (nettoyée au commit `36ae438`).
+**Ne pas re-renuméroter** l'existant. Pas de `config.toml` (juste le dossier `migrations/`).
+
+Ajouter une migration :
+1. Créer `NNNN_slug.sql` (numéro suivant). Convention : `text` + `check`, **jamais
+   `create type ... enum`**.
+2. Appliquer **et** enregistrer en une étape :
+   `cd packages/db && supabase db push --db-url "$DATABASE_URL"` (ajouter `--dry-run` pour
+   prévisualiser — doit dire « Remote database is up to date » quand tout est à jour). Le
+   `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
+3. Régénérer `packages/db/src/types.ts` si le schéma change.
+
+**Piège à l'origine du nettoyage `36ae438`** : appliquer une migration à la main
+(`psql "$DATABASE_URL" -f …`) SANS l'enregistrer dans `schema_migrations` désaligne
+l'historique et casse `db push`. Préférer `db push` (applique ET enregistre). Extraire l'URL
+en brut (`grep '^DATABASE_URL=' .env | cut -d= -f2- | sed 's/^"//; s/"$//'`), jamais
+`source .env` (corrompt la variable) ; connexion directe port 5432, pas le pooler 6543.
+
 ## Design
 
 Spec : `docs/superpowers/specs/2026-06-30-glagency-dashboard-design.md`.
-
-## TODO scaffold
-
-- [ ] Brancher Supabase réel (projet + clés dans `.env`) et lancer les migrations.
-- [ ] `supabase gen types` → `packages/db/src/types.ts`.
-- [ ] Sentry : `pnpm dlx @sentry/wizard@latest -i nextjs` dans `apps/web`.
-- [ ] Implémenter les features une par une (cf. plan d'implémentation à venir).
