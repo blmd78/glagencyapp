@@ -37,8 +37,21 @@ const DUREE_OPTIONS = [
   ['1h+', '1h+ — approfondi'],
 ] as const
 
+/**
+ * « Aujourd'hui » en TZ NAVIGATEUR (composants locaux, pas `toISOString()` qui bascule en
+ * UTC — même piège que `isoDate()`/`new Date()` nu documenté dans
+ * `docs/guidelines-data-loading.md` §6, mais ici défendable : c'est une date DE FORM,
+ * pré-remplissage éditable par le manager (pas un calcul métier serveur), donc son "jour"
+ * local à lui — pas Europe/Paris — est la bonne référence.
+ */
+function todayLocal(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 const EMPTY: InsightBilan = {
-  date: new Date().toISOString().slice(0, 10),
+  date: todayLocal(),
   duree: '15min',
   etat: 'neutre',
   resume: '',

@@ -18,10 +18,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible'
-import { addDays, frDayLong } from '@glagency/core'
 import { modelColor } from '@/lib/model-color'
 import { InsightCard } from './insight-card'
-import { ExportCsvButton } from './export-csv-button'
 import { RankingTable, type RankMetric } from './ranking-table'
 import type { InsightRow, InsightsData, InsightStatus, RankingData } from '../types'
 
@@ -49,10 +47,6 @@ export function InsightsView({
   const modelOptions = [...new Set(data.insights.flatMap((i) => i.models.map((m) => m.name)))].sort(
     (a, b) => a.localeCompare(b),
   )
-
-
-  const critical = data.insights.filter((i) => i.severity === 'critical').length
-  const open = data.insights.filter((i) => i.status === 'new' || i.status === 'in_progress').length
 
   const needle = search.trim().toLowerCase()
   const shown = data.insights.filter((i) => {
@@ -82,18 +76,6 @@ export function InsightsView({
 
   return (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Insights</h1>
-          <p className="text-sm text-muted-foreground">
-            {data.weekStart
-              ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
-              : 'Analyses hebdomadaires des quotas par chatteur'}
-          </p>
-        </div>
-        {isAdmin && <ExportCsvButton />}
-      </div>
-
       {(data.insights.length > 0 || needle) && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">

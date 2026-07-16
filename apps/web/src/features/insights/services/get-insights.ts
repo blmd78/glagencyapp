@@ -1,16 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { InsightBilan, InsightKpi, InsightModelSplit, InsightRow, InsightsData, InsightStatus, WeekTracking } from '../types'
 
 type Supabase = Awaited<ReturnType<typeof createClient>>
 
 /** Timestamp de la dernière génération d'une semaine (1 ligne). */
 async function latestGeneration(supabase: Supabase, weekStart: string): Promise<string | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('insights')
     .select('generated_at')
     .eq('week_start', weekStart)
     .order('generated_at', { ascending: false })
     .limit(1)
+  if (error) throw new Error(error.message)
   return data?.[0]?.generated_at ?? null
 }
 
@@ -32,7 +34,8 @@ export async function getInsights(
   let mineIds: Set<string> = new Set()
   let mineNames: Set<string> = new Set()
   if (restricted) {
-    const { data: mine } = await supabase.from('creators').select('id, name')
+    const { data: mine, error } = await supabase.from('creators').select('id, name')
+    if (error) throw new Error(error.message)
     mineIds = new Set((mine ?? []).map((c) => c.id))
     mineNames = new Set((mine ?? []).map((c) => c.name))
   }
@@ -40,11 +43,12 @@ export async function getInsights(
   let weekStart = week ?? null
   if (!weekStart) {
     // Dernière semaine générée (une requête légère plutôt qu'un scan complet).
-    const { data: latest } = await supabase
+    const { data: latest, error } = await supabase
       .from('insights')
       .select('week_start')
       .order('week_start', { ascending: false })
       .limit(1)
+    if (error) throw new Error(error.message)
     weekStart = latest?.[0]?.week_start ?? null
   }
   if (!weekStart) return { weekStart: null, insights: [] }
@@ -54,15 +58,33 @@ export async function getInsights(
   const genAt = await latestGeneration(supabase, weekStart)
   if (!genAt) return { weekStart, insights: [] }
 
-  const [{ data: rows }, { data: states }, { data: profiles }] = await Promise.all([
+  const [
+    { data: rows, error: rowsErr },
+    { data: states, error: statesErr },
+    { data: profiles, error: profilesErr },
+  ] = await Promise.all([
     supabase
       .from('insights')
       .select('insight_key, generated_at, week_start, severity, title, body, action_plan, kpis, models, week')
       .eq('week_start', weekStart)
       .eq('generated_at', genAt),
-    supabase.from('insight_states').select('insight_key, status, note, bilan, updated_at, updated_by'),
-    supabase.from('profiles').select('id, display_name, email'),
+    // `insight_states` grossit d'une ligne par (semaine, chatteur) chaque génération —
+    // pas de fenêtre naturelle pour borner, et le volume dépasse la limite PostgREST
+    // (1000 lignes) en environ un an → fetchAll, tri sur la PK (`insight_key`).
+    fetchAll((f, t) =>
+      supabase
+        .from('insight_states')
+        .select('insight_key, status, note, bilan, updated_at, updated_by')
+        .order('insight_key')
+        .range(f, t),
+    ),
+    // `profiles` (comptes internes) : petit effectif dans les faits, mais nu et non
+    // borné tel quel → fetchAll par cohérence/anti-régression (coût marginal nul ici).
+    fetchAll((f, t) => supabase.from('profiles').select('id, display_name, email').order('id').range(f, t)),
   ])
+  if (rowsErr) throw new Error(rowsErr.message)
+  if (statesErr) throw new Error(statesErr.message)
+  if (profilesErr) throw new Error(profilesErr.message)
 
   const stateByKey = new Map((states ?? []).map((s) => [s.insight_key, s]))
   const nameById = new Map(
@@ -112,16 +134,17 @@ export async function getOpenInsightsCount(): Promise<number> {
   const supabase = await createClient()
   // 1 requête pour (dernière semaine, dernière génération) au lieu de 2 en série — ce
   // compteur est dans le chemin bloquant du layout (chaque hard load + chaque action).
-  const { data: latest } = await supabase
+  const { data: latest, error: latestErr } = await supabase
     .from('insights')
     .select('week_start, generated_at')
     .order('week_start', { ascending: false })
     .order('generated_at', { ascending: false })
     .limit(1)
+  if (latestErr) throw new Error(latestErr.message)
   const weekStart = latest?.[0]?.week_start
   const genAt = latest?.[0]?.generated_at
   if (!weekStart || !genAt) return 0
-  const [{ data: rows }, { data: states }] = await Promise.all([
+  const [{ data: rows, error: rowsErr }, { data: states, error: statesErr }] = await Promise.all([
     // Dernière génération uniquement + les « saines » ne comptent pas comme « à traiter ».
     supabase
       .from('insights')
@@ -129,8 +152,18 @@ export async function getOpenInsightsCount(): Promise<number> {
       .eq('week_start', weekStart)
       .eq('generated_at', genAt)
       .neq('severity', 'ok'),
-    supabase.from('insight_states').select('insight_key, status').in('status', ['resolved', 'ignored']),
+    // Même table que `getInsights` (fetchAll obligatoire — cf. commentaire ci-dessus).
+    fetchAll((f, t) =>
+      supabase
+        .from('insight_states')
+        .select('insight_key, status')
+        .in('status', ['resolved', 'ignored'])
+        .order('insight_key')
+        .range(f, t),
+    ),
   ])
+  if (rowsErr) throw new Error(rowsErr.message)
+  if (statesErr) throw new Error(statesErr.message)
   const closed = new Set((states ?? []).map((s) => s.insight_key))
   const keys = new Set((rows ?? []).map((r) => r.insight_key))
   return [...keys].filter((k) => !closed.has(k)).length

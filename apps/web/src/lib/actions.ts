@@ -27,9 +27,15 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
     const parsed = opts.schema.safeParse(opts.input)
     if (!parsed.success) {
       const { fieldErrors } = z.flattenError(parsed.error)
+      // Un refine métier SANS `path` (ex. « bilan requis pour Résolu ») doit remonter SON
+      // message. Filtre sur `code === 'custom'` uniquement : un `invalid_type` racine
+      // (input null/malformé) produirait un message anglais brut de Zod — jamais à l'UI.
+      const rootMsg = parsed.error.issues.find(
+        (i) => i.path.length === 0 && i.code === 'custom',
+      )?.message
       return {
         success: false,
-        error: 'Saisie invalide',
+        error: rootMsg ?? 'Saisie invalide',
         fieldErrors: fieldErrors as Record<string, string[]>,
       }
     }
