@@ -15,13 +15,10 @@ import type { HealthData } from './types'
 export function HealthTemplate({ data }: { data: HealthData }) {
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">État de santé</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.periodLabel} · objectif LTV {data.target} € / nouvel abonné
-          {data.restricted && ' · périmètre : tes modèles assignés'}
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {data.periodLabel} · objectif LTV {data.target} € / nouvel abonné
+        {data.restricted && ' · périmètre : tes modèles assignés'}
+      </p>
 
       <div className="grid gap-4 lg:grid-cols-[auto_1fr]">
         <Card className="py-4">

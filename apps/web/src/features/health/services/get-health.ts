@@ -11,7 +11,11 @@ const LTV_MOYEN = 7
 const statusOf = (ltv: number | null): LtvStatus | null =>
   ltv === null ? null : ltv >= LTV_TARGET ? 'sain' : ltv >= LTV_MOYEN ? 'moyen' : 'critique'
 
-/** Forme brute renvoyée par le RPC `health_report` (migration 0049) — sommes déjà agrégées EN BASE. */
+/**
+ * Forme brute renvoyée par le RPC `health_report` (migration 0049, typé dans
+ * `packages/db/src/types.ts`) — sommes déjà agrégées EN BASE. Retour `Returns: Json` →
+ * cast documenté vers ce contrat local (docs/guidelines-data-loading.md §1).
+ */
 interface HealthReport {
   /** Agrégat par modèle depuis creator_daily (RLS = ses modèles pour un `user`). */
   by_creator: Array<{
@@ -49,21 +53,29 @@ export async function getHealth(
   // soit IDENTIQUE au calcul d'origine (indépendante du fuseau horaire de la base).
   const weekFrom = mondayOf(todayParis())
 
-  const [{ data: creators }, { data: chatters }, rpcRes] = await Promise.all([
+  const [
+    { data: creators, error: creatorsErr },
+    { data: chatters, error: chattersErr },
+    rpcRes,
+  ] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
     supabase.from('chatters').select('id, display_name'),
     // Agrégation EN BASE (migration 0049 health_report, SECURITY INVOKER = RLS appliquée) :
     // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
-    // milliers de lignes journalières ni de reduce JS. Non typé (Functions vide) → cast,
-    // comme chatters_report.
-    supabase.rpc('health_report' as never, {
+    // milliers de lignes journalières ni de reduce JS. RPC typé (nom + args) — pas de
+    // `as never` (cf. docs/guidelines-data-loading.md §1).
+    supabase.rpc('health_report', {
       p_from: period.from,
       p_to: period.to,
       p_week_from: weekFrom,
-    } as never) as unknown as PromiseLike<{ data: HealthReport | null; error: { message: string } | null }>,
+    }),
   ])
+  if (creatorsErr) throw new Error(creatorsErr.message)
+  if (chattersErr) throw new Error(chattersErr.message)
   if (rpcRes.error) throw new Error(rpcRes.error.message)
-  const rep = rpcRes.data ?? { by_creator: [], by_pair: [], measured_days: 0 }
+  // Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
+  // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
+  const rep = (rpcRes.data as HealthReport | null) ?? { by_creator: [], by_pair: [], measured_days: 0 }
 
   // Agrégats par modèle (période + semaine en cours) — déjà sommés par le RPC.
   interface Acc {

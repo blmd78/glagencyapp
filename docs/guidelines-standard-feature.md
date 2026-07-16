@@ -86,7 +86,18 @@ features/<f>/
    `kpi-skeleton.tsx`, …) — pas le `PageSkeleton` générique. A11y intégrée une fois pour
    toutes : conteneur `role="status"` + `<span className="sr-only">Chargement…</span>`,
    squelettes `aria-hidden`. Ne pas dupliquer cette a11y dans chaque feature.
-4. **Piège — sous-titre du Template quand le `h1` remonte dans la page** : le `<p>` sous-titre
+4. **Silhouette spécifique d'une page = petit composant dédié, jamais dupliqué.** Si le
+   contenu de la feature dépasse une brique générique unique (`TableSkeleton`/`KpiSkeleton`
+   seuls) — ex. une composition jauge + KPIs + cartes — extraire un composant
+   `features/<f>/components/<f>-skeleton.tsx` (Server Component simple, ex. `HealthSkeleton`)
+   qui compose les briques génériques. `loading.tsx` **et** le fallback `<Suspense>` de
+   `page.tsx` l'importent tous deux — jamais de markup de skeleton dupliqué byte-à-byte entre
+   les deux. `loading.tsx` garde en propre son bloc titre (`h1`/sous-titre skeleton, absent du
+   composant dédié car `page.tsx` affiche le vrai `h1` immédiatement). Exemple :
+   `features/health/components/health-skeleton.tsx` (`HealthSkeleton`, composant les cartes
+   modèles + `KpiSkeleton`), consommé par `app/(dash)/chatter/health/loading.tsx` et le
+   fallback de `app/(dash)/chatter/health/page.tsx`.
+5. **Piège — sous-titre du Template quand le `h1` remonte dans la page** : le `<p>` sous-titre
    du `<Feature>Template.tsx` prend `-mt-4` pour compenser le double `gap-6` page/Template (le
    `flex flex-col gap-6` de `page.tsx` espace déjà `h1` et contenu streamé) — rendu identique à
    un layout sans split page/Suspense. Recette du pilote, `ChattersTemplate.tsx`.
