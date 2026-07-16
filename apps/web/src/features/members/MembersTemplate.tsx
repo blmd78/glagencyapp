@@ -8,10 +8,16 @@ import type { MembersData } from './types'
 export function MembersTemplate({
   data,
   scope = 'chatter',
+  viewer = 'admin',
+  superadmin = false,
 }: {
   data: MembersData
   /** Face dont cette page gère les droits (les droits de l'autre face sont préservés). */
   scope?: 'chatter' | 'marketing'
+  /** Manager : gère uniquement SES chatters (rôle user forcé) — défaut admin. */
+  viewer?: 'admin' | 'manager'
+  /** Propriétaire : peut nommer des admins et gérer les fiches admin. */
+  superadmin?: boolean
 }) {
   return (
     <div className="flex flex-col gap-6">
@@ -24,7 +30,13 @@ export function MembersTemplate({
         </p>
       </div>
 
-      <MembersTable members={data.members} creators={data.creators} scope={scope} />
+      <MembersTable
+        members={data.members}
+        creators={data.creators}
+        scope={scope}
+        viewer={viewer}
+        superadmin={superadmin}
+      />
     </div>
   )
 }

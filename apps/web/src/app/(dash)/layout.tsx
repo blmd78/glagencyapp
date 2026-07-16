@@ -49,6 +49,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
         userEmail={profile.email ?? ''}
         isAdmin={profile.role === 'admin'}
         isSuperadmin={profile.superadmin}
+        isManager={profile.manager}
         allowedPages={profile.pages}
         insightsCountPromise={insightsCountPromise}
         workLink={profile.workLink}

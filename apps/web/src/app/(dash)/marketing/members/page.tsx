@@ -6,7 +6,7 @@ import { MembersTemplate } from '@/features/members/MembersTemplate'
 // cases = pages mkt-* (Overview, Liens, Instagram, Twitter, Telegram, Compta), pas de
 // section modèles ; les droits chatteurs d'un profil sont préservés (fusion côté serveur).
 export default async function MktMembersPage() {
-  await requireAdmin()
+  const profile = await requireAdmin()
   const data = await getMembers()
-  return <MembersTemplate data={data} scope="marketing" />
+  return <MembersTemplate data={data} scope="marketing" superadmin={profile.superadmin} />
 }

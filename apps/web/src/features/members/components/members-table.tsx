@@ -25,24 +25,40 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase()
 
-/** Colonne Actions : Modifier (dialog) + Supprimer (ConfirmDialog) — admins non éditables. */
+/**
+ * Colonne Actions : Modifier (dialog) + Supprimer (ConfirmDialog). Admins jamais
+ * éditables ici ; un manager n'agit que sur les comptes user — les siens, sa vue étant
+ * déjà filtrée par la RLS — et jamais sur sa propre ligne (rôle manager).
+ */
 function RowActions({
   member,
   creators,
+  managers,
   scope,
+  viewer,
+  superadmin,
 }: {
   member: Member
   creators: { id: string; name: string }[]
+  managers: { id: string; name: string }[]
   scope: 'chatter' | 'marketing'
+  viewer: 'admin' | 'manager'
+  /** Propriétaire : seul à pouvoir gérer les fiches admin. */
+  superadmin: boolean
 }) {
-  if (member.role === 'admin' || member.role === 'superadmin') return null
+  if (member.role === 'superadmin') return null
+  if (member.role === 'admin' && !superadmin) return null
+  if (viewer === 'manager' && member.role !== 'user') return null
 
   return (
     <div className="flex justify-end gap-1.5">
       <MemberDialog
         member={member}
         creators={creators}
+        managers={managers}
         scope={scope}
+        viewer={viewer}
+        superadmin={superadmin}
         trigger={
           <Button
             variant="ghost"
@@ -97,13 +113,22 @@ export function MembersTable({
   members,
   creators,
   scope = 'chatter',
+  viewer = 'admin',
+  superadmin = false,
 }: {
   members: Member[]
   creators: { id: string; name: string }[]
   scope?: 'chatter' | 'marketing'
+  viewer?: 'admin' | 'manager'
+  /** Propriétaire : option rôle Admin + gestion des fiches admin. */
+  superadmin?: boolean
 }) {
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
+  // Managers rattachables (sélecteur admin du dialog) — dérivés de la liste courante.
+  const managers = members
+    .filter((m) => m.role === 'manager')
+    .map((m) => ({ id: m.id, name: m.displayName }))
 
   const modelsColumn: ColumnDef<Member>[] = scope === 'chatter' ? [
     {
@@ -207,7 +232,16 @@ export function MembersTable({
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => <RowActions member={row.original} creators={creators} scope={scope} />,
+      cell: ({ row }) => (
+        <RowActions
+          member={row.original}
+          creators={creators}
+          managers={managers}
+          scope={scope}
+          viewer={viewer}
+          superadmin={superadmin}
+        />
+      ),
       meta: { align: 'right' },
     },
   ]
@@ -224,7 +258,10 @@ export function MembersTable({
       toolbar={
         <MemberDialog
           creators={creators}
+          managers={managers}
           scope={scope}
+          viewer={viewer}
+          superadmin={superadmin}
           trigger={
             <Button size="sm" className="gap-1.5">
               <UserPlus className="size-3.5" />

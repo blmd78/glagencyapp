@@ -1,9 +1,15 @@
-import { requireAdmin } from '@/lib/auth'
+import { requireAdminOrManager } from '@/lib/auth'
 import { getMembers } from '@/features/members/services/get-members'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
 
 export default async function MembersPage() {
-  await requireAdmin()
+  const profile = await requireAdminOrManager()
   const data = await getMembers()
-  return <MembersTemplate data={data} />
+  return (
+    <MembersTemplate
+      data={data}
+      viewer={profile.role === 'admin' ? 'admin' : 'manager'}
+      superadmin={profile.superadmin}
+    />
+  )
 }

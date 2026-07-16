@@ -9,6 +9,8 @@ export interface Member {
   pages: string[]
   /** Modèles assignés (profile_creators). */
   creatorIds: string[]
+  /** Manager de rattachement ('' = aucun) — filtre la vue Membres d'un manager. */
+  managerId: string
   /** Lien « outil de travail » ('' = aucun) — affiché dans le menu utilisateur du membre. */
   workLink: string
   createdAt: string

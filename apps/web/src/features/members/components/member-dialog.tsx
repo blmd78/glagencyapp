@@ -40,25 +40,40 @@ const toggleArr = (arr: string[], key: string) =>
 export function MemberDialog({
   member,
   creators,
+  managers = [],
   trigger,
   scope = 'chatter',
+  viewer = 'admin',
+  superadmin = false,
 }: {
   /** Absent = création. */
   member?: Member
   creators: { id: string; name: string }[]
+  /** Managers rattachables (sélecteur admin, face chatteurs). */
+  managers?: { id: string; name: string }[]
   trigger: ReactNode
   /** Face dont on gère les droits — les slugs de l'autre face sont préservés côté serveur. */
   scope?: 'chatter' | 'marketing'
+  /** Manager : rôle verrouillé sur user, sélecteurs rôle/rattachement masqués. */
+  viewer?: 'admin' | 'manager'
+  /** Propriétaire : option rôle Admin (garde serveur en plus du sélecteur). */
+  superadmin?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
   const scopeSlugs = new Set(choices.map((c) => c.slug as string))
+  // Un modèle hors du périmètre de l'appelant (invisible dans `creators`) ne doit pas
+  // rester dans le form : le serveur le refuserait — il est préservé côté serveur.
+  const creatorSet = new Set(creators.map((c) => c.id))
+  // Pas d'auto-rattachement (check en base) : on exclut la ligne éditée des options.
+  const attachables = managers.filter((m) => m.id !== member?.id)
 
   const {
     register,
     control,
     handleSubmit,
     setError,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
@@ -66,13 +81,25 @@ export function MemberDialog({
       scope,
       email: member?.email ?? '',
       displayName: member?.displayName ?? '',
-      role: member?.role === 'manager' ? 'manager' : 'user',
+      role:
+        viewer === 'manager'
+          ? 'user'
+          : member?.role === 'admin'
+            ? 'admin'
+            : member?.role === 'manager'
+              ? 'manager'
+              : 'user',
       // Seules les pages du périmètre courant sont éditées ici.
       pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
-      creatorIds: member?.creatorIds ?? [],
+      creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
+      // Le serveur force le rattachement au créateur pour un appelant manager,
+      // et l'ignore sur ses éditions (il ne peut pas déplacer un chatter).
+      managerId: member?.managerId ?? '',
       workLink: member?.workLink ?? '',
     },
   })
+  // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
+  const roleValue = watch('role')
 
   const submit = handleSubmit(async (values) => {
     const res = member
@@ -83,6 +110,7 @@ export function MemberDialog({
           role: values.role,
           pages: values.pages,
           creatorIds: values.creatorIds,
+          managerId: values.managerId,
           workLink: values.workLink,
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
@@ -148,7 +176,7 @@ export function MemberDialog({
             )}
           </div>
 
-          <Controller
+          {viewer === 'admin' && <Controller
             name="role"
             control={control}
             render={({ field }) => (
@@ -163,13 +191,50 @@ export function MemberDialog({
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
+                    {/* Nommer un admin = propriétaires uniquement (garde serveur en plus). */}
+                    {superadmin && <SelectItem value="admin">Admin</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
             )}
-          />
+          />}
 
-          <Controller
+          {viewer === 'admin' && scope === 'chatter' && roleValue !== 'admin' && (
+            <Controller
+              name="managerId"
+              control={control}
+              render={({ field }) => (
+                <div className="grid gap-1.5">
+                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Manager (rattachement)
+                  </label>
+                  {/* Radix interdit value="" sur un item → sentinelle 'none' ↔ '' côté form. */}
+                  <Select
+                    value={field.value || 'none'}
+                    onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger className="w-56">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+                      {attachables.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Le membre apparaît dans la vue Membres de ce manager.
+                  </p>
+                </div>
+              )}
+            />
+          )}
+
+          {roleValue !== 'admin' && <Controller
             name="pages"
             control={control}
             render={({ field }) => (
@@ -203,9 +268,9 @@ export function MemberDialog({
                 )}
               </div>
             )}
-          />
+          />}
 
-          {scope === 'chatter' && <Controller
+          {scope === 'chatter' && roleValue !== 'admin' && <Controller
             name="creatorIds"
             control={control}
             render={({ field }) => (

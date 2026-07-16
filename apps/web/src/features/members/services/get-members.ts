@@ -1,13 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Member, MembersData } from '../types'
 
-/** Liste des membres + modèles assignables (page admin — la RLS laisse l'admin tout lire). */
+/**
+ * Liste des membres + modèles assignables (page admin OU manager). La RLS filtre par
+ * appelant (0048) : admin = tout, manager = lui-même + son équipe (manager_id) ;
+ * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
+ */
 export async function getMembers(): Promise<MembersData> {
   const supabase = await createClient()
   const [{ data: profiles }, { data: links }, { data: creators }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, email, display_name, role, pages, work_link, created_at')
+      .select('id, email, display_name, role, pages, work_link, manager_id, created_at')
       .order('created_at'),
     supabase.from('profile_creators').select('profile_id, creator_id'),
     // TOUS les comptes (privés inclus) : `excluded` ne concerne que les calculs (LTV,
@@ -34,6 +38,7 @@ export async function getMembers(): Promise<MembersData> {
             : 'user',
     pages: p.pages ?? [],
     creatorIds: byProfile.get(p.id) ?? [],
+    managerId: p.manager_id ?? '',
     workLink: p.work_link ?? '',
     createdAt: p.created_at,
   }))

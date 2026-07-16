@@ -41,6 +41,8 @@ export interface NavItem {
   adminOnly?: boolean
   /** Réservé aux propriétaires (rôle superadmin) — ex. Membres (gestion des accès). */
   superadminOnly?: boolean
+  /** Item adminOnly AUSSI visible des managers (ex. Membres face chatteurs). */
+  managerAccess?: boolean
   /** Sous-onglet (id d'un NavGroup de la face) — sans groupe, l'item est affiché direct. */
   group?: string
   /** Item direct rendu SOUS les sous-onglets (ex. Membres), au lieu d'au-dessus. */
@@ -110,7 +112,7 @@ export const WORKSPACES: Workspace[] = [
       // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
       { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
-      { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
+      { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
   {

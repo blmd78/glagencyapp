@@ -44,6 +44,7 @@ export function AppSidebar({
   userEmail,
   isAdmin,
   isSuperadmin,
+  isManager,
   allowedPages,
   insightsCountPromise,
   workLink = '',
@@ -52,6 +53,8 @@ export function AppSidebar({
   isAdmin?: boolean
   /** Propriétaire (rôle superadmin) — seul à voir les items superadminOnly (Membres). */
   isSuperadmin?: boolean
+  /** Rôle manager : voit en plus les items adminOnly marqués managerAccess (Membres). */
+  isManager?: boolean
   /** Slugs autorisés pour un rôle `user` (ignoré si admin). */
   allowedPages?: string[]
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
@@ -88,9 +91,11 @@ export function AppSidebar({
     const allowed = new Set(pagesKey ? pagesKey.split(',') : [])
     return active.nav.filter((item) => {
       if (item.superadminOnly && !isSuperadmin) return false
-      return isAdmin ? true : !item.adminOnly && allowed.has(navSlug(item))
+      if (isAdmin) return true
+      if (item.adminOnly) return !!item.managerAccess && !!isManager
+      return allowed.has(navSlug(item))
     })
-  }, [active, isAdmin, isSuperadmin, pagesKey])
+  }, [active, isAdmin, isSuperadmin, isManager, pagesKey])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —
   // un groupe sans item visible disparaît.
   const directTop = items.filter((i) => !i.group && !i.bottom)

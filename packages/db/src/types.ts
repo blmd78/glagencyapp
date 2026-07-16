@@ -1378,6 +1378,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          manager_id: string | null
           pages: string[]
           role: string
           work_link: string
@@ -1387,6 +1388,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          manager_id?: string | null
           pages?: string[]
           role?: string
           work_link?: string
@@ -1396,11 +1398,20 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          manager_id?: string | null
           pages?: string[]
           role?: string
           work_link?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quotas: {
         Row: {
