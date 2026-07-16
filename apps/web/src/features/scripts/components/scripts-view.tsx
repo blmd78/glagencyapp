@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowDown, ArrowUp, Check, Copy, Pencil, Plus, Trash2, TriangleAlert } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -41,6 +42,13 @@ function AdminActions({
   item: ScriptItem
   onEdit: (i: ScriptItem) => void
 }) {
+  async function move(direction: 'up' | 'down') {
+    const res = await moveScriptItem({ id: item.id, direction })
+    // Succès silencieux (clic répété pour réordonner, le nouvel ordre est déjà le retour
+    // visuel) ; l'échec est surfacé — même choix que planning-grid.tsx `commitCell`.
+    if (!res.success) toast.error(res.error)
+  }
+
   return (
     <div className="flex shrink-0 gap-0.5">
       <Button
@@ -48,7 +56,7 @@ function AdminActions({
         size="icon"
         className="size-7"
         aria-label="Monter"
-        onClick={() => moveScriptItem({ id: item.id, direction: 'up' })}
+        onClick={() => move('up')}
       >
         <ArrowUp className="size-3.5" />
       </Button>
@@ -57,7 +65,7 @@ function AdminActions({
         size="icon"
         className="size-7"
         aria-label="Descendre"
-        onClick={() => moveScriptItem({ id: item.id, direction: 'down' })}
+        onClick={() => move('down')}
       >
         <ArrowDown className="size-3.5" />
       </Button>
@@ -85,7 +93,11 @@ function AdminActions({
         }
         onConfirm={async () => {
           const res = await deleteScriptItem(item.id)
-          if (!res.success) return res.error
+          if (!res.success) {
+            toast.error(res.error)
+            return res.error
+          }
+          toast.success('Item supprimé')
         }}
       />
     </div>
