@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/components/theme-provider'
 export const metadata: Metadata = {
   title: 'glagency — dashboard',
   description: 'Pilotage de performance chatters / créatrices',
+  // Dashboard privé : jamais indexé.
+  robots: { index: false, follow: false },
 }
 
 export default function RootLayout({
