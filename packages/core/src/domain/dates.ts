@@ -99,3 +99,17 @@ export const weekLabel = (start: string): string =>
 
 export const round1 = (n: number): number => Math.round(n * 10) / 10
 export const round2 = (n: number): number => Math.round(n * 100) / 100
+
+/**
+ * Jour civil « métier » de l'agence = Europe/Paris (YYYY-MM-DD).
+ * À utiliser pour TOUT « aujourd'hui » — jamais `isoDate(new Date())` (UTC : entre
+ * minuit et 2h heure de Paris, le jour UTC est encore la veille → KPIs du jour faux).
+ * `en-CA` : locale dont le format court est déjà YYYY-MM-DD.
+ */
+export const todayParis = (now: Date = new Date()): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)

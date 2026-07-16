@@ -1,4 +1,4 @@
-import { addDays, endOfMonth, isoDate, round1, startOfMonth } from '@glagency/core'
+import { addDays, endOfMonth, round1, startOfMonth, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
@@ -105,7 +105,7 @@ export async function getOverview(
   // aujourd'hui ; les jours hors sélection sont marqués `inPeriod: false` (affichés atténués).
   const perDay = new Map<string, number>()
   for (const r of rep.daily) perDay.set(r.date, Number(r.ca) || 0)
-  const today = isoDate(new Date())
+  const today = todayParis()
   const daily: DailyPoint[] = []
   for (let key = chartFrom; key <= chartTo; key = addDays(key, 1)) {
     daily.push({

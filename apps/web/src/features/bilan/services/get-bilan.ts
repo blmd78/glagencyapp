@@ -1,4 +1,4 @@
-import { addDays, frDayShort as frDay, isoDate, mondayOf, round1 as r1, round2 as r2 } from '@glagency/core'
+import { addDays, frDayShort as frDay, mondayOf, round1 as r1, round2 as r2, todayParis } from '@glagency/core'
 import { ltvOf as ltvFormula } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
 import type { BilanData, ModelBilan, WeekChoice } from '../types'
@@ -51,7 +51,7 @@ interface BilanReport {
  */
 export async function getBilan(week?: string | null): Promise<BilanData> {
   const supabase = await createClient()
-  const today = isoDate(new Date())
+  const today = todayParis()
   // Première donnée disponible (RLS-scopée) → borne du sélecteur.
   const { data: first } = await supabase
     .from('creator_daily')

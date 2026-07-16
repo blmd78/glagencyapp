@@ -19,6 +19,7 @@ export type {
 } from './insights/quotas-hebdo'
 export {
   isoDate,
+  todayParis,
   addDays,
   mondayOf,
   frDayShort,

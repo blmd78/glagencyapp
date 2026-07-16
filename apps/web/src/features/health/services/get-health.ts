@@ -1,4 +1,4 @@
-import { daysBetween, endOfMonth, isoDate, mondayOf } from '@glagency/core'
+import { daysBetween, endOfMonth, mondayOf, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
 import { round1, round2, eur, num, ltvOf } from '@/lib/format'
@@ -47,7 +47,7 @@ export async function getHealth(
 
   // Lundi de la semaine courante : passé au RPC pour que la borne « semaine en cours »
   // soit IDENTIQUE au calcul d'origine (indépendante du fuseau horaire de la base).
-  const weekFrom = mondayOf(isoDate(new Date()))
+  const weekFrom = mondayOf(todayParis())
 
   const [{ data: creators }, { data: chatters }, rpcRes] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
@@ -145,7 +145,7 @@ export async function getHealth(
   // qui doit tout compter (seuls jauge et plan LTV se limitent aux inclus).
   const allNew = [...agg.values()].reduce((s, a) => s + a.newSubs, 0)
   const ltv = ltvOf(includedCa, totalNew)
-  const todayIso = isoDate(new Date())
+  const todayIso = todayParis()
   const remainingDays = Math.max(0, daysBetween(todayIso, endOfMonth(todayIso)))
   const missing = Math.max(0, round2(LTV_TARGET * totalNew - includedCa))
   // Un plan de rattrapage n'a de sens que si la période inclut AUJOURD'HUI (sur un mois

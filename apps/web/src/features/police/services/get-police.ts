@@ -1,4 +1,4 @@
-import { addDays, frWeekdayLong, isoDate } from '@glagency/core'
+import { addDays, frWeekdayLong, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getChatterScope } from '@/lib/scope'
@@ -18,7 +18,7 @@ export async function getPolice(day: string | null | undefined, profile: Profile
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const today = isoDate(new Date())
+  const today = todayParis()
   const selected = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : today
   const since = addDays(selected, -30)
 
