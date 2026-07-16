@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { z } from 'zod'
+import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, requireAccess } from '@/lib/auth'
 // Lecture partagée : promue dans lib/services/ à la PR pilote (plan 2026-07-16, Task 13) ;
@@ -94,7 +95,8 @@ export async function exportChattersCsv(): Promise<
   if (!profile || profile.role !== 'admin') return { error: 'Réservé aux admins' }
 
   // Même référence qu'Insights : la dernière semaine complète (S-1, lundi → dimanche).
-  const lundiS1 = subWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), 1)
+  // Jour métier Europe/Paris (pas UTC) — cf. todayParis, guideline data-loading.
+  const lundiS1 = subWeeks(startOfWeek(new Date(`${todayParis()}T00:00:00`), { weekStartsOn: 1 }), 1)
   const from = format(lundiS1, 'yyyy-MM-dd')
   const to = format(addDays(lundiS1, 6), 'yyyy-MM-dd')
   const data = await getChatters({ from, to, label: `${from} → ${to}` }, { restricted: false })

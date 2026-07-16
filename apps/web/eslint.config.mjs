@@ -43,6 +43,11 @@ const eslintConfig = [
             // lib et components (partagés) n'importent pas les features
             { target: './src/lib', from: './src/features' },
             { target: './src/components', from: './src/features' },
+            // hooks et config (partagés) : mêmes frontières que lib/components
+            { target: './src/hooks', from: './src/app' },
+            { target: './src/hooks', from: './src/features' },
+            { target: './src/config', from: './src/app' },
+            { target: './src/config', from: './src/features' },
             // Cross-feature interdit
             ...features.map((f) => ({
               target: `./src/features/${f}`,
