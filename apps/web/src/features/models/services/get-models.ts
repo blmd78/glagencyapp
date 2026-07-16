@@ -4,7 +4,11 @@ import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
 import { conv, round2 , ltvOf } from '@/lib/format'
 
-/** Forme brute renvoyée par le RPC `models_report` (migration 0050) — sommes agrégées EN BASE. */
+/**
+ * Forme brute renvoyée par le RPC `models_report` (migration 0050, typé dans
+ * `packages/db/src/types.ts`) — sommes déjà agrégées EN BASE. Retour `Returns: Json` →
+ * cast documenté vers ce contrat local (docs/guidelines-data-loading.md §1).
+ */
 interface ModelsReport {
   by_creator: Array<{
     creator_id: string
@@ -34,20 +38,31 @@ interface ModelsReport {
 export async function getModels(period: Period): Promise<ModelsData> {
   const supabase = await createClient()
 
-  const [{ data: creators }, rpcRes, { data: cc }, { data: chatters }] = await Promise.all([
+  const [
+    { data: creators, error: creatorsErr },
+    rpcRes,
+    { data: cc, error: ccErr },
+    { data: chatters, error: chattersErr },
+  ] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
     // Agrégation EN BASE (migration 0050 models_report, SECURITY INVOKER = RLS appliquée) :
     // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
-    // milliers de lignes journalières ni de reduce JS. Non typé (Functions vide) → cast.
-    supabase.rpc('models_report' as never, {
+    // milliers de lignes journalières ni de reduce JS. RPC typé (nom + args) — pas de
+    // `as never` (cf. docs/guidelines-data-loading.md §1).
+    supabase.rpc('models_report', {
       p_from: period.from,
       p_to: period.to,
-    } as never) as unknown as PromiseLike<{ data: ModelsReport | null; error: { message: string } | null }>,
+    }),
     supabase.from('chatter_creators').select('creator_id, chatter_id').eq('active', true),
     supabase.from('chatters').select('id, display_name'),
   ])
+  if (creatorsErr) throw new Error(creatorsErr.message)
+  if (ccErr) throw new Error(ccErr.message)
+  if (chattersErr) throw new Error(chattersErr.message)
   if (rpcRes.error) throw new Error(rpcRes.error.message)
-  const rep = rpcRes.data ?? { by_creator: [], by_pair: [] }
+  // Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
+  // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
+  const rep = (rpcRes.data as ModelsReport | null) ?? { by_creator: [], by_pair: [] }
 
   const chName = new Map((chatters ?? []).map((c) => [c.id, c.display_name]))
 
