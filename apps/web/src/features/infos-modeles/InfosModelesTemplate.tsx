@@ -6,16 +6,15 @@ import type { InfosModelesData } from './types'
  * sections typées (liste = pastilles colorées, fiche = mini-cartes, recits = cartes
  * récit avec badge d'âge, texte = paragraphe encadré), même rendu que le legacy.
  * Lecture cloisonnée par la RLS (un membre ne voit que ses modèles) ; édition admin.
+ * `h1` remonté dans `page.tsx` (kickoff sans await + Suspense, recette pilote) — sous-titre
+ * en `-mt-4` pour compenser le double `gap-6` page/Template (docs/guidelines-standard-feature.md §2.5).
  */
 export function InfosModelesTemplate({ data, isAdmin }: { data: InfosModelesData; isAdmin: boolean }) {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Infos modèles</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.modeles.length} modèle(s) visibles · clique pour déplier
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {data.modeles.length} modèle(s) visibles · clique pour déplier
+      </p>
 
       <InfosModelesView data={data} isAdmin={isAdmin} />
     </div>
