@@ -1,3 +1,4 @@
+import { withSentryConfig } from '@sentry/nextjs'
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
@@ -17,8 +18,12 @@ const nextConfig: NextConfig = {
   transpilePackages: ['@glagency/core', '@glagency/db'],
 }
 
-// withSentryConfig absent volontairement : le Sentry CLIENT (erreurs navigateur) est
-// chargé paresseusement via instrumentation-client.ts ; le Sentry SERVEUR reste à
-// brancher (@sentry/nextjs serveur redevient possible maintenant que la cible est
-// Vercel — la contrainte de taille venait du plan Workers Free).
-export default nextConfig
+// Sentry build plugin : upload des sourcemaps (Debug IDs natifs Turbopack, Next ≥ 15.6).
+// Sans SENTRY_AUTH_TOKEN (dev local), le plugin ne fait rien — safe par défaut.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: true,
+  silent: !process.env.CI,
+})

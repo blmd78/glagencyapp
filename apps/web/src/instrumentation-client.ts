@@ -20,8 +20,6 @@ function loadSentry(): Promise<SentrySdk> {
       environment:
         process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ??
         (process.env.NODE_ENV === 'development' ? 'development' : 'production'),
-      // Erreurs uniquement : pas de tracing ni de Session Replay (quota + poids bundle).
-      tracesSampleRate: 0,
     })
     return Sentry
   })
