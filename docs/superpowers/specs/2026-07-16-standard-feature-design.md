@@ -188,9 +188,10 @@ Non retenu : `unauthorized()`/`forbidden()` (expérimentaux en 16.2, derrière
    ```
 
 2. **Helper maison `runAction`** (même fichier, ~40 lignes — pas de next-safe-action) :
-   enchaîne (a) `schema.safeParse(input)` → échec = `fieldErrors` via
-   `z.flattenError(...)`, (b) garde d'auth (fonction passée, ex. `requireAccess`),
-   (c) `try/catch` du handler → `Sentry.captureException` + erreur générique. Chaque
+   enchaîne (a) garde d'auth (fonction passée, ex. `requireAccess`), (b)
+   `schema.safeParse(input)` → échec = `fieldErrors` via `z.flattenError(...)`,
+   (c) le handler — le tout sous `try/catch` → `Sentry.captureException` + erreur
+   générique (capture aussi une garde qui `throw`). Chaque
    `actions.ts` l'utilise ; la RLS reste le garde-fou réel (défense en profondeur).
 3. **Standard forms : RHF + `zodResolver` + schéma partagé dans `schema.ts`** — déjà le
    pattern de 8 forms sur 9. Le schéma est LE même objet côté client (resolver) et côté

@@ -4,6 +4,7 @@ import { requireAccess } from '@/lib/auth'
 import { ChattersTemplate } from '@/features/chatters/ChattersTemplate'
 import { resolvePeriod } from '@/lib/period'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { ChattersData } from '@/lib/types/chatters'
 
 export default async function ChattersPage({
@@ -20,7 +21,14 @@ export default async function ChattersPage({
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Chatteurs</h1>
-      <Suspense fallback={<TableSkeleton />}>
+      <Suspense
+        fallback={
+          <div className="flex flex-col gap-6">
+            <Skeleton className="-mt-4 h-4 w-72" />
+            <TableSkeleton />
+          </div>
+        }
+      >
         <ChattersContent data={data} />
       </Suspense>
     </div>

@@ -82,7 +82,7 @@ export async function getChatters(
   // Le RPC est typé (nom + args) mais son retour est déclaré `Json` (types générés) →
   // on applique le contrat local par cast. `.overrideTypes<Report>` est inapplicable ici :
   // le garde de postgrest-js 2.110 distribue sur l'union Json et rejette tout override
-  // (cf. .superpowers/sdd/task-13-report.md). Cast du data uniquement — le nom du RPC et
+  // (cf. docs/guidelines-data-loading.md §1). Cast du data uniquement — le nom du RPC et
   // ses arguments restent typés nativement (plus de cast forcé sur l'appel, ni de PromiseLike).
   const rep = (rpcRes.data as Report | null) ?? {
     totals: [],

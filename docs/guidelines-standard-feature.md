@@ -60,7 +60,14 @@ features/<f>/
      return (
        <div className="flex flex-col gap-6">
          <h1 className="text-2xl font-semibold tracking-tight">Chatteurs</h1>
-         <Suspense fallback={<TableSkeleton />}>
+         <Suspense
+           fallback={
+             <div className="flex flex-col gap-6">
+               <Skeleton className="-mt-4 h-4 w-72" />
+               <TableSkeleton />
+             </div>
+           }
+         >
            <ChattersContent data={data} />
          </Suspense>
        </div>
@@ -79,6 +86,10 @@ features/<f>/
    `kpi-skeleton.tsx`, …) — pas le `PageSkeleton` générique. A11y intégrée une fois pour
    toutes : conteneur `role="status"` + `<span className="sr-only">Chargement…</span>`,
    squelettes `aria-hidden`. Ne pas dupliquer cette a11y dans chaque feature.
+4. **Piège — sous-titre du Template quand le `h1` remonte dans la page** : le `<p>` sous-titre
+   du `<Feature>Template.tsx` prend `-mt-4` pour compenser le double `gap-6` page/Template (le
+   `flex flex-col gap-6` de `page.tsx` espace déjà `h1` et contenu streamé) — rendu identique à
+   un layout sans split page/Suspense. Recette du pilote, `ChattersTemplate.tsx`.
 
 ---
 
@@ -162,14 +173,23 @@ features/<f>/
 - **`ActionButton`** (`src/components/action-button.tsx`) pour le bouton de submit : spinner +
   `disabled` piloté par `pending` (ex. `form.formState.isSubmitting`).
 
+**Pièges** (retour du pilote) :
+
+- Un `Select` Radix refuse `value=""` (chaîne vide) → sentinelle `NONE = 'none'` + mapping vers
+  `null` à la lecture/écriture (cf. `chatter-crm-dialog.tsx`, `CrmSelect`).
+- Un `Select` Radix dans RHF passe par `Controller` — pas `register` (le composant ne wrappe pas
+  un `<input>` natif, `register` n'a rien à câbler dessus).
+- Les `defaultValues` du form doivent être reset à la RÉOUVERTURE du dialog (`onOpenChange` →
+  `form.reset(...)`), sinon un vieux brouillon reste affiché — c'est aussi ce qui resynchronise
+  le form avec la donnée après un `revalidatePath`.
+
 ---
 
-## 6. Filtres — `searchParams`, jamais `useState` local
+## 6. Filtres — `searchParams` pour l'état partageable, `useState` pour un filtre de vue
 
-État de filtre **partageable par URL** (période, modèle sélectionné, etc.) → `searchParams` +
-`useTransition`/`isPending` + `router.replace`. Jamais de `useState` local pour ce type d'état
-(perdu à la navigation, non partageable). Pattern déjà en place, ex.
-`src/components/date-range-picker.tsx` :
+État de filtre **partageable par URL** (période, onglet, etc. — ce que l'utilisateur voudrait
+retrouver via un lien ou au retour arrière) → `searchParams` + `useTransition`/`isPending` +
+`router.replace`. Pattern déjà en place, ex. `src/components/date-range-picker.tsx` :
 
 - lire l'état depuis `useSearchParams()`, avec un défaut si absent ;
 - écrire via `router.replace(\`${pathname}?${params}\`, { scroll: false })` (pas `push` — pas
@@ -178,9 +198,13 @@ features/<f>/
   chargement, l'ancienne UI reste affichée pendant le refetch (stale-while-revalidate, pas de
   flash).
 
-Un état purement local à un composant (ex. `open` d'un `Dialog`, `draft` d'un calendrier avant
-validation) reste en `useState` — la règle porte sur l'état **partageable/persistant**, pas sur
-tout état client.
+**Distinction avec un filtre de VUE interne à une table** (tri, filtre rapide non persistant —
+ex. le sélecteur de modèle de `features/chatters/components/chatters-table.tsx:26`) : il reste en
+`useState` local, il ne change pas la donnée récupérée côté serveur (juste ce qui est affiché
+d'un jeu déjà chargé) et n'a pas vocation à être partagé par lien. Règle de tri : un état que
+l'utilisateur voudrait partager/retrouver via l'URL (période, onglet) va en `searchParams` ; un
+filtre de vue interne à une table reste en `useState` local. Idem pour un état purement local à
+un composant (ex. `open` d'un `Dialog`, `draft` d'un calendrier avant validation).
 
 ---
 
@@ -226,3 +250,10 @@ doute :
 - [ ] Forms : RHF + `zodResolver` + schéma partagé dans `schema.ts` (Zod v4 : `z.uuid()`, `z.flattenError()`)
 - [ ] Aucun import d'une autre feature (ESLint le bloque) ; pas de barrel `index.ts`
 - [ ] `pnpm --filter @glagency/web lint && typecheck` avant commit
+
+---
+
+## Désambiguïsation doc / pilote
+
+En cas de conflit entre cette doc et le pilote `/chatter/chatters` : le pilote fait foi —
+signaler l'écart pour correction de la doc.
