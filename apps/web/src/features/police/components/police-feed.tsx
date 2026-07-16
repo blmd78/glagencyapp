@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Trash2, TriangleAlert, Gavel, Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/action-button'
@@ -38,7 +39,12 @@ export function PoliceFeed({
   onClearFilter?: () => void
 }) {
   const remove = async (id: string) => {
-    await deletePoliceEntry({ id })
+    const res = await deletePoliceEntry({ id })
+    if (!res.success) {
+      toast.error(res.error)
+      return res.error
+    }
+    toast.success('Entrée supprimée')
   }
 
   // data.entries est déjà trié du plus récent au plus ancien → l'ordre de première
@@ -123,7 +129,7 @@ function EntryRow({
 }: {
   e: PoliceEntry
   isAdmin: boolean
-  onRemove: () => void
+  onRemove: () => void | string | Promise<void | string>
 }) {
   const isMalus = e.kind === 'malus'
   return (
@@ -191,8 +197,10 @@ function MalusEdit({ e }: { e: PoliceEntry }) {
     })
     if (!res.success) {
       setError('root', { message: res.error })
+      toast.error(res.error)
       return
     }
+    toast.success('Malus modifié')
     setOpen(false)
   })
 

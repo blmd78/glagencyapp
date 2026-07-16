@@ -1,5 +1,5 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { PoliceSkeleton } from '@/features/police/components/police-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return <PoliceSkeleton />
 }
