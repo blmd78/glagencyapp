@@ -29,6 +29,7 @@ import {
   ScrollText,
   KeyRound,
   Ghost,
+  NotebookPen,
   IdCard,
 } from 'lucide-react'
 
@@ -112,6 +113,10 @@ export const WORKSPACES: Workspace[] = [
       // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
       { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
+      // Comptes rendus journaliers — écrit par quiconque a le droit de page (admins
+      // d'office) ; le superadmin y lit tout le monde. Pas adminOnly → cochable
+      // dans Membres via PAGE_CHOICES.
+      { href: '/chatter/dashboard', label: 'Dashboard', icon: NotebookPen, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
@@ -151,7 +156,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

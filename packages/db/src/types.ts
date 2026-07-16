@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -591,6 +611,74 @@ export type Database = {
           },
         ]
       }
+      creator_script_daily: {
+        Row: {
+          active: boolean
+          captured_at: string
+          creator_id: string
+          date: string
+          media_count: number
+          msg_count: number
+          name: string
+          position: number | null
+          price_total: number
+          revenue_cum: number
+          revenue_day: number | null
+          sales_cum: number
+          sales_day: number | null
+          script_id: number
+          sends_cum: number
+          sequence: number | null
+          unique_fans_cum: number
+        }
+        Insert: {
+          active?: boolean
+          captured_at?: string
+          creator_id: string
+          date: string
+          media_count?: number
+          msg_count?: number
+          name?: string
+          position?: number | null
+          price_total?: number
+          revenue_cum?: number
+          revenue_day?: number | null
+          sales_cum?: number
+          sales_day?: number | null
+          script_id: number
+          sends_cum?: number
+          sequence?: number | null
+          unique_fans_cum?: number
+        }
+        Update: {
+          active?: boolean
+          captured_at?: string
+          creator_id?: string
+          date?: string
+          media_count?: number
+          msg_count?: number
+          name?: string
+          position?: number | null
+          price_total?: number
+          revenue_cum?: number
+          revenue_day?: number | null
+          sales_cum?: number
+          sales_day?: number | null
+          script_id?: number
+          sends_cum?: number
+          sequence?: number | null
+          unique_fans_cum?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_script_daily_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creators: {
         Row: {
           active: boolean
@@ -598,6 +686,7 @@ export type Database = {
           excluded: boolean
           excluded_reason: string | null
           id: string
+          infos_cle: Json | null
           is_private: boolean
           is_secondary: boolean
           mypuls_creator_id: string | null
@@ -611,6 +700,7 @@ export type Database = {
           excluded?: boolean
           excluded_reason?: string | null
           id?: string
+          infos_cle?: Json | null
           is_private?: boolean
           is_secondary?: boolean
           mypuls_creator_id?: string | null
@@ -624,6 +714,7 @@ export type Database = {
           excluded?: boolean
           excluded_reason?: string | null
           id?: string
+          infos_cle?: Json | null
           is_private?: boolean
           is_secondary?: boolean
           mypuls_creator_id?: string | null
@@ -644,6 +735,41 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_reports: {
+        Row: {
+          content: string
+          created_at: string
+          day: string
+          id: string
+          profile_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          day: string
+          id?: string
+          profile_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          day?: string
+          id?: string
+          profile_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_reports_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1196,90 +1322,6 @@ export type Database = {
         }
         Relationships: []
       }
-      police_entries: {
-        Row: {
-          amount_eur: number
-          chatter_id: string
-          controller_id: string | null
-          created_at: string
-          error_key: string | null
-          id: string
-          kind: string
-          note: string | null
-          occurred_on: string
-          shift: string | null
-        }
-        Insert: {
-          amount_eur?: number
-          chatter_id: string
-          controller_id?: string | null
-          created_at?: string
-          error_key?: string | null
-          id?: string
-          kind: string
-          note?: string | null
-          occurred_on?: string
-          shift?: string | null
-        }
-        Update: {
-          amount_eur?: number
-          chatter_id?: string
-          controller_id?: string | null
-          created_at?: string
-          error_key?: string | null
-          id?: string
-          kind?: string
-          note?: string | null
-          occurred_on?: string
-          shift?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "police_entries_chatter_id_fkey"
-            columns: ["chatter_id"]
-            isOneToOne: false
-            referencedRelation: "chatters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "police_entries_controller_id_fkey"
-            columns: ["controller_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      profile_creators: {
-        Row: {
-          creator_id: string
-          profile_id: string
-        }
-        Insert: {
-          creator_id: string
-          profile_id: string
-        }
-        Update: {
-          creator_id?: string
-          profile_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "profile_creators_creator_id_fkey"
-            columns: ["creator_id"]
-            isOneToOne: false
-            referencedRelation: "creators"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profile_creators_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       planning_blocks: {
         Row: {
           badge: string
@@ -1370,7 +1412,106 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "plannings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plannings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      police_entries: {
+        Row: {
+          amount_eur: number
+          chatter_id: string
+          controller_id: string | null
+          created_at: string
+          error_key: string | null
+          id: string
+          kind: string
+          note: string | null
+          occurred_on: string
+          shift: string | null
+        }
+        Insert: {
+          amount_eur?: number
+          chatter_id: string
+          controller_id?: string | null
+          created_at?: string
+          error_key?: string | null
+          id?: string
+          kind: string
+          note?: string | null
+          occurred_on?: string
+          shift?: string | null
+        }
+        Update: {
+          amount_eur?: number
+          chatter_id?: string
+          controller_id?: string | null
+          created_at?: string
+          error_key?: string | null
+          id?: string
+          kind?: string
+          note?: string | null
+          occurred_on?: string
+          shift?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "police_entries_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "police_entries_controller_id_fkey"
+            columns: ["controller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_creators: {
+        Row: {
+          creator_id: string
+          profile_id: string
+        }
+        Insert: {
+          creator_id: string
+          profile_id: string
+        }
+        Update: {
+          creator_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_creators_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profile_creators_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1666,6 +1807,41 @@ export type Database = {
           },
         ]
       }
+      snap_codes: {
+        Row: {
+          creator_id: string
+          mdp: string
+          notes: string
+          pseudo: string
+          statut: string
+          updated_at: string
+        }
+        Insert: {
+          creator_id: string
+          mdp?: string
+          notes?: string
+          pseudo?: string
+          statut?: string
+          updated_at?: string
+        }
+        Update: {
+          creator_id?: string
+          mdp?: string
+          notes?: string
+          pseudo?: string
+          statut?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snap_codes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: true
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spender_assignment_events: {
         Row: {
           changed_at: string
@@ -1842,6 +2018,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      bilan_report: {
+        Args: {
+          p_end: string
+          p_lm_end: string
+          p_lm_start: string
+          p_prev_end: string
+          p_prev_start: string
+          p_start: string
+        }
+        Returns: Json
+      }
+      can_edit_planning_of: { Args: { target: string }; Returns: boolean }
       chatter_first_seen: {
         Args: never
         Returns: {
@@ -1853,49 +2041,65 @@ export type Database = {
       crm_spenders_daily: {
         Args: never
         Returns: {
-          date: string
           ca: number
+          date: string
         }[]
       }
       crm_spenders_kpis: {
         Args: { p_seuil?: number }
         Returns: {
+          a_relancer: number
           actifs: number
+          alertes: number
           archives: number
           ca_total: number
-          a_relancer: number
-          alertes: number
           orphelins: number
         }[]
       }
       crm_spenders_tracker: {
         Args: { p_seuil?: number }
         Returns: {
-          creator_id: string
-          fan_id: number
-          username: string
-          model: string
-          ca_total: number
-          status: string | null
-          last_message_at: string | null
-          last_message_is_mine: boolean | null
-          has_unread: boolean
-          assigned_chatter_id: string | null
-          chatter_name: string | null
-          chatter_team: string | null
-          assigned_label: string | null
-          compteur_r: number
-          derniere_relance_at: string | null
-          relance_today: boolean
-          conversion_pending: boolean
           archived: boolean
+          assigned_chatter_id: string
+          assigned_label: string
+          ca_total: number
+          chatter_name: string
+          chatter_team: string
+          compteur_r: number
+          conversion_pending: boolean
+          creator_id: string
+          derniere_relance_at: string
+          fan_id: number
+          has_unread: boolean
+          last_message_at: string
+          last_message_is_mine: boolean
+          model: string
+          relance_today: boolean
+          status: string
+          username: string
         }[]
       }
       has_page: { Args: { slug: string }; Returns: boolean }
+      health_report: {
+        Args: { p_from: string; p_to: string; p_week_from: string }
+        Returns: Json
+      }
       is_admin: { Args: never; Returns: boolean }
+      is_superadmin: { Args: never; Returns: boolean }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
         Returns: undefined
+      }
+      models_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      overview_report: {
+        Args: {
+          p_chart_from: string
+          p_chart_to: string
+          p_period_from: string
+          p_period_to: string
+          p_restricted: boolean
+        }
+        Returns: Json
       }
     }
     Enums: {
@@ -2025,7 +2229,11 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
 } as const
+
