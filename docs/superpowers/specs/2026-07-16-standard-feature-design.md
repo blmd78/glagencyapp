@@ -46,9 +46,13 @@ Ce qui change :
    générés (`packages/db/src/types.ts:2040` pour `chatters_report`). Les 15 casts
    `rpc('x' as never, ... as never) as unknown as PromiseLike<...>` répartis sur
    7 fichiers sont du bruit obsolète. Le retour `Json` des RPC garde une interface TS
-   locale (miroir main) — c'est inévitable et accepté ; pour l'appliquer, utiliser le
-   modifier officiel `.overrideTypes<Report, { merge: false }>()` (successeur de
-   `.returns<T>()`) plutôt qu'un cast brut.
+   locale (miroir main) — c'est inévitable et accepté. **Correctif d'implémentation
+   (2026-07-16, pilote)** : `.overrideTypes<T>()` est INAPPLICABLE aux RPC déclarés
+   `Returns: Json` — le garde `IsValidResultOverride` de postgrest-js 2.110 distribue
+   sur l'union récursive `Json` et rejette tout override (vérifié, systémique aux 5
+   RPC `*_report`). Pattern canonique : appel `supabase.rpc('nom', args)` **typé**
+   (nom + args, plus de `as never`) puis cast documenté du data
+   (`rpcRes.data as unknown as Report | null`), erreurs toujours destructurées.
 2. **Jamais avaler une erreur de query.** Toute destructuration doit inclure `error` et
    le traiter (`throw`). Bug réel : `get-chatters.ts:71-77` ignore l'erreur du select
    `chatters` parallèle → colonnes CRM silencieusement nulles en cas d'échec.
