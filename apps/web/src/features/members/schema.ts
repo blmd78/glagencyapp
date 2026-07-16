@@ -18,15 +18,15 @@ const workLink = z
 export const memberInput = z
   .object({
     scope: z.enum(['chatter', 'marketing']),
-    email: z.string().email('Email invalide'),
+    email: z.email('Email invalide'),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
     // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
     // piloté par l'allowlist (trigger handle_new_user), jamais posé ici.
     role: z.enum(['user', 'manager', 'admin']),
     pages: z.array(z.string()),
-    creatorIds: z.array(z.string().uuid()).max(50),
+    creatorIds: z.array(z.uuid()).max(50),
     // Rattachement à un manager ('' = aucun) — forcé au créateur si l'appelant est manager.
-    managerId: z.string().uuid().or(z.literal('')),
+    managerId: z.uuid().or(z.literal('')),
     workLink,
   })
   .refine(
@@ -45,12 +45,12 @@ export type MemberForm = z.infer<typeof memberInput>
 export const memberUpdateInput = z
   .object({
     scope: z.enum(['chatter', 'marketing']),
-    id: z.string().uuid(),
+    id: z.uuid(),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
     role: z.enum(['user', 'manager', 'admin']),
     pages: z.array(z.string()),
-    creatorIds: z.array(z.string().uuid()).max(50),
-    managerId: z.string().uuid().or(z.literal('')),
+    creatorIds: z.array(z.uuid()).max(50),
+    managerId: z.uuid().or(z.literal('')),
     workLink,
   })
   .refine(

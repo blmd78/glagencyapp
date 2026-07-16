@@ -1,6 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
+import { toast } from 'sonner'
 import { Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -86,7 +87,11 @@ function RowActions({
         }
         onConfirm={async () => {
           const res = await deleteMember(member.id)
-          if (!res.success) return res.error
+          if (!res.success) {
+            toast.error(res.error)
+            return res.error
+          }
+          toast.success('Membre supprimé')
         }}
       />
     </div>
