@@ -29,7 +29,9 @@ export default async function PlanningPage({
     <Suspense fallback={<PlanningSkeleton />}>
       <PlanningContent
         profileId={profile.id}
+        selfName={profile.displayName ?? profile.email ?? 'Moi'}
         isAdmin={isAdmin}
+        superadmin={profile.superadmin}
         membre={membre}
         membersPromise={membersPromise}
       />
@@ -39,12 +41,16 @@ export default async function PlanningPage({
 
 async function PlanningContent({
   profileId,
+  selfName,
   isAdmin,
+  superadmin,
   membre,
   membersPromise,
 }: {
   profileId: string
+  selfName: string
   isAdmin: boolean
+  superadmin: boolean
   membre?: string
   membersPromise: Promise<PlanningMember[]> | null
 }) {
@@ -59,16 +65,23 @@ async function PlanningContent({
     )
   }
 
-  // Superadmin : sélecteur membres + admins ; admin : membres uniquement. Toute cible
-  // visible est donc éditable par son spectateur (la garde requireCanEdit + la RLS 0043
-  // restent la défense contre un appel d'action forgé vers le planning d'un admin).
-  const members = await membersPromise
+  // Sélecteur : SOI-MÊME en tête (un admin doit pouvoir OUVRIR son propre planning —
+  // celui que le superadmin lui a préparé), puis superadmin → membres + admins ;
+  // admin → membres uniquement. Édition : un admin consulte le sien en LECTURE SEULE
+  // (« le planning d'un admin n'est modifiable que par un superadmin » — garde
+  // requireCanEdit + RLS 0043, qui restent la défense contre un appel forgé).
+  const fetched = await membersPromise
+  const members: PlanningMember[] = [
+    { id: profileId, name: `${selfName} (moi)`, role: 'admin' },
+    ...fetched.filter((m) => m.id !== profileId),
+  ]
   const target = membre && members.some((m) => m.id === membre) ? membre : (members[0]?.id ?? null)
+  const canEditTarget = superadmin || (target !== null && target !== profileId)
   return (
     <PlanningTemplate
       data={target ? await getPlanning(target) : null}
       isAdmin
-      canEdit
+      canEdit={canEditTarget}
       members={members}
     />
   )
