@@ -16,6 +16,7 @@ import type { PlanningData, PlanningMember } from '../types'
 export function PlanningHeader({
   data,
   isAdmin,
+  canEdit,
   members,
   totalMin,
   shiftsCount,
@@ -24,6 +25,8 @@ export function PlanningHeader({
 }: {
   data: PlanningData | null
   isAdmin: boolean
+  /** Cible éditable par le spectateur (un admin consulte SON planning en lecture seule). */
+  canEdit: boolean
   members: PlanningMember[]
   totalMin: number
   shiftsCount: number
@@ -59,7 +62,7 @@ export function PlanningHeader({
               label: m.role === 'manager' ? `${m.name} · manager` : m.name,
             }))}
           />
-          {data && (
+          {data && canEdit && (
             <>
               <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenMeta}>
                 <SlidersHorizontal className="size-3.5" />

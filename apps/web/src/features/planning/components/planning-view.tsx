@@ -61,6 +61,7 @@ export function PlanningView({
       <PlanningHeader
         data={data}
         isAdmin={isAdmin}
+        canEdit={canEdit}
         members={members}
         totalMin={totalMin}
         shiftsCount={bySection.length}
