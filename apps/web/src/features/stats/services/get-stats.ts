@@ -11,20 +11,23 @@ import type { StatsData, SubsDay } from '../types'
 export async function getStats(period: Period): Promise<StatsData> {
   const supabase = await createClient()
 
-  const [{ data: creators }, { data: rows }] = await Promise.all([
-    supabase.from('creators').select('id, name'),
-    // Table journalière : fetchAll (pagination PostgREST, tri = PK).
-    fetchAll((f, t) =>
-      supabase
-        .from('creator_daily')
-        .select('creator_id, date, new_subs, renew_subs')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('creator_id')
-        .order('date')
-        .range(f, t),
-    ),
-  ])
+  const [{ data: creators, error: creatorsErr }, { data: rows, error: rowsErr }] =
+    await Promise.all([
+      supabase.from('creators').select('id, name'),
+      // Table journalière : fetchAll (pagination PostgREST, tri = PK).
+      fetchAll((f, t) =>
+        supabase
+          .from('creator_daily')
+          .select('creator_id, date, new_subs, renew_subs')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('creator_id')
+          .order('date')
+          .range(f, t),
+      ),
+    ])
+  if (creatorsErr) throw new Error(creatorsErr.message)
+  if (rowsErr) throw new Error(rowsErr.message)
 
   const nameById = new Map((creators ?? []).map((c) => [c.id, c.name]))
 

@@ -56,7 +56,7 @@ function LastRelance({ iso }: { iso: string | null }) {
   )
 }
 
-const makeColumns = (isAdmin: boolean, tracker: boolean, readOnly: boolean): ColumnDef<SpenderRow>[] => [
+const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, readOnly: boolean): ColumnDef<SpenderRow>[] => [
   {
     accessorKey: 'username',
     header: ({ column }) => (
@@ -144,7 +144,7 @@ const makeColumns = (isAdmin: boolean, tracker: boolean, readOnly: boolean): Col
               <HeaderInfo text="Compteur de relances — la liste est triée par priorité : le moins relancé en haut. Coche la case suivante pour enregistrer la relance du jour (max 1/jour, garanti en base)." />
             </div>
           ),
-          cell: ({ row }) => <RelanceCounter spender={row.original} isAdmin={isAdmin} withAdd={false} />,
+          cell: ({ row }) => <RelanceCounter spender={row.original} isAdmin={isAdmin} canWrite={canWrite} withAdd={false} />,
           meta: { align: 'center' },
         } satisfies ColumnDef<SpenderRow>,
       ]
@@ -167,6 +167,7 @@ const makeColumns = (isAdmin: boolean, tracker: boolean, readOnly: boolean): Col
             <RelanceCounter
               spender={row.original}
               isAdmin={isAdmin}
+              canWrite={canWrite}
               withAdd={!readOnly}
               withEdit={!readOnly}
             />
@@ -216,6 +217,7 @@ export function SpendersTable({
   spenders,
   extra = [],
   isAdmin = false,
+  canWrite = false,
   tracker = false,
   readOnlyRelances = false,
 }: {
@@ -223,6 +225,8 @@ export function SpendersTable({
   /** Colonnes ajoutées en fin (ex. actions du tracker). */
   extra?: ColumnDef<SpenderRow>[]
   isAdmin?: boolean
+  /** admin ou manager/sous-manager : peut reset/archiver. Le chatteur non (0060). */
+  canWrite?: boolean
   /** Vue « À relancer » : cases R1→R10, date de relance, tri par priorité. */
   tracker?: boolean
   /** Vue « Liste » : compteur en consultation seule (ni « + » ni crayon). */
@@ -248,7 +252,7 @@ export function SpendersTable({
     return { filtered: byModel.filter((s) => (showDone ? s.grise : !s.grise)), doneToday: done }
   }, [spenders, model, tracker, showDone])
 
-  const columns = useMemo(() => [...makeColumns(isAdmin, tracker, readOnlyRelances), ...extra], [extra, isAdmin, tracker, readOnlyRelances])
+  const columns = useMemo(() => [...makeColumns(isAdmin, canWrite, tracker, readOnlyRelances), ...extra], [extra, isAdmin, canWrite, tracker, readOnlyRelances])
 
   return (
     <DataTable

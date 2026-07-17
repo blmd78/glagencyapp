@@ -1,3 +1,4 @@
+import type { Route } from 'next'
 import type { LucideIcon } from 'lucide-react'
 import {
   Send,
@@ -36,7 +37,7 @@ import {
 export interface NavItem {
   /** Slug d'accès explicite (sinon dérivé du dernier segment de l'href). */
   slug?: string
-  href: string
+  href: Route
   label: string
   icon: LucideIcon
   adminOnly?: boolean
@@ -116,7 +117,9 @@ export const WORKSPACES: Workspace[] = [
       // Comptes rendus journaliers — écrit par quiconque a le droit de page (admins
       // d'office) ; le superadmin y lit tout le monde. Pas adminOnly → cochable
       // dans Membres via PAGE_CHOICES.
-      { href: '/chatter/dashboard', label: 'Dashboard', icon: NotebookPen, bottom: true },
+      // TODO(daily-reports): page créée par le plan 2026-07-16-daily-reports (Task 6) —
+      // cast en attendant ; retirer quand app/(dash)/chatter/dashboard/page.tsx existe.
+      { href: '/chatter/dashboard' as Route, label: 'Dashboard', icon: NotebookPen, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
@@ -206,6 +209,7 @@ export function workspaceForPath(pathname: string): Workspace {
 }
 
 /** Home d'une face = sa 1ʳᵉ entrée de nav, sinon son basePath. */
-export function workspaceHome(w: Workspace): string {
-  return w.nav[0]?.href ?? w.basePath
+export function workspaceHome(w: Workspace): Route {
+  // Fallback défensif (basePath seul n'est pas une page réelle) → cast.
+  return w.nav[0]?.href ?? (w.basePath as Route)
 }

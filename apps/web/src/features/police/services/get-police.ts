@@ -1,4 +1,4 @@
-import { addDays, frWeekdayLong, isoDate } from '@glagency/core'
+import { addDays, frWeekdayLong, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getChatterScope } from '@/lib/scope'
@@ -18,28 +18,35 @@ export async function getPolice(day: string | null | undefined, profile: Profile
   const supabase = await createClient()
   const admin = createAdminClient()
 
-  const today = isoDate(new Date())
+  const today = todayParis()
   const selected = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : today
   const since = addDays(selected, -30)
 
-  const [scope, { data: rows }, { data: recentWarns }, { data: chatterRows }, { data: profileRows }] =
-    await Promise.all([
-      // Périmètre manager (1 requête pour un non-admin) — indépendant du reste.
-      getChatterScope(profile),
-      supabase
-        .from('police_entries')
-        .select('*')
-        .eq('occurred_on', selected)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('police_entries')
-        .select('chatter_id')
-        .eq('kind', 'warning')
-        .gte('occurred_on', since)
-        .lte('occurred_on', selected),
-      admin.from('chatters').select('id, display_name, active'),
-      admin.from('profiles').select('id, display_name'),
-    ])
+  const [scope, entriesRes, recentWarnsRes, chattersRes, profilesRes] = await Promise.all([
+    // Périmètre manager (1 requête pour un non-admin) — indépendant du reste.
+    getChatterScope(profile),
+    supabase
+      .from('police_entries')
+      .select('*')
+      .eq('occurred_on', selected)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('police_entries')
+      .select('chatter_id')
+      .eq('kind', 'warning')
+      .gte('occurred_on', since)
+      .lte('occurred_on', selected),
+    admin.from('chatters').select('id, display_name, active'),
+    admin.from('profiles').select('id, display_name'),
+  ])
+  if (entriesRes.error) throw new Error(entriesRes.error.message)
+  if (recentWarnsRes.error) throw new Error(recentWarnsRes.error.message)
+  if (chattersRes.error) throw new Error(chattersRes.error.message)
+  if (profilesRes.error) throw new Error(profilesRes.error.message)
+  const rows = entriesRes.data
+  const recentWarns = recentWarnsRes.data
+  const chatterRows = chattersRes.data
+  const profileRows = profilesRes.data
   const inScope = (id: string) => scope.chatterIds === null || scope.chatterIds.has(id)
 
   const chatterName: Record<string, string> = {}

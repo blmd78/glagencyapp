@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ActionButton } from '@/components/action-button'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 
@@ -108,7 +107,7 @@ export default function LoginPage() {
                   setError(null)
                 }}
               >
-                Changer d'e-mail
+                Changer d’e-mail
               </button>
             </form>
           )}

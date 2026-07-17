@@ -2,6 +2,7 @@
 
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import {
@@ -65,7 +66,12 @@ export function ItemDialog({
 
   const submit = handleSubmit(async (values) => {
     const res = await saveScriptItem({ id: item?.id ?? null, creatorId, ...values })
-    if (!res.success) return setError('root', { message: res.error })
+    if (!res.success) {
+      setError('root', { message: res.error })
+      toast.error(res.error)
+      return
+    }
+    toast.success(item ? 'Item modifié' : 'Item ajouté')
     onClose()
   })
 

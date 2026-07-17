@@ -2,6 +2,7 @@
 
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
@@ -67,8 +68,10 @@ export function ControlPanel({
           })
     if (!res.success) {
       setError('root', { message: res.error })
+      toast.error(res.error)
       return
     }
+    toast.success(amt > 0 ? 'Malus enregistré' : 'Avertissement ajouté')
     // On garde le chatteur + shift (saisies rapides), on vide l'erreur/le montant.
     reset({ chatterId: values.chatterId, errorKey: '', shift: values.shift ?? '', amount: '', note: '' })
   })

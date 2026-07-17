@@ -1,5 +1,6 @@
 import { endOfMonth, format, isAfter, isSameDay, startOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
+import { todayParis } from '@glagency/core'
 
 /** Période résolue depuis l'URL, prête pour les requêtes Supabase (bornes incluses). */
 export interface Period {
@@ -25,7 +26,9 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
  * Source unique lue par toutes les pages → le datepicker du header pilote tout le CRM.
  */
 export function resolvePeriod(searchParams: { from?: string; to?: string }): Period {
-  const now = new Date()
+  // Jour métier Europe/Paris (pas UTC) : sur Vercel, `new Date()` bascule à minuit UTC,
+  // soit 2h du matin à Paris en été — la fin de période par défaut était fausse la nuit.
+  const now = new Date(`${todayParis()}T00:00:00`)
   const from = parse(searchParams.from) ?? startOfMonth(now)
   // Défaut = du 1er du mois à AUJOURD'HUI (pas la fin du mois). Jamais après aujourd'hui
   // (le picker l'interdit déjà ; re-borné ici côté serveur par sécurité).

@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Pencil } from 'lucide-react'
 import {
   Dialog,
@@ -19,8 +22,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
 import { updateChatterCrm } from '../actions'
-import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '../types'
-import type { ChatterRow, CrmRole, CrmShift, CrmTeam } from '../types'
+import { updateChatterCrmInput, type UpdateChatterCrmInput } from '../schema'
+import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
+import type { ChatterRow } from '@/lib/types/chatters'
 
 const LABELS: Record<string, string> = {
   closer: 'Closer',
@@ -69,23 +73,39 @@ function CrmSelect({
 /** Crayon + dialog : édite rôle / équipe (rouge-bleue) / shift closing d'un chatteur. */
 export function ChatterCrmDialog({ chatter }: { chatter: ChatterRow }) {
   const [open, setOpen] = useState(false)
-  const [role, setRole] = useState<CrmRole | null>(chatter.role)
-  const [team, setTeam] = useState<CrmTeam | null>(chatter.team)
-  const [shift, setShift] = useState<CrmShift | null>(chatter.shift)
-  const [error, setError] = useState<string | null>(null)
-  const [pending, startTransition] = useTransition()
+  const form = useForm<UpdateChatterCrmInput>({
+    resolver: zodResolver(updateChatterCrmInput),
+    defaultValues: {
+      chatterId: chatter.id,
+      role: chatter.role,
+      team: chatter.team,
+      shift: chatter.shift,
+    },
+  })
 
-  function submit() {
-    startTransition(async () => {
-      const res = await updateChatterCrm({ chatterId: chatter.id, role, team, shift })
-      if (!res.success) return setError(res.error)
-      setError(null)
-      setOpen(false)
-    })
+  const onSubmit = form.handleSubmit(async (values) => {
+    const res = await updateChatterCrm(values)
+    if (!res.success) {
+      // Erreur métier/technique : message de l'action (jamais un message Supabase brut).
+      form.setError('root.serverError', { message: res.error })
+      toast.error(res.error)
+      return
+    }
+    toast.success(`Closing de ${chatter.name} enregistré`)
+    setOpen(false)
+  })
+
+  function onOpenChange(next: boolean) {
+    setOpen(next)
+    // Réouverture : repartir des valeurs actuelles de la ligne (pas d'un vieux brouillon).
+    if (next)
+      form.reset({ chatterId: chatter.id, role: chatter.role, team: chatter.team, shift: chatter.shift })
   }
 
+  const serverError = form.formState.errors.root?.serverError?.message
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon" className="size-7" aria-label="Éditer closing">
           <Pencil className="size-3.5" />
@@ -95,30 +115,37 @@ export function ChatterCrmDialog({ chatter }: { chatter: ChatterRow }) {
         <DialogHeader>
           <DialogTitle>Closing — {chatter.name}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <CrmSelect
-            label="Rôle"
-            value={role}
-            options={CRM_ROLES}
-            onChange={(v) => setRole(v as CrmRole | null)}
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <Controller
+            control={form.control}
+            name="role"
+            render={({ field }) => (
+              <CrmSelect label="Rôle" value={field.value} options={CRM_ROLES} onChange={field.onChange} />
+            )}
           />
-          <CrmSelect
-            label="Équipe"
-            value={team}
-            options={CRM_TEAMS}
-            onChange={(v) => setTeam(v as CrmTeam | null)}
+          <Controller
+            control={form.control}
+            name="team"
+            render={({ field }) => (
+              <CrmSelect label="Équipe" value={field.value} options={CRM_TEAMS} onChange={field.onChange} />
+            )}
           />
-          <CrmSelect
-            label="Shift"
-            value={shift}
-            options={CRM_SHIFTS}
-            onChange={(v) => setShift(v as CrmShift | null)}
+          <Controller
+            control={form.control}
+            name="shift"
+            render={({ field }) => (
+              <CrmSelect label="Shift" value={field.value} options={CRM_SHIFTS} onChange={field.onChange} />
+            )}
           />
-          {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
-          <ActionButton pending={pending} onClick={submit} className="self-end">
+          {serverError && (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+              {serverError}
+            </p>
+          )}
+          <ActionButton type="submit" pending={form.formState.isSubmitting} className="self-end">
             Enregistrer
           </ActionButton>
-        </div>
+        </form>
       </DialogContent>
     </Dialog>
   )

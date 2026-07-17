@@ -5,6 +5,7 @@ import { endOfMonth, format, startOfMonth } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import { CalendarIcon, Loader2 } from 'lucide-react'
 import type { DateRange } from 'react-day-picker'
+import type { Route } from 'next'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
@@ -61,7 +62,8 @@ export function DateRangePicker({ className }: { className?: string }) {
     params.set('from', toParam(range.from))
     params.set('to', toParam(range.to ?? range.from))
     startTransition(() => {
-      router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+      // `?from&to` construit dynamiquement → pas un href statique connu de typedRoutes.
+      router.replace(`${pathname}?${params.toString()}` as Route, { scroll: false })
     })
     setOpen(false)
   }

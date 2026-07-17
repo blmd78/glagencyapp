@@ -14,3 +14,23 @@ export const bilanSchema = z.object({
 })
 export type BilanForm = z.output<typeof bilanSchema>
 export type BilanFormInput = z.input<typeof bilanSchema>
+
+/**
+ * Payload de `setInsightState` — serveur-only (le client ne l'exécute jamais via un
+ * resolver RHF, il construit l'objet à la main dans `insight-card.tsx`), mais co-localisé
+ * ici avec `bilanSchema` (squelette canonique, `docs/guidelines-standard-feature.md` §1).
+ */
+export const setInsightStateInput = z
+  .object({
+    key: z.string().min(1).max(200),
+    status: z.enum(['new', 'in_progress', 'resolved', 'ignored']),
+    note: z.string().max(2000).nullish(),
+    bilan: bilanSchema.nullish(),
+    /** Réinitialisation complète : statut new + note et bilan effacés. */
+    reset: z.boolean().optional(),
+  })
+  // Garde SERVEUR (pas seulement UI) : pas de « Résolu » sans bilan structuré.
+  .refine((v) => v.status !== 'resolved' || v.bilan != null, {
+    message: 'Un bilan est requis pour passer en Résolu',
+  })
+export type SetInsightStateInput = z.infer<typeof setInsightStateInput>

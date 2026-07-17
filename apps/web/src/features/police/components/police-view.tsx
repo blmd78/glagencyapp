@@ -27,7 +27,15 @@ function policeKpis(data: PoliceData): Kpi[] {
 const POLICE_ACCENTS = ['border-t-red-500', 'border-t-amber-500', 'border-t-blue-500']
 
 /** Template Police : sélecteur de jour + saisie (avertissement / malus) + journal du jour. */
-export function PoliceView({ data, isAdmin }: { data: PoliceData; isAdmin: boolean }) {
+export function PoliceView({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: PoliceData
+  isAdmin: boolean
+  canWrite: boolean
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -72,11 +80,13 @@ export function PoliceView({ data, isAdmin }: { data: PoliceData; isAdmin: boole
           pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'
         }
       >
-        <ControlPanel data={data} onChatterChange={setChatterId} />
-        <div className="mt-4">
+        {/* Saisie masquée pour un chatteur (lecture seule) — il ne voit que l'historique. */}
+        {canWrite && <ControlPanel data={data} onChatterChange={setChatterId} />}
+        <div className={canWrite ? 'mt-4' : undefined}>
           <PoliceFeed
             data={data}
             isAdmin={isAdmin}
+            canWrite={canWrite}
             filterChatterId={chatterId}
             onClearFilter={() => setChatterId('')}
           />

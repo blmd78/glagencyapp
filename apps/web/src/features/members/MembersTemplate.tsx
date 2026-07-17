@@ -2,8 +2,10 @@ import { MembersTable } from './components/members-table'
 import type { MembersData } from './types'
 
 /**
- * Template Membres (admin) : comptes, pages accessibles, modèles assignés.
- * Aucun fetch ici (convention app → feature(template) → composants).
+ * Template Membres (admin) : comptes, pages accessibles, modèles assignés. Le h1 est
+ * affiché immédiatement par la page (kickoff sans await, docs/guidelines-standard-feature.md
+ * §2) — ce Template ne rend que le sous-titre (streamé) + la table. Aucun fetch ici
+ * (convention app → feature(template) → composants).
  */
 export function MembersTemplate({
   data,
@@ -21,14 +23,12 @@ export function MembersTemplate({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Membres</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.members.length} compte(s)
-          {scope === 'marketing' &&
-            ' · droits du pôle marketing (les droits chatteurs se gèrent depuis leur face)'}
-        </p>
-      </div>
+      {/* -mt-4 : compense le double gap-6 page/Template (pilote chatters, §2.5). */}
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {data.members.length} compte(s)
+        {scope === 'marketing' &&
+          ' · droits du pôle marketing (les droits chatteurs se gèrent depuis leur face)'}
+      </p>
 
       <MembersTable
         members={data.members}

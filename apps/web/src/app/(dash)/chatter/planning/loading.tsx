@@ -1,5 +1,5 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { PlanningSkeleton } from '@/features/planning/components/planning-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return <PlanningSkeleton />
 }

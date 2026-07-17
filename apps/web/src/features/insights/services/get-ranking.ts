@@ -10,8 +10,8 @@ import type { RankingData, RankingRow } from '../types'
  *
  * `use cache` : SÛR car lecture 100 % GLOBALE (client admin, hors RLS) — le résultat est
  * identique pour tous les users, aucune fuite. Clé = `weekStart` (argument). Les données ne
- * bougent qu'à l'ingestion nocturne → cacheLife('hours'). Tag `facts-daily` : permettrait à
- * l'ingestion d'invalider via revalidateTag('facts-daily') le jour où on le branche.
+ * bougent qu'à l'ingestion nocturne → cacheLife('hours'). Tag `facts-daily` : invalidé par
+ * `apps/ingestion` en fin de run via `POST /api/revalidate` (`app/api/revalidate/route.ts`).
  */
 export async function getRanking(weekStart: string | null): Promise<RankingData> {
   'use cache'
@@ -21,7 +21,7 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
   const admin = createAdminClient()
   const weekEnd = addDays(weekStart, 6)
 
-  const [{ data: daily }, { data: chatterRows }] = await Promise.all([
+  const [{ data: daily, error: dailyErr }, { data: chatterRows, error: chattersErr }] = await Promise.all([
     // Table journalière : fetchAll (pagination PostgREST, tri = PK). Borné à 7 jours,
     // mais >~140 chatteurs actifs sur la semaine suffiraient à tronquer en silence.
     fetchAll((f, t) =>
@@ -36,6 +36,8 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
     ),
     admin.from('chatters').select('id, display_name'),
   ])
+  if (dailyErr) throw new Error(dailyErr.message)
+  if (chattersErr) throw new Error(chattersErr.message)
 
   const nameById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) nameById[c.id] = c.display_name

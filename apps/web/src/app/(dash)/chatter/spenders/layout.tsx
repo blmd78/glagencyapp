@@ -1,26 +1,24 @@
 import type { ReactNode } from 'react'
-import { getSpenders } from '@/features/spenders/services/get-spenders'
 import { SpendersAutoRefresh } from '@/features/spenders/components/spenders-auto-refresh'
-import { SpendersDataProvider } from '@/features/spenders/components/spenders-data-provider'
-import { encodeSpenders } from '@/features/spenders/wire'
-import { requireAccess } from '@/lib/auth'
 
 /**
- * Layout partagé des 4 vues spenders = LE fetch unique. Next ne re-exécute pas un layout
- * en naviguant entre ses enfants → basculer liste/tracker/alertes/archive ne recharge
- * plus les ~1 700 lignes (chaque page ne pèse que quelques Ko). Les Server Actions
- * revalidatePath('/chatter/spenders', 'layout') re-rendent ce layout → données fraîches
- * après chaque action, dans la même réponse.
+ * Layout structurel des 4 vues Spenders (liste/tracker/alertes/archive) — PLUS de fetch
+ * ici (normalisation batch 4, docs/guidelines-standard-feature.md) : chaque `page.tsx`
+ * fait désormais son propre appel à `getSpenders()` (pattern standard, garde + kickoff
+ * sans await + Suspense). Ce layout ne sert plus qu'à monter `SpendersAutoRefresh` UNE
+ * SEULE FOIS pour tout le sous-arbre — Next ne re-exécute pas un layout en naviguant
+ * entre ses enfants, donc le timer de polling (3 min) survit aux bascules d'onglet
+ * exactement comme avant (le remonter dans chaque page réinitialiserait le timer à
+ * chaque navigation, ce qui l'empêcherait quasiment de jamais se déclencher).
+ * `revalidatePath('/chatter/spenders', 'layout')` (actions.ts) continue de fonctionner à
+ * l'identique : le scope 'layout' invalide tout page partageant CE layout — les 4
+ * vraies vues — qu'il y ait un fetch au niveau layout ou non.
  */
-export default async function SpendersLayout({ children }: { children: ReactNode }) {
-  // Garde + données en PARALLÈLE : la RLS protège la lecture, la garde ne sert qu'à rediriger.
-  const [profile, data] = await Promise.all([requireAccess('crm-spenders'), getSpenders()])
-  // Tuples sur le fil : le payload sérialisé ne répète pas 18 noms de champs × N lignes
-  // (~2,6× plus léger) — le provider décode en objets côté client (cf. wire.ts).
+export default function SpendersLayout({ children }: { children: ReactNode }) {
   return (
-    <SpendersDataProvider wire={encodeSpenders(data)} isAdmin={profile.role === 'admin'}>
+    <>
       <SpendersAutoRefresh />
       {children}
-    </SpendersDataProvider>
+    </>
   )
 }

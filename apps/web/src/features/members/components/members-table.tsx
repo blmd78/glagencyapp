@@ -1,6 +1,7 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
+import { toast } from 'sonner'
 import { Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -48,7 +49,7 @@ function RowActions({
 }) {
   if (member.role === 'superadmin') return null
   if (member.role === 'admin' && !superadmin) return null
-  if (viewer === 'manager' && member.role !== 'user') return null
+  if (viewer === 'manager' && member.role !== 'chatteur') return null
 
   return (
     <div className="flex justify-end gap-1.5">
@@ -86,7 +87,11 @@ function RowActions({
         }
         onConfirm={async () => {
           const res = await deleteMember(member.id)
-          if (!res.success) return res.error
+          if (!res.success) {
+            toast.error(res.error)
+            return res.error
+          }
+          toast.success('Membre supprimé')
         }}
       />
     </div>
@@ -127,7 +132,7 @@ export function MembersTable({
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
   // Managers rattachables (sélecteur admin du dialog) — dérivés de la liste courante.
   const managers = members
-    .filter((m) => m.role === 'manager')
+    .filter((m) => m.role === 'manager' || m.role === 'sous-manager')
     .map((m) => ({ id: m.id, name: m.displayName }))
 
   const modelsColumn: ColumnDef<Member>[] = scope === 'chatter' ? [
@@ -190,8 +195,10 @@ export function MembersTable({
           </Badge>
         ) : (getValue() as string) === 'manager' ? (
           <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Manager</Badge>
+        ) : (getValue() as string) === 'sous-manager' ? (
+          <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Sous-manager</Badge>
         ) : (
-          <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>User</Badge>
+          <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatteur</Badge>
         ),
     },
     {

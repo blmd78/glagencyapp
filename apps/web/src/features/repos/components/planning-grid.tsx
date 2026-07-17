@@ -1,37 +1,35 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { Check, Copy, Pencil, Plus } from 'lucide-react'
+import { Check, Copy } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
-import { cn } from '@/lib/utils'
 import { saveReposCell, saveReposColumnMembers, setReposSent } from '../actions'
 import { JOURS, REPOS_COLUMNS, type ReposCell, type ReposData } from '../types'
-
-/** Tokens d'un texte libre (séparés par virgules), vides filtrés. */
-const tokensOf = (s: string) =>
-  s
-    .split(/[,\n]/)
-    .map((t) => t.trim())
-    .filter(Boolean)
-
-/** Clé de comparaison de nom libre (casse/accents/espaces tolérés). */
-const normName = (s: string) => s.toLowerCase().normalize('NFKC').replace(/[^\p{L}\p{N}]+/gu, '')
-
-const EMPTY_CELL: ReposCell = { chatterIds: [], names: '' }
-
-// Couleurs des chips (repos posé / sur-repos / modèle).
-const CHIP_GREEN = 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
-const CHIP_RED = 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-const CHIP_VIOLET = 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
+import { copyPlanningImage } from './planning-image'
+import { PlanningGridHeader } from './planning-grid-header'
+import { PlanningGridRows } from './planning-grid-rows'
+import { EMPTY_CELL, normName, tokensOf, type CellChip } from './planning-grid-utils'
 
 /**
  * Grille hebdo : 7 jours × colonnes de modèles. Cellule = chatteurs au repos (multi-select),
  * verte quand remplie, rouge si > 2 repos/semaine pour une même personne. En-tête modèles en
  * chips violets, éditable par l'admin (crayon → compo datée). Copie du planning en image.
+ * Split > 300 lignes (docs/guidelines-standard-feature.md §1) : `planning-grid-header.tsx`
+ * (thead), `planning-grid-rows.tsx` (tbody), `planning-grid-utils.ts` (tokens/couleurs, hors
+ * composant) et `planning-image.ts` (export canvas/presse-papier, hors composant) — modèle
+ * `chatters-columns.tsx`/`chatters-sub-rows.tsx`/`download-ranking.ts`. DOM inchangé.
  */
-export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: boolean }) {
+export function PlanningGrid({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: ReposData
+  isAdmin: boolean
+  canWrite: boolean
+}) {
   // Overrides locaux optimistes (une revalidation n'écrase pas une édition en cours).
   const [overrides, setOverrides] = useState<Record<string, ReposCell>>({})
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string[]>>({})
@@ -80,10 +78,10 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
   }, [data.cells, overrides])
 
   /** Chips d'une cellule : chatteurs (IDs résolus) puis texte libre (legacy), avec drapeau sur-repos. */
-  function cellChips(day: number, col: string) {
+  function cellChips(day: number, col: string): CellChip[] {
     const c = cellValue(day, col)
     const over = overByCol.get(col) ?? { ids: new Set<string>(), txt: new Set<string>() }
-    const chips: { key: string; label: string; over: boolean; id?: string; token?: string }[] = []
+    const chips: CellChip[] = []
     for (const id of c.chatterIds)
       chips.push({ key: id, label: data.chatterById[id] ?? '?', over: over.ids.has(id), id })
     for (const t of tokensOf(c.names))
@@ -114,27 +112,36 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
       return
     setOverrides((prev) => ({ ...prev, [`${day}:${col}`]: nextCell }))
     startTransition(async () => {
-      await saveReposCell({
+      const res = await saveReposCell({
         weekStart: data.weekStart,
         day,
         col,
         chatterIds: nextCell.chatterIds,
         names: nextCell.names,
       })
+      // Succès silencieux (sauvegarde immédiate à chaque ajout/retrait dans le combobox — un
+      // toast par clic serait bruyant) ; l'échec, lui, était avalé avant ce refacto → surfacé.
+      if (!res.success) toast.error(res.error)
     })
   }
 
   function commitColumn(col: string, ids: string[]) {
     setColumnOverrides((prev) => ({ ...prev, [col]: ids }))
     startTransition(async () => {
-      await saveReposColumnMembers({ col, effectiveFrom: data.weekStart, creatorIds: ids })
+      const res = await saveReposColumnMembers({ col, effectiveFrom: data.weekStart, creatorIds: ids })
+      if (!res.success) toast.error(res.error)
     })
   }
 
   function toggleSent(next: boolean) {
     setSent(next)
     startTransition(async () => {
-      await setReposSent({ weekStart: data.weekStart, sent: next })
+      const res = await setReposSent({ weekStart: data.weekStart, sent: next })
+      if (!res.success) {
+        toast.error(res.error)
+        return
+      }
+      toast.success(next ? 'Planning marqué comme envoyé' : 'Planning marqué comme non envoyé')
     })
   }
 
@@ -147,339 +154,41 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
 
   /** Image PNG du tableau (partage Telegram) — copiée dans le presse-papier, sinon téléchargée. */
   async function copyForTelegram() {
-    const SCALE = 2
-    const DAY_W = 110
-    const COL_W = 158
-    const width = DAY_W + columns.length * COL_W
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')!
-    const font = (px: number, weight = 400) => `${weight} ${px}px Inter, system-ui, sans-serif`
-
-    const wrap = (names: string[], maxW: number): string[] => {
-      ctx.font = font(12)
-      const lines: string[] = []
-      let cur = ''
-      for (const n of names) {
-        const next = cur ? `${cur}, ${n}` : n
-        if (cur && ctx.measureText(next).width > maxW) {
-          lines.push(cur + ',')
-          cur = n
-        } else cur = next
-      }
-      if (cur) lines.push(cur)
-      return lines.length ? lines : ['—']
-    }
-
-    const PAD = 8
-    const LINE_H = 16
-    const cellLines = JOURS.map((_, day) =>
-      columns.map((c) => wrap(cellChips(day, c.key).map((ch) => ch.label), COL_W - PAD * 2)),
-    )
-    const rowH = cellLines.map((cols) => Math.max(...cols.map((l) => l.length)) * LINE_H + PAD * 2)
-    // En-têtes : modèles = noms wrappés (chips violets) ; encadrement = libellé de rôle.
-    const headerLines = columns.map((c) =>
-      c.encadrement || !c.creatorIds.length
-        ? [c.label]
-        : wrap(
-            c.creatorIds.map((id) => data.creatorById[id] ?? '?'),
-            COL_W - PAD * 2,
-          ),
-    )
-    const HEADER_H = 64
-    const THEAD_H = Math.max(2, ...headerLines.map((l) => l.length)) * LINE_H + PAD * 2
-    const COUNT_H = 34
-    const height = HEADER_H + THEAD_H + rowH.reduce((a, b) => a + b, 0) + COUNT_H + 12
-
-    canvas.width = width * SCALE
-    canvas.height = height * SCALE
-    ctx.scale(SCALE, SCALE)
-
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, 0, width, height)
-    ctx.fillStyle = '#111111'
-    ctx.font = font(17, 700)
-    ctx.fillText(`Planning des repos — ${data.weekLabel}`, 16, 30)
-    ctx.font = font(12)
-    ctx.fillStyle = '#6b7280'
-    ctx.fillText(`Total repos semaine : ${total}`, 16, 50)
-
-    let y = HEADER_H
-    ctx.fillStyle = '#f4f4f5'
-    ctx.fillRect(0, y, width, THEAD_H)
-    // Fond violet clair sous les colonnes modèles (chips à l'écran).
-    columns.forEach((c, i) => {
-      if (!c.encadrement && c.creatorIds.length) {
-        ctx.fillStyle = '#ede9fe' // violet-100
-        ctx.fillRect(DAY_W + i * COL_W, y, COL_W, THEAD_H)
-      }
+    await copyPlanningImage({
+      weekLabel: data.weekLabel,
+      weekStart: data.weekStart,
+      columns,
+      creatorById: data.creatorById,
+      cellChips,
+      countFor,
+      total,
     })
-    ctx.font = font(11, 600)
-    ctx.fillStyle = '#374151'
-    ctx.fillText('JOUR', 16, y + PAD + 9)
-    columns.forEach((c, i) => {
-      const isModel = !c.encadrement && c.creatorIds.length > 0
-      ctx.fillStyle = isModel ? '#6d28d9' : '#374151' // violet-700 / gris
-      headerLines[i].forEach((line, li) => {
-        ctx.fillText(
-          isModel ? line : line.toUpperCase(),
-          DAY_W + i * COL_W + PAD,
-          y + PAD + 9 + li * LINE_H,
-        )
-      })
-    })
-    y += THEAD_H
-
-    JOURS.forEach((jour, day) => {
-      const h = rowH[day]
-      ctx.strokeStyle = '#e5e7eb'
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(width, y)
-      ctx.stroke()
-      ctx.fillStyle = '#111111'
-      ctx.font = font(12, 600)
-      ctx.fillText(jour, 16, y + PAD + 12)
-      columns.forEach((c, i) => {
-        const x = DAY_W + i * COL_W
-        const chips = cellChips(day, c.key)
-        const filled = chips.length > 0
-        const alert = chips.some((ch) => ch.over)
-        if (filled) {
-          ctx.fillStyle = alert ? '#fee2e2' : '#dcfce7'
-          ctx.fillRect(x + 2, y + 2, COL_W - 4, h - 4)
-        }
-        ctx.fillStyle = filled ? (alert ? '#991b1b' : '#166534') : '#d1d5db'
-        ctx.font = font(12)
-        cellLines[day][i].forEach((line, li) => {
-          ctx.fillText(line, x + PAD, y + PAD + 12 + li * LINE_H)
-        })
-      })
-      y += h
-    })
-
-    ctx.strokeStyle = '#e5e7eb'
-    ctx.beginPath()
-    ctx.moveTo(0, y)
-    ctx.lineTo(width, y)
-    ctx.stroke()
-    ctx.fillStyle = '#f4f4f5'
-    ctx.fillRect(0, y, width, COUNT_H)
-    ctx.fillStyle = '#374151'
-    ctx.font = font(11, 600)
-    ctx.fillText('NB REPOS', 16, y + 21)
-    columns.forEach((c, i) => {
-      ctx.fillText(String(countFor(c.key)), DAY_W + i * COL_W + PAD, y + 21)
-    })
-
-    const encX = DAY_W + columns.filter((c) => !c.encadrement).length * COL_W
-    ctx.strokeStyle = '#d1d5db'
-    ctx.beginPath()
-    ctx.moveTo(encX, HEADER_H)
-    ctx.lineTo(encX, y + COUNT_H)
-    ctx.stroke()
-
-    const blob: Blob = await new Promise((res) => canvas.toBlob((b) => res(b!), 'image/png'))
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-    } catch {
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `planning-repos-${data.weekStart}.png`
-      a.click()
-      URL.revokeObjectURL(url)
-    }
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-
-  /** Chips violets STATIQUES des modèles d'une colonne (header non-admin). */
-  const creatorChipsStatic = (creatorIds: string[]) =>
-    creatorIds.map((id) => (
-      <span key={id} className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_VIOLET)}>
-        {data.creatorById[id] ?? '?'}
-      </span>
-    ))
 
   return (
     <div className="flex flex-col gap-4">
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[64rem] border-collapse text-sm">
-          <thead>
-            <tr className="bg-muted/50">
-              <th className="w-24" />
-              <th
-                colSpan={columns.filter((c) => !c.encadrement).length}
-                className="px-2 pt-2 text-left text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                Équipes chatters par modèle
-              </th>
-              <th
-                colSpan={columns.filter((c) => c.encadrement).length}
-                className="border-l px-2 pt-2 text-left text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
-              >
-                Encadrement
-              </th>
-            </tr>
-            <tr className="bg-muted/50 align-top">
-              <th className="w-24 px-3 pb-2 text-left text-xs font-medium text-muted-foreground">
-                Jour
-              </th>
-              {columns.map((c, i) => {
-                const border =
-                  c.encadrement && columns[i - 1] && !columns[i - 1].encadrement && 'border-l'
-                // Colonnes encadrement : libellé de rôle fixe.
-                if (c.encadrement) {
-                  return (
-                    <th
-                      key={c.key}
-                      className={cn(
-                        'px-2 pb-2 text-left text-xs font-medium text-muted-foreground',
-                        border,
-                      )}
-                    >
-                      {c.label}
-                    </th>
-                  )
-                }
-                // Colonnes modèles : chips violets (affichage inchangé) — clic admin →
-                // combobox multiple (chips + croix + saisie dans le popover).
-                const chips = c.creatorIds.length ? (
-                  <span className="flex flex-wrap items-center gap-1">
-                    {creatorChipsStatic(c.creatorIds)}
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground">{c.label}</span>
-                )
-                return (
-                  <th key={c.key} className={cn('px-2 pb-2 text-left', border)}>
-                    {isAdmin ? (
-                      <ComboboxMultiple
-                        trigger={
-                          <button
-                            type="button"
-                            title="Modifier les modèles de la colonne"
-                            className="group flex w-full flex-wrap items-center gap-1 rounded px-1 py-0.5 text-left transition-colors hover:bg-muted/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                          >
-                            {chips}
-                            <Pencil className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
-                          </button>
-                        }
-                        value={c.creatorIds}
-                        options={data.creatorOptions.map((o) => ({ value: o.id, label: o.name }))}
-                        labelById={data.creatorById}
-                        onChange={(ids) => commitColumn(c.key, ids)}
-                        chipClassName={CHIP_VIOLET}
-                        placeholder="Rechercher un modèle…"
-                      />
-                    ) : (
-                      chips
-                    )}
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {JOURS.map((jour, day) => (
-              <tr key={jour} className="border-t">
-                <td className="px-3 py-1.5 font-medium">{jour}</td>
-                {columns.map((c, i) => {
-                  const border =
-                    c.encadrement && columns[i - 1] && !columns[i - 1].encadrement && 'border-l'
-                  const cell = cellValue(day, c.key)
-                  const chips = cellChips(day, c.key)
-                  const over = overByCol.get(c.key) ?? { ids: new Set<string>(), txt: new Set<string>() }
-                  return (
-                    <td key={c.key} className={cn('p-1 align-top', border)}>
-                      <ComboboxMultiple
-                        trigger={
-                          <button
-                            type="button"
-                            title="Cliquer pour choisir les chatteurs au repos"
-                            className={cn(
-                              'group flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-left transition-colors',
-                              'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                              chips.length
-                                ? 'border-transparent hover:bg-muted/50'
-                                : 'border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/40',
-                            )}
-                          >
-                            {chips.length ? (
-                              <>
-                                {chips.map((ch) => (
-                                  <span
-                                    key={ch.key}
-                                    title={
-                                      ch.over ? `${ch.label} : plus de 2 repos cette semaine` : undefined
-                                    }
-                                    className={cn(
-                                      'rounded px-1.5 py-0.5 text-xs font-medium',
-                                      ch.over ? CHIP_RED : CHIP_GREEN,
-                                    )}
-                                  >
-                                    {ch.label}
-                                  </span>
-                                ))}
-                                <Plus className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
-                              </>
-                            ) : (
-                              <span className="flex items-center gap-1 text-xs text-muted-foreground/60">
-                                <Plus className="size-3" />
-                                Ajouter
-                              </span>
-                            )}
-                          </button>
-                        }
-                        value={cell.chatterIds}
-                        // Colonnes ENCADREMENT (Managers/Policiers) : options = profils
-                        // rôle manager ; colonnes modèles : chatteurs actifs.
-                        options={(c.encadrement ? data.managerOptions : data.chatterOptions).map(
-                          (o) => ({ value: o.id, label: o.name }),
-                        )}
-                        labelById={data.chatterById}
-                        // Le combobox ne gère que les IDs — les noms texte legacy restent
-                        // intacts (chips retirables via leur croix dans le popover, cf. extraChips).
-                        onChange={(ids) => commitCell(day, c.key, { ids, names: cell.names })}
-                        chipClassName={(id) => (over.ids.has(id) ? CHIP_RED : CHIP_GREEN)}
-                        chipTitle={(id) =>
-                          over.ids.has(id)
-                            ? `${data.chatterById[id] ?? '?'} : plus de 2 repos cette semaine`
-                            : undefined
-                        }
-                        extraChips={tokensOf(cell.names).map((t) => ({
-                          key: `txt:${t}`,
-                          label: t,
-                          className: over.txt.has(normName(t)) ? CHIP_RED : CHIP_GREEN,
-                          title: over.txt.has(normName(t))
-                            ? `${t} : plus de 2 repos cette semaine`
-                            : undefined,
-                          onRemove: () => removeCellChip(day, c.key, { token: t }),
-                        }))}
-                        placeholder={c.encadrement ? 'Rechercher un manager…' : 'Rechercher un chatteur…'}
-                      />
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-            <tr className="border-t bg-muted/30">
-              <td className="px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                Nb repos
-              </td>
-              {columns.map((c, i) => (
-                <td
-                  key={c.key}
-                  className={cn(
-                    'px-2 py-2 font-semibold tabular-nums',
-                    c.encadrement && columns[i - 1] && !columns[i - 1].encadrement && 'border-l',
-                  )}
-                >
-                  {countFor(c.key)}
-                </td>
-              ))}
-            </tr>
-          </tbody>
+          <PlanningGridHeader
+            columns={columns}
+            isAdmin={isAdmin}
+            creatorOptions={data.creatorOptions}
+            creatorById={data.creatorById}
+            onCommitColumn={commitColumn}
+          />
+          <PlanningGridRows
+            columns={columns}
+            data={data}
+            canWrite={canWrite}
+            cellValue={cellValue}
+            cellChips={cellChips}
+            overByCol={overByCol}
+            onCommitCell={commitCell}
+            onRemoveCellChip={removeCellChip}
+            countFor={countFor}
+          />
         </table>
       </div>
 
@@ -510,8 +219,13 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
           <span className="text-muted-foreground">Total repos semaine :</span>{' '}
           <span className="font-semibold tabular-nums">{total}</span>
         </p>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox checked={sent} onCheckedChange={(v) => toggleSent(v === true)} />
+        {/* Chatteur (lecture seule) : la case reste visible (état lisible) mais non modifiable. */}
+        <label className={`flex items-center gap-2 text-sm ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}>
+          <Checkbox
+            checked={sent}
+            disabled={!canWrite}
+            onCheckedChange={(v) => toggleSent(v === true)}
+          />
           Planning envoyé sur Telegram
         </label>
         <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={copyForTelegram}>

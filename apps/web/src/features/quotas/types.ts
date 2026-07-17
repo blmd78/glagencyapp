@@ -35,6 +35,4 @@ export interface ExclusionAccountRow {
 export interface QuotasData {
   teams: QuotaTeamRow[]
   accounts: ExclusionAccountRow[]
-  /** Message d'erreur de lecture (table absente, réseau…) — rendu à la place de l'éditeur. */
-  error?: string
 }

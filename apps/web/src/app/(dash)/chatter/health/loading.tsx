@@ -1,5 +1,10 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { RouteLoading } from '@/components/skeletons/route-loading'
+import { HealthSkeleton } from '@/features/health/components/health-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return (
+    <RouteLoading>
+      <HealthSkeleton />
+    </RouteLoading>
+  )
 }

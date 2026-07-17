@@ -1,6 +1,7 @@
-import { addDays, frDayShort, isoDate, mondayOf } from '@glagency/core'
+import { addDays, frDayShort, mondayOf, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getChatterScope } from '@/lib/scope'
 import type { Profile } from '@/lib/auth'
 import { REPOS_COLUMNS, type ReposCell, type ReposData, type WeekChoice } from '../types'
@@ -24,18 +25,18 @@ export async function getRepos(week: string | null | undefined, profile: Profile
   // par requireAccess('repos') en amont ; les DONNÉES du planning restent, elles, sur le client RLS.
   const admin = createAdminClient()
 
-  const currentMonday = mondayOf(isoDate(new Date()))
+  const currentMonday = mondayOf(todayParis())
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : currentMonday
 
   const [
     scope,
-    { data: cellRows },
-    { data: weekRow },
-    { data: chatterRows },
-    { data: managerRows },
-    { data: creatorRows },
-    { data: memberRows },
-    { data: dataWeekRows },
+    cellsRes,
+    weekRes,
+    chattersRes,
+    managersRes,
+    creatorsRes,
+    membersRes,
+    dataWeeksRes,
   ] = await Promise.all([
     // Périmètre manager (1 requête pour un non-admin) — indépendant du reste.
     getChatterScope(profile),
@@ -43,17 +44,42 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
     admin.from('chatters').select('id, display_name, active'),
     // Colonnes ENCADREMENT (Managers/Policiers) : leur sélecteur liste les profils rôle
-    // manager — pas les chatteurs (bug remonté : « Ajouter » proposait les chatteurs).
-    admin.from('profiles').select('id, display_name').eq('role', 'manager'),
+    // manager/sous-manager — pas les chatteurs (bug remonté : « Ajouter » proposait les chatteurs).
+    admin.from('profiles').select('id, display_name').in('role', ['manager', 'sous-manager']),
     admin.from('creators').select('id, name, active'),
     supabase
       .from('rest_planning_column_members')
       .select('col, effective_from, creator_ids')
       .lte('effective_from', weekStart)
       .order('effective_from', { ascending: true }),
-    // Semaines qui ont des données saisies (la « range ») — pour le sélecteur.
-    supabase.from('rest_planning_cells').select('week_start'),
+    // Semaines qui ont des données saisies (la « range ») — pour le sélecteur. Table sans
+    // borne temporelle naturelle (tout l'historique cumulé, ~56 lignes/semaine) → fetchAll,
+    // tri sur la PK complète (week_start, day, col — migration 0016) sinon troncature
+    // silencieuse à 1000 lignes (docs/guidelines-data-loading.md §2).
+    fetchAll((f, t) =>
+      supabase
+        .from('rest_planning_cells')
+        .select('week_start')
+        .order('week_start')
+        .order('day')
+        .order('col')
+        .range(f, t),
+    ),
   ])
+  if (cellsRes.error) throw new Error(cellsRes.error.message)
+  if (weekRes.error) throw new Error(weekRes.error.message)
+  if (chattersRes.error) throw new Error(chattersRes.error.message)
+  if (managersRes.error) throw new Error(managersRes.error.message)
+  if (creatorsRes.error) throw new Error(creatorsRes.error.message)
+  if (membersRes.error) throw new Error(membersRes.error.message)
+  if (dataWeeksRes.error) throw new Error(dataWeeksRes.error.message)
+  const cellRows = cellsRes.data
+  const weekRow = weekRes.data
+  const chatterRows = chattersRes.data
+  const managerRows = managersRes.data
+  const creatorRows = creatorsRes.data
+  const memberRows = membersRes.data
+  const dataWeekRows = dataWeeksRes.data
 
   // Sélecteur : semaines avec données (range) + semaine en cours + semaine +1. Future en haut.
   const nextMonday = addDays(currentMonday, 7)

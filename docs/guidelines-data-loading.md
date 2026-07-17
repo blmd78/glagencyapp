@@ -19,8 +19,21 @@ ne garde que la présentation (LTV, %, tri, KPIs).
   l'appelant → un manager `user` ne voit que ses modèles, exactement comme un `select` direct.
 - **Bornes de fenêtre non-triviales** (semaine en cours, etc.) : passe-les **en paramètre**
   (`p_week_from date`) calculé côté TS, jamais `current_date` en base (piège de fuseau).
-- **Table hors types générés** (`creator_script_daily`, RPC absents de `Functions`) : cast
-  `supabase.rpc('x' as never, {...} as never) as unknown as PromiseLike<{ data: T | null; error }>`.
+- **RPC typé + cast documenté du retour `Json`.** Les 5 RPC `*_report` (`chatters_report`,
+  `health_report`, `models_report`, `bilan_report`, `overview_report`) sont dans les types
+  générés (`packages/db/src/types.ts`) → appel `supabase.rpc('nom', args)` **typé** (nom +
+  args), **sans** `as never`. Leur retour est déclaré `Returns: Json` côté Postgres — la RPC
+  garde une interface TS locale (miroir main, ex. `interface Report { … }`) et le data est
+  casté **explicitement documenté** : `rpcRes.data as Report | null` (ou `as unknown as Report
+  | null` si TS exige le détour). **Pas de `.overrideTypes<T, { merge: false }>()`** :
+  inapplicable sur `Json` — le garde `IsValidResultOverride` de postgrest-js 2.110 distribue
+  sur l'union récursive `Json` et rejette tout override (vérifié, systémique aux RPC `*_report`,
+  cf. pilote `get-chatters.ts:82-93`). `as never` ne se justifie plus que pour un objet
+  **réellement absent** des types générés, avec un `// TODO: régénérer types.ts` explicite.
+  `crm_spenders_tracker`, lui, déclare un retour **typé** (array de colonnes) dans les types
+  générés (`packages/db/src/types.ts:2059-2081`) → appel typé de bout en bout, aucun cast
+  (`features/spenders/services/get-spenders.ts` accède aux champs — `r.fan_id`, `r.username`,
+  … — sans aucun `as`).
 - **Migration = dépendance de déploiement.** Le code qui appelle le RPC ne doit partir en
   prod qu'APRÈS que la migration soit appliquée sur Supabase, sinon la page plante (RPC
   inexistant). Appliquer d'abord (SQL Editor / `supabase db push`), vérifier les chiffres,
@@ -57,13 +70,16 @@ grant execute on function public.models_report(date, date) to authenticated;
 // get-models.ts
 interface ModelsReport { by_creator: Array<{ creator_id: string; total: number | null; new_subs: number | null }>; by_pair: /* … */ }
 
-const [{ data: creators }, rpcRes] = await Promise.all([
+const [{ data: creators, error: creatorsErr }, rpcRes] = await Promise.all([
   supabase.from('creators').select('id, name'),
-  supabase.rpc('models_report' as never, { p_from: period.from, p_to: period.to } as never)
-    as unknown as PromiseLike<{ data: ModelsReport | null; error: { message: string } | null }>,
+  // RPC typé (nom + args, dans packages/db/src/types.ts) — pas de `as never`.
+  supabase.rpc('models_report', { p_from: period.from, p_to: period.to }),
 ])
+if (creatorsErr) throw new Error(creatorsErr.message)
 if (rpcRes.error) throw new Error(rpcRes.error.message)
-const rep = rpcRes.data ?? { by_creator: [], by_pair: [] }
+// Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
+// inapplicable sur l'union Json avec postgrest-js 2.110 — cf. § ci-dessus).
+const rep = (rpcRes.data as ModelsReport | null) ?? { by_creator: [], by_pair: [] }
 // … présentation seulement (Number(x) || 0 pour les sommes) …
 ```
 
@@ -110,3 +126,26 @@ ex. `get-ranking`). **Jamais** sur une lecture RLS cookie-bound ni un RPC `SECUR
   au niveau octet que le texte rendu est inchangé.
 - **`ltvOf(0, 0) = null`** (garde `newSubs > 0`) — utile pour raisonner sur l'équivalence
   d'un agrégat vide.
+
+---
+
+## 6. Jour métier — `todayParis()`
+
+**Règle.** Tout calcul d'« aujourd'hui » (bornes de période par défaut, semaine en cours,
+jour du dernier classement, …) passe par `todayParis()` (`@glagency/core`,
+`packages/core/src/domain/dates.ts`) — **jamais** `isoDate(new Date())` ni `new Date()` nu.
+
+- **Pourquoi.** `isoDate` (`toISOString`) et un `new Date()` brut calculent le jour civil en
+  **UTC**. Sur Vercel (serveur en UTC), entre 00h00 et 02h00 heure de Paris (été, UTC+2 ; 01h
+  en hiver), le jour UTC est encore la **veille** → les KPIs « du jour » sont vides ou faux et
+  la semaine (`startOfWeek`) bascule en retard le lundi. Bug réel détecté à l'audit du
+  2026-07-16 (spec `docs/superpowers/specs/2026-07-16-standard-feature-design.md` §2.1.6).
+- **Implémentation** : `Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', … })` — le
+  format court de `en-CA` est déjà `YYYY-MM-DD`, pas de manipulation de string.
+- **Consommateurs** : `lib/period.ts` (`resolvePeriod`, défaut « mois en cours ») et tout
+  service qui a besoin du jour courant — `features/health/services/get-health.ts`,
+  `features/bilan/services/get-bilan.ts`, `features/overview/services/get-overview.ts`,
+  `features/police/services/get-police.ts`, `features/repos/services/get-repos.ts`.
+- **Semaine/mois dérivés du jour métier** : composer avec `mondayOf(todayParis())` ou
+  `` startOfMonth(new Date(`${todayParis()}T00:00:00`)) `` (cf. `lib/period.ts:31`) — ne
+  jamais repartir d'un `new Date()` UTC une fois `todayParis()` obtenu.

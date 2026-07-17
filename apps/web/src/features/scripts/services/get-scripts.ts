@@ -8,17 +8,22 @@ import type { ScriptItem, ScriptKind, ScriptsData } from '../types'
  */
 export async function getScripts(creatorId?: string): Promise<ScriptsData> {
   const supabase = await createClient()
-  const { data: creators } = await supabase.from('creators').select('id, name').order('name')
+  const { data: creators, error: creatorsErr } = await supabase
+    .from('creators')
+    .select('id, name')
+    .order('name')
+  if (creatorsErr) throw new Error(creatorsErr.message)
 
   const list = creators ?? []
   const target = (creatorId && list.find((c) => c.id === creatorId)) || list[0] || null
   if (!target) return { creatorId: null, creatorName: null, items: [], creators: [] }
 
-  const { data: items } = await supabase
+  const { data: items, error: itemsErr } = await supabase
     .from('script_items')
     .select('id, creator_id, position, kind, label, body')
     .eq('creator_id', target.id)
     .order('position')
+  if (itemsErr) throw new Error(itemsErr.message)
 
   const rows: ScriptItem[] = (items ?? []).map((i) => ({
     id: i.id,

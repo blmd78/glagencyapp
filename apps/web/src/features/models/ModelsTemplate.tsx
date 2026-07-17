@@ -9,13 +9,10 @@ export function ModelsTemplate({ data }: { data: ModelsData }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Modèles</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.period} · {data.models.length} modèles{priv > 0 && ` (dont ${priv} privés)`} · CA
-          total {eur(total)}
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {data.period} · {data.models.length} modèles{priv > 0 && ` (dont ${priv} privés)`} · CA
+        total {eur(total)}
+      </p>
 
       <ModelsTable models={data.models} />
     </div>

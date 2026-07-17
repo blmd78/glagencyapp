@@ -1,5 +1,10 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { RouteLoading } from '@/components/skeletons/route-loading'
+import { QuotasSkeleton } from '@/features/quotas/components/quotas-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return (
+    <RouteLoading>
+      <QuotasSkeleton />
+    </RouteLoading>
+  )
 }

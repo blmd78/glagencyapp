@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { Trash2, TriangleAlert, Gavel, Pencil, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/action-button'
@@ -29,16 +30,23 @@ interface Group {
 export function PoliceFeed({
   data,
   isAdmin,
+  canWrite,
   filterChatterId,
   onClearFilter,
 }: {
   data: PoliceData
   isAdmin: boolean
+  canWrite: boolean
   filterChatterId?: string
   onClearFilter?: () => void
 }) {
   const remove = async (id: string) => {
-    await deletePoliceEntry({ id })
+    const res = await deletePoliceEntry({ id })
+    if (!res.success) {
+      toast.error(res.error)
+      return res.error
+    }
+    toast.success('Entrée supprimée')
   }
 
   // data.entries est déjà trié du plus récent au plus ancien → l'ordre de première
@@ -104,7 +112,13 @@ export function PoliceFeed({
                 </div>
                 <ul className="flex flex-col gap-1">
                   {g.entries.map((e) => (
-                    <EntryRow key={e.id} e={e} isAdmin={isAdmin} onRemove={() => remove(e.id)} />
+                    <EntryRow
+                      key={e.id}
+                      e={e}
+                      isAdmin={isAdmin}
+                      canWrite={canWrite}
+                      onRemove={() => remove(e.id)}
+                    />
                   ))}
                 </ul>
               </li>
@@ -119,11 +133,13 @@ export function PoliceFeed({
 function EntryRow({
   e,
   isAdmin,
+  canWrite,
   onRemove,
 }: {
   e: PoliceEntry
   isAdmin: boolean
-  onRemove: () => void
+  canWrite: boolean
+  onRemove: () => void | string | Promise<void | string>
 }) {
   const isMalus = e.kind === 'malus'
   return (
@@ -148,7 +164,8 @@ function EntryRow({
         {e.shift ? `${e.shift} · ` : ''}
         {e.controllerName} · {time(e.createdAt)}
       </span>
-      {isMalus && <MalusEdit e={e} />}
+      {/* Édition inline du malus : accès `police` en ÉCRITURE (admin/manager) — masquée pour un chatteur. */}
+      {isMalus && canWrite && <MalusEdit e={e} />}
       {isAdmin && (
         <ConfirmDialog
           onConfirm={onRemove}
@@ -169,7 +186,8 @@ function EntryRow({
   )
 }
 
-/** Édition inline d'un malus (montant + note) — accessible à tout accès `police`. */
+/** Édition inline d'un malus (montant + note) — accès `police` en ÉCRITURE (admin/manager ;
+ *  gaté par `canWrite` chez l'appelant, un chatteur est en lecture seule). */
 function MalusEdit({ e }: { e: PoliceEntry }) {
   const [open, setOpen] = useState(false)
   const {
@@ -191,8 +209,10 @@ function MalusEdit({ e }: { e: PoliceEntry }) {
     })
     if (!res.success) {
       setError('root', { message: res.error })
+      toast.error(res.error)
       return
     }
+    toast.success('Malus modifié')
     setOpen(false)
   })
 
