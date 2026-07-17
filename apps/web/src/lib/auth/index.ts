@@ -1,8 +1,7 @@
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
-import type { Route } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import type { PageSlug } from '@/config/workspaces'
+import { landingHref, type PageSlug } from '@/config/workspaces'
 
 /**
  * Utilisateur courant (ou null) — valide le JWT côté serveur via getClaims() : validation
@@ -74,8 +73,9 @@ export async function requireAccess(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
   if (profile.role !== 'admin' && !profile.pages.includes(slug)) {
-    // Slug dynamique (profile.pages[0]) → pas un href statique connu de typedRoutes.
-    redirect((profile.pages[0] ? `/chatter/${profile.pages[0]}` : '/no-access') as Route)
+    // Repli sur la 1ʳᵉ page RÉELLE du profil. landingHref résout le slug → vraie route :
+    // un `/chatter/<slug>` naïf 404ait sur crm-spenders / mkt-* / dashboard (LE bug 404).
+    redirect(landingHref(profile))
   }
   return profile
 }
@@ -84,7 +84,7 @@ export async function requireAccess(slug: PageSlug): Promise<Profile> {
 export async function requireAdmin(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin') redirect('/chatter/overview')
+  if (profile.role !== 'admin') redirect(landingHref(profile))
   return profile
 }
 
@@ -92,7 +92,7 @@ export async function requireAdmin(): Promise<Profile> {
 export async function requireAdminOrManager(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin' && !profile.manager) redirect('/chatter/overview')
+  if (profile.role !== 'admin' && !profile.manager) redirect(landingHref(profile))
   return profile
 }
 
@@ -100,7 +100,7 @@ export async function requireAdminOrManager(): Promise<Profile> {
 export async function requireSuperadmin(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (!profile.superadmin) redirect('/chatter/overview')
+  if (!profile.superadmin) redirect(landingHref(profile))
   return profile
 }
 

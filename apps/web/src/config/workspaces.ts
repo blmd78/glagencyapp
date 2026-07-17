@@ -213,3 +213,35 @@ export function workspaceHome(w: Workspace): Route {
   // Fallback défensif (basePath seul n'est pas une page réelle) → cast.
   return w.nav[0]?.href ?? (w.basePath as Route)
 }
+
+/** Accès d'un item de nav pour un profil — MÊME logique que le filtre sidebar (app-sidebar.tsx). */
+function canAccessNav(
+  item: NavItem,
+  p: { role: string; superadmin: boolean; manager: boolean; pages: string[] },
+): boolean {
+  if (item.superadminOnly && !p.superadmin) return false
+  if (p.role === 'admin') return true
+  if (item.adminOnly) return !!item.managerAccess && p.manager
+  return p.pages.includes(navSlug(item))
+}
+
+/**
+ * URL d'atterrissage RÉELLE d'un profil = href de sa 1ʳᵉ page de nav autorisée (les 2 faces,
+ * dans l'ordre). Résout le slug → vraie route (ex. `crm-spenders` → /chatter/spenders/liste),
+ * là où un `/chatter/<slug>` naïf 404. Items `bottom` (Membres, Dashboard-TODO) exclus : des
+ * utilitaires, pas une home. `/no-access` si aucune page autorisée (jamais /login : rebond).
+ */
+export function landingHref(p: {
+  role: string
+  superadmin: boolean
+  manager: boolean
+  pages: string[]
+}): Route {
+  for (const w of WORKSPACES) {
+    for (const item of w.nav) {
+      if (item.bottom) continue
+      if (canAccessNav(item, p)) return item.href
+    }
+  }
+  return '/no-access' as Route
+}

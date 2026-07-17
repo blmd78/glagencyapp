@@ -11,7 +11,9 @@ import { Input } from '@/components/ui/input'
 // e-mail contenant `{{ .Token }}` (sinon l'e-mail n'a qu'un lien -> le fallback
 // /auth/callback prend le relais). Accès réservé aux comptes provisionnés
 // (`shouldCreateUser: false`).
-const AFTER_LOGIN = '/chatter/overview'
+// Landing post-login = la racine, qui redirige chacun vers sa 1ʳᵉ page autorisée
+// (résolue par landingHref) — pas /chatter/overview en dur (que tout le monde n'a pas).
+const AFTER_LOGIN = '/'
 
 export default function LoginPage() {
   const router = useRouter()
