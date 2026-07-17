@@ -78,18 +78,21 @@ export async function saveBlock(raw: unknown): Promise<ActionResult> {
       // reste un throw générique dans le handler.
       if (d.id) {
         const supabase = await createClient()
+        // `.single()` erre AUSSI sur 0 ligne (PGRST116) : ce cas-là est MÉTIER
+        // (« Bloc introuvable ») — seuls les autres échecs sont techniques (thrown).
         const { data: blk, error: blkError } = await supabase
           .from('planning_blocks')
           .select('planning_id')
           .eq('id', d.id)
           .single()
-        if (blkError) throw new Error(blkError.message)
+        if (blkError && blkError.code !== 'PGRST116') throw new Error(blkError.message)
         if (!blk) return { ok: false, error: 'Bloc introuvable' }
-        const { data: pl } = await supabase
+        const { data: pl, error: plError } = await supabase
           .from('plannings')
           .select('id')
           .eq('profile_id', d.profileId)
           .single()
+        if (plError && plError.code !== 'PGRST116') throw new Error(plError.message)
         if (!pl || pl.id !== blk.planning_id) return { ok: false, error: 'Bloc introuvable' }
       }
       return { ok: true }
@@ -160,17 +163,20 @@ export async function deleteBlock(raw: unknown): Promise<ActionResult> {
       const supabase = await createClient()
       // Résout le propriétaire du planning AVANT la garde : le planning d'un admin n'est
       // modifiable (bloc par bloc compris) que par un superadmin.
-      const { data: blk } = await supabase
+      // Même nuance PGRST116 que saveBlock : 0 ligne = métier, le reste = technique.
+      const { data: blk, error: blkError } = await supabase
         .from('planning_blocks')
         .select('planning_id')
         .eq('id', parsed.data)
         .single()
+      if (blkError && blkError.code !== 'PGRST116') throw new Error(blkError.message)
       if (!blk) return { ok: false, error: 'Bloc introuvable' }
-      const { data: pl } = await supabase
+      const { data: pl, error: plError } = await supabase
         .from('plannings')
         .select('profile_id')
         .eq('id', blk.planning_id)
         .single()
+      if (plError && plError.code !== 'PGRST116') throw new Error(plError.message)
       if (!pl) return { ok: false, error: 'Planning introuvable' }
       const guard = await requireCanEdit(pl.profile_id)
       return 'error' in guard ? { ok: false, error: guard.error } : { ok: true }
