@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { Search, Wallet } from 'lucide-react'
 import { ActionButton } from '@/components/action-button'
 import { Badge } from '@/components/ui/badge'
@@ -107,7 +108,12 @@ export function StaffView({ data, isAdmin }: { data: MktStaffData; isAdmin: bool
         method: payMethod,
         note: '',
       })
-      if (!res.success) return setError(res.error)
+      if (!res.success) {
+        setError(res.error)
+        toast.error(res.error)
+        return
+      }
+      toast.success(`Paiement de ${eur(payAmount)} enregistré pour ${paying.name}`)
       setPaying(null)
     })
 
@@ -166,8 +172,8 @@ export function StaffView({ data, isAdmin }: { data: MktStaffData; isAdmin: bool
                   {s.pay.total > 0 ? (s.remaining > 0 ? eur(s.remaining) : 'Payé ✓') : '—'}
                 </TableCell>
                 <TableCell className="text-center">
-                  {/* La fiche s'édite sur la page VA. Payer = admin (l'action est
-                      requireAdmin — sans ce garde un manager cliquait vers une erreur). */}
+                  {/* La fiche s'édite sur la page VA. Payer = admin (l'action est gardée par
+                      requireAdminGuard — sans ce garde un manager cliquait vers une erreur). */}
                   {isAdmin && s.remaining > 0 && s.active && (
                     <Button
                       variant="outline"

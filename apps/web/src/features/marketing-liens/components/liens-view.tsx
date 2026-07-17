@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -32,7 +33,8 @@ function TypeCell({ link }: { link: MktLinkRow }) {
       value={link.type}
       onValueChange={(t) =>
         startTransition(async () => {
-          await setLinkType({ linkId: link.id, type: t })
+          const res = await setLinkType({ linkId: link.id, type: t })
+          if (!res.success) toast.error(`${link.name} : type non modifié — ${res.error}`)
         })
       }
     >

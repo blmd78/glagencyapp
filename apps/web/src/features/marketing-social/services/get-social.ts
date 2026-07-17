@@ -13,22 +13,29 @@ export async function getMktSocial(
   period: Period,
 ): Promise<MktSocialData> {
   const supabase = await createClient()
-  const [{ data: accounts }, { data: creators }, { data: staff }, { data: daily }] =
-    await Promise.all([
-      supabase.from('mkt_social_accounts').select('id, handle, creator_id, staff_id, active').eq('platform', platform),
-      supabase.from('creators').select('id, name'),
-      supabase.from('mkt_staff').select('id, name'),
-      fetchAll((f, t) =>
-        supabase
-          .from('mkt_social_daily')
-          .select('account_id, date, followers, delta_followers, views_24h, engagement_24h, status')
-          .gte('date', period.from)
-          .lte('date', period.to)
-          .order('account_id')
-          .order('date')
-          .range(f, t),
-      ),
-    ])
+  const [accountsRes, creatorsRes, staffRes, dailyRes] = await Promise.all([
+    supabase.from('mkt_social_accounts').select('id, handle, creator_id, staff_id, active').eq('platform', platform),
+    supabase.from('creators').select('id, name'),
+    supabase.from('mkt_staff').select('id, name'),
+    fetchAll((f, t) =>
+      supabase
+        .from('mkt_social_daily')
+        .select('account_id, date, followers, delta_followers, views_24h, engagement_24h, status')
+        .gte('date', period.from)
+        .lte('date', period.to)
+        .order('account_id')
+        .order('date')
+        .range(f, t),
+    ),
+  ])
+  if (accountsRes.error) throw new Error(accountsRes.error.message)
+  if (creatorsRes.error) throw new Error(creatorsRes.error.message)
+  if (staffRes.error) throw new Error(staffRes.error.message)
+  if (dailyRes.error) throw new Error(dailyRes.error.message)
+  const { data: accounts } = accountsRes
+  const { data: creators } = creatorsRes
+  const { data: staff } = staffRes
+  const { data: daily } = dailyRes
   const crName = new Map((creators ?? []).map((c) => [c.id, c.name]))
   const stName = new Map((staff ?? []).map((s) => [s.id, s.name]))
 

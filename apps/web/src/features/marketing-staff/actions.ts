@@ -1,16 +1,18 @@
 'use server'
 
-// Server Actions du pôle marketing — requireAdmin + zod, écritures via supabase-js
-// (RLS : has_page('marketing'), un admin passe toujours).
+// Server Actions du pôle marketing — écritures via supabase-js (RLS : has_page('marketing'),
+// un admin passe toujours). Standard runAction (docs/guidelines-standard-feature.md §4) : la
+// garde d'entrée vit dans `guard` — jamais `requireAdmin` (son redirect serait avalé par le
+// try/catch de runAction, cf. self-review batch 3) ; `handler` re-dérive le même résultat à
+// partir des `values` déjà validées (les branches ci-dessous marquées « impossible » sont une
+// course résiduelle, même raisonnement que members/actions.ts).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, requireAdmin } from '@/lib/auth'
+import { getProfile } from '@/lib/auth'
+import { runAction, type ActionResult } from '@/lib/actions'
 import { staffFields } from './schema'
-
-type Result = { success: true } | { success: false; error: string }
-type SaveStaffResult = { success: true; id: string } | { success: false; error: string }
 
 // Champs de fiche partagés avec le dialog (schema.ts) + méta serveur.
 // `role` n'est plus éditable dans le formulaire (tout ce qui se crée = VA ; le manager
@@ -33,36 +35,62 @@ async function requireMktStaffMgr() {
   return profile
 }
 
-export async function saveStaff(raw: unknown): Promise<SaveStaffResult> {
-  const profile = await requireMktStaffMgr()
-  if (!profile) return { success: false, error: 'Accès refusé' }
-  const parsed = staffInput.safeParse(raw)
-  if (!parsed.success) return { success: false, error: 'Saisie invalide' }
-  const d = parsed.data
-  const supabase = await createClient()
-  const row = {
-    name: d.name,
-    role: d.role,
-    color: d.color,
-    fixed_eur: d.fixedEur,
-    rate_tw: d.rateTw,
-    rate_ig: d.rateIg,
-    bonus_eur: d.bonusEur,
-    payment_method: d.paymentMethod,
-    active: d.active,
-  }
-  // .select('id') dans les deux cas : la création renvoie l'id pour enchaîner les
-  // assignations (liens + comptes) sans re-rouvrir la fiche. À la création, la fiche
-  // appartient à son créateur (owner_id) — le RLS cloisonne ensuite par manager.
-  const { data, error } = d.id
-    ? await supabase.from('mkt_staff').update(row).eq('id', d.id).select('id').maybeSingle()
-    : await supabase.from('mkt_staff').insert({ ...row, owner_id: profile.id }).select('id').single()
-  if (error) return { success: false, error: error.message }
-  // maybeSingle : 0 ligne = fiche supprimée entre-temps ou masquée par le RLS (pas la sienne).
-  if (!data) return { success: false, error: 'Fiche introuvable ou non autorisée' }
-  revalidatePath('/marketing/staff')
-  revalidatePath('/marketing/compta')
-  return { success: true, id: data.id }
+/** Garde ADMIN stricte (suppression de fiche, paiement) — retour d'erreur, jamais de
+ *  redirect (éviterait d'éjecter un manager mkt-staff/mkt-compta vers une URL chatteur
+ *  inexistante). */
+async function requireAdminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const profile = await getProfile()
+  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès réservé à l’admin' }
+}
+
+export async function saveStaff(raw: unknown): Promise<ActionResult<{ id: string }>> {
+  return runAction({
+    schema: staffInput,
+    input: raw,
+    guard: async () => {
+      const profile = await requireMktStaffMgr()
+      if (!profile) return { ok: false, error: 'Accès refusé' }
+      const parsed = staffInput.safeParse(raw)
+      if (!parsed.success) return { ok: true } // saisie invalide : laissée au safeParse de runAction
+      if (parsed.data.id) {
+        // Édition : la fiche doit être visible du caller (RLS owner_id) — sinon message
+        // précis ici plutôt qu'un 0-row silencieux au update.
+        const supabase = await createClient()
+        const { data } = await supabase.from('mkt_staff').select('id').eq('id', parsed.data.id).maybeSingle()
+        if (!data) return { ok: false, error: 'Fiche introuvable ou non autorisée' }
+      }
+      return { ok: true }
+    },
+    handler: async (d) => {
+      const profile = await requireMktStaffMgr()
+      if (!profile) throw new Error('Session expirée') // impossible : le guard vient de le vérifier
+      const supabase = await createClient()
+      const row = {
+        name: d.name,
+        role: d.role,
+        color: d.color,
+        fixed_eur: d.fixedEur,
+        rate_tw: d.rateTw,
+        rate_ig: d.rateIg,
+        bonus_eur: d.bonusEur,
+        payment_method: d.paymentMethod,
+        active: d.active,
+      }
+      // .select('id') dans les deux cas : la création renvoie l'id pour enchaîner les
+      // assignations (liens + comptes) sans re-rouvrir la fiche. À la création, la fiche
+      // appartient à son créateur (owner_id) — le RLS cloisonne ensuite par manager.
+      const { data, error } = d.id
+        ? await supabase.from('mkt_staff').update(row).eq('id', d.id).select('id').maybeSingle()
+        : await supabase.from('mkt_staff').insert({ ...row, owner_id: profile.id }).select('id').single()
+      if (error) throw new Error(error.message)
+      // maybeSingle : 0 ligne = course résiduelle (fiche supprimée entre le guard et l'update) —
+      // impossible en pratique, le guard vient de vérifier la visibilité.
+      if (!data) throw new Error('Fiche introuvable ou non autorisée')
+      revalidatePath('/marketing/staff')
+      revalidatePath('/marketing/compta')
+      return { id: data.id }
+    },
+  })
 }
 
 const assignInput = z.object({
@@ -78,22 +106,30 @@ const assignInput = z.object({
  * mi-chemin) et refus explicite si un lien/compte appartient déjà au VA d'un autre
  * manager (security invoker → le RLS owner_id du caller s'applique dans la fonction).
  */
-export async function saveStaffAssignments(raw: unknown): Promise<Result> {
-  const profile = await requireMktStaffMgr()
-  if (!profile) return { success: false, error: 'Accès refusé' }
-  const parsed = assignInput.safeParse(raw)
-  if (!parsed.success) return { success: false, error: 'Saisie invalide' }
-  const { staffId, linkIds, igAccountIds, twAccountIds } = parsed.data
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('mkt_save_staff_assignments', {
-    p_staff: staffId,
-    p_links: linkIds,
-    p_accounts: [...new Set([...igAccountIds, ...twAccountIds])],
+export async function saveStaffAssignments(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: assignInput,
+    input: raw,
+    guard: async () => {
+      const profile = await requireMktStaffMgr()
+      return profile ? { ok: true } : { ok: false, error: 'Accès refusé' }
+    },
+    handler: async ({ staffId, linkIds, igAccountIds, twAccountIds }) => {
+      const supabase = await createClient()
+      // Anti-vol (lien/compte déjà pris par le VA d'un autre manager) : la fonction SQL le
+      // refuse en défense en profondeur, mais linkOptions/igOptions/twOptions (get-staff.ts)
+      // excluent déjà les liens/comptes pris de la sélection — résiduel de course
+      // ultra-serrée, même raisonnement que addRelance (spenders/actions.ts) → throw générique.
+      const { error } = await supabase.rpc('mkt_save_staff_assignments', {
+        p_staff: staffId,
+        p_links: linkIds,
+        p_accounts: [...new Set([...igAccountIds, ...twAccountIds])],
+      })
+      if (error) throw new Error(error.message)
+      revalidatePath('/marketing/staff')
+      revalidatePath('/marketing/compta')
+    },
   })
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/marketing/staff')
-  revalidatePath('/marketing/compta')
-  return { success: true }
 }
 
 /**
@@ -101,16 +137,19 @@ export async function saveStaffAssignments(raw: unknown): Promise<Result> {
  * et paiements supprimés avec la fiche ; les comptes sociaux redeviennent non assignés
  * (staff_id → null). Admin uniquement — un manager désactive/recrée, il ne détruit pas.
  */
-export async function deleteStaff(raw: unknown): Promise<Result> {
-  await requireAdmin()
-  const parsed = z.uuid().safeParse(raw)
-  if (!parsed.success) return { success: false, error: 'Saisie invalide' }
-  const supabase = await createClient()
-  const { error } = await supabase.from('mkt_staff').delete().eq('id', parsed.data)
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/marketing/staff')
-  revalidatePath('/marketing/compta')
-  return { success: true }
+export async function deleteStaff(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: z.uuid(),
+    input: raw,
+    guard: requireAdminGuard,
+    handler: async (id) => {
+      const supabase = await createClient()
+      const { error } = await supabase.from('mkt_staff').delete().eq('id', id)
+      if (error) throw new Error(error.message)
+      revalidatePath('/marketing/staff')
+      revalidatePath('/marketing/compta')
+    },
+  })
 }
 
 const paymentInput = z.object({
@@ -121,25 +160,26 @@ const paymentInput = z.object({
   note: z.string().max(300),
 })
 
-/** Enregistre un paiement de paye staff (rattaché à un mois) — admin uniquement.
- *  Garde en retour d'erreur (pas requireAdmin : son redirect éjecterait un manager
- *  mkt-compta vers une URL chatteur inexistante). */
-export async function recordStaffPayment(raw: unknown): Promise<Result> {
-  const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') return { success: false, error: 'Accès réservé à l’admin' }
-  const parsed = paymentInput.safeParse(raw)
-  if (!parsed.success) return { success: false, error: 'Saisie invalide' }
-  const d = parsed.data
-  const supabase = await createClient()
-  const { error } = await supabase.from('mkt_staff_payments').insert({
-    staff_id: d.staffId,
-    month: d.month,
-    amount_eur: d.amountEur,
-    method: d.method,
-    note: d.note,
-    created_by: profile.id,
+/** Enregistre un paiement de paye staff (rattaché à un mois) — admin uniquement. */
+export async function recordStaffPayment(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: paymentInput,
+    input: raw,
+    guard: requireAdminGuard,
+    handler: async (d) => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée') // impossible : le guard vient de le vérifier
+      const supabase = await createClient()
+      const { error } = await supabase.from('mkt_staff_payments').insert({
+        staff_id: d.staffId,
+        month: d.month,
+        amount_eur: d.amountEur,
+        method: d.method,
+        note: d.note,
+        created_by: profile.id,
+      })
+      if (error) throw new Error(error.message)
+      revalidatePath('/marketing/compta')
+    },
   })
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/marketing/compta')
-  return { success: true }
 }

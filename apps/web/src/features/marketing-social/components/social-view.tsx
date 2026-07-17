@@ -19,6 +19,14 @@ import type { MktSocialData, MktSocialRow } from '../types'
 const signed = (v: number | null) =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString('fr-FR')}`
 
+// Date LOCALE navigateur (pas `toISOString()` → UTC) : comparaison d'affichage (bandeau de
+// fraîcheur), pas un calcul métier serveur — même arbitrage que bilan-dialog.tsx (todayLocal).
+function todayLocal(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<MktSocialRow>[] {
   const cols: ColumnDef<MktSocialRow>[] = [
     {
@@ -169,7 +177,7 @@ export function SocialView({ data, links }: { data: MktSocialData; links: MktLin
 
       {/* La collecte quotidienne (Apify / API X) n'est pas encore branchée : les relevés
           s'arrêtent au dernier jour du flux Discord legacy. */}
-      {data.lastDate && data.lastDate < new Date().toISOString().slice(0, 10) && (
+      {data.lastDate && data.lastDate < todayLocal() && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
           Dernier relevé : {frDateNumeric(data.lastDate)} —{' '}
           {ig ? 'la collecte Apify tourne chaque nuit.' : 'pense à la saisie du jour.'}

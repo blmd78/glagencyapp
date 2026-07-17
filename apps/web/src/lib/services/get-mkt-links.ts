@@ -12,7 +12,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100
  */
 export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
   const supabase = await createClient()
-  const [{ data: links }, { data: creators }, { data: staffLinks }, { data: staff }, { data: daily }] = await Promise.all([
+  const [linksRes, creatorsRes, staffLinksRes, staffRes, dailyRes] = await Promise.all([
     supabase.from('mkt_links').select('id, name, type, url, creator_id, active'),
     supabase.from('creators').select('id, name'),
     // Assignations VA : le RLS (owner_id, migration 0027) fait qu'un manager ne récupère
@@ -30,6 +30,16 @@ export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
         .range(f, t),
     ),
   ])
+  if (linksRes.error) throw new Error(linksRes.error.message)
+  if (creatorsRes.error) throw new Error(creatorsRes.error.message)
+  if (staffLinksRes.error) throw new Error(staffLinksRes.error.message)
+  if (staffRes.error) throw new Error(staffRes.error.message)
+  if (dailyRes.error) throw new Error(dailyRes.error.message)
+  const { data: links } = linksRes
+  const { data: creators } = creatorsRes
+  const { data: staffLinks } = staffLinksRes
+  const { data: staff } = staffRes
+  const { data: daily } = dailyRes
   const crName = new Map((creators ?? []).map((c) => [c.id, c.name]))
   const staffById = new Map((staff ?? []).map((s) => [s.id, { name: s.name, color: s.color }]))
   const staffByLink = new Map<string, { name: string; color: string }[]>()

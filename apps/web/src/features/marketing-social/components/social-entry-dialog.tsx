@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import { toast } from 'sonner'
 import { ClipboardEdit, Plus } from 'lucide-react'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,14 @@ import type { MktSocialRow } from '../types'
 
 type Draft = { followers: string; views: string; engagement: string }
 
+// Date LOCALE navigateur (pas `toISOString()` → UTC) : date de form pré-remplie/éditable,
+// pas un calcul métier serveur — même arbitrage que bilan-dialog.tsx (todayLocal).
+function todayLocal(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 /**
  * Saisie du jour (remplace le bilan Discord des VA) : une ligne par compte —
  * followers actuels (préremplis avec le dernier relevé) + vues 24 h (+ engagement sur X).
@@ -31,7 +40,7 @@ export function SocialEntryDialog({
   platform: 'instagram' | 'twitter' | 'telegram'
   accounts: MktSocialRow[]
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayLocal()
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState(today)
   const [drafts, setDrafts] = useState<Record<string, Draft>>({})
@@ -79,8 +88,10 @@ export function SocialEntryDialog({
       const res = await saveSocialEntries({ platform, date, rows })
       if (!res.success) {
         setError(res.error)
+        toast.error(res.error)
         return
       }
+      toast.success('Saisie du jour enregistrée')
       setOpen(false)
     })
 
@@ -189,8 +200,10 @@ export function AddAccountDialog({ platform }: { platform: 'instagram' | 'twitte
       const res = await addSocialAccount({ platform, handle, creatorId: null, staffId: null })
       if (!res.success) {
         setError(res.error)
+        toast.error(res.error)
         return
       }
+      toast.success(`@${handle.replace(/^@/, '')} ajouté`)
       setHandle('')
       setOpen(false)
     })

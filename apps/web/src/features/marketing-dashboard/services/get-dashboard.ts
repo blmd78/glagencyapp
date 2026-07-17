@@ -15,7 +15,7 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   const prevTo = iso(new Date(new Date(`${period.from}T00:00:00Z`).getTime() - 86_400_000))
   const prevFrom = iso(new Date(new Date(`${period.from}T00:00:00Z`).getTime() - days * 86_400_000))
-  const [links, { data: daily }, { data: prevDaily }] = await Promise.all([
+  const [links, dailyRes, prevDailyRes] = await Promise.all([
     getLinkRows(period),
     fetchAll((f, t) =>
       supabase
@@ -38,6 +38,10 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
         .range(f, t),
     ),
   ])
+  if (dailyRes.error) throw new Error(dailyRes.error.message)
+  if (prevDailyRes.error) throw new Error(prevDailyRes.error.message)
+  const { data: daily } = dailyRes
+  const { data: prevDaily } = prevDailyRes
 
   const byDay = new Map<string, { revenue: number; conversions: number; clicks: number }>()
   for (const d of daily ?? []) {
