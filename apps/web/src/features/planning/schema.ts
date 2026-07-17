@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Planning journalier — schémas PARTAGÉS dialog (RHF + zodResolver) / server actions,
- * même patron que features/members/schema.ts et features/marketing/schema.ts.
+ * même patron que features/members/schema.ts et features/marketing-staff/schema.ts.
  */
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Heure au format HH:MM')

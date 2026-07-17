@@ -13,7 +13,8 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import { num } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
 import { LinksCard } from './links-card'
-import type { MktLinkRow, MktSocialData, MktSocialRow } from '../types'
+import type { MktLinkRow } from '@/lib/types/marketing'
+import type { MktSocialData, MktSocialRow } from '../types'
 
 const signed = (v: number | null) =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString('fr-FR')}`

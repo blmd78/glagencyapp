@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { MktDashboardData } from '../types'
-import { getLinkRows } from './get-links'
+import { getLinkRows } from '@/lib/services/get-mkt-links'
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 

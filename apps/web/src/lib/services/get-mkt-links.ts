@@ -1,11 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
-import type { MktLinkRow, MktLinksData } from '../types'
+import type { MktLinkRow } from '@/lib/types/marketing'
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 
-/** Agrégats par lien sur la période — socle des pages Liens et Dashboard. */
+/**
+ * Agrégats par lien sur la période — socle des pages Liens, Dashboard et Social
+ * (instagram/twitter/telegram) : PARTAGÉ entre marketing-liens, marketing-dashboard
+ * et marketing-social, d'où sa place ici plutôt que dans une feature.
+ */
 export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
   const supabase = await createClient()
   const [{ data: links }, { data: creators }, { data: staffLinks }, { data: staff }, { data: daily }] = await Promise.all([
@@ -60,18 +64,4 @@ export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
       }
     })
     .sort((a, b) => b.revenueEur - a.revenueEur || b.clicks - a.clicks)
-}
-
-/** Page Liens : tous les liens (actifs et disparus) avec leurs agrégats de période. */
-export async function getMktLinks(period: Period): Promise<MktLinksData> {
-  const links = await getLinkRows(period)
-  return {
-    period: period.label,
-    links,
-    totals: {
-      clicks: links.reduce((s, l) => s + l.clicks, 0),
-      conversions: links.reduce((s, l) => s + l.conversions, 0),
-      revenueEur: r2(links.reduce((s, l) => s + l.revenueEur, 0)),
-    },
-  }
 }

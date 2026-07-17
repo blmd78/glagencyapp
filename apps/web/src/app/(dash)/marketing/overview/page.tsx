@@ -1,6 +1,6 @@
-import { getMktDashboard } from '@/features/marketing/services/get-dashboard'
-import { getMktStaff } from '@/features/marketing/services/get-staff'
-import { MktDashboardTemplate } from '@/features/marketing/DashboardTemplate'
+import { getMktDashboard } from '@/features/marketing-dashboard/services/get-dashboard'
+import { getMktStaff } from '@/features/marketing-staff/services/get-staff'
+import { MktDashboardTemplate } from '@/features/marketing-dashboard/DashboardTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 

@@ -1,5 +1,6 @@
 import { SocialView } from './components/social-view'
-import type { MktLinkRow, MktSocialData } from './types'
+import type { MktLinkRow } from '@/lib/types/marketing'
+import type { MktSocialData } from './types'
 
 export function MktSocialTemplate({ data, links }: { data: MktSocialData; links: MktLinkRow[] }) {
   const title =

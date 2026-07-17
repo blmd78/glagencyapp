@@ -1,5 +1,5 @@
-import { getMktStaff } from '@/features/marketing/services/get-staff'
-import { MktVaTemplate } from '@/features/marketing/VaTemplate'
+import { getMktStaff } from '@/features/marketing-staff/services/get-staff'
+import { MktVaTemplate } from '@/features/marketing-staff/VaTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 

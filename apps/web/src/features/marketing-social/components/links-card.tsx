@@ -7,7 +7,7 @@ import { Sortable } from '@/components/data-table/sortable'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num } from '@/lib/format'
-import type { MktLinkRow } from '../types'
+import type { MktLinkRow } from '@/lib/types/marketing'
 
 const columns: ColumnDef<MktLinkRow>[] = [
   {

@@ -10,7 +10,7 @@ import { KpiCard } from '@/components/kpi-card'
 import { modelColor } from '@/lib/model-color'
 import { eur, num } from '@/lib/format'
 import { MktDailyChart } from './components/mkt-daily-chart'
-import { typeBadge } from './components/type-badge'
+import { typeBadge } from '@/lib/type-badge'
 import type { MktDashboardData } from './types'
 
 /** Dashboard marketing : KPIs de la période, revenus/jour, top liens, poids par créatrice. */

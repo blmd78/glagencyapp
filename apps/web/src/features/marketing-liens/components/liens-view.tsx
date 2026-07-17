@@ -18,8 +18,9 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from '../actions'
-import { typeBadge } from './type-badge'
-import type { MktLinkRow, MktLinksData } from '../types'
+import { typeBadge } from '@/lib/type-badge'
+import type { MktLinkRow } from '@/lib/types/marketing'
+import type { MktLinksData } from '../types'
 
 const TYPE_LABELS = { twitter: 'Twitter', instagram: 'Instagram', telegram: 'Telegram', other: 'Autre' } as const
 

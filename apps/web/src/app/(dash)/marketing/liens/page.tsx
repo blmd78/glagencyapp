@@ -1,5 +1,5 @@
-import { getMktLinks } from '@/features/marketing/services/get-links'
-import { MktLiensTemplate } from '@/features/marketing/LiensTemplate'
+import { getMktLinks } from '@/features/marketing-liens/services/get-links'
+import { MktLiensTemplate } from '@/features/marketing-liens/LiensTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 

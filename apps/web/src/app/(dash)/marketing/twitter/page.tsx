@@ -1,6 +1,6 @@
-import { getMktSocial } from '@/features/marketing/services/get-social'
-import { getLinkRows } from '@/features/marketing/services/get-links'
-import { MktSocialTemplate } from '@/features/marketing/SocialTemplate'
+import { getMktSocial } from '@/features/marketing-social/services/get-social'
+import { getLinkRows } from '@/lib/services/get-mkt-links'
+import { MktSocialTemplate } from '@/features/marketing-social/SocialTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 
