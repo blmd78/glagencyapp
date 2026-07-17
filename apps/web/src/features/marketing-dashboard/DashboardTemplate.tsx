@@ -79,12 +79,9 @@ export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardDat
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          {data.period} · liens de tracking MyPuls
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {data.period} · liens de tracking MyPuls
+      </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {kpis.map(({ accent, ...k }) => (

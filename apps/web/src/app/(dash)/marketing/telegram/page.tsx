@@ -1,8 +1,13 @@
+import { Suspense } from 'react'
 import { getMktSocial } from '@/features/marketing-social/services/get-social'
 import { getLinkRows } from '@/lib/services/get-mkt-links'
 import { MktSocialTemplate } from '@/features/marketing-social/SocialTemplate'
+import { MktSocialSkeleton } from '@/features/marketing-social/components/social-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { MktSocialData } from '@/features/marketing-social/types'
+import type { MktLinkRow } from '@/lib/types/marketing'
 
 // Canal Telegram — même DA que Instagram/Twitter : KPIs, onglets Canaux/Liens.
 // Les canaux s'ajoutent via « + Compte » (saisie manuelle des membres/vues en
@@ -14,6 +19,35 @@ export default async function MktTelegramPage({
 }) {
   await requireAccess('mkt-telegram')
   const period = resolvePeriod(await searchParams)
-  const [data, links] = await Promise.all([getMktSocial('telegram', period), getLinkRows(period)])
-  return <MktSocialTemplate data={data} links={links.filter((l) => l.type === 'telegram')} />
+  // Kickoff SANS await (requêtes indépendantes) : le shell (h1) s'affiche immédiatement,
+  // KPIs + table streament dans leur boundary une fois les deux résolues.
+  const data = getMktSocial('telegram', period)
+  const links = getLinkRows(period)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Telegram</h1>
+      <Suspense
+        fallback={
+          <div className="flex flex-col gap-6">
+            <Skeleton className="-mt-4 h-4 w-72" />
+            <MktSocialSkeleton />
+          </div>
+        }
+      >
+        <MktTelegramContent data={data} links={links} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function MktTelegramContent({
+  data,
+  links,
+}: {
+  data: Promise<MktSocialData>
+  links: Promise<MktLinkRow[]>
+}) {
+  const [d, l] = await Promise.all([data, links])
+  return <MktSocialTemplate data={d} links={l.filter((x) => x.type === 'telegram')} />
 }

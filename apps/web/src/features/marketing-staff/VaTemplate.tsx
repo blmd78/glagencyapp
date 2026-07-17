@@ -7,13 +7,10 @@ export function MktVaTemplate({ data, isAdmin }: { data: MktStaffData; isAdmin: 
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">VA</h1>
-        <p className="text-sm text-muted-foreground">
-          {vas.length} VA ({active} actifs) · fiches, rémunération et assignations —
-          la paie se règle dans Compta
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {vas.length} VA ({active} actifs) · fiches, rémunération et assignations —
+        la paie se règle dans Compta
+      </p>
 
       <VaView data={data} isAdmin={isAdmin} />
     </div>

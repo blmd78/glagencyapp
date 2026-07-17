@@ -1,8 +1,13 @@
+import { Suspense } from 'react'
 import { getMktDashboard } from '@/features/marketing-dashboard/services/get-dashboard'
 import { getMktStaff } from '@/features/marketing-staff/services/get-staff'
 import { MktDashboardTemplate } from '@/features/marketing-dashboard/DashboardTemplate'
+import { MktDashboardSkeleton } from '@/features/marketing-dashboard/components/mkt-dashboard-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
+import { Skeleton } from '@/components/ui/skeleton'
+import type { MktDashboardData } from '@/features/marketing-dashboard/types'
+import type { MktStaffData } from '@/features/marketing-staff/types'
 
 // Pôle marketing : admin-only en v1 (cf. workspaces.ts).
 export default async function MktDashboardPage({
@@ -12,6 +17,35 @@ export default async function MktDashboardPage({
 }) {
   await requireAccess('mkt-overview')
   const period = resolvePeriod(await searchParams)
-  const [data, staff] = await Promise.all([getMktDashboard(period), getMktStaff(period)])
-  return <MktDashboardTemplate data={data} expenses={staff.totalBudget} />
+  // Kickoff SANS await (requêtes indépendantes) : le shell (h1) s'affiche immédiatement,
+  // KPIs + graphe streament dans leur boundary une fois les deux résolues.
+  const data = getMktDashboard(period)
+  const staff = getMktStaff(period)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
+      <Suspense
+        fallback={
+          <div className="flex flex-col gap-6">
+            <Skeleton className="-mt-4 h-4 w-72" />
+            <MktDashboardSkeleton />
+          </div>
+        }
+      >
+        <MktDashboardContent data={data} staff={staff} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function MktDashboardContent({
+  data,
+  staff,
+}: {
+  data: Promise<MktDashboardData>
+  staff: Promise<MktStaffData>
+}) {
+  const [d, s] = await Promise.all([data, staff])
+  return <MktDashboardTemplate data={d} expenses={s.totalBudget} />
 }
