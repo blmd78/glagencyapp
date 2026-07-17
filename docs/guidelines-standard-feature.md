@@ -110,11 +110,18 @@ features/<f>/
   avalée. `const { data, error } = await supabase.from(...)…; if (error) throw new
   Error(error.message)`. Une erreur non catchée dans un service remonte à la boundary
   `error.tsx` la plus proche (workspace ou `(dash)`) via React.
-- **Règle actions** : erreur **métier/validation** = valeur de `return` typée (`ActionResult`,
-  jamais `throw`) ; erreur **technique** = `Sentry.captureException(err)` + message générique
-  — jamais un `error.message` Supabase brut affiché à l'utilisateur. `runAction`
-  (`src/lib/actions.ts`) applique déjà cette règle : tout le pipeline est sous `try/catch`,
-  donc même une garde qui `throw` est traitée comme technique.
+- **Règle actions** : erreur **métier/validation** = valeur de `return` typée (`ActionResult`) ;
+  erreur **technique** = `Sentry.captureException(err)` + message générique — jamais un
+  `error.message` Supabase brut affiché à l'utilisateur. `runAction` (`src/lib/actions.ts`)
+  applique déjà cette règle : tout le pipeline est sous `try/catch`, donc même une garde qui
+  `throw` est traitée comme technique. **Unique exception au « pas de throw métier » :
+  `BusinessError`** (même fichier) — quand SEULE la base peut trancher un conflit métier
+  (contrainte unique, RPC anti-vol, lignes cachées par la RLS → pré-check applicatif
+  impossible), le handler détecte l'erreur DB par sa signature et lève
+  `throw new BusinessError('Message français à nous')` : `runAction` la renvoie comme retour
+  métier (message affiché tel quel, pas de Sentry). Réservée aux messages écrits par nous —
+  jamais un `error.message` brut. Exemple : `features/marketing-staff/actions.ts`
+  (`saveStaffAssignments`, conflit anti-vol).
 - **`ErrorFallback` partagé** (`src/components/error-fallback.tsx`) : capture
   `Sentry.captureException(error)` dans un `useEffect([error])`, affiche un `role="alert"` +
   bouton « Réessayer » branché sur `unstable_retry` (Next 16.2 — re-fetch + re-render du
@@ -155,6 +162,21 @@ features/<f>/
   message générique. Chaque `actions.ts` l'utilise ; la RLS reste le garde-fou réel (défense
   en profondeur, pas le seul rempart). Exemple pilote : `features/chatters/actions.ts`
   (`updateChatterCrm`).
+- **Pattern « pré-check dans le guard »** (les 8 commentaires code qui renvoient ici) : quand
+  un message métier précis dépend d'une lecture DB (« Bloc introuvable », « Déjà relancé
+  aujourd'hui »…), le `guard` capture le `raw` en closure, fait un `safeParse` DÉFENSIF
+  (échec → `{ ok: true }` : c'est le `safeParse` de `runAction` qui produira les
+  `fieldErrors`), puis le SELECT de visibilité → rejet métier en `{ ok: false, error }`.
+  Règles : (1) l'`error` du SELECT de pré-check est **destructurée et thrown** (un échec
+  technique ne doit pas se déguiser en message métier ni passer sous silence) ; (2) **nuance
+  `.single()`** : il erre AUSSI sur 0 ligne (`PGRST116`) — ce cas-là est MÉTIER ; ne thrower
+  que `error.code !== 'PGRST116'` (cf. `features/planning/actions.ts`, `saveBlock`) ;
+  `maybeSingle()`/`count` n'ont pas ce piège. (3) Le 0-row résiduel dans le handler (course
+  ultra-serrée post-guard) reste un throw technique. Exemples : `planning/actions.ts`,
+  `spenders/actions.ts` (`addRelance`), `marketing-staff/actions.ts`.
+- **Nommage des gardes locales** : suffixe `Guard` (`requireAdminGuard`, `adminGuard`…) —
+  jamais le nom nu d'un helper de `lib/auth` (`requireAdmin` y fait un `redirect()`, qui
+  serait AVALÉ par le `try/catch` de `runAction` : c'est LE piège).
 - **Chaque Server Action revalide la route affectée** : `revalidatePath('/chatter/...')`
   après le `update`. Si la donnée mutée alimente un cache taggé (`use cache` +
   `cacheTag(...)`, ex. `get-ranking`), ajouter `updateTag(tag)` (stable Next 16, Server
