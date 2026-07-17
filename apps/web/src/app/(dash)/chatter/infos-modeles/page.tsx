@@ -3,7 +3,7 @@ import { getInfosModeles } from '@/features/infos-modeles/services/get-infos-mod
 import { InfosModelesTemplate } from '@/features/infos-modeles/InfosModelesTemplate'
 import { InfosModelesSkeleton } from '@/features/infos-modeles/components/infos-modeles-skeleton'
 import { requireAccess } from '@/lib/auth'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { InfosModelesData } from '@/features/infos-modeles/types'
 
 // Infos modèles (groupe Accès, porté de gla-workflow). Droit `infos-modeles` cochable
@@ -20,10 +20,9 @@ export default async function InfosModelesPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Infos modèles</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <InfosModelesSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <InfosModelesContent data={data} isAdmin={isAdmin} />

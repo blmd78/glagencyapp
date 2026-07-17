@@ -3,7 +3,7 @@ import { getQuotas } from '@/features/quotas/services/get-quotas'
 import { requireAdmin } from '@/lib/auth'
 import { QuotasTemplate } from '@/features/quotas/QuotasTemplate'
 import { QuotasSkeleton } from '@/features/quotas/components/quotas-skeleton'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { QuotasData } from '@/features/quotas/types'
 
 // Page de config (seuils journaliers + exclusions) — pas de filtre période.
@@ -18,10 +18,9 @@ export default async function QuotasPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Quotas</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <QuotasSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <QuotasContent data={data} />

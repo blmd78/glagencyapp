@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 import { HealthTemplate } from '@/features/health/HealthTemplate'
 import { HealthSkeleton } from '@/features/health/components/health-skeleton'
 import { resolvePeriod } from '@/lib/period'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { HealthData } from '@/features/health/types'
 
 export default async function HealthPage({
@@ -23,10 +23,9 @@ export default async function HealthPage({
       <h1 className="text-2xl font-semibold tracking-tight">État de santé</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <HealthSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <HealthContent data={data} />

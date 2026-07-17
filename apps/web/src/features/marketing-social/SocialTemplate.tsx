@@ -1,4 +1,5 @@
 import { SocialView } from './components/social-view'
+import { num } from '@/lib/format'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktSocialData } from './types'
 
@@ -11,7 +12,7 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
       {/* Aucune saisie manuelle : Instagram et Telegram sont collectés automatiquement,
           Twitter attend son automate (décision Benoît : pas de mode manuel). */}
       <p className="-mt-4 text-sm text-muted-foreground">
-        {data.period} · {data.accounts.length} {unit} · {data.totals.followers.toLocaleString('fr-FR')}{' '}
+        {data.period} · {data.accounts.length} {unit} · {num(data.totals.followers)}{' '}
         {person.toLowerCase()} cumulés
       </p>
 

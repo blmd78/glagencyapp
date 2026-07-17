@@ -6,7 +6,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
-import { eur, num } from '@/lib/format'
+import { eur, num, pct } from '@/lib/format'
 import type { MktLinkRow } from '@/lib/types/marketing'
 
 const columns: ColumnDef<MktLinkRow>[] = [
@@ -77,7 +77,7 @@ const columns: ColumnDef<MktLinkRow>[] = [
       const v = getValue() as number | null
       return (
         <span className="tabular-nums text-muted-foreground">
-          {v != null ? `${v.toLocaleString('fr-FR')} %` : '—'}
+          {v != null ? pct(v) : '—'}
         </span>
       )
     },

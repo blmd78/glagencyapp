@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 import { OverviewTemplate } from '@/features/overview/OverviewTemplate'
 import { OverviewSkeleton } from '@/features/overview/components/overview-skeleton'
 import { resolvePeriod } from '@/lib/period'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { OverviewData } from '@/features/overview/types'
 
 // La page résout la période (datepicker du header) et la passe au service.
@@ -24,10 +24,9 @@ export default async function OverviewPage({
       <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <OverviewSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <OverviewContent data={data} />

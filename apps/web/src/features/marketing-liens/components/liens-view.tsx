@@ -16,7 +16,7 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
-import { eur, num } from '@/lib/format'
+import { conv, eur, num, pct } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from '../actions'
 import { typeBadge } from '@/lib/type-badge'
@@ -102,7 +102,7 @@ const columns: ColumnDef<MktLinkRow>[] = [
       const v = getValue() as number | null
       return (
         <span className="tabular-nums text-muted-foreground">
-          {v != null ? `${v.toLocaleString('fr-FR')} %` : '—'}
+          {v != null ? pct(v) : '—'}
         </span>
       )
     },
@@ -198,7 +198,7 @@ export function LiensView({ data }: { data: MktLinksData }) {
       ...base,
       key: 'taux',
       label: 'Taux de conversion',
-      value: totals.clicks > 0 ? `${(Math.round((totals.conversions / totals.clicks) * 1000) / 10).toLocaleString('fr-FR')} %` : '—',
+      value: totals.clicks > 0 ? pct(conv(totals.conversions, totals.clicks)) : '—',
       hint: 'abonnés ÷ clics',
       info: 'Conversions ÷ clics des liens affichés — calculé chez nous.',
     },

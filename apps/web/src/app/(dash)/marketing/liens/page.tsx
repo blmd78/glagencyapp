@@ -4,7 +4,7 @@ import { MktLiensTemplate } from '@/features/marketing-liens/LiensTemplate'
 import { MktLiensSkeleton } from '@/features/marketing-liens/components/liens-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { MktLinksData } from '@/features/marketing-liens/types'
 
 export default async function MktLiensPage({
@@ -23,10 +23,9 @@ export default async function MktLiensPage({
       <h1 className="text-2xl font-semibold tracking-tight">Liens de tracking</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-32" />
+          <SectionFallback subtitle="h-4 w-32">
             <MktLiensSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <MktLiensContent data={data} />

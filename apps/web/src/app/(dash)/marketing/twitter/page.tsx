@@ -5,7 +5,7 @@ import { MktSocialTemplate } from '@/features/marketing-social/SocialTemplate'
 import { MktSocialSkeleton } from '@/features/marketing-social/components/social-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { MktSocialData } from '@/features/marketing-social/types'
 import type { MktLinkRow } from '@/lib/types/marketing'
 
@@ -26,10 +26,9 @@ export default async function MktTwitterPage({
       <h1 className="text-2xl font-semibold tracking-tight">Twitter / X</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <MktSocialSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <MktTwitterContent data={data} links={links} />

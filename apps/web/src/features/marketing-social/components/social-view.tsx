@@ -124,7 +124,6 @@ export function SocialView({ data, links }: { data: MktSocialData; links: MktLin
   const active = data.accounts.filter((a) => a.active)
   const ok = active.filter((a) => a.status === 'ok').length
   const deltaFollowers = active.reduce((s, a) => s + (a.deltaFollowers ?? 0), 0)
-  const signed = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString('fr-FR')}`
   const base = { deltaPct: null, trendLabel: '' }
   const kpis = [
     {

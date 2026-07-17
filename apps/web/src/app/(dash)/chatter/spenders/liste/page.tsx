@@ -3,7 +3,7 @@ import { getSpenders } from '@/features/spenders/services/get-spenders'
 import { requireAccess } from '@/lib/auth'
 import { SpendersTemplate } from '@/features/spenders/SpendersTemplate'
 import { SpendersListeSkeleton } from '@/features/spenders/components/spenders-liste-skeleton'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { SpendersData } from '@/features/spenders/types'
 
 // Vue « Liste » — fetch propre à cette page (pattern standard). Les 4 vues spenders
@@ -21,10 +21,9 @@ export default async function SpendersListePage() {
       <h1 className="text-2xl font-semibold tracking-tight">Spenders</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <SpendersListeSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <SpendersListeContent data={data} isAdmin={profile.role === 'admin'} />

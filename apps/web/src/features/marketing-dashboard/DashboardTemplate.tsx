@@ -8,7 +8,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { KpiCard } from '@/components/kpi-card'
 import { modelColor } from '@/lib/model-color'
-import { eur, num } from '@/lib/format'
+import { conv, eur, num, pct } from '@/lib/format'
 import { MktDailyChart } from './components/mkt-daily-chart'
 import { typeBadge } from '@/lib/type-badge'
 import type { MktDashboardData } from './types'
@@ -48,9 +48,7 @@ export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardDat
       key: 'taux',
       label: 'Taux de conversion',
       value:
-        data.totals.clicks > 0
-          ? `${(Math.round((data.totals.conversions / data.totals.clicks) * 1000) / 10).toLocaleString('fr-FR')} %`
-          : '—',
+        data.totals.clicks > 0 ? pct(conv(data.totals.conversions, data.totals.clicks)) : '—',
       hint: 'subs ÷ clics, tous liens',
       info: 'Abonnés ÷ clics sur la période, tous liens confondus — calculé chez nous, pas fourni par MyPuls.',
     },

@@ -8,6 +8,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart'
+import { int } from '@/lib/format'
 import type { MktDailyPoint } from '../types'
 
 // Mêmes couleurs que la légende legacy : violet / vert / bleu.
@@ -52,7 +53,7 @@ export function MktDailyChart({ data }: { data: MktDailyPoint[] }) {
                     {config[name as keyof typeof config]?.label ?? name}
                   </span>
                   <span className="tabular-nums">
-                    {Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 0 })}
+                    {int(Number(value))}
                     {name === 'revenue' ? ' €' : ''}
                   </span>
                 </span>

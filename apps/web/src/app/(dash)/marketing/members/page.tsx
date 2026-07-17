@@ -3,7 +3,7 @@ import { requireAdmin } from '@/lib/auth'
 import { getMembers } from '@/features/members/services/get-members'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { MembersData } from '@/features/members/types'
 
 // Même DA/fonctionnement que la page Membres chatteurs, adaptée au pôle marketing :
@@ -20,10 +20,9 @@ export default async function MktMembersPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Membres</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <TableSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <MembersContent data={data} superadmin={profile.superadmin} />

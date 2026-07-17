@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 import { ModelsTemplate } from '@/features/models/ModelsTemplate'
 import { resolvePeriod } from '@/lib/period'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { ModelsData } from '@/features/models/types'
 
 export default async function ModelsPage({
@@ -23,10 +23,9 @@ export default async function ModelsPage({
       <h1 className="text-2xl font-semibold tracking-tight">Modèles</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <TableSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <ModelsContent data={data} />

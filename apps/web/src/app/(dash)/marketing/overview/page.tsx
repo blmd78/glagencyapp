@@ -5,7 +5,7 @@ import { MktDashboardTemplate } from '@/features/marketing-dashboard/DashboardTe
 import { MktDashboardSkeleton } from '@/features/marketing-dashboard/components/mkt-dashboard-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { MktDashboardData } from '@/features/marketing-dashboard/types'
 import type { MktStaffData } from '@/features/marketing-staff/types'
 
@@ -27,10 +27,9 @@ export default async function MktDashboardPage({
       <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <MktDashboardSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <MktDashboardContent data={data} staff={staff} />

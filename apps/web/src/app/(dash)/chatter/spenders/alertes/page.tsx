@@ -4,7 +4,7 @@ import { requireAccess } from '@/lib/auth'
 import { SpendersTemplate } from '@/features/spenders/SpendersTemplate'
 import { R_ALERTE, type SpendersData } from '@/features/spenders/types'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 
 // Vue « Alertes R10 » — fetch propre à cette page (pattern standard) ; cf. liste/page.tsx
 // pour le choix produit (refetch par navigation vs fetch unique de l'ancien layout).
@@ -19,10 +19,9 @@ export default async function SpendersAlertesPage() {
       <h1 className="text-2xl font-semibold tracking-tight">{`Alertes R${R_ALERTE}`}</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <TableSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <SpendersAlertesContent data={data} isAdmin={profile.role === 'admin'} />

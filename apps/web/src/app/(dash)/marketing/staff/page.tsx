@@ -4,7 +4,7 @@ import { MktVaTemplate } from '@/features/marketing-staff/VaTemplate'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { MktStaffData } from '@/features/marketing-staff/types'
 
 export default async function MktVaPage({
@@ -23,10 +23,9 @@ export default async function MktVaPage({
       <h1 className="text-2xl font-semibold tracking-tight">VA</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-96" />
+          <SectionFallback subtitle="h-4 w-96">
             <TableSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <MktVaContent data={data} isAdmin={profile.role === 'admin'} />

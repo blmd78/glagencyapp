@@ -1,14 +1,10 @@
-import { Skeleton } from '@/components/ui/skeleton'
+import { RouteLoading } from '@/components/skeletons/route-loading'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 
 export default function Loading() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-20" />
-        <Skeleton className="h-4 w-96" />
-      </div>
+    <RouteLoading title="h-7 w-20" subtitle="h-4 w-96">
       <TableSkeleton />
-    </div>
+    </RouteLoading>
   )
 }

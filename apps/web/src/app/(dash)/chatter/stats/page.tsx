@@ -4,7 +4,7 @@ import { StatsTemplate } from '@/features/stats/StatsTemplate'
 import { StatsSkeleton } from '@/features/stats/components/stats-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
-import { Skeleton } from '@/components/ui/skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { StatsData } from '@/features/stats/types'
 
 // Statistiques par modèle — pilotées par le datepicker (droit `stats` accordable).
@@ -24,10 +24,9 @@ export default async function StatsPage({
       <h1 className="text-2xl font-semibold tracking-tight">Stats</h1>
       <Suspense
         fallback={
-          <div className="flex flex-col gap-6">
-            <Skeleton className="-mt-4 h-4 w-72" />
+          <SectionFallback>
             <StatsSkeleton />
-          </div>
+          </SectionFallback>
         }
       >
         <StatsContent data={data} />
