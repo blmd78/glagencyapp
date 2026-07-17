@@ -8,19 +8,12 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 
 const linkTypeInput = z.object({
   linkId: z.uuid(),
   type: z.enum(['twitter', 'instagram', 'telegram', 'other']),
 })
-
-/** Garde ADMIN : la correction manuelle du type impacte l'attribution du CA par canal. */
-async function adminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const profile = await getProfile()
-  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès réservé à l’admin' }
-}
 
 /** Correction manuelle du type d'un lien (équivalent des link_type_overrides legacy). */
 export async function setLinkType(raw: unknown): Promise<ActionResult> {

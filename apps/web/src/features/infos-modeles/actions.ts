@@ -9,8 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import type { Json } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 
 const saveInfosModeleInput = z.object({
   creatorId: z.uuid(),
@@ -31,10 +30,7 @@ export async function saveInfosModele(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: saveInfosModeleInput,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Réservé aux admins' }
-    },
+    guard: adminGuard,
     handler: async ({ creatorId, base, sections }) => {
       const supabase = await createClient()
       const { error } = await supabase

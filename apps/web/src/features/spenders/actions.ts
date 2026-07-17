@@ -9,8 +9,8 @@
 import { revalidatePath } from 'next/cache'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { getProfile, hasPageAccess } from '@/lib/auth'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { archiveInput, relanceInput, setCompteurInput, targetInput } from './schema'
 
 // Scope 'layout' : ce layout (app/(dash)/chatter/spenders/layout.tsx) ne fetch plus rien
@@ -22,14 +22,7 @@ const SPENDERS_PATH = '/chatter/spenders'
 
 async function crmGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
   const profile = await getProfile()
-  return profile && (profile.role === 'admin' || profile.pages.includes('crm-spenders'))
-    ? { ok: true }
-    : { ok: false, error: 'Accès refusé' }
-}
-
-async function adminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const profile = await getProfile()
-  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Réservé aux admins' }
+  return hasPageAccess(profile, 'crm-spenders') ? { ok: true } : { ok: false, error: 'Accès refusé' }
 }
 
 /**

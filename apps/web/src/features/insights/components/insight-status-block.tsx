@@ -1,6 +1,7 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
+import { frDateTimeParis } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import { STATUS_COLORS } from '@/lib/status-color'
 import type { InsightRow, InsightStatus } from '../types'
@@ -17,9 +18,6 @@ export const STATUS_STYLE: Record<InsightStatus, string> = {
   resolved: STATUS_COLORS.positive,
   ignored: STATUS_COLORS.neutral,
 }
-
-const frDateTime = (iso: string) =>
-  new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 /**
  * Note + boutons de statut d'une carte insight — extrait de `insight-card.tsx` (split >
@@ -57,7 +55,7 @@ export function InsightStatusBlock({
       {insight.updatedBy && status !== 'new' && (
         <span className="text-[11px] text-muted-foreground">
           {STATUS_LABELS[status]} · par <b>{insight.updatedByName}</b>
-          {insight.updatedAt ? ` · ${frDateTime(insight.updatedAt)}` : ''}
+          {insight.updatedAt ? ` · ${frDateTimeParis(insight.updatedAt)}` : ''}
           {takenByOther && ' — seul lui (ou un admin) peut modifier'}
         </span>
       )}

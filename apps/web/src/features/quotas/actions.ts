@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 
 // ── Seuils journaliers ────────────────────────────────────────────────────────
 
@@ -37,10 +37,7 @@ export async function saveQuotas(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: saveQuotasSchema,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
-    },
+    guard: adminGuard,
     handler: async ({ upserts, deletes }) => {
       // Mémoïsé par requête (`cache()`, lib/auth) — pas de round-trip DB supplémentaire
       // par rapport à l'appel déjà fait dans la garde.
@@ -108,10 +105,7 @@ export async function saveExclusions(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: saveExclusionsSchema,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
-    },
+    guard: adminGuard,
     handler: async ({ exclude, include }) => {
       const supabase = await createClient()
 

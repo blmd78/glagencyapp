@@ -12,20 +12,13 @@ import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { num } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
+import { todayLocal } from '@/lib/dates-client'
 import { LinksCard } from './links-card'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktSocialData, MktSocialRow } from '../types'
 
 const signed = (v: number | null) =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString('fr-FR')}`
-
-// Date LOCALE navigateur (pas `toISOString()` → UTC) : comparaison d'affichage (bandeau de
-// fraîcheur), pas un calcul métier serveur — même arbitrage que bilan-dialog.tsx (todayLocal).
-function todayLocal(): string {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
 
 function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<MktSocialRow>[] {
   const cols: ColumnDef<MktSocialRow>[] = [

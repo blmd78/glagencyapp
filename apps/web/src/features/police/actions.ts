@@ -6,17 +6,15 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, type Profile } from '@/lib/auth'
+import { getProfile, hasPageAccess, type Profile } from '@/lib/auth'
 import { getChatterScope } from '@/lib/scope'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
 /** Garde : admin, ou page `police` accordée (les policiers saisissent). */
 async function requirePoliceProfile(): Promise<Profile | null> {
   const profile = await getProfile()
-  if (!profile) return null
-  if (profile.role !== 'admin' && !profile.pages.includes('police')) return null
-  return profile
+  return hasPageAccess(profile, 'police') ? profile : null
 }
 
 /** Garde périmètre : un non-admin ne peut agir que sur les chatteurs de SES modèles. */
@@ -134,10 +132,7 @@ export async function deletePoliceEntry(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: deleteEntryInput,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
-    },
+    guard: adminGuard,
     handler: async ({ id }) => {
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').delete().eq('id', id)

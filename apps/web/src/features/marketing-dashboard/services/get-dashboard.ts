@@ -15,18 +15,22 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
   const iso = (d: Date) => d.toISOString().slice(0, 10)
   const prevTo = iso(new Date(new Date(`${period.from}T00:00:00Z`).getTime() - 86_400_000))
   const prevFrom = iso(new Date(new Date(`${period.from}T00:00:00Z`).getTime() - days * 86_400_000))
+  // UN SEUL fetchAll sur mkt_link_daily pour la fenêtre courante (superset de colonnes) :
+  // getLinkRows en dérive l'agrégat PAR LIEN (dailyRows ci-dessous, cf. get-mkt-links.ts),
+  // la boucle plus bas l'agrégat PAR JOUR — au lieu de deux fetchAll sur les mêmes lignes.
+  const dailyPromise = fetchAll((f, t) =>
+    supabase
+      .from('mkt_link_daily')
+      .select('date, link_id, clicks, conversions, revenue_eur')
+      .gte('date', period.from)
+      .lte('date', period.to)
+      .order('link_id')
+      .order('date')
+      .range(f, t),
+  )
   const [links, dailyRes, prevDailyRes] = await Promise.all([
-    getLinkRows(period),
-    fetchAll((f, t) =>
-      supabase
-        .from('mkt_link_daily')
-        .select('date, clicks, conversions, revenue_eur')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('link_id')
-        .order('date')
-        .range(f, t),
-    ),
+    getLinkRows(period, { dailyRows: dailyPromise }),
+    dailyPromise,
     fetchAll((f, t) =>
       supabase
         .from('mkt_link_daily')

@@ -9,16 +9,14 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
+import { getProfile, hasPageAccess } from '@/lib/auth'
 import { getChatterScope } from '@/lib/scope'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 
 /** Garde d'action : admin, ou page `repos` accordée (les sous-managers gèrent le planning). */
 async function requireRepos() {
   const profile = await getProfile()
-  if (!profile) return null
-  if (profile.role !== 'admin' && !profile.pages.includes('repos')) return null
-  return profile
+  return hasPageAccess(profile, 'repos') ? profile : null
 }
 
 const cellInput = z.object({
@@ -105,10 +103,7 @@ export async function saveReposColumnMembers(raw: unknown): Promise<ActionResult
   return runAction({
     schema: colMembersInput,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
-    },
+    guard: adminGuard,
     handler: async (values) => {
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer

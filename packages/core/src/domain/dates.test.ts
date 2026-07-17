@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { todayParis } from './dates'
+import { frDateTimeParis, todayParis } from './dates'
+
+describe('frDateTimeParis', () => {
+  it('affiche l’heure Paris (été, CEST = UTC+2)', () => {
+    // 14:05 UTC le 16/07 = 16:05 à Paris (CEST)
+    expect(frDateTimeParis('2026-07-16T14:05:00Z')).toBe('16/07 16:05')
+  })
+  it('affiche l’heure Paris (hiver, CET = UTC+1)', () => {
+    // 14:05 UTC le 15/01 = 15:05 à Paris (CET)
+    expect(frDateTimeParis('2026-01-15T14:05:00Z')).toBe('15/01 15:05')
+  })
+})
 
 describe('todayParis', () => {
   it('bascule au jour suivant à minuit Paris, pas à minuit UTC (été, CEST = UTC+2)', () => {

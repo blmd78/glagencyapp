@@ -103,3 +103,8 @@ export async function requireSuperadmin(): Promise<Profile> {
   if (!profile.superadmin) redirect('/chatter/overview')
   return profile
 }
+
+/** Prédicat « admin OU page autorisée » — partagé par les gardes d'actions. */
+export function hasPageAccess(profile: Profile | null, slug: PageSlug): profile is Profile {
+  return !!profile && (profile.role === 'admin' || profile.pages.includes(slug))
+}

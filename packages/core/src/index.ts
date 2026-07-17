@@ -29,6 +29,7 @@ export {
   frWeekdayLong,
   frWeekdayDate,
   frDateNumeric,
+  frDateTimeParis,
   startOfMonth,
   endOfMonth,
   daysBetween,

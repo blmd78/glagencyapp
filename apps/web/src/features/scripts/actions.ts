@@ -7,14 +7,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { itemInput } from './schema'
-
-/** Garde commune : admin uniquement (pas de restriction par modèle ici, contrairement au planning). */
-const requireAdminGuard = async (): Promise<{ ok: true } | { ok: false; error: string }> => {
-  const profile = await getProfile()
-  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès réservé à l’admin' }
-}
 
 /** Crée (id null → en fin de script) ou modifie un item du script d'un modèle. */
 export async function saveScriptItem(raw: unknown): Promise<ActionResult> {
@@ -22,7 +16,7 @@ export async function saveScriptItem(raw: unknown): Promise<ActionResult> {
     schema: itemInput,
     input: raw,
     guard: async () => {
-      const admin = await requireAdminGuard()
+      const admin = await adminGuard()
       if (!admin.ok) return admin
       // Parse défensif de `raw` (capturé par fermeture) : si invalide, laissé au safeParse
       // de runAction — pas de duplication de message (pattern insights/actions.ts).
@@ -93,7 +87,7 @@ export async function deleteScriptItem(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: z.uuid(),
     input: raw,
-    guard: requireAdminGuard,
+    guard: adminGuard,
     handler: async (id) => {
       const supabase = await createClient()
       const { error } = await supabase.from('script_items').delete().eq('id', id)
@@ -113,7 +107,7 @@ export async function moveScriptItem(raw: unknown): Promise<ActionResult> {
     schema: moveInput,
     input: raw,
     guard: async () => {
-      const admin = await requireAdminGuard()
+      const admin = await adminGuard()
       if (!admin.ok) return admin
       const parsed = moveInput.safeParse(raw)
       if (!parsed.success) return { ok: true }

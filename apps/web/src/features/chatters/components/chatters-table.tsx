@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Download } from 'lucide-react'
 import { Combobox } from '@/components/ui/combobox'
 import { Button } from '@/components/ui/button'
@@ -27,19 +27,12 @@ export function ChattersTable({
 
   // Options du sélecteur : les comptes OF présents dans les données de la période
   // (dédupliqués par creator_id — deux comptes peuvent partager un nom).
-  const modelOptions = useMemo(() => {
-    const byId = new Map<string, string>()
-    for (const c of chatters) for (const m of c.models) byId.set(m.creatorId, m.model)
-    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [chatters])
+  const byId = new Map<string, string>()
+  for (const c of chatters) for (const m of c.models) byId.set(m.creatorId, m.model)
+  const modelOptions = [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]))
 
-  const filtered = useMemo(
-    () =>
-      modelId === 'all'
-        ? chatters
-        : chatters.filter((c) => c.models.some((m) => m.creatorId === modelId)),
-    [chatters, modelId],
-  )
+  const filtered =
+    modelId === 'all' ? chatters : chatters.filter((c) => c.models.some((m) => m.creatorId === modelId))
 
   return (
     <DataTable

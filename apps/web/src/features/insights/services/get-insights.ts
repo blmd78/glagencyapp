@@ -30,15 +30,12 @@ export async function getInsights(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
-  // Modèles accessibles (RLS 0008 : un rôle user ne lit que SES creators).
-  let mineIds: Set<string> = new Set()
-  let mineNames: Set<string> = new Set()
-  if (restricted) {
-    const { data: mine, error } = await supabase.from('creators').select('id, name')
-    if (error) throw new Error(error.message)
-    mineIds = new Set((mine ?? []).map((c) => c.id))
-    mineNames = new Set((mine ?? []).map((c) => c.name))
-  }
+  // Modèles accessibles (RLS 0008 : un rôle user ne lit que SES creators) — lancée tout de
+  // suite (indépendante de la chaîne weekStart→latestGeneration ci-dessous), awaited
+  // seulement au filtrage plus bas. `Promise.resolve` déclenche le fetch immédiatement : un
+  // builder postgrest-js est PromiseLike mais PARESSEUX (le fetch part dans son `.then()`,
+  // pas à la construction) — sans ce wrap, la requête ne partirait qu'à l'await plus bas.
+  const minePromise = restricted ? Promise.resolve(supabase.from('creators').select('id, name')) : null
 
   let weekStart = week ?? null
   if (!weekStart) {
@@ -85,6 +82,17 @@ export async function getInsights(
   if (rowsErr) throw new Error(rowsErr.message)
   if (statesErr) throw new Error(statesErr.message)
   if (profilesErr) throw new Error(profilesErr.message)
+
+  // Awaited seulement ici, au filtrage (cf. lancement en tête de fonction) : la requête a
+  // tourné en parallèle de toute la chaîne weekStart→latestGeneration + du Promise.all ci-dessus.
+  let mineIds: Set<string> = new Set()
+  let mineNames: Set<string> = new Set()
+  if (minePromise) {
+    const { data: mine, error } = await minePromise
+    if (error) throw new Error(error.message)
+    mineIds = new Set((mine ?? []).map((c) => c.id))
+    mineNames = new Set((mine ?? []).map((c) => c.name))
+  }
 
   const stateByKey = new Map((states ?? []).map((s) => [s.insight_key, s]))
   const nameById = new Map(

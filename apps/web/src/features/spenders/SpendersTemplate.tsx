@@ -1,3 +1,4 @@
+import { frDateTimeParis } from '@glagency/core'
 import { KpiCard, type Kpi } from '@/components/kpi-card'
 import { eur } from '@/lib/format'
 import { SpendersView, type SpendersViewKind } from './components/spenders-view'
@@ -23,18 +24,11 @@ export function SpendersTemplate({
   view: SpendersViewKind
   isAdmin?: boolean
 }) {
-  // timeZone explicite : ce texte est calculé en SSR — la cadence relance étant calendaire
-  // Europe/Paris (§ types.ts), la fraîcheur affichée doit rester dans ce fuseau quelle que
-  // soit l'heure UTC du serveur (même règle que LastRelance, spenders-table.tsx).
-  const freshness = data.capturedAt
-    ? new Date(data.capturedAt).toLocaleString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Europe/Paris',
-      })
-    : null
+  // TZ Paris explicite (frDateTimeParis) : ce texte est calculé en SSR — la cadence
+  // relance étant calendaire Europe/Paris (§ types.ts), la fraîcheur affichée doit rester
+  // dans ce fuseau quelle que soit l'heure UTC du serveur (même règle que LastRelance,
+  // spenders-table.tsx).
+  const freshness = data.capturedAt ? frDateTimeParis(data.capturedAt) : null
 
   const actifs = data.spenders.filter((s) => !s.archived)
   const shownCount =

@@ -1,3 +1,4 @@
+import type { PostgrestError } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
@@ -5,12 +6,29 @@ import type { MktLinkRow } from '@/lib/types/marketing'
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 
+/** Ligne journalière `mkt_link_daily` minimale requise par l'agrégat par lien. */
+export interface MktLinkDailyRow {
+  link_id: string
+  clicks: number
+  conversions: number
+  revenue_eur: number
+}
+
 /**
  * Agrégats par lien sur la période — socle des pages Liens, Dashboard et Social
  * (instagram/twitter/telegram) : PARTAGÉ entre marketing-liens, marketing-dashboard
  * et marketing-social, d'où sa place ici plutôt que dans une feature.
+ *
+ * `dailyRows` (option) : un appelant qui a AUSSI besoin d'un fetchAll sur `mkt_link_daily`
+ * pour la même fenêtre (ex. marketing-dashboard, qui dérive en plus un agrégat PAR JOUR)
+ * peut passer directement sa promesse — évite un second aller-retour sur la table. Passer
+ * la PROMESSE (pas les lignes déjà résolues) préserve le parallélisme : les autres requêtes
+ * de cette fonction partent en même temps, pas après résolution du fetch de l'appelant.
  */
-export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
+export async function getLinkRows(
+  period: Period,
+  opts: { dailyRows?: Promise<{ data: MktLinkDailyRow[]; error: PostgrestError | null }> } = {},
+): Promise<MktLinkRow[]> {
   const supabase = await createClient()
   const [linksRes, creatorsRes, staffLinksRes, staffRes, dailyRes] = await Promise.all([
     supabase.from('mkt_links').select('id, name, type, url, creator_id, active'),
@@ -19,16 +37,17 @@ export async function getLinkRows(period: Period): Promise<MktLinkRow[]> {
     // que SES fiches → il ne voit les étiquettes VA que sur ses propres liens.
     supabase.from('mkt_staff_links').select('staff_id, link_id'),
     supabase.from('mkt_staff').select('id, name, color'),
-    fetchAll((f, t) =>
-      supabase
-        .from('mkt_link_daily')
-        .select('link_id, clicks, conversions, revenue_eur')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('link_id')
-        .order('date')
-        .range(f, t),
-    ),
+    opts.dailyRows ??
+      fetchAll((f, t) =>
+        supabase
+          .from('mkt_link_daily')
+          .select('link_id, clicks, conversions, revenue_eur')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('link_id')
+          .order('date')
+          .range(f, t),
+      ),
   ])
   if (linksRes.error) throw new Error(linksRes.error.message)
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)

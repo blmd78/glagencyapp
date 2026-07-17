@@ -14,56 +14,59 @@ const r2 = round2
  */
 export async function getMktStaff(period: Period): Promise<MktStaffData> {
   const supabase = await createClient()
-  const [staffRes, staffLinksRes, accountsRes, linksRes, dailyRes, socialRes] = await Promise.all([
-    supabase.from('mkt_staff').select('*').order('role').order('name'),
-    supabase.from('mkt_staff_links').select('staff_id, link_id'),
-    supabase
-      .from('mkt_social_accounts')
-      .select('id, handle, staff_id, platform')
-      .in('platform', ['instagram', 'twitter']),
-    supabase.from('mkt_links').select('id, name, active, type'),
-    fetchAll((f, t) =>
+  // Paiements des MOIS couverts par la période (les payes staff sont mensuelles) — ne
+  // dépend que de `period`, calculé AVANT le Promise.all pour entrer dans la même vague.
+  const monthStart = `${period.from.slice(0, 7)}-01`
+  const monthEnd = `${period.to.slice(0, 7)}-01`
+  const [staffRes, staffLinksRes, accountsRes, linksRes, dailyRes, socialRes, paymentsRes] =
+    await Promise.all([
+      supabase.from('mkt_staff').select('*').order('role').order('name'),
+      supabase.from('mkt_staff_links').select('staff_id, link_id'),
       supabase
-        .from('mkt_link_daily')
-        .select('link_id, conversions, revenue_eur')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('link_id')
-        .order('date')
-        .range(f, t),
-    ),
-    fetchAll((f, t) =>
+        .from('mkt_social_accounts')
+        .select('id, handle, staff_id, platform')
+        .in('platform', ['instagram', 'twitter']),
+      supabase.from('mkt_links').select('id, name, active, type'),
+      fetchAll((f, t) =>
+        supabase
+          .from('mkt_link_daily')
+          .select('link_id, conversions, revenue_eur')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('link_id')
+          .order('date')
+          .range(f, t),
+      ),
+      fetchAll((f, t) =>
+        supabase
+          .from('mkt_social_daily')
+          .select('account_id, views_24h')
+          .gte('date', period.from)
+          .lte('date', period.to)
+          .order('account_id')
+          .order('date')
+          .range(f, t),
+      ),
       supabase
-        .from('mkt_social_daily')
-        .select('account_id, views_24h')
-        .gte('date', period.from)
-        .lte('date', period.to)
-        .order('account_id')
-        .order('date')
-        .range(f, t),
-    ),
-  ])
+        .from('mkt_staff_payments')
+        .select('staff_id, amount_eur')
+        .gte('month', monthStart)
+        .lte('month', monthEnd),
+    ])
   if (staffRes.error) throw new Error(staffRes.error.message)
   if (staffLinksRes.error) throw new Error(staffLinksRes.error.message)
   if (accountsRes.error) throw new Error(accountsRes.error.message)
   if (linksRes.error) throw new Error(linksRes.error.message)
   if (dailyRes.error) throw new Error(dailyRes.error.message)
   if (socialRes.error) throw new Error(socialRes.error.message)
+  if (paymentsRes.error) throw new Error(paymentsRes.error.message)
   const { data: staff } = staffRes
   const { data: staffLinks } = staffLinksRes
   const { data: accounts } = accountsRes
   const { data: links } = linksRes
   const { data: daily } = dailyRes
   const { data: social } = socialRes
-  // Paiements des MOIS couverts par la période (les payes staff sont mensuelles).
-  const monthStart = `${period.from.slice(0, 7)}-01`
-  const monthEnd = `${period.to.slice(0, 7)}-01`
-  const { data: payments, error: paymentsErr } = await supabase
-    .from('mkt_staff_payments')
-    .select('staff_id, amount_eur')
-    .gte('month', monthStart)
-    .lte('month', monthEnd)
-  if (paymentsErr) throw new Error(paymentsErr.message)
+  const { data: payments } = paymentsRes
 
   const days = daysBetween(period.from, period.to) + 1
   const ratio = days / 30

@@ -10,8 +10,8 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
+import { getProfile, hasPageAccess } from '@/lib/auth'
+import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { staffFields } from './schema'
 
 // Champs de fiche partagés avec le dialog (schema.ts) + méta serveur.
@@ -30,14 +30,13 @@ const staffInput = staffFields.extend({
  */
 async function requireMktStaffMgr() {
   const profile = await getProfile()
-  if (!profile) return null
-  if (profile.role !== 'admin' && !profile.pages.includes('mkt-staff')) return null
-  return profile
+  return hasPageAccess(profile, 'mkt-staff') ? profile : null
 }
 
-/** Garde ADMIN stricte (suppression de fiche, paiement) — retour d'erreur, jamais de
- *  redirect (éviterait d'éjecter un manager mkt-staff/mkt-compta vers une URL chatteur
- *  inexistante). */
+/** Garde ADMIN stricte (paiement — cf. NE TOUCHE PAS wagon compta) — retour d'erreur,
+ *  jamais de redirect (éviterait d'éjecter un manager mkt-staff/mkt-compta vers une URL
+ *  chatteur inexistante). Sur `deleteStaff`, remplacée par `adminGuard` (lib/actions) —
+ *  gardée ici pour `recordStaffPayment`, seul appelant restant. */
 async function requireAdminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
   const profile = await getProfile()
   return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès réservé à l’admin' }
@@ -154,7 +153,7 @@ export async function deleteStaff(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: z.uuid(),
     input: raw,
-    guard: requireAdminGuard,
+    guard: adminGuard,
     handler: async (id) => {
       const supabase = await createClient()
       const { error } = await supabase.from('mkt_staff').delete().eq('id', id)

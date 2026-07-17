@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -69,12 +69,7 @@ export function VaView({ data, isAdmin }: { data: MktStaffData; isAdmin: boolean
     setEditing(s ?? 'new')
   }
 
-  const columns = useMemo(
-    () => makeVaColumns({ isAdmin, onEdit: openEdit }),
-    // openEdit est stable au sens pratique (setState/reset).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isAdmin],
-  )
+  const columns = makeVaColumns({ isAdmin, onEdit: openEdit })
 
   const submit = handleSubmit(async (values) => {
     const current = editing !== 'new' && editing ? editing : null

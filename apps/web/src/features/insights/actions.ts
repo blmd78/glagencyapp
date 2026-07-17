@@ -5,9 +5,9 @@ import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
+import { getProfile, hasPageAccess } from '@/lib/auth'
 import { getChatters } from '@/lib/services/get-chatters'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { setInsightStateInput } from './schema'
 
 /**
@@ -23,9 +23,7 @@ export async function setInsightState(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: async () => {
       const profile = await getProfile()
-      if (!profile || (profile.role !== 'admin' && !profile.pages.includes('insights'))) {
-        return { ok: false, error: 'Accès refusé' }
-      }
+      if (!hasPageAccess(profile, 'insights')) return { ok: false, error: 'Accès refusé' }
       if (profile.role === 'admin') return { ok: true }
 
       // Verrous : nécessitent une lecture DB (l'état PRÉCÉDENT de la carte) → faits ici,
@@ -103,10 +101,7 @@ export async function exportChattersCsv(): Promise<ActionResult<ChattersCsvExpor
   return runAction({
     schema: z.undefined(),
     input: undefined,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Réservé aux admins' }
-    },
+    guard: adminGuard,
     handler: async () => {
       // Même référence qu'Insights : la dernière semaine complète (S-1, lundi → dimanche).
       // Jour métier Europe/Paris (pas UTC) — cf. todayParis, guideline data-loading.

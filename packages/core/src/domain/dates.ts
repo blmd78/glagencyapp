@@ -76,6 +76,21 @@ export const frDateNumeric = (day: string): string =>
     timeZone: 'UTC',
   })
 
+/**
+ * « 16/07 14:05 » — date + heure courtes fr, TZ Europe/Paris explicite (jamais la TZ
+ * serveur = UTC sur Vercel — même piège que `todayParis`). `iso` = timestamptz Postgres
+ * (`toLocaleString` accepte l'offset, pas de troncature `T00:00:00Z` comme les helpers
+ * jour ci-dessus).
+ */
+export const frDateTimeParis = (iso: string): string =>
+  new Date(iso).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Europe/Paris',
+  })
+
 /** Premier jour du mois de `day` (YYYY-MM-01). */
 export const startOfMonth = (day: string): string => `${day.slice(0, 7)}-01`
 

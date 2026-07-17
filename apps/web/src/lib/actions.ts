@@ -1,5 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
+import { getProfile } from '@/lib/auth'
+import type { PageSlug } from '@/config/workspaces'
 
 /** Contrat de retour UNIQUE des Server Actions (spec 2026-07-16 §2.5). */
 export type ActionResult<T = void> =
@@ -54,5 +56,21 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
     if (err instanceof BusinessError) return { success: false, error: err.message }
     Sentry.captureException(err)
     return { success: false, error: 'Erreur inattendue — réessaie ou préviens l’admin.' }
+  }
+}
+
+/** Garde « admin uniquement » pour runAction — remplace les 11 redéclarations locales. */
+export async function adminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const profile = await getProfile()
+  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
+}
+
+/** Garde « admin OU page autorisée » pour runAction. */
+export function pageGuard(slug: PageSlug) {
+  return async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const profile = await getProfile()
+    return profile && (profile.role === 'admin' || profile.pages.includes(slug))
+      ? { ok: true }
+      : { ok: false, error: 'Accès refusé' }
   }
 }

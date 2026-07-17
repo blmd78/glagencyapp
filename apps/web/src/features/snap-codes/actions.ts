@@ -5,8 +5,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { encryptSecret } from '@/lib/snap-crypto'
 import { SNAP_STATUTS } from './types'
 
@@ -25,10 +24,7 @@ export async function saveSnapCode(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: saveSnapCodeInput,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Réservé aux admins' }
-    },
+    guard: adminGuard,
     handler: async (values) => {
       // Chiffré au repos (AES-256-GCM, clé en env) : un dump de la base ne révèle rien.
       // Une clé absente/invalide fait throw encryptSecret — erreur technique, capturée par
