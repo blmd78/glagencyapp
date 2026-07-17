@@ -2,6 +2,7 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import {
@@ -58,7 +59,12 @@ export function MetaDialog({
       // « Titre : détail » (séparateur AVEC espaces — un ':' d'URL/d'heure ne coupe pas).
       annexes: parseAnnexes(values.annexesText),
     })
-    if (!res.success) return setError('root', { message: res.error })
+    if (!res.success) {
+      setError('root', { message: res.error })
+      toast.error(res.error)
+      return
+    }
+    toast.success('Priorité & annexes enregistrées')
     onClose()
   })
 

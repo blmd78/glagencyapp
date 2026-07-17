@@ -2,6 +2,7 @@
 
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,8 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { saveBlock } from '../actions'
 import { blockForm, type BlockForm } from '../schema'
-import { SECTION_LABELS } from '../sections'
-import type { PlanningBlock } from '../types'
+import { SECTION_LABELS, type PlanningBlock } from '../types'
 
 /** Couleurs d'accent proposées (mêmes pastilles que les fiches VA). */
 const COLORS = ['#f59e0b', '#22d3ee', '#6366f1', '#22c55e', '#e1306c', '#0ea5e9', '#a855f7', '#ef4444']
@@ -90,7 +90,12 @@ export function BlockDialog({
         .map((l) => l.trim())
         .filter(Boolean),
     })
-    if (!res.success) return setError('root', { message: res.error })
+    if (!res.success) {
+      setError('root', { message: res.error })
+      toast.error(res.error)
+      return
+    }
+    toast.success(block ? 'Bloc modifié' : 'Bloc ajouté')
     onClose()
   })
 

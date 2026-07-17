@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
 
@@ -14,15 +15,19 @@ export interface ChatterScope {
  * Résout le périmètre d'un manager : ses modèles (`profile_creators`) → ses chatteurs
  * (`chatter_creators` actifs). Lu au client SESSION : la RLS (admin OU
  * `creator_id ∈ profile_creators`, cf. 0008) renvoie exactement le périmètre.
+ * `cache()` : mémoïsé PAR REQUÊTE (getProfile est lui-même mémoïsé → même référence
+ * d'argument) — un guard ET un handler qui l'appellent ne coûtent qu'une query.
  */
-export async function getChatterScope(profile: Profile): Promise<ChatterScope> {
+export const getChatterScope = cache(async (profile: Profile): Promise<ChatterScope> => {
   if (profile.role === 'admin') return { chatterIds: null, creatorIds: null }
 
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('chatter_creators')
     .select('chatter_id, creator_id')
     .eq('active', true)
+  // Échec de query ≠ périmètre vide : un manager verrait « rien » en silence.
+  if (error) throw new Error(error.message)
 
   const chatterIds = new Set<string>()
   const creatorIds = new Set<string>()
@@ -31,4 +36,4 @@ export async function getChatterScope(profile: Profile): Promise<ChatterScope> {
     if (r.creator_id) creatorIds.add(r.creator_id)
   }
   return { chatterIds, creatorIds }
-}
+})

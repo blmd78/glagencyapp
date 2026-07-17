@@ -25,3 +25,10 @@ export const setCompteurInput = z.object({
   value: z.number().int().min(0).max(10),
 })
 export type SetCompteurInput = z.infer<typeof setCompteurInput>
+
+/** Archive / désarchive (le flag voyage désormais DANS l'input — un seul arg pour runAction). */
+export const archiveInput = z.object({
+  ...target,
+  archived: z.boolean(),
+})
+export type ArchiveInput = z.infer<typeof archiveInput>

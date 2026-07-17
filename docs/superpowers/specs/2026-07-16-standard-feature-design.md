@@ -46,9 +46,13 @@ Ce qui change :
    générés (`packages/db/src/types.ts:2040` pour `chatters_report`). Les 15 casts
    `rpc('x' as never, ... as never) as unknown as PromiseLike<...>` répartis sur
    7 fichiers sont du bruit obsolète. Le retour `Json` des RPC garde une interface TS
-   locale (miroir main) — c'est inévitable et accepté ; pour l'appliquer, utiliser le
-   modifier officiel `.overrideTypes<Report, { merge: false }>()` (successeur de
-   `.returns<T>()`) plutôt qu'un cast brut.
+   locale (miroir main) — c'est inévitable et accepté. **Correctif d'implémentation
+   (2026-07-16, pilote)** : `.overrideTypes<T>()` est INAPPLICABLE aux RPC déclarés
+   `Returns: Json` — le garde `IsValidResultOverride` de postgrest-js 2.110 distribue
+   sur l'union récursive `Json` et rejette tout override (vérifié, systémique aux 5
+   RPC `*_report`). Pattern canonique : appel `supabase.rpc('nom', args)` **typé**
+   (nom + args, plus de `as never`) puis cast documenté du data
+   (`rpcRes.data as unknown as Report | null`), erreurs toujours destructurées.
 2. **Jamais avaler une erreur de query.** Toute destructuration doit inclure `error` et
    le traiter (`throw`). Bug réel : `get-chatters.ts:71-77` ignore l'erreur du select
    `chatters` parallèle → colonnes CRM silencieusement nulles en cas d'échec.
@@ -184,9 +188,10 @@ Non retenu : `unauthorized()`/`forbidden()` (expérimentaux en 16.2, derrière
    ```
 
 2. **Helper maison `runAction`** (même fichier, ~40 lignes — pas de next-safe-action) :
-   enchaîne (a) `schema.safeParse(input)` → échec = `fieldErrors` via
-   `z.flattenError(...)`, (b) garde d'auth (fonction passée, ex. `requireAccess`),
-   (c) `try/catch` du handler → `Sentry.captureException` + erreur générique. Chaque
+   enchaîne (a) garde d'auth (fonction passée, ex. `requireAccess`), (b)
+   `schema.safeParse(input)` → échec = `fieldErrors` via `z.flattenError(...)`,
+   (c) le handler — le tout sous `try/catch` → `Sentry.captureException` + erreur
+   générique (capture aussi une garde qui `throw`). Chaque
    `actions.ts` l'utilise ; la RLS reste le garde-fou réel (défense en profondeur).
 3. **Standard forms : RHF + `zodResolver` + schéma partagé dans `schema.ts`** — déjà le
    pattern de 8 forms sur 9. Le schéma est LE même objet côté client (resolver) et côté
@@ -344,7 +349,7 @@ jamais un message Supabase brut ; aucun fichier de la feature > 300 lignes.
 
 | Batch | Contenu |
 |---|---|
-| **0 — Socle** | Sentry serveur + `withSentryConfig` (+ fix `tracesSampleRate` client, vérif clés JWT asymétriques au Dashboard Supabase), socle ESLint flat + frontières d'imports, CI GitHub Actions minimale (`next typegen` + `tsc --noEmit`, `eslint .`, Vitest core), `ActionResult` + `runAction`, sonner + `<Toaster>`, `error.tsx` ×2 workspaces, `components/skeletons/` (a11y incluse), Route Handler `api/revalidate` + appel ingestion, headers sécurité + noindex, `typedRoutes`, helper `todayParis()` (core) + `resolvePeriod`, `env.ts` réellement branché, retrait wrangler + `@sentry/cloudflare` |
+| **0 — Socle** | Sentry serveur + `withSentryConfig` (+ fix `tracesSampleRate` client, vérif clés JWT asymétriques au Dashboard Supabase), socle ESLint flat + frontières d'imports (pas de CI — décision Benoit 2026-07-16 : vérifications typecheck/lint/tests exécutées localement à chaque task), `ActionResult` + `runAction`, sonner + `<Toaster>`, `error.tsx` ×2 workspaces, `components/skeletons/` (a11y incluse), Route Handler `api/revalidate` + appel ingestion, headers sécurité + noindex, `typedRoutes`, helper `todayParis()` (core) + `resolvePeriod`, `env.ts` réellement branché, retrait wrangler + `@sentry/cloudflare` |
 | **1 — Pilote** | `/chatter/chatters` complet (§ 4) + mise à jour `guidelines-data-loading.md` + doc standard (avec checklist « nouvelle feature ») + pointeur `CLAUDE.md` |
 | **2 — Chatter lecture** | health, models, overview, stats, bilan : casts nettoyés, Suspense/skeletons, erreurs |
 | **3 — Chatter interactif** | insights, quotas, repos, planning, scripts, snap-codes, infos-modeles, police, members : `ActionResult`, forms normalisés, toasts, splits > 300 l., selects bornés |

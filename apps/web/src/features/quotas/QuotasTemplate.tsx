@@ -8,20 +8,12 @@ export function QuotasTemplate({ data }: { data: QuotasData }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Quotas</h1>
-        <p className="text-sm text-muted-foreground">
-          Seuils journaliers par modèle · {configured}/{data.teams.length} configurés · utilisés
-          pour générer les cartes Analyses chaque semaine
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        Seuils journaliers par modèle · {configured}/{data.teams.length} configurés · utilisés
+        pour générer les cartes Analyses chaque semaine
+      </p>
 
-      {data.error ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium text-destructive">Lecture impossible</p>
-          <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{data.error}</p>
-        </div>
-      ) : data.teams.length === 0 ? (
+      {data.teams.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
           <p className="text-sm font-medium">Aucune équipe active</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
@@ -33,7 +25,7 @@ export function QuotasTemplate({ data }: { data: QuotasData }) {
         <QuotasEditor teams={data.teams} />
       )}
 
-      {!data.error && data.accounts.length > 0 && <ExclusionsEditor accounts={data.accounts} />}
+      {data.accounts.length > 0 && <ExclusionsEditor accounts={data.accounts} />}
     </div>
   )
 }

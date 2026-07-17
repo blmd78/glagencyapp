@@ -1,7 +1,11 @@
+import { Suspense } from 'react'
 import { getStats } from '@/features/stats/services/get-stats'
 import { StatsTemplate } from '@/features/stats/StatsTemplate'
+import { StatsSkeleton } from '@/features/stats/components/stats-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
+import { SectionFallback } from '@/components/skeletons/route-loading'
+import type { StatsData } from '@/features/stats/types'
 
 // Statistiques par modèle — pilotées par le datepicker (droit `stats` accordable).
 export default async function StatsPage({
@@ -11,6 +15,26 @@ export default async function StatsPage({
 }) {
   await requireAccess('stats')
   const period = resolvePeriod(await searchParams)
-  const data = await getStats(period)
-  return <StatsTemplate data={data} />
+  // Kickoff SANS await : le shell (h1) s'affiche immédiatement, le graphe streame
+  // dans son boundary quand le fetchAll répond.
+  const data = getStats(period)
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Stats</h1>
+      <Suspense
+        fallback={
+          <SectionFallback>
+            <StatsSkeleton />
+          </SectionFallback>
+        }
+      >
+        <StatsContent data={data} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function StatsContent({ data }: { data: Promise<StatsData> }) {
+  return <StatsTemplate data={await data} />
 }

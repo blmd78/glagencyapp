@@ -1,4 +1,4 @@
-import { addDays, frDayShort as frDay, isoDate, mondayOf, round1 as r1, round2 as r2 } from '@glagency/core'
+import { addDays, frDayShort as frDay, mondayOf, round2 as r2, todayParis } from '@glagency/core'
 import { ltvOf as ltvFormula } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
 import type { BilanData, ModelBilan, WeekChoice } from '../types'
@@ -51,13 +51,14 @@ interface BilanReport {
  */
 export async function getBilan(week?: string | null): Promise<BilanData> {
   const supabase = await createClient()
-  const today = isoDate(new Date())
+  const today = todayParis()
   // Première donnée disponible (RLS-scopée) → borne du sélecteur.
-  const { data: first } = await supabase
+  const { data: first, error: firstErr } = await supabase
     .from('creator_daily')
     .select('date')
     .order('date', { ascending: true })
     .limit(1)
+  if (firstErr) throw new Error(firstErr.message)
   const weeks = completeWeeks(today, first?.[0]?.date ?? null)
   if (weeks.length === 0) {
     const start = mondayOf(addDays(today, -7))
@@ -72,21 +73,24 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
 
   // Agrégation EN BASE (migration 0051 bilan_report, SECURITY INVOKER = RLS appliquée) :
   // les 3 fenêtres (cur/prev/lm) sont sommées en Postgres → plus de fetchAll de milliers
-  // de lignes ni de bucketing JS. Non typé (Functions vide) → cast.
-  const [rpcRes, { data: creators, error: e2 }] = await Promise.all([
-    supabase.rpc('bilan_report' as never, {
+  // de lignes ni de bucketing JS. RPC typé (nom + args, dans packages/db/src/types.ts) —
+  // pas de `as never` (cf. docs/guidelines-data-loading.md §1).
+  const [rpcRes, { data: creators, error: creatorsErr }] = await Promise.all([
+    supabase.rpc('bilan_report', {
       p_start: start,
       p_end: end,
       p_prev_start: prev.start,
       p_prev_end: prev.end,
       p_lm_start: lm.start,
       p_lm_end: lm.end,
-    } as never) as unknown as PromiseLike<{ data: BilanReport | null; error: { message: string } | null }>,
+    }),
     supabase.from('creators').select('id, name, excluded'),
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)
-  if (e2) throw e2
-  const rep = rpcRes.data ?? { by_creator: [], script: [] }
+  if (creatorsErr) throw new Error(creatorsErr.message)
+  // Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
+  // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
+  const rep = (rpcRes.data as BilanReport | null) ?? { by_creator: [], script: [] }
 
   // Fenêtres CA/abonnés par modèle (déjà sommées par le RPC). ltvOf(0,0)=null → remplir
   // les 3 fenêtres pour chaque modèle est équivalent à ne créer l'entrée que si présente.

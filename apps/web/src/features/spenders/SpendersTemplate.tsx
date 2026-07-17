@@ -1,13 +1,17 @@
+import { frDateTimeParis } from '@glagency/core'
 import { KpiCard, type Kpi } from '@/components/kpi-card'
 import { eur } from '@/lib/format'
 import { SpendersView, type SpendersViewKind } from './components/spenders-view'
 import { isARelancer, R_ALERTE, type SpendersData } from './types'
 
-const META: Record<SpendersViewKind, { title: string; sub: (n: number) => string }> = {
-  liste: { title: 'Spenders', sub: (n) => `${n} fan(s) tracké(s)` },
-  tracker: { title: 'À relancer', sub: (n) => `${n} spender(s) à cocher aujourd’hui (R < ${R_ALERTE})` },
-  alertes: { title: `Alertes R${R_ALERTE}`, sub: (n) => `${n} spender(s) en fin de cycle — à archiver` },
-  archive: { title: 'Archive', sub: (n) => `${n} spender(s) archivé(s)` },
+// Le h1 (titre) remonte dans chaque page.tsx (pattern standard, s'affiche immédiatement,
+// avant que la donnée réponde) — ce Template ne garde que le sous-titre, qui a besoin de
+// `shownCount`/`freshness` calculés depuis la donnée streamée.
+const SUB: Record<SpendersViewKind, (n: number) => string> = {
+  liste: (n) => `${n} fan(s) tracké(s)`,
+  tracker: (n) => `${n} spender(s) à cocher aujourd’hui (R < ${R_ALERTE})`,
+  alertes: (n) => `${n} spender(s) en fin de cycle — à archiver`,
+  archive: (n) => `${n} spender(s) archivé(s)`,
 }
 
 /** Écran d'une vue de la sous-catégorie Spenders (Liste / À relancer / Alertes R10 / Archive). */
@@ -20,21 +24,13 @@ export function SpendersTemplate({
   view: SpendersViewKind
   isAdmin?: boolean
 }) {
-  // timeZone explicite : ce composant est désormais rendu côté CLIENT (via
-  // spenders-screen) — SSR Workers (UTC) et navigateur (Paris) doivent produire LE MÊME
-  // texte, sinon mismatch d'hydratation à chaque hard load (même règle que LastRelance).
-  const freshness = data.capturedAt
-    ? new Date(data.capturedAt).toLocaleString('fr-FR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Europe/Paris',
-      })
-    : null
+  // TZ Paris explicite (frDateTimeParis) : ce texte est calculé en SSR — la cadence
+  // relance étant calendaire Europe/Paris (§ types.ts), la fraîcheur affichée doit rester
+  // dans ce fuseau quelle que soit l'heure UTC du serveur (même règle que LastRelance,
+  // spenders-table.tsx).
+  const freshness = data.capturedAt ? frDateTimeParis(data.capturedAt) : null
 
   const actifs = data.spenders.filter((s) => !s.archived)
-  const meta = META[view]
   const shownCount =
     view === 'archive'
       ? data.spenders.length - actifs.length
@@ -89,13 +85,10 @@ export function SpendersTemplate({
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{meta.title}</h1>
-        <p className="text-sm text-muted-foreground">
-          {meta.sub(shownCount)}
-          {freshness && ` · scrapé le ${freshness}`}
-        </p>
-      </div>
+      <p className="-mt-4 text-sm text-muted-foreground">
+        {SUB[view](shownCount)}
+        {freshness && ` · scrapé le ${freshness}`}
+      </p>
 
       {view === 'liste' && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

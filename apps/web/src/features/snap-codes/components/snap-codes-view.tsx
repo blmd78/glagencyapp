@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { Check, Eye, EyeOff } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -43,7 +44,6 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
   const [local, setLocal] = useState(row)
   const [show, setShow] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   function persist(next: SnapCodeRow) {
@@ -54,8 +54,9 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
       statut: next.statut,
       notes: next.notes,
     }).then((res) => {
-      if (!res.success) return setError(res.error)
-      setError(null)
+      // Succès silencieux (autosave à chaque frappe/blur — un toast par champ serait
+      // bruyant) ; l'échec est surfacé — même choix que planning-grid.tsx `commitCell`.
+      if (!res.success) return toast.error(res.error)
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
     })
@@ -130,11 +131,6 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
       </TableCell>
       <TableCell className="w-10 text-center">
         {saved && <Check className="mx-auto size-4 text-green-600" />}
-        {error && (
-          <span className="text-[10px] text-red-600 dark:text-red-400" title={error}>
-            ✕
-          </span>
-        )}
       </TableCell>
     </TableRow>
   )

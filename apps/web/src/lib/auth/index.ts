@@ -1,5 +1,6 @@
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
+import type { Route } from 'next'
 import { createClient } from '@/lib/supabase/server'
 import type { PageSlug } from '@/config/workspaces'
 
@@ -73,7 +74,8 @@ export async function requireAccess(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
   if (profile.role !== 'admin' && !profile.pages.includes(slug)) {
-    redirect(profile.pages[0] ? `/chatter/${profile.pages[0]}` : '/no-access')
+    // Slug dynamique (profile.pages[0]) → pas un href statique connu de typedRoutes.
+    redirect((profile.pages[0] ? `/chatter/${profile.pages[0]}` : '/no-access') as Route)
   }
   return profile
 }
@@ -100,4 +102,9 @@ export async function requireSuperadmin(): Promise<Profile> {
   if (!profile) redirect('/login')
   if (!profile.superadmin) redirect('/chatter/overview')
   return profile
+}
+
+/** Prédicat « admin OU page autorisée » — partagé par les gardes d'actions. */
+export function hasPageAccess(profile: Profile | null, slug: PageSlug): profile is Profile {
+  return !!profile && (profile.role === 'admin' || profile.pages.includes(slug))
 }

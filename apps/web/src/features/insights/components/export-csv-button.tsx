@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react'
 import { Download } from 'lucide-react'
+import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { exportChattersCsv } from '../actions'
 
@@ -12,14 +13,18 @@ export function ExportCsvButton() {
   function run() {
     startTransition(async () => {
       const res = await exportChattersCsv()
-      if ('error' in res) return
-      const blob = new Blob([res.csv], { type: 'text/csv;charset=utf-8' })
+      if (!res.success) {
+        toast.error(res.error)
+        return
+      }
+      const blob = new Blob([res.data.csv], { type: 'text/csv;charset=utf-8' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `${res.from}_au_${res.to}.csv`
+      a.download = `${res.data.from}_au_${res.data.to}.csv`
       a.click()
       URL.revokeObjectURL(url)
+      toast.success('Export CSV téléchargé')
     })
   }
 

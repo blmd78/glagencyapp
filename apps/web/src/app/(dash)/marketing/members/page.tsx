@@ -1,12 +1,42 @@
+import { Suspense } from 'react'
 import { requireAdmin } from '@/lib/auth'
 import { getMembers } from '@/features/members/services/get-members'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
+import { TableSkeleton } from '@/components/skeletons/table-skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
+import type { MembersData } from '@/features/members/types'
 
 // Même DA/fonctionnement que la page Membres chatteurs, adaptée au pôle marketing :
 // cases = pages mkt-* (Overview, Liens, Instagram, Twitter, Telegram, Compta), pas de
 // section modèles ; les droits chatteurs d'un profil sont préservés (fusion côté serveur).
 export default async function MktMembersPage() {
   const profile = await requireAdmin()
-  const data = await getMembers()
-  return <MembersTemplate data={data} scope="marketing" superadmin={profile.superadmin} />
+  // Kickoff SANS await : le shell (h1) s'affiche immédiatement, la table streame
+  // dans son boundary quand la lecture répond.
+  const data = getMembers()
+
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Membres</h1>
+      <Suspense
+        fallback={
+          <SectionFallback>
+            <TableSkeleton />
+          </SectionFallback>
+        }
+      >
+        <MembersContent data={data} superadmin={profile.superadmin} />
+      </Suspense>
+    </div>
+  )
+}
+
+async function MembersContent({
+  data,
+  superadmin,
+}: {
+  data: Promise<MembersData>
+  superadmin: boolean
+}) {
+  return <MembersTemplate data={await data} scope="marketing" superadmin={superadmin} />
 }

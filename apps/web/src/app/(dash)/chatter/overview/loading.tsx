@@ -1,5 +1,10 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { RouteLoading } from '@/components/skeletons/route-loading'
+import { OverviewSkeleton } from '@/features/overview/components/overview-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return (
+    <RouteLoading>
+      <OverviewSkeleton />
+    </RouteLoading>
+  )
 }

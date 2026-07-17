@@ -1,6 +1,7 @@
 'use client'
 
 import { useTransition, type ReactNode } from 'react'
+import type { Route } from 'next'
 import { useRouter } from 'next/navigation'
 import { NavTransitionCtx, useNavTransition } from '@/components/nav-transition-context'
 import { LoadingDots } from '@/components/loading-dots'
@@ -17,7 +18,9 @@ import { LoadingDots } from '@/components/loading-dots'
 export function NavTransitionProvider({ children }: { children: ReactNode }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
-  const navigate = (href: string) => startTransition(() => router.push(href))
+  // `href` provient déjà d'un href de nav typé côté appelant (Route) — le contexte
+  // reste en `string` pour rester générique, d'où le cast à ce point d'entrée unique.
+  const navigate = (href: string) => startTransition(() => router.push(href as Route))
   return <NavTransitionCtx.Provider value={{ navigate, pending }}>{children}</NavTransitionCtx.Provider>
 }
 

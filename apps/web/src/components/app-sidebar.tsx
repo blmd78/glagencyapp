@@ -186,8 +186,8 @@ export function AppSidebar({
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('load', startAfterIdle)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- relancer le sweep quand la
-    // liste d'onglets change suffit ; pathname/prefetch sont stables ou lus à la volée.
+    // Relancer le sweep quand la liste d'onglets change suffit ; pathname/prefetch sont
+    // stables ou lus à la volée.
   }, [allHrefs])
 
   const renderDirect = (item: (typeof items)[number]) => {

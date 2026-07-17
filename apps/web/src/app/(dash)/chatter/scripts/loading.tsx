@@ -1,5 +1,5 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { ScriptsSkeleton } from '@/features/scripts/components/scripts-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return <ScriptsSkeleton />
 }

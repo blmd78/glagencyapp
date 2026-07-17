@@ -6,18 +6,15 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, type Profile } from '@/lib/auth'
+import { getProfile, hasPageAccess, type Profile } from '@/lib/auth'
 import { getChatterScope } from '@/lib/scope'
+import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
-type Result = { success: true } | { success: false; error: string }
-
 /** Garde : admin, ou page `police` accordée (les policiers saisissent). */
-async function requirePolice() {
+async function requirePoliceProfile(): Promise<Profile | null> {
   const profile = await getProfile()
-  if (!profile) return null
-  if (profile.role !== 'admin' && !profile.pages.includes('police')) return null
-  return profile
+  return hasPageAccess(profile, 'police') ? profile : null
 }
 
 /** Garde périmètre : un non-admin ne peut agir que sur les chatteurs de SES modèles. */
@@ -26,89 +23,121 @@ async function chatterInScope(profile: Profile, chatterId: string): Promise<bool
   return scope.chatterIds === null || scope.chatterIds.has(chatterId)
 }
 
-export async function addPoliceWarning(raw: unknown): Promise<Result> {
-  const profile = await requirePolice()
-  if (!profile) return { success: false, error: 'Accès refusé' }
-  const p = warningInput.safeParse(raw)
-  if (!p.success) return { success: false, error: 'Saisie invalide' }
-  if (!(await chatterInScope(profile, p.data.chatterId)))
-    return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-
-  const supabase = await createClient()
-  const { error } = await supabase.from('police_entries').insert({
-    chatter_id: p.data.chatterId,
-    controller_id: profile.id,
-    occurred_on: p.data.day,
-    kind: 'warning',
-    error_key: p.data.errorKey,
-    amount_eur: 0,
-    shift: p.data.shift ?? null,
+export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: warningInput,
+    input: raw,
+    guard: async () => {
+      const profile = await requirePoliceProfile()
+      if (!profile) return { ok: false, error: 'Accès refusé' }
+      // Parse défensif de `raw` (capturé par fermeture) : si invalide, laissé au safeParse
+      // de runAction — pattern planning/scripts (docs/guidelines-standard-feature.md §4).
+      const parsed = warningInput.safeParse(raw)
+      if (!parsed.success) return { ok: true }
+      if (!(await chatterInScope(profile, parsed.data.chatterId)))
+        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
+      return { ok: true }
+    },
+    handler: async (values) => {
+      // Mémoïsé par requête (cache(), lib/auth) — pas de round-trip DB supplémentaire par
+      // rapport à l'appel déjà fait dans la garde.
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const supabase = await createClient()
+      const { error } = await supabase.from('police_entries').insert({
+        chatter_id: values.chatterId,
+        controller_id: profile.id,
+        occurred_on: values.day,
+        kind: 'warning',
+        error_key: values.errorKey,
+        amount_eur: 0,
+        shift: values.shift ?? null,
+      })
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/police')
+    },
   })
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/police')
-  return { success: true }
 }
 
-export async function addPoliceMalus(raw: unknown): Promise<Result> {
-  const profile = await requirePolice()
-  if (!profile) return { success: false, error: 'Accès refusé' }
-  const p = malusInput.safeParse(raw)
-  if (!p.success) return { success: false, error: 'Saisie invalide' }
-  if (!(await chatterInScope(profile, p.data.chatterId)))
-    return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-
-  const supabase = await createClient()
-  const { error } = await supabase.from('police_entries').insert({
-    chatter_id: p.data.chatterId,
-    controller_id: profile.id,
-    occurred_on: p.data.day,
-    kind: 'malus',
-    error_key: p.data.errorKey ?? null,
-    amount_eur: p.data.amountEur,
-    note: p.data.note ?? null,
-    shift: p.data.shift ?? null,
+export async function addPoliceMalus(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: malusInput,
+    input: raw,
+    guard: async () => {
+      const profile = await requirePoliceProfile()
+      if (!profile) return { ok: false, error: 'Accès refusé' }
+      const parsed = malusInput.safeParse(raw)
+      if (!parsed.success) return { ok: true }
+      if (!(await chatterInScope(profile, parsed.data.chatterId)))
+        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
+      return { ok: true }
+    },
+    handler: async (values) => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const supabase = await createClient()
+      const { error } = await supabase.from('police_entries').insert({
+        chatter_id: values.chatterId,
+        controller_id: profile.id,
+        occurred_on: values.day,
+        kind: 'malus',
+        error_key: values.errorKey ?? null,
+        amount_eur: values.amountEur,
+        note: values.note ?? null,
+        shift: values.shift ?? null,
+      })
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/police')
+    },
   })
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/police')
-  return { success: true }
 }
 
-export async function updatePoliceMalus(raw: unknown): Promise<Result> {
-  const profile = await requirePolice()
-  if (!profile) return { success: false, error: 'Accès refusé' }
-  const p = updateMalusInput.safeParse(raw)
-  if (!p.success) return { success: false, error: 'Saisie invalide' }
-
-  const supabase = await createClient()
-  // Garde périmètre : un non-admin ne peut pas éditer le malus d'une autre équipe par id.
-  if (profile.role !== 'admin') {
-    const { data: entry } = await supabase
-      .from('police_entries')
-      .select('chatter_id')
-      .eq('id', p.data.id)
-      .maybeSingle()
-    if (!entry || !(await chatterInScope(profile, entry.chatter_id)))
-      return { success: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-  }
-  const { error } = await supabase
-    .from('police_entries')
-    .update({ amount_eur: p.data.amountEur, note: p.data.note ?? null })
-    .eq('id', p.data.id)
-    .eq('kind', 'malus')
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/police')
-  return { success: true }
+export async function updatePoliceMalus(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: updateMalusInput,
+    input: raw,
+    guard: async () => {
+      const profile = await requirePoliceProfile()
+      if (!profile) return { ok: false, error: 'Accès refusé' }
+      if (profile.role === 'admin') return { ok: true }
+      const parsed = updateMalusInput.safeParse(raw)
+      if (!parsed.success) return { ok: true }
+      // Garde périmètre : un non-admin ne peut pas éditer le malus d'une autre équipe par id.
+      const supabase = await createClient()
+      const { data: entry } = await supabase
+        .from('police_entries')
+        .select('chatter_id')
+        .eq('id', parsed.data.id)
+        .maybeSingle()
+      if (!entry || !(await chatterInScope(profile, entry.chatter_id)))
+        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
+      return { ok: true }
+    },
+    handler: async (values) => {
+      const supabase = await createClient()
+      const { error } = await supabase
+        .from('police_entries')
+        .update({ amount_eur: values.amountEur, note: values.note ?? null })
+        .eq('id', values.id)
+        .eq('kind', 'malus')
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/police')
+    },
+  })
 }
 
-export async function deletePoliceEntry(raw: unknown): Promise<Result> {
-  const profile = await getProfile()
-  if (!profile || profile.role !== 'admin') return { success: false, error: 'Accès refusé' }
-  const p = z.object({ id: z.string().uuid() }).safeParse(raw)
-  if (!p.success) return { success: false, error: 'Saisie invalide' }
+const deleteEntryInput = z.object({ id: z.uuid() })
 
-  const supabase = await createClient()
-  const { error } = await supabase.from('police_entries').delete().eq('id', p.data.id)
-  if (error) return { success: false, error: error.message }
-  revalidatePath('/chatter/police')
-  return { success: true }
+export async function deletePoliceEntry(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: deleteEntryInput,
+    input: raw,
+    guard: adminGuard,
+    handler: async ({ id }) => {
+      const supabase = await createClient()
+      const { error } = await supabase.from('police_entries').delete().eq('id', id)
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/police')
+    },
+  })
 }

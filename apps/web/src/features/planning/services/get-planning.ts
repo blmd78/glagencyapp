@@ -9,10 +9,15 @@ const SECTION_ORDER: Record<PlanningSection, number> = { matin: 0, apres_midi: 1
  */
 export async function getPlanning(profileId: string): Promise<PlanningData> {
   const supabase = await createClient()
-  const [{ data: profile }, { data: planning }] = await Promise.all([
+  const [
+    { data: profile, error: profileErr },
+    { data: planning, error: planningErr },
+  ] = await Promise.all([
     supabase.from('profiles').select('id, display_name, email').eq('id', profileId).maybeSingle(),
     supabase.from('plannings').select('*').eq('profile_id', profileId).maybeSingle(),
   ])
+  if (profileErr) throw new Error(profileErr.message)
+  if (planningErr) throw new Error(planningErr.message)
   const profileName = profile?.display_name ?? profile?.email ?? '—'
 
   if (!planning) {
@@ -31,11 +36,12 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
     }
   }
 
-  const { data: blocks } = await supabase
+  const { data: blocks, error: blocksErr } = await supabase
     .from('planning_blocks')
     .select('*')
     .eq('planning_id', planning.id)
     .order('position')
+  if (blocksErr) throw new Error(blocksErr.message)
 
   const rows: PlanningBlock[] = (blocks ?? [])
     .map((b) => ({
@@ -83,12 +89,13 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
 export async function getPlanningMembers(includeAdmins: boolean): Promise<PlanningMember[]> {
   const supabase = await createClient()
   const excluded = includeAdmins ? '(superadmin)' : '(superadmin,admin)'
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, email, role')
     .not('role', 'in', excluded)
     .order('role')
     .order('display_name')
+  if (error) throw new Error(error.message)
   return (data ?? []).map((p) => ({
     id: p.id,
     name: p.display_name ?? p.email ?? '—',

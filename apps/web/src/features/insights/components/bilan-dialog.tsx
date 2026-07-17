@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { todayLocal } from '@/lib/dates-client'
 import { bilanSchema, type BilanForm, type BilanFormInput } from '../schema'
 import type { InsightBilan } from '../types'
 
@@ -38,7 +39,7 @@ const DUREE_OPTIONS = [
 ] as const
 
 const EMPTY: InsightBilan = {
-  date: new Date().toISOString().slice(0, 10),
+  date: todayLocal(),
   duree: '15min',
   etat: 'neutre',
   resume: '',
