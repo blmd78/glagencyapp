@@ -49,12 +49,13 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
       const gate = await crmGuard()
       if (!gate.ok) return gate
       const supabase = await createClient()
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('relances')
         .select('id', { count: 'exact', head: true })
         .eq('creator_id', parsed.data.creatorId)
         .eq('fan_id', parsed.data.fanId)
         .eq('jour_paris', todayParis())
+      if (error) throw new Error(error.message)
       if ((count ?? 0) > 0) return { ok: false, error: 'Déjà relancé aujourd’hui' }
       return { ok: true }
     },

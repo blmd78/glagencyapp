@@ -56,7 +56,8 @@ export async function saveStaff(raw: unknown): Promise<ActionResult<{ id: string
         // Édition : la fiche doit être visible du caller (RLS owner_id) — sinon message
         // précis ici plutôt qu'un 0-row silencieux au update.
         const supabase = await createClient()
-        const { data } = await supabase.from('mkt_staff').select('id').eq('id', parsed.data.id).maybeSingle()
+        const { data, error } = await supabase.from('mkt_staff').select('id').eq('id', parsed.data.id).maybeSingle()
+        if (error) throw new Error(error.message)
         if (!data) return { ok: false, error: 'Fiche introuvable ou non autorisée' }
       }
       return { ok: true }

@@ -95,7 +95,7 @@ export async function requireOwnCreators(
     .from('profile_creators')
     .select('creator_id')
     .eq('profile_id', callerId)
-  if (error) return { error: error.message }
+  if (error) throw new Error(error.message)
   const allowed = new Set((own ?? []).map((c) => c.creator_id))
   if (creatorIds.some((id) => !allowed.has(id))) return { error: 'Modèle hors de ton périmètre' }
   return { allowed }

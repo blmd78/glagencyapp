@@ -78,11 +78,12 @@ export async function saveBlock(raw: unknown): Promise<ActionResult> {
       // reste un throw générique dans le handler.
       if (d.id) {
         const supabase = await createClient()
-        const { data: blk } = await supabase
+        const { data: blk, error: blkError } = await supabase
           .from('planning_blocks')
           .select('planning_id')
           .eq('id', d.id)
           .single()
+        if (blkError) throw new Error(blkError.message)
         if (!blk) return { ok: false, error: 'Bloc introuvable' }
         const { data: pl } = await supabase
           .from('plannings')
