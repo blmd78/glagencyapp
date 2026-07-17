@@ -30,11 +30,13 @@ interface Group {
 export function PoliceFeed({
   data,
   isAdmin,
+  canWrite,
   filterChatterId,
   onClearFilter,
 }: {
   data: PoliceData
   isAdmin: boolean
+  canWrite: boolean
   filterChatterId?: string
   onClearFilter?: () => void
 }) {
@@ -110,7 +112,13 @@ export function PoliceFeed({
                 </div>
                 <ul className="flex flex-col gap-1">
                   {g.entries.map((e) => (
-                    <EntryRow key={e.id} e={e} isAdmin={isAdmin} onRemove={() => remove(e.id)} />
+                    <EntryRow
+                      key={e.id}
+                      e={e}
+                      isAdmin={isAdmin}
+                      canWrite={canWrite}
+                      onRemove={() => remove(e.id)}
+                    />
                   ))}
                 </ul>
               </li>
@@ -125,10 +133,12 @@ export function PoliceFeed({
 function EntryRow({
   e,
   isAdmin,
+  canWrite,
   onRemove,
 }: {
   e: PoliceEntry
   isAdmin: boolean
+  canWrite: boolean
   onRemove: () => void | string | Promise<void | string>
 }) {
   const isMalus = e.kind === 'malus'
@@ -154,7 +164,8 @@ function EntryRow({
         {e.shift ? `${e.shift} · ` : ''}
         {e.controllerName} · {time(e.createdAt)}
       </span>
-      {isMalus && <MalusEdit e={e} />}
+      {/* Édition inline du malus : accès `police` en ÉCRITURE (admin/manager) — masquée pour un chatteur. */}
+      {isMalus && canWrite && <MalusEdit e={e} />}
       {isAdmin && (
         <ConfirmDialog
           onConfirm={onRemove}
@@ -175,7 +186,8 @@ function EntryRow({
   )
 }
 
-/** Édition inline d'un malus (montant + note) — accessible à tout accès `police`. */
+/** Édition inline d'un malus (montant + note) — accès `police` en ÉCRITURE (admin/manager ;
+ *  gaté par `canWrite` chez l'appelant, un chatteur est en lecture seule). */
 function MalusEdit({ e }: { e: PoliceEntry }) {
   const [open, setOpen] = useState(false)
   const {

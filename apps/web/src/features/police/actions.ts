@@ -6,15 +6,16 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasPageAccess, type Profile } from '@/lib/auth'
+import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
 import { getChatterScope } from '@/lib/scope'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
-/** Garde : admin, ou page `police` accordée (les policiers saisissent). */
+/** Garde : admin, ou manager/sous-manager ayant la page `police` (0060 — chatteur en
+ *  lecture seule). Les policiers-managers saisissent ; un chatteur consulte. */
 async function requirePoliceProfile(): Promise<Profile | null> {
   const profile = await getProfile()
-  return hasPageAccess(profile, 'police') ? profile : null
+  return hasWriteAccess(profile, 'police') ? profile : null
 }
 
 /** Garde périmètre : un non-admin ne peut agir que sur les chatteurs de SES modèles. */

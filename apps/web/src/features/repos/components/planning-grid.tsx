@@ -21,7 +21,15 @@ import { EMPTY_CELL, normName, tokensOf, type CellChip } from './planning-grid-u
  * composant) et `planning-image.ts` (export canvas/presse-papier, hors composant) — modèle
  * `chatters-columns.tsx`/`chatters-sub-rows.tsx`/`download-ranking.ts`. DOM inchangé.
  */
-export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: boolean }) {
+export function PlanningGrid({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: ReposData
+  isAdmin: boolean
+  canWrite: boolean
+}) {
   // Overrides locaux optimistes (une revalidation n'écrase pas une édition en cours).
   const [overrides, setOverrides] = useState<Record<string, ReposCell>>({})
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string[]>>({})
@@ -173,6 +181,7 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
           <PlanningGridRows
             columns={columns}
             data={data}
+            canWrite={canWrite}
             cellValue={cellValue}
             cellChips={cellChips}
             overByCol={overByCol}
@@ -210,8 +219,13 @@ export function PlanningGrid({ data, isAdmin }: { data: ReposData; isAdmin: bool
           <span className="text-muted-foreground">Total repos semaine :</span>{' '}
           <span className="font-semibold tabular-nums">{total}</span>
         </p>
-        <label className="flex cursor-pointer items-center gap-2 text-sm">
-          <Checkbox checked={sent} onCheckedChange={(v) => toggleSent(v === true)} />
+        {/* Chatteur (lecture seule) : la case reste visible (état lisible) mais non modifiable. */}
+        <label className={`flex items-center gap-2 text-sm ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}>
+          <Checkbox
+            checked={sent}
+            disabled={!canWrite}
+            onCheckedChange={(v) => toggleSent(v === true)}
+          />
           Planning envoyé sur Telegram
         </label>
         <Button variant="outline" size="sm" className="ml-auto gap-1.5" onClick={copyForTelegram}>

@@ -1,18 +1,19 @@
 'use server'
 
 // Server Action d'édition des champs closing d'un chatteur — supabase-js + RLS.
-// Droit : admin ou page `chatters` (aligné sur la policy chatters_crm_update, 0029).
+// Droit : admin ou manager/sous-manager ayant la page `chatters` (aligné sur la policy
+// chatters_crm_update durcie en 0060 — un chatteur est en lecture seule).
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { runAction, pageGuard, type ActionResult } from '@/lib/actions'
+import { runAction, managerPageGuard, type ActionResult } from '@/lib/actions'
 import { updateChatterCrmInput } from './schema'
 
 export async function updateChatterCrm(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: updateChatterCrmInput,
     input: raw,
-    guard: pageGuard('chatters'),
+    guard: managerPageGuard('chatters'),
     handler: async (values) => {
       const supabase = await createClient()
       const { error } = await supabase

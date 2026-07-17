@@ -43,10 +43,13 @@ export function SpendersView({
   spenders,
   view,
   isAdmin,
+  canWrite,
 }: {
   spenders: SpenderRow[]
   view: SpendersViewKind
   isAdmin?: boolean
+  /** admin ou manager/sous-manager : peut archiver/réactiver/reset. Le chatteur non. */
+  canWrite?: boolean
 }) {
   // Optimistic UI : les lignes affichées = état serveur + patchs des actions en cours
   // (cocher une case sort la ligne de la file À L'INSTANT, comme le fera le serveur).
@@ -66,14 +69,15 @@ export function SpendersView({
       // SpendersTable (après le filtre modèle). Un R10 sort naturellement (→ alertes).
       case 'tracker':
         return { rows: actifs.filter((s) => s.compteurR < R_ALERTE), extra: NO_EXTRA }
+      // Colonne d'action (archiver / réactiver) réservée admin+manager : cachée au chatteur.
       case 'alertes':
-        return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: [alerteAction] }
+        return { rows: actifs.filter((s) => s.compteurR >= R_ALERTE), extra: canWrite ? [alerteAction] : NO_EXTRA }
       case 'archive':
-        return { rows: optimistic.filter((s) => s.archived), extra: [archiveAction] }
+        return { rows: optimistic.filter((s) => s.archived), extra: canWrite ? [archiveAction] : NO_EXTRA }
       default:
         return { rows: actifs, extra: NO_EXTRA }
     }
-  }, [optimistic, view])
+  }, [optimistic, view, canWrite])
 
   return (
     <SpendersOptimisticCtx.Provider value={ctx}>
@@ -81,6 +85,7 @@ export function SpendersView({
         spenders={rows}
         extra={extra}
         isAdmin={isAdmin}
+        canWrite={canWrite}
         tracker={view === 'tracker'}
         readOnlyRelances={view === 'liste'}
       />

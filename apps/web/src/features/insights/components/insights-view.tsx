@@ -29,11 +29,13 @@ export function InsightsView({
   data,
   ranking,
   isAdmin,
+  canWrite,
   currentUserId,
 }: {
   data: InsightsData
   ranking: RankingData
   isAdmin: boolean
+  canWrite: boolean
   currentUserId: string
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -185,6 +187,7 @@ export function InsightsView({
                         key={`${model}:${i.key}`}
                         insight={i}
                         isAdmin={isAdmin}
+                        canWrite={canWrite}
                         currentUserId={currentUserId}
                       />
                     ))}

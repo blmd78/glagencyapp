@@ -24,7 +24,11 @@ export default async function SpendersArchivePage() {
           </SectionFallback>
         }
       >
-        <SpendersArchiveContent data={data} isAdmin={profile.role === 'admin'} />
+        <SpendersArchiveContent
+          data={data}
+          isAdmin={profile.role === 'admin'}
+          canWrite={profile.role === 'admin' || profile.manager}
+        />
       </Suspense>
     </div>
   )
@@ -33,9 +37,11 @@ export default async function SpendersArchivePage() {
 async function SpendersArchiveContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<SpendersData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <SpendersTemplate data={await data} view="archive" isAdmin={isAdmin} />
+  return <SpendersTemplate data={await data} view="archive" isAdmin={isAdmin} canWrite={canWrite} />
 }

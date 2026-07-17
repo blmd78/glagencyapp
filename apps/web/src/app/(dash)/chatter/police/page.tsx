@@ -19,9 +19,13 @@ export default async function PolicePage({
   // ensemble, cf. scripts/planning + docs/guidelines-data-loading.md §3).
   const data = getPolice(day ?? null, profile)
 
+  // Droit d'écriture (saisie avert./malus, édition malus) : admin ou manager/sous-manager —
+  // un chatteur consulte le tracker en lecture seule (miroir UI de hasWriteAccess).
+  const canWrite = profile.role === 'admin' || profile.manager
+
   return (
     <Suspense fallback={<PoliceSkeleton />}>
-      <PoliceContent data={data} isAdmin={profile.role === 'admin'} />
+      <PoliceContent data={data} isAdmin={profile.role === 'admin'} canWrite={canWrite} />
     </Suspense>
   )
 }
@@ -29,9 +33,11 @@ export default async function PolicePage({
 async function PoliceContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<PoliceData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <PoliceTemplate data={await data} isAdmin={isAdmin} />
+  return <PoliceTemplate data={await data} isAdmin={isAdmin} canWrite={canWrite} />
 }

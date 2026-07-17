@@ -104,7 +104,17 @@ export async function requireSuperadmin(): Promise<Profile> {
   return profile
 }
 
-/** Prédicat « admin OU page autorisée » — partagé par les gardes d'actions. */
+/** Prédicat « admin OU page autorisée » — partagé par les gardes d'actions (LECTURE). */
 export function hasPageAccess(profile: Profile | null, slug: PageSlug): profile is Profile {
   return !!profile && (profile.role === 'admin' || profile.pages.includes(slug))
+}
+
+/**
+ * Prédicat « ÉCRITURE d'une page » — admin, OU manager/sous-manager ayant la page. Miroir
+ * applicatif de la fonction SQL `can_write_page()` (0060) : un chatteur (has_page vrai mais
+ * ni admin ni manager) est EXCLU → lecture seule. Défense en profondeur ; la RLS reste le
+ * verrou réel. `manager` couvre déjà manager ET sous-manager (cf. getProfile).
+ */
+export function hasWriteAccess(profile: Profile | null, slug: PageSlug): profile is Profile {
+  return !!profile && (profile.role === 'admin' || (profile.manager && profile.pages.includes(slug)))
 }

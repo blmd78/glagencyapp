@@ -29,10 +29,12 @@ const SEVERITY = {
 export function InsightCard({
   insight,
   isAdmin,
+  canWrite,
   currentUserId,
 }: {
   insight: InsightRow
   isAdmin: boolean
+  canWrite: boolean
   currentUserId: string
 }) {
   const [pending, startTransition] = useTransition()
@@ -112,7 +114,9 @@ export function InsightCard({
 
   // Note + boutons de statut : placés EN FIN de plan d'action quand il y en a un
   // (obligation de dérouler le plan avant de statuer) ; en bas de carte sinon (cartes saines).
-  const statusBlock = (
+  // Gaté sur `canWrite` : un chatteur (lecture seule) ne voit AUCUN contrôle setInsightState —
+  // le reste de la carte (analyse, KPIs, bilan) reste visible (miroir UI de hasWriteAccess).
+  const statusBlock = canWrite ? (
     <InsightStatusBlock
       insight={insight}
       status={status}
@@ -126,7 +130,7 @@ export function InsightCard({
       onReset={resetState}
       error={error}
     />
-  )
+  ) : null
 
   return (
     <Card className={cn('border-l-4 py-0', sev.border)}>
@@ -219,7 +223,7 @@ export function InsightCard({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <PlanSections plan={insight.actionPlan} />
-            <div className="mt-3">{statusBlock}</div>
+            {statusBlock && <div className="mt-3">{statusBlock}</div>}
           </CollapsibleContent>
         </Collapsible>
         )}

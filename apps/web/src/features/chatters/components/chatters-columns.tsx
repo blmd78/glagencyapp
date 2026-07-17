@@ -17,7 +17,7 @@ import type { ChatterRow } from '@/lib/types/chatters'
 // Dépliable dès qu'il y a des lignes modèle (y compris à 0) ou un reliquat non ventilé.
 export const canExpand = (c: ChatterRow) => c.models.length > 0 || c.caUnattributed > 0
 
-export const columns: ColumnDef<ChatterRow>[] = [
+const baseColumns: ColumnDef<ChatterRow>[] = [
   {
     id: 'name',
     accessorKey: 'name',
@@ -185,17 +185,30 @@ export const columns: ColumnDef<ChatterRow>[] = [
     ),
     meta: { align: 'center' },
   },
-  {
-    id: 'edit',
-    header: '',
-    cell: ({ row }) => (
-      // stopPropagation : le dialog et ses selects sont portalés dans <body> côté DOM mais
-      // enfants de cette cellule côté React — sans ça, tout clic dans la modal bubble
-      // jusqu'au onClick d'expansion de la ligne (data-table.tsx).
-      <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-        <ChatterCrmDialog chatter={row.original} />
-      </div>
-    ),
-    meta: { align: 'right' },
-  },
 ]
+
+/**
+ * Colonnes de la table chatteurs. La colonne d'édition CRM (crayon → dialog `updateChatterCrm`)
+ * n'apparaît que pour un compte en écriture (`canWrite` = admin ou manager/sous-manager) — un
+ * chatteur est en lecture seule (aligné sur la policy `chatters_crm_update` / `hasWriteAccess`).
+ * La colonne reste toujours présente (cellule vide pour un chatteur) pour préserver
+ * l'alignement des sous-lignes (`chatters-sub-rows.tsx`, 13 cellules).
+ */
+export function makeChattersColumns({ canWrite }: { canWrite: boolean }): ColumnDef<ChatterRow>[] {
+  return [
+    ...baseColumns,
+    {
+      id: 'edit',
+      header: '',
+      cell: ({ row }) => (
+        // stopPropagation : le dialog et ses selects sont portalés dans <body> côté DOM mais
+        // enfants de cette cellule côté React — sans ça, tout clic dans la modal bubble
+        // jusqu'au onClick d'expansion de la ligne (data-table.tsx).
+        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+          {canWrite && <ChatterCrmDialog chatter={row.original} />}
+        </div>
+      ),
+      meta: { align: 'right' },
+    },
+  ]
+}

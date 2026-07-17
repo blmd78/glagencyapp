@@ -12,6 +12,9 @@ import type { InsightsData } from '@/features/insights/types'
 export default async function InsightsPage() {
   const profile = await requireAccess('insights')
   const isAdmin = profile.role === 'admin'
+  // Droit d'écriture (traiter / ignorer une carte) : admin ou manager/sous-manager — un
+  // chatteur consulte sans pouvoir changer les statuts (miroir UI de hasWriteAccess).
+  const canWrite = isAdmin || profile.manager
   // Kickoff SANS await : le shell (h1 + export CSV, déjà connus) s'affiche immédiatement,
   // cartes + classement streament dans leur boundary. `ranking` dépend de `data.weekStart`
   // (vraie dépendance séquentielle) → composant async imbriqué dans le MÊME Suspense (pas
@@ -25,7 +28,12 @@ export default async function InsightsPage() {
         {isAdmin && <ExportCsvButton />}
       </div>
       <Suspense fallback={<InsightsSkeleton />}>
-        <InsightsContent data={data} isAdmin={isAdmin} currentUserId={profile.id} />
+        <InsightsContent
+          data={data}
+          isAdmin={isAdmin}
+          canWrite={canWrite}
+          currentUserId={profile.id}
+        />
       </Suspense>
     </div>
   )
@@ -34,15 +42,23 @@ export default async function InsightsPage() {
 async function InsightsContent({
   data,
   isAdmin,
+  canWrite,
   currentUserId,
 }: {
   data: Promise<InsightsData>
   isAdmin: boolean
+  canWrite: boolean
   currentUserId: string
 }) {
   const resolved = await data
   const ranking = await getRanking(resolved.weekStart)
   return (
-    <InsightsTemplate data={resolved} ranking={ranking} isAdmin={isAdmin} currentUserId={currentUserId} />
+    <InsightsTemplate
+      data={resolved}
+      ranking={ranking}
+      isAdmin={isAdmin}
+      canWrite={canWrite}
+      currentUserId={currentUserId}
+    />
   )
 }

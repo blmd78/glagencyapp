@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DataTable } from '@/components/data-table/data-table'
-import { canExpand, columns } from './chatters-columns'
+import { canExpand, makeChattersColumns } from './chatters-columns'
 import { chatterSubRows } from './chatters-sub-rows'
 import { downloadRanking } from './download-ranking'
 import type { ChatterRow, DailyRanking } from '@/lib/types/chatters'
@@ -19,11 +19,16 @@ import type { ChatterRow, DailyRanking } from '@/lib/types/chatters'
 export function ChattersTable({
   chatters,
   dailyRanking = null,
+  canWrite,
 }: {
   chatters: ChatterRow[]
   dailyRanking?: DailyRanking | null
+  canWrite: boolean
 }) {
   const [modelId, setModelId] = useState('all')
+  // Colonne d'édition CRM gatée sur `canWrite` (admin ou manager/sous-manager) — un
+  // chatteur voit la table en lecture seule.
+  const columns = makeChattersColumns({ canWrite })
 
   // Options du sélecteur : les comptes OF présents dans les données de la période
   // (dédupliqués par creator_id — deux comptes peuvent partager un nom).

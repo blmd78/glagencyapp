@@ -14,6 +14,9 @@ export default async function ChattersPage({
 }) {
   const profile = await requireAccess('chatters')
   const period = resolvePeriod(await searchParams)
+  // Droit d'écriture (édition CRM) : admin ou manager/sous-manager — un chatteur est en
+  // lecture seule (miroir UI de la policy chatters_crm_update / hasWriteAccess).
+  const canWrite = profile.role === 'admin' || profile.manager
   // Kickoff SANS await (pattern streaming, spec §2.3) : le shell (h1) s'affiche
   // immédiatement, la table streame dans son boundary quand le RPC répond.
   const data = getChatters(period, { restricted: profile.role !== 'admin' })
@@ -28,12 +31,18 @@ export default async function ChattersPage({
           </SectionFallback>
         }
       >
-        <ChattersContent data={data} />
+        <ChattersContent data={data} canWrite={canWrite} />
       </Suspense>
     </div>
   )
 }
 
-async function ChattersContent({ data }: { data: Promise<ChattersData> }) {
-  return <ChattersTemplate data={await data} />
+async function ChattersContent({
+  data,
+  canWrite,
+}: {
+  data: Promise<ChattersData>
+  canWrite: boolean
+}) {
+  return <ChattersTemplate data={await data} canWrite={canWrite} />
 }

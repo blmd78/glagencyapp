@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
-import { getProfile } from '@/lib/auth'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
 import type { PageSlug } from '@/config/workspaces'
 
 /** Contrat de retour UNIQUE des Server Actions (spec 2026-07-16 §2.5). */
@@ -65,12 +65,21 @@ export async function adminGuard(): Promise<{ ok: true } | { ok: false; error: s
   return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
 }
 
-/** Garde « admin OU page autorisée » pour runAction. */
+/** Garde « admin OU page autorisée » pour runAction (LECTURE / actions ouvertes au chatteur). */
 export function pageGuard(slug: PageSlug) {
   return async (): Promise<{ ok: true } | { ok: false; error: string }> => {
     const profile = await getProfile()
     return profile && (profile.role === 'admin' || profile.pages.includes(slug))
       ? { ok: true }
       : { ok: false, error: 'Accès refusé' }
+  }
+}
+
+/** Garde « admin OU manager/sous-manager ayant la page » pour runAction — ÉCRITURES
+ *  réservées (miroir de la RLS `can_write_page`, 0060). Un chatteur est exclu. */
+export function managerPageGuard(slug: PageSlug) {
+  return async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const profile = await getProfile()
+    return hasWriteAccess(profile, slug) ? { ok: true } : { ok: false, error: 'Accès refusé' }
   }
 }

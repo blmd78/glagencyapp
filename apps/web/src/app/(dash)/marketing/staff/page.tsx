@@ -14,6 +14,10 @@ export default async function MktVaPage({
 }) {
   const profile = await requireAccess('mkt-staff')
   const period = resolvePeriod(await searchParams)
+  // Droit d'écriture (fiches VA : création/édition + assignations) : admin ou
+  // manager/sous-manager — un chatteur consulte les fiches en lecture seule (miroir UI de
+  // hasWriteAccess ; la suppression reste admin-only, cf. va-columns).
+  const canWrite = profile.role === 'admin' || profile.manager
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, la table streame dans
   // son boundary quand la lecture répond.
   const data = getMktStaff(period)
@@ -28,7 +32,7 @@ export default async function MktVaPage({
           </SectionFallback>
         }
       >
-        <MktVaContent data={data} isAdmin={profile.role === 'admin'} />
+        <MktVaContent data={data} isAdmin={profile.role === 'admin'} canWrite={canWrite} />
       </Suspense>
     </div>
   )
@@ -37,9 +41,11 @@ export default async function MktVaPage({
 async function MktVaContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<MktStaffData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <MktVaTemplate data={await data} isAdmin={isAdmin} />
+  return <MktVaTemplate data={await data} isAdmin={isAdmin} canWrite={canWrite} />
 }

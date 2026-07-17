@@ -20,10 +20,14 @@ export default async function ReposPage({
   // streame dans un seul boundary.
   const data = getRepos(week ?? null, profile)
   const isAdmin = profile.role === 'admin'
+  // Droit d'écriture (édition de la grille : cellules + « envoyé Telegram ») : admin ou
+  // manager/sous-manager — un chatteur voit le planning en lecture seule (miroir UI de
+  // hasWriteAccess). L'édition de la compo des colonnes reste admin-only (cf. PlanningGrid).
+  const canWrite = isAdmin || profile.manager
 
   return (
     <Suspense fallback={<ReposSkeleton />}>
-      <ReposContent data={data} isAdmin={isAdmin} />
+      <ReposContent data={data} isAdmin={isAdmin} canWrite={canWrite} />
     </Suspense>
   )
 }
@@ -31,9 +35,11 @@ export default async function ReposPage({
 async function ReposContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<ReposData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <ReposTemplate data={await data} isAdmin={isAdmin} />
+  return <ReposTemplate data={await data} isAdmin={isAdmin} canWrite={canWrite} />
 }

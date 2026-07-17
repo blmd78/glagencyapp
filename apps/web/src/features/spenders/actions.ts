@@ -9,7 +9,7 @@
 import { revalidatePath } from 'next/cache'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasPageAccess } from '@/lib/auth'
+import { getProfile, hasPageAccess, hasWriteAccess } from '@/lib/auth'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { archiveInput, relanceInput, setCompteurInput, targetInput } from './schema'
 
@@ -20,9 +20,17 @@ import { archiveInput, relanceInput, setCompteurInput, targetInput } from './sch
 // layout ou non. '/chatter/spenders' seul (type 'page') ne cible que la redirection.
 const SPENDERS_PATH = '/chatter/spenders'
 
+// LECTURE / relance : ouvert au chatteur (has_page). SEUL addRelance l'utilise.
 async function crmGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
   const profile = await getProfile()
   return hasPageAccess(profile, 'crm-spenders') ? { ok: true } : { ok: false, error: 'Accès refusé' }
+}
+
+// ÉCRITURE non-relance (reset / archive) : admin ou manager/sous-manager — pas le chatteur
+// (0060). Miroir de la RLS can_write_page('crm-spenders').
+async function crmWriteGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const profile = await getProfile()
+  return hasWriteAccess(profile, 'crm-spenders') ? { ok: true } : { ok: false, error: 'Accès refusé' }
 }
 
 /**
@@ -94,7 +102,7 @@ export async function resetCompteur(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: targetInput,
     input: raw,
-    guard: crmGuard,
+    guard: crmWriteGuard,
     handler: async (p) => {
       const supabase = await createClient()
       const now = new Date().toISOString()
@@ -136,7 +144,7 @@ export async function setArchived(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: archiveInput,
     input: raw,
-    guard: crmGuard,
+    guard: crmWriteGuard,
     handler: async (p) => {
       const supabase = await createClient()
       const { error } = await supabase.from('spender_crm').upsert(

@@ -19,10 +19,13 @@ export function SpendersTemplate({
   data,
   view,
   isAdmin,
+  canWrite,
 }: {
   data: SpendersData
   view: SpendersViewKind
   isAdmin?: boolean
+  /** admin ou manager/sous-manager : peut reset/archiver (0060). Calculé dans la page. */
+  canWrite?: boolean
 }) {
   // TZ Paris explicite (frDateTimeParis) : ce texte est calculé en SSR — la cadence
   // relance étant calendaire Europe/Paris (§ types.ts), la fraîcheur affichée doit rester
@@ -98,7 +101,7 @@ export function SpendersTemplate({
         </div>
       )}
 
-      <SpendersView spenders={data.spenders} view={view} isAdmin={isAdmin} />
+      <SpendersView spenders={data.spenders} view={view} isAdmin={isAdmin} canWrite={canWrite} />
     </div>
   )
 }

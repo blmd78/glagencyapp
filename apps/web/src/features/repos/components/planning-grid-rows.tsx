@@ -14,6 +14,7 @@ import { JOURS, type ReposCell, type ReposColumn, type ReposData } from '../type
 export function PlanningGridRows({
   columns,
   data,
+  canWrite,
   cellValue,
   cellChips,
   overByCol,
@@ -23,6 +24,7 @@ export function PlanningGridRows({
 }: {
   columns: ReposColumn[]
   data: ReposData
+  canWrite: boolean
   cellValue: (day: number, col: string) => ReposCell
   cellChips: (day: number, col: string) => CellChip[]
   overByCol: Map<string, { ids: Set<string>; txt: Set<string> }>
@@ -43,6 +45,7 @@ export function PlanningGridRows({
             const over = overByCol.get(c.key) ?? { ids: new Set<string>(), txt: new Set<string>() }
             return (
               <td key={c.key} className={cn('p-1 align-top', border)}>
+                {canWrite ? (
                 <ComboboxMultiple
                   trigger={
                     <button
@@ -109,6 +112,27 @@ export function PlanningGridRows({
                   }))}
                   placeholder={c.encadrement ? 'Rechercher un manager…' : 'Rechercher un chatteur…'}
                 />
+                ) : (
+                  // Lecture seule (chatteur) : chips statiques, sans combobox ni édition.
+                  <div className="flex min-h-9 w-full flex-wrap items-center gap-1 px-1.5 py-1">
+                    {chips.length ? (
+                      chips.map((ch) => (
+                        <span
+                          key={ch.key}
+                          title={ch.over ? `${ch.label} : plus de 2 repos cette semaine` : undefined}
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-xs font-medium',
+                            ch.over ? CHIP_RED : CHIP_GREEN,
+                          )}
+                        >
+                          {ch.label}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-muted-foreground/40">—</span>
+                    )}
+                  </div>
+                )}
               </td>
             )
           })}

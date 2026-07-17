@@ -94,11 +94,14 @@ function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
 export function RelanceCounter({
   spender,
   isAdmin,
+  canWrite,
   withAdd = true,
   withEdit = true,
 }: {
   spender: SpenderRow
   isAdmin?: boolean
+  /** admin ou manager/sous-manager : peut remettre le compteur à zéro. Le chatteur non (0060). */
+  canWrite?: boolean
   /** false = pas de bouton « + » (tracker : les cases R1→R10 font déjà le cochage). */
   withAdd?: boolean
   /** false = pas de crayon admin (Liste = pure consultation). */
@@ -147,7 +150,7 @@ export function RelanceCounter({
           {pending ? <Spinner className="size-3.5" /> : <Plus className="size-3.5" />}
         </Button>
       )}
-      {withEdit && spender.conversionPending && !spender.archived && (
+      {withEdit && canWrite && spender.conversionPending && !spender.archived && (
         <ResetButton target={spender} title="Le fan a reconverti — remettre le compteur à zéro" />
       )}
     </div>
