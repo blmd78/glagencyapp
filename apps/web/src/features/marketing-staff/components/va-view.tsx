@@ -49,7 +49,15 @@ const toForm = (s: MktStaffRow): StaffForm => ({
  * partagé avec les server actions) — même patron que member-dialog. Colonnes
  * (`va-columns.tsx`) et dialog (`va-dialog.tsx`) extraits en fichiers dédiés (> 300 l.).
  */
-export function VaView({ data, isAdmin }: { data: MktStaffData; isAdmin: boolean }) {
+export function VaView({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: MktStaffData
+  isAdmin: boolean
+  canWrite: boolean
+}) {
   /** Ligne éditée, `'new'` pour une création, null = dialog fermé. */
   const [editing, setEditing] = useState<MktStaffRow | 'new' | null>(null)
 
@@ -69,7 +77,7 @@ export function VaView({ data, isAdmin }: { data: MktStaffData; isAdmin: boolean
     setEditing(s ?? 'new')
   }
 
-  const columns = makeVaColumns({ isAdmin, onEdit: openEdit })
+  const columns = makeVaColumns({ isAdmin, canWrite, onEdit: openEdit })
 
   const submit = handleSubmit(async (values) => {
     const current = editing !== 'new' && editing ? editing : null
@@ -142,10 +150,13 @@ export function VaView({ data, isAdmin }: { data: MktStaffData; isAdmin: boolean
         getRowId={(s) => s.id}
         countLabel={(n) => `${n} membre(s)`}
         toolbar={
-          <Button size="sm" className="gap-1.5" onClick={() => openEdit(null)}>
-            <UserPlus className="size-3.5" />
-            Ajouter un VA
-          </Button>
+          // Création masquée pour un chatteur (lecture seule) — écriture réservée admin/manager.
+          canWrite ? (
+            <Button size="sm" className="gap-1.5" onClick={() => openEdit(null)}>
+              <UserPlus className="size-3.5" />
+              Ajouter un VA
+            </Button>
+          ) : null
         }
       />
 

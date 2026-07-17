@@ -5,7 +5,7 @@ import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasPageAccess } from '@/lib/auth'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { getChatters } from '@/lib/services/get-chatters'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { setInsightStateInput } from './schema'
@@ -23,7 +23,7 @@ export async function setInsightState(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: async () => {
       const profile = await getProfile()
-      if (!hasPageAccess(profile, 'insights')) return { ok: false, error: 'Accès refusé' }
+      if (!hasWriteAccess(profile, 'insights')) return { ok: false, error: 'Accès refusé' }
       if (profile.role === 'admin') return { ok: true }
 
       // Verrous : nécessitent une lecture DB (l'état PRÉCÉDENT de la carte) → faits ici,

@@ -3,7 +3,7 @@ import { RevenueScopeNote } from '@/components/revenue-scope-note'
 import type { ChattersData } from '@/lib/types/chatters'
 
 /** Template Chatteurs : compose la table à partir des données reçues. Aucun fetch. */
-export function ChattersTemplate({ data }: { data: ChattersData }) {
+export function ChattersTemplate({ data, canWrite }: { data: ChattersData; canWrite: boolean }) {
   const active = data.chatters.filter((c) => c.active).length
 
   return (
@@ -26,7 +26,11 @@ export function ChattersTemplate({ data }: { data: ChattersData }) {
           {data.scope && (
             <RevenueScopeNote scope={data.scope} active="attributed" periodLabel={data.period} />
           )}
-          <ChattersTable chatters={data.chatters} dailyRanking={data.dailyRanking} />
+          <ChattersTable
+            chatters={data.chatters}
+            dailyRanking={data.dailyRanking}
+            canWrite={canWrite}
+          />
         </>
       )}
     </div>

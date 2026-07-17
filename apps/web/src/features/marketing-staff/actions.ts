@@ -10,7 +10,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasPageAccess } from '@/lib/auth'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { staffFields } from './schema'
 
@@ -30,7 +30,7 @@ const staffInput = staffFields.extend({
  */
 async function requireMktStaffMgr() {
   const profile = await getProfile()
-  return hasPageAccess(profile, 'mkt-staff') ? profile : null
+  return hasWriteAccess(profile, 'mkt-staff') ? profile : null
 }
 
 /** Garde ADMIN stricte (paiement — cf. NE TOUCHE PAS wagon compta) — retour d'erreur,

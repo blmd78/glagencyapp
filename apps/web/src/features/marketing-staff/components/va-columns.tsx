@@ -28,9 +28,11 @@ export function assignSummary(s: MktStaffRow): string {
  */
 export function makeVaColumns({
   isAdmin,
+  canWrite,
   onEdit,
 }: {
   isAdmin: boolean
+  canWrite: boolean
   onEdit: (s: MktStaffRow) => void
 }): ColumnDef<MktStaffRow>[] {
   return [
@@ -101,15 +103,18 @@ export function makeVaColumns({
       header: '',
       cell: ({ row }) => (
         <div className="flex justify-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            onClick={() => onEdit(row.original)}
-            aria-label={`Modifier ${row.original.name}`}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
+          {/* Édition réservée à l'écriture (admin/manager) — masquée pour un chatteur. */}
+          {canWrite && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => onEdit(row.original)}
+              aria-label={`Modifier ${row.original.name}`}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+          )}
           {isAdmin && (
             <ConfirmDialog
               title={`Supprimer ${row.original.name} ?`}

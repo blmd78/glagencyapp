@@ -24,7 +24,11 @@ export default async function SpendersTrackerPage() {
           </SectionFallback>
         }
       >
-        <SpendersTrackerContent data={data} isAdmin={profile.role === 'admin'} />
+        <SpendersTrackerContent
+          data={data}
+          isAdmin={profile.role === 'admin'}
+          canWrite={profile.role === 'admin' || profile.manager}
+        />
       </Suspense>
     </div>
   )
@@ -33,9 +37,11 @@ export default async function SpendersTrackerPage() {
 async function SpendersTrackerContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<SpendersData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <SpendersTemplate data={await data} view="tracker" isAdmin={isAdmin} />
+  return <SpendersTemplate data={await data} view="tracker" isAdmin={isAdmin} canWrite={canWrite} />
 }

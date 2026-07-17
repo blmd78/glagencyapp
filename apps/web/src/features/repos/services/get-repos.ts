@@ -44,8 +44,8 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
     admin.from('chatters').select('id, display_name, active'),
     // Colonnes ENCADREMENT (Managers/Policiers) : leur sélecteur liste les profils rôle
-    // manager — pas les chatteurs (bug remonté : « Ajouter » proposait les chatteurs).
-    admin.from('profiles').select('id, display_name').eq('role', 'manager'),
+    // manager/sous-manager — pas les chatteurs (bug remonté : « Ajouter » proposait les chatteurs).
+    admin.from('profiles').select('id, display_name').in('role', ['manager', 'sous-manager']),
     admin.from('creators').select('id, name, active'),
     supabase
       .from('rest_planning_column_members')

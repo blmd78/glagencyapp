@@ -10,11 +10,13 @@ export function InsightsTemplate({
   data,
   ranking,
   isAdmin,
+  canWrite,
   currentUserId,
 }: {
   data: InsightsData
   ranking: RankingData
   isAdmin: boolean
+  canWrite: boolean
   currentUserId: string
 }) {
   const critical = data.insights.filter((i) => i.severity === 'critical').length
@@ -29,7 +31,13 @@ export function InsightsTemplate({
           ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
           : 'Analyses hebdomadaires des quotas par chatteur'}
       </p>
-      <InsightsView data={data} ranking={ranking} isAdmin={isAdmin} currentUserId={currentUserId} />
+      <InsightsView
+        data={data}
+        ranking={ranking}
+        isAdmin={isAdmin}
+        canWrite={canWrite}
+        currentUserId={currentUserId}
+      />
     </div>
   )
 }

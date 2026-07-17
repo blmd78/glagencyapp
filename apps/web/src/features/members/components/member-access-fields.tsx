@@ -46,7 +46,8 @@ export function MemberAccessFields({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="chatteur">Chatteur</SelectItem>
+                <SelectItem value="sous-manager">Sous-manager</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
                 {/* Nommer un admin = propriétaires uniquement (garde serveur en plus). */}
                 {superadmin && <SelectItem value="admin">Admin</SelectItem>}

@@ -1,7 +1,15 @@
 import { VaView } from './components/va-view'
 import type { MktStaffData } from './types'
 
-export function MktVaTemplate({ data, isAdmin }: { data: MktStaffData; isAdmin: boolean }) {
+export function MktVaTemplate({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: MktStaffData
+  isAdmin: boolean
+  canWrite: boolean
+}) {
   const vas = data.staff.filter((s) => s.role === 'va')
   const active = vas.filter((s) => s.active).length
 
@@ -12,7 +20,7 @@ export function MktVaTemplate({ data, isAdmin }: { data: MktStaffData; isAdmin: 
         la paie se règle dans Compta
       </p>
 
-      <VaView data={data} isAdmin={isAdmin} />
+      <VaView data={data} isAdmin={isAdmin} canWrite={canWrite} />
     </div>
   )
 }

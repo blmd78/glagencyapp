@@ -115,12 +115,12 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
         await admin.auth.admin.deleteUser(uid)
         throw new Error(pErr.message)
       }
-      if (role !== 'user') {
+      if (role !== 'chatteur') {
         const { error: rErr } = await admin
           .from('profiles')
           .update({ role })
           .eq('id', uid)
-          .eq('role', 'user')
+          .eq('role', 'chatteur')
         if (rErr) throw new Error(rErr.message)
       }
       // Les modèles assignés sont un concept de la face chatteurs uniquement.
@@ -189,10 +189,14 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         })
         .eq('id', id)
       if (pErr) throw new Error(pErr.message)
-      // La cible cesse d'être manager (démotion user OU promotion admin) : détacher ses
-      // chatters, sinon ils restent rattachés à un non-manager — invisibles de tous les
-      // managers, et l'édition admin bloquerait sur un rattachement périmé.
-      if (target.role === 'manager' && role !== 'manager') {
+      // La cible cesse d'être manager/sous-manager (démotion chatteur OU promotion admin) :
+      // détacher ses chatteurs, sinon ils restent rattachés à un non-manager — invisibles de
+      // tous les managers, et l'édition admin bloquerait sur un rattachement périmé.
+      if (
+        (target.role === 'manager' || target.role === 'sous-manager') &&
+        role !== 'manager' &&
+        role !== 'sous-manager'
+      ) {
         const { error: dErr } = await admin.from('profiles').update({ manager_id: null }).eq('manager_id', id)
         if (dErr) throw new Error(dErr.message)
       }

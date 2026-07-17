@@ -26,7 +26,11 @@ export default async function SpendersListePage() {
           </SectionFallback>
         }
       >
-        <SpendersListeContent data={data} isAdmin={profile.role === 'admin'} />
+        <SpendersListeContent
+          data={data}
+          isAdmin={profile.role === 'admin'}
+          canWrite={profile.role === 'admin' || profile.manager}
+        />
       </Suspense>
     </div>
   )
@@ -35,9 +39,11 @@ export default async function SpendersListePage() {
 async function SpendersListeContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<SpendersData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <SpendersTemplate data={await data} view="liste" isAdmin={isAdmin} />
+  return <SpendersTemplate data={await data} view="liste" isAdmin={isAdmin} canWrite={canWrite} />
 }

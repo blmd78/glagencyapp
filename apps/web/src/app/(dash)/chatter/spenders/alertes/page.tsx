@@ -24,7 +24,11 @@ export default async function SpendersAlertesPage() {
           </SectionFallback>
         }
       >
-        <SpendersAlertesContent data={data} isAdmin={profile.role === 'admin'} />
+        <SpendersAlertesContent
+          data={data}
+          isAdmin={profile.role === 'admin'}
+          canWrite={profile.role === 'admin' || profile.manager}
+        />
       </Suspense>
     </div>
   )
@@ -33,9 +37,11 @@ export default async function SpendersAlertesPage() {
 async function SpendersAlertesContent({
   data,
   isAdmin,
+  canWrite,
 }: {
   data: Promise<SpendersData>
   isAdmin: boolean
+  canWrite: boolean
 }) {
-  return <SpendersTemplate data={await data} view="alertes" isAdmin={isAdmin} />
+  return <SpendersTemplate data={await data} view="alertes" isAdmin={isAdmin} canWrite={canWrite} />
 }

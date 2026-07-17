@@ -9,14 +9,15 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasPageAccess } from '@/lib/auth'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { getChatterScope } from '@/lib/scope'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 
-/** Garde d'action : admin, ou page `repos` accordée (les sous-managers gèrent le planning). */
+/** Garde d'action : admin, ou manager/sous-manager ayant la page `repos` (0060 — chatteur
+ *  en lecture seule). Les managers/sous-managers gèrent le planning des repos. */
 async function requireRepos() {
   const profile = await getProfile()
-  return hasPageAccess(profile, 'repos') ? profile : null
+  return hasWriteAccess(profile, 'repos') ? profile : null
 }
 
 const cellInput = z.object({

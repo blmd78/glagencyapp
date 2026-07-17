@@ -59,7 +59,12 @@ export function PlanningHeader({
             searchPlaceholder="Rechercher un membre…"
             options={members.map((m) => ({
               value: m.id,
-              label: m.role === 'manager' ? `${m.name} · manager` : m.name,
+              label:
+                m.role === 'manager'
+                  ? `${m.name} · manager`
+                  : m.role === 'sous-manager'
+                    ? `${m.name} · sous-manager`
+                    : m.name,
             }))}
           />
           {data && canEdit && (

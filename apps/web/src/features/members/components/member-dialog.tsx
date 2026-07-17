@@ -75,12 +75,14 @@ export function MemberDialog({
       displayName: member?.displayName ?? '',
       role:
         viewer === 'manager'
-          ? 'user'
+          ? 'chatteur'
           : member?.role === 'admin'
             ? 'admin'
             : member?.role === 'manager'
               ? 'manager'
-              : 'user',
+              : member?.role === 'sous-manager'
+                ? 'sous-manager'
+                : 'chatteur',
       // Seules les pages du périmètre courant sont éditées ici.
       pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
       creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
