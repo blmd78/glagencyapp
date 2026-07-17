@@ -29,10 +29,10 @@ export async function requireUser() {
 export interface Profile {
   id: string
   /** `superadmin` en base est mappé sur 'admin' ici (il hérite de tout) — cf. `superadmin`. */
-  role: 'admin' | 'user'
+  role: 'admin' | 'chatteur'
   /** Propriétaire (rôle base `superadmin`) : seul à pouvoir gérer les membres/rôles. */
   superadmin: boolean
-  /** Rôle base `manager` : accès page Membres (ajout de chatters) — `user` partout ailleurs. */
+  /** Rôle base `manager` OU `sous-manager` : accès page Membres (ajout de chatteurs) — `chatteur` partout ailleurs. */
   manager: boolean
   /** Slugs des pages autorisées (vide pour un admin = tout). */
   pages: string[]
@@ -55,9 +55,9 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   if (!data) return null
   return {
     id: data.id,
-    role: data.role === 'admin' || data.role === 'superadmin' ? 'admin' : 'user',
+    role: data.role === 'admin' || data.role === 'superadmin' ? 'admin' : 'chatteur',
     superadmin: data.role === 'superadmin',
-    manager: data.role === 'manager',
+    manager: data.role === 'manager' || data.role === 'sous-manager',
     pages: data.pages ?? [],
     displayName: data.display_name,
     email: data.email ?? user.email ?? null,

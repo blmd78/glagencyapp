@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
  * Autorisation de la page Membres — déplacement PUR des helpers gelés hors de `actions.ts`
  * (mêmes noms, mêmes corps, mêmes messages — cf. self-review de la task standard). Admin
  * (superadmin compris) : tout. Manager : uniquement SES chatters — création rattachée à
- * lui (manager_id), édition/suppression bornées par requireEditableTarget, rôle user
+ * lui (manager_id), édition/suppression bornées par requireEditableTarget, rôle chatteur
  * forcé, modèles de son périmètre.
  */
 
@@ -104,7 +104,7 @@ export async function requireOwnCreators(
 /**
  * Cible éditable : jamais un superadmin (les propriétaires ne se gèrent pas ici) ; une
  * cible admin n'est éditable QUE par un superadmin ; pour un appelant manager,
- * uniquement un compte user de SON équipe (manager_id = lui).
+ * uniquement un compte chatteur de SON équipe (manager_id = lui).
  */
 export async function requireEditableTarget(
   admin: Admin,
@@ -117,7 +117,7 @@ export async function requireEditableTarget(
   if (target.role === 'admin' && !caller.superadmin) {
     return { error: 'Seul un propriétaire gère les admins' }
   }
-  if (caller.role !== 'admin' && (target.role !== 'user' || target.manager_id !== caller.id)) {
+  if (caller.role !== 'admin' && (target.role !== 'chatteur' || target.manager_id !== caller.id)) {
     return { error: "Ce membre n'est pas dans ton équipe" }
   }
   return { role: target.role }
@@ -126,18 +126,20 @@ export async function requireEditableTarget(
 /** Rattachement valide = profil existant de rôle manager (vérif côté admin uniquement). */
 export async function requireManagerTarget(admin: Admin, managerId: string): Promise<string | null> {
   const { data: mgr } = await admin.from('profiles').select('role').eq('id', managerId).single()
-  return mgr?.role === 'manager' ? null : 'Rattachement invalide (pas un manager)'
+  return mgr?.role === 'manager' || mgr?.role === 'sous-manager'
+    ? null
+    : 'Rattachement invalide (pas un manager)'
 }
 
-export type Role = 'user' | 'manager' | 'admin'
+export type Role = 'chatteur' | 'sous-manager' | 'manager' | 'admin'
 
 /**
  * Autorise et NORMALISE le rôle + le périmètre modèles d'une mutation selon l'appelant.
  * Partagé create/update pour que ces règles de sécurité soient uniques (un edit divergent
- * ouvrirait un trou). Manager → face chatteurs obligatoire, rôle `user` forcé, modèles
+ * ouvrirait un trou). Manager → face chatteurs obligatoire, rôle `chatteur` forcé, modèles
  * bornés à SON périmètre. Rôle `admin` → propriétaires uniquement. Rôle non-admin → au
  * moins une page (re-vérif du refine zod APRÈS forçage : un manager forgeant role:'admin'
- * + pages:[] passerait le refine puis serait forcé user → compte sans page).
+ * + pages:[] passerait le refine puis serait forcé chatteur → compte sans page).
  * Retourne `role` effectif et `ownScope` (undefined pour un admin = aucun retrait borné).
  */
 export async function authorizeRoleAndScope(
@@ -151,7 +153,7 @@ export async function authorizeRoleAndScope(
   let ownScope: Set<string> | undefined
   if (caller.role !== 'admin') {
     if (scope !== 'chatter') return { error: 'Réservé aux admins' }
-    role = 'user'
+    role = 'chatteur'
     const own = await requireOwnCreators(caller.id, creatorIds)
     if ('error' in own) return { error: own.error }
     ownScope = own.allowed

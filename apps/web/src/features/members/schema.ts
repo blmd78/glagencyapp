@@ -22,7 +22,7 @@ export const memberInput = z
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
     // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
     // piloté par l'allowlist (trigger handle_new_user), jamais posé ici.
-    role: z.enum(['user', 'manager', 'admin']),
+    role: z.enum(['chatteur', 'sous-manager', 'manager', 'admin']),
     pages: z.array(z.string()),
     creatorIds: z.array(z.uuid()).max(50),
     // Rattachement à un manager ('' = aucun) — forcé au créateur si l'appelant est manager.
@@ -33,7 +33,7 @@ export const memberInput = z
     (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),
     { message: 'Page inconnue', path: ['pages'] },
   )
-  // min 1 page SAUF pour un admin (accès à tout) : un compte user/manager sans page
+  // min 1 page SAUF pour un admin (accès à tout) : un compte chatteur/manager sans page
   // serait inutilisable (atterrit sur /no-access).
   .refine((d) => d.role === 'admin' || d.pages.length > 0, {
     message: 'Coche au moins une page',
@@ -47,7 +47,7 @@ export const memberUpdateInput = z
     scope: z.enum(['chatter', 'marketing']),
     id: z.uuid(),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
-    role: z.enum(['user', 'manager', 'admin']),
+    role: z.enum(['chatteur', 'sous-manager', 'manager', 'admin']),
     pages: z.array(z.string()),
     creatorIds: z.array(z.uuid()).max(50),
     managerId: z.uuid().or(z.literal('')),
