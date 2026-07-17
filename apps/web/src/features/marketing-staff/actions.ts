@@ -11,7 +11,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
 import { staffFields } from './schema'
 
 // Champs de fiche partagés avec le dialog (schema.ts) + méta serveur.
@@ -116,16 +116,28 @@ export async function saveStaffAssignments(raw: unknown): Promise<ActionResult> 
     },
     handler: async ({ staffId, linkIds, igAccountIds, twAccountIds }) => {
       const supabase = await createClient()
-      // Anti-vol (lien/compte déjà pris par le VA d'un autre manager) : la fonction SQL le
-      // refuse en défense en profondeur, mais linkOptions/igOptions/twOptions (get-staff.ts)
-      // excluent déjà les liens/comptes pris de la sélection — résiduel de course
-      // ultra-serrée, même raisonnement que addRelance (spenders/actions.ts) → throw générique.
+      // Anti-vol (lien/compte déjà pris par le VA d'un autre manager) : cas ATTEIGNABLE en
+      // usage normal (deux managers sur le même pool de liens), pas juste une course
+      // résiduelle — et un pré-check TS est impossible : mkt_staff_links a sa PROPRE RLS
+      // (migration 0027, policy mkt_staff_links_own), le manager appelant ne voit donc
+      // jamais les lignes en conflit. Seule la base peut trancher → le message métier de
+      // la RPC doit survivre (BusinessError), pas de generic+Sentry pour ce cas précis.
       const { error } = await supabase.rpc('mkt_save_staff_assignments', {
         p_staff: staffId,
         p_links: linkIds,
         p_accounts: [...new Set([...igAccountIds, ...twAccountIds])],
       })
-      if (error) throw new Error(error.message)
+      if (error) {
+        // La fonction SQL (migration 0028) lève `raise exception 'Un des liens/comptes est
+        // déjà assigné au VA d'un autre manager'` SANS SQLSTATE dédié (code générique
+        // P0001, indistinguable en `error.code` du reste de la fonction) → détection par
+        // fragment de message, commun aux 2 variantes (liens/comptes) et absent du 3ème
+        // message de la fonction ('Fiche introuvable ou non autorisée').
+        if (error.message.includes('autre manager')) {
+          throw new BusinessError('Lien ou compte déjà assigné à un autre manager')
+        }
+        throw new Error(error.message)
+      }
       revalidatePath('/marketing/staff')
       revalidatePath('/marketing/compta')
     },

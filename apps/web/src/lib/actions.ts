@@ -7,10 +7,19 @@ export type ActionResult<T = void> =
   | { success: false; error: string; fieldErrors?: Record<string, string[]> }
 
 /**
+ * Erreur MÉTIER tranchée côté base (contrainte unique, RPC anti-vol…) quand un pré-check
+ * applicatif est impossible (ex. RLS cache les lignes des autres). `runAction` la renvoie
+ * comme retour métier (message affiché tel quel, pas de Sentry) — réservée aux messages
+ * français écrits par nous, jamais un `error.message` brut.
+ */
+export class BusinessError extends Error {}
+
+/**
  * Enchaîne les obligations d'une Server Action : garde d'auth → validation Zod →
- * handler. Erreur MÉTIER = retour typé (guard/fieldErrors) ; erreur TECHNIQUE =
- * capturée Sentry + message générique (jamais un message Supabase brut à l'écran).
- * La RLS reste le garde-fou réel — la garde ici est la défense en profondeur.
+ * handler. Erreur MÉTIER = retour typé (guard/fieldErrors, ou `BusinessError` levée par le
+ * handler quand seule la base peut trancher) ; erreur TECHNIQUE = capturée Sentry +
+ * message générique (jamais un message Supabase brut à l'écran). La RLS reste le
+ * garde-fou réel — la garde ici est la défense en profondeur.
  */
 export async function runAction<S extends z.ZodType, T = void>(opts: {
   schema: S
@@ -42,6 +51,7 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
 
     return { success: true, data: await opts.handler(parsed.data) }
   } catch (err) {
+    if (err instanceof BusinessError) return { success: false, error: err.message }
     Sentry.captureException(err)
     return { success: false, error: 'Erreur inattendue — réessaie ou préviens l’admin.' }
   }
