@@ -20,13 +20,14 @@ import type { PlanningBlock, PlanningData, PlanningMember } from '../types'
  */
 export function PlanningView({
   data,
-  isAdmin,
+  hasSelect,
   canEdit,
   members,
 }: {
   data: PlanningData | null
-  isAdmin: boolean
-  /** Édition : le planning d'un ADMIN est réservé aux superadmins (consultation sinon). */
+  /** Afficher le sélecteur de membre (au moins une autre personne à ouvrir). */
+  hasSelect: boolean
+  /** Édition de la cible (on ne modifie pas SON propre planning, sauf superadmin). */
   canEdit: boolean
   members: PlanningMember[]
 }) {
@@ -60,7 +61,7 @@ export function PlanningView({
     <div className="flex flex-col gap-6">
       <PlanningHeader
         data={data}
-        isAdmin={isAdmin}
+        hasSelect={hasSelect}
         canEdit={canEdit}
         members={members}
         totalMin={totalMin}

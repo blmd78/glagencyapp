@@ -8,15 +8,16 @@ import type { PlanningData, PlanningMember } from './types'
  */
 export function PlanningTemplate({
   data,
-  isAdmin,
+  hasSelect,
   canEdit,
   members,
 }: {
   data: PlanningData | null
-  isAdmin: boolean
-  /** Édition : le planning d'un ADMIN est réservé aux superadmins (consultation sinon). */
+  /** Afficher le sélecteur de membre (il y a au moins une autre personne à ouvrir). */
+  hasSelect: boolean
+  /** Édition de la cible (on ne modifie pas SON propre planning, sauf superadmin). */
   canEdit: boolean
   members: PlanningMember[]
 }) {
-  return <PlanningView data={data} isAdmin={isAdmin} canEdit={canEdit} members={members} />
+  return <PlanningView data={data} hasSelect={hasSelect} canEdit={canEdit} members={members} />
 }

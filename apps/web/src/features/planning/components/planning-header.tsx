@@ -15,7 +15,7 @@ import type { PlanningData, PlanningMember } from '../types'
  */
 export function PlanningHeader({
   data,
-  isAdmin,
+  hasSelect,
   canEdit,
   members,
   totalMin,
@@ -24,8 +24,9 @@ export function PlanningHeader({
   onAddBlock,
 }: {
   data: PlanningData | null
-  isAdmin: boolean
-  /** Cible éditable par le spectateur (un admin consulte SON planning en lecture seule). */
+  /** Afficher le sélecteur de membre (au moins une autre personne à ouvrir). */
+  hasSelect: boolean
+  /** Cible éditable par le spectateur (on consulte SON propre planning en lecture seule). */
   canEdit: boolean
   members: PlanningMember[]
   totalMin: number
@@ -49,7 +50,7 @@ export function PlanningHeader({
           )}
         </p>
       </div>
-      {isAdmin && (
+      {hasSelect && (
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Combobox
             value={data?.profileId ?? ''}
