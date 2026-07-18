@@ -8,7 +8,11 @@ import type { Member, MembersData } from '../types'
  */
 export async function getMembers(): Promise<MembersData> {
   const supabase = await createClient()
-  const [{ data: profiles }, { data: links }, { data: creators }] = await Promise.all([
+  const [
+    { data: profiles, error: profilesErr },
+    { data: links, error: linksErr },
+    { data: creators, error: creatorsErr },
+  ] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, email, display_name, role, pages, work_link, manager_id, created_at')
@@ -18,6 +22,9 @@ export async function getMembers(): Promise<MembersData> {
     // quotas), pas le droit d'accès — on doit pouvoir assigner « Carla (privé) ».
     supabase.from('creators').select('id, name').order('name'),
   ])
+  if (profilesErr) throw new Error(profilesErr.message)
+  if (linksErr) throw new Error(linksErr.message)
+  if (creatorsErr) throw new Error(creatorsErr.message)
   const byProfile = new Map<string, string[]>()
   for (const l of links ?? []) {
     const arr = byProfile.get(l.profile_id)

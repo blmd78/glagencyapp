@@ -12,7 +12,7 @@ const asTeam = (t: string | null): 'rouge' | 'bleue' | null =>
 export async function getSpenders(): Promise<SpendersData> {
   const supabase = await createClient()
 
-  const [{ data: rows, error }, { data: freshRow }] = await Promise.all([
+  const [{ data: rows, error }, { data: freshRow, error: freshErr }] = await Promise.all([
     supabase.rpc('crm_spenders_tracker', { p_seuil: CA_TRACKING_SEUIL }),
     supabase
       .from('spender_conversations')
@@ -22,6 +22,7 @@ export async function getSpenders(): Promise<SpendersData> {
       .maybeSingle(),
   ])
   if (error) throw new Error(error.message)
+  if (freshErr) throw new Error(freshErr.message)
 
   const spenders: SpenderRow[] = (rows ?? [])
     .map((r) => ({
