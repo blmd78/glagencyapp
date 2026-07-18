@@ -63,6 +63,9 @@ function CodeRow({ row, canWrite }: { row: SnapCodeRow; canWrite: boolean }) {
   }
 
   function change(patch: Partial<SnapCodeRow>, immediate = false) {
+    // Lecture seule : les inputs readOnly restent focusables → un blur déclencherait un save
+    // voué à l'échec (adminGuard/RLS). On coupe le chemin d'écriture côté client.
+    if (!canWrite) return
     const next = { ...local, ...patch }
     setLocal(next)
     clearTimeout(timer.current)
