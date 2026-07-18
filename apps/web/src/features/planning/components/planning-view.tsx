@@ -9,31 +9,29 @@ import { SECTIONS, durationMin, fmtDuration } from '../types'
 import type { PlanningBlock, PlanningData, PlanningMember } from '../types'
 
 /**
- * Planning journalier d'un sous-manager — lecture pour le membre (le RLS ne lui sert
- * que le sien), édition réservée à l'admin (sélecteur de membre + dialogs).
+ * Planning journalier — chacun lit LE SIEN (RLS) ; édition réservée aux rôles gérants
+ * (admin/superadmin, et manager sur ses sous-managers directs).
  * Les plages de section, pauses et la répartition du temps sont CALCULÉES des blocs.
  * Split > 300 lignes (docs/guidelines-standard-feature.md §1) : `planning-header.tsx`
- * (titre + sélecteur + actions admin) et `planning-blocks-list.tsx` (Bullet + sections/
+ * (titre + sélecteur + actions d'édition) et `planning-blocks-list.tsx` (Bullet + sections/
  * pauses/blocs, édition) — modèle `chatters-columns.tsx`/`chatters-sub-rows.tsx`. DOM
  * inchangé. Les 2 warnings react-hooks/exhaustive-deps ci-dessous (dépendance `blocks`
  * recréée à chaque rendu) sont connus et préexistants — pas corrigés ici.
  */
 export function PlanningView({
   data,
-  isAdmin,
   canEdit,
   members,
 }: {
-  data: PlanningData | null
-  isAdmin: boolean
-  /** Édition : le planning d'un ADMIN est réservé aux superadmins (consultation sinon). */
+  data: PlanningData
+  /** Édition de la cible (on ne modifie pas SON propre planning, sauf superadmin). */
   canEdit: boolean
   members: PlanningMember[]
 }) {
   const [editingBlock, setEditingBlock] = useState<PlanningBlock | 'new' | null>(null)
   const [metaOpen, setMetaOpen] = useState(false)
 
-  const blocks = data?.blocks ?? []
+  const blocks = data.blocks
   const bySection = useMemo(
     () =>
       SECTIONS.map((s) => ({ section: s, blocks: blocks.filter((b) => b.section === s) })).filter(
@@ -54,13 +52,12 @@ export function PlanningView({
     return [...m.entries()].sort((a, b) => b[1].min - a[1].min)
   }, [blocks])
 
-  const hasPriority = !!(data && (data.priorityTitle || data.priorityBody))
+  const hasPriority = !!(data.priorityTitle || data.priorityBody)
 
   return (
     <div className="flex flex-col gap-6">
       <PlanningHeader
         data={data}
-        isAdmin={isAdmin}
         canEdit={canEdit}
         members={members}
         totalMin={totalMin}
@@ -70,7 +67,7 @@ export function PlanningView({
       />
 
       {/* ── Encart priorité n°1 */}
-      {hasPriority && data && (
+      {hasPriority && (
         <div className="rounded-xl border p-4 sm:p-5">
           <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
             <span className="shrink-0 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -109,7 +106,7 @@ export function PlanningView({
       />
 
       {/* ── Tâches annexes */}
-      {data && data.annexes.length > 0 && (
+      {data.annexes.length > 0 && (
         <div className="rounded-xl border border-dashed p-4 sm:p-5">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Tâches annexes — en continu, à caler entre les sessions
@@ -158,8 +155,8 @@ export function PlanningView({
         </div>
       )}
 
-      {/* ── Dialogs admin */}
-      {canEdit && data && (
+      {/* ── Dialogs d'édition */}
+      {canEdit && (
         <>
           <BlockDialog
             profileId={data.profileId}

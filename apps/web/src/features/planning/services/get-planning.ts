@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { Profile } from '@/lib/auth'
 import type { PlanningBlock, PlanningData, PlanningMember, PlanningSection } from '../types'
 
 const SECTION_ORDER: Record<PlanningSection, number> = { matin: 0, apres_midi: 1, soir: 2 }
@@ -81,18 +82,28 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
 }
 
 /**
- * Personnes pouvant recevoir un planning (sélecteur) — managers d'abord.
- * SUPERADMIN : membres + admins (il fait et modifie le planning des admins).
- * ADMIN : membres uniquement (il ne voit pas les plannings des admins).
- * Les superadmins ne figurent jamais dans le sélecteur.
+ * Personnes dont on peut ouvrir le planning via le sélecteur (SOI est ajouté en amont, cf.
+ * page.tsx). Filtré par rôle du viewer — jamais de chatteur, jamais de superadmin :
+ * - superadmin → admins + managers + sous-managers
+ * - admin      → managers + sous-managers (pas les autres admins)
+ * - manager    → ses sous-managers directs (la RLS profiles limite déjà à manager_id = lui)
+ * - sous-manager / chatteur → personne (ils ne voient que le leur)
  */
-export async function getPlanningMembers(includeAdmins: boolean): Promise<PlanningMember[]> {
+export async function getPlanningMembers(role: Profile['baseRole']): Promise<PlanningMember[]> {
+  const roles =
+    role === 'superadmin'
+      ? ['admin', 'manager', 'sous-manager']
+      : role === 'admin'
+        ? ['manager', 'sous-manager']
+        : role === 'manager'
+          ? ['sous-manager']
+          : []
+  if (roles.length === 0) return []
   const supabase = await createClient()
-  const excluded = includeAdmins ? '(superadmin)' : '(superadmin,admin)'
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, email, role')
-    .not('role', 'in', excluded)
+    .in('role', roles)
     .order('role')
     .order('display_name')
   if (error) throw new Error(error.message)

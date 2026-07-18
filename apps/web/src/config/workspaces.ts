@@ -213,3 +213,49 @@ export function workspaceHome(w: Workspace): Route {
   // Fallback défensif (basePath seul n'est pas une page réelle) → cast.
   return w.nav[0]?.href ?? (w.basePath as Route)
 }
+
+/** Contexte d'accès : booléens de rôle + slugs de pages autorisés (Set pour lookup O(1)). */
+export interface NavAccess {
+  isAdmin: boolean
+  isSuperadmin: boolean
+  isManager: boolean
+  pages: Set<string>
+}
+
+/**
+ * Un profil voit-il cet item de nav ? SOURCE UNIQUE de la règle d'accès — appelée par le
+ * filtre de la sidebar (app-sidebar.tsx) ET par `landingHref`. Ne pas dupliquer ailleurs.
+ */
+export function canAccessNav(item: NavItem, a: NavAccess): boolean {
+  if (item.superadminOnly && !a.isSuperadmin) return false
+  if (a.isAdmin) return true
+  if (item.adminOnly) return !!item.managerAccess && a.isManager
+  return a.pages.has(navSlug(item))
+}
+
+/**
+ * URL d'atterrissage RÉELLE d'un profil = href de sa 1ʳᵉ page de nav autorisée (les 2 faces,
+ * dans l'ordre). Résout le slug → vraie route (ex. `crm-spenders` → /chatter/spenders/liste),
+ * là où un `/chatter/<slug>` naïf 404. Items `bottom` (Membres, Dashboard-TODO) exclus : des
+ * utilitaires, pas une home. `/no-access` si aucune page autorisée (jamais /login : rebond).
+ */
+export function landingHref(p: {
+  role: string
+  superadmin: boolean
+  manager: boolean
+  pages: string[]
+}): Route {
+  const access: NavAccess = {
+    isAdmin: p.role === 'admin',
+    isSuperadmin: p.superadmin,
+    isManager: p.manager,
+    pages: new Set(p.pages),
+  }
+  for (const w of WORKSPACES) {
+    for (const item of w.nav) {
+      if (item.bottom) continue
+      if (canAccessNav(item, access)) return item.href
+    }
+  }
+  return '/no-access' as Route
+}

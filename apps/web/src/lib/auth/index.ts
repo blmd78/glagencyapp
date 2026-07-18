@@ -1,8 +1,7 @@
 import { cache } from 'react'
 import { redirect } from 'next/navigation'
-import type { Route } from 'next'
 import { createClient } from '@/lib/supabase/server'
-import type { PageSlug } from '@/config/workspaces'
+import { landingHref, type PageSlug } from '@/config/workspaces'
 
 /**
  * Utilisateur courant (ou null) — valide le JWT côté serveur via getClaims() : validation
@@ -30,6 +29,8 @@ export interface Profile {
   id: string
   /** `superadmin` en base est mappé sur 'admin' ici (il hérite de tout) — cf. `superadmin`. */
   role: 'admin' | 'chatteur'
+  /** Rôle EXACT en base (non écrasé) — pour les rares cas qui distinguent manager de sous-manager (ex. planning). */
+  baseRole: 'superadmin' | 'admin' | 'manager' | 'sous-manager' | 'chatteur'
   /** Propriétaire (rôle base `superadmin`) : seul à pouvoir gérer les membres/rôles. */
   superadmin: boolean
   /** Rôle base `manager` OU `sous-manager` : accès page Membres (ajout de chatteurs) — `chatteur` partout ailleurs. */
@@ -53,9 +54,15 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
     .eq('id', user.id)
     .single()
   if (!data) return null
+  const raw = data.role
+  const baseRole: Profile['baseRole'] =
+    raw === 'superadmin' || raw === 'admin' || raw === 'manager' || raw === 'sous-manager'
+      ? raw
+      : 'chatteur' // 'user' transitoire (0059) et toute valeur inconnue → chatteur
   return {
     id: data.id,
     role: data.role === 'admin' || data.role === 'superadmin' ? 'admin' : 'chatteur',
+    baseRole,
     superadmin: data.role === 'superadmin',
     manager: data.role === 'manager' || data.role === 'sous-manager',
     pages: data.pages ?? [],
@@ -74,8 +81,9 @@ export async function requireAccess(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
   if (profile.role !== 'admin' && !profile.pages.includes(slug)) {
-    // Slug dynamique (profile.pages[0]) → pas un href statique connu de typedRoutes.
-    redirect((profile.pages[0] ? `/chatter/${profile.pages[0]}` : '/no-access') as Route)
+    // Repli sur la 1ʳᵉ page RÉELLE du profil. landingHref résout le slug → vraie route :
+    // un `/chatter/<slug>` naïf 404ait sur crm-spenders / mkt-* / dashboard (LE bug 404).
+    redirect(landingHref(profile))
   }
   return profile
 }
@@ -84,7 +92,7 @@ export async function requireAccess(slug: PageSlug): Promise<Profile> {
 export async function requireAdmin(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin') redirect('/chatter/overview')
+  if (profile.role !== 'admin') redirect(landingHref(profile))
   return profile
 }
 
@@ -92,7 +100,7 @@ export async function requireAdmin(): Promise<Profile> {
 export async function requireAdminOrManager(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin' && !profile.manager) redirect('/chatter/overview')
+  if (profile.role !== 'admin' && !profile.manager) redirect(landingHref(profile))
   return profile
 }
 
@@ -100,7 +108,7 @@ export async function requireAdminOrManager(): Promise<Profile> {
 export async function requireSuperadmin(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (!profile.superadmin) redirect('/chatter/overview')
+  if (!profile.superadmin) redirect(landingHref(profile))
   return profile
 }
 

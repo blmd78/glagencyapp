@@ -1,41 +1,58 @@
 'use server'
 
-// Server Actions du planning journalier — écriture ADMIN uniquement (garde en retour
-// d'erreur, pas de redirect), lecture cloisonnée par le RLS (migration 0036).
+// Server Actions du planning journalier — écriture réservée admin/superadmin, et manager
+// sur SES sous-managers directs (garde en retour d'erreur, pas de redirect) ; lecture
+// cloisonnée par le RLS (migrations 0036/0043/0061).
 
 import { cache } from 'react'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
+import { getProfile, type Profile } from '@/lib/auth'
 import { runAction, type ActionResult } from '@/lib/actions'
 import { blockInput, metaInput } from './schema'
 
 /**
- * Garde d'écriture : admin requis, ET le planning d'un ADMIN (ou superadmin) n'est
- * modifiable que par un superadmin — les admins le consultent seulement.
+ * Garde d'écriture : admin (le planning d'un ADMIN/superadmin n'est modifiable que par un
+ * superadmin), OU manager sur un de SES sous-managers directs (role sous-manager + manager_id
+ * = lui) — miroir de la RLS `can_edit_planning_of`/`can_manage_planning_of` (0043/0061).
  * `cache()` : mémoïsé PAR REQUÊTE (même recette que `getChatterScope`, lib/scope.ts,
  * commit c0de767) — un guard ET un handler qui l'appellent avec le même `targetProfileId`
  * ne coûtent qu'une query de vérif du rôle cible, pas deux.
  */
+/** Rôle + rattachement de la cible (client session, RLS appliquée). Erreur TECHNIQUE thrown
+ *  (§3, remontée à Sentry via runAction) ; 0-row (PGRST116 = cible inexistante) → null (métier). */
+const loadTargetProfile = async (id: string) => {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role, manager_id')
+    .eq('id', id)
+    .single()
+  if (error && error.code !== 'PGRST116') throw new Error(error.message)
+  return data
+}
+
 const requireCanEdit = cache(
-  async (
-    targetProfileId: string,
-  ): Promise<{ profile: NonNullable<Awaited<ReturnType<typeof getProfile>>> } | { error: string }> => {
+  async (targetProfileId: string): Promise<{ profile: Profile } | { error: string }> => {
     const profile = await getProfile()
-    if (!profile || profile.role !== 'admin') return { error: 'Accès réservé à l’admin' }
-    if (!profile.superadmin) {
-      const supabase = await createClient()
-      const { data } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', targetProfileId)
-        .single()
-      if (data && (data.role === 'admin' || data.role === 'superadmin')) {
+    if (!profile) return { error: 'Accès réservé' }
+    // superadmin : édite tout (dont son propre planning) — aucune query cible nécessaire.
+    if (profile.superadmin) return { profile }
+    const target = await loadTargetProfile(targetProfileId)
+    // admin : édite tout SAUF le planning d'un admin/superadmin (0043) — dont le sien.
+    if (profile.role === 'admin') {
+      if (target && (target.role === 'admin' || target.role === 'superadmin')) {
         return { error: 'Le planning d’un admin est géré par un superadmin' }
       }
+      return { profile }
     }
-    return { profile }
+    // manager : édite le planning de SES sous-managers directs (miroir RLS
+    // can_manage_planning_of, 0061). Un sous-manager n'édite personne.
+    if (profile.baseRole === 'manager' && target?.role === 'sous-manager' && target.manager_id === profile.id) {
+      return { profile }
+    }
+    return { error: 'Accès réservé' }
   },
 )
 

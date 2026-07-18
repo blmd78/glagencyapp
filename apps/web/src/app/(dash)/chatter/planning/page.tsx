@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { getPlanning, getPlanningMembers } from '@/features/planning/services/get-planning'
 import { PlanningTemplate } from '@/features/planning/PlanningTemplate'
 import { PlanningSkeleton } from '@/features/planning/components/planning-skeleton'
@@ -6,8 +7,9 @@ import { requireAccess } from '@/lib/auth'
 import type { PlanningMember } from '@/features/planning/types'
 
 /**
- * Planning journalier : un membre (sous-manager) voit LE SIEN (RLS), un admin choisit
- * le membre via `?membre=` et édite (blocs, priorité, annexes).
+ * Planning journalier : chacun voit LE SIEN (RLS). Le sélecteur `?membre=` s'ouvre sur les
+ * personnes qu'on peut gérer (superadmin → tout ; admin → managers/sous-managers ; manager →
+ * ses sous-managers directs ; sous-manager → personne). Édition selon `canEdit` (miroir RLS).
  */
 export default async function PlanningPage({
   searchParams,
@@ -15,22 +17,23 @@ export default async function PlanningPage({
   searchParams: Promise<{ membre?: string }>
 }) {
   const profile = await requireAccess('planning')
+  // Planning = jamais de chatteur (matrice), même si un admin lui a coché le slug 'planning'.
+  // /no-access et pas landingHref : éviter la boucle si 'planning' est sa seule page autorisée.
+  if (profile.baseRole === 'chatteur') redirect('/no-access')
   const { membre } = await searchParams
-  const isAdmin = profile.role === 'admin'
 
-  // Kickoff SANS await : le header (titre + sélecteur de membre admin) est un widget
-  // client (`PlanningHeader`, useRouter) qui a besoin de `members` — pas de h1 « immédiat »
-  // séparable ici sans casser la mise en page (titre et sélecteur sur la même ligne, cf.
+  // Kickoff SANS await : le header (titre + sélecteur) est un widget client
+  // (`PlanningHeader`, useRouter) qui a besoin de `members` — pas de h1 « immédiat »
+  // séparable sans casser la mise en page (titre et sélecteur sur la même ligne, cf.
   // docs/guidelines-data-loading.md §3 « widget d'en-tête couplé à un hook »). Tout le
-  // composite streame dans un seul boundary.
-  const membersPromise = isAdmin ? getPlanningMembers(profile.superadmin) : null
+  // composite streame dans un seul boundary. `[]` pour sous-manager/chatteur.
+  const membersPromise = getPlanningMembers(profile.baseRole)
 
   return (
     <Suspense fallback={<PlanningSkeleton />}>
       <PlanningContent
         profileId={profile.id}
         selfName={profile.displayName ?? profile.email ?? 'Moi'}
-        isAdmin={isAdmin}
         superadmin={profile.superadmin}
         membre={membre}
         membersPromise={membersPromise}
@@ -42,47 +45,26 @@ export default async function PlanningPage({
 async function PlanningContent({
   profileId,
   selfName,
-  isAdmin,
   superadmin,
   membre,
   membersPromise,
 }: {
   profileId: string
   selfName: string
-  isAdmin: boolean
   superadmin: boolean
   membre?: string
-  membersPromise: Promise<PlanningMember[]> | null
+  membersPromise: Promise<PlanningMember[]>
 }) {
-  if (!isAdmin || !membersPromise) {
-    return (
-      <PlanningTemplate
-        data={await getPlanning(profileId)}
-        isAdmin={false}
-        canEdit={false}
-        members={[]}
-      />
-    )
-  }
-
-  // Sélecteur : SOI-MÊME en tête (un admin doit pouvoir OUVRIR son propre planning —
-  // celui que le superadmin lui a préparé), puis superadmin → membres + admins ;
-  // admin → membres uniquement. Édition : un admin consulte le sien en LECTURE SEULE
-  // (« le planning d'un admin n'est modifiable que par un superadmin » — garde
-  // requireCanEdit + RLS 0043, qui restent la défense contre un appel forgé).
-  const fetched = await membersPromise
-  const members: PlanningMember[] = [
-    { id: profileId, name: `${selfName} (moi)`, role: 'admin' },
-    ...fetched.filter((m) => m.id !== profileId),
-  ]
-  const target = membre && members.some((m) => m.id === membre) ? membre : (members[0]?.id ?? null)
-  const canEditTarget = superadmin || (target !== null && target !== profileId)
-  return (
-    <PlanningTemplate
-      data={target ? await getPlanning(target) : null}
-      isAdmin
-      canEdit={canEditTarget}
-      members={members}
-    />
-  )
+  // Personnes gérables (hors soi). S'il n'y en a aucune → pas de sélecteur (members vide),
+  // on ouvre le sien. SOI-MÊME en tête (on doit pouvoir rouvrir SON planning, préparé par un
+  // rôle au-dessus). `role: ''` = pas de suffixe de rôle dans le libellé du combobox.
+  const others = (await membersPromise).filter((m) => m.id !== profileId)
+  const members: PlanningMember[] = others.length
+    ? [{ id: profileId, name: `${selfName} (moi)`, role: '' }, ...others]
+    : []
+  const target = membre && members.some((m) => m.id === membre) ? membre : profileId
+  // Édition : on ne modifie jamais SON propre planning (préparé par un rôle au-dessus) ; le
+  // superadmin fait exception (il est au sommet). RLS 0043/0061 + requireCanEdit = la vraie défense.
+  const canEdit = superadmin || target !== profileId
+  return <PlanningTemplate data={await getPlanning(target)} canEdit={canEdit} members={members} />
 }

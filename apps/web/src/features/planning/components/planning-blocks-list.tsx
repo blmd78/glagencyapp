@@ -30,7 +30,7 @@ function Bullet({ text }: { text: string }) {
 
 /**
  * Sections + pauses (déduites du trou entre deux sections) + blocs horaires, édition
- * admin (crayon/suppression). Extrait de `planning-view.tsx` (split > 300 lignes,
+ * (crayon/suppression, selon `canEdit`). Extrait de `planning-view.tsx` (split > 300 lignes,
  * docs/guidelines-standard-feature.md §1) — DOM inchangé.
  */
 export function PlanningBlocksList({
@@ -39,22 +39,18 @@ export function PlanningBlocksList({
   canEdit,
   onEdit,
 }: {
-  data: PlanningData | null
+  data: PlanningData
   bySection: { section: PlanningSection; blocks: PlanningBlock[] }[]
   canEdit: boolean
   onEdit: (block: PlanningBlock) => void
 }) {
-  if (!data || bySection.length === 0) {
+  if (bySection.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center">
-        <p className="text-sm font-medium">
-          {data ? 'Aucun planning défini' : 'Aucun membre sélectionné'}
-        </p>
+        <p className="text-sm font-medium">Aucun planning défini</p>
         <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
           {canEdit
-            ? data
-              ? 'Ajoute un premier bloc pour construire le planning de ce membre.'
-              : 'Choisis un membre dans le sélecteur pour créer son planning.'
+            ? 'Ajoute un premier bloc pour construire le planning de ce membre.'
             : "Ton planning n’est pas encore défini — vois avec un admin."}
         </p>
       </div>

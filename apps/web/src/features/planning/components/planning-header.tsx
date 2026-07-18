@@ -15,7 +15,6 @@ import type { PlanningData, PlanningMember } from '../types'
  */
 export function PlanningHeader({
   data,
-  isAdmin,
   canEdit,
   members,
   totalMin,
@@ -23,9 +22,8 @@ export function PlanningHeader({
   onOpenMeta,
   onAddBlock,
 }: {
-  data: PlanningData | null
-  isAdmin: boolean
-  /** Cible éditable par le spectateur (un admin consulte SON planning en lecture seule). */
+  data: PlanningData
+  /** Cible éditable par le spectateur (on consulte SON propre planning en lecture seule). */
   canEdit: boolean
   members: PlanningMember[]
   totalMin: number
@@ -40,7 +38,7 @@ export function PlanningHeader({
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Planning journalier</h1>
         <p className="text-sm text-muted-foreground">
-          {data ? data.profileName : 'Aucun membre'}
+          {data.profileName}
           {totalMin > 0 && (
             <>
               {' '}· {fmtDuration(totalMin)} de travail effectif · {shiftsCount} shift
@@ -49,10 +47,10 @@ export function PlanningHeader({
           )}
         </p>
       </div>
-      {isAdmin && (
+      {members.length > 0 && (
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Combobox
-            value={data?.profileId ?? ''}
+            value={data.profileId}
             onChange={(id) => router.push(`/chatter/planning?membre=${id}`)}
             className="w-52"
             placeholder="Choisir un membre…"
@@ -67,7 +65,7 @@ export function PlanningHeader({
                     : m.name,
             }))}
           />
-          {data && canEdit && (
+          {canEdit && (
             <>
               <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenMeta}>
                 <SlidersHorizontal className="size-3.5" />

@@ -44,7 +44,8 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `select` nu → troncature à 1000 lignes), `Template` = Server Component + feuille client,
   `use cache` uniquement sur du global (jamais RLS cookie-bound), `proxy.ts` dans `src/`
   + `docs/guidelines-standard-feature.md` (squelette de feature, loading/erreurs/mutations/
-  forms — checklist nouvelle feature).
+  forms — checklist nouvelle feature) + `docs/guidelines-socle.md` (briques transverses du
+  batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **2 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`) et `Marketing`
   (`/marketing/*`). Une seule source : `config/workspaces.ts` (`WORKSPACES`). La face
   active se déduit du `pathname` (`workspaceForPath`) ; la sidebar (`AppSidebar` +
