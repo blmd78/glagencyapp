@@ -40,7 +40,7 @@ const STATUT_CLASS: Record<SnapStatut, string> = {
   'à recréer': 'text-orange-700 dark:text-orange-400',
 }
 
-function CodeRow({ row }: { row: SnapCodeRow }) {
+function CodeRow({ row, canWrite }: { row: SnapCodeRow; canWrite: boolean }) {
   const [local, setLocal] = useState(row)
   const [show, setShow] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -63,6 +63,9 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
   }
 
   function change(patch: Partial<SnapCodeRow>, immediate = false) {
+    // Lecture seule : les inputs readOnly restent focusables → un blur déclencherait un save
+    // voué à l'échec (adminGuard/RLS). On coupe le chemin d'écriture côté client.
+    if (!canWrite) return
     const next = { ...local, ...patch }
     setLocal(next)
     clearTimeout(timer.current)
@@ -79,6 +82,7 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
         <Input
           className="h-8 font-mono text-xs"
           value={local.pseudo}
+          readOnly={!canWrite}
           onChange={(e) => change({ pseudo: e.target.value })}
           onBlur={(e) => change({ pseudo: e.target.value }, true)}
           placeholder="pseudo…"
@@ -91,6 +95,7 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
             type={show ? 'text' : 'password'}
             className="h-8 font-mono text-xs"
             value={local.mdp}
+            readOnly={!canWrite}
             onChange={(e) => change({ mdp: e.target.value })}
             onBlur={(e) => change({ mdp: e.target.value }, true)}
             placeholder="mot de passe…"
@@ -107,7 +112,11 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
         </div>
       </TableCell>
       <TableCell className="min-w-32">
-        <Select value={local.statut} onValueChange={(v) => change({ statut: v as SnapStatut }, true)}>
+        <Select
+          value={local.statut}
+          disabled={!canWrite}
+          onValueChange={(v) => change({ statut: v as SnapStatut }, true)}
+        >
           <SelectTrigger className={cn('h-8 text-xs font-medium', STATUT_CLASS[local.statut])}>
             <SelectValue />
           </SelectTrigger>
@@ -124,6 +133,7 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
         <Input
           className="h-8 text-xs"
           value={local.notes}
+          readOnly={!canWrite}
           onChange={(e) => change({ notes: e.target.value })}
           onBlur={(e) => change({ notes: e.target.value }, true)}
           placeholder="notes…"
@@ -136,7 +146,7 @@ function CodeRow({ row }: { row: SnapCodeRow }) {
   )
 }
 
-export function SnapCodesView({ data }: { data: SnapCodesData }) {
+export function SnapCodesView({ data, canWrite }: { data: SnapCodesData; canWrite: boolean }) {
   const [model, setModel] = useState('all')
 
   const modelOptions = useMemo(
@@ -169,7 +179,7 @@ export function SnapCodesView({ data }: { data: SnapCodesData }) {
           </TableHeader>
           <TableBody>
             {shown.map((r) => (
-              <CodeRow key={r.creatorId} row={r} />
+              <CodeRow key={r.creatorId} row={r} canWrite={canWrite} />
             ))}
           </TableBody>
         </Table>

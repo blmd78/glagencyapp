@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, use, useEffect, useMemo } from 'react'
+import { Suspense, use, useEffect, useEffectEvent, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
@@ -126,6 +126,12 @@ export function AppSidebar({
       .sort((a, b) => heavy(a.href) - heavy(b.href))
       .map((i) => withPeriod(i.href, sp))
   }, [items, period])
+  // Effect Event (React 19.2) : lit isActivePath/router À JOUR à chaque tick sans relancer le
+  // sweep. Sans ça, isActivePath était capturé périmé (closure) → la page active pouvait se
+  // re-précharger ; l'ajouter aux deps aurait relancé le sweep à chaque navigation.
+  const prefetchIfInactive = useEffectEvent((href: string) => {
+    if (!isActivePath(href.split('?')[0])) prefetchFull(router, href)
+  })
   useEffect(() => {
     const conn = (
       navigator as { connection?: { saveData?: boolean; effectiveType?: string } }
@@ -143,7 +149,7 @@ export function AppSidebar({
         const href = allHrefs[i % allHrefs.length]
         // Comparaison sur le pathname SEUL : href porte ?from&to — sans strip, la page
         // ACTIVE elle-même se re-préchargeait en rendu serveur complet à chaque cycle.
-        if (href && !isActivePath(href.split('?')[0])) prefetchFull(router, href)
+        if (href) prefetchIfInactive(href)
         i++
       }
       // i < longueur = sweep rapide (démarrage OU re-sweep de retour d'absence).
@@ -186,8 +192,8 @@ export function AppSidebar({
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('load', startAfterIdle)
     }
-    // Relancer le sweep quand la liste d'onglets change suffit ; pathname/prefetch sont
-    // stables ou lus à la volée.
+    // Relancer le sweep quand la liste d'onglets change suffit ; l'accès frais à
+    // isActivePath/router passe par prefetchIfInactive (useEffectEvent), donc hors deps.
   }, [allHrefs])
 
   const renderDirect = (item: (typeof items)[number]) => {

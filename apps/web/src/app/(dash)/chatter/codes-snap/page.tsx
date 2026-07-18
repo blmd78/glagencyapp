@@ -1,14 +1,17 @@
 import { Suspense } from 'react'
 import { getSnapCodes } from '@/features/snap-codes/services/get-snap-codes'
 import { SnapCodesTemplate } from '@/features/snap-codes/SnapCodesTemplate'
-import { requireAdmin } from '@/lib/auth'
+import { requireAccess } from '@/lib/auth'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { SnapCodesData } from '@/features/snap-codes/types'
 
-// Codes Snap (groupe Accès, porté de gla-workflow) — page ADMIN, comme dans le legacy.
+// Codes Snap (groupe Accès, porté de gla-workflow) — page ASSIGNABLE : lecture pour qui a
+// la page, écriture réservée aux admins (adminGuard + RLS snap_codes_admin_all).
 export default async function CodesSnapPage() {
-  await requireAdmin()
+  const profile = await requireAccess('codes-snap')
+  // Écriture réservée admin (identifiants sensibles) : un accordé non-admin lit en read-only.
+  const canWrite = profile.role === 'admin'
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, le tableau streame dans
   // son boundary dès que la lecture répond.
   const data = getSnapCodes()
@@ -23,12 +26,12 @@ export default async function CodesSnapPage() {
           </SectionFallback>
         }
       >
-        <CodesSnapContent data={data} />
+        <CodesSnapContent data={data} canWrite={canWrite} />
       </Suspense>
     </div>
   )
 }
 
-async function CodesSnapContent({ data }: { data: Promise<SnapCodesData> }) {
-  return <SnapCodesTemplate data={await data} />
+async function CodesSnapContent({ data, canWrite }: { data: Promise<SnapCodesData>; canWrite: boolean }) {
+  return <SnapCodesTemplate data={await data} canWrite={canWrite} />
 }

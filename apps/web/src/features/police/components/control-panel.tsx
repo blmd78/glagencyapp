@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
@@ -33,7 +33,6 @@ export function ControlPanel({
     control,
     register,
     handleSubmit,
-    watch,
     reset,
     setError,
     formState: { errors, isSubmitting },
@@ -42,8 +41,9 @@ export function ControlPanel({
     defaultValues: { chatterId: '', errorKey: '', shift: '', amount: '', note: '' },
   })
 
-  const chatterId = watch('chatterId')
-  const amount = watch('amount')
+  // useWatch (pas watch) : compatible React Compiler (watch lit ref.current au render).
+  const chatterId = useWatch({ control, name: 'chatterId' })
+  const amount = useWatch({ control, name: 'amount' })
   const amountEur = amount?.trim() ? Number(amount.replace(',', '.')) : 0
   const isMalus = amountEur > 0
   const recentWarns = chatterId ? (data.warningsByChatter[chatterId] ?? 0) : null

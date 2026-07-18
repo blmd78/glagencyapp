@@ -97,8 +97,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/police', label: 'Police', icon: ShieldAlert, group: 'equipe' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
-      // Groupe Accès (porté de gla-workflow) : identifiants Snapchat (admin) + fiches modèles.
-      { href: '/chatter/codes-snap', label: 'Codes Snap', icon: Ghost, adminOnly: true, group: 'acces' },
+      // Groupe Accès (porté de gla-workflow) : identifiants Snapchat + fiches modèles.
+      // codes-snap : page ASSIGNABLE (lecture) ; l'écriture reste admin (adminGuard + RLS).
+      { href: '/chatter/codes-snap', label: 'Codes Snap', icon: Ghost, group: 'acces' },
       { href: '/chatter/infos-modeles', label: 'Infos modèles', icon: IdCard, group: 'acces' },
       // Sous-catégorie Spenders (CRM closing). Toutes les sous-pages partagent le droit
       // `crm-spenders` (slug explicite, aligné sur la RLS de 0031).
@@ -114,12 +115,10 @@ export const WORKSPACES: Workspace[] = [
       // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
       { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
-      // Comptes rendus journaliers — écrit par quiconque a le droit de page (admins
-      // d'office) ; le superadmin y lit tout le monde. Pas adminOnly → cochable
-      // dans Membres via PAGE_CHOICES.
-      // TODO(daily-reports): page créée par le plan 2026-07-16-daily-reports (Task 6) —
-      // cast en attendant ; retirer quand app/(dash)/chatter/dashboard/page.tsx existe.
-      { href: '/chatter/dashboard' as Route, label: 'Dashboard', icon: NotebookPen, bottom: true },
+      // Comptes rendus journaliers : chacun rédige LE SIEN (auto-rapport), consultation
+      // hiérarchique (manager → ses rattachés directs, admin/superadmin → tout). Pas adminOnly
+      // → cochable dans Membres via PAGE_CHOICES (feature `reports`, table daily_reports).
+      { href: '/chatter/dashboard', label: 'Dashboard', icon: NotebookPen, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
@@ -159,7 +158,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

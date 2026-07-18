@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -65,7 +65,6 @@ export function MemberDialog({
     control,
     handleSubmit,
     setError,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
@@ -93,7 +92,7 @@ export function MemberDialog({
     },
   })
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
-  const roleValue = watch('role')
+  const roleValue = useWatch({ control, name: 'role' })
 
   const submit = handleSubmit(async (values) => {
     const res = member
