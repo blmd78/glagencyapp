@@ -3,18 +3,15 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ActionButton } from '@/components/action-button'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { upsertReport, deleteTodayReport } from '../actions'
+import { upsertReport } from '../actions'
 import { upsertReportInput, type UpsertReportInput } from '../schema'
 
 /**
  * Rédaction de SON compte rendu DU JOUR (le seul modifiable — les jours passés sont figés).
  * `initialContent` = le CR du jour s'il existe déjà (édition) ; vide sinon (nouveau jour).
- * Suppression proposée uniquement s'il y a un CR à supprimer, et seulement pour aujourd'hui.
+ * Pas de suppression : le jour courant est toujours en édition, on remplace le contenu.
  */
 export function ReportForm({ initialContent }: { initialContent: string }) {
   const {
@@ -52,31 +49,9 @@ export function ReportForm({ initialContent }: { initialContent: string }) {
           {errors.root.serverError.message}
         </p>
       )}
-      <div className="flex items-center justify-end gap-2">
-        {initialContent && (
-          <ConfirmDialog
-            title="Supprimer le compte rendu d'aujourd'hui ?"
-            description="Seul le compte rendu du jour peut être supprimé."
-            trigger={
-              <Button type="button" variant="ghost" size="sm" className="gap-1.5 text-red-600 hover:text-red-700">
-                <Trash2 className="size-3.5" />
-                Supprimer
-              </Button>
-            }
-            onConfirm={async () => {
-              const res = await deleteTodayReport()
-              if (!res.success) {
-                toast.error(res.error)
-                return res.error
-              }
-              toast.success('Compte rendu supprimé')
-            }}
-          />
-        )}
-        <ActionButton type="submit" pending={isSubmitting}>
-          Enregistrer
-        </ActionButton>
-      </div>
+      <ActionButton type="submit" pending={isSubmitting} className="self-end">
+        Enregistrer
+      </ActionButton>
     </form>
   )
 }

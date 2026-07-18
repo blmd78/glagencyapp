@@ -7,7 +7,6 @@
 // Le superadmin n'écrit pas (form non rendu).
 
 import { revalidatePath } from 'next/cache'
-import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
@@ -25,27 +24,6 @@ export async function upsertReport(input: unknown): Promise<ActionResult> {
       if (!profile) throw new Error('Session expirée')
       // day = jour courant serveur : les jours passés ne passent jamais par ici.
       const { error } = await supabaseUpsert(profile.id, todayParis(), content)
-      if (error) throw new Error(error.message)
-      revalidatePath('/chatter/dashboard')
-    },
-  })
-}
-
-/** Supprime SON compte rendu DU JOUR uniquement (un jour passé n'est pas supprimable). */
-export async function deleteTodayReport(): Promise<ActionResult> {
-  return runAction({
-    schema: z.object({}),
-    input: {},
-    guard: pageGuard('dashboard'),
-    handler: async () => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
-      const supabase = await createClient()
-      const { error } = await supabase
-        .from('daily_reports')
-        .delete()
-        .eq('profile_id', profile.id)
-        .eq('day', todayParis())
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/dashboard')
     },
