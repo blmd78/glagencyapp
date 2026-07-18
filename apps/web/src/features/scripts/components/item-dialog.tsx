@@ -1,6 +1,6 @@
 'use client'
 
-import { useForm, Controller } from 'react-hook-form'
+import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
@@ -56,13 +56,13 @@ export function ItemDialog({
     control,
     handleSubmit,
     setError,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<ItemForm>({
     resolver: zodResolver(itemForm),
     values: item ? toForm(item) : emptyForm,
   })
-  const kind = watch('kind')
+  // useWatch (pas watch) : compatible React Compiler.
+  const kind = useWatch({ control, name: 'kind' })
 
   const submit = handleSubmit(async (values) => {
     const res = await saveScriptItem({ id: item?.id ?? null, creatorId, ...values })
