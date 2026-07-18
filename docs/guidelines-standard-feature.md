@@ -3,7 +3,9 @@
 Le contrat que toute feature `apps/web/src/features/<f>/` réplique (batches 2-5 de la
 réorg). Établi + vérifié sur le pilote `/chatter/chatters` (spec
 `docs/superpowers/specs/2026-07-16-standard-feature-design.md` §3-4). Complète
-`docs/guidelines-data-loading.md` (lectures) et `.claude/skills/archi-web/SKILL.md`.
+`docs/guidelines-data-loading.md` (lectures), `docs/guidelines-socle.md` (briques
+transverses du batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next)
+et `.claude/skills/archi-web/SKILL.md`.
 
 ---
 
@@ -174,9 +176,27 @@ features/<f>/
   `maybeSingle()`/`count` n'ont pas ce piège. (3) Le 0-row résiduel dans le handler (course
   ultra-serrée post-guard) reste un throw technique. Exemples : `planning/actions.ts`,
   `spenders/actions.ts` (`addRelance`), `marketing-staff/actions.ts`.
-- **Nommage des gardes locales** : suffixe `Guard` (`requireAdminGuard`, `adminGuard`…) —
-  jamais le nom nu d'un helper de `lib/auth` (`requireAdmin` y fait un `redirect()`, qui
-  serait AVALÉ par le `try/catch` de `runAction` : c'est LE piège).
+- **Gardes de `runAction` — ne jamais passer un helper `redirect()` de `lib/auth`.** LE piège :
+  `requireAdmin`/`requireAccess` (`lib/auth`) font un `redirect()` qui serait AVALÉ par le
+  `try/catch` de `runAction`. Comme `guard`, utiliser une garde qui **retourne** un résultat :
+  les gardes partagées de `lib/actions` (`adminGuard`, `pageGuard(slug)`,
+  `managerPageGuard(slug)`), ou une garde LOCALE renvoyant `{ ok }`/`{ profile }` (jamais un
+  `redirect`). Le suffixe `Guard` est réservé aux **wrappers d'un helper `lib/auth`**
+  (`requireAdminGuard`) ; une garde locale qui ne redirige pas peut garder un nom métier
+  (`requireCanEdit`, `requirePoliceProfile`, `requireRepos`…) — l'essentiel est qu'elle **ne
+  redirige pas**.
+- **Écriture réservée par rôle — triade miroir (chatteur = lecture seule).** Un chatteur ne
+  peut pas écrire, sauf exceptions (relances). Le contrôle tient sur **3 niveaux à garder
+  alignés** : (1) **RLS `can_write_page(slug)`** = enforcement réel en base (migration 0060) ;
+  (2) **serveur** — la Server Action prend `guard: managerPageGuard(slug)` dans `runAction`
+  (`lib/actions.ts`, miroir de la RLS via `hasWriteAccess`, `lib/auth`), **pas** `pageGuard`
+  (qui autorise le chatteur — réservé aux lectures/relances) ; (3) **UI** — `page.tsx` calcule
+  `const canWrite = profile.role === 'admin' || profile.manager` et le **threade en prop**
+  `page → <Feature>Template → <Feature>View → composants` pour masquer/désactiver les commandes
+  d'écriture (optimiste ; la RLS reste le vrai rempart). Variantes fines : `planning` thread un
+  `canEdit` (calcul superadmin/cible) ; `spenders` un `readOnly` local pour la vue liste.
+  **Toute nouvelle feature à écritures pose les 3 niveaux.** (Introduit au chantier rôles,
+  post-refacto standard.)
 - **Chaque Server Action revalide la route affectée** : `revalidatePath('/chatter/...')`
   après le `update`. Si la donnée mutée alimente un cache taggé (`use cache` +
   `cacheTag(...)`, ex. `get-ranking`), ajouter `updateTag(tag)` (stable Next 16, Server
@@ -191,11 +211,22 @@ features/<f>/
 
 ## 5. Forms
 
-- **RHF + `zodResolver` + schéma partagé dans `schema.ts`** — LE même objet Zod des deux
+- **RHF + `zodResolver` + schéma partagé dans `schema.ts`** — le même objet Zod des deux
   côtés (`resolver` client, `runAction({ schema, ... })` serveur). Exemple pilote :
   `features/chatters/schema.ts` (`updateChatterCrmInput`) consommé par
   `features/chatters/components/chatter-crm-dialog.tsx` (resolver) et
-  `features/chatters/actions.ts` (`runAction`).
+  `features/chatters/actions.ts` (`runAction`). Idem `members` (`memberInput`).
+- **Paire form-variant / server-variant** quand la saisie client diffère du contrat serveur
+  (montant en texte, `bulletsText`/`annexesText` → tableau…) : co-localiser les DEUX dans
+  `schema.ts` — le schéma de form (resolver client) ET le schéma d'input transformé (passé à
+  `runAction`). Ex. `planning` (`blockForm`/`blockInput`), `marketing-staff`, `police`,
+  `scripts`. La règle « même objet » ne vaut littéralement que pour un form sans transformation.
+- **Exception — éditeur contrôlé / autosave (non-RHF).** Certaines surfaces ne sont pas des
+  forms RHF mais des éditeurs à inputs contrôlés / autosave appelant l'action directement
+  (`infos-modeles`, `quotas`, `repos`, `snap-codes`, + `scripts`/`moveInput`). Leur schéma Zod
+  reste **inline dans `actions.ts`** (validation serveur-only mono-usage, aucun resolver client
+  à partager) — pas de `schema.ts`. Ne pas forcer RHF ni un `schema.ts` sur ces cas ; commenter
+  l'inline en en-tête.
 - **Erreur serveur globale** : `form.setError('root.serverError', { message: res.error })`
   sur un `ActionResult` en échec, affichée dans un `role="alert"`. Une erreur de **champ**
   posée par le serveur (`res.fieldErrors`) est effacée dès que le champ repasse la validation
@@ -280,6 +311,7 @@ doute :
 - [ ] `loading.tsx` avec la silhouette de la page (route préfetchable)
 - [ ] Lectures : RPC `SECURITY INVOKER` (agrégats) ou `fetchAll` ; TOUTE erreur destructurée et thrown ; « aujourd'hui » = `todayParis()`
 - [ ] Mutations : `runAction` + `revalidatePath` (+ `updateTag` si cache taggé) + toast
+- [ ] Écritures gatées rôle : `guard: managerPageGuard(slug)` (serveur) + `canWrite` threadé page→composants (UI) — miroir RLS `can_write_page`
 - [ ] Forms : RHF + `zodResolver` + schéma partagé dans `schema.ts` (Zod v4 : `z.uuid()`, `z.flattenError()`)
 - [ ] Aucun import d'une autre feature (ESLint le bloque) ; pas de barrel `index.ts`
 - [ ] `pnpm --filter @glagency/web lint && typecheck` avant commit
