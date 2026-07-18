@@ -115,12 +115,10 @@ export const WORKSPACES: Workspace[] = [
       // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
       { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
-      // Comptes rendus journaliers — écrit par quiconque a le droit de page (admins
-      // d'office) ; le superadmin y lit tout le monde. Pas adminOnly → cochable
-      // dans Membres via PAGE_CHOICES.
-      // TODO(daily-reports): page créée par le plan 2026-07-16-daily-reports (Task 6) —
-      // cast en attendant ; retirer quand app/(dash)/chatter/dashboard/page.tsx existe.
-      { href: '/chatter/dashboard' as Route, label: 'Dashboard', icon: NotebookPen, bottom: true },
+      // Comptes rendus journaliers : chacun rédige LE SIEN (auto-rapport), consultation
+      // hiérarchique (manager → ses rattachés directs, admin/superadmin → tout). Pas adminOnly
+      // → cochable dans Membres via PAGE_CHOICES (feature `reports`, table daily_reports).
+      { href: '/chatter/dashboard', label: 'Dashboard', icon: NotebookPen, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
