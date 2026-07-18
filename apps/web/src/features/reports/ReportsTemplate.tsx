@@ -1,13 +1,12 @@
-import { addDays, todayParis } from '@glagency/core'
+import { todayParis } from '@glagency/core'
 import { ReportsMemberSelect } from './components/reports-member-select'
-import { ReportForm } from './components/report-form'
-import { ReportsList } from './components/reports-list'
-import { REPORT_WINDOW_DAYS, type Report, type ReportMember } from './types'
+import { ReportsJournal } from './components/reports-journal'
+import type { Report, ReportMember } from './types'
 
 /**
  * Comptes rendus journaliers (« Dashboard ») — Server Component, aucun fetch (données en props).
- * Layout : sélecteur (si on peut consulter d'autres personnes) + form de rédaction (vue « moi »,
- * hors superadmin) + liste antéchrono. L'interactivité vit dans les feuilles client.
+ * Layout : sélecteur de personne (si on peut en consulter d'autres) + journal un-jour-à-la-fois.
+ * Rédaction possible seulement sur le jour courant, par son auteur ; le reste est consultation.
  */
 export function ReportsTemplate({
   reports,
@@ -18,17 +17,16 @@ export function ReportsTemplate({
   isSelf,
 }: {
   reports: Report[]
-  /** Nom de la personne consultée (pour l'en-tête « Comptes rendus de … »). */
+  /** Nom de la personne consultée (en-tête « Comptes rendus de … »). */
   targetName: string
   /** Personnes consultables (soi + autres). Vide = pas de sélecteur. */
   members: ReportMember[]
   target: string
-  /** Peut rédiger (= vue « moi » et pas superadmin). */
+  /** L'auteur peut rédiger SON CR du jour (vue « moi », hors superadmin). */
   canWrite: boolean
   /** La cible consultée est soi-même. */
   isSelf: boolean
 }) {
-  const today = todayParis()
   return (
     <div className="flex flex-col gap-6">
       {members.length > 0 && (
@@ -38,26 +36,18 @@ export function ReportsTemplate({
         </div>
       )}
 
-      {canWrite && (
-        <ReportForm today={today} minDay={addDays(today, -REPORT_WINDOW_DAYS)} reports={reports} />
-      )}
-
       {!isSelf && (
         <p className="text-sm text-muted-foreground">
           Comptes rendus de <span className="font-medium text-foreground">{targetName}</span>
         </p>
       )}
 
-      <ReportsList
+      <ReportsJournal
         reports={reports}
-        canDelete={canWrite}
-        emptyLabel={
-          canWrite
-            ? 'Aucun compte rendu pour l’instant — rédige le premier ci-dessus.'
-            : isSelf
-              ? 'Aucun compte rendu pour l’instant.'
-              : `Aucun compte rendu de ${targetName} sur les 30 derniers jours.`
-        }
+        today={todayParis()}
+        canWriteToday={canWrite}
+        isSelf={isSelf}
+        targetName={targetName}
       />
     </div>
   )

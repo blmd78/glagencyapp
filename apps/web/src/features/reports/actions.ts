@@ -1,53 +1,60 @@
 'use server'
 
-// Server Actions des comptes rendus journaliers. Écriture = LE SIEN uniquement (RLS
-// daily_reports, 0053/0064) ; garde applicative `pageGuard('dashboard')` = admin OU droit de
-// page (chatteurs accordés compris — auto-rapport). Le superadmin n'écrit pas (form non rendu).
+// Server Actions des comptes rendus journaliers. On ne rédige/supprime QUE le jour courant
+// (todayParis, côté serveur) → un jour passé est FIGÉ (consultation seule), impossible à
+// modifier/supprimer via l'action. Écriture = LE SIEN (RLS daily_reports, 0053/0064) ; garde
+// applicative pageGuard('dashboard') = admin OU droit de page (chatteurs accordés compris).
+// Le superadmin n'écrit pas (form non rendu).
 
 import { revalidatePath } from 'next/cache'
-import { addDays, todayParis } from '@glagency/core'
+import { z } from 'zod'
+import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { runAction, pageGuard, BusinessError, type ActionResult } from '@/lib/actions'
-import { REPORT_WINDOW_DAYS } from './types'
-import { upsertReportInput, deleteReportInput } from './schema'
+import { runAction, pageGuard, type ActionResult } from '@/lib/actions'
+import { upsertReportInput } from './schema'
 
-/** Crée ou met à jour SON compte rendu du jour choisi (upsert sur (profile_id, day)). */
+/** Crée ou met à jour SON compte rendu DU JOUR (upsert sur (profile_id, day=aujourd'hui)). */
 export async function upsertReport(input: unknown): Promise<ActionResult> {
   return runAction({
     schema: upsertReportInput,
     input,
     guard: pageGuard('dashboard'),
-    handler: async ({ day, content }) => {
+    handler: async ({ content }) => {
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée')
-      // Borne serveur : [J−30, J] Europe/Paris — jamais le futur, ni au-delà de la fenêtre.
-      const today = todayParis()
-      if (day > today || day < addDays(today, -REPORT_WINDOW_DAYS)) {
-        throw new BusinessError('Date hors de la fenêtre autorisée (30 derniers jours).')
-      }
-      const supabase = await createClient()
-      const { error } = await supabase.from('daily_reports').upsert(
-        { profile_id: profile.id, day, content, updated_at: new Date().toISOString() },
-        { onConflict: 'profile_id,day' },
-      )
+      // day = jour courant serveur : les jours passés ne passent jamais par ici.
+      const { error } = await supabaseUpsert(profile.id, todayParis(), content)
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/dashboard')
     },
   })
 }
 
-/** Supprime SON compte rendu (la RLS garantit « le sien uniquement »). */
-export async function deleteReport(id: string): Promise<ActionResult> {
+/** Supprime SON compte rendu DU JOUR uniquement (un jour passé n'est pas supprimable). */
+export async function deleteTodayReport(): Promise<ActionResult> {
   return runAction({
-    schema: deleteReportInput,
-    input: { id },
+    schema: z.object({}),
+    input: {},
     guard: pageGuard('dashboard'),
-    handler: async ({ id }) => {
+    handler: async () => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée')
       const supabase = await createClient()
-      const { error } = await supabase.from('daily_reports').delete().eq('id', id)
+      const { error } = await supabase
+        .from('daily_reports')
+        .delete()
+        .eq('profile_id', profile.id)
+        .eq('day', todayParis())
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/dashboard')
     },
   })
+}
+
+async function supabaseUpsert(profileId: string, day: string, content: string) {
+  const supabase = await createClient()
+  return supabase
+    .from('daily_reports')
+    .upsert({ profile_id: profileId, day, content, updated_at: new Date().toISOString() }, { onConflict: 'profile_id,day' })
 }
