@@ -30,7 +30,7 @@ const toForm = (d: PlanningData): MetaForm => ({
   annexNote: d.annexNote,
 })
 
-/** Dialog admin : encart priorité, note de pause et tâches annexes du planning. */
+/** Dialog d'édition : encart priorité, note de pause et tâches annexes du planning. */
 export function MetaDialog({
   data,
   open,

@@ -51,7 +51,7 @@ const toForm = (b: PlanningBlock): BlockForm => ({
   bulletsText: b.bullets.join('\n'),
 })
 
-/** Dialog admin : création/édition d'un bloc horaire (RHF + zod, schéma partagé). */
+/** Dialog d'édition : création/édition d'un bloc horaire (RHF + zod, schéma partagé). */
 export function BlockDialog({
   profileId,
   block,

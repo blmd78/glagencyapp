@@ -8,7 +8,7 @@ import { cache } from 'react'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
+import { getProfile, type Profile } from '@/lib/auth'
 import { runAction, type ActionResult } from '@/lib/actions'
 import { blockInput, metaInput } from './schema'
 
@@ -20,39 +20,37 @@ import { blockInput, metaInput } from './schema'
  * commit c0de767) — un guard ET un handler qui l'appellent avec le même `targetProfileId`
  * ne coûtent qu'une query de vérif du rôle cible, pas deux.
  */
+/** Rôle + rattachement de la cible (client session, RLS appliquée). Erreur TECHNIQUE thrown
+ *  (§3, remontée à Sentry via runAction) ; 0-row (PGRST116 = cible inexistante) → null (métier). */
+const loadTargetProfile = async (id: string) => {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role, manager_id')
+    .eq('id', id)
+    .single()
+  if (error && error.code !== 'PGRST116') throw new Error(error.message)
+  return data
+}
+
 const requireCanEdit = cache(
-  async (
-    targetProfileId: string,
-  ): Promise<{ profile: NonNullable<Awaited<ReturnType<typeof getProfile>>> } | { error: string }> => {
+  async (targetProfileId: string): Promise<{ profile: Profile } | { error: string }> => {
     const profile = await getProfile()
     if (!profile) return { error: 'Accès réservé' }
-    // admin/superadmin : un admin ne modifie pas le planning d'un autre admin (0043).
+    // superadmin : édite tout (dont son propre planning) — aucune query cible nécessaire.
+    if (profile.superadmin) return { profile }
+    const target = await loadTargetProfile(targetProfileId)
+    // admin : édite tout SAUF le planning d'un admin/superadmin (0043) — dont le sien.
     if (profile.role === 'admin') {
-      if (!profile.superadmin) {
-        const supabase = await createClient()
-        const { data } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', targetProfileId)
-          .single()
-        if (data && (data.role === 'admin' || data.role === 'superadmin')) {
-          return { error: 'Le planning d’un admin est géré par un superadmin' }
-        }
+      if (target && (target.role === 'admin' || target.role === 'superadmin')) {
+        return { error: 'Le planning d’un admin est géré par un superadmin' }
       }
       return { profile }
     }
     // manager : édite le planning de SES sous-managers directs (miroir RLS
     // can_manage_planning_of, 0061). Un sous-manager n'édite personne.
-    if (profile.baseRole === 'manager') {
-      const supabase = await createClient()
-      const { data } = await supabase
-        .from('profiles')
-        .select('role, manager_id')
-        .eq('id', targetProfileId)
-        .single()
-      if (data && data.role === 'sous-manager' && data.manager_id === profile.id) {
-        return { profile }
-      }
+    if (profile.baseRole === 'manager' && target?.role === 'sous-manager' && target.manager_id === profile.id) {
+      return { profile }
     }
     return { error: 'Accès réservé' }
   },

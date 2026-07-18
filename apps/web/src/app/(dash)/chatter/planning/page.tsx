@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { redirect } from 'next/navigation'
 import { getPlanning, getPlanningMembers } from '@/features/planning/services/get-planning'
 import { PlanningTemplate } from '@/features/planning/PlanningTemplate'
 import { PlanningSkeleton } from '@/features/planning/components/planning-skeleton'
@@ -16,6 +17,9 @@ export default async function PlanningPage({
   searchParams: Promise<{ membre?: string }>
 }) {
   const profile = await requireAccess('planning')
+  // Planning = jamais de chatteur (matrice), même si un admin lui a coché le slug 'planning'.
+  // /no-access et pas landingHref : éviter la boucle si 'planning' est sa seule page autorisée.
+  if (profile.baseRole === 'chatteur') redirect('/no-access')
   const { membre } = await searchParams
 
   // Kickoff SANS await : le header (titre + sélecteur) est un widget client
@@ -51,24 +55,16 @@ async function PlanningContent({
   membre?: string
   membersPromise: Promise<PlanningMember[]>
 }) {
-  // Personnes gérables (hors soi). S'il n'y en a aucune → pas de sélecteur, on ouvre le sien.
+  // Personnes gérables (hors soi). S'il n'y en a aucune → pas de sélecteur (members vide),
+  // on ouvre le sien. SOI-MÊME en tête (on doit pouvoir rouvrir SON planning, préparé par un
+  // rôle au-dessus). `role: ''` = pas de suffixe de rôle dans le libellé du combobox.
   const others = (await membersPromise).filter((m) => m.id !== profileId)
-  const hasSelect = others.length > 0
-  // SOI-MÊME en tête du sélecteur (on doit pouvoir rouvrir SON propre planning — celui qu'un
-  // rôle au-dessus nous a préparé). `role: 'admin'` = sentinelle « pas de suffixe » dans le libellé.
-  const members: PlanningMember[] = hasSelect
-    ? [{ id: profileId, name: `${selfName} (moi)`, role: 'admin' }, ...others]
+  const members: PlanningMember[] = others.length
+    ? [{ id: profileId, name: `${selfName} (moi)`, role: '' }, ...others]
     : []
-  const target = membre && members.some((m) => m.id === membre) ? membre : (members[0]?.id ?? profileId)
+  const target = membre && members.some((m) => m.id === membre) ? membre : profileId
   // Édition : on ne modifie jamais SON propre planning (préparé par un rôle au-dessus) ; le
   // superadmin fait exception (il est au sommet). RLS 0043/0061 + requireCanEdit = la vraie défense.
   const canEdit = superadmin || target !== profileId
-  return (
-    <PlanningTemplate
-      data={await getPlanning(target)}
-      hasSelect={hasSelect}
-      canEdit={canEdit}
-      members={members}
-    />
-  )
+  return <PlanningTemplate data={await getPlanning(target)} canEdit={canEdit} members={members} />
 }
