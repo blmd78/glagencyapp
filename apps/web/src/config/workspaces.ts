@@ -214,15 +214,23 @@ export function workspaceHome(w: Workspace): Route {
   return w.nav[0]?.href ?? (w.basePath as Route)
 }
 
-/** Accès d'un item de nav pour un profil — MÊME logique que le filtre sidebar (app-sidebar.tsx). */
-function canAccessNav(
-  item: NavItem,
-  p: { role: string; superadmin: boolean; manager: boolean; pages: string[] },
-): boolean {
-  if (item.superadminOnly && !p.superadmin) return false
-  if (p.role === 'admin') return true
-  if (item.adminOnly) return !!item.managerAccess && p.manager
-  return p.pages.includes(navSlug(item))
+/** Contexte d'accès : booléens de rôle + slugs de pages autorisés (Set pour lookup O(1)). */
+export interface NavAccess {
+  isAdmin: boolean
+  isSuperadmin: boolean
+  isManager: boolean
+  pages: Set<string>
+}
+
+/**
+ * Un profil voit-il cet item de nav ? SOURCE UNIQUE de la règle d'accès — appelée par le
+ * filtre de la sidebar (app-sidebar.tsx) ET par `landingHref`. Ne pas dupliquer ailleurs.
+ */
+export function canAccessNav(item: NavItem, a: NavAccess): boolean {
+  if (item.superadminOnly && !a.isSuperadmin) return false
+  if (a.isAdmin) return true
+  if (item.adminOnly) return !!item.managerAccess && a.isManager
+  return a.pages.has(navSlug(item))
 }
 
 /**
@@ -237,10 +245,16 @@ export function landingHref(p: {
   manager: boolean
   pages: string[]
 }): Route {
+  const access: NavAccess = {
+    isAdmin: p.role === 'admin',
+    isSuperadmin: p.superadmin,
+    isManager: p.manager,
+    pages: new Set(p.pages),
+  }
   for (const w of WORKSPACES) {
     for (const item of w.nav) {
       if (item.bottom) continue
-      if (canAccessNav(item, p)) return item.href
+      if (canAccessNav(item, access)) return item.href
     }
   }
   return '/no-access' as Route

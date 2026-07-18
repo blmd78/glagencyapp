@@ -25,7 +25,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { WORKSPACES, workspaceForPath, navSlug, isMarketingSlug } from '@/config/workspaces'
+import { WORKSPACES, workspaceForPath, canAccessNav, isMarketingSlug, type NavAccess } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { useNavTransition } from '@/components/nav-transition-context'
@@ -88,13 +88,13 @@ export function AppSidebar({
   const pagesKey = (allowedPages ?? []).join(',')
   const period = `${searchParams.get('from') ?? ''}|${searchParams.get('to') ?? ''}`
   const items = useMemo(() => {
-    const allowed = new Set(pagesKey ? pagesKey.split(',') : [])
-    return active.nav.filter((item) => {
-      if (item.superadminOnly && !isSuperadmin) return false
-      if (isAdmin) return true
-      if (item.adminOnly) return !!item.managerAccess && !!isManager
-      return allowed.has(navSlug(item))
-    })
+    const access: NavAccess = {
+      isAdmin: !!isAdmin,
+      isSuperadmin: !!isSuperadmin,
+      isManager: !!isManager,
+      pages: new Set(pagesKey ? pagesKey.split(',') : []),
+    }
+    return active.nav.filter((item) => canAccessNav(item, access))
   }, [active, isAdmin, isSuperadmin, isManager, pagesKey])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —
   // un groupe sans item visible disparaît.
