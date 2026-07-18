@@ -97,8 +97,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/police', label: 'Police', icon: ShieldAlert, group: 'equipe' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
-      // Groupe Accès (porté de gla-workflow) : identifiants Snapchat (admin) + fiches modèles.
-      { href: '/chatter/codes-snap', label: 'Codes Snap', icon: Ghost, adminOnly: true, group: 'acces' },
+      // Groupe Accès (porté de gla-workflow) : identifiants Snapchat + fiches modèles.
+      // codes-snap : page ASSIGNABLE (lecture) ; l'écriture reste admin (adminGuard + RLS).
+      { href: '/chatter/codes-snap', label: 'Codes Snap', icon: Ghost, group: 'acces' },
       { href: '/chatter/infos-modeles', label: 'Infos modèles', icon: IdCard, group: 'acces' },
       // Sous-catégorie Spenders (CRM closing). Toutes les sous-pages partagent le droit
       // `crm-spenders` (slug explicite, aligné sur la RLS de 0031).
@@ -159,7 +160,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

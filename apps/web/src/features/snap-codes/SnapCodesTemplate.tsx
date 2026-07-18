@@ -8,14 +8,15 @@ import type { SnapCodesData } from './types'
  * `h1` remonté dans `page.tsx` (kickoff sans await + Suspense, recette pilote) — sous-titre
  * en `-mt-4` pour compenser le double `gap-6` page/Template (docs/guidelines-standard-feature.md §2.5).
  */
-export function SnapCodesTemplate({ data }: { data: SnapCodesData }) {
+export function SnapCodesTemplate({ data, canWrite }: { data: SnapCodesData; canWrite: boolean }) {
   return (
     <div className="flex flex-col gap-6">
       <p className="-mt-4 text-sm text-muted-foreground">
-        Identifiants Snapchat par modèle (1 par modèle) — édition directe, sauvegarde automatique
+        Identifiants Snapchat par modèle (1 par modèle)
+        {canWrite ? ' — édition directe, sauvegarde automatique' : ' — lecture seule'}
       </p>
 
-      <SnapCodesView data={data} />
+      <SnapCodesView data={data} canWrite={canWrite} />
     </div>
   )
 }
