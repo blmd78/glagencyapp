@@ -34,8 +34,10 @@ async function crmWriteGuard(): Promise<{ ok: true } | { ok: false; error: strin
 }
 
 /**
- * Enregistre une relance. Le numéro R est figé = compteur courant + 1 (relances depuis le
- * dernier reset). L'unicité (creator_id, fan_id, jour_paris) garantit « 1 relance/jour » —
+ * Enregistre une relance. Le numéro R figé = le R AFFICHÉ après cette relance =
+ * `compteur_base` (correction/force admin) + relances depuis le dernier reset + 1 — aligné
+ * sur le calcul du RPC `crm_spenders_tracker` (0039). L'unicité (creator_id, fan_id,
+ * jour_paris) garantit « 1 relance/jour » —
  * le pré-check ci-dessous porte le message précis pour le cas MÉTIER atteignable (course
  * entre deux closers, onglet resté ouvert après minuit) ; un résiduel ultra-serré tombe en
  * throw générique dans le handler (même pattern que planning/actions.ts `saveBlock`).
@@ -66,7 +68,7 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
         getProfile(), // React.cache : déjà résolu par le guard dans cette même requête.
         supabase
           .from('spender_crm')
-          .select('compteur_reset_at')
+          .select('compteur_base, compteur_reset_at')
           .eq('creator_id', p.creatorId)
           .eq('fan_id', p.fanId)
           .maybeSingle(),
@@ -86,7 +88,8 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
         fan_id: p.fanId,
         chatter_id: p.chatterId,
         created_by: profile.id,
-        numero_r: (count ?? 0) + 1,
+        // R affiché après cette relance : base (force admin) + relances depuis reset + 1.
+        numero_r: (crm?.compteur_base ?? 0) + (count ?? 0) + 1,
         note: p.note ?? null,
       })
       // 23505 résiduel = course ultra-serrée entre le pré-check du guard et cet insert :
