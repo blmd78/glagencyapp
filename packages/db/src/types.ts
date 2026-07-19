@@ -2045,17 +2045,6 @@ export type Database = {
           date: string
         }[]
       }
-      crm_spenders_kpis: {
-        Args: { p_seuil?: number }
-        Returns: {
-          a_relancer: number
-          actifs: number
-          alertes: number
-          archives: number
-          ca_total: number
-          orphelins: number
-        }[]
-      }
       crm_spenders_tracker: {
         Args: { p_seuil?: number }
         Returns: {
