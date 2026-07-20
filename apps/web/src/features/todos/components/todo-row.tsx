@@ -99,7 +99,7 @@ export function TodoRow({
           d'écriture partagent le prédicat `can_write_todo_of`, migration 0067) — il n'existe
           donc aucun spectateur en lecture seule à qui masquer ces actions. Les révéler au
           survol les rendait introuvables au doigt et invisibles au premier coup d'œil. */}
-      <div className="ml-1 flex shrink-0 items-center justify-end gap-1.5">
+      <div className="ml-1 flex shrink-0 items-center justify-end gap-1">
         <Button variant="ghost" size="icon" className="size-7" aria-label="Modifier" onClick={onEdit}>
           <Pencil className="size-3.5" />
         </Button>

@@ -4,7 +4,7 @@ import { z } from 'zod'
 // liste (la cible du sélecteur) : il fait partie de l'entrée validée, la garde applicative
 // et la RLS tranchent ensuite le droit d'y écrire.
 
-const statusInvalidMsg = 'Statut invalide (à faire, en cours ou fini attendu)'
+const statusInvalidMsg = 'Statut invalide (à faire, en cours ou terminé attendu)'
 const status = z.enum(['todo', 'in_progress', 'done'], { message: statusInvalidMsg })
 const type = z.enum(['feature', 'bug', 'maintenance'])
 

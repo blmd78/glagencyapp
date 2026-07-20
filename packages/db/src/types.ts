@@ -2028,6 +2028,7 @@ export type Database = {
           title: string
           type: string | null
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
@@ -2043,6 +2044,7 @@ export type Database = {
           title: string
           type?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
@@ -2058,6 +2060,7 @@ export type Database = {
           title?: string
           type?: string | null
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -2070,6 +2073,13 @@ export type Database = {
           {
             foreignKeyName: "todos_profile_id_fkey"
             columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
