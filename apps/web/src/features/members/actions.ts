@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { getProfile } from '@/lib/auth'
-import { runAction, type ActionResult } from '@/lib/actions'
+import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
 import {
   authorizeRoleAndScope,
   managerIdPatch,
@@ -25,13 +25,15 @@ import { memberInput, memberUpdateInput } from './schema'
  * `./authz.ts` — DÉPLACEMENT PUR des helpers gelés (mêmes noms, mêmes corps, mêmes
  * messages, cf. self-review de la task), ce fichier ne garde QUE les Server Actions.
  *
- * Standard runAction (docs/guidelines-standard-feature.md §4) : la garde d'entrée +
- * TOUTE l'autorisation fine (lectures pures, avant mutation) vivent dans `guard`
- * (mêmes fonctions, mêmes messages, verbatim) ; `handler` re-dérive le même résultat à
- * partir des `values` déjà validées (les branches 'error' y sont une course résiduelle
- * impossible en pratique, cf. saveBlock/moveScriptItem) avant d'exécuter les mutations.
- * Erreur technique de mutation (Supabase) = throw → message générique (jamais un
- * `error.message` brut à l'UI) — la compensation deleteUser reste identique.
+ * ⚠️ Patron guard+handler HÉRITÉ, à reprendre : l'autorisation fine vit dans `guard` puis
+ * est re-dérivée dans `handler`, dans l'idée que le `cache()` de React évite la seconde
+ * requête. Il ne l'évite pas (il ne mémoïse que dans le rendu d'un Server Component), donc
+ * chaque mutation paie ses lectures deux fois. Les guidelines §4 prescrivent désormais une
+ * vérification unique en tête de handler — appliquée dans features/todos et features/planning,
+ * pas encore ici (frontière de privilèges + client service-role : reprise à faire avec un
+ * test manuel admin ET manager). Erreur technique de mutation (Supabase) = throw → message
+ * générique (jamais un `error.message` brut à l'UI) ; le doublon d'email, lui, est un refus
+ * MÉTIER (BusinessError + fieldErrors). La compensation deleteUser reste identique.
  */
 
 const revalidateMembers = () => {
@@ -66,8 +68,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       return { ok: true }
     },
     handler: async (values) => {
-      // Mémoïsé par requête (cache(), lib/auth) — pas de round-trip DB supplémentaire par
-      // rapport à l'appel déjà fait dans la garde.
+      // ⚠️ getProfile est ré-exécuté ici : le `cache()` de React ne mémoïse QUE dans le rendu
+      // d'un Server Component, pas dans une Server Action — cet appel refait donc réellement
+      // la requête. Dette connue du patron guard+handler (cf. guidelines §4, corrigé dans
+      // features/todos et features/planning) ; à reprendre lors du passage de cette feature.
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
       const { scope, email, displayName, pages, creatorIds, workLink } = values
@@ -93,7 +97,22 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
         email_confirm: true,
         user_metadata: { display_name: displayName },
       })
-      if (error || !created.user) throw new Error(error?.message ?? 'Création refusée')
+      if (error) {
+        // Cas MÉTIER, pas technique : `error.code` porte le code d'erreur STRUCTURÉ renvoyé
+        // par GoTrue (`ErrorCode` de @supabase/auth-js, HTTP 422 — le client le lit depuis le
+        // corps JSON `error_code`/`code`, cf. node_modules/@supabase/auth-js/src/lib/fetch.ts
+        // `handleError`). Fiable, contrairement à un `message.includes('already')` qui casse au
+        // premier changement de wording ou de langue côté GoTrue.
+        if (error.code === 'email_exists') {
+          throw new BusinessError(
+            'Un compte existe déjà avec cet email. Il est peut-être hors de ton périmètre ' +
+              '(pages ou modèles que tu ne vois pas) — demande à un admin de vérifier.',
+            { email: ['Cet email est déjà utilisé par un compte existant.'] },
+          )
+        }
+        throw new Error(error.message)
+      }
+      if (!created.user) throw new Error('Création refusée')
       const uid = created.user.id
 
       // Le trigger a posé le profil ET son rôle (allowlist → superadmin, sinon user) : on
