@@ -2013,6 +2013,69 @@ export type Database = {
         }
         Relationships: []
       }
+      todos: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          description: string | null
+          done_at: string | null
+          id: string
+          priority: number
+          profile_id: string
+          release: string | null
+          status: string
+          title: string
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          description?: string | null
+          done_at?: string | null
+          id?: string
+          priority?: number
+          profile_id: string
+          release?: string | null
+          status?: string
+          title: string
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          description?: string | null
+          done_at?: string | null
+          id?: string
+          priority?: number
+          profile_id?: string
+          release?: string | null
+          status?: string
+          title?: string
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todos_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todos_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2030,6 +2093,9 @@ export type Database = {
         Returns: Json
       }
       can_edit_planning_of: { Args: { target: string }; Returns: boolean }
+      can_manage_planning_of: { Args: { target: string }; Returns: boolean }
+      can_write_page: { Args: { slug: string }; Returns: boolean }
+      can_write_todo_of: { Args: { target: string }; Returns: boolean }
       chatter_first_seen: {
         Args: never
         Returns: {
@@ -2074,7 +2140,9 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: never; Returns: boolean }
+      is_manager: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
+      manages: { Args: { target: string }; Returns: boolean }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
         Returns: undefined
