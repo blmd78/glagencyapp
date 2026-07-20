@@ -2151,6 +2151,7 @@ export type Database = {
       }
       is_admin: { Args: never; Returns: boolean }
       is_manager: { Args: never; Returns: boolean }
+      is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       manages: { Args: { target: string }; Returns: boolean }
       mkt_save_staff_assignments: {

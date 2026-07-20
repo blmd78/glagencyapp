@@ -21,8 +21,9 @@ export const memberInput = z
     email: z.email('Email invalide'),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
     // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
-    // piloté par l'allowlist (trigger handle_new_user), jamais posé ici.
-    role: z.enum(['chatteur', 'sous-manager', 'manager', 'admin']),
+    // piloté par l'allowlist (trigger handle_new_user), jamais posé ici. `police` = rôle
+    // fonctionnel non hiérarchique (tracker « Police »), pas d'encadrement.
+    role: z.enum(['chatteur', 'police', 'sous-manager', 'manager', 'admin']),
     pages: z.array(z.string()),
     creatorIds: z.array(z.uuid()).max(50),
     // Rattachement à un manager ('' = aucun) — forcé au créateur si l'appelant est manager.
@@ -47,7 +48,7 @@ export const memberUpdateInput = z
     scope: z.enum(['chatter', 'marketing']),
     id: z.uuid(),
     displayName: z.string().trim().min(1, 'Nom requis').max(60),
-    role: z.enum(['chatteur', 'sous-manager', 'manager', 'admin']),
+    role: z.enum(['chatteur', 'police', 'sous-manager', 'manager', 'admin']),
     pages: z.array(z.string()),
     creatorIds: z.array(z.uuid()).max(50),
     managerId: z.uuid().or(z.literal('')),

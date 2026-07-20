@@ -88,7 +88,9 @@ export function MemberDialog({
               ? 'manager'
               : member?.role === 'sous-manager'
                 ? 'sous-manager'
-                : 'chatteur',
+                : member?.role === 'police'
+                  ? 'police'
+                  : 'chatteur',
       // Seules les pages du périmètre courant sont éditées ici.
       pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
       creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),

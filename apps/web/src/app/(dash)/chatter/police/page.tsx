@@ -19,9 +19,11 @@ export default async function PolicePage({
   // ensemble, cf. scripts/planning + docs/guidelines-data-loading.md §3).
   const data = getPolice(day ?? null, profile)
 
-  // Droit d'écriture (saisie avert./malus, édition malus) : admin ou manager/sous-manager —
-  // un chatteur consulte le tracker en lecture seule (miroir UI de hasWriteAccess).
-  const canWrite = profile.role === 'admin' || profile.manager
+  // Droit d'écriture (saisie avert./malus, édition malus) : admin, manager/sous-manager, ou
+  // le rôle fonctionnel `police` lui-même — un chatteur consulte le tracker en lecture seule
+  // (miroir UI de hasWriteAccess, complété pour `police` : la policy RLS police_entries a été
+  // étendue en 0070 pour l'accepter en écriture, additif — cf. features/police/actions.ts).
+  const canWrite = profile.role === 'admin' || profile.manager || profile.baseRole === 'police'
 
   return (
     <Suspense fallback={<PoliceSkeleton />}>
