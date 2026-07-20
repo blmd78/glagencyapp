@@ -20,9 +20,8 @@ export default async function PolicePage({
   const data = getPolice(day ?? null, profile)
 
   // Droit d'écriture (saisie avert./malus, édition malus) : admin, manager/sous-manager, ou
-  // le rôle fonctionnel `police` lui-même — un chatteur consulte le tracker en lecture seule
-  // (miroir UI de hasWriteAccess, complété pour `police` : la policy RLS police_entries a été
-  // étendue en 0070 pour l'accepter en écriture, additif — cf. features/police/actions.ts).
+  // le rôle fonctionnel `police` lui-même — un chatteur consulte en lecture seule. `requireAccess`
+  // a déjà vérifié la page pour un non-admin, donc `baseRole === 'police'` ici a forcément la page.
   const canWrite = profile.role === 'admin' || profile.manager || profile.baseRole === 'police'
 
   return (

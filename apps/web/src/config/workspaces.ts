@@ -97,8 +97,8 @@ export const WORKSPACES: Workspace[] = [
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
       { href: '/chatter/planning', label: 'Planning', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
-      // Libellé affiché « Tracker » (décision propriétaire) — slug/route/dossier restent
-      // `police` (renommer casserait profiles.pages + policies RLS, cf. features/police/).
+      // Libellé affiché « Tracker » — slug/route/dossier restent `police` (renommer
+      // casserait profiles.pages + policies RLS, cf. features/police/).
       { href: '/chatter/police', label: 'Tracker', icon: ShieldAlert, group: 'police' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },

@@ -46,9 +46,8 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     // Colonnes ENCADREMENT (Managers/Policiers) : récupération LARGE (manager + sous-manager +
     // police) pour la RÉSOLUTION DES NOMS (chatterById) — un sous-manager déjà assigné à une
     // cellule doit continuer d'afficher son nom même s'il n'est plus dans les OPTIONS proposées.
-    // Les OPTIONS par colonne (managerOptions / policierOptions), elles, sont filtrées par rôle
-    // exact plus bas (bug remonté : « Ajouter » proposait les chatteurs, puis proposait des
-    // managers dans la colonne Policiers faute de rôle dédié).
+    // Les OPTIONS par colonne (managerOptions / policierOptions), elles, sont filtrées par
+    // rôle exact plus bas — chaque colonne ne doit proposer QUE son rôle dédié.
     admin.from('profiles').select('id, display_name, role').in('role', ['manager', 'sous-manager', 'police']),
     admin.from('creators').select('id, name, active'),
     supabase
@@ -107,15 +106,14 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     .map((c) => ({ id: c.id, name: c.display_name }))
     .sort((a, b) => a.name.localeCompare(b.name))
   // Options par colonne encadrement — filtrées par rôle EXACT (pas de sous-manager dans
-  // Managers, pas de manager dans Policiers) : choix assumé du propriétaire.
-  const managerOptions = (encadrementRows ?? [])
-    .filter((m) => m.role === 'manager' && m.display_name)
-    .map((m) => ({ id: m.id, name: m.display_name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-  const policierOptions = (encadrementRows ?? [])
-    .filter((m) => m.role === 'police' && m.display_name)
-    .map((m) => ({ id: m.id, name: m.display_name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  // Managers, pas de manager dans Policiers).
+  const optsForRole = (role: string) =>
+    (encadrementRows ?? [])
+      .filter((m) => m.role === role && m.display_name)
+      .map((m) => ({ id: m.id, name: m.display_name as string }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  const managerOptions = optsForRole('manager')
+  const policierOptions = optsForRole('police')
 
   // Modèles (header) : id → nom + options actifs.
   const creatorById: Record<string, string> = {}

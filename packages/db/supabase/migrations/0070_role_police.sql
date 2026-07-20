@@ -33,20 +33,22 @@ grant execute on function public.is_police() to authenticated;
 -- (`can_write_page('police')`, posé par 0060), on AJOUTE le rôle fonctionnel `police`
 -- lui-même (`is_police() and has_page('police')`) — un chatteur reste exclu des deux
 -- branches. `police_read` (has_page seul) et `police_delete` (is_admin seul) INCHANGÉES.
+-- Appels wrappés `(select …)` : arguments constants/sans argument → réductibles en InitPlan
+-- (advisor Supabase `auth_rls_initplan`, posé par 0057 — à conserver ici).
 drop policy if exists police_insert on police_entries;
 create policy police_insert on police_entries for insert to authenticated
   with check (
-    public.can_write_page('police')
-    or (public.is_police() and public.has_page('police'))
+    (select public.can_write_page('police'))
+    or ((select public.is_police()) and (select public.has_page('police')))
   );
 
 drop policy if exists police_update on police_entries;
 create policy police_update on police_entries for update to authenticated
   using (
-    public.can_write_page('police')
-    or (public.is_police() and public.has_page('police'))
+    (select public.can_write_page('police'))
+    or ((select public.is_police()) and (select public.has_page('police')))
   )
   with check (
-    public.can_write_page('police')
-    or (public.is_police() and public.has_page('police'))
+    (select public.can_write_page('police'))
+    or ((select public.is_police()) and (select public.has_page('police')))
   );
