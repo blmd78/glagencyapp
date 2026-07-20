@@ -6,14 +6,14 @@ import { MetaDialog } from './meta-dialog'
 import { PlanningBlocksList } from './planning-blocks-list'
 import { PlanningHeader } from './planning-header'
 import { SECTIONS, durationMin, fmtDuration } from '../types'
-import type { PlanningBlock, PlanningData, PlanningMember } from '../types'
+import type { PlanningBlock, PlanningData } from '../types'
 
 /**
  * Planning journalier — chacun lit LE SIEN (RLS) ; édition réservée aux rôles gérants
  * (admin/superadmin, et manager sur ses sous-managers directs).
  * Les plages de section, pauses et la répartition du temps sont CALCULÉES des blocs.
  * Split > 300 lignes (docs/guidelines-standard-feature.md §1) : `planning-header.tsx`
- * (titre + sélecteur + actions d'édition) et `planning-blocks-list.tsx` (Bullet + sections/
+ * (titre + actions d'édition) et `planning-blocks-list.tsx` (Bullet + sections/
  * pauses/blocs, édition) — modèle `chatters-columns.tsx`/`chatters-sub-rows.tsx`. DOM
  * inchangé. Les 2 warnings react-hooks/exhaustive-deps ci-dessous (dépendance `blocks`
  * recréée à chaque rendu) sont connus et préexistants — pas corrigés ici.
@@ -21,12 +21,10 @@ import type { PlanningBlock, PlanningData, PlanningMember } from '../types'
 export function PlanningView({
   data,
   canEdit,
-  members,
 }: {
   data: PlanningData
   /** Édition de la cible (on ne modifie pas SON propre planning, sauf superadmin). */
   canEdit: boolean
-  members: PlanningMember[]
 }) {
   const [editingBlock, setEditingBlock] = useState<PlanningBlock | 'new' | null>(null)
   const [metaOpen, setMetaOpen] = useState(false)
@@ -59,7 +57,6 @@ export function PlanningView({
       <PlanningHeader
         data={data}
         canEdit={canEdit}
-        members={members}
         totalMin={totalMin}
         shiftsCount={bySection.length}
         onOpenMeta={() => setMetaOpen(true)}

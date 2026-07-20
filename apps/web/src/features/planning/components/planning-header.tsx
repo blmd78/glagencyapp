@@ -1,22 +1,20 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
 import { CalendarPlus, SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
 import { fmtDuration } from '../types'
-import type { PlanningData, PlanningMember } from '../types'
+import type { PlanningData } from '../types'
 
 /**
- * En-tête du planning : titre + sous-titre (temps effectif calculé), et pour un admin le
- * sélecteur de membre (navigue vers `?membre=`) + les 2 actions d'ouverture des dialogs.
+ * En-tête du planning : sous-titre (temps effectif calculé) + les 2 actions d'ouverture des
+ * dialogs. Le titre et le sélecteur de membre (COMMUN au planning et à la to-do) sont montés
+ * par `page.tsx`, au-dessus de la barre d'onglets — cf. `member-select.tsx`.
  * Extrait de `planning-view.tsx` (split > 300 lignes, docs/guidelines-standard-feature.md
- * §1) — DOM inchangé.
+ * §1) — DOM inchangé hormis le titre (h1 → h2, une seule page ne peut avoir qu'un `<h1>`).
  */
 export function PlanningHeader({
   data,
   canEdit,
-  members,
   totalMin,
   shiftsCount,
   onOpenMeta,
@@ -25,18 +23,15 @@ export function PlanningHeader({
   data: PlanningData
   /** Cible éditable par le spectateur (on consulte SON propre planning en lecture seule). */
   canEdit: boolean
-  members: PlanningMember[]
   totalMin: number
   shiftsCount: number
   onOpenMeta: () => void
   onAddBlock: () => void
 }) {
-  const router = useRouter()
-
   return (
     <div className="flex flex-wrap items-start gap-3">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Planning journalier</h1>
+        <h2 className="text-lg font-medium">Planning journalier</h2>
         <p className="text-sm text-muted-foreground">
           {data.profileName}
           {totalMin > 0 && (
@@ -47,36 +42,16 @@ export function PlanningHeader({
           )}
         </p>
       </div>
-      {members.length > 0 && (
+      {canEdit && (
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Combobox
-            value={data.profileId}
-            onChange={(id) => router.push(`/chatter/planning?membre=${id}`)}
-            className="w-52"
-            placeholder="Choisir un membre…"
-            searchPlaceholder="Rechercher un membre…"
-            options={members.map((m) => ({
-              value: m.id,
-              label:
-                m.role === 'manager'
-                  ? `${m.name} · manager`
-                  : m.role === 'sous-manager'
-                    ? `${m.name} · sous-manager`
-                    : m.name,
-            }))}
-          />
-          {canEdit && (
-            <>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenMeta}>
-                <SlidersHorizontal className="size-3.5" />
-                Priorité & annexes
-              </Button>
-              <Button size="sm" className="gap-1.5" onClick={onAddBlock}>
-                <CalendarPlus className="size-3.5" />
-                Ajouter un bloc
-              </Button>
-            </>
-          )}
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenMeta}>
+            <SlidersHorizontal className="size-3.5" />
+            Priorité & annexes
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={onAddBlock}>
+            <CalendarPlus className="size-3.5" />
+            Ajouter un bloc
+          </Button>
         </div>
       )}
     </div>
