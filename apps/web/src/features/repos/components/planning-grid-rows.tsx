@@ -86,11 +86,17 @@ export function PlanningGridRows({
                     </button>
                   }
                   value={cell.chatterIds}
-                  // Colonnes ENCADREMENT (Managers/Policiers) : options = profils
-                  // rôle manager ; colonnes modèles : chatteurs actifs.
-                  options={(c.encadrement ? data.managerOptions : data.chatterOptions).map(
-                    (o) => ({ value: o.id, label: o.name }),
-                  )}
+                  // Colonne Policiers : options = profils rôle police ; colonne Managers :
+                  // options = profils rôle manager (uniquement, pas de sous-manager) ;
+                  // colonnes modèles : chatteurs actifs. La RÉSOLUTION des noms déjà
+                  // assignés (labelById) reste, elle, sur la map fusionnée data.chatterById.
+                  options={(
+                    c.key === 'policiers'
+                      ? data.policierOptions
+                      : c.encadrement
+                        ? data.managerOptions
+                        : data.chatterOptions
+                  ).map((o) => ({ value: o.id, label: o.name }))}
                   labelById={data.chatterById}
                   // Le combobox ne gère que les IDs — les noms texte legacy restent
                   // intacts (chips retirables via leur croix dans le popover, cf. extraChips).
@@ -110,7 +116,13 @@ export function PlanningGridRows({
                       : undefined,
                     onRemove: () => onRemoveCellChip(day, c.key, { token: t }),
                   }))}
-                  placeholder={c.encadrement ? 'Rechercher un manager…' : 'Rechercher un chatteur…'}
+                  placeholder={
+                    c.key === 'policiers'
+                      ? 'Rechercher un policier…'
+                      : c.encadrement
+                        ? 'Rechercher un manager…'
+                        : 'Rechercher un chatteur…'
+                  }
                 />
                 ) : (
                   // Lecture seule (chatteur) : chips statiques, sans combobox ni édition.

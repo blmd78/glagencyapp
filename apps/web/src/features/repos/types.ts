@@ -59,12 +59,14 @@ export interface ReposData {
   creatorById: Record<string, string>
   /** Modèles actifs — options du crayon (compo des colonnes). */
   creatorOptions: EntityOption[]
-  /** id chatteur OU manager → nom : affichage des cellules (map fusionnée). */
+  /** id chatteur OU manager/sous-manager/police → nom : affichage des cellules (map fusionnée). */
   chatterById: Record<string, string>
   /** Chatteurs actifs — options des cellules des colonnes modèles. */
   chatterOptions: EntityOption[]
-  /** Profils rôle manager — options des cellules ENCADREMENT (Managers/Policiers). */
+  /** Profils rôle manager (uniquement) — options de la colonne « Managers ». */
   managerOptions: EntityOption[]
+  /** Profils rôle police (uniquement) — options de la colonne « Policiers ». */
+  policierOptions: EntityOption[]
   sentTelegram: boolean
   /** Semaines proposées au sélecteur (récentes d'abord, inclut la prochaine). */
   weeks: WeekChoice[]
