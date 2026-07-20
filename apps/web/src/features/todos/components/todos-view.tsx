@@ -16,12 +16,12 @@ import { TodosList } from './todos-list'
 // import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 // import { TodosBoard } from './todos-board'
 
-// KANBAN EN PAUSE (2026-07-20) — plus rien n'écrit la préférence d'affichage tant que la
-// bascule n'est pas rétablie. `page.tsx` continue de LIRE le cookie et de passer la prop :
-// une préférence « kanban » déjà posée sur un poste reste donc mémorisée et reprendra effet
-// telle quelle à la réactivation.
-// Même idiome que SIDEBAR_COOKIE_NAME / SIDEBAR_COOKIE_MAX_AGE (components/ui/sidebar.tsx) :
-// écrit côté client, lu côté serveur au chargement suivant. Pas de localStorage (script
+// KANBAN EN PAUSE (2026-07-20) — la chaîne de la préférence d'affichage est entièrement
+// débranchée : plus personne n'écrit ce cookie et `page.tsx` ne le lit plus. Le nom est
+// conservé comme graine de réactivation. À la reprise, il faudra rétablir la lecture côté
+// serveur en plus des blocs commentés ci-dessous.
+// Idiome de référence pour cette lecture : SIDEBAR_COOKIE_NAME / SIDEBAR_COOKIE_MAX_AGE
+// (components/ui/sidebar.tsx). Pas de localStorage (script
 // bloquant anti-flash) ni de `?affichage=` (préférence perso, pas à partager, l'URL porte
 // déjà `?vue=` et `?membre=`).
 // const TODOS_AFFICHAGE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 an

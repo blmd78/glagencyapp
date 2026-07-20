@@ -52,13 +52,13 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `WorkspaceSwitcher`) affiche la nav de cette face. Ajouter/remplir une face = éditer
   `WORKSPACES` + créer les routes sous son `basePath`. Ne pas réintroduire de routes à plat.
 - **To-do personnelle** : 2e onglet de `/chatter/planning` (`?vue=todo`), une liste par
-  encadrant (`todos`, RLS `can_write_todo_of`, migration `0067`). Chacun gère la sienne ; la
-  hiérarchie peut y déposer une tâche (mêmes règles que le planning). Aucun slug dédié : le
-  droit vient de « Planning ». Deux vues — **liste** (défaut) et **kanban** (glisser-déposer,
-  `dnd-kit`) — basculées par un toggle dont la préférence est persistée en cookie
-  (`todos_affichage`), lu côté serveur au chargement suivant. Filtre par release en local
-  (`useState`, pas d'URL) dans `todos-view.tsx`, appliqué aux deux vues. Claude y écrit en SQL
-  direct (`created_by` null → « Claude »).
+  encadrant (`todos`, RLS `can_write_todo_of`, migrations `0067`/`0068`). Chacun gère la
+  sienne ; la hiérarchie peut y déposer une tâche (mêmes règles que le planning). Aucun slug
+  dédié : le droit vient de « Planning ». **Une seule vue exposée** : liste en sections
+  repliables par statut (badge de statut cliquable, priorité en icône, ajout rapide par
+  section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
+  (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
+  (`created_by` null → « Claude »).
 
 ## Données MyPuls — workflow d'ajout
 
