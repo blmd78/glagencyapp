@@ -39,8 +39,10 @@ export async function saveQuotas(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: adminGuard,
     handler: async ({ upserts, deletes }) => {
-      // Mémoïsé par requête (`cache()`, lib/auth) — pas de round-trip DB supplémentaire
-      // par rapport à l'appel déjà fait dans la garde.
+      // ⚠️ getProfile est ré-exécuté ici : le `cache()` de React ne mémoïse QUE dans le rendu
+      // d'un Server Component, pas dans une Server Action — cet appel refait donc réellement
+      // la requête. Dette connue du patron guard+handler (cf. guidelines §4, corrigé dans
+      // features/todos et features/planning) ; à reprendre lors du passage de cette feature.
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
 

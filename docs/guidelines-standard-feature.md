@@ -112,18 +112,26 @@ features/<f>/
   avalée. `const { data, error } = await supabase.from(...)…; if (error) throw new
   Error(error.message)`. Une erreur non catchée dans un service remonte à la boundary
   `error.tsx` la plus proche (workspace ou `(dash)`) via React.
-- **Règle actions** : erreur **métier/validation** = valeur de `return` typée (`ActionResult`) ;
-  erreur **technique** = `Sentry.captureException(err)` + message générique — jamais un
-  `error.message` Supabase brut affiché à l'utilisateur. `runAction` (`src/lib/actions.ts`)
-  applique déjà cette règle : tout le pipeline est sous `try/catch`, donc même une garde qui
-  `throw` est traitée comme technique. **Unique exception au « pas de throw métier » :
-  `BusinessError`** (même fichier) — quand SEULE la base peut trancher un conflit métier
-  (contrainte unique, RPC anti-vol, lignes cachées par la RLS → pré-check applicatif
-  impossible), le handler détecte l'erreur DB par sa signature et lève
-  `throw new BusinessError('Message français à nous')` : `runAction` la renvoie comme retour
-  métier (message affiché tel quel, pas de Sentry). Réservée aux messages écrits par nous —
-  jamais un `error.message` brut. Exemple : `features/marketing-staff/actions.ts`
-  (`saveStaffAssignments`, conflit anti-vol).
+- **Règle actions — ligne de partage NETTE** : **tout message métier écrit PAR NOUS (en
+  français) = `throw new BusinessError('...')`** (`src/lib/actions.ts`) ; `runAction` le
+  renvoie tel quel comme retour typé (`ActionResult`), pas de Sentry. **Une `Error` nue = TOUJOURS
+  technique** — `Sentry.captureException(err)` + message générique, y compris quand on est
+  tenté d'y mettre un message français ou un `error.message` Supabase brut : ces deux cas sont
+  avalés par `runAction` en « Erreur inattendue » et polluent Sentry de faux positifs (vécu :
+  `createUser` → `email_exists` non catché, `features/members/actions.ts`, audit 2026-07-19).
+  Il n'y a **pas** de zone grise « ce message est presque métier » : soit c'est nous qui
+  l'écrivons (→ `BusinessError`), soit c'est un message externe qu'on ne maîtrise pas (→
+  `Error`, jamais affiché brut).
+  `BusinessError` n'est **pas** réservée aux seuls conflits que SEULE la base peut trancher —
+  contrairement à ce que sa présentation laissait penser jusqu'ici. Elle couvre aussi bien un
+  conflit détecté par une lecture DB (`features/marketing-staff/actions.ts`,
+  `saveStaffAssignments`, conflit anti-vol RPC) qu'un refus détecté SANS aucune lecture DB, par
+  un code d'erreur structuré renvoyé par une API (`features/members/actions.ts`, `createMember`
+  — `error.code === 'email_exists'` sur le retour de `admin.auth.admin.createUser`, code
+  `ErrorCode` de `@supabase/auth-js`, pas un `message.includes(...)` fragile). Second argument
+  optionnel `fieldErrors` (mêmes clés que le schéma zod) : pose le message sur le champ fautif
+  du formulaire plutôt que sur le seul message global — cf. `member-dialog.tsx` /
+  `todo-dialog.tsx`, qui remappent `res.fieldErrors` champ par champ.
 - **`ErrorFallback` partagé** (`src/components/error-fallback.tsx`) : capture
   `Sentry.captureException(error)` dans un `useEffect([error])`, affiche un `role="alert"` +
   bouton « Réessayer » branché sur `unstable_retry` (Next 16.2 — re-fetch + re-render du
@@ -164,18 +172,58 @@ features/<f>/
   message générique. Chaque `actions.ts` l'utilise ; la RLS reste le garde-fou réel (défense
   en profondeur, pas le seul rempart). Exemple pilote : `features/chatters/actions.ts`
   (`updateChatterCrm`).
-- **Pattern « pré-check dans le guard »** (les 8 commentaires code qui renvoient ici) : quand
-  un message métier précis dépend d'une lecture DB (« Bloc introuvable », « Déjà relancé
-  aujourd'hui »…), le `guard` capture le `raw` en closure, fait un `safeParse` DÉFENSIF
-  (échec → `{ ok: true }` : c'est le `safeParse` de `runAction` qui produira les
-  `fieldErrors`), puis le SELECT de visibilité → rejet métier en `{ ok: false, error }`.
-  Règles : (1) l'`error` du SELECT de pré-check est **destructurée et thrown** (un échec
-  technique ne doit pas se déguiser en message métier ni passer sous silence) ; (2) **nuance
-  `.single()`** : il erre AUSSI sur 0 ligne (`PGRST116`) — ce cas-là est MÉTIER ; ne thrower
-  que `error.code !== 'PGRST116'` (cf. `features/planning/actions.ts`, `saveBlock`) ;
-  `maybeSingle()`/`count` n'ont pas ce piège. (3) Le 0-row résiduel dans le handler (course
-  ultra-serrée post-guard) reste un throw technique. Exemples : `planning/actions.ts`,
-  `spenders/actions.ts` (`addRelance`), `marketing-staff/actions.ts`.
+- **Vérification métier — UNE SEULE FOIS, en tête du `handler`.** Quand un message précis
+  dépend d'une lecture DB ou d'un droit fin (« Bloc introuvable », « Cette tâche n'existe
+  plus », cible hors périmètre du manager…), la vérification vit **exclusivement dans le
+  `handler`**, jamais dans le `guard`. Un refus lève `throw new BusinessError('message',
+  fieldErrors?)`. Le `guard` associé est `noGuard` (`const noGuard = async () => ({ ok: true as
+  const })` — `runAction` exige un `guard`, `noGuard` le satisfait sans rien vérifier).
+  Exemples canoniques : `features/todos/actions.ts` (`requireCanWriteTodo`),
+  `features/planning/actions.ts` (`requireCanEdit`, `saveBlock`).
+
+  **Ancien patron — NE PLUS ÉCRIRE, et ne pas « re-optimiser » vers lui.** On a longtemps fait
+  vivre cette vérification dans le `guard` (avec un `safeParse` DÉFENSIF du `raw` capturé en
+  closure, car le `guard` s'exécute AVANT le `schema.safeParse` officiel de `runAction`), puis
+  le `handler` la **re-dérivait** derrière un commentaire du genre « Mémoïsé par requête
+  (`cache()`, lib/auth) — pas de round-trip DB supplémentaire ». C'est **faux** : `cache()`
+  (React) ne mémoïse QUE dans le rendu d'un Server Component
+  (react.dev/reference/react/cache : « cache is for use in Server Components only ») — appelée
+  depuis le `guard`/`handler` d'une Server Action, qui n'est PAS un rendu RSC, la fonction
+  s'exécute mais ne lit ni n'alimente jamais le cache. Deux dégâts concrets : (1) une requête
+  Supabase doublée à CHAQUE mutation ; (2) surtout, le second passage dans le `handler`
+  redécouvrait le même refus mais le levait souvent en `throw new Error(message)` NU au lieu du
+  `{ ok: false, error }` typé du `guard` — `runAction` l'avale alors en « Erreur inattendue »
+  et l'envoie à Sentry, alors que c'était un refus métier normal. C'est exactement le bug vécu
+  sur `createMember` (`email_exists` non catché, `features/members/actions.ts`, audit
+  2026-07-19) : le `guard` ne pouvait pas pré-vérifier l'email (seul `createUser` le sait), et
+  le `throw new Error(...)` générique du `handler` a avalé le message métier. Supprime aussi le
+  `safeParse` défensif du `guard` en migrant vers ce patron : il n'avait de sens QUE pour
+  nourrir un `guard` qui lisait `values` avant validation officielle — le `handler`, lui, reçoit
+  déjà des `values` validées par `runAction`.
+
+  Nuances qui restent valables, migrées du `guard` vers le `handler` : (1) l'`error` d'un
+  SELECT de pré-check est **destructurée et thrown** (un échec technique ne doit pas se
+  déguiser en message métier ni passer sous silence) ; (2) `.single()` erre AUSSI sur 0 ligne
+  (`PGRST116`) — ce cas-là est MÉTIER, ne thrower que si `error.code !== 'PGRST116'` (cf.
+  `features/planning/actions.ts`, `loadTargetProfile`) ; `maybeSingle()`/`count` n'ont pas ce
+  piège. (3) Un 0-row résiduel APRÈS la vérification métier (course ultra-serrée entre la
+  lecture et l'écriture) reste un throw technique.
+
+  **Contre-piège — NE PAS retirer `cache()` de `lib/auth` (`getProfile`/`getUser`), `lib/scope`
+  (`getChatterScope`) ou `lib/supabase/server` (`createClient`).** Le paragraphe ci-dessus ne
+  dit PAS que `cache()` est inutile : ces fonctions sont aussi appelées depuis des **Server
+  Components** (layout, gardes de page) — LÀ, dans un rendu RSC, la mémoïsation par requête est
+  réelle et load-bearing (un layout + une page qui appellent chacun `getProfile()` ne paient
+  qu'UNE requête). Un `grep cache(` qui retirerait ces `cache()` casserait le rendu de toutes
+  les pages. Ce qui est faux, c'est de compter sur ce même `cache()` pour économiser un appel
+  fait DEPUIS une Server Action (`guard`/`handler` de `runAction`) — deux contextes d'exécution
+  différents, une seule des deux mémoïse.
+
+  État du code (2026-07) : `todos/actions.ts` et `planning/actions.ts` suivent déjà ce patron ;
+  `members/actions.ts`, `insights/actions.ts`, `police/actions.ts`, `quotas/actions.ts`,
+  `scripts/actions.ts`, `repos/actions.ts`, `spenders/actions.ts` (`addRelance`) et
+  `marketing-staff/actions.ts` montrent encore l'ancien — migration au coup par coup (chantier
+  séparé par feature, avec test manuel), pas un find-and-replace en masse.
 - **Gardes de `runAction` — ne jamais passer un helper `redirect()` de `lib/auth`.** LE piège :
   `requireAdmin`/`requireAccess` (`lib/auth`) font un `redirect()` qui serait AVALÉ par le
   `try/catch` de `runAction`. Comme `guard`, utiliser une garde qui **retourne** un résultat :
@@ -311,6 +359,9 @@ doute :
 - [ ] `loading.tsx` avec la silhouette de la page (route préfetchable)
 - [ ] Lectures : RPC `SECURITY INVOKER` (agrégats) ou `fetchAll` ; TOUTE erreur destructurée et thrown ; « aujourd'hui » = `todayParis()`
 - [ ] Mutations : `runAction` + `revalidatePath` (+ `updateTag` si cache taggé) + toast
+- [ ] Aucune garde ne s'exécute deux fois par mutation (vérification métier dans le `handler`
+      uniquement, `guard` = `noGuard` ou auth générique — jamais les deux qui re-dérivent le
+      même résultat)
 - [ ] Écritures gatées rôle : `guard: managerPageGuard(slug)` (serveur) + `canWrite` threadé page→composants (UI) — miroir RLS `can_write_page`
 - [ ] Forms : RHF + `zodResolver` + schéma partagé dans `schema.ts` (Zod v4 : `z.uuid()`, `z.flattenError()`)
 - [ ] Aucun import d'une autre feature (ESLint le bloque) ; pas de barrel `index.ts`
