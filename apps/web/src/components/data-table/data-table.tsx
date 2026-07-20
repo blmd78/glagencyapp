@@ -1,11 +1,12 @@
 'use client'
 
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { memo, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
   type Row,
   type SortingState,
+  type Table as TanstackTable,
   flexRender,
   getCoreRowModel,
   getExpandedRowModel,
@@ -14,6 +15,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   Table,
   TableBody,
@@ -47,30 +49,43 @@ interface DataTableProps<T> {
   getRowId?: (row: T) => string
   /** Contrôles additionnels rendus à côté de la barre de recherche (ex. un Select). */
   toolbar?: ReactNode
-  /** false = long scroll : toutes les lignes rendues, footer sans boutons de page. */
+  /** false = long scroll VIRTUALISÉ : toutes les lignes scrollables, seul le viewport rendu. */
   paginated?: boolean
+  /**
+   * Hauteur de ligne (px) en mode virtualisé (`paginated={false}`). Doit correspondre à la
+   * hauteur RÉELLE d'une ligne (contenu mono-ligne) — sinon le scroll dérive. Les lignes sont
+   * forcées à cette hauteur. 44 = `p-2` (16) + contenu mono-ligne (badges/cases ~28).
+   */
+  estimateRowHeight?: number
 }
 
 /**
  * Ligne MÉMOÏSÉE : sans elle, chaque re-render du tableau (frappe dans le filtre, patch
- * optimiste, refresh) reconstruisait TOUTES les lignes matérialisées — après un scroll
- * profond en long scroll, plusieurs secondes de gel. Comparaison par identité de la
- * donnée (`row.original`) : seules les lignes dont la donnée a changé re-rendent.
- * (Les instances Row de TanStack changent à chaque données ; leurs méthodes restent
- * valides — elles délèguent par id à l'instance de table, qui est stable.)
+ * optimiste, refresh) reconstruisait TOUTES les lignes matérialisées. Comparaison par
+ * identité de la donnée (`row.original`) : seules les lignes dont la donnée a changé
+ * re-rendent. (Les instances Row de TanStack changent à chaque données ; leurs méthodes
+ * restent valides — elles délèguent par id à l'instance de table, qui est stable.)
+ *
+ * `rowHeight` est CONSTANT sur la durée de vie du tableau (jamais comparé par le memo, à
+ * dessein) : en mode virtualisé il fixe la hauteur pour que l'estimation du virtualizer
+ * colle au rendu réel.
  */
 function DataTableRowInner<T>({
   row,
   expanded,
   renderSubRows,
+  rowHeight,
 }: {
   row: Row<T>
   expanded: boolean
   renderSubRows?: (row: Row<T>) => ReactNode
+  rowHeight?: number
 }) {
+  const style: CSSProperties | undefined = rowHeight ? { height: rowHeight } : undefined
   return (
     <>
       <TableRow
+        style={style}
         className={cn(row.getCanExpand() && 'cursor-pointer')}
         onClick={() => row.getCanExpand() && row.toggleExpanded()}
       >
@@ -98,7 +113,97 @@ const DataTableRow = memo(
     prev.expanded === next.expanded,
 ) as typeof DataTableRowInner
 
-/** Data-table shadcn/TanStack réutilisable : filtre + tri + pagination + lignes dépliables. */
+/**
+ * Corps VIRTUALISÉ (mode long scroll, `paginated={false}`) : seules les lignes du viewport
+ * (+ overscan) sont montées, recyclées au scroll → DOM CONSTANT quelle que soit la profondeur
+ * (l'ancien rendu incrémental empilait les <tr> sans jamais les retirer : sur des milliers de
+ * spenders × 18 colonnes interactives, le bas de liste finissait par ramer).
+ *
+ * Composant SÉPARÉ à dessein : `useVirtualizer` (et le `Date.now()` interne de react-virtual,
+ * interdit dans le shell prérendu sous `cacheComponents` sans `<Suspense>` au-dessus) ne
+ * s'exécute donc QUE pour les tables `paginated={false}` — jamais pour les tables paginées.
+ *
+ * Table native (pas le wrapper <Table>, qui crée son propre contexte de scroll horizontal et
+ * casserait le sticky vertical). Header sticky sur les <th>. Lignes-espaceurs (haut/bas) qui
+ * réservent la hauteur des lignes non montées → barre de scroll fidèle. Alignement des colonnes
+ * préservé car les lignes restent dans le flux normal (pas de position:absolute).
+ */
+function VirtualizedTable<T>({
+  table,
+  estimateRowHeight,
+  renderSubRows,
+}: {
+  table: TanstackTable<T>
+  estimateRowHeight: number
+  renderSubRows?: (row: Row<T>) => ReactNode
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const rows = table.getRowModel().rows
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => estimateRowHeight,
+    getItemKey: (index) => rows[index]?.id ?? index,
+    overscan: 12,
+  })
+  const items = virtualizer.getVirtualItems()
+  const paddingTop = items.length > 0 ? items[0].start : 0
+  const paddingBottom = items.length > 0 ? virtualizer.getTotalSize() - items[items.length - 1].end : 0
+  // Span exact des colonnes visibles : les lignes-espaceurs portent un <td colSpan> (un <tr>
+  // vide ne réserve pas sa hauteur de façon fiable selon les navigateurs).
+  const leafColumnCount = table.getVisibleLeafColumns().length
+
+  return (
+    <div ref={scrollRef} className="max-h-[70vh] overflow-auto rounded-xl border">
+      <table className="w-full caption-bottom text-sm">
+        <TableHeader>
+          {table.getHeaderGroups().map((hg) => (
+            <TableRow key={hg.id}>
+              {hg.headers.map((h) => (
+                <TableHead
+                  key={h.id}
+                  className={cn(
+                    'sticky top-0 z-10 bg-muted',
+                    alignClass(h.column.columnDef.meta?.align),
+                    h.column.columnDef.meta?.className,
+                  )}
+                >
+                  {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
+                </TableHead>
+              ))}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {paddingTop > 0 && (
+            <tr aria-hidden>
+              <td colSpan={leafColumnCount} style={{ height: paddingTop, padding: 0 }} />
+            </tr>
+          )}
+          {items.map((vi) => {
+            const row = rows[vi.index]
+            return (
+              <DataTableRow
+                key={row.id}
+                row={row}
+                expanded={row.getIsExpanded()}
+                renderSubRows={renderSubRows}
+                rowHeight={estimateRowHeight}
+              />
+            )
+          })}
+          {paddingBottom > 0 && (
+            <tr aria-hidden>
+              <td colSpan={leafColumnCount} style={{ height: paddingBottom, padding: 0 }} />
+            </tr>
+          )}
+        </TableBody>
+      </table>
+    </div>
+  )
+}
+
+/** Data-table shadcn/TanStack réutilisable : filtre + tri + pagination (ou long scroll virtualisé) + lignes dépliables. */
 export function DataTable<T>({
   data,
   columns,
@@ -112,6 +217,7 @@ export function DataTable<T>({
   getRowId,
   toolbar,
   paginated = true,
+  estimateRowHeight = 44,
 }: DataTableProps<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -146,48 +252,42 @@ export function DataTable<T>({
 
   const count = table.getFilteredRowModel().rows.length
 
-  // Long scroll : rendu PROGRESSIF. Rendre les ~1 700 lignes spenders d'un coup (tracker :
-  // × 10 cases cliquables ≈ 17 000 composants) figeait la page ~5 s à chaque affichage.
-  // On rend un premier bloc, puis la suite se matérialise à l'approche du bas (sentinelle
-  // IntersectionObserver, marge 600 px → couture invisible en scroll normal). Le cap ne
-  // fait que croître : un patch optimiste / filtre ne re-téléporte jamais en haut.
-  // 30 : ~450 composants au premier paint du tracker (30×15) — le SSR + l'hydratation du
-  // premier écran restent légers, la suite arrive au scroll.
-  const CHUNK = 30
-  const [visibleCount, setVisibleCount] = useState(CHUNK)
-  const sentinelRef = useRef<HTMLTableRowElement | null>(null)
-  const allRows = table.getRowModel().rows
-  const rows = paginated ? allRows : allRows.slice(0, visibleCount)
-  const hasMore = !paginated && allRows.length > visibleCount
-  useEffect(() => {
-    if (!hasMore) return
-    const el = sentinelRef.current
-    if (!el) return
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setVisibleCount((c) => c + CHUNK)
-      },
-      { rootMargin: '600px' },
-    )
-    io.observe(el)
-    return () => io.disconnect()
-  }, [hasMore, visibleCount])
+  const filterAndToolbar = (filterColumnId || toolbar) && (
+    <div className="flex flex-wrap items-center gap-2">
+      {filterColumnId && (
+        <Input
+          placeholder={filterPlaceholder}
+          value={(table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ''}
+          onChange={(e) => table.getColumn(filterColumnId)?.setFilterValue(e.target.value)}
+          className="max-w-xs"
+        />
+      )}
+      {toolbar}
+    </div>
+  )
 
+  // ── Mode long scroll VIRTUALISÉ ────────────────────────────────────────────────────────
+  if (!paginated) {
+    return (
+      <div className="flex flex-col gap-3">
+        {filterAndToolbar}
+        <VirtualizedTable
+          table={table}
+          estimateRowHeight={estimateRowHeight}
+          renderSubRows={renderSubRows}
+        />
+        <div className="text-sm text-muted-foreground">
+          {countLabel ? countLabel(count) : count}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Mode paginé (défaut) ────────────────────────────────────────────────────────────────
+  const rows = table.getRowModel().rows
   return (
     <div className="flex flex-col gap-3">
-      {(filterColumnId || toolbar) && (
-        <div className="flex flex-wrap items-center gap-2">
-          {filterColumnId && (
-            <Input
-              placeholder={filterPlaceholder}
-              value={(table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ''}
-              onChange={(e) => table.getColumn(filterColumnId)?.setFilterValue(e.target.value)}
-              className="max-w-xs"
-            />
-          )}
-          {toolbar}
-        </div>
-      )}
+      {filterAndToolbar}
 
       <div className="rounded-xl border">
         <Table>
@@ -219,16 +319,6 @@ export function DataTable<T>({
                 renderSubRows={renderSubRows}
               />
             ))}
-            {hasMore && (
-              <TableRow ref={sentinelRef}>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-10 text-center text-xs text-muted-foreground"
-                >
-                  …
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </div>
@@ -237,29 +327,27 @@ export function DataTable<T>({
         <div className="text-sm text-muted-foreground">
           {countLabel ? countLabel(count) : count}
         </div>
-        {paginated && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              Précédent
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Suivant
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            Page {table.getState().pagination.pageIndex + 1} / {table.getPageCount()}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+          >
+            Précédent
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+          >
+            Suivant
+          </Button>
+        </div>
       </div>
     </div>
   )

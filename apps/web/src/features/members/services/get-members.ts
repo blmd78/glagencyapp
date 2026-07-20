@@ -44,7 +44,9 @@ export async function getMembers(): Promise<MembersData> {
             ? 'manager'
             : p.role === 'sous-manager'
               ? 'sous-manager'
-              : 'chatteur',
+              : p.role === 'police'
+                ? 'police'
+                : 'chatteur',
     pages: p.pages ?? [],
     creatorIds: byProfile.get(p.id) ?? [],
     managerId: p.manager_id ?? '',

@@ -83,6 +83,9 @@ export const WORKSPACES: Workspace[] = [
     groups: [
       { id: 'performance', label: 'Performance', icon: ChartLine },
       { id: 'equipe', label: 'Équipe', icon: UsersRound },
+      // Catégorie dédiée au tracker sanctions (ex-item direct du groupe Équipe) — slug/route
+      // techniques inchangés (`police`, /chatter/police), seul l'affichage devient « Police ».
+      { id: 'police', label: 'Police', icon: ShieldAlert },
       { id: 'acces', label: 'Accès', icon: KeyRound },
       { id: 'spenders', label: 'Spenders', icon: Banknote },
       { id: 'gestion', label: 'Gestion', icon: Briefcase },
@@ -94,7 +97,9 @@ export const WORKSPACES: Workspace[] = [
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
       { href: '/chatter/planning', label: 'Planning', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
-      { href: '/chatter/police', label: 'Police', icon: ShieldAlert, group: 'equipe' },
+      // Libellé affiché « Tracker » — slug/route/dossier restent `police` (renommer
+      // casserait profiles.pages + policies RLS, cf. features/police/).
+      { href: '/chatter/police', label: 'Tracker', icon: ShieldAlert, group: 'police' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
       // Groupe Accès (porté de gla-workflow) : identifiants Snapchat + fiches modèles.

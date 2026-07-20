@@ -52,7 +52,8 @@ export function PoliceView({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Police — tracker sanctions</h1>
+          {/* Libellé « Tracker » aligné sur la nav (config/workspaces.ts) — slug/route inchangés. */}
+          <h1 className="text-2xl font-semibold tracking-tight">Tracker — sanctions</h1>
           <p className="text-sm text-muted-foreground">
             Avertissements par erreur, puis malus décidé à la main · {data.dayLabel}
           </p>

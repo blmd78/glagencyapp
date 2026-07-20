@@ -197,6 +197,8 @@ export function MembersTable({
           <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Manager</Badge>
         ) : (getValue() as string) === 'sous-manager' ? (
           <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Sous-manager</Badge>
+        ) : (getValue() as string) === 'police' ? (
+          <Badge className={cn('text-xs', STATUS_COLORS.warning)}>Police</Badge>
         ) : (
           <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatteur</Badge>
         ),

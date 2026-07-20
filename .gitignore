@@ -33,3 +33,9 @@ coverage/
 apps/ingestion/raw/
 apps/ingestion/logs/
 .dev.vars
+
+# Artefacts Playwright — e2e/.auth/*.json contient des refresh tokens Supabase VALIDES
+# (sessions de la préprod, qui est une copie des données de prod). Ne jamais committer.
+apps/web/e2e/.auth/
+apps/web/playwright-report/
+apps/web/test-results/

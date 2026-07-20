@@ -30,7 +30,7 @@ export interface Profile {
   /** `superadmin` en base est mappé sur 'admin' ici (il hérite de tout) — cf. `superadmin`. */
   role: 'admin' | 'chatteur'
   /** Rôle EXACT en base (non écrasé) — pour les rares cas qui distinguent manager de sous-manager (ex. planning). */
-  baseRole: 'superadmin' | 'admin' | 'manager' | 'sous-manager' | 'chatteur'
+  baseRole: 'superadmin' | 'admin' | 'manager' | 'sous-manager' | 'chatteur' | 'police'
   /** Propriétaire (rôle base `superadmin`) : seul à pouvoir gérer les membres/rôles. */
   superadmin: boolean
   /** Rôle base `manager` OU `sous-manager` : accès page Membres (ajout de chatteurs) — `chatteur` partout ailleurs. */
@@ -56,7 +56,11 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   if (!data) return null
   const raw = data.role
   const baseRole: Profile['baseRole'] =
-    raw === 'superadmin' || raw === 'admin' || raw === 'manager' || raw === 'sous-manager'
+    raw === 'superadmin' ||
+    raw === 'admin' ||
+    raw === 'manager' ||
+    raw === 'sous-manager' ||
+    raw === 'police'
       ? raw
       : 'chatteur' // 'user' transitoire (0059) et toute valeur inconnue → chatteur
   return {

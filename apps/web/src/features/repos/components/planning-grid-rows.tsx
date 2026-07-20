@@ -43,6 +43,18 @@ export function PlanningGridRows({
             const cell = cellValue(day, c.key)
             const chips = cellChips(day, c.key)
             const over = overByCol.get(c.key) ?? { ids: new Set<string>(), txt: new Set<string>() }
+            // Kind de colonne dérivé UNE fois — indexe `options` et `placeholder` ci-dessous.
+            const kind = c.key === 'policiers' ? 'police' : c.encadrement ? 'manager' : 'chatteur'
+            const optionsByKind = {
+              police: data.policierOptions,
+              manager: data.managerOptions,
+              chatteur: data.chatterOptions,
+            }
+            const placeholderByKind = {
+              police: 'Rechercher un policier…',
+              manager: 'Rechercher un manager…',
+              chatteur: 'Rechercher un chatteur…',
+            }
             return (
               <td key={c.key} className={cn('p-1 align-top', border)}>
                 {canWrite ? (
@@ -86,11 +98,11 @@ export function PlanningGridRows({
                     </button>
                   }
                   value={cell.chatterIds}
-                  // Colonnes ENCADREMENT (Managers/Policiers) : options = profils
-                  // rôle manager ; colonnes modèles : chatteurs actifs.
-                  options={(c.encadrement ? data.managerOptions : data.chatterOptions).map(
-                    (o) => ({ value: o.id, label: o.name }),
-                  )}
+                  // Colonne Policiers : options = profils rôle police ; colonne Managers :
+                  // options = profils rôle manager (uniquement, pas de sous-manager) ;
+                  // colonnes modèles : chatteurs actifs. La RÉSOLUTION des noms déjà
+                  // assignés (labelById) reste, elle, sur la map fusionnée data.chatterById.
+                  options={optionsByKind[kind].map((o) => ({ value: o.id, label: o.name }))}
                   labelById={data.chatterById}
                   // Le combobox ne gère que les IDs — les noms texte legacy restent
                   // intacts (chips retirables via leur croix dans le popover, cf. extraChips).
@@ -110,7 +122,7 @@ export function PlanningGridRows({
                       : undefined,
                     onRemove: () => onRemoveCellChip(day, c.key, { token: t }),
                   }))}
-                  placeholder={c.encadrement ? 'Rechercher un manager…' : 'Rechercher un chatteur…'}
+                  placeholder={placeholderByKind[kind]}
                 />
                 ) : (
                   // Lecture seule (chatteur) : chips statiques, sans combobox ni édition.

@@ -33,10 +33,18 @@ export interface PlanningData {
   blocks: PlanningBlock[]
 }
 
+/** Personne sélectionnable dans l'en-tête (planning + to-do). */
 export interface PlanningMember {
   id: string
   name: string
   role: string
+  /**
+   * La personne a-t-elle le droit d'ouvrir la page Planning (slug 'planning', ou admin/
+   * superadmin qui y accèdent sans slug) ? Sert le bandeau d'avertissement de la to-do :
+   * le sélecteur liste par RÔLE, pas par slug — on peut donc viser quelqu'un qui ne verra
+   * jamais la liste qu'on lui écrit.
+   */
+  hasPlanningPage: boolean
 }
 
 // ── Sections + formatage (constantes de domaine + helpers purs, absorbés depuis l'ancien

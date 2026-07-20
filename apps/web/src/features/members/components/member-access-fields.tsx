@@ -47,6 +47,8 @@ export function MemberAccessFields({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="chatteur">Chatteur</SelectItem>
+                {/* Rôle fonctionnel, pas hiérarchique — pas d'équipe, pas de to-do/planning. */}
+                <SelectItem value="police">Police</SelectItem>
                 <SelectItem value="sous-manager">Sous-manager</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
                 {/* Nommer un admin = propriétaires uniquement (garde serveur en plus). */}

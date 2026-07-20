@@ -23,6 +23,13 @@ import type { Member } from '../types'
 import { MemberAccessFields } from './member-access-fields'
 import { MemberPermissionFields } from './member-permission-fields'
 
+/** Champs affichant un message d'erreur juste sous eux (les autres — role/managerId/
+ *  creatorIds — n'ont pas de zone dédiée) : un `fieldErrors` server-side dessus est remonté
+ *  au message global plutôt qu'avalé silencieusement (cf. remap dans `submit`). */
+const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages'] as const satisfies readonly (keyof MemberForm)[]
+const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[number] =>
+  (DISPLAYED_FIELDS as readonly string[]).includes(field)
+
 /**
  * Dialog Nouveau/Modifier membre (RHF + Zod, schéma partagé avec le serveur). Email (verrouillé
  * en édition), nom, pages accessibles et modèles assignés. Aucun mot de passe (connexion OTP).
@@ -81,7 +88,9 @@ export function MemberDialog({
               ? 'manager'
               : member?.role === 'sous-manager'
                 ? 'sous-manager'
-                : 'chatteur',
+                : member?.role === 'police'
+                  ? 'police'
+                  : 'chatteur',
       // Seules les pages du périmètre courant sont éditées ici.
       pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
       creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
@@ -108,8 +117,21 @@ export function MemberDialog({
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
-      setError('root', { message: res.error })
-      toast.error(res.error)
+      // Un message global générique ne dit pas quel champ corriger (ex. email déjà pris) —
+      // remap champ par champ quand `fieldErrors` le permet, cf. todo-dialog.tsx.
+      let hiddenFieldMessage: string | undefined
+      for (const [field, messages] of Object.entries(res.fieldErrors ?? {})) {
+        const message = messages?.[0]
+        if (!message) continue
+        if (isDisplayedField(field)) {
+          setError(field, { message })
+        } else {
+          hiddenFieldMessage = message
+        }
+      }
+      const rootMessage = hiddenFieldMessage ?? res.error
+      setError('root', { message: rootMessage })
+      toast.error(rootMessage)
       return
     }
     toast.success(member ? 'Membre modifié' : 'Membre créé')

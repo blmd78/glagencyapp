@@ -11,11 +11,15 @@ import { getChatterScope } from '@/lib/scope'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
-/** Garde : admin, ou manager/sous-manager ayant la page `police` (0060 — chatteur en
- *  lecture seule). Les policiers-managers saisissent ; un chatteur consulte. */
+/** Garde : miroir de la policy RLS `police_insert`/`police_update` (`can_write_page('police')
+ *  OR (is_police() AND has_page('police'))`) — `hasWriteAccess` couvre la 1ʳᵉ branche, le rôle
+ *  fonctionnel `police` doit AUSSI avoir la page pour couvrir la 2ᵉ (sinon la RLS le bloquerait
+ *  avec une erreur brute au lieu d'un refus propre ici). */
 async function requirePoliceProfile(): Promise<Profile | null> {
   const profile = await getProfile()
-  return hasWriteAccess(profile, 'police') ? profile : null
+  if (!profile) return null
+  const isFunctionalPolice = profile.baseRole === 'police' && profile.pages.includes('police')
+  return hasWriteAccess(profile, 'police') || isFunctionalPolice ? profile : null
 }
 
 /** Garde périmètre : un non-admin ne peut agir que sur les chatteurs de SES modèles. */
@@ -40,8 +44,7 @@ export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {
       return { ok: true }
     },
     handler: async (values) => {
-      // Mémoïsé par requête (cache(), lib/auth) — pas de round-trip DB supplémentaire par
-      // rapport à l'appel déjà fait dans la garde.
+      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
       const supabase = await createClient()

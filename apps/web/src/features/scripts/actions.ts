@@ -38,8 +38,7 @@ export async function saveScriptItem(raw: unknown): Promise<ActionResult> {
       return { ok: true }
     },
     handler: async (d) => {
-      // Mémoïsé par requête (cache(), lib/auth) — pas de round-trip DB supplémentaire par
-      // rapport à l'appel déjà fait dans la garde.
+      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const admin = await getProfile()
       if (!admin) throw new Error('Session expirée') // impossible si le guard a laissé passer
       const supabase = await createClient()

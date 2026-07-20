@@ -131,7 +131,7 @@ export async function requireManagerTarget(admin: Admin, managerId: string): Pro
     : 'Rattachement invalide (pas un manager)'
 }
 
-export type Role = 'chatteur' | 'sous-manager' | 'manager' | 'admin'
+export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
 
 /**
  * Autorise et NORMALISE le rôle + le périmètre modèles d'une mutation selon l'appelant.

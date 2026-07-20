@@ -39,8 +39,7 @@ export async function saveQuotas(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: adminGuard,
     handler: async ({ upserts, deletes }) => {
-      // Mémoïsé par requête (`cache()`, lib/auth) — pas de round-trip DB supplémentaire
-      // par rapport à l'appel déjà fait dans la garde.
+      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
 

@@ -33,7 +33,7 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     cellsRes,
     weekRes,
     chattersRes,
-    managersRes,
+    encadrementRes,
     creatorsRes,
     membersRes,
     dataWeeksRes,
@@ -43,9 +43,12 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     supabase.from('rest_planning_cells').select('day, col, names, chatter_ids').eq('week_start', weekStart),
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
     admin.from('chatters').select('id, display_name, active'),
-    // Colonnes ENCADREMENT (Managers/Policiers) : leur sélecteur liste les profils rôle
-    // manager/sous-manager — pas les chatteurs (bug remonté : « Ajouter » proposait les chatteurs).
-    admin.from('profiles').select('id, display_name').in('role', ['manager', 'sous-manager']),
+    // Colonnes ENCADREMENT (Managers/Policiers) : récupération LARGE (manager + sous-manager +
+    // police) pour la RÉSOLUTION DES NOMS (chatterById) — un sous-manager déjà assigné à une
+    // cellule doit continuer d'afficher son nom même s'il n'est plus dans les OPTIONS proposées.
+    // Les OPTIONS par colonne (managerOptions / policierOptions), elles, sont filtrées par
+    // rôle exact plus bas — chaque colonne ne doit proposer QUE son rôle dédié.
+    admin.from('profiles').select('id, display_name, role').in('role', ['manager', 'sous-manager', 'police']),
     admin.from('creators').select('id, name, active'),
     supabase
       .from('rest_planning_column_members')
@@ -69,14 +72,14 @@ export async function getRepos(week: string | null | undefined, profile: Profile
   if (cellsRes.error) throw new Error(cellsRes.error.message)
   if (weekRes.error) throw new Error(weekRes.error.message)
   if (chattersRes.error) throw new Error(chattersRes.error.message)
-  if (managersRes.error) throw new Error(managersRes.error.message)
+  if (encadrementRes.error) throw new Error(encadrementRes.error.message)
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)
   if (membersRes.error) throw new Error(membersRes.error.message)
   if (dataWeeksRes.error) throw new Error(dataWeeksRes.error.message)
   const cellRows = cellsRes.data
   const weekRow = weekRes.data
   const chatterRows = chattersRes.data
-  const managerRows = managersRes.data
+  const encadrementRows = encadrementRes.data
   const creatorRows = creatorsRes.data
   const memberRows = membersRes.data
   const dataWeekRows = dataWeeksRes.data
@@ -91,19 +94,26 @@ export async function getRepos(week: string | null | undefined, profile: Profile
     .map((start) => ({ start, label: weekLabel(start) }))
 
   // Chatteurs (cellules) : id → nom (tous, inactifs inclus) + options actifs.
-  // Les MANAGERS (profils) sont fusionnés dans la même map : les cellules encadrement
-  // stockent leurs ids dans chatter_ids (uuid[] sans FK) — les chips se résolvent pareil.
+  // Les encadrants (manager/sous-manager/police) sont fusionnés dans la même map : les
+  // cellules encadrement stockent leurs ids dans chatter_ids (uuid[] sans FK) — les chips se
+  // résolvent pareil. Résolution LARGE volontaire (cf. commentaire de la requête ci-dessus) :
+  // un sous-manager déjà assigné doit garder son nom même s'il n'est plus dans les options.
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
-  for (const m of managerRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
+  for (const m of encadrementRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
   const chatterOptions = (chatterRows ?? [])
     .filter((c) => c.active && c.display_name)
     .map((c) => ({ id: c.id, name: c.display_name }))
     .sort((a, b) => a.name.localeCompare(b.name))
-  const managerOptions = (managerRows ?? [])
-    .filter((m) => m.display_name)
-    .map((m) => ({ id: m.id, name: m.display_name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name))
+  // Options par colonne encadrement — filtrées par rôle EXACT (pas de sous-manager dans
+  // Managers, pas de manager dans Policiers).
+  const optsForRole = (role: string) =>
+    (encadrementRows ?? [])
+      .filter((m) => m.role === role && m.display_name)
+      .map((m) => ({ id: m.id, name: m.display_name as string }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  const managerOptions = optsForRole('manager')
+  const policierOptions = optsForRole('police')
 
   // Modèles (header) : id → nom + options actifs.
   const creatorById: Record<string, string> = {}
@@ -159,6 +169,7 @@ export async function getRepos(week: string | null | undefined, profile: Profile
         ? chatterOptions
         : chatterOptions.filter((o) => scope.chatterIds!.has(o.id)),
     managerOptions,
+    policierOptions,
     sentTelegram: weekRow?.sent_telegram ?? false,
     weeks,
   }
