@@ -33,7 +33,7 @@ rattaché à un **modèle** et à des **chatteurs**, et il partage l'accès du T
 | Cœur | **Suivi par chatteur** : une observation par chatteur suivi ce soir-là |
 | Niveau modèle | Chiffres **saisis à la main** : CA du jour, non traitées, absents, + une alerte |
 | CA | **Saisi**, jamais dérivé de MyPuls (reflète ce qui est observé le soir) |
-| Lecture | **Qui a la page « Police »** (managers compris) **+ admin/superadmin (tout)** |
+| Lecture | **Ses modèles** (périmètre `profile_creators`) — comme le Tracker ; **admin/superadmin voient tout** |
 | Emplacement | Item **« Rapport »** dans la catégorie sidebar **« Police »**, **en dessous** de « Tracker » (placement provisoire, ajustable) |
 | Champs par chatteur | **Une note libre** par chatteur (pas de « a marché » / « à régler » séparés en v1) |
 
@@ -90,8 +90,9 @@ application** par le périmètre `profile_creators` (`lib/scope`), exactement co
 
 Le Rapport se garde comme le Tracker (même page `police`), en **additif police** comme `0070` :
 - **`police_reports`** :
-  - `select` : `is_admin() OR has_page('police')` (qui a la page voit tous les rapports — managers
-    compris ; admin/superadmin tout, même sans la page cochée).
+  - `select` : `is_admin() OR has_page('police')` — la RLS reste large (qui a la page) ; le
+    **cloisonnement par modèle en lecture** est fait **côté app** (filtrage par `profile_creators`
+    dans le service), exactement comme le Tracker filtre par `chatterIds`. Admin = tout.
   - `insert` / `update` / `delete` : `author_id = auth.uid() AND (can_write_page('police') OR
     (is_police() AND has_page('police')))` — on ne rédige/modifie que **son** rapport ; l'admin
     passe par `can_write_page`. (Un `delete` admin transverse peut être ajouté si besoin.)
