@@ -1485,21 +1485,24 @@ export type Database = {
       }
       police_report_lines: {
         Row: {
+          a_marche: string | null
+          a_regler: string | null
           chatter_id: string
           id: string
-          observation: string | null
           report_id: string
         }
         Insert: {
+          a_marche?: string | null
+          a_regler?: string | null
           chatter_id: string
           id?: string
-          observation?: string | null
           report_id: string
         }
         Update: {
+          a_marche?: string | null
+          a_regler?: string | null
           chatter_id?: string
           id?: string
-          observation?: string | null
           report_id?: string
         }
         Relationships: [
