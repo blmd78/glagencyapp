@@ -18,11 +18,11 @@ export default async function ReposPage({
   // de h1 « immédiat » séparable ici sans casser la mise en page (titre et sélecteur sur la
   // même ligne, cf. bilan/page.tsx + docs/guidelines-data-loading.md §3). Tout le composite
   // streame dans un seul boundary.
-  const data = getRepos(week ?? null, profile)
+  const data = getRepos(week ?? null)
   const isAdmin = profile.role === 'admin'
-  // Droit d'écriture (édition de la grille : cellules + « envoyé Telegram ») : admin ou
-  // manager/sous-manager — un chatteur voit le planning en lecture seule (miroir UI de
-  // hasWriteAccess). L'édition de la compo des colonnes reste admin-only (cf. PlanningGrid).
+  // `canWrite` (admin ou manager/sous-manager) ne gouverne plus QUE la case « envoyé
+  // Telegram » : l'ÉDITION des cases et de la compo des colonnes est désormais admin-only
+  // (cf. PlanningGrid, gating sur `isAdmin`). Un chatteur reste en lecture seule totale.
   const canWrite = isAdmin || profile.manager
 
   return (
