@@ -1483,6 +1483,96 @@ export type Database = {
           },
         ]
       }
+      police_report_lines: {
+        Row: {
+          chatter_id: string
+          id: string
+          observation: string | null
+          report_id: string
+        }
+        Insert: {
+          chatter_id: string
+          id?: string
+          observation?: string | null
+          report_id: string
+        }
+        Update: {
+          chatter_id?: string
+          id?: string
+          observation?: string | null
+          report_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "police_report_lines_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "police_report_lines_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "police_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      police_reports: {
+        Row: {
+          absents: number
+          alerte: string | null
+          author_id: string
+          ca: number
+          created_at: string
+          creator_id: string
+          day: string
+          id: string
+          non_traitees: number
+          updated_at: string
+        }
+        Insert: {
+          absents?: number
+          alerte?: string | null
+          author_id: string
+          ca?: number
+          created_at?: string
+          creator_id: string
+          day: string
+          id?: string
+          non_traitees?: number
+          updated_at?: string
+        }
+        Update: {
+          absents?: number
+          alerte?: string | null
+          author_id?: string
+          ca?: number
+          created_at?: string
+          creator_id?: string
+          day?: string
+          id?: string
+          non_traitees?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "police_reports_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "police_reports_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profile_creators: {
         Row: {
           creator_id: string
