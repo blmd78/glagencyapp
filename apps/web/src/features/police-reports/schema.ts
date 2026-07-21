@@ -1,15 +1,23 @@
 import { z } from 'zod'
+import { isDayInWindow } from '@/lib/periods'
 
 // Schéma PARTAGÉ client (RHF) ↔ serveur (runAction). L'en-tête + les lignes chatteur en une
 // seule soumission (upsert atomique de la fiche du soir).
 const optionalText = (max: number, msg: string) =>
   z.string().trim().max(max, msg).transform((v) => (v === '' ? null : v)).nullable()
 
-const count = z.coerce.number().int().min(0, 'Doit être ≥ 0').default(0)
+// `.max` = garde-fou d'intégrité (M3) : borne au-dessus de toute valeur réelle, empêche une saisie
+// absurde (ex. 2 milliards) qui ne serait sinon limitée que par l'`integer` Postgres.
+const count = z.coerce.number().int().min(0, 'Doit être ≥ 0').max(10_000_000, 'Valeur trop élevée').default(0)
 
 export const reportInput = z.object({
   creatorId: z.uuid('Choisis un modèle'),
-  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
+  // `day` vient de l'en-tête (fenêtre du sélecteur) ; on le borne AUSSI au schéma (M2) — défense en
+  // profondeur contre un appel direct de l'action avec une date arbitraire (hors fenêtre 14 j).
+  day: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide')
+    .refine(isDayInWindow, 'Date hors de la période autorisée'),
   ca: count,
   nonTraitees: count,
   absents: count,

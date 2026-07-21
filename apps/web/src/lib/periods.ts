@@ -1,4 +1,4 @@
-import { addDays, addMonths, frMonthLong, frWeekdayLong, startOfMonth } from '@glagency/core'
+import { addDays, addMonths, frMonthLong, frWeekdayLong, startOfMonth, todayParis } from '@glagency/core'
 
 /**
  * Fenêtres de périodes PARTAGÉES par les sélecteurs (Tracker `get-police.ts` + Rapport
@@ -7,8 +7,23 @@ import { addDays, addMonths, frMonthLong, frWeekdayLong, startOfMonth } from '@g
  * fuseau) ; `frWeekdayLong`/`frMonthLong` produisent les libellés fr.
  */
 
+/** Taille de la fenêtre de jours (sélecteur ET bornage serveur des saisies). */
+export const DAY_WINDOW = 14
+
+/**
+ * Le jour est-il dans la fenêtre de saisie autorisée [aujourd'hui-13 … aujourd'hui] ? Bornage
+ * SERVEUR des dates de saisie (les sélecteurs n'offrent déjà que cette fenêtre → défense en
+ * profondeur contre un appel direct d'action avec une date arbitraire). Comparaison lexicographique
+ * = chronologique pour des `YYYY-MM-DD`. `todayParis` = jour métier (Europe/Paris), cohérent
+ * client (navigateur) et serveur.
+ */
+export const isDayInWindow = (day: string, n = DAY_WINDOW): boolean => {
+  const today = todayParis()
+  return day <= today && day >= addDays(today, -(n - 1))
+}
+
 /** Fenêtre de jours récents (aujourd'hui → n-1 en arrière) pour un sélecteur. */
-export const recentDays = (today: string, n = 14) =>
+export const recentDays = (today: string, n = DAY_WINDOW) =>
   Array.from({ length: n }, (_, i) => {
     const d = addDays(today, -i)
     return { day: d, label: frWeekdayLong(d) }
