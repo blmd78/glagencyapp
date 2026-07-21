@@ -36,39 +36,25 @@ export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
       if (!(await creatorInScope(profile, values.creatorId)))
         throw new BusinessError('Modèle hors de ton périmètre')
       const supabase = await createClient()
-      // 1) upsert de l'en-tête (author = self).
-      const { data: header, error: hErr } = await supabase
-        .from('police_reports')
-        .upsert(
-          {
-            author_id: profile.id,
-            creator_id: values.creatorId,
-            day: values.day,
-            ca: values.ca,
-            non_traitees: values.nonTraitees,
-            absents: values.absents,
-            alerte: values.alerte,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'author_id,creator_id,day' },
-        )
-        .select('id')
-        .single()
-      if (hErr || !header) throw new Error(hErr?.message ?? 'Échec de l’enregistrement')
-      // 2) remplacer les lignes : delete puis insert (fiche du soir, volume faible).
-      const { error: dErr } = await supabase.from('police_report_lines').delete().eq('report_id', header.id)
-      if (dErr) throw new Error(dErr.message)
-      if (values.lines.length) {
-        const { error: iErr } = await supabase.from('police_report_lines').insert(
-          values.lines.map((l) => ({
-            report_id: header.id,
-            chatter_id: l.chatterId,
-            a_marche: l.aMarche,
-            a_regler: l.aRegler,
-          })),
-        )
-        if (iErr) throw new Error(iErr.message)
-      }
+      // Upsert en-tête + remplacement complet des lignes en UNE transaction (RPC `0073`,
+      // SECURITY INVOKER → la RLS s'applique, `author = auth.uid()` posé côté SQL). Atomique :
+      // plus de fenêtre « rapport sans lignes » si l'insert échouait après le delete.
+      const { error } = await supabase.rpc('upsert_police_report', {
+        p_creator_id: values.creatorId,
+        p_day: values.day,
+        p_ca: values.ca,
+        p_non_traitees: values.nonTraitees,
+        p_absents: values.absents,
+        // `?? undefined` : `alerte` est nullable (Zod → null si vide) mais le param RPC a un
+        // `default null` → on omet l'argument plutôt que d'envoyer null (types Supabase = optionnel).
+        p_alerte: values.alerte ?? undefined,
+        p_lines: values.lines.map((l) => ({
+          chatter_id: l.chatterId,
+          a_marche: l.aMarche,
+          a_regler: l.aRegler,
+        })),
+      })
+      if (error) throw new Error(error.message)
       revalidatePath('/chatter/rapport-police')
     },
   })

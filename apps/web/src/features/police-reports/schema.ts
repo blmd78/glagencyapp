@@ -8,7 +8,7 @@ const optionalText = (max: number, msg: string) =>
 const count = z.coerce.number().int().min(0, 'Doit être ≥ 0').default(0)
 
 export const reportInput = z.object({
-  creatorId: z.uuid(),
+  creatorId: z.uuid('Choisis un modèle'),
   day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
   ca: count,
   nonTraitees: count,
@@ -17,7 +17,7 @@ export const reportInput = z.object({
   lines: z
     .array(
       z.object({
-        chatterId: z.uuid(),
+        chatterId: z.uuid('Choisis un chatteur'),
         aMarche: optionalText(2000, 'Note trop longue'),
         aRegler: optionalText(2000, 'Note trop longue'),
       }),
@@ -30,4 +30,4 @@ export type ReportInput = z.infer<typeof reportInput>
 // `BilanFormInput` dans insights/schema.ts).
 export type ReportFormValues = z.input<typeof reportInput>
 
-export const deleteReportInput = z.object({ id: z.uuid() })
+export const deleteReportInput = z.object({ id: z.uuid('Identifiant invalide') })

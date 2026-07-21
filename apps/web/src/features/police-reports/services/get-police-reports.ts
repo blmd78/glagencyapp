@@ -48,6 +48,12 @@ export async function getPoliceReports(
     admin.from('profiles').select('id, display_name'),
   ])
   if (reportsRes.error) throw new Error(reportsRes.error.message)
+  // Résolutions de noms : une erreur technique doit REMONTER (→ Sentry) plutôt que dégrader
+  // silencieusement en « ? ». Ces requêtes passent par le client admin → un échec ici est un
+  // vrai problème d'infra, pas un cas nominal.
+  if (creatorsRes.error) throw new Error(creatorsRes.error.message)
+  if (chattersRes.error) throw new Error(chattersRes.error.message)
+  if (profilesRes.error) throw new Error(profilesRes.error.message)
 
   const creatorName: Record<string, string> = {}
   for (const c of creatorsRes.data ?? []) if (c.id && c.name) creatorName[c.id] = c.name
@@ -81,24 +87,32 @@ export async function getPoliceReports(
     .filter((rep) => !filter.chatterId || rep.lines.some((l) => l.chatterId === filter.chatterId))
 }
 
-/** Modèles assignés à l'appelant (RLS `creators_scoped_read` = profile_creators). */
-export async function getReportOptions(profile: Profile): Promise<{ models: ReportOption[] }> {
+/** Modèles visibles par l'appelant (RLS `creators_scoped_read` : admin = tout, sinon
+ *  profile_creators). Le cloisonnement est porté par la RLS (client cookie), pas de param. */
+export async function getReportOptions(): Promise<{ models: ReportOption[] }> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('creators').select('id, name').order('name')
   if (error) throw new Error(error.message)
   return { models: (data ?? []).map((c) => ({ id: c.id, name: c.name })) }
 }
 
-/** Chatteurs d'un modèle donné (via chatter_creators), scopés par la RLS. */
-export async function getModelChatters(profile: Profile, creatorId: string): Promise<ReportOption[]> {
+/**
+ * Chatteurs de TOUS les modèles visibles, groupés par modèle, en UNE requête — au lieu d'une
+ * requête par modèle (fan-out N, coûteux surtout pour un admin qui voit tous les modèles de
+ * l'agence). Clé = `creatorId`. RLS `chatter_creators_scoped_read` (admin = tout, sinon
+ * profile_creators). Le formulaire lit `byModel[modèle sélectionné]` côté client.
+ */
+export async function getChattersByModel(): Promise<Record<string, ReportOption[]>> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('chatter_creators')
-    .select('chatter:chatters(id, display_name)')
-    .eq('creator_id', creatorId)
+    .select('creator_id, chatter:chatters(id, display_name)')
   if (error) throw new Error(error.message)
-  return (data ?? [])
-    .map((r) => (Array.isArray(r.chatter) ? r.chatter[0] : r.chatter))
-    .filter((c): c is { id: string; display_name: string } => !!c)
-    .map((c) => ({ id: c.id, name: c.display_name }))
+  const byModel: Record<string, ReportOption[]> = {}
+  for (const r of data ?? []) {
+    const c = Array.isArray(r.chatter) ? r.chatter[0] : r.chatter
+    if (!c) continue
+    ;(byModel[r.creator_id] ??= []).push({ id: c.id, name: c.display_name })
+  }
+  return byModel
 }
