@@ -59,6 +59,17 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
   (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
   (`created_by` null → « Claude »).
+- **Rapport du soir police** : page `/chatter/rapport-police`, catégorie « Police », **sous**
+  le Tracker (`config/workspaces.ts`, slug `police` partagé → un seul droit pour les deux).
+  Rapport structuré par (auteur, modèle, jour) — chiffres du soir saisis à la main (CA, non
+  traitées, absents, alerte) — dont le **cœur est le suivi par chatteur** : une carte par
+  chatteur suivi, avec deux champs « 👍 a marché » / « 🔧 à régler » (`police_reports` +
+  `police_report_lines.a_marche`/`a_regler`, migrations `0071`/`0072`). Upsert sur (auteur,
+  modèle, jour). **Écriture** : police / manager avec la page / admin (miroir RLS + garde
+  `requireReporter`) ; la saisie est masquée aux lecteurs seuls. **Lecture** : qui a la page +
+  admins. **Cloisonnement modèle côté app** via `profile_creators` (helper `assignedCreatorIds`
+  — même source pour lecture, écriture et options ; jamais `getChatterScope`). Consultation =
+  historique filtrable par modèle / par chatteur (suppression de son propre rapport uniquement).
 
 ## Données MyPuls — workflow d'ajout
 

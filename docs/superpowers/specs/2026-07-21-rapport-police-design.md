@@ -1,7 +1,7 @@
 # Spec — Rapport du soir (section Police)
 
-**Date** : 2026-07-21 · **Statut** : design validé, à relire avant plan d'implémentation
-**Branche de travail** : à créer depuis `develop` (`feature/rapport-police`)
+**Date** : 2026-07-21 · **Statut** : implémenté (plan `docs/superpowers/plans/2026-07-21-rapport-police.md`) — révision « deux champs par chatteur » appliquée, sections Police alignées sur la DA de l'app
+**Branche de travail** : `feature/rapport-police` (depuis `develop`)
 
 ## Origine
 
