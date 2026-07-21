@@ -135,7 +135,7 @@ export function ReportForm({
             )}
           />
           {errors.creatorId && (
-            <p className="text-sm text-destructive">{errors.creatorId.message}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{errors.creatorId.message}</p>
           )}
         </div>
         <div className="flex flex-col gap-2">
@@ -148,7 +148,7 @@ export function ReportForm({
             className="h-9 w-full"
             {...register('day')}
           />
-          {errors.day && <p className="text-sm text-destructive">{errors.day.message}</p>}
+          {errors.day && <p className="text-sm text-red-600 dark:text-red-400">{errors.day.message}</p>}
         </div>
       </div>
 
@@ -165,7 +165,7 @@ export function ReportForm({
             disabled={isSubmitting}
             {...register('ca')}
           />
-          {errors.ca && <p className="text-sm text-destructive">{errors.ca.message}</p>}
+          {errors.ca && <p className="text-sm text-red-600 dark:text-red-400">{errors.ca.message}</p>}
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="report-non-traitees">Non traitées</Label>
@@ -179,7 +179,7 @@ export function ReportForm({
             {...register('nonTraitees')}
           />
           {errors.nonTraitees && (
-            <p className="text-sm text-destructive">{errors.nonTraitees.message}</p>
+            <p className="text-sm text-red-600 dark:text-red-400">{errors.nonTraitees.message}</p>
           )}
         </div>
         <div className="flex flex-col gap-2">
@@ -193,7 +193,7 @@ export function ReportForm({
             disabled={isSubmitting}
             {...register('absents')}
           />
-          {errors.absents && <p className="text-sm text-destructive">{errors.absents.message}</p>}
+          {errors.absents && <p className="text-sm text-red-600 dark:text-red-400">{errors.absents.message}</p>}
         </div>
       </div>
 
@@ -207,7 +207,7 @@ export function ReportForm({
           disabled={isSubmitting}
           {...register('alerte')}
         />
-        {errors.alerte && <p className="text-sm text-destructive">{errors.alerte.message}</p>}
+        {errors.alerte && <p className="text-sm text-red-600 dark:text-red-400">{errors.alerte.message}</p>}
       </div>
 
       {/* Suivi chatteur par chatteur (chatteurs du modèle sélectionné) */}
@@ -221,7 +221,7 @@ export function ReportForm({
       />
 
       {errors.root && (
-        <p role="alert" className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {errors.root.message}
         </p>
       )}

@@ -84,7 +84,7 @@ export function ReportLinesEditor({
                     )}
                   />
                   {errors.lines?.[index]?.chatterId && (
-                    <p className="text-sm text-destructive">
+                    <p className="text-sm text-red-600 dark:text-red-400">
                       {errors.lines[index]?.chatterId?.message}
                     </p>
                   )}
@@ -114,7 +114,7 @@ export function ReportLinesEditor({
                     {...register(`lines.${index}.aMarche`)}
                   />
                   {errors.lines?.[index]?.aMarche && (
-                    <p className="text-sm text-destructive">
+                    <p className="text-sm text-red-600 dark:text-red-400">
                       {errors.lines[index]?.aMarche?.message}
                     </p>
                   )}
@@ -129,7 +129,7 @@ export function ReportLinesEditor({
                     {...register(`lines.${index}.aRegler`)}
                   />
                   {errors.lines?.[index]?.aRegler && (
-                    <p className="text-sm text-destructive">
+                    <p className="text-sm text-red-600 dark:text-red-400">
                       {errors.lines[index]?.aRegler?.message}
                     </p>
                   )}

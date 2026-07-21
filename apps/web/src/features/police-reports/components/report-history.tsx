@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Trash2 } from 'lucide-react'
+import { Trash2, TriangleAlert } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, num } from '@/lib/format'
 import { deletePoliceReport } from '../actions'
 import type { PoliceReport } from '../types'
@@ -174,9 +176,20 @@ export function ReportHistory({
                   </div>
 
                   {report.alerte && (
-                    <p className="text-sm">
-                      <span className="font-medium">Alerte</span> {report.alerte}
-                    </p>
+                    // Alerte du soir = avertissement → Badge STATUS_COLORS.warning (le traitement
+                    // d'alerte que l'app utilise déjà), affiché seulement s'il y en a une.
+                    // `h-auto`/`whitespace-normal` : une alerte peut faire une phrase → la pastille
+                    // s'adapte au lieu de déborder ; `font-normal` car ce n'est pas un libellé court.
+                    <div>
+                      <Badge
+                        className={`${STATUS_COLORS.warning} h-auto items-start gap-1.5 py-1 text-left font-normal whitespace-normal`}
+                      >
+                        <TriangleAlert className="size-3.5 shrink-0 translate-y-0.5" />
+                        <span>
+                          <span className="font-medium">Alerte</span> {report.alerte}
+                        </span>
+                      </Badge>
+                    </div>
                   )}
 
                   {/* Lignes chatteur : 👍 ce qui a marché, 🔧 ce qui reste à régler. */}
