@@ -69,6 +69,7 @@ export async function getPoliceReports(
       absents: r.absents,
       alerte: r.alerte,
       authorName: r.author_id ? (authorName[r.author_id] ?? null) : null,
+      authorId: r.author_id ?? null,
       lines: (r.lines ?? []).map((l) => ({
         id: l.id,
         chatterId: l.chatter_id,

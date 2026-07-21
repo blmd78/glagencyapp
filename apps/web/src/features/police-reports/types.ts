@@ -17,6 +17,8 @@ export interface PoliceReport {
   absents: number
   alerte: string | null
   authorName: string | null
+  /** Id de l'auteur — gate la corbeille côté client (on ne peut supprimer que le sien). */
+  authorId: string | null
   lines: PoliceReportLine[]
 }
 

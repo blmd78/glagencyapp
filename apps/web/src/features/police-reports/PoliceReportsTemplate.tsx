@@ -1,5 +1,6 @@
 import { todayParis } from '@glagency/core'
 import { ReportForm } from './components/report-form'
+import { ReportHistory } from './components/report-history'
 import type { PoliceReport, ReportOption } from './types'
 
 /**
@@ -13,6 +14,7 @@ export function PoliceReportsTemplate({
   reports,
   chattersByModel,
   canWrite,
+  currentProfileId,
 }: {
   models: ReportOption[]
   reports: PoliceReport[]
@@ -20,6 +22,8 @@ export function PoliceReportsTemplate({
    *  modèle. `{}` pour un lecteur seul (pas de formulaire). */
   chattersByModel: Record<string, ReportOption[]>
   canWrite: boolean
+  /** Spectateur — gate la corbeille dans l'historique (on ne supprime que ses propres rapports). */
+  currentProfileId: string
 }) {
   const today = todayParis()
   return (
@@ -41,7 +45,10 @@ export function PoliceReportsTemplate({
         />
       )}
 
-      {/* Consultation / historique (filtrable par modèle / par chatteur) — tâche 5. */}
+      {/* Consultation / historique (filtrable par modèle / par chatteur). Rendu INCONDITIONNEL :
+          la consultation est ouverte à tout le monde (lecteurs seuls compris), seule la saisie
+          ci-dessus est réservée aux écrivains. */}
+      <ReportHistory reports={reports} currentProfileId={currentProfileId} />
     </div>
   )
 }

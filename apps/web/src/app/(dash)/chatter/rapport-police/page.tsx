@@ -69,6 +69,7 @@ async function Content({
       reports={reports}
       chattersByModel={chattersByModel}
       canWrite={canWrite}
+      currentProfileId={profile.id}
     />
   )
 }
