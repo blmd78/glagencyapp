@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useEffect, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Select,
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { createClient } from '@/lib/supabase/client'
 import { PlanningGrid } from './planning-grid'
 import type { ReposData } from '../types'
 
@@ -25,6 +26,42 @@ export function ReposView({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
+
+  // Temps réel des repos : quand un admin pose/retire un repos (ou coche « envoyé Telegram »),
+  // l'écran de tous les porteurs de la page se met à jour EN DIRECT. La RLS `has_page('repos')`
+  // filtre déjà QUI reçoit les événements ; `router.refresh()` re-render le RSC avec des données
+  // fraîches (nos overrides optimistes locaux ne sont pas écrasés). On filtre par `week_start`
+  // pour ne PAS rafraîchir sur une autre semaine ; re-souscription au changement de semaine et
+  // nettoyage du canal à l'unmount.
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel(`repos-${data.weekStart}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rest_planning_cells',
+          filter: `week_start=eq.${data.weekStart}`,
+        },
+        () => router.refresh(),
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rest_planning_weeks',
+          filter: `week_start=eq.${data.weekStart}`,
+        },
+        () => router.refresh(),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [data.weekStart, router])
 
   const selectWeek = (start: string) => {
     const next = new URLSearchParams(searchParams)

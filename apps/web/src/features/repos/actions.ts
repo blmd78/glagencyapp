@@ -10,7 +10,6 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess } from '@/lib/auth'
-import { getChatterScope } from '@/lib/scope'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
 
 /** Garde d'action : admin, ou manager/sous-manager ayant la page `repos` (0060 — chatteur
@@ -32,47 +31,18 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: cellInput,
     input: raw,
-    guard: async () => {
-      const profile = await requireRepos()
-      if (!profile) return { ok: false, error: 'Accès refusé' }
-      // Vérif de périmètre AVANT le handler (guard capture `raw`, safeParse défensif —
-      // pattern insights/actions.ts `setInsightState`) : un non-admin ne peut pas soumettre
-      // un chatteur hors de ses modèles assignés.
-      const parsed = cellInput.safeParse(raw)
-      if (!parsed.success) return { ok: true } // saisie invalide : laissé au safeParse de runAction
-      const scope = await getChatterScope(profile)
-      if (scope.chatterIds !== null && parsed.data.chatterIds.some((id) => !scope.chatterIds!.has(id)))
-        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-      return { ok: true }
-    },
+    // Ajout/retrait d'un repos dans une case = ADMIN uniquement (les managers sont en lecture
+    // seule sur les cases ; seule la case « envoyé Telegram » leur reste, cf. setReposSent).
+    guard: adminGuard,
     handler: async (values) => {
-      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
-      const profile = await requireRepos()
+      // getProfile pour `updated_by` (traçabilité) — l'accès est déjà tranché par adminGuard.
+      const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const { weekStart, day, col } = values
-      let { chatterIds, names } = values
+      const { weekStart, day, col, chatterIds, names } = values
 
       const supabase = await createClient()
 
-      // Non-admin : sa vue est cloisonnée à ses chatteurs (cf. get-repos) → MERGE non destructif.
-      // Le guard a déjà rejeté tout id hors scope soumis ; ici on préserve les ids hors scope
-      // existants et le texte legacy (invisible pour lui) — sinon il écraserait des repos qu'il
-      // ne voit pas.
-      const scope = await getChatterScope(profile)
-      if (scope.chatterIds !== null) {
-        const { data: existing, error: existingErr } = await supabase
-          .from('rest_planning_cells')
-          .select('chatter_ids, names')
-          .eq('week_start', weekStart)
-          .eq('day', day)
-          .eq('col', col)
-          .maybeSingle()
-        if (existingErr) throw new Error(existingErr.message)
-        const hidden = (existing?.chatter_ids ?? []).filter((id) => !scope.chatterIds!.has(id))
-        chatterIds = [...hidden, ...chatterIds]
-        names = existing?.names ?? ''
-      }
-
+      // Admin-only : écriture directe de la cellule telle que soumise (plus de MERGE de scope).
       const { error } = await supabase.from('rest_planning_cells').upsert(
         {
           week_start: weekStart,
