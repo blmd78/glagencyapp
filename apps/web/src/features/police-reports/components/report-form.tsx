@@ -141,11 +141,15 @@ export function ReportForm({
               placeholder="Choisir un modèle…"
               searchPlaceholder="Rechercher un modèle…"
               disabled={isSubmitting}
+              aria-invalid={!!errors.creatorId}
+              aria-describedby={errors.creatorId ? 'creatorId-error' : undefined}
             />
           )}
         />
         {errors.creatorId && (
-          <p className="text-sm text-red-600 dark:text-red-400">{errors.creatorId.message}</p>
+          <p id="creatorId-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {errors.creatorId.message}
+          </p>
         )}
       </div>
 
@@ -160,9 +164,15 @@ export function ReportForm({
             step={1}
             inputMode="numeric"
             disabled={isSubmitting}
+            aria-invalid={!!errors.ca}
+            aria-describedby={errors.ca ? 'report-ca-error' : undefined}
             {...register('ca')}
           />
-          {errors.ca && <p className="text-sm text-red-600 dark:text-red-400">{errors.ca.message}</p>}
+          {errors.ca && (
+            <p id="report-ca-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
+              {errors.ca.message}
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="report-non-traitees">Non traitées</Label>
@@ -173,10 +183,18 @@ export function ReportForm({
             step={1}
             inputMode="numeric"
             disabled={isSubmitting}
+            aria-invalid={!!errors.nonTraitees}
+            aria-describedby={errors.nonTraitees ? 'report-non-traitees-error' : undefined}
             {...register('nonTraitees')}
           />
           {errors.nonTraitees && (
-            <p className="text-sm text-red-600 dark:text-red-400">{errors.nonTraitees.message}</p>
+            <p
+              id="report-non-traitees-error"
+              role="alert"
+              className="text-sm text-red-600 dark:text-red-400"
+            >
+              {errors.nonTraitees.message}
+            </p>
           )}
         </div>
         <div className="flex flex-col gap-2">
@@ -188,9 +206,19 @@ export function ReportForm({
             step={1}
             inputMode="numeric"
             disabled={isSubmitting}
+            aria-invalid={!!errors.absents}
+            aria-describedby={errors.absents ? 'report-absents-error' : undefined}
             {...register('absents')}
           />
-          {errors.absents && <p className="text-sm text-red-600 dark:text-red-400">{errors.absents.message}</p>}
+          {errors.absents && (
+            <p
+              id="report-absents-error"
+              role="alert"
+              className="text-sm text-red-600 dark:text-red-400"
+            >
+              {errors.absents.message}
+            </p>
+          )}
         </div>
       </div>
 
@@ -202,9 +230,15 @@ export function ReportForm({
           rows={3}
           placeholder="Un point à remonter sur le modèle ce soir…"
           disabled={isSubmitting}
+          aria-invalid={!!errors.alerte}
+          aria-describedby={errors.alerte ? 'report-alerte-error' : undefined}
           {...register('alerte')}
         />
-        {errors.alerte && <p className="text-sm text-red-600 dark:text-red-400">{errors.alerte.message}</p>}
+        {errors.alerte && (
+          <p id="report-alerte-error" role="alert" className="text-sm text-red-600 dark:text-red-400">
+            {errors.alerte.message}
+          </p>
+        )}
       </div>
 
       {/* Suivi chatteur par chatteur (chatteurs du modèle sélectionné) */}

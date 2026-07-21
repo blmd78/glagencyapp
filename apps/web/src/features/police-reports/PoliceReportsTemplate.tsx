@@ -1,5 +1,4 @@
-import { DaySelect } from '@/components/day-select'
-import { MonthSelect } from '@/components/month-select'
+import { UrlSelect } from '@/components/url-select'
 import { PeriodToggle } from '@/components/period-toggle'
 import { ReportForm } from './components/report-form'
 import { ReportHistory } from './components/report-history'
@@ -8,10 +7,10 @@ import type { PoliceReport, ReportOption } from './types'
 /**
  * Rapport du soir (section Police) — Server Component, aucun fetch (données en props via
  * `page.tsx`). Piloté par une VUE (`PeriodToggle` d'en-tête, composant PARTAGÉ avec le Tracker) :
- * en JOUR, le `DaySelect` cale la page sur un jour (`?day=`, formulaire + historique du jour) ; en
- * MOIS, le `MonthSelect` la cale sur un mois (`?month=`, historique groupé par jour). La saisie
- * (`ReportForm`) est réservée aux écrivains (`canWrite`) ET au mode jour uniquement — le mois est
- * une consultation pure (on ne saisit pas un rapport mensuel).
+ * en JOUR, l'`UrlSelect param="day"` cale la page sur un jour (`?day=`, formulaire + historique du
+ * jour) ; en MOIS, l'`UrlSelect param="month"` la cale sur un mois (`?month=`, historique groupé par
+ * jour). La saisie (`ReportForm`) est réservée aux écrivains (`canWrite`) ET au mode jour uniquement
+ * — le mois est une consultation pure (on ne saisit pas un rapport mensuel).
  */
 export function PoliceReportsTemplate({
   models,
@@ -57,9 +56,13 @@ export function PoliceReportsTemplate({
         <div className="ml-auto flex items-center gap-2">
           <PeriodToggle vue={vue} />
           {vue === 'jour' ? (
-            <DaySelect day={day} days={days} />
+            <UrlSelect param="day" value={day} options={days.map((d) => ({ value: d.day, label: d.label }))} />
           ) : (
-            <MonthSelect month={month} months={months} />
+            <UrlSelect
+              param="month"
+              value={month}
+              options={months.map((m) => ({ value: m.month, label: m.label }))}
+            />
           )}
         </div>
       </div>

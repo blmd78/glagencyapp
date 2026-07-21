@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
-import { addDays, addMonths, frMonthLong, frWeekdayLong, startOfMonth, todayParis } from '@glagency/core'
+import { startOfMonth, todayParis } from '@glagency/core'
 import { requireAccess, type Profile } from '@/lib/auth'
+import { recentDays, recentMonths } from '@/lib/periods'
 import {
   getReportOptions,
   getPoliceReports,
@@ -8,31 +9,6 @@ import {
 } from '@/features/police-reports/services/get-police-reports'
 import { PoliceReportsTemplate } from '@/features/police-reports/PoliceReportsTemplate'
 import { PoliceReportsSkeleton } from '@/features/police-reports/components/reports-skeleton'
-
-/**
- * Fenêtre de jours récents (aujourd'hui Paris → n-1 jours en arrière). MÊME construction/format
- * que le Tracker (`features/police/services/get-police.ts`) — `addDays` (parse UTC-midi, pas de
- * décalage de fuseau) + `frWeekdayLong` — pour que le sélecteur PARTAGÉ affiche les mêmes libellés
- * des deux côtés.
- */
-function recentDays(today: string, n = 14): { day: string; label: string }[] {
-  return Array.from({ length: n }, (_, i) => {
-    const d = addDays(today, -i)
-    return { day: d, label: frWeekdayLong(d) }
-  })
-}
-
-/**
- * Fenêtre de mois récents (mois courant → n-1 mois en arrière). Pendant mensuel de `recentDays` :
- * `addMonths(today, -i)` renvoie le 1er du mois cible, `frMonthLong` le libellé (« juillet 2026 »).
- * Alimente le sélecteur PARTAGÉ `MonthSelect` (réutilisé par le Tracker en passe B).
- */
-function recentMonths(today: string, n = 12): { month: string; label: string }[] {
-  return Array.from({ length: n }, (_, i) => {
-    const m = addMonths(today, -i)
-    return { month: m, label: frMonthLong(m) }
-  })
-}
 
 /**
  * Rapport du soir (section Police). Accès = page « Police » (même droit que le Tracker).
@@ -112,7 +88,7 @@ async function Content({
   optionsPromise: ReturnType<typeof getReportOptions>
   reportsPromise: ReturnType<typeof getPoliceReports>
 }) {
-  const [options, reports] = await Promise.all([optionsPromise, reportsPromise])
+  const [models, reports] = await Promise.all([optionsPromise, reportsPromise])
 
   // Pré-chargement SERVEUR des chatteurs, groupés par modèle en UNE requête (cf.
   // `getChattersByModel`) : le formulaire lit `chattersByModel[modèle]` côté client → aucun
@@ -123,7 +99,7 @@ async function Content({
 
   return (
     <PoliceReportsTemplate
-      models={options.models}
+      models={models}
       reports={reports}
       chattersByModel={chattersByModel}
       canWrite={canWrite}

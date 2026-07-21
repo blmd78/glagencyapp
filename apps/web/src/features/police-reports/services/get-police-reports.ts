@@ -111,11 +111,11 @@ export async function getPoliceReports(
 
 /** Modèles visibles par l'appelant (RLS `creators_scoped_read` : admin = tout, sinon
  *  profile_creators). Le cloisonnement est porté par la RLS (client cookie), pas de param. */
-export async function getReportOptions(): Promise<{ models: ReportOption[] }> {
+export async function getReportOptions(): Promise<ReportOption[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('creators').select('id, name').order('name')
   if (error) throw new Error(error.message)
-  return { models: (data ?? []).map((c) => ({ id: c.id, name: c.name })) }
+  return (data ?? []).map((c) => ({ id: c.id, name: c.name }))
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { frWeekdayLong } from '@glagency/core'
+import { frTimeShort, frWeekdayLong } from '@glagency/core'
 import { ThumbsUp, Trash2, TriangleAlert, Wrench } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,11 +16,6 @@ import type { PoliceReport } from '../types'
 // Sentinelle « pas de filtre » — une option à part entière du Combobox (value non vide) pour
 // qu'il affiche son libellé « Tous… » au lieu du placeholder muet.
 const ALL = 'all'
-
-// Heure « HH:MM » (fr, fuseau local du navigateur) — MÊME helper que le Tracker
-// (`police-feed.tsx`) pour un affichage « auteur · heure » cohérent entre les deux.
-const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 /**
  * Consultation des rapports du soir — feuille client PURE (reçoit `reports` en props, ne fetch
@@ -195,7 +190,7 @@ export function ReportHistory({
       <div className="flex items-center justify-end gap-3">
         <span className="text-xs text-muted-foreground">
           {report.authorName ? `${report.authorName} · ` : ''}
-          {time(report.createdAt)}
+          {frTimeShort(report.createdAt)}
         </span>
         {report.authorId === currentProfileId && (
           <ConfirmDialog

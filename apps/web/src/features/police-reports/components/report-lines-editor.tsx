@@ -111,10 +111,18 @@ export function ReportLinesEditor({
                         rows={3}
                         placeholder="Ce qui a marché…"
                         disabled={disabled}
+                        aria-invalid={!!errors.lines?.[index]?.aMarche}
+                        aria-describedby={
+                          errors.lines?.[index]?.aMarche ? `lines-${index}-a-marche-error` : undefined
+                        }
                         {...register(`lines.${index}.aMarche`)}
                       />
                       {errors.lines?.[index]?.aMarche && (
-                        <p className="text-sm text-red-600 dark:text-red-400">
+                        <p
+                          id={`lines-${index}-a-marche-error`}
+                          role="alert"
+                          className="text-sm text-red-600 dark:text-red-400"
+                        >
                           {errors.lines[index]?.aMarche?.message}
                         </p>
                       )}
@@ -128,10 +136,18 @@ export function ReportLinesEditor({
                         rows={3}
                         placeholder="Ce qu’il reste à régler…"
                         disabled={disabled}
+                        aria-invalid={!!errors.lines?.[index]?.aRegler}
+                        aria-describedby={
+                          errors.lines?.[index]?.aRegler ? `lines-${index}-a-regler-error` : undefined
+                        }
                         {...register(`lines.${index}.aRegler`)}
                       />
                       {errors.lines?.[index]?.aRegler && (
-                        <p className="text-sm text-red-600 dark:text-red-400">
+                        <p
+                          id={`lines-${index}-a-regler-error`}
+                          role="alert"
+                          className="text-sm text-red-600 dark:text-red-400"
+                        >
                           {errors.lines[index]?.aRegler?.message}
                         </p>
                       )}

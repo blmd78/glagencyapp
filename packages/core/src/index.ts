@@ -30,6 +30,7 @@ export {
   frWeekdayDate,
   frDateNumeric,
   frDateTimeParis,
+  frTimeShort,
   startOfMonth,
   endOfMonth,
   addMonths,

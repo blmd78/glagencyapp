@@ -1,6 +1,5 @@
 import {
   addDays,
-  addMonths,
   endOfMonth,
   frMonthLong,
   frWeekdayLong,
@@ -10,6 +9,7 @@ import {
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getChatterScope } from '@/lib/scope'
+import { recentDays, recentMonths } from '@/lib/periods'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Profile } from '@/lib/auth'
 import { POLICE_ERRORS, type PoliceData, type PoliceEntry } from '../types'
@@ -34,15 +34,9 @@ export async function getPolice(
   const admin = createAdminClient()
 
   const today = todayParis()
-  // Fenêtres proposées aux sélecteurs PARTAGÉS (mêmes constructions/format que le Rapport).
-  const days = Array.from({ length: 14 }, (_, i) => {
-    const d = addDays(today, -i)
-    return { day: d, label: frWeekdayLong(d) }
-  })
-  const months = Array.from({ length: 12 }, (_, i) => {
-    const m = addMonths(today, -i)
-    return { month: m, label: frMonthLong(m) }
-  })
+  // Fenêtres proposées aux sélecteurs PARTAGÉS (source unique `@/lib/periods`, mêmes libellés que le Rapport).
+  const days = recentDays(today)
+  const months = recentMonths(today)
 
   // Jour : validation historique (regex seule, défaut aujourd'hui) — INCHANGÉE.
   const selectedDay = day && /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : today
@@ -137,6 +131,7 @@ export async function getPolice(
     amountEur: Number(r.amount_eur),
     note: r.note,
     shift: r.shift,
+    occurredOn: r.occurred_on,
     createdAt: r.created_at,
   }))
 

@@ -91,6 +91,10 @@ export const frDateTimeParis = (iso: string): string =>
     timeZone: 'Europe/Paris',
   })
 
+/** « 16:05 » — heure courte fr, fuseau LOCAL (affichage client d'un timestamptz). */
+export const frTimeShort = (iso: string): string =>
+  new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+
 /** Premier jour du mois de `day` (YYYY-MM-01). */
 export const startOfMonth = (day: string): string => `${day.slice(0, 7)}-01`
 

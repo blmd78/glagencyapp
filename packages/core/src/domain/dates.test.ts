@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addMonths, frDateTimeParis, frMonthLong, todayParis } from './dates'
+import { addMonths, frDateTimeParis, frMonthLong, frTimeShort, todayParis } from './dates'
 
 describe('frDateTimeParis', () => {
   it('affiche l’heure Paris (été, CEST = UTC+2)', () => {
@@ -44,5 +44,11 @@ describe('frMonthLong', () => {
   it('affiche « mois année » en français', () => {
     expect(frMonthLong('2026-07-21')).toBe('juillet 2026')
     expect(frMonthLong('2026-01-01')).toBe('janvier 2026')
+  })
+})
+
+describe('frTimeShort', () => {
+  it('affiche « HH:MM » (heure locale → on teste le FORMAT, pas la valeur, le fuseau CI variant)', () => {
+    expect(frTimeShort('2026-07-16T14:05:00Z')).toMatch(/^\d{2}:\d{2}$/)
   })
 })

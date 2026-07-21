@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { frDayShort, frTimeShort } from '@glagency/core'
 import { toast } from 'sonner'
 import { Trash2, TriangleAlert, Gavel, Pencil, X } from 'lucide-react'
 import { ActionButton } from '@/components/action-button'
@@ -17,9 +18,6 @@ import { eur2max as eur } from '@/lib/format'
 import { deletePoliceEntry, updatePoliceMalus } from '../actions'
 import { malusEditFormSchema, type MalusEditForm } from '../schema'
 import type { PoliceData, PoliceEntry } from '../types'
-
-const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 interface Group {
   chatterId: string
@@ -128,6 +126,7 @@ export function PoliceFeed({
                   <EntryRow
                     key={e.id}
                     e={e}
+                    isMonth={isMonth}
                     isAdmin={isAdmin}
                     canWrite={canWrite}
                     onRemove={() => remove(e.id)}
@@ -144,11 +143,14 @@ export function PoliceFeed({
 
 function EntryRow({
   e,
+  isMonth,
   isAdmin,
   canWrite,
   onRemove,
 }: {
   e: PoliceEntry
+  /** Mode mois : on préfixe la méta par la date du jour de faute (sinon on ne distingue pas les jours). */
+  isMonth: boolean
   isAdmin: boolean
   canWrite: boolean
   onRemove: () => void | string | Promise<void | string>
@@ -166,8 +168,10 @@ function EntryRow({
           : (e.errorLabel ?? '')}
       </span>
       <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {/* En mois : date courte du jour de faute en tête (« 12/07 · … ») — en jour, on ne montre que l'heure. */}
+        {isMonth ? `${frDayShort(e.occurredOn)} · ` : ''}
         {e.shift ? `${e.shift} · ` : ''}
-        {e.controllerName} · {time(e.createdAt)}
+        {e.controllerName} · {frTimeShort(e.createdAt)}
       </span>
       {/* Édition inline du malus : accès `police` en ÉCRITURE (admin/manager) — masquée pour un chatteur. */}
       {isMalus && canWrite && <MalusEdit e={e} />}

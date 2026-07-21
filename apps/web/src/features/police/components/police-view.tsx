@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { DaySelect } from '@/components/day-select'
-import { MonthSelect } from '@/components/month-select'
+import { UrlSelect } from '@/components/url-select'
 import { PeriodToggle } from '@/components/period-toggle'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { eur2max as eur } from '@/lib/format'
@@ -75,9 +74,21 @@ export function PoliceView({
               (cf. rapport-police) pilotés via `onSelect`/`disabled` pour garder la transition du Tracker. */}
           <PeriodToggle vue={data.vue} />
           {data.vue === 'jour' ? (
-            <DaySelect day={data.day} days={data.days} onSelect={selectDay} disabled={pending} />
+            <UrlSelect
+              param="day"
+              value={data.day}
+              options={data.days.map((d) => ({ value: d.day, label: d.label }))}
+              onSelect={selectDay}
+              disabled={pending}
+            />
           ) : (
-            <MonthSelect month={data.month} months={data.months} onSelect={selectMonth} disabled={pending} />
+            <UrlSelect
+              param="month"
+              value={data.month}
+              options={data.months.map((m) => ({ value: m.month, label: m.label }))}
+              onSelect={selectMonth}
+              disabled={pending}
+            />
           )}
         </div>
       </div>

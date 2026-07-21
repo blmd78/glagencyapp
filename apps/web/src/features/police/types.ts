@@ -46,6 +46,8 @@ export interface PoliceEntry {
   amountEur: number
   note: string | null
   shift: string | null
+  /** Jour de la faute (YYYY-MM-DD) — affiché par entrée en vue mois (distinguer les jours). */
+  occurredOn: string
   createdAt: string
 }
 
