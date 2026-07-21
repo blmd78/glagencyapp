@@ -36,6 +36,20 @@ export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
       if (!(await creatorInScope(profile, values.creatorId)))
         throw new BusinessError('Modèle hors de ton périmètre')
       const supabase = await createClient()
+      // Les chatteurs des lignes doivent appartenir AU modèle (sinon un writer pourrait injecter,
+      // via l'action ou la RPC en direct, un chatteur d'un autre modèle — la RLS des lignes ne
+      // contrôle que la propriété de l'en-tête, pas l'appartenance chatteur↔modèle). RLS
+      // `chatter_creators` scopée → cohérent avec `creatorInScope` ci-dessus.
+      if (values.lines.length) {
+        const { data: allowed, error: cErr } = await supabase
+          .from('chatter_creators')
+          .select('chatter_id')
+          .eq('creator_id', values.creatorId)
+        if (cErr) throw new Error(cErr.message)
+        const allowedIds = new Set((allowed ?? []).map((r) => r.chatter_id))
+        if (values.lines.some((l) => !allowedIds.has(l.chatterId)))
+          throw new BusinessError('Un chatteur sélectionné n’appartient pas à ce modèle')
+      }
       // Upsert en-tête + remplacement complet des lignes en UNE transaction (RPC `0073`,
       // SECURITY INVOKER → la RLS s'applique, `author = auth.uid()` posé côté SQL). Atomique :
       // plus de fenêtre « rapport sans lignes » si l'insert échouait après le delete.

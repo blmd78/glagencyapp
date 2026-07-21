@@ -1,6 +1,7 @@
 import { createAdminClient } from '@glagency/db'
 import { startOfMonth, endOfMonth } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Profile } from '@/lib/auth'
 import type { PoliceReport, ReportOption } from '../types'
 
@@ -21,8 +22,9 @@ export async function assignedCreatorIds(profile: Profile): Promise<Set<string> 
 /**
  * Rapports lisibles par l'appelant, cloisonnés à SES modèles (admin = tout), filtrables par
  * modèle ou par chatteur — la vue par chatteur donne la valeur (évolution soir après soir).
- * RLS `police_reports_read` (has_page) large ; le cloisonnement modèle est fait ici, comme le
- * Tracker filtre par `chatterIds`. Volume modéré → select nu.
+ * Cloisonnement par modèle = ENFORCÉ EN RLS (`police_reports_read`, migration 0074 : profile_creators) ;
+ * le `.filter(inScope)` ci-dessous n'est plus que la couche optimiste. Volume potentiellement
+ * > 1000 lignes (mois / non filtré) → `fetchAll` (anti-troncature silencieuse PostgREST).
  */
 export async function getPoliceReports(
   profile: Profile,
@@ -30,28 +32,41 @@ export async function getPoliceReports(
 ): Promise<PoliceReport[]> {
   const supabase = await createClient()
   const admin = createAdminClient()
-  let q = supabase
-    .from('police_reports')
-    // Chaîne UNIQUE (pas de concaténation `+`) : l'opérateur `+` élargit le type en `string`
-    // générique, et le parseur de types de postgrest-js exige un type LITTÉRAL pour résoudre
-    // l'embed → sinon fallback silencieux sur `GenericStringError` (repéré au typecheck).
-    .select(
-      'id, creator_id, day, ca, non_traitees, absents, alerte, author_id, created_at, lines:police_report_lines(id, chatter_id, a_marche, a_regler)',
-    )
-    .order('day', { ascending: false })
-  if (filter.creatorId) q = q.eq('creator_id', filter.creatorId)
-  // `day` (mono-jour) et `month` (plage du mois) sont mutuellement exclusifs à l'appel (la page
-  // n'en passe qu'un). Mode mois = tous les rapports du mois, ordre `day desc` conservé (utile au
-  // regroupement par jour côté historique).
-  if (filter.day) q = q.eq('day', filter.day)
-  if (filter.month) q = q.gte('day', startOfMonth(filter.month)).lte('day', endOfMonth(filter.month))
+
+  // Requête FRAÎCHE des rapports (rebâtie à chaque page pour `fetchAll`). Ordre DÉTERMINISTE
+  // `day desc, id` : requis par la pagination ET utile au regroupement par jour côté historique.
+  // Chaîne de `.select()` UNIQUE (littéral) : postgrest-js exige un type littéral pour résoudre
+  // l'embed `lines` (sinon fallback silencieux `GenericStringError`, repéré au typecheck).
+  const buildReports = (from?: number, to?: number) => {
+    let q = supabase
+      .from('police_reports')
+      .select(
+        'id, creator_id, day, ca, non_traitees, absents, alerte, author_id, created_at, lines:police_report_lines(id, chatter_id, a_marche, a_regler)',
+      )
+      .order('day', { ascending: false })
+      .order('id')
+    if (filter.creatorId) q = q.eq('creator_id', filter.creatorId)
+    // `day` (mono-jour) et `month` (plage du mois) mutuellement exclusifs (la page n'en passe qu'un).
+    if (filter.day) q = q.eq('day', filter.day)
+    else if (filter.month) q = q.gte('day', startOfMonth(filter.month)).lte('day', endOfMonth(filter.month))
+    if (from !== undefined && to !== undefined) q = q.range(from, to)
+    return q
+  }
+
+  // Jour = borné à une journée → requête simple. Sinon (mois ou non filtré), `police_reports` peut
+  // dépasser 1000 lignes → `fetchAll` pagine (anti-troncature silencieuse PostgREST, guideline
+  // data-loading). Crucial ici : le filtre chatteur est appliqué en JS APRÈS le fetch — sans
+  // pagination, la troncature amputerait des rapports avant même ce filtre.
+  const reportsPromise = filter.day ? buildReports() : fetchAll((from, to) => buildReports(from, to))
 
   const [scope, reportsRes, creatorsRes, chattersRes, profilesRes] = await Promise.all([
     assignedCreatorIds(profile),
-    q,
-    admin.from('creators').select('id, name'),
-    admin.from('chatters').select('id, display_name'),
-    admin.from('profiles').select('id, display_name'),
+    reportsPromise,
+    // Résolveurs de noms (client admin) : `fetchAll` — `chatters`/`profiles` peuvent dépasser
+    // 1000 lignes dans une agence, sinon des noms manqueraient silencieusement (→ « ? »).
+    fetchAll((from, to) => admin.from('creators').select('id, name').order('id').range(from, to)),
+    fetchAll((from, to) => admin.from('chatters').select('id, display_name').order('id').range(from, to)),
+    fetchAll((from, to) => admin.from('profiles').select('id, display_name').order('id').range(from, to)),
   ])
   if (reportsRes.error) throw new Error(reportsRes.error.message)
   // Résolutions de noms : une erreur technique doit REMONTER (→ Sentry) plutôt que dégrader

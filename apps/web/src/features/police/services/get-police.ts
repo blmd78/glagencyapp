@@ -84,15 +84,22 @@ export async function getPolice(
     // Compteur d'avertissements récents : aide la décision de malus dans la SAISIE (mode jour uniquement).
     // En mois la saisie est masquée → requête inutile, on la saute.
     vue === 'jour'
-      ? supabase
-          .from('police_entries')
-          .select('chatter_id')
-          .eq('kind', 'warning')
-          .gte('occurred_on', since)
-          .lte('occurred_on', selectedDay)
+      ? fetchAll((from, to) =>
+          supabase
+            .from('police_entries')
+            .select('chatter_id')
+            .eq('kind', 'warning')
+            .gte('occurred_on', since)
+            .lte('occurred_on', selectedDay)
+            .order('occurred_on', { ascending: false })
+            .order('id')
+            .range(from, to),
+        )
       : Promise.resolve(null),
-    admin.from('chatters').select('id, display_name, active'),
-    admin.from('profiles').select('id, display_name'),
+    // Résolveurs de noms (client admin) : `fetchAll` — anti-troncature 1000 lignes (chatters/profiles
+    // peuvent dépasser ce seuil dans une agence, sinon des noms manqueraient silencieusement).
+    fetchAll((from, to) => admin.from('chatters').select('id, display_name, active').order('id').range(from, to)),
+    fetchAll((from, to) => admin.from('profiles').select('id, display_name').order('id').range(from, to)),
   ])
   if (entriesRes.error) throw new Error(entriesRes.error.message)
   if (recentWarnsRes?.error) throw new Error(recentWarnsRes.error.message)

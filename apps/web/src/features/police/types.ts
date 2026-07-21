@@ -15,11 +15,8 @@ export const POLICE_ERRORS = [
   { key: 'infos_non_notees', label: 'Ne note pas les infos' },
 ] as const
 
-export type PoliceErrorKey = (typeof POLICE_ERRORS)[number]['key']
-
 /** Moments de contrôle (métadonnée optionnelle sur une ligne). */
 export const SHIFTS = ['matin', 'aprem', 'soir'] as const
-export type Shift = (typeof SHIFTS)[number]
 
 export interface EntityOption {
   id: string
