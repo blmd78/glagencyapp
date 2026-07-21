@@ -32,6 +32,7 @@ export function ReportForm({
   models,
   reports,
   chattersByModel,
+  currentProfileId,
   today,
 }: {
   models: ReportOption[]
@@ -39,6 +40,9 @@ export function ReportForm({
   /** Chatteurs pré-chargés par modèle (clé = id du modèle) — peuplent le Combobox chatteur sans
    *  appel serveur au changement de modèle. */
   chattersByModel: Record<string, ReportOption[]>
+  /** Rédacteur courant. La fiche est keyée (auteur, modèle, jour) : le pré-remplissage doit
+   *  matcher SON rapport, jamais celui d'un autre auteur du même modèle/soir (cf. useEffect). */
+  currentProfileId: string
   today: string
 }) {
   const router = useRouter()
@@ -64,13 +68,17 @@ export function ReportForm({
   const creatorId = useWatch({ control, name: 'creatorId' })
   const day = useWatch({ control, name: 'day' })
 
-  // Édition de la fiche existante : si (modèle, date) correspond à un rapport déjà chargé,
-  // pré-remplir depuis lui ; sinon, remettre à blanc. `reset` garde `creatorId`/`day` à
-  // l'identique → les `useWatch` ne changent pas → l'effet ne boucle pas. Après un
-  // enregistrement, `router.refresh()` renouvelle `reports` → l'effet recharge la fiche
-  // sauvegardée (idempotent).
+  // Édition de la fiche existante : si (modèle, date) correspond à MON rapport déjà chargé,
+  // pré-remplir depuis lui ; sinon, remettre à blanc. On matche sur les 3 clés de l'upsert
+  // (auteur, modèle, jour) : `reports` contient les rapports de TOUS les auteurs du périmètre
+  // (RLS de lecture large), donc sans `authorId === currentProfileId` on pourrait charger — puis
+  // écraser à l'enregistrement — le rapport d'un autre rédacteur sur le même modèle/soir. `reset`
+  // garde `creatorId`/`day` à l'identique → les `useWatch` ne changent pas → l'effet ne boucle
+  // pas. Après un enregistrement, `router.refresh()` renouvelle `reports` → recharge idempotente.
   useEffect(() => {
-    const found = reports.find((r) => r.creatorId === creatorId && r.day === day)
+    const found = reports.find(
+      (r) => r.authorId === currentProfileId && r.creatorId === creatorId && r.day === day,
+    )
     reset({
       creatorId,
       day,
@@ -86,7 +94,7 @@ export function ReportForm({
           }))
         : [],
     })
-  }, [creatorId, day, reports, reset])
+  }, [creatorId, day, reports, reset, currentProfileId])
 
   const chatterOptions = (chattersByModel[creatorId ?? ''] ?? []).map((c) => ({
     value: c.id,

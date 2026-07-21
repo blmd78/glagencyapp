@@ -41,6 +41,7 @@ export function PoliceReportsTemplate({
           models={models}
           reports={reports}
           chattersByModel={chattersByModel}
+          currentProfileId={currentProfileId}
           today={today}
         />
       )}

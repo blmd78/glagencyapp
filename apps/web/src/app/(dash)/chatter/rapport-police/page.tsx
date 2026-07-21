@@ -52,7 +52,10 @@ async function Content({
 
   // Pré-chargement SERVEUR des chatteurs par modèle : le formulaire lit `chattersByModel[modèle]`
   // côté client → aucun round-trip ni état de chargement au changement de modèle. Seulement pour
-  // un écrivain (le seul à voir le formulaire). Échelle v1 : un police a une poignée de modèles.
+  // un écrivain (le seul à voir le formulaire). Une requête `getModelChatters` par modèle en
+  // parallèle. Tenable en v1 : un police/manager a une poignée de modèles assignés. PIRE CAS =
+  // un ADMIN (périmètre non scopé → tous les modèles de l'agence) → rafale de N requêtes au
+  // chargement ; si l'agence grossit, basculer sur un fetch client au `onChange` du modèle.
   const chattersByModel = canWrite
     ? Object.fromEntries(
         await Promise.all(
