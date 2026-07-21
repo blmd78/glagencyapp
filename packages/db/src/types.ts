@@ -2262,6 +2262,18 @@ export type Database = {
         }
         Returns: Json
       }
+      upsert_police_report: {
+        Args: {
+          p_absents: number
+          p_alerte?: string
+          p_ca: number
+          p_creator_id: string
+          p_day: string
+          p_lines?: Json
+          p_non_traitees: number
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
