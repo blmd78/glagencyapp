@@ -15,11 +15,8 @@ export const POLICE_ERRORS = [
   { key: 'infos_non_notees', label: 'Ne note pas les infos' },
 ] as const
 
-export type PoliceErrorKey = (typeof POLICE_ERRORS)[number]['key']
-
 /** Moments de contrôle (métadonnée optionnelle sur une ligne). */
 export const SHIFTS = ['matin', 'aprem', 'soir'] as const
-export type Shift = (typeof SHIFTS)[number]
 
 export interface EntityOption {
   id: string
@@ -28,6 +25,12 @@ export interface EntityOption {
 
 export interface DayChoice {
   day: string
+  label: string
+}
+
+export interface MonthChoice {
+  /** 1er du mois (YYYY-MM-01). */
+  month: string
   label: string
 }
 
@@ -43,24 +46,34 @@ export interface PoliceEntry {
   amountEur: number
   note: string | null
   shift: string | null
+  /** Jour de la faute (YYYY-MM-DD) — affiché par entrée en vue mois (distinguer les jours). */
+  occurredOn: string
   createdAt: string
 }
 
 export interface PoliceData {
+  /** Mode d'affichage (en-tête) : `jour` (mono-jour) ou `mois` (plage du mois). */
+  vue: 'jour' | 'mois'
   /** Jour affiché (YYYY-MM-DD). */
   day: string
   /** Libellé « lundi 07/07 ». */
   dayLabel: string
-  /** Entrées du jour, plus récent d'abord. */
+  /** Mois affiché (1er du mois, YYYY-MM-01). */
+  month: string
+  /** Libellé « juillet 2026 ». */
+  monthLabel: string
+  /** Entrées de la période : du JOUR (mode jour) OU du MOIS (mode mois), plus récent d'abord. */
   entries: PoliceEntry[]
-  /** Chatteurs actifs — options des formulaires. */
+  /** Chatteurs actifs — options des formulaires (saisie masquée en mois). */
   chatterOptions: EntityOption[]
-  /** chatterId → nb d'avertissements récents (fenêtre 30 j) — aide la décision de malus. */
+  /** chatterId → nb d'avertissements récents (fenêtre 30 j) — aide la décision de malus. Vide en mois. */
   warningsByChatter: Record<string, number>
-  /** KPIs du jour. */
+  /** KPIs agrégés sur la période affichée (jour OU mois). */
   totalMalusEur: number
   warningCount: number
   chattersConcerned: number
   /** Jours proposés au sélecteur (aujourd'hui + 13 passés). */
   days: DayChoice[]
+  /** Mois proposés au sélecteur (mois courant + 11 passés). */
+  months: MonthChoice[]
 }

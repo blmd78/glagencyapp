@@ -1,7 +1,7 @@
 import { PoliceView } from './components/police-view'
 import type { PoliceData } from './types'
 
-/** Template Police : sélecteur de jour + saisie (avertissement / malus) + journal du jour. */
+/** Template Police : bascule Jour/Mois + sélecteur de période + saisie (jour uniquement) + journal. */
 export function PoliceTemplate({
   data,
   isAdmin,
