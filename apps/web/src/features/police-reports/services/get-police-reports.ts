@@ -35,7 +35,7 @@ export async function getPoliceReports(
     // générique, et le parseur de types de postgrest-js exige un type LITTÉRAL pour résoudre
     // l'embed → sinon fallback silencieux sur `GenericStringError` (repéré au typecheck).
     .select(
-      'id, creator_id, day, ca, non_traitees, absents, alerte, author_id, lines:police_report_lines(id, chatter_id, observation)',
+      'id, creator_id, day, ca, non_traitees, absents, alerte, author_id, lines:police_report_lines(id, chatter_id, a_marche, a_regler)',
     )
     .order('day', { ascending: false })
   if (filter.creatorId) q = q.eq('creator_id', filter.creatorId)
@@ -73,7 +73,8 @@ export async function getPoliceReports(
         id: l.id,
         chatterId: l.chatter_id,
         chatterName: chatterName[l.chatter_id] ?? '?',
-        observation: l.observation,
+        aMarche: l.a_marche,
+        aRegler: l.a_regler,
       })),
     }))
     .filter((rep) => !filter.chatterId || rep.lines.some((l) => l.chatterId === filter.chatterId))

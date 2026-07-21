@@ -60,7 +60,12 @@ export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
       if (dErr) throw new Error(dErr.message)
       if (values.lines.length) {
         const { error: iErr } = await supabase.from('police_report_lines').insert(
-          values.lines.map((l) => ({ report_id: header.id, chatter_id: l.chatterId, observation: l.observation })),
+          values.lines.map((l) => ({
+            report_id: header.id,
+            chatter_id: l.chatterId,
+            a_marche: l.aMarche,
+            a_regler: l.aRegler,
+          })),
         )
         if (iErr) throw new Error(iErr.message)
       }

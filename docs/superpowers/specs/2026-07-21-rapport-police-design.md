@@ -35,7 +35,7 @@ rattaché à un **modèle** et à des **chatteurs**, et il partage l'accès du T
 | CA | **Saisi**, jamais dérivé de MyPuls (reflète ce qui est observé le soir) |
 | Lecture | **Ses modèles** (périmètre `profile_creators`) — comme le Tracker ; **admin/superadmin voient tout** |
 | Emplacement | Item **« Rapport »** dans la catégorie sidebar **« Police »**, **en dessous** de « Tracker » (placement provisoire, ajustable) |
-| Champs par chatteur | **Une note libre** par chatteur (pas de « a marché » / « à régler » séparés en v1) |
+| Champs par chatteur | **Deux champs par chatteur** : « 👍 a marché » + « 🔧 à régler » (repris de la maquette, mais appliqués **au niveau chatteur** — chaque chatteur suivi = un mini-rapport ; révision 2026-07-21) |
 
 ## 1. Données — migration `0071_police_reports.sql`
 
@@ -59,15 +59,22 @@ create table public.police_reports (
   unique (author_id, creator_id, day)   -- un seul rapport par auteur/modèle/soir → upsert
 );
 
--- Lignes : une observation par chatteur suivi dans ce rapport.
+-- Lignes : un mini-rapport par chatteur suivi (« a marché » / « à régler »).
 create table public.police_report_lines (
   id          uuid primary key default gen_random_uuid(),
   report_id   uuid not null references public.police_reports(id) on delete cascade,
   chatter_id  uuid not null references public.chatters(id)       on delete cascade,
-  observation text,
+  a_marche    text,                     -- 👍 ce qui a marché pour ce chatteur ce soir
+  a_regler    text,                     -- 🔧 ce qu'il reste à régler
   unique (report_id, chatter_id)        -- un chatteur au plus une fois par rapport
 );
 ```
+
+> **Révision 2026-07-21** — La v1 initiale prévoyait une seule note libre (`observation`).
+> Après retour de Benoit, on passe à **deux champs par chatteur** (`a_marche` / `a_regler`),
+> repris de la maquette mais portés au niveau chatteur (là où la maquette les gardait globaux).
+> `0071` (déjà appliquée UAT) a créé `observation` ; la migration **`0072`** la remplace par
+> `a_marche` + `a_regler` (forward-only — on ne réédite pas une migration appliquée).
 
 Conventions : `text` + `check` (jamais d'enum), FK toutes indexées (0055), `updated_at` maintenu
 **côté application** comme le reste du repo (`daily_reports`, `planning`) — pas de trigger ici,
@@ -131,7 +138,8 @@ apps/web/src/app/(dash)/chatter/rapport-police/
 
 - **Saisie** : le police choisit un **modèle** (parmi ses modèles assignés) et une **date** →
   saisit les chiffres → **ajoute les chatteurs suivis** un par un (sélection parmi les chatteurs
-  du modèle) avec leur note. Upsert sur `(author_id, creator_id, day)`.
+  du modèle), chacun avec ses **deux champs** « 👍 a marché » / « 🔧 à régler ». Upsert sur
+  `(author_id, creator_id, day)`.
 - **Consultation** : historique des rapports, filtrable **par modèle** ou **par chatteur** —
   c'est la vue par chatteur qui donne la valeur (voir l'évolution d'un chatteur sur plusieurs
   soirs).
@@ -157,7 +165,6 @@ Nouvel item dans `config/workspaces.ts`, groupe `police` (déjà existant) :
   + le tracker), **Comparer**, **Stats** (recoupe `/chatter/stats`), **Objectifs** (recoupe
   `quotas`), **Podium**, **Bilan IA** (génération d'un bloc texte), **Sauvegarde** (sans objet en
   base).
-- Champs « a marché » / « à régler » séparés par chatteur : une note libre unique en v1.
 - CA dérivé de MyPuls : saisi à la main en v1.
 
 ## Risques / points d'attention

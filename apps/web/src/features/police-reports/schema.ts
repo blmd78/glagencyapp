@@ -15,9 +15,19 @@ export const reportInput = z.object({
   absents: count,
   alerte: optionalText(2000, 'Alerte trop longue'),
   lines: z
-    .array(z.object({ chatterId: z.uuid(), observation: optionalText(2000, 'Note trop longue') }))
+    .array(
+      z.object({
+        chatterId: z.uuid(),
+        aMarche: optionalText(2000, 'Note trop longue'),
+        aRegler: optionalText(2000, 'Note trop longue'),
+      }),
+    )
     .max(100, 'Trop de chatteurs'),
 })
 export type ReportInput = z.infer<typeof reportInput>
+// Type d'ENTRÉE du formulaire (le schéma a des `.default()`/`.transform()` → input ≠ output).
+// Sert de `TFieldValues` à `useForm`/`Controller`/`useFieldArray` côté client (même patron que
+// `BilanFormInput` dans insights/schema.ts).
+export type ReportFormValues = z.input<typeof reportInput>
 
 export const deleteReportInput = z.object({ id: z.uuid() })

@@ -3,7 +3,8 @@ export interface PoliceReportLine {
   id: string
   chatterId: string
   chatterName: string
-  observation: string | null
+  aMarche: string | null
+  aRegler: string | null
 }
 
 export interface PoliceReport {
