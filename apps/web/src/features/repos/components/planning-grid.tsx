@@ -181,7 +181,9 @@ export function PlanningGrid({
           <PlanningGridRows
             columns={columns}
             data={data}
-            canWrite={canWrite}
+            // Édition des cases = ADMIN uniquement (le prop `canWrite` de la ligne reçoit
+            // désormais `isAdmin`) : un manager voit tout le tableau en lecture seule.
+            canWrite={isAdmin}
             cellValue={cellValue}
             cellChips={cellChips}
             overByCol={overByCol}
@@ -219,7 +221,8 @@ export function PlanningGrid({
           <span className="text-muted-foreground">Total repos semaine :</span>{' '}
           <span className="font-semibold tabular-nums">{total}</span>
         </p>
-        {/* Chatteur (lecture seule) : la case reste visible (état lisible) mais non modifiable. */}
+        {/* Case Telegram : cochable par admin ET manager (`canWrite`) — c'est Marco (manager)
+            qui envoie sur Telegram. Un chatteur la voit en lecture seule (état lisible). */}
         <label className={`flex items-center gap-2 text-sm ${canWrite ? 'cursor-pointer' : 'cursor-default'}`}>
           <Checkbox
             checked={sent}

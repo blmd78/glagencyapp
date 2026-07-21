@@ -125,7 +125,8 @@ export function PlanningGridRows({
                   placeholder={placeholderByKind[kind]}
                 />
                 ) : (
-                  // Lecture seule (chatteur) : chips statiques, sans combobox ni édition.
+                  // Lecture seule (non-admin : managers + chatteurs) : chips statiques, sans
+                  // combobox ni édition — `canWrite` reçoit désormais la valeur `isAdmin`.
                   <div className="flex min-h-9 w-full flex-wrap items-center gap-1 px-1.5 py-1">
                     {chips.length ? (
                       chips.map((ch) => (
