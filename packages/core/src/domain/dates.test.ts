@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { frDateTimeParis, todayParis } from './dates'
+import { addMonths, frDateTimeParis, frMonthLong, todayParis } from './dates'
 
 describe('frDateTimeParis', () => {
   it('affiche l’heure Paris (été, CEST = UTC+2)', () => {
@@ -26,5 +26,23 @@ describe('todayParis', () => {
   })
   it('format YYYY-MM-DD', () => {
     expect(todayParis(new Date('2026-03-05T12:00:00Z'))).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
+describe('addMonths', () => {
+  it('retourne le 1er du mois cible (quel que soit le jour de départ)', () => {
+    expect(addMonths('2026-07-21', -1)).toBe('2026-06-01')
+    expect(addMonths('2026-07-01', 0)).toBe('2026-07-01')
+  })
+  it('gère le passage d’année', () => {
+    expect(addMonths('2026-01-15', -1)).toBe('2025-12-01')
+    expect(addMonths('2026-12-31', 1)).toBe('2027-01-01')
+  })
+})
+
+describe('frMonthLong', () => {
+  it('affiche « mois année » en français', () => {
+    expect(frMonthLong('2026-07-21')).toBe('juillet 2026')
+    expect(frMonthLong('2026-01-01')).toBe('janvier 2026')
   })
 })

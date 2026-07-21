@@ -102,6 +102,22 @@ export function endOfMonth(day: string): string {
   return isoDate(d)
 }
 
+/** Décale de `n` mois et retourne le 1er du mois cible (YYYY-MM-01). `setUTCMonth` gère le
+ *  passage d'année (déc → jan) et normalise (on part du 1er, pas de débordement de fin de mois). */
+export function addMonths(day: string, n: number): string {
+  const d = new Date(`${day.slice(0, 7)}-01T00:00:00Z`)
+  d.setUTCMonth(d.getUTCMonth() + n)
+  return isoDate(d)
+}
+
+/** « juillet 2026 » — mois en toutes lettres + année (pour le sélecteur de mois). */
+export const frMonthLong = (day: string): string =>
+  new Date(`${day.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString('fr-FR', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+
 /** Nombre de jours (inclusif) entre deux jours `from`..`to`. */
 export const daysBetween = (from: string, to: string): number =>
   Math.round(

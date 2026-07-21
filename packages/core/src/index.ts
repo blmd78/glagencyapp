@@ -32,6 +32,8 @@ export {
   frDateTimeParis,
   startOfMonth,
   endOfMonth,
+  addMonths,
+  frMonthLong,
   daysBetween,
   weekLabel,
   round1,
