@@ -23,8 +23,10 @@ const ERROR_LABEL: Record<string, string> = Object.fromEntries(
  * - `jour` : entrées d'un seul jour (`?day=`, défaut aujourd'hui), KPIs du jour — comportement historique.
  * - `mois` : entrées de tout le mois (`?month=`, défaut mois courant), KPIs agrégés sur le mois. Consultation
  *   pure (pas de saisie) → le compteur d'avertissements récents (aide-décision) n'est pas chargé.
- * RLS : admin ou page `police`. Noms résolus via client admin ; pour un non-admin, options,
- * journal, KPIs et compteur d'avertissements sont CLOISONNÉS à ses chatteurs (lib/scope).
+ * RLS : admin ou page `police` + CLOISONNEMENT PAR CHATTEUR enforcé en RLS (migration 0075 :
+ * chatteur d'un modèle de `profile_creators`). Le filtre app `inScope` (lib/scope) n'est plus que
+ * la couche optimiste — MAIS il reste nécessaire pour cloisonner les OPTIONS (`chatterOptions`,
+ * résolues via le client admin qui BYPASSE la RLS). Noms résolus via client admin.
  */
 export async function getPolice(
   profile: Profile,
