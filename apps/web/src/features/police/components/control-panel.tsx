@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Combobox } from '@/components/ui/combobox'
 import {
   Select,
@@ -81,7 +82,7 @@ export function ControlPanel({
       {/* Chatteur + shift */}
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-52 flex-1 flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">Chatteur contrôlé</label>
+          <Label>Chatteur contrôlé</Label>
           <Controller
             name="chatterId"
             control={control}
@@ -103,7 +104,7 @@ export function ControlPanel({
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">Shift</label>
+          <Label>Shift</Label>
           <Controller
             name="shift"
             control={control}
@@ -139,7 +140,7 @@ export function ControlPanel({
       {/* Erreur + montant (à la suite) + action */}
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-64 flex-1 flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">Type d’erreur</label>
+          <Label>Type d’erreur</Label>
           <Controller
             name="errorKey"
             control={control}
@@ -163,9 +164,7 @@ export function ControlPanel({
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Malus € (vide = simple avert.)
-          </label>
+          <Label>Malus € (vide = simple avert.)</Label>
           <Input
             type="number"
             inputMode="decimal"
@@ -180,9 +179,7 @@ export function ControlPanel({
           )}
         </div>
         <div className="flex min-w-40 flex-1 flex-col gap-1">
-          <label className="text-xs font-medium text-muted-foreground">
-            Motif du malus (optionnel)
-          </label>
+          <Label>Motif du malus (optionnel)</Label>
           <Input
             placeholder="Raison…"
             disabled={!isMalus}

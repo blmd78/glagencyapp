@@ -1,11 +1,14 @@
 import { z } from 'zod'
+import { isDayInWindow } from '@/lib/periods'
 import { POLICE_ERRORS, SHIFTS } from './types'
 
 // Schémas Zod PARTAGÉS client (form RHF) ↔ serveur (actions safeParse) — source unique.
 
 export const errorKeyZ = z.enum(POLICE_ERRORS.map((e) => e.key) as [string, ...string[]])
 export const shiftZ = z.enum(SHIFTS)
-const dayZ = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+// `day` borné à la fenêtre 14 j (M2) — défense en profondeur : une saisie directe (hors sélecteur)
+// ne peut pas dater une sanction d'une date arbitraire.
+const dayZ = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isDayInWindow, 'Date hors de la période autorisée')
 const uuidZ = z.uuid()
 const amountEurZ = z.number().min(0).max(100_000)
 const noteZ = z.string().max(500).optional()

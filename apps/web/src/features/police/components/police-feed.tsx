@@ -3,20 +3,21 @@
 import { useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { frDayShort, frTimeShort } from '@glagency/core'
 import { toast } from 'sonner'
 import { Trash2, TriangleAlert, Gavel, Pencil, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { ActionButton } from '@/components/action-button'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { STATUS_COLORS } from '@/lib/status-color'
 import { eur2max as eur } from '@/lib/format'
 import { deletePoliceEntry, updatePoliceMalus } from '../actions'
 import { malusEditFormSchema, type MalusEditForm } from '../schema'
 import type { PoliceData, PoliceEntry } from '../types'
-
-const time = (iso: string) =>
-  new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 
 interface Group {
   chatterId: string
@@ -26,7 +27,8 @@ interface Group {
   malusTotal: number
 }
 
-/** Journal du jour GROUPÉ par chatteur (blocs triés par activité récente) + KPIs. */
+/** Journal de la période (jour OU mois selon `data.vue`) GROUPÉ par chatteur (blocs triés par
+ *  activité récente) + KPIs. En mois : cumul des sanctions du mois par chatteur. */
 export function PoliceFeed({
   data,
   isAdmin,
@@ -73,70 +75,82 @@ export function PoliceFeed({
       '?')
     : null
 
+  // Libellés selon le mode : mois = cumul du mois par chatteur, jour = journal du jour.
+  const isMonth = data.vue === 'mois'
+  const periodNoun = isMonth ? 'ce mois' : 'ce jour'
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-xl border">
-        <div className="flex items-center justify-between border-b px-4 py-2.5 text-sm font-semibold">
-          <span>Historique du jour</span>
-          {filterName && onClearFilter && (
-            <button
-              type="button"
-              onClick={onClearFilter}
-              className="flex items-center gap-1 rounded bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-muted/70"
-            >
-              filtré : {filterName}
-              <X className="size-3" />
-            </button>
-          )}
-        </div>
-        {shown.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-            {filterName ? `Aucune entrée pour ${filterName} ce jour.` : 'Aucune entrée ce jour.'}
-          </p>
-        ) : (
-          <ul className="divide-y">
-            {shown.map((g) => (
-              <li key={g.chatterId} className="px-4 py-3">
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="font-semibold">{g.chatterName}</span>
-                  {g.warnCount > 0 && (
-                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                      {g.warnCount} avert.
-                    </span>
-                  )}
-                  {g.malusTotal > 0 && (
-                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs font-medium text-red-800 dark:bg-red-950 dark:text-red-300">
-                      malus {eur(g.malusTotal)}
-                    </span>
-                  )}
-                </div>
-                <ul className="flex flex-col gap-1">
-                  {g.entries.map((e) => (
-                    <EntryRow
-                      key={e.id}
-                      e={e}
-                      isAdmin={isAdmin}
-                      canWrite={canWrite}
-                      onRemove={() => remove(e.id)}
-                    />
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
+      {/* Titre de section + pastille de filtre — HORS cadre (zéro filet, signature DA de l'app). */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">
+          {isMonth ? 'Historique du mois' : 'Historique du jour'}
+        </h2>
+        {filterName && onClearFilter && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onClearFilter}
+            className="gap-1 text-muted-foreground"
+          >
+            filtré : {filterName}
+            <X className="size-3" />
+          </Button>
         )}
       </div>
+
+      {shown.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {filterName ? `Aucune entrée pour ${filterName} ${periodNoun}.` : `Aucune entrée ${periodNoun}.`}
+        </p>
+      ) : (
+        // Cartes empilées : une carte par chatteur, hiérarchie par gap + typo (aucun filet interne).
+        <div className="flex flex-col gap-4">
+          {shown.map((g) => (
+            <article key={g.chatterId} className="flex flex-col gap-3 rounded-xl border p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm">
+                  <span className="text-muted-foreground">Chatteur</span>{' '}
+                  <span className="font-medium">{g.chatterName}</span>
+                </span>
+                {g.warnCount > 0 && (
+                  <Badge className={STATUS_COLORS.warning}>{g.warnCount} avert.</Badge>
+                )}
+                {g.malusTotal > 0 && (
+                  <Badge className={STATUS_COLORS.danger}>malus {eur(g.malusTotal)}</Badge>
+                )}
+              </div>
+              <ul className="flex flex-col gap-2">
+                {g.entries.map((e) => (
+                  <EntryRow
+                    key={e.id}
+                    e={e}
+                    isMonth={isMonth}
+                    isAdmin={isAdmin}
+                    canWrite={canWrite}
+                    onRemove={() => remove(e.id)}
+                  />
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
 function EntryRow({
   e,
+  isMonth,
   isAdmin,
   canWrite,
   onRemove,
 }: {
   e: PoliceEntry
+  /** Mode mois : on préfixe la méta par la date du jour de faute (sinon on ne distingue pas les jours). */
+  isMonth: boolean
   isAdmin: boolean
   canWrite: boolean
   onRemove: () => void | string | Promise<void | string>
@@ -144,25 +158,20 @@ function EntryRow({
   const isMalus = e.kind === 'malus'
   return (
     <li className="flex items-center gap-2 text-sm">
-      <span
-        className={cn(
-          'flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
-          isMalus
-            ? 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
-            : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
-        )}
-      >
+      <Badge className={STATUS_COLORS[isMalus ? 'danger' : 'warning']}>
         {isMalus ? <Gavel className="size-3" /> : <TriangleAlert className="size-3" />}
         {isMalus ? eur(e.amountEur) : 'Avert.'}
-      </span>
+      </Badge>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
         {isMalus
           ? [e.errorLabel, e.note].filter(Boolean).join(' · ') || '—'
           : (e.errorLabel ?? '')}
       </span>
       <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {/* En mois : date courte du jour de faute en tête (« 12/07 · … ») — en jour, on ne montre que l'heure. */}
+        {isMonth ? `${frDayShort(e.occurredOn)} · ` : ''}
         {e.shift ? `${e.shift} · ` : ''}
-        {e.controllerName} · {time(e.createdAt)}
+        {e.controllerName} · {frTimeShort(e.createdAt)}
       </span>
       {/* Édition inline du malus : accès `police` en ÉCRITURE (admin/manager) — masquée pour un chatteur. */}
       {isMalus && canWrite && <MalusEdit e={e} />}
@@ -172,13 +181,15 @@ function EntryRow({
           title="Supprimer cette entrée ?"
           description={`Supprimer définitivement ${isMalus ? 'ce malus' : "cet avertissement"} de ${e.chatterName} ? Cette action est irréversible.`}
           trigger={
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               title="Supprimer"
-              className="text-muted-foreground/60 transition-colors hover:text-red-600"
+              className="size-7 text-red-600 hover:text-red-700"
             >
               <Trash2 className="size-3.5" />
-            </button>
+            </Button>
           }
         />
       )}
@@ -224,17 +235,19 @@ function MalusEdit({ e }: { e: PoliceEntry }) {
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           title="Modifier le malus"
-          className="text-muted-foreground/60 transition-colors hover:text-foreground"
+          className="size-7 text-muted-foreground hover:text-foreground"
         >
           <Pencil className="size-3.5" />
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-3" align="end">
         <form onSubmit={save} className="flex flex-col gap-2">
-          <span className="text-xs font-medium">Modifier le malus — {e.chatterName}</span>
+          <Label>Modifier le malus — {e.chatterName}</Label>
           <div className="flex gap-2">
             <Input
               type="number"

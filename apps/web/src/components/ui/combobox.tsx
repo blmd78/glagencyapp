@@ -32,6 +32,8 @@ export function Combobox({
   emptyText = 'Aucun résultat.',
   className,
   disabled,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': ariaDescribedby,
 }: {
   options: ComboOption[]
   value: string
@@ -41,6 +43,9 @@ export function Combobox({
   emptyText?: string
   className?: string
   disabled?: boolean
+  /** Accessibilité : relier le déclencheur à son message d'erreur (relayés sur le `<Button role="combobox">`). */
+  'aria-invalid'?: boolean
+  'aria-describedby'?: string
 }) {
   const [open, setOpen] = useState(false)
   const selected = options.find((o) => o.value === value)
@@ -53,6 +58,8 @@ export function Combobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedby}
           disabled={disabled}
           className={cn(
             'h-9 w-full justify-between font-normal',
