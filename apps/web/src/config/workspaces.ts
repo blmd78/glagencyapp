@@ -32,6 +32,7 @@ import {
   Ghost,
   NotebookPen,
   IdCard,
+  ClipboardList,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -100,6 +101,9 @@ export const WORKSPACES: Workspace[] = [
       // Libellé affiché « Tracker » — slug/route/dossier restent `police` (renommer
       // casserait profiles.pages + policies RLS, cf. features/police/).
       { href: '/chatter/police', label: 'Tracker', icon: ShieldAlert, group: 'police' },
+      // Route créée en tâche 4 (`/chatter/rapport-police` n'existe pas encore) : cast requis
+      // sous `typedRoutes` (next.config.ts) le temps que la page soit ajoutée.
+      { href: '/chatter/rapport-police' as Route, label: 'Rapport', icon: ClipboardList, slug: 'police', group: 'police' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
       // Groupe Accès (porté de gla-workflow) : identifiants Snapchat + fiches modèles.
