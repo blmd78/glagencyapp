@@ -1,4 +1,5 @@
 import { createAdminClient } from '@glagency/db'
+import { startOfMonth, endOfMonth } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
 import type { PoliceReport, ReportOption } from '../types'
@@ -25,7 +26,7 @@ export async function assignedCreatorIds(profile: Profile): Promise<Set<string> 
  */
 export async function getPoliceReports(
   profile: Profile,
-  filter: { creatorId?: string; chatterId?: string },
+  filter: { creatorId?: string; chatterId?: string; day?: string; month?: string },
 ): Promise<PoliceReport[]> {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -35,10 +36,15 @@ export async function getPoliceReports(
     // générique, et le parseur de types de postgrest-js exige un type LITTÉRAL pour résoudre
     // l'embed → sinon fallback silencieux sur `GenericStringError` (repéré au typecheck).
     .select(
-      'id, creator_id, day, ca, non_traitees, absents, alerte, author_id, lines:police_report_lines(id, chatter_id, a_marche, a_regler)',
+      'id, creator_id, day, ca, non_traitees, absents, alerte, author_id, created_at, lines:police_report_lines(id, chatter_id, a_marche, a_regler)',
     )
     .order('day', { ascending: false })
   if (filter.creatorId) q = q.eq('creator_id', filter.creatorId)
+  // `day` (mono-jour) et `month` (plage du mois) sont mutuellement exclusifs à l'appel (la page
+  // n'en passe qu'un). Mode mois = tous les rapports du mois, ordre `day desc` conservé (utile au
+  // regroupement par jour côté historique).
+  if (filter.day) q = q.eq('day', filter.day)
+  if (filter.month) q = q.gte('day', startOfMonth(filter.month)).lte('day', endOfMonth(filter.month))
 
   const [scope, reportsRes, creatorsRes, chattersRes, profilesRes] = await Promise.all([
     assignedCreatorIds(profile),
@@ -76,6 +82,7 @@ export async function getPoliceReports(
       alerte: r.alerte,
       authorName: r.author_id ? (authorName[r.author_id] ?? null) : null,
       authorId: r.author_id ?? null,
+      createdAt: r.created_at,
       lines: (r.lines ?? []).map((l) => ({
         id: l.id,
         chatterId: l.chatter_id,

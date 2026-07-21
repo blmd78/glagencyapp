@@ -19,6 +19,8 @@ export interface PoliceReport {
   authorName: string | null
   /** Id de l'auteur — gate la corbeille côté client (on ne peut supprimer que le sien). */
   authorId: string | null
+  /** Horodatage de création (timestamptz) — affiché « auteur · heure » comme le Tracker. */
+  createdAt: string
   lines: PoliceReportLine[]
 }
 
