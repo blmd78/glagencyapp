@@ -29,7 +29,8 @@ interface Group {
   malusTotal: number
 }
 
-/** Journal du jour GROUPÉ par chatteur (blocs triés par activité récente) + KPIs. */
+/** Journal de la période (jour OU mois selon `data.vue`) GROUPÉ par chatteur (blocs triés par
+ *  activité récente) + KPIs. En mois : cumul des sanctions du mois par chatteur. */
 export function PoliceFeed({
   data,
   isAdmin,
@@ -76,11 +77,17 @@ export function PoliceFeed({
       '?')
     : null
 
+  // Libellés selon le mode : mois = cumul du mois par chatteur, jour = journal du jour.
+  const isMonth = data.vue === 'mois'
+  const periodNoun = isMonth ? 'ce mois' : 'ce jour'
+
   return (
     <div className="flex flex-col gap-4">
       {/* Titre de section + pastille de filtre — HORS cadre (zéro filet, signature DA de l'app). */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">Historique du jour</h2>
+        <h2 className="text-lg font-semibold tracking-tight">
+          {isMonth ? 'Historique du mois' : 'Historique du jour'}
+        </h2>
         {filterName && onClearFilter && (
           <Button
             type="button"
@@ -97,7 +104,7 @@ export function PoliceFeed({
 
       {shown.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {filterName ? `Aucune entrée pour ${filterName} ce jour.` : 'Aucune entrée ce jour.'}
+          {filterName ? `Aucune entrée pour ${filterName} ${periodNoun}.` : `Aucune entrée ${periodNoun}.`}
         </p>
       ) : (
         // Cartes empilées : une carte par chatteur, hiérarchie par gap + typo (aucun filet interne).
@@ -105,7 +112,10 @@ export function PoliceFeed({
           {shown.map((g) => (
             <article key={g.chatterId} className="flex flex-col gap-3 rounded-xl border p-4">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{g.chatterName}</span>
+                <span className="text-sm">
+                  <span className="text-muted-foreground">Chatteur</span>{' '}
+                  <span className="font-medium">{g.chatterName}</span>
+                </span>
                 {g.warnCount > 0 && (
                   <Badge className={STATUS_COLORS.warning}>{g.warnCount} avert.</Badge>
                 )}

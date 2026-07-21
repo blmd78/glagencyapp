@@ -31,6 +31,12 @@ export interface DayChoice {
   label: string
 }
 
+export interface MonthChoice {
+  /** 1er du mois (YYYY-MM-01). */
+  month: string
+  label: string
+}
+
 /** Une ligne du journal : avertissement (erreur) OU malus (montant décidé). */
 export interface PoliceEntry {
   id: string
@@ -47,20 +53,28 @@ export interface PoliceEntry {
 }
 
 export interface PoliceData {
+  /** Mode d'affichage (en-tête) : `jour` (mono-jour) ou `mois` (plage du mois). */
+  vue: 'jour' | 'mois'
   /** Jour affiché (YYYY-MM-DD). */
   day: string
   /** Libellé « lundi 07/07 ». */
   dayLabel: string
-  /** Entrées du jour, plus récent d'abord. */
+  /** Mois affiché (1er du mois, YYYY-MM-01). */
+  month: string
+  /** Libellé « juillet 2026 ». */
+  monthLabel: string
+  /** Entrées de la période : du JOUR (mode jour) OU du MOIS (mode mois), plus récent d'abord. */
   entries: PoliceEntry[]
-  /** Chatteurs actifs — options des formulaires. */
+  /** Chatteurs actifs — options des formulaires (saisie masquée en mois). */
   chatterOptions: EntityOption[]
-  /** chatterId → nb d'avertissements récents (fenêtre 30 j) — aide la décision de malus. */
+  /** chatterId → nb d'avertissements récents (fenêtre 30 j) — aide la décision de malus. Vide en mois. */
   warningsByChatter: Record<string, number>
-  /** KPIs du jour. */
+  /** KPIs agrégés sur la période affichée (jour OU mois). */
   totalMalusEur: number
   warningCount: number
   chattersConcerned: number
   /** Jours proposés au sélecteur (aujourd'hui + 13 passés). */
   days: DayChoice[]
+  /** Mois proposés au sélecteur (mois courant + 11 passés). */
+  months: MonthChoice[]
 }

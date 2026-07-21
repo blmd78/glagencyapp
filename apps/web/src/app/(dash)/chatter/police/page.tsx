@@ -9,15 +9,17 @@ import type { PoliceData } from '@/features/police/types'
 export default async function PolicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ day?: string }>
+  searchParams: Promise<{ vue?: string; day?: string; month?: string }>
 }) {
   const profile = await requireAccess('police')
-  const { day } = await searchParams
-  // Kickoff SANS await : le header (titre + sélecteur de jour) est un widget client
-  // (`PoliceView`, useRouter) qui a besoin de `data.day`/`data.days` — pas de h1
+  const { vue: vueParam, day, month } = await searchParams
+  // Mode d'affichage : `mois` explicite, sinon `jour` (défaut = comportement historique).
+  const vue = vueParam === 'mois' ? 'mois' : 'jour'
+  // Kickoff SANS await : le header (titre + bascule + sélecteur) est un widget client
+  // (`PoliceView`, useRouter) qui a besoin de `data.vue`/`data.day(s)`/`data.month(s)` — pas de h1
   // « immédiat » séparable ici sans casser la mise en page (titre et sélecteur streament
   // ensemble, cf. scripts/planning + docs/guidelines-data-loading.md §3).
-  const data = getPolice(day ?? null, profile)
+  const data = getPolice(profile, { vue, day, month })
 
   // Droit d'écriture (saisie avert./malus, édition malus) : admin, manager/sous-manager, ou
   // le rôle fonctionnel `police` lui-même — un chatteur consulte en lecture seule. `requireAccess`
