@@ -19,7 +19,7 @@ export default async function PolicePage({
   // (`PoliceView`, useRouter) qui a besoin de `data.vue`/`data.day(s)`/`data.month(s)` — pas de h1
   // « immédiat » séparable ici sans casser la mise en page (titre et sélecteur streament
   // ensemble, cf. scripts/planning + docs/guidelines-data-loading.md §3).
-  const data = getPolice(profile, { vue, day, month })
+  const data = getPolice({ vue, day, month })
 
   // Droit d'écriture (saisie avert./malus, édition malus) : admin, manager/sous-manager, ou
   // le rôle fonctionnel `police` lui-même — un chatteur consulte en lecture seule. `requireAccess`

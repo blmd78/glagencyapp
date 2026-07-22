@@ -31,20 +31,28 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     cellsRes,
     weekRes,
     chattersRes,
-    encadrementRes,
+    profilesRes,
     creatorsRes,
     membersRes,
     dataWeeksRes,
   ] = await Promise.all([
     supabase.from('rest_planning_cells').select('day, col, names, chatter_ids').eq('week_start', weekStart),
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
-    admin.from('chatters').select('id, display_name, active'),
-    // Colonnes ENCADREMENT (Managers/Policiers) : récupération LARGE (manager + sous-manager +
-    // police) pour la RÉSOLUTION DES NOMS (chatterById) — un sous-manager déjà assigné à une
-    // cellule doit continuer d'afficher son nom même s'il n'est plus dans les OPTIONS proposées.
-    // Les OPTIONS par colonne (managerOptions / policierOptions), elles, sont filtrées par
-    // rôle exact plus bas — chaque colonne ne doit proposer QUE son rôle dédié.
-    admin.from('profiles').select('id, display_name, role').in('role', ['manager', 'sous-manager', 'police']),
+    // `chatters` (MyPuls) : uniquement pour résoudre les noms des cellules LEGACY (ids d'avant la
+    // bascule vers les membres) — plus la source des options. Noms seuls (pas `active`).
+    admin.from('chatters').select('id, display_name'),
+    // Profils utiles au planning en UNE requête paginée (fetchAll — anti-troncature) : encadrants
+    // (manager/sous-manager/police, pour les colonnes managers/policiers + la résolution des noms)
+    // ET membres role chatteur (OPTIONS des cellules chatteur, Repos non filtré). Les sous-ensembles
+    // sont DÉRIVÉS en JS plus bas (options par colonne = rôle EXACT ; options chatteur = role chatteur).
+    fetchAll((f, t) =>
+      admin
+        .from('profiles')
+        .select('id, display_name, role')
+        .in('role', ['manager', 'sous-manager', 'police', 'chatteur'])
+        .order('id')
+        .range(f, t),
+    ),
     admin.from('creators').select('id, name, active'),
     supabase
       .from('rest_planning_column_members')
@@ -68,14 +76,14 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   if (cellsRes.error) throw new Error(cellsRes.error.message)
   if (weekRes.error) throw new Error(weekRes.error.message)
   if (chattersRes.error) throw new Error(chattersRes.error.message)
-  if (encadrementRes.error) throw new Error(encadrementRes.error.message)
+  if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)
   if (membersRes.error) throw new Error(membersRes.error.message)
   if (dataWeeksRes.error) throw new Error(dataWeeksRes.error.message)
   const cellRows = cellsRes.data
   const weekRow = weekRes.data
   const chatterRows = chattersRes.data
-  const encadrementRows = encadrementRes.data
+  const profileRows = profilesRes.data
   const creatorRows = creatorsRes.data
   const memberRows = membersRes.data
   const dataWeekRows = dataWeeksRes.data
@@ -89,22 +97,23 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     .reverse()
     .map((start) => ({ start, label: weekLabel(start) }))
 
-  // Chatteurs (cellules) : id → nom (tous, inactifs inclus) + options actifs.
-  // Les encadrants (manager/sous-manager/police) sont fusionnés dans la même map : les
-  // cellules encadrement stockent leurs ids dans chatter_ids (uuid[] sans FK) — les chips se
-  // résolvent pareil. Résolution LARGE volontaire (cf. commentaire de la requête ci-dessus) :
-  // un sous-manager déjà assigné doit garder son nom même s'il n'est plus dans les options.
+  // Résolution des noms des cellules (id → nom). `chatter_ids` est un `uuid[]` SANS FK qui mélange
+  // plusieurs espaces d'identité : on fusionne toutes les sources dans la même map.
+  //  - `chatters` (MyPuls) : cellules chatteur SAISIES AVANT la bascule (legacy) — noms conservés.
+  //  - encadrants (manager/sous-manager/police) : colonnes managers/policiers.
+  //  - membres role chatteur (profiles) : nouvelles cellules chatteur + OPTIONS.
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
-  for (const m of encadrementRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
-  const chatterOptions = (chatterRows ?? [])
-    .filter((c) => c.active && c.display_name)
-    .map((c) => ({ id: c.id, name: c.display_name }))
+  for (const m of profileRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
+  // Options des cellules chatteur = TOUS les membres role chatteur (Repos non filtré, cf. Police).
+  const chatterOptions = (profileRows ?? [])
+    .filter((m) => m.role === 'chatteur' && m.display_name)
+    .map((m) => ({ id: m.id, name: m.display_name as string }))
     .sort((a, b) => a.name.localeCompare(b.name))
   // Options par colonne encadrement — filtrées par rôle EXACT (pas de sous-manager dans
   // Managers, pas de manager dans Policiers).
   const optsForRole = (role: string) =>
-    (encadrementRows ?? [])
+    (profileRows ?? [])
       .filter((m) => m.role === role && m.display_name)
       .map((m) => ({ id: m.id, name: m.display_name as string }))
       .sort((a, b) => a.name.localeCompare(b.name))

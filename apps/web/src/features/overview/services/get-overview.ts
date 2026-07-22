@@ -54,7 +54,7 @@ export async function getOverview(
       }),
       // Dénominateur « Chatteurs actifs X / Y » : la RLS de `chatters` est tout-ou-rien
       // (un membre avec ≥1 modèle lit TOUTES les lignes) → en restricted, Y se compte
-      // depuis `chatter_creators` (scopée à SES modèles, même source que getChatterScope).
+      // depuis `chatter_creators` (scopée à SES modèles, via la RLS `chatter_creators_scoped_read`).
       // Set (pas .size) : complété plus bas par les chatteurs à CA sur la période dont la
       // liaison a été désactivée depuis — sinon X > Y possible. fetchAll : cap PostgREST.
       restricted

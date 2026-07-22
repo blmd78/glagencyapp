@@ -21,6 +21,7 @@ import { createMember, updateMember } from '../actions'
 import { memberInput, type MemberForm } from '../schema'
 import type { Member } from '../types'
 import { MemberAccessFields } from './member-access-fields'
+import { MemberClosingFields } from './member-closing-fields'
 import { MemberPermissionFields } from './member-permission-fields'
 
 /** Champs affichant un message d'erreur juste sous eux (les autres — role/managerId/
@@ -98,6 +99,8 @@ export function MemberDialog({
       // et l'ignore sur ses éditions (il ne peut pas déplacer un chatter).
       managerId: member?.managerId ?? '',
       workLink: member?.workLink ?? '',
+      closingRole: member?.closingRole ?? null,
+      closingTeam: member?.closingTeam ?? null,
     },
   })
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
@@ -114,6 +117,8 @@ export function MemberDialog({
           creatorIds: values.creatorIds,
           managerId: values.managerId,
           workLink: values.workLink,
+          closingRole: values.closingRole,
+          closingTeam: values.closingTeam,
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
@@ -203,6 +208,10 @@ export function MemberDialog({
               isSubmitting={isSubmitting}
             />
           )}
+
+          {/* Désignation closing (setter/closer + équipe) — chatteur uniquement (masqué sinon).
+              Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
+          <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
 
           <MemberPermissionFields
             control={control}

@@ -209,8 +209,8 @@ features/<f>/
   piège. (3) Un 0-row résiduel APRÈS la vérification métier (course ultra-serrée entre la
   lecture et l'écriture) reste un throw technique.
 
-  **Contre-piège — NE PAS retirer `cache()` de `lib/auth` (`getProfile`/`getUser`), `lib/scope`
-  (`getChatterScope`) ou `lib/supabase/server` (`createClient`).** Le paragraphe ci-dessus ne
+  **Contre-piège — NE PAS retirer `cache()` de `lib/auth` (`getProfile`/`getUser`) ou
+  `lib/supabase/server` (`createClient`).** Le paragraphe ci-dessus ne
   dit PAS que `cache()` est inutile : ces fonctions sont aussi appelées depuis des **Server
   Components** (layout, gardes de page) — LÀ, dans un rendu RSC, la mémoïsation par requête est
   réelle et load-bearing (un layout + une page qui appellent chacun `getProfile()` ne paient

@@ -1471,7 +1471,7 @@ export type Database = {
             foreignKeyName: "police_entries_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1510,7 +1510,7 @@ export type Database = {
             foreignKeyName: "police_report_lines_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1608,6 +1608,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          closing_role: string | null
+          closing_team: string | null
           created_at: string
           display_name: string | null
           email: string | null
@@ -1618,6 +1620,8 @@ export type Database = {
           work_link: string
         }
         Insert: {
+          closing_role?: string | null
+          closing_team?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -1628,6 +1632,8 @@ export type Database = {
           work_link?: string
         }
         Update: {
+          closing_role?: string | null
+          closing_team?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null

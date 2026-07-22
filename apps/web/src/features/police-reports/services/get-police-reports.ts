@@ -2,32 +2,15 @@ import { createAdminClient } from '@glagency/db'
 import { startOfMonth, endOfMonth } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
-import type { Profile } from '@/lib/auth'
 import type { PoliceReport, ReportOption } from '../types'
 
 /**
- * Périmètre MODÈLES de l'appelant : `null` pour un admin (tout), sinon l'ensemble des
- * `creator_id` de `profile_creators`. Source unique du cloisonnement (lecture + écriture +
- * options), alignée sur la RLS `creators_scoped_read` (0057). NE PAS utiliser
- * `getChatterScope.creatorIds` (dérivé de `chatter_creators`, écarte les modèles sans chatteur).
- */
-export async function assignedCreatorIds(profile: Profile): Promise<Set<string> | null> {
-  if (profile.role === 'admin') return null // couvre admin + superadmin (mappés 'admin')
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('profile_creators').select('creator_id').eq('profile_id', profile.id)
-  if (error) throw new Error(error.message)
-  return new Set((data ?? []).map((r) => r.creator_id))
-}
-
-/**
- * Rapports lisibles par l'appelant, cloisonnés à SES modèles (admin = tout), filtrables par
- * modèle ou par chatteur — la vue par chatteur donne la valeur (évolution soir après soir).
- * Cloisonnement par modèle = ENFORCÉ EN RLS (`police_reports_read`, migration 0074 : profile_creators) ;
- * le `.filter(inScope)` ci-dessous n'est plus que la couche optimiste. Volume potentiellement
- * > 1000 lignes (mois / non filtré) → `fetchAll` (anti-troncature silencieuse PostgREST).
+ * Rapports du soir, filtrables par modèle ou par chatteur (la vue par chatteur donne la valeur,
+ * évolution soir après soir). Police NON cloisonné (cf. 0078 — RLS `police_reports_read` = admin OU
+ * page Police) : tout porteur de la page voit tous les rapports. Volume potentiellement > 1000
+ * lignes (mois / non filtré) → `fetchAll` (anti-troncature silencieuse PostgREST).
  */
 export async function getPoliceReports(
-  profile: Profile,
   filter: { creatorId?: string; chatterId?: string; day?: string; month?: string },
 ): Promise<PoliceReport[]> {
   const supabase = await createClient()
@@ -59,13 +42,11 @@ export async function getPoliceReports(
   // pagination, la troncature amputerait des rapports avant même ce filtre.
   const reportsPromise = filter.day ? buildReports() : fetchAll((from, to) => buildReports(from, to))
 
-  const [scope, reportsRes, creatorsRes, chattersRes, profilesRes] = await Promise.all([
-    assignedCreatorIds(profile),
+  const [reportsRes, creatorsRes, profilesRes] = await Promise.all([
     reportsPromise,
-    // Résolveurs de noms (client admin) : `fetchAll` — `chatters`/`profiles` peuvent dépasser
+    // Résolveurs de noms (client admin) : `fetchAll` — `creators`/`profiles` peuvent dépasser
     // 1000 lignes dans une agence, sinon des noms manqueraient silencieusement (→ « ? »).
     fetchAll((from, to) => admin.from('creators').select('id, name').order('id').range(from, to)),
-    fetchAll((from, to) => admin.from('chatters').select('id, display_name').order('id').range(from, to)),
     fetchAll((from, to) => admin.from('profiles').select('id, display_name').order('id').range(from, to)),
   ])
   if (reportsRes.error) throw new Error(reportsRes.error.message)
@@ -73,19 +54,17 @@ export async function getPoliceReports(
   // silencieusement en « ? ». Ces requêtes passent par le client admin → un échec ici est un
   // vrai problème d'infra, pas un cas nominal.
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)
-  if (chattersRes.error) throw new Error(chattersRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
 
   const creatorName: Record<string, string> = {}
   for (const c of creatorsRes.data ?? []) if (c.id && c.name) creatorName[c.id] = c.name
-  const chatterName: Record<string, string> = {}
-  for (const c of chattersRes.data ?? []) if (c.id && c.display_name) chatterName[c.id] = c.display_name
-  const authorName: Record<string, string> = {}
-  for (const p of profilesRes.data ?? []) if (p.id && p.display_name) authorName[p.id] = p.display_name
+  // `chatter_id` des lignes = un MEMBRE (profiles) → noms résolus via profiles, comme l'auteur.
+  const nameById: Record<string, string> = {}
+  for (const p of profilesRes.data ?? []) if (p.id && p.display_name) nameById[p.id] = p.display_name
+  const chatterName = nameById
+  const authorName = nameById
 
-  const inScope = (id: string) => scope === null || scope.has(id)
   return (reportsRes.data ?? [])
-    .filter((r) => inScope(r.creator_id))
     .map((r) => ({
       id: r.id,
       creatorId: r.creator_id,
@@ -109,32 +88,37 @@ export async function getPoliceReports(
     .filter((rep) => !filter.chatterId || rep.lines.some((l) => l.chatterId === filter.chatterId))
 }
 
-/** Modèles visibles par l'appelant (RLS `creators_scoped_read` : admin = tout, sinon
- *  profile_creators). Le cloisonnement est porté par la RLS (client cookie), pas de param. */
+/** TOUS les modèles de l'agence (Police NON cloisonné, cf. 0078) — client admin (la RLS
+ *  `creators_scoped_read` cloisonnerait par modèle assigné, ce qu'on ne veut plus ici). */
 export async function getReportOptions(): Promise<ReportOption[]> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('creators').select('id, name').order('name')
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('creators').select('id, name').order('name')
   if (error) throw new Error(error.message)
   return (data ?? []).map((c) => ({ id: c.id, name: c.name }))
 }
 
 /**
- * Chatteurs de TOUS les modèles visibles, groupés par modèle, en UNE requête — au lieu d'une
- * requête par modèle (fan-out N, coûteux surtout pour un admin qui voit tous les modèles de
- * l'agence). Clé = `creatorId`. RLS `chatter_creators_scoped_read` (admin = tout, sinon
- * profile_creators). Le formulaire lit `byModel[modèle sélectionné]` côté client.
+ * Membres role chatteur groupés PAR MODÈLE (assignations `profile_creators`), en UNE passe, via le
+ * client admin. Police NON cloisonné (cf. 0078) → TOUS les modèles, aucun filtre par appelant. Clé =
+ * `creatorId` ; le formulaire lit `byModel[modèle sélectionné]` côté client (les lignes d'un rapport
+ * sur le modèle M = chatteurs assignés à M).
  */
 export async function getChattersByModel(): Promise<Record<string, ReportOption[]>> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('chatter_creators')
-    .select('creator_id, chatter:chatters(id, display_name)')
-  if (error) throw new Error(error.message)
+  const admin = createAdminClient()
+  const [linksRes, profilesRes] = await Promise.all([
+    fetchAll((from, to) => admin.from('profile_creators').select('profile_id, creator_id').order('profile_id').order('creator_id').range(from, to)),
+    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
+  ])
+  if (linksRes.error) throw new Error(linksRes.error.message)
+  if (profilesRes.error) throw new Error(profilesRes.error.message)
+  const chatteurName: Record<string, string> = {}
+  for (const p of profilesRes.data ?? []) if (p.role === 'chatteur' && p.id && p.display_name) chatteurName[p.id] = p.display_name
   const byModel: Record<string, ReportOption[]> = {}
-  for (const r of data ?? []) {
-    const c = Array.isArray(r.chatter) ? r.chatter[0] : r.chatter
-    if (!c) continue
-    ;(byModel[r.creator_id] ??= []).push({ id: c.id, name: c.display_name })
+  for (const l of linksRes.data ?? []) {
+    const name = chatteurName[l.profile_id]
+    if (!name) continue // le membre n'est pas un chatteur
+    ;(byModel[l.creator_id] ??= []).push({ id: l.profile_id, name })
   }
+  for (const k of Object.keys(byModel)) byModel[k].sort((a, b) => a.name.localeCompare(b.name))
   return byModel
 }
