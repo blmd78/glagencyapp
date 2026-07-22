@@ -3,6 +3,7 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
 import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
@@ -72,11 +73,7 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
     header: 'Closing',
     cell: ({ row }) => (
       <div className="flex items-center gap-1">
-        {row.original.closingRole && (
-          <Badge variant="secondary">
-            {row.original.closingRole === 'closer' ? 'Closer' : 'Setter'}
-          </Badge>
-        )}
+        <RoleBadge role={row.original.closingRole} />
         <TeamBadge team={row.original.closingTeam} />
         {row.original.shift && (
           <Badge variant="outline" className="text-muted-foreground">

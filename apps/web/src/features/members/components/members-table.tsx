@@ -4,6 +4,8 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { AlertTriangle, Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
+import { TeamBadge } from '@/components/team-badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -199,7 +201,7 @@ export function MembersTable({
     {
       accessorKey: 'role',
       header: ({ column }) => <Sortable column={column} label="Rôle" />,
-      cell: ({ getValue }) =>
+      cell: ({ getValue, row }) =>
         (getValue() as string) === 'superadmin' ? (
           <Badge className={cn('gap-1 text-xs', STATUS_COLORS.info)}>
             <ShieldCheck className="size-3" /> Superadmin
@@ -215,7 +217,11 @@ export function MembersTable({
         ) : (getValue() as string) === 'police' ? (
           <Badge className={cn('text-xs', STATUS_COLORS.warning)}>Police</Badge>
         ) : (
-          <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatteur</Badge>
+          <div className="flex flex-wrap items-center gap-1">
+            <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatteur</Badge>
+            <RoleBadge role={row.original.closingRole} />
+            <TeamBadge team={row.original.closingTeam} />
+          </div>
         ),
     },
     {

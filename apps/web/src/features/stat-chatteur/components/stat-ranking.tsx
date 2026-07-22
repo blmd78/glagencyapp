@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
-import { Badge } from '@/components/ui/badge'
+import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
 import {
   Select,
@@ -38,9 +38,7 @@ const columns: ColumnDef<ClosingChatterRow>[] = [
   {
     accessorKey: 'closingRole',
     header: 'Rôle',
-    cell: ({ getValue }) => (
-      <Badge variant="secondary">{getValue() === 'closer' ? 'Closer' : 'Setter'}</Badge>
-    ),
+    cell: ({ getValue }) => <RoleBadge role={getValue() as ClosingChatterRow['closingRole']} />,
   },
   {
     accessorKey: 'closingTeam',
