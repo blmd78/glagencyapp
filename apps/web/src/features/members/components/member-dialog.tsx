@@ -219,9 +219,10 @@ export function MemberDialog({
               Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
           <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
 
-          {/* Lien chatteur : visible aux ADMINS (admin + superadmin) — même population que la garde
-              serveur applyChatterLink (caller.role === 'admin' couvre superadmin, collapsé). */}
-          {viewer === 'admin' && (
+          {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
+              ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de
+              « consommer » l'unicité d'un chatteur sur un membre non-chatteur). */}
+          {viewer === 'admin' && roleValue === 'chatteur' && (
             <MemberChatterLinkField control={control} chatters={chatters} isSubmitting={isSubmitting} />
           )}
 
