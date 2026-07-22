@@ -47,8 +47,12 @@ export default async function RapportPolicePage({
   // `month` sont mutuellement exclusifs — on ne passe QUE l'ancre du mode actif.
   const reportsPromise =
     vue === 'mois'
-      ? getPoliceReports(profile, { month: selectedMonth })
-      : getPoliceReports(profile, { day: selectedDay })
+      ? getPoliceReports({ month: selectedMonth })
+      : getPoliceReports({ day: selectedDay })
+  // Chatteurs par modèle : pré-chargés EN PARALLÈLE des rapports (kickoff sans await), pas en série
+  // après. Utile au seul formulaire de saisie (écrivain en vue jour) ; sinon inutile → {}.
+  const chattersByModelPromise: ReturnType<typeof getChattersByModel> =
+    canWrite && vue === 'jour' ? getChattersByModel() : Promise.resolve({})
 
   return (
     <Suspense fallback={<PoliceReportsSkeleton />}>
@@ -62,6 +66,7 @@ export default async function RapportPolicePage({
         months={months}
         optionsPromise={optionsPromise}
         reportsPromise={reportsPromise}
+        chattersByModelPromise={chattersByModelPromise}
       />
     </Suspense>
   )
@@ -77,6 +82,7 @@ async function Content({
   months,
   optionsPromise,
   reportsPromise,
+  chattersByModelPromise,
 }: {
   profile: Profile
   canWrite: boolean
@@ -87,15 +93,15 @@ async function Content({
   months: { month: string; label: string }[]
   optionsPromise: ReturnType<typeof getReportOptions>
   reportsPromise: ReturnType<typeof getPoliceReports>
+  chattersByModelPromise: ReturnType<typeof getChattersByModel>
 }) {
-  const [models, reports] = await Promise.all([optionsPromise, reportsPromise])
-
-  // Pré-chargement SERVEUR des chatteurs, groupés par modèle en UNE requête (cf.
-  // `getChattersByModel`) : le formulaire lit `chattersByModel[modèle]` côté client → aucun
-  // round-trip ni état de chargement au changement de modèle. Seulement pour un écrivain qui voit
-  // réellement le formulaire → uniquement en mode JOUR (pas de saisie en mois). Une seule requête
-  // quel que soit le nombre de modèles (admin compris).
-  const chattersByModel = canWrite && vue === 'jour' ? await getChattersByModel() : {}
+  // Tout EN PARALLÈLE : options + rapports + chatteurs par modèle (formulaire de saisie). Le
+  // formulaire lit `chattersByModel[modèle]` côté client → aucun round-trip au changement de modèle.
+  const [models, reports, chattersByModel] = await Promise.all([
+    optionsPromise,
+    reportsPromise,
+    chattersByModelPromise,
+  ])
 
   return (
     <PoliceReportsTemplate

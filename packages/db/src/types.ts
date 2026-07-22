@@ -1471,7 +1471,7 @@ export type Database = {
             foreignKeyName: "police_entries_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1510,7 +1510,7 @@ export type Database = {
             foreignKeyName: "police_report_lines_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
