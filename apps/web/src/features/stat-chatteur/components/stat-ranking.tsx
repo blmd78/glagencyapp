@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
+import { TeamBadge } from '@/components/team-badge'
 import {
   Select,
   SelectContent,
@@ -14,12 +15,16 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import type { ClosingChatterRow } from '../types'
 
-type Filtre = 'mixe' | 'setter' | 'closer' | 'rouge' | 'bleue'
+type RoleFiltre = 'tous' | 'setter' | 'closer'
+type TeamFiltre = 'toutes' | 'rouge' | 'bleue'
 
-const FILTRES: { value: Filtre; label: string }[] = [
-  { value: 'mixe', label: 'Mixé' },
+const ROLE_OPTS: { value: RoleFiltre; label: string }[] = [
+  { value: 'tous', label: 'Tous les rôles' },
   { value: 'setter', label: 'Setter' },
   { value: 'closer', label: 'Closer' },
+]
+const TEAM_OPTS: { value: TeamFiltre; label: string }[] = [
+  { value: 'toutes', label: 'Toutes les équipes' },
   { value: 'rouge', label: 'Rouge' },
   { value: 'bleue', label: 'Bleue' },
 ]
@@ -42,18 +47,7 @@ const columns: ColumnDef<ClosingChatterRow>[] = [
     header: 'Équipe',
     cell: ({ getValue }) => {
       const team = getValue() as ClosingChatterRow['closingTeam']
-      if (!team) return <span className="text-muted-foreground">—</span>
-      return (
-        <Badge
-          className={
-            team === 'rouge'
-              ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-              : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-          }
-        >
-          {team === 'rouge' ? 'Rouge' : 'Bleue'}
-        </Badge>
-      )
+      return team ? <TeamBadge team={team} /> : <span className="text-muted-foreground">—</span>
     },
   },
   {
@@ -67,24 +61,23 @@ const columns: ColumnDef<ClosingChatterRow>[] = [
 ]
 
 /**
- * Classement des chatteurs closing par ventes — filtre single-select 100% CLIENT (aucun
- * round-trip serveur, `rows` déjà chargées par la page). Tri par défaut sur `vendu` décroissant
- * (les `rows` arrivent déjà triées côté service ; la DataTable ne fait que le confirmer/permuter
- * au clic).
+ * Classement des chatteurs closing par ventes — 2 filtres INDÉPENDANTS 100% CLIENT (Rôle + Équipe),
+ * combinés en ET : on peut ne filtrer sur rien (Tous + Toutes), sur l'un, ou sur les deux (ex.
+ * Setter + Rouge). Aucun round-trip serveur (`rows` déjà chargées par la page). Tri par défaut sur
+ * `vendu` décroissant (les `rows` arrivent déjà triées côté service ; la DataTable permute au clic).
  */
 export function StatRanking({ rows }: { rows: ClosingChatterRow[] }) {
-  const [filtre, setFiltre] = useState<Filtre>('mixe')
+  const [roleFiltre, setRoleFiltre] = useState<RoleFiltre>('tous')
+  const [teamFiltre, setTeamFiltre] = useState<TeamFiltre>('toutes')
 
   const filtered = useMemo(
     () =>
-      rows.filter((r) =>
-        filtre === 'mixe'
-          ? true
-          : filtre === 'setter' || filtre === 'closer'
-            ? r.closingRole === filtre
-            : r.closingTeam === filtre,
+      rows.filter(
+        (r) =>
+          (roleFiltre === 'tous' || r.closingRole === roleFiltre) &&
+          (teamFiltre === 'toutes' || r.closingTeam === teamFiltre),
       ),
-    [rows, filtre],
+    [rows, roleFiltre, teamFiltre],
   )
 
   return (
@@ -95,18 +88,32 @@ export function StatRanking({ rows }: { rows: ClosingChatterRow[] }) {
       getRowId={(r) => r.id}
       countLabel={(n) => `${n} chatteur(s)`}
       toolbar={
-        <Select value={filtre} onValueChange={(v) => setFiltre(v as Filtre)}>
-          <SelectTrigger className="h-9 w-40 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {FILTRES.map((f) => (
-              <SelectItem key={f.value} value={f.value}>
-                {f.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-wrap gap-2">
+          <Select value={roleFiltre} onValueChange={(v) => setRoleFiltre(v as RoleFiltre)}>
+            <SelectTrigger className="h-9 w-44 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ROLE_OPTS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={teamFiltre} onValueChange={(v) => setTeamFiltre(v as TeamFiltre)}>
+            <SelectTrigger className="h-9 w-44 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEAM_OPTS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       }
     />
   )

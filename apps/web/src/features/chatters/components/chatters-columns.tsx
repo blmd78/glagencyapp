@@ -3,6 +3,7 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import { TeamBadge } from '@/components/team-badge'
 import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
@@ -76,17 +77,7 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
             {row.original.closingRole === 'closer' ? 'Closer' : 'Setter'}
           </Badge>
         )}
-        {row.original.closingTeam && (
-          <Badge
-            className={
-              row.original.closingTeam === 'rouge'
-                ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-                : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-            }
-          >
-            {row.original.closingTeam === 'rouge' ? 'Rouge' : 'Bleue'}
-          </Badge>
-        )}
+        <TeamBadge team={row.original.closingTeam} />
         {row.original.shift && (
           <Badge variant="outline" className="text-muted-foreground">
             {row.original.shift === 'matin' ? 'Matin' : row.original.shift === 'aprem' ? 'Aprem' : 'Soir'}
