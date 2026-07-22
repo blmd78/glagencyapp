@@ -33,6 +33,7 @@ import {
   NotebookPen,
   IdCard,
   ClipboardList,
+  Trophy,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -115,6 +116,7 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/spenders/alertes', label: 'Alertes R10', icon: TriangleAlert, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/spenders/archive', label: 'Archive', icon: Archive, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/stats', label: 'Stats', icon: ChartColumn, group: 'performance' },
+      { href: '/chatter/stat-chatteur', label: 'Stat chatteur', icon: Trophy, group: 'performance' },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse, group: 'performance' },
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
@@ -165,7 +167,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**
