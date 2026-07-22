@@ -4,9 +4,9 @@ import { Controller, type Control } from 'react-hook-form'
 import { Combobox } from '@/components/ui/combobox'
 import type { MemberForm } from '../schema'
 
-/** Lien « Chatteur MyPuls » — SUPERADMIN uniquement (garde serveur en plus). Permet de lire le
- *  closing du membre côté Chatteurs/Spenders. Sentinelle 'none' ↔ '' (pas de lien), même patron
- *  que le rattachement manager (member-access-fields.tsx). */
+/** Lien « Chatteur MyPuls » — ADMINS uniquement (admin + superadmin ; garde serveur en plus).
+ *  Permet de lire le closing du membre côté Chatteurs/Spenders. Sentinelle 'none' ↔ '' (pas de
+ *  lien), même patron que le rattachement manager (member-access-fields.tsx). */
 export function MemberChatterLinkField({
   control,
   chatters,

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
+import { getProfile } from '@/lib/auth'
 import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 import type { Member, MembersData } from '../types'
 
@@ -7,12 +8,16 @@ import type { Member, MembersData } from '../types'
  * Liste des membres + modèles assignables (page admin OU manager). La RLS filtre par
  * appelant (0054) : admin = tout, manager = lui-même + son équipe (manager_id) ;
  * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
- * `chatters` (options du lien MyPuls) est lu en client admin : agence-wide, indépendant
- * du périmètre RLS de l'appelant (le champ lui-même reste réservé superadmin côté UI).
+ * `chatters` (options du lien MyPuls, client admin agence-wide) n'est chargé QUE pour un
+ * admin : le champ lien est admin-only (UI + serveur) et un manager ne doit pas recevoir
+ * cette liste hors de son périmètre RLS dans son payload.
  */
 export async function getMembers(): Promise<MembersData> {
   const supabase = await createClient()
   const admin = createAdminClient()
+  // Le lien chatteur est admin-only → on ne requête/expose la liste agence-wide des chatteurs QUE
+  // pour un admin (getProfile est caché : déjà appelé par requireAdminOrManager dans le même rendu).
+  const isAdmin = (await getProfile())?.role === 'admin'
   const [
     { data: profiles, error: profilesErr },
     { data: links, error: linksErr },
@@ -29,7 +34,9 @@ export async function getMembers(): Promise<MembersData> {
     // TOUS les comptes (privés inclus) : `excluded` ne concerne que les calculs (LTV,
     // quotas), pas le droit d'accès — on doit pouvoir assigner « Carla (privé) ».
     supabase.from('creators').select('id, name').order('name'),
-    admin.from('chatters').select('id, display_name').order('display_name'),
+    isAdmin
+      ? admin.from('chatters').select('id, display_name').order('display_name')
+      : Promise.resolve({ data: [] as { id: string; display_name: string | null }[], error: null }),
   ])
   if (profilesErr) throw new Error(profilesErr.message)
   if (linksErr) throw new Error(linksErr.message)

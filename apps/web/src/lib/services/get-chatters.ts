@@ -1,13 +1,11 @@
-import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
+import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
 import type { Period } from '@/lib/period'
 import type {
   ChatterModel,
   ChatterRow,
   ChattersData,
-  CrmRole,
   CrmShift,
-  CrmTeam,
 } from '@/lib/types/chatters'
 
 import { conv, round1, round2 } from '@/lib/format'
@@ -71,27 +69,17 @@ export async function getChatters(
 ): Promise<ChattersData> {
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
-  const admin = createAdminClient()
 
   // Shift (chatters.shift, migration 0029) — hors RPC pour ne pas toucher chatters_report ;
-  // lecture couverte par la policy chatters_scoped_read. Rôle/équipe sont gérés sur le MEMBRE.
-  // Membres liés à un chatteur → closing lu depuis le membre (source de vérité, cf. 0077/0079).
-  // Client admin : agence-wide, indépendant du périmètre RLS de l'appelant (idem get-members).
-  const [rpcRes, crmRes, linkRes] = await Promise.all([
+  // lecture couverte par la policy chatters_scoped_read. Rôle/équipe closing sont gérés sur le
+  // MEMBRE : lus via le helper partagé `getClosingByChatter` (source unique, cf. 0077/0079).
+  const [rpcRes, crmRes, closingByChatter] = await Promise.all([
     supabase.rpc('chatters_report', { p_from: period.from, p_to: period.to }),
     supabase.from('chatters').select('id, shift'),
-    admin.from('profiles').select('chatter_id, closing_role, closing_team').not('chatter_id', 'is', null),
+    getClosingByChatter(),
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)
   if (crmRes.error) throw new Error(crmRes.error.message)
-  if (linkRes.error) throw new Error(linkRes.error.message)
-  const closingByChatter = new Map<string, { role: CrmRole | null; team: CrmTeam | null }>()
-  for (const m of linkRes.data ?? [])
-    if (m.chatter_id)
-      closingByChatter.set(m.chatter_id, {
-        role: (m.closing_role ?? null) as CrmRole | null,
-        team: (m.closing_team ?? null) as CrmTeam | null,
-      })
   // Le RPC est typé (nom + args) mais son retour est déclaré `Json` (types générés) →
   // on applique le contrat local par cast. `.overrideTypes<Report>` est inapplicable ici :
   // le garde de postgrest-js 2.110 distribue sur l'union Json et rejette tout override

@@ -47,7 +47,13 @@ async function applyChatterLink(
     }
   }
   const { error } = await admin.from('profiles').update({ chatter_id: value }).eq('id', profileId)
-  if (error) throw new Error(error.message)
+  if (error) {
+    // 23505 = course sur la contrainte `unique` (un autre membre a pris ce chatteur entre le check
+    // et l'update) → refus MÉTIER propre (pas une « erreur inattendue » technique + bruit Sentry).
+    if (error.code === '23505')
+      throw new BusinessError('Ce chatteur est déjà lié à un autre membre.', { chatterId: ['Déjà lié ailleurs.'] })
+    throw new Error(error.message)
+  }
 }
 
 /**
@@ -170,7 +176,9 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
         await admin.auth.admin.deleteUser(uid)
         throw new Error(pErr.message)
       }
-      await applyChatterLink(admin, caller, uid, chatterId)
+      // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing ci-dessus) —
+      // sinon on force à null pour ne pas « consommer » l'unicité d'un chatteur sur un non-chatteur.
+      await applyChatterLink(admin, caller, uid, role === 'chatteur' ? chatterId : '')
       if (role !== 'chatteur') {
         const { error: rErr } = await admin
           .from('profiles')
@@ -249,7 +257,9 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         })
         .eq('id', id)
       if (pErr) throw new Error(pErr.message)
-      await applyChatterLink(admin, caller, id, chatterId)
+      // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing) — un membre
+      // promu manager/police/admin voit son chatter_id remis à null (sinon lien orphelin non réparable).
+      await applyChatterLink(admin, caller, id, role === 'chatteur' ? chatterId : '')
       // La cible cesse d'être manager/sous-manager (démotion chatteur OU promotion admin) :
       // détacher ses chatteurs, sinon ils restent rattachés à un non-manager — invisibles de
       // tous les managers, et l'édition admin bloquerait sur un rattachement périmé.

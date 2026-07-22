@@ -1,6 +1,6 @@
-import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
 import { CA_TRACKING_SEUIL, type SpenderRow, type SpendersData } from '../types'
 
 /**
@@ -17,12 +17,10 @@ import { CA_TRACKING_SEUIL, type SpenderRow, type SpendersData } from '../types'
  */
 export async function getSpenders(): Promise<SpendersData> {
   const supabase = await createClient()
-  const admin = createAdminClient()
 
-  // Équipe closing lue DEPUIS le membre lié (profiles.closing_team via profiles.chatter_id) —
-  // source de vérité, cf. 0077/0079. Client admin : agence-wide, indépendant du périmètre
-  // RLS de l'appelant (la RLS profiles 0054 cloisonne par équipe et masquerait des liens).
-  const [{ data: rows, error }, { data: freshRow, error: freshErr }, { data: linkedMembers, error: linkErr }] =
+  // Équipe closing lue DEPUIS le membre lié — helper partagé `getClosingByChatter` (source unique
+  // avec la page Chatteurs, cf. 0077/0079). On n'en utilise ici que l'équipe.
+  const [{ data: rows, error }, { data: freshRow, error: freshErr }, closingByChatter] =
     await Promise.all([
       fetchAll((from, to) =>
         supabase
@@ -37,15 +35,10 @@ export async function getSpenders(): Promise<SpendersData> {
         .order('captured_at', { ascending: false })
         .limit(1)
         .maybeSingle(),
-      admin.from('profiles').select('chatter_id, closing_team').not('chatter_id', 'is', null),
+      getClosingByChatter(),
     ])
   if (error) throw new Error(error.message)
   if (freshErr) throw new Error(freshErr.message)
-  if (linkErr) throw new Error(linkErr.message)
-
-  const teamByChatter = new Map<string, 'rouge' | 'bleue' | null>()
-  for (const m of linkedMembers ?? [])
-    if (m.chatter_id) teamByChatter.set(m.chatter_id, (m.closing_team as 'rouge' | 'bleue' | null) ?? null)
 
   const spenders: SpenderRow[] = rows
     .map((r) => ({
@@ -61,7 +54,7 @@ export async function getSpenders(): Promise<SpendersData> {
       assignedLabel: r.assigned_label,
       chatterId: r.assigned_chatter_id,
       chatterName: r.chatter_name,
-      chatterTeam: r.assigned_chatter_id ? (teamByChatter.get(r.assigned_chatter_id) ?? null) : null,
+      chatterTeam: r.assigned_chatter_id ? (closingByChatter.get(r.assigned_chatter_id)?.team ?? null) : null,
       compteurR: r.compteur_r,
       derniereRelanceAt: r.derniere_relance_at,
       grise: r.relance_today,

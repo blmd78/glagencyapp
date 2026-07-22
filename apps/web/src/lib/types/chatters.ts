@@ -6,7 +6,9 @@ import type { RevenueScope } from '@/lib/types/revenue'
  * chatter_daily + chatter_creator_daily) — seul `get-chatters.ts` changera.
  */
 
-// Champs closing CRM (fusion gla-workflow) — miroir des colonnes chatters.role/team/shift.
+// Constantes closing CRM. `CRM_ROLES`/`CRM_TEAMS` = valeurs de `profiles.closing_role`/`closing_team`
+// (le closing est porté par le membre, 0077 ; `chatters.role`/`team` droppées en 0080). `CRM_SHIFTS`
+// = valeurs de `chatters.shift` (toujours édité côté Chatteurs).
 export const CRM_ROLES = ['closer', 'setter'] as const
 export const CRM_TEAMS = ['rouge', 'bleue'] as const
 export const CRM_SHIFTS = ['matin', 'aprem', 'soir'] as const
