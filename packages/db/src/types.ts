@@ -1608,6 +1608,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          closing_role: string | null
+          closing_team: string | null
           created_at: string
           display_name: string | null
           email: string | null
@@ -1618,6 +1620,8 @@ export type Database = {
           work_link: string
         }
         Insert: {
+          closing_role?: string | null
+          closing_team?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -1628,6 +1632,8 @@ export type Database = {
           work_link?: string
         }
         Update: {
+          closing_role?: string | null
+          closing_team?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null

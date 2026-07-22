@@ -1,5 +1,7 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
+import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
+
 export interface Member {
   id: string
   email: string
@@ -13,6 +15,9 @@ export interface Member {
   managerId: string
   /** Lien « outil de travail » ('' = aucun) — affiché dans le menu utilisateur du membre. */
   workLink: string
+  /** Désignation « closing » du membre (chatteur) — null = pas dans le dispositif. */
+  closingRole: CrmRole | null
+  closingTeam: CrmTeam | null
   createdAt: string
 }
 

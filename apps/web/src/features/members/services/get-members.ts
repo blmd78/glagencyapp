@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 import type { Member, MembersData } from '../types'
 
 /**
@@ -15,7 +16,7 @@ export async function getMembers(): Promise<MembersData> {
   ] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, email, display_name, role, pages, work_link, manager_id, created_at')
+      .select('id, email, display_name, role, pages, work_link, manager_id, closing_role, closing_team, created_at')
       .order('created_at'),
     supabase.from('profile_creators').select('profile_id, creator_id'),
     // TOUS les comptes (privés inclus) : `excluded` ne concerne que les calculs (LTV,
@@ -51,6 +52,8 @@ export async function getMembers(): Promise<MembersData> {
     creatorIds: byProfile.get(p.id) ?? [],
     managerId: p.manager_id ?? '',
     workLink: p.work_link ?? '',
+    closingRole: (p.closing_role ?? null) as CrmRole | null,
+    closingTeam: (p.closing_team ?? null) as CrmTeam | null,
     createdAt: p.created_at,
   }))
   return { members, creators: creators ?? [] }
