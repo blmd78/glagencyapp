@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
+import { AlertTriangle, Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -181,7 +181,16 @@ export function MembersTable({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <div className="truncate font-medium">{row.original.displayName}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-medium">{row.original.displayName}</span>
+              {/* Warning : membre chatteur SANS chatteur MyPuls lié → à relier (badges closing
+                  vides tant que le lien manque). Visible aux admins (seuls à pouvoir relier). */}
+              {viewer === 'admin' && row.original.role === 'chatteur' && !row.original.chatterId && (
+                <span title="Aucun chatteur MyPuls lié — à relier dans la fiche" className="shrink-0">
+                  <AlertTriangle className="size-3.5 text-amber-500" aria-label="Aucun chatteur MyPuls lié" />
+                </span>
+              )}
+            </div>
             <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
           </div>
         </div>
