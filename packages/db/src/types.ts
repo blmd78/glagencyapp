@@ -251,9 +251,7 @@ export type Database = {
           email: string | null
           id: string
           mypuls_user_id: string | null
-          role: string | null
           shift: string | null
-          team: string | null
           team_id: string | null
         }
         Insert: {
@@ -265,9 +263,7 @@ export type Database = {
           email?: string | null
           id?: string
           mypuls_user_id?: string | null
-          role?: string | null
           shift?: string | null
-          team?: string | null
           team_id?: string | null
         }
         Update: {
@@ -279,9 +275,7 @@ export type Database = {
           email?: string | null
           id?: string
           mypuls_user_id?: string | null
-          role?: string | null
           shift?: string | null
-          team?: string | null
           team_id?: string | null
         }
         Relationships: [
@@ -2238,7 +2232,6 @@ export type Database = {
           assigned_label: string
           ca_total: number
           chatter_name: string
-          chatter_team: string
           compteur_r: number
           conversion_pending: boolean
           creator_id: string
