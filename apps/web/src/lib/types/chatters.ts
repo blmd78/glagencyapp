@@ -41,6 +41,10 @@ export interface ChatterRow {
   // Shift (matin/aprem/soir), édité via le crayon — null = non renseigné.
   // Rôle (setter/closer) et équipe (rouge/bleue) sont désormais gérés sur le MEMBRE.
   shift: CrmShift | null
+  // Closing lu DEPUIS le membre lié (profiles.closing_role/closing_team via profiles.chatter_id) —
+  // read-only ici ; l'édition est sur la fiche Membre. null = chatteur non lié / sans désignation.
+  closingRole: CrmRole | null
+  closingTeam: CrmTeam | null
   // Sommables (= Σ modèles)
   ca: number
   ppv: number
