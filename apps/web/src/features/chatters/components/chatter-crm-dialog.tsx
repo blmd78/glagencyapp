@@ -23,14 +23,10 @@ import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
 import { updateChatterCrm } from '../actions'
 import { updateChatterCrmInput, type UpdateChatterCrmInput } from '../schema'
-import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
+import { CRM_SHIFTS } from '@/lib/types/chatters'
 import type { ChatterRow } from '@/lib/types/chatters'
 
 const LABELS: Record<string, string> = {
-  closer: 'Closer',
-  setter: 'Setter',
-  rouge: 'Rouge',
-  bleue: 'Bleue',
   matin: 'Matin',
   aprem: 'Après-midi',
   soir: 'Soir',
@@ -70,15 +66,14 @@ function CrmSelect({
   )
 }
 
-/** Crayon + dialog : édite rôle / équipe (rouge-bleue) / shift closing d'un chatteur. */
+/** Crayon + dialog : édite le shift (matin/aprem/soir) d'un chatteur.
+ *  Le rôle (setter/closer) et l'équipe (rouge/bleue) sont désormais gérés sur le MEMBRE. */
 export function ChatterCrmDialog({ chatter }: { chatter: ChatterRow }) {
   const [open, setOpen] = useState(false)
   const form = useForm<UpdateChatterCrmInput>({
     resolver: zodResolver(updateChatterCrmInput),
     defaultValues: {
       chatterId: chatter.id,
-      role: chatter.role,
-      team: chatter.team,
       shift: chatter.shift,
     },
   })
@@ -91,15 +86,14 @@ export function ChatterCrmDialog({ chatter }: { chatter: ChatterRow }) {
       toast.error(res.error)
       return
     }
-    toast.success(`Closing de ${chatter.name} enregistré`)
+    toast.success(`Shift de ${chatter.name} enregistré`)
     setOpen(false)
   })
 
   function onOpenChange(next: boolean) {
     setOpen(next)
     // Réouverture : repartir des valeurs actuelles de la ligne (pas d'un vieux brouillon).
-    if (next)
-      form.reset({ chatterId: chatter.id, role: chatter.role, team: chatter.team, shift: chatter.shift })
+    if (next) form.reset({ chatterId: chatter.id, shift: chatter.shift })
   }
 
   const serverError = form.formState.errors.root?.serverError?.message
@@ -107,29 +101,15 @@ export function ChatterCrmDialog({ chatter }: { chatter: ChatterRow }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-7" aria-label="Éditer closing">
+        <Button variant="ghost" size="icon" className="size-7" aria-label="Éditer shift">
           <Pencil className="size-3.5" />
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Closing — {chatter.name}</DialogTitle>
+          <DialogTitle>Shift — {chatter.name}</DialogTitle>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <Controller
-            control={form.control}
-            name="role"
-            render={({ field }) => (
-              <CrmSelect label="Rôle" value={field.value} options={CRM_ROLES} onChange={field.onChange} />
-            )}
-          />
-          <Controller
-            control={form.control}
-            name="team"
-            render={({ field }) => (
-              <CrmSelect label="Équipe" value={field.value} options={CRM_TEAMS} onChange={field.onChange} />
-            )}
-          />
           <Controller
             control={form.control}
             name="shift"

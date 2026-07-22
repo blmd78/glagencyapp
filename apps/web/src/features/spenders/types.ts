@@ -55,7 +55,6 @@ export interface SpenderRow {
   /** Chatteur résolu chez nous (via assigned_chatter_id) — null si non mappé. */
   chatterId: string | null
   chatterName: string | null
-  chatterTeam: 'rouge' | 'bleue' | null
   // Tracker relances (calculés en SQL par crm_spenders_tracker)
   /** Nombre de relances depuis le dernier reset (0-10+). */
   compteurR: number

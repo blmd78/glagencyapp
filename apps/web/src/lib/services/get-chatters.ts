@@ -4,9 +4,7 @@ import type {
   ChatterModel,
   ChatterRow,
   ChattersData,
-  CrmRole,
   CrmShift,
-  CrmTeam,
 } from '@/lib/types/chatters'
 
 import { conv, round1, round2 } from '@/lib/format'
@@ -71,11 +69,11 @@ export async function getChatters(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
-  // Champs closing CRM (chatters.role/team/shift, migration 0029) — hors RPC pour ne pas
-  // toucher chatters_report ; lecture couverte par la policy chatters_scoped_read.
+  // Shift (chatters.shift, migration 0029) — hors RPC pour ne pas toucher chatters_report ;
+  // lecture couverte par la policy chatters_scoped_read. Rôle/équipe sont gérés sur le MEMBRE.
   const [rpcRes, crmRes] = await Promise.all([
     supabase.rpc('chatters_report', { p_from: period.from, p_to: period.to }),
-    supabase.from('chatters').select('id, role, team, shift'),
+    supabase.from('chatters').select('id, shift'),
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)
   if (crmRes.error) throw new Error(crmRes.error.message)
@@ -171,8 +169,6 @@ export async function getChatters(
         email: meta?.email ?? null,
         active: meta?.active ?? false,
         managementTeam: meta?.team ?? null,
-        role: (crmById.get(id)?.role ?? null) as CrmRole | null,
-        team: (crmById.get(id)?.team ?? null) as CrmTeam | null,
         shift: (crmById.get(id)?.shift ?? null) as CrmShift | null,
         ca: a.ca,
         ppv: a.ppv,

@@ -38,9 +38,8 @@ export interface ChatterRow {
   active: boolean
   /** Nom de la team de management (teams.name via team_id) — ≠ `team` closing rouge/bleue. */
   managementTeam: string | null
-  // Closing CRM (édités via le crayon — null = pas dans le dispositif)
-  role: CrmRole | null
-  team: CrmTeam | null
+  // Shift (matin/aprem/soir), édité via le crayon — null = non renseigné.
+  // Rôle (setter/closer) et équipe (rouge/bleue) sont désormais gérés sur le MEMBRE.
   shift: CrmShift | null
   // Sommables (= Σ modèles)
   ca: number

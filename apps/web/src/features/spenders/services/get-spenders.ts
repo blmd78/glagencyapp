@@ -2,9 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { CA_TRACKING_SEUIL, type SpenderRow, type SpendersData } from '../types'
 
-const asTeam = (t: string | null): 'rouge' | 'bleue' | null =>
-  t === 'rouge' || t === 'bleue' ? t : null
-
 /**
  * Spenders + état du tracker relances, via le RPC `crm_spenders_tracker` (join scrape ⋈
  * relances ⋈ spender_crm, agrégé EN BASE — plafond CPU Workers). Pas de datepicker : on
@@ -52,7 +49,6 @@ export async function getSpenders(): Promise<SpendersData> {
       assignedLabel: r.assigned_label,
       chatterId: r.assigned_chatter_id,
       chatterName: r.chatter_name,
-      chatterTeam: asTeam(r.chatter_team),
       compteurR: r.compteur_r,
       derniereRelanceAt: r.derniere_relance_at,
       grise: r.relance_today,
