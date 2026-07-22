@@ -37,6 +37,8 @@ export const memberInput = z
     workLink,
     closingRole,
     closingTeam,
+    // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
+    chatterId: z.uuid().or(z.literal('')),
   })
   .refine(
     (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),
@@ -63,6 +65,8 @@ export const memberUpdateInput = z
     workLink,
     closingRole,
     closingTeam,
+    // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
+    chatterId: z.uuid().or(z.literal('')),
   })
   .refine(
     (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),

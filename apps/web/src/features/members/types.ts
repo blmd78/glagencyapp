@@ -18,6 +18,8 @@ export interface Member {
   /** Désignation « closing » du membre (chatteur) — null = pas dans le dispositif. */
   closingRole: CrmRole | null
   closingTeam: CrmTeam | null
+  /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
+  chatterId: string
   createdAt: string
 }
 
@@ -25,4 +27,6 @@ export interface MembersData {
   members: Member[]
   /** Modèles assignables (non exclus), pour les cases à cocher. */
   creators: { id: string; name: string }[]
+  /** Chatteurs MyPuls sélectionnables pour le lien (admin/superadmin). */
+  chatters: { id: string; name: string }[]
 }

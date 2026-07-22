@@ -34,6 +34,7 @@ const initials = (name: string) =>
 function RowActions({
   member,
   creators,
+  chatters,
   managers,
   scope,
   viewer,
@@ -41,6 +42,7 @@ function RowActions({
 }: {
   member: Member
   creators: { id: string; name: string }[]
+  chatters: { id: string; name: string }[]
   managers: { id: string; name: string }[]
   scope: 'chatter' | 'marketing'
   viewer: 'admin' | 'manager'
@@ -56,6 +58,7 @@ function RowActions({
       <MemberDialog
         member={member}
         creators={creators}
+        chatters={chatters}
         managers={managers}
         scope={scope}
         viewer={viewer}
@@ -117,12 +120,15 @@ function BadgeList({ items, max = 4 }: { items: { key: string; node: React.React
 export function MembersTable({
   members,
   creators,
+  chatters,
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
 }: {
   members: Member[]
   creators: { id: string; name: string }[]
+  /** Chatteurs MyPuls sélectionnables pour le lien (champ superadmin uniquement). */
+  chatters: { id: string; name: string }[]
   scope?: 'chatter' | 'marketing'
   viewer?: 'admin' | 'manager'
   /** Propriétaire : option rôle Admin + gestion des fiches admin. */
@@ -245,6 +251,7 @@ export function MembersTable({
         <RowActions
           member={row.original}
           creators={creators}
+          chatters={chatters}
           managers={managers}
           scope={scope}
           viewer={viewer}
@@ -267,6 +274,7 @@ export function MembersTable({
       toolbar={
         <MemberDialog
           creators={creators}
+          chatters={chatters}
           managers={managers}
           scope={scope}
           viewer={viewer}

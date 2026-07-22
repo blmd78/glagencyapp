@@ -21,6 +21,7 @@ import { createMember, updateMember } from '../actions'
 import { memberInput, type MemberForm } from '../schema'
 import type { Member } from '../types'
 import { MemberAccessFields } from './member-access-fields'
+import { MemberChatterLinkField } from './member-chatter-link-field'
 import { MemberClosingFields } from './member-closing-fields'
 import { MemberPermissionFields } from './member-permission-fields'
 
@@ -40,6 +41,7 @@ const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[num
 export function MemberDialog({
   member,
   creators,
+  chatters,
   managers = [],
   trigger,
   scope = 'chatter',
@@ -49,6 +51,8 @@ export function MemberDialog({
   /** Absent = création. */
   member?: Member
   creators: { id: string; name: string }[]
+  /** Chatteurs MyPuls sélectionnables pour le lien (champ superadmin uniquement). */
+  chatters: { id: string; name: string }[]
   /** Managers rattachables (sélecteur admin, face chatteurs). */
   managers?: { id: string; name: string }[]
   trigger: ReactNode
@@ -101,6 +105,7 @@ export function MemberDialog({
       workLink: member?.workLink ?? '',
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
+      chatterId: member?.chatterId ?? '',
     },
   })
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
@@ -119,6 +124,7 @@ export function MemberDialog({
           workLink: values.workLink,
           closingRole: values.closingRole,
           closingTeam: values.closingTeam,
+          chatterId: values.chatterId,
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
@@ -212,6 +218,10 @@ export function MemberDialog({
           {/* Désignation closing (setter/closer + équipe) — chatteur uniquement (masqué sinon).
               Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
           <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
+
+          {superadmin && (
+            <MemberChatterLinkField control={control} chatters={chatters} isSubmitting={isSubmitting} />
+          )}
 
           <MemberPermissionFields
             control={control}
