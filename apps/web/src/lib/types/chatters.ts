@@ -6,7 +6,9 @@ import type { RevenueScope } from '@/lib/types/revenue'
  * chatter_daily + chatter_creator_daily) — seul `get-chatters.ts` changera.
  */
 
-// Champs closing CRM (fusion gla-workflow) — miroir des colonnes chatters.role/team/shift.
+// Constantes closing CRM. `CRM_ROLES`/`CRM_TEAMS` = valeurs de `profiles.closing_role`/`closing_team`
+// (le closing est porté par le membre, 0077 ; `chatters.role`/`team` droppées en 0080). `CRM_SHIFTS`
+// = valeurs de `chatters.shift` (toujours édité côté Chatteurs).
 export const CRM_ROLES = ['closer', 'setter'] as const
 export const CRM_TEAMS = ['rouge', 'bleue'] as const
 export const CRM_SHIFTS = ['matin', 'aprem', 'soir'] as const
@@ -38,10 +40,13 @@ export interface ChatterRow {
   active: boolean
   /** Nom de la team de management (teams.name via team_id) — ≠ `team` closing rouge/bleue. */
   managementTeam: string | null
-  // Closing CRM (édités via le crayon — null = pas dans le dispositif)
-  role: CrmRole | null
-  team: CrmTeam | null
+  // Shift (matin/aprem/soir), édité via le crayon — null = non renseigné.
+  // Rôle (setter/closer) et équipe (rouge/bleue) sont désormais gérés sur le MEMBRE.
   shift: CrmShift | null
+  // Closing lu DEPUIS le membre lié (profiles.closing_role/closing_team via profiles.chatter_id) —
+  // read-only ici ; l'édition est sur la fiche Membre. null = chatteur non lié / sans désignation.
+  closingRole: CrmRole | null
+  closingTeam: CrmTeam | null
   // Sommables (= Σ modèles)
   ca: number
   ppv: number

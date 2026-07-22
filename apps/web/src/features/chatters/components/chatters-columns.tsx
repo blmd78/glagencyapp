@@ -65,22 +65,26 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
     },
   },
   {
+    // Rôle (setter/closer) et équipe (rouge/bleue) sont lus depuis le MEMBRE lié (read-only,
+    // édités sur la fiche Membre) ; shift reste propre au chatteur, édité via le crayon.
     id: 'crm',
     header: 'Closing',
     cell: ({ row }) => (
       <div className="flex items-center gap-1">
-        {row.original.role && (
-          <Badge variant="secondary">{row.original.role === 'closer' ? 'Closer' : 'Setter'}</Badge>
+        {row.original.closingRole && (
+          <Badge variant="secondary">
+            {row.original.closingRole === 'closer' ? 'Closer' : 'Setter'}
+          </Badge>
         )}
-        {row.original.team && (
+        {row.original.closingTeam && (
           <Badge
             className={
-              row.original.team === 'rouge'
+              row.original.closingTeam === 'rouge'
                 ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
                 : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
             }
           >
-            {row.original.team === 'rouge' ? 'Rouge' : 'Bleue'}
+            {row.original.closingTeam === 'rouge' ? 'Rouge' : 'Bleue'}
           </Badge>
         )}
         {row.original.shift && (

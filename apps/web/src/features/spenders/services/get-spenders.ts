@@ -1,9 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
 import { CA_TRACKING_SEUIL, type SpenderRow, type SpendersData } from '../types'
-
-const asTeam = (t: string | null): 'rouge' | 'bleue' | null =>
-  t === 'rouge' || t === 'bleue' ? t : null
 
 /**
  * Spenders + état du tracker relances, via le RPC `crm_spenders_tracker` (join scrape ⋈
@@ -20,21 +18,25 @@ const asTeam = (t: string | null): 'rouge' | 'bleue' | null =>
 export async function getSpenders(): Promise<SpendersData> {
   const supabase = await createClient()
 
-  const [{ data: rows, error }, { data: freshRow, error: freshErr }] = await Promise.all([
-    fetchAll((from, to) =>
+  // Équipe closing lue DEPUIS le membre lié — helper partagé `getClosingByChatter` (source unique
+  // avec la page Chatteurs, cf. 0077/0079). On n'en utilise ici que l'équipe.
+  const [{ data: rows, error }, { data: freshRow, error: freshErr }, closingByChatter] =
+    await Promise.all([
+      fetchAll((from, to) =>
+        supabase
+          .rpc('crm_spenders_tracker', { p_seuil: CA_TRACKING_SEUIL })
+          .order('creator_id', { ascending: true })
+          .order('fan_id', { ascending: true })
+          .range(from, to),
+      ),
       supabase
-        .rpc('crm_spenders_tracker', { p_seuil: CA_TRACKING_SEUIL })
-        .order('creator_id', { ascending: true })
-        .order('fan_id', { ascending: true })
-        .range(from, to),
-    ),
-    supabase
-      .from('spender_conversations')
-      .select('captured_at')
-      .order('captured_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ])
+        .from('spender_conversations')
+        .select('captured_at')
+        .order('captured_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      getClosingByChatter(),
+    ])
   if (error) throw new Error(error.message)
   if (freshErr) throw new Error(freshErr.message)
 
@@ -52,7 +54,7 @@ export async function getSpenders(): Promise<SpendersData> {
       assignedLabel: r.assigned_label,
       chatterId: r.assigned_chatter_id,
       chatterName: r.chatter_name,
-      chatterTeam: asTeam(r.chatter_team),
+      chatterTeam: r.assigned_chatter_id ? (closingByChatter.get(r.assigned_chatter_id)?.team ?? null) : null,
       compteurR: r.compteur_r,
       derniereRelanceAt: r.derniere_relance_at,
       grise: r.relance_today,

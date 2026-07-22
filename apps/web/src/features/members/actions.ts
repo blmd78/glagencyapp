@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
-import { getProfile } from '@/lib/auth'
+import { getProfile, type Profile } from '@/lib/auth'
 import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
 import {
   authorizeRoleAndScope,
@@ -15,6 +15,46 @@ import {
   syncAssignments,
 } from './authz'
 import { memberInput, memberUpdateInput } from './schema'
+
+/**
+ * Pose le lien `profiles.chatter_id` — réservé admin/superadmin. `Profile.role` (lib/auth)
+ * vaut déjà `'admin'` pour un superadmin (rôle base `superadmin` mappé/collapsed dessus,
+ * cf. `getProfile`) : un seul test couvre donc les deux, `caller.superadmin` n'étant utile
+ * que pour distinguer les deux côté UI. Garde d'unicité : un chatteur ne peut être lié qu'à
+ * un membre. Un non-admin (chatteur/manager/sous-manager/police) ne modifie jamais le lien
+ * (ignore silencieusement — jamais d'erreur qui bloquerait le reste de la mutation).
+ */
+async function applyChatterLink(
+  admin: ReturnType<typeof createAdminClient>,
+  caller: Profile,
+  profileId: string,
+  chatterId: string,
+): Promise<void> {
+  if (caller.role !== 'admin') return // non-admin : lien inchangé
+  const value = chatterId === '' ? null : chatterId
+  if (value) {
+    const { data: taken, error } = await admin
+      .from('profiles')
+      .select('id')
+      .eq('chatter_id', value)
+      .neq('id', profileId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (taken) {
+      throw new BusinessError('Ce chatteur est déjà lié à un autre membre.', {
+        chatterId: ['Déjà lié ailleurs.'],
+      })
+    }
+  }
+  const { error } = await admin.from('profiles').update({ chatter_id: value }).eq('id', profileId)
+  if (error) {
+    // 23505 = course sur la contrainte `unique` (un autre membre a pris ce chatteur entre le check
+    // et l'update) → refus MÉTIER propre (pas une « erreur inattendue » technique + bruit Sentry).
+    if (error.code === '23505')
+      throw new BusinessError('Ce chatteur est déjà lié à un autre membre.', { chatterId: ['Déjà lié ailleurs.'] })
+    throw new Error(error.message)
+  }
+}
 
 /**
  * Mutations de la page Membres. Toutes : zod → garde applicative → client SERVICE-ROLE
@@ -71,7 +111,8 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const { scope, email, displayName, pages, creatorIds, workLink, closingRole, closingTeam } = values
+      const { scope, email, displayName, pages, creatorIds, workLink, closingRole, closingTeam, chatterId } =
+        values
 
       // Re-dérive role/ownScope (mêmes fonctions gelées, mêmes messages) : le guard a déjà
       // validé — les branches 'error' ci-dessous sont une course résiduelle impossible en
@@ -135,6 +176,9 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
         await admin.auth.admin.deleteUser(uid)
         throw new Error(pErr.message)
       }
+      // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing ci-dessus) —
+      // sinon on force à null pour ne pas « consommer » l'unicité d'un chatteur sur un non-chatteur.
+      await applyChatterLink(admin, caller, uid, role === 'chatteur' ? chatterId : '')
       if (role !== 'chatteur') {
         const { error: rErr } = await admin
           .from('profiles')
@@ -180,7 +224,8 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
     handler: async (values) => {
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const { scope, id, displayName, pages, creatorIds, workLink, managerId, closingRole, closingTeam } = values
+      const { scope, id, displayName, pages, creatorIds, workLink, managerId, closingRole, closingTeam, chatterId } =
+        values
 
       const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
       if ('error' in auth) throw new Error(auth.error) // impossible si le guard a laissé passer
@@ -212,6 +257,9 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         })
         .eq('id', id)
       if (pErr) throw new Error(pErr.message)
+      // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing) — un membre
+      // promu manager/police/admin voit son chatter_id remis à null (sinon lien orphelin non réparable).
+      await applyChatterLink(admin, caller, id, role === 'chatteur' ? chatterId : '')
       // La cible cesse d'être manager/sous-manager (démotion chatteur OU promotion admin) :
       // détacher ses chatteurs, sinon ils restent rattachés à un non-manager — invisibles de
       // tous les managers, et l'édition admin bloquerait sur un rattachement périmé.

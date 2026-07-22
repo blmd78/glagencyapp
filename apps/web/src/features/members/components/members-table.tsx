@@ -2,7 +2,7 @@
 
 import { type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
+import { AlertTriangle, Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -34,6 +34,7 @@ const initials = (name: string) =>
 function RowActions({
   member,
   creators,
+  chatters,
   managers,
   scope,
   viewer,
@@ -41,6 +42,7 @@ function RowActions({
 }: {
   member: Member
   creators: { id: string; name: string }[]
+  chatters: { id: string; name: string }[]
   managers: { id: string; name: string }[]
   scope: 'chatter' | 'marketing'
   viewer: 'admin' | 'manager'
@@ -56,6 +58,7 @@ function RowActions({
       <MemberDialog
         member={member}
         creators={creators}
+        chatters={chatters}
         managers={managers}
         scope={scope}
         viewer={viewer}
@@ -117,12 +120,15 @@ function BadgeList({ items, max = 4 }: { items: { key: string; node: React.React
 export function MembersTable({
   members,
   creators,
+  chatters,
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
 }: {
   members: Member[]
   creators: { id: string; name: string }[]
+  /** Chatteurs MyPuls sélectionnables pour le lien (champ superadmin uniquement). */
+  chatters: { id: string; name: string }[]
   scope?: 'chatter' | 'marketing'
   viewer?: 'admin' | 'manager'
   /** Propriétaire : option rôle Admin + gestion des fiches admin. */
@@ -175,7 +181,16 @@ export function MembersTable({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <div className="truncate font-medium">{row.original.displayName}</div>
+            <div className="flex items-center gap-1.5">
+              <span className="truncate font-medium">{row.original.displayName}</span>
+              {/* Warning : membre chatteur SANS chatteur MyPuls lié → à relier (badges closing
+                  vides tant que le lien manque). Visible aux admins (seuls à pouvoir relier). */}
+              {viewer === 'admin' && row.original.role === 'chatteur' && !row.original.chatterId && (
+                <span title="Aucun chatteur MyPuls lié — à relier dans la fiche" className="shrink-0">
+                  <AlertTriangle className="size-3.5 text-amber-500" aria-label="Aucun chatteur MyPuls lié" />
+                </span>
+              )}
+            </div>
             <div className="truncate text-xs text-muted-foreground">{row.original.email}</div>
           </div>
         </div>
@@ -245,6 +260,7 @@ export function MembersTable({
         <RowActions
           member={row.original}
           creators={creators}
+          chatters={chatters}
           managers={managers}
           scope={scope}
           viewer={viewer}
@@ -267,6 +283,7 @@ export function MembersTable({
       toolbar={
         <MemberDialog
           creators={creators}
+          chatters={chatters}
           managers={managers}
           scope={scope}
           viewer={viewer}

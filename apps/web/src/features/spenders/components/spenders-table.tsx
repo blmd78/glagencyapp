@@ -93,6 +93,7 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
     cell: ({ row }) => {
       const name = row.original.chatterName ?? row.original.assignedLabel
       if (!name) return <span className="text-xs italic text-muted-foreground">non assigné</span>
+      // Équipe (rouge/bleue) lue depuis le MEMBRE lié au chatteur assigné (0077/0079).
       return (
         <div className="flex items-center gap-1.5">
           <span className="truncate">{name}</span>
