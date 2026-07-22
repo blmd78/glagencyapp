@@ -18,7 +18,7 @@ export async function updateChatterCrm(raw: unknown): Promise<ActionResult> {
       const supabase = await createClient()
       const { error } = await supabase
         .from('chatters')
-        .update({ role: values.role, team: values.team, shift: values.shift })
+        .update({ shift: values.shift })
         .eq('id', values.chatterId)
       // Erreur technique → throw : runAction capture (Sentry) + message générique.
       if (error) throw new Error(error.message)

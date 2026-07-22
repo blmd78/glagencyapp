@@ -33,6 +33,7 @@ export function MembersTemplate({
       <MembersTable
         members={data.members}
         creators={data.creators}
+        chatters={data.chatters}
         scope={scope}
         viewer={viewer}
         superadmin={superadmin}

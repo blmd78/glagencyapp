@@ -1,12 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
+import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
 import type { Period } from '@/lib/period'
 import type {
   ChatterModel,
   ChatterRow,
   ChattersData,
-  CrmRole,
   CrmShift,
-  CrmTeam,
 } from '@/lib/types/chatters'
 
 import { conv, round1, round2 } from '@/lib/format'
@@ -71,11 +70,13 @@ export async function getChatters(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
-  // Champs closing CRM (chatters.role/team/shift, migration 0029) — hors RPC pour ne pas
-  // toucher chatters_report ; lecture couverte par la policy chatters_scoped_read.
-  const [rpcRes, crmRes] = await Promise.all([
+  // Shift (chatters.shift, migration 0029) — hors RPC pour ne pas toucher chatters_report ;
+  // lecture couverte par la policy chatters_scoped_read. Rôle/équipe closing sont gérés sur le
+  // MEMBRE : lus via le helper partagé `getClosingByChatter` (source unique, cf. 0077/0079).
+  const [rpcRes, crmRes, closingByChatter] = await Promise.all([
     supabase.rpc('chatters_report', { p_from: period.from, p_to: period.to }),
-    supabase.from('chatters').select('id, role, team, shift'),
+    supabase.from('chatters').select('id, shift'),
+    getClosingByChatter(),
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)
   if (crmRes.error) throw new Error(crmRes.error.message)
@@ -171,9 +172,9 @@ export async function getChatters(
         email: meta?.email ?? null,
         active: meta?.active ?? false,
         managementTeam: meta?.team ?? null,
-        role: (crmById.get(id)?.role ?? null) as CrmRole | null,
-        team: (crmById.get(id)?.team ?? null) as CrmTeam | null,
         shift: (crmById.get(id)?.shift ?? null) as CrmShift | null,
+        closingRole: closingByChatter.get(id)?.role ?? null,
+        closingTeam: closingByChatter.get(id)?.team ?? null,
         ca: a.ca,
         ppv: a.ppv,
         tips: a.tips,

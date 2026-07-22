@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
+import { TeamBadge } from '@/components/team-badge'
 import { Combobox } from '@/components/ui/combobox'
 import { Toggle } from '@/components/ui/toggle'
 import { DataTable } from '@/components/data-table/data-table'
@@ -93,20 +94,11 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
     cell: ({ row }) => {
       const name = row.original.chatterName ?? row.original.assignedLabel
       if (!name) return <span className="text-xs italic text-muted-foreground">non assigné</span>
+      // Équipe (rouge/bleue) lue depuis le MEMBRE lié au chatteur assigné (0077/0079).
       return (
         <div className="flex items-center gap-1.5">
           <span className="truncate">{name}</span>
-          {row.original.chatterTeam && (
-            <Badge
-              className={
-                row.original.chatterTeam === 'rouge'
-                  ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
-                  : 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300'
-              }
-            >
-              {row.original.chatterTeam === 'rouge' ? 'Rouge' : 'Bleue'}
-            </Badge>
-          )}
+          <TeamBadge team={row.original.chatterTeam} />
         </div>
       )
     },

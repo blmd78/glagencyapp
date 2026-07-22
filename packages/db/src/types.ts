@@ -251,9 +251,7 @@ export type Database = {
           email: string | null
           id: string
           mypuls_user_id: string | null
-          role: string | null
           shift: string | null
-          team: string | null
           team_id: string | null
         }
         Insert: {
@@ -265,9 +263,7 @@ export type Database = {
           email?: string | null
           id?: string
           mypuls_user_id?: string | null
-          role?: string | null
           shift?: string | null
-          team?: string | null
           team_id?: string | null
         }
         Update: {
@@ -279,9 +275,7 @@ export type Database = {
           email?: string | null
           id?: string
           mypuls_user_id?: string | null
-          role?: string | null
           shift?: string | null
-          team?: string | null
           team_id?: string | null
         }
         Relationships: [
@@ -1608,6 +1602,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          chatter_id: string | null
           closing_role: string | null
           closing_team: string | null
           created_at: string
@@ -1620,6 +1615,7 @@ export type Database = {
           work_link: string
         }
         Insert: {
+          chatter_id?: string | null
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
@@ -1632,6 +1628,7 @@ export type Database = {
           work_link?: string
         }
         Update: {
+          chatter_id?: string | null
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
@@ -1644,6 +1641,13 @@ export type Database = {
           work_link?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: true
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
@@ -2228,7 +2232,6 @@ export type Database = {
           assigned_label: string
           ca_total: number
           chatter_name: string
-          chatter_team: string
           compteur_r: number
           conversion_pending: boolean
           creator_id: string
