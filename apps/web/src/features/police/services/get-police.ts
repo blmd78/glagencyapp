@@ -8,10 +8,8 @@ import {
 } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getChatterScope } from '@/lib/scope'
 import { recentDays, recentMonths } from '@/lib/periods'
 import { fetchAll } from '@/lib/supabase/fetch-all'
-import type { Profile } from '@/lib/auth'
 import { POLICE_ERRORS, type PoliceData, type PoliceEntry } from '../types'
 
 const ERROR_LABEL: Record<string, string> = Object.fromEntries(
@@ -23,13 +21,11 @@ const ERROR_LABEL: Record<string, string> = Object.fromEntries(
  * - `jour` : entrées d'un seul jour (`?day=`, défaut aujourd'hui), KPIs du jour — comportement historique.
  * - `mois` : entrées de tout le mois (`?month=`, défaut mois courant), KPIs agrégés sur le mois. Consultation
  *   pure (pas de saisie) → le compteur d'avertissements récents (aide-décision) n'est pas chargé.
- * RLS : admin ou page `police` + CLOISONNEMENT PAR CHATTEUR enforcé en RLS (migration 0075 :
- * chatteur d'un modèle de `profile_creators`). Le filtre app `inScope` (lib/scope) n'est plus que
- * la couche optimiste — MAIS il reste nécessaire pour cloisonner les OPTIONS (`chatterOptions`,
- * résolues via le client admin qui BYPASSE la RLS). Noms résolus via client admin.
+ * RLS : page `police`, NON cloisonné (cf. 0078 — tout porteur de la page voit toutes les sanctions).
+ * `chatter_id` désigne désormais un MEMBRE (`profiles`) ; les OPTIONS = tous les membres role
+ * chatteur (aucun filtre modèle). Noms (chatteur + contrôleur) résolus via `profiles` (client admin).
  */
 export async function getPolice(
-  profile: Profile,
   { vue, day, month }: { vue: 'jour' | 'mois'; day?: string; month?: string },
 ): Promise<PoliceData> {
   const supabase = await createClient()
@@ -73,9 +69,7 @@ export async function getPolice(
           .eq('occurred_on', selectedDay)
           .order('created_at', { ascending: false })
 
-  const [scope, entriesRes, recentWarnsRes, chattersRes, profilesRes] = await Promise.all([
-    // Périmètre manager (1 requête pour un non-admin) — indépendant du reste.
-    getChatterScope(profile),
+  const [entriesRes, recentWarnsRes, profilesRes] = await Promise.all([
     entriesQuery,
     // Compteur d'avertissements récents : aide la décision de malus dans la SAISIE (mode jour uniquement).
     // En mois la saisie est masquée → requête inutile, on la saute.
@@ -92,37 +86,34 @@ export async function getPolice(
             .range(from, to),
         )
       : Promise.resolve(null),
-    // Résolveurs de noms (client admin) : `fetchAll` — anti-troncature 1000 lignes (chatters/profiles
-    // peuvent dépasser ce seuil dans une agence, sinon des noms manqueraient silencieusement).
-    fetchAll((from, to) => admin.from('chatters').select('id, display_name, active').order('id').range(from, to)),
-    fetchAll((from, to) => admin.from('profiles').select('id, display_name').order('id').range(from, to)),
+    // Membres (client admin, `fetchAll` anti-troncature) : résolution des NOMS — chatteur (chatter_id)
+    // ET contrôleur (controller_id) sont tous deux des `profiles` — et OPTIONS (role chatteur).
+    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
   ])
   if (entriesRes.error) throw new Error(entriesRes.error.message)
   if (recentWarnsRes?.error) throw new Error(recentWarnsRes.error.message)
-  if (chattersRes.error) throw new Error(chattersRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   const rows = entriesRes.data
   const recentWarns = recentWarnsRes?.data
-  const chatterRows = chattersRes.data
   const profileRows = profilesRes.data
-  const inScope = (id: string) => scope.chatterIds === null || scope.chatterIds.has(id)
 
-  const chatterName: Record<string, string> = {}
-  for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterName[c.id] = c.display_name
-  const controllerName: Record<string, string> = {}
-  for (const p of profileRows ?? []) if (p.id && p.display_name) controllerName[p.id] = p.display_name
+  // Noms : chatteur (chatter_id) ET contrôleur (controller_id) sont tous deux des `profiles`.
+  const nameById: Record<string, string> = {}
+  for (const p of profileRows ?? []) if (p.id && p.display_name) nameById[p.id] = p.display_name
+  const chatterName = nameById
+  const controllerName = nameById
 
-  const chatterOptions = (chatterRows ?? [])
-    .filter((c) => c.active && c.display_name && inScope(c.id))
-    .map((c) => ({ id: c.id, name: c.display_name as string }))
+  // Options = TOUS les membres role chatteur (Police NON cloisonné, cf. 0078 — aucun filtre modèle).
+  const chatterOptions = (profileRows ?? [])
+    .filter((p) => p.role === 'chatteur' && p.display_name)
+    .map((p) => ({ id: p.id, name: p.display_name as string }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   const warningsByChatter: Record<string, number> = {}
   for (const w of recentWarns ?? [])
-    if (inScope(w.chatter_id))
-      warningsByChatter[w.chatter_id] = (warningsByChatter[w.chatter_id] ?? 0) + 1
+    warningsByChatter[w.chatter_id] = (warningsByChatter[w.chatter_id] ?? 0) + 1
 
-  const entries: PoliceEntry[] = (rows ?? []).filter((r) => inScope(r.chatter_id)).map((r) => ({
+  const entries: PoliceEntry[] = (rows ?? []).map((r) => ({
     id: r.id,
     chatterId: r.chatter_id,
     chatterName: chatterName[r.chatter_id] ?? '?',

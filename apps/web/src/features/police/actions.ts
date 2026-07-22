@@ -5,10 +5,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
-import { getChatterScope } from '@/lib/scope'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
 /** Garde : miroir de la policy RLS `police_insert`/`police_update` (`can_write_page('police')
@@ -22,31 +22,34 @@ async function requirePoliceProfile(): Promise<Profile | null> {
   return hasWriteAccess(profile, 'police') || isFunctionalPolice ? profile : null
 }
 
-/** Garde périmètre : un non-admin ne peut agir que sur les chatteurs de SES modèles. */
-async function chatterInScope(profile: Profile, chatterId: string): Promise<boolean> {
-  const scope = await getChatterScope(profile)
-  return scope.chatterIds === null || scope.chatterIds.has(chatterId)
+/** Garde d'écriture Police (NON cloisonné, cf. 0078) : seule compte l'autorisation d'écriture de la
+ *  page — aucun filtre chatteur/modèle. Partagée par les 3 mutations (avert./malus/édition). */
+const policeWriteGuard = async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+  const profile = await requirePoliceProfile()
+  return profile ? { ok: true } : { ok: false, error: 'Accès refusé' }
+}
+
+/** La cible d'une sanction doit être un MEMBRE role chatteur (cohérent avec la validation des lignes
+ *  du Rapport). Défense en profondeur : les options n'exposent que des chatteurs, mais un appel forgé
+ *  par un porteur de la page pourrait viser un manager/admin. Client admin (lecture d'un profil hors
+ *  périmètre RLS de l'appelant). */
+async function assertChatteurMember(chatterId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('profiles').select('role').eq('id', chatterId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (data?.role !== 'chatteur') throw new BusinessError('La cible n’est pas un chatteur')
 }
 
 export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: warningInput,
     input: raw,
-    guard: async () => {
-      const profile = await requirePoliceProfile()
-      if (!profile) return { ok: false, error: 'Accès refusé' }
-      // Parse défensif de `raw` (capturé par fermeture) : si invalide, laissé au safeParse
-      // de runAction — pattern planning/scripts (docs/guidelines-standard-feature.md §4).
-      const parsed = warningInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      if (!(await chatterInScope(profile, parsed.data.chatterId)))
-        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-      return { ok: true }
-    },
+    guard: policeWriteGuard,
     handler: async (values) => {
       // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      await assertChatteurMember(values.chatterId)
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').insert({
         chatter_id: values.chatterId,
@@ -67,18 +70,11 @@ export async function addPoliceMalus(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: malusInput,
     input: raw,
-    guard: async () => {
-      const profile = await requirePoliceProfile()
-      if (!profile) return { ok: false, error: 'Accès refusé' }
-      const parsed = malusInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      if (!(await chatterInScope(profile, parsed.data.chatterId)))
-        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-      return { ok: true }
-    },
+    guard: policeWriteGuard,
     handler: async (values) => {
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      await assertChatteurMember(values.chatterId)
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').insert({
         chatter_id: values.chatterId,
@@ -100,23 +96,7 @@ export async function updatePoliceMalus(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: updateMalusInput,
     input: raw,
-    guard: async () => {
-      const profile = await requirePoliceProfile()
-      if (!profile) return { ok: false, error: 'Accès refusé' }
-      if (profile.role === 'admin') return { ok: true }
-      const parsed = updateMalusInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      // Garde périmètre : un non-admin ne peut pas éditer le malus d'une autre équipe par id.
-      const supabase = await createClient()
-      const { data: entry } = await supabase
-        .from('police_entries')
-        .select('chatter_id')
-        .eq('id', parsed.data.id)
-        .maybeSingle()
-      if (!entry || !(await chatterInScope(profile, entry.chatter_id)))
-        return { ok: false, error: 'Accès refusé (chatteur hors de votre périmètre)' }
-      return { ok: true }
-    },
+    guard: policeWriteGuard,
     handler: async (values) => {
       const supabase = await createClient()
       const { error } = await supabase

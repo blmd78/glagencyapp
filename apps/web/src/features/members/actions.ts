@@ -71,7 +71,7 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const { scope, email, displayName, pages, creatorIds, workLink } = values
+      const { scope, email, displayName, pages, creatorIds, workLink, closingRole, closingTeam } = values
 
       // Re-dérive role/ownScope (mêmes fonctions gelées, mêmes messages) : le guard a déjà
       // validé — les branches 'error' ci-dessous sont une course résiduelle impossible en
@@ -121,6 +121,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           display_name: displayName,
           pages: mergePages([], pages, scope),
           work_link: workLink,
+          // Désignation closing : uniquement pour un chatteur, null sinon (un manager/police
+          // n'est pas setter/closer). Cf. 0077 — attribut porté par le membre, indépendant de chatters.
+          closing_role: role === 'chatteur' ? closingRole : null,
+          closing_team: role === 'chatteur' ? closingTeam : null,
           ...managerIdPatch(role, scope, managerId, true),
         })
         .eq('id', uid)
@@ -176,7 +180,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
     handler: async (values) => {
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const { scope, id, displayName, pages, creatorIds, workLink, managerId } = values
+      const { scope, id, displayName, pages, creatorIds, workLink, managerId, closingRole, closingTeam } = values
 
       const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
       if ('error' in auth) throw new Error(auth.error) // impossible si le guard a laissé passer
@@ -200,6 +204,9 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           role,
           pages: mergePages(current?.pages ?? [], pages, scope),
           work_link: workLink,
+          // Désignation closing : uniquement pour un chatteur, null sinon (cf. 0077, createMember).
+          closing_role: role === 'chatteur' ? closingRole : null,
+          closing_team: role === 'chatteur' ? closingTeam : null,
           // apply seulement pour un admin : un manager ne déplace pas un rattachement.
           ...managerIdPatch(role, scope, managerId, caller.role === 'admin'),
         })

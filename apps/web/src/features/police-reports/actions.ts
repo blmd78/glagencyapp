@@ -1,11 +1,11 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
 import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
 import { reportInput, deleteReportInput } from './schema'
-import { assignedCreatorIds } from './services/get-police-reports'
 
 const noGuard = async () => ({ ok: true as const })
 
@@ -17,13 +17,6 @@ async function requireReporter(): Promise<Profile | null> {
   return hasWriteAccess(profile, 'police') || isFunctionalPolice ? profile : null
 }
 
-/** Le modèle doit être dans le périmètre de l'auteur (admin = tout). MÊME source que la
- *  lecture et les options (profile_creators) — cf. assignedCreatorIds. */
-async function creatorInScope(profile: Profile, creatorId: string): Promise<boolean> {
-  const scope = await assignedCreatorIds(profile)
-  return scope === null || scope.has(creatorId)
-}
-
 /** Crée ou met à jour la fiche du soir (upsert sur (author_id, creator_id, day)) + ses lignes. */
 export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -33,20 +26,23 @@ export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
     handler: async (values) => {
       const profile = await requireReporter()
       if (!profile) throw new BusinessError('Accès refusé')
-      if (!(await creatorInScope(profile, values.creatorId)))
-        throw new BusinessError('Modèle hors de ton périmètre')
       const supabase = await createClient()
-      // Les chatteurs des lignes doivent appartenir AU modèle (sinon un writer pourrait injecter,
-      // via l'action ou la RPC en direct, un chatteur d'un autre modèle — la RLS des lignes ne
-      // contrôle que la propriété de l'en-tête, pas l'appartenance chatteur↔modèle). RLS
-      // `chatter_creators` scopée → cohérent avec `creatorInScope` ci-dessus.
+      // Police NON cloisonné (cf. 0078) : aucun filtre modèle sur l'auteur. On garde toutefois, au
+      // niveau de l'ACTION, l'INTÉGRITÉ par modèle des lignes — un chatteur d'un rapport sur le modèle
+      // M doit être un membre role chatteur ASSIGNÉ à M. Défense en profondeur INCOMPLÈTE : un appel
+      // RPC `upsert_police_report` direct (grant authenticated) la contourne — la RLS des lignes ne
+      // contrôle que la propriété de l'en-tête, pas l'appartenance chatteur↔modèle (dette pré-existante,
+      // héritée de 0073 ; à porter un jour dans le RPC/trigger). Client admin car la RLS
+      // `profile_creators` (0054) cloisonne par équipe, pas par modèle.
       if (values.lines.length) {
-        const { data: allowed, error: cErr } = await supabase
-          .from('chatter_creators')
-          .select('chatter_id')
+        const admin = createAdminClient()
+        const { data: allowed, error: cErr } = await admin
+          .from('profile_creators')
+          .select('profile_id, profiles!inner(role)')
           .eq('creator_id', values.creatorId)
+          .eq('profiles.role', 'chatteur')
         if (cErr) throw new Error(cErr.message)
-        const allowedIds = new Set((allowed ?? []).map((r) => r.chatter_id))
+        const allowedIds = new Set((allowed ?? []).map((r) => r.profile_id))
         if (values.lines.some((l) => !allowedIds.has(l.chatterId)))
           throw new BusinessError('Un chatteur sélectionné n’appartient pas à ce modèle')
       }
