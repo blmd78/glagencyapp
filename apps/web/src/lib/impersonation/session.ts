@@ -100,6 +100,18 @@ export async function readForgedAccessToken(): Promise<string | null> {
 }
 
 /**
+ * `sub` (id user) de la session COURANTE (JWT validé via getClaims), ou null si aucune. Sert à
+ * lier le teardown à son porteur légitime : seul le navigateur qui impersonne vraiment (session
+ * courante === la cible) doit pouvoir re-minter l'acteur. Empêche qu'un admin rejoue le `sid`
+ * d'un autre pour récupérer SA session (escalade).
+ */
+export async function getCurrentSub(): Promise<string | null> {
+  const client = await forgeClient()
+  const { data } = await client.auth.getClaims()
+  return data?.claims?.sub ?? null
+}
+
+/**
  * Pose le cookie d'état `imp_sid` = le `sid` BRUT (jeton opaque). Pas de signature : le `sid`
  * est un UUID aléatoire impossible à deviner/forger, et sa validité est re-vérifiée en base
  * (`getActorForSid` : ligne active + non expirée) à chaque lecture. httpOnly + secure +

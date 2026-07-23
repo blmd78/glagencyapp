@@ -74,18 +74,20 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
       // (7) Row d'audit (aucun token stocké).
       const sid = await createRow({ id: caller.id, email: adminEmail }, { id, email: targetEmail })
 
-      // (8) Forge la session cible dans les cookies. Rollback complet si échec :
-      // re-mint la session admin (best-effort) + ferme la row, puis erreur métier.
+      // (8) Forge la session cible + (9) pose le cookie d'état, dans le MÊME try : rollback
+      // complet si l'un échoue (re-mint admin best-effort + ferme la row), sinon un échec de
+      // setStateCookie après un forge réussi laisserait une session forgée orpheline (sans
+      // imp_sid). Le cookie = le `sid` opaque (UUID), non signé — validité re-vérifiée en base.
       try {
         await forgeSessionInto(targetEmail, id)
+        await setStateCookie(sid)
       } catch {
         await forgeSessionInto(adminEmail, caller.id).catch(() => {})
         await endRow(sid).catch(() => {})
         throw new BusinessError('Impossible de démarrer la consultation')
       }
 
-      // (9) Cookie d'état signé (TTL interne, aligné sur la row) + (10) audit Sentry (jamais de token).
-      await setStateCookie(sid)
+      // (10) audit Sentry (jamais de token).
       Sentry.captureMessage('impersonate:start', {
         level: 'info',
         extra: { actor_id: caller.id, target_id: id },
@@ -99,13 +101,9 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
 }
 
 /**
- * Arrête la consultation et restaure la session admin.
- *
- * Snapshot du token forgé AVANT toute restauration (sinon on ne peut plus le révoquer) →
- * re-mint admin (assert `sub === actorId` dans `forgeSessionInto`) → assert rôle admin BRUT →
- * révocation locale du forgé → clôture row → clear cookie → Sentry. **Toute** anomalie (row
- * introuvable/`null` de panne DB, acteur non-admin, forge KO) bascule sur `fullLogout()` :
- * une session forgée ne doit jamais survivre. On redirige toujours vers Membres ensuite.
+ * Arrête la consultation et restaure la session admin. Le teardown (fail-closed, idempotent,
+ * vérif du porteur) vit dans `performStop` (`teardown.ts`) — voir sa doc. On redirige toujours
+ * vers Membres ensuite.
  */
 export async function stopImpersonation(): Promise<void> {
   // Le teardown vit dans `teardown.ts` (`performStop`), partagé avec le Route Handler
