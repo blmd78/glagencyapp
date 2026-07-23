@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
+import { ImpersonationBanner } from '@/features/impersonation/components/impersonation-banner'
 import { AppSidebar } from '@/components/app-sidebar'
 import { HeaderPeriod } from '@/components/header-period'
 import { LoadingDots } from '@/components/loading-dots'
@@ -65,6 +66,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
             </Suspense>
           </div>
         </header>
+        <ImpersonationBanner />
         {/* `relative` : ancre l'overlay de navigation (loader pleine zone dès le clic). */}
         <div className="relative flex min-w-0 flex-1 flex-col gap-4 p-6">
           <NavPendingOverlay />
