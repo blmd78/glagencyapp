@@ -1,14 +1,14 @@
 import { stopImpersonation } from '@/lib/impersonation/actions'
-import { getImpersonationState } from '@/features/impersonation/read-state'
+import type { ImpersonationState } from '@/features/impersonation/read-state'
 import { Countdown } from './countdown'
 
 /**
  * Bandeau permanent de consultation « en tant que » (Task 7). Server Component : ne rend
- * rien si aucune impersonation active (coût nul — voir `getImpersonationState`). Monté une
- * fois dans le layout `(dash)`, visible sur toutes les pages tant que la consultation dure.
+ * rien si aucune impersonation active. `state` vient de `getImpersonationState()`, chargé
+ * UNE fois par `DashDynamic` (Task 9) et partagé avec `NavUser` — on ne le recharge pas ici
+ * pour ne pas payer deux fois le round-trip DB pendant une consultation active.
  */
-export async function ImpersonationBanner() {
-  const s = await getImpersonationState()
+export async function ImpersonationBanner({ state: s }: { state: ImpersonationState }) {
   if (!s.active) return null
 
   // Wrapper local : `stopImpersonation` retourne `Promise<ActionResult>` (contrat partagé

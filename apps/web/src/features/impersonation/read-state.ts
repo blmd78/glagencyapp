@@ -20,11 +20,13 @@ import { readStateCookie, getActorForSid } from '@/lib/impersonation/session'
  * `redirect()` doit être appelé en contexte Server Component (jamais avalé par un
  * try/catch) : `NEXT_REDIRECT` doit remonter tel quel.
  */
-export async function getImpersonationState(): Promise<{
+export type ImpersonationState = {
   active: boolean
   targetName?: string
   expiresAt?: number
-}> {
+}
+
+export async function getImpersonationState(): Promise<ImpersonationState> {
   const state = await readStateCookie()
   if (!state) return { active: false }
 

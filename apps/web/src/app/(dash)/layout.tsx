@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { ImpersonationBanner } from '@/features/impersonation/components/impersonation-banner'
+import { getImpersonationState } from '@/features/impersonation/read-state'
 import { AppSidebar } from '@/components/app-sidebar'
 import { HeaderPeriod } from '@/components/header-period'
 import { LoadingDots } from '@/components/loading-dots'
@@ -42,6 +43,10 @@ async function DashDynamic({ children }: { children: ReactNode }) {
   const insightsCountPromise = getOpenInsightsCount().catch(() => 0)
   const profile = await getProfile()
   if (!profile) redirect('/login')
+  // Chargé UNE fois (peut rediriger si expiré/tripwire — cf. `getImpersonationState`) puis
+  // partagé : `.active` au NavUser (sidebar), l'objet complet au bandeau. Ne pas dupliquer
+  // l'appel — pendant une consultation active il fait un aller-retour DB à chaque navigation.
+  const impersonationState = await getImpersonationState()
 
   return (
     <SidebarProvider>
@@ -54,6 +59,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
         allowedPages={profile.pages}
         insightsCountPromise={insightsCountPromise}
         workLink={profile.workLink}
+        impersonating={impersonationState.active}
       />
       <SidebarInset className="min-w-0">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -66,7 +72,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
             </Suspense>
           </div>
         </header>
-        <ImpersonationBanner />
+        <ImpersonationBanner state={impersonationState} />
         {/* `relative` : ancre l'overlay de navigation (loader pleine zone dès le clic). */}
         <div className="relative flex min-w-0 flex-1 flex-col gap-4 p-6">
           <NavPendingOverlay />

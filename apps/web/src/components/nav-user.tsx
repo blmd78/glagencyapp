@@ -22,10 +22,18 @@ import {
 export function NavUser({
   email,
   workLink = '',
+  impersonating = false,
 }: {
   email: string
   /** Lien « outil de travail » du membre (posé par l'admin dans Membres) — '' = pas d'entrée. */
   workLink?: string
+  /**
+   * Consultation « en tant que » active (Task 9). Le navigateur porte alors la VRAIE session
+   * forgée de la cible : un `signOut()` global la déconnecterait de TOUS ses appareils et
+   * laisserait l'état d'impersonation orphelin. Quand `true`, le bouton quitte la
+   * consultation (teardown via `/impersonation/stop`) au lieu de déconnecter.
+   */
+  impersonating?: boolean
 }) {
   const router = useRouter()
   const { isMobile } = useSidebar()
@@ -100,10 +108,22 @@ export function NavUser({
               <span className="hidden dark:inline">Thème clair</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout}>
-              <LogOut />
-              Déconnexion
-            </DropdownMenuItem>
+            {impersonating ? (
+              // Consultation en cours : JAMAIS de signout global (cf. doc prop ci-dessus).
+              // Navigation simple (pas de <Link>) : un <Link> préchargerait cette route au
+              // survol/apparition et déclencherait le teardown avant même le clic.
+              <DropdownMenuItem asChild>
+                <a href="/impersonation/stop">
+                  <LogOut />
+                  Quitter la consultation
+                </a>
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={logout}>
+                <LogOut />
+                Déconnexion
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
