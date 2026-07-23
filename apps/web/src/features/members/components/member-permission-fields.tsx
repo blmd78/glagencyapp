@@ -31,6 +31,7 @@ export function MemberPermissionFields({
   pagesError?: string
   isSubmitting: boolean
 }) {
+  'use no memo'
   return (
     <>
       {roleValue !== 'admin' && (

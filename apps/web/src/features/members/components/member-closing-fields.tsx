@@ -28,6 +28,7 @@ export function MemberClosingFields({
   roleValue: MemberForm['role']
   isSubmitting: boolean
 }) {
+  'use no memo'
   if (roleValue !== 'chatteur') return null
   return (
     <div className="flex flex-wrap gap-4">

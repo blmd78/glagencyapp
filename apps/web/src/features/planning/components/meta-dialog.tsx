@@ -40,6 +40,7 @@ export function MetaDialog({
   open: boolean
   onClose: () => void
 }) {
+  'use no memo'
   const {
     register,
     handleSubmit,

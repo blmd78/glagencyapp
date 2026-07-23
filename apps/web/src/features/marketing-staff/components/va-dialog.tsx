@@ -57,6 +57,7 @@ export function VaFormDialog({
   onSubmit: FormEventHandler<HTMLFormElement>
   onClose: () => void
 }) {
+  'use no memo'
   const numField = (
     label: string,
     key: 'fixedEur' | 'rateTw' | 'rateIg' | 'bonusEur',

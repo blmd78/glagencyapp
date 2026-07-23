@@ -58,6 +58,7 @@ export function VaView({
   isAdmin: boolean
   canWrite: boolean
 }) {
+  'use no memo'
   /** Ligne éditée, `'new'` pour une création, null = dialog fermé. */
   const [editing, setEditing] = useState<MktStaffRow | 'new' | null>(null)
 

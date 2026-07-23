@@ -47,6 +47,7 @@ export function ReportForm({
   /** Jour sélectionné dans l'en-tête (`?day=`) — fixe la date du rapport (plus de champ date). */
   day: string
 }) {
+  'use no memo'
   const router = useRouter()
   // Triple générique (Input, Context, Output) : `reportInput` a des `.default()`/`.transform()`,
   // son type d'ENTRÉE diverge de `ReportInput` (la sortie) — même patron que `todo-dialog`.

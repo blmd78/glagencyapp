@@ -200,6 +200,7 @@ function EntryRow({
 /** Édition inline d'un malus (montant + note) — accès `police` en ÉCRITURE (admin/manager ;
  *  gaté par `canWrite` chez l'appelant, un chatteur est en lecture seule). */
 function MalusEdit({ e }: { e: PoliceEntry }) {
+  'use no memo'
   const [open, setOpen] = useState(false)
   const {
     register,
