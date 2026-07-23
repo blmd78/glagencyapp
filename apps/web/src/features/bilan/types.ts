@@ -26,6 +26,10 @@ export interface ModelBilan {
   horsS1: number | null
   horsS1Prev: number | null
   horsS1Lm: number | null
+  /** % du CA de la fenêtre réalisé PAR le script N°1 (même convention : ÷ CA total). */
+  s1: number | null
+  s1Prev: number | null
+  s1Lm: number | null
 }
 
 export interface WeekChoice {
@@ -47,6 +51,8 @@ export interface BilanData {
   /** CA total « hors script 1 » de la semaine (somme des scripts ≠ Pos 1, tous modèles) —
    *  null si aucune mesure sur la semaine. */
   totalHorsS1: number | null
+  /** CA total du script N°1 de la semaine (tous modèles) — null si aucune mesure. */
+  totalS1: number | null
   /** LTV moyenne globale (null si aucun nouvel abonné). */
   avgLtv: number | null
   avgLtvPrev: number | null

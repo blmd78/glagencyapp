@@ -17,11 +17,18 @@ export function BilanTemplate({ data }: { data: BilanData }) {
       value: `${Math.round(data.totalCa).toLocaleString('fr-FR')} €`,
       deltaPct: null,
       trendLabel: '',
-      // Total des scripts hors Pos 1 (tous modèles) — vide tant qu'aucune mesure.
-      hint:
-        data.totalHorsS1 != null && data.totalCa > 0
-          ? `dont hors S1 : ${Math.round(data.totalHorsS1).toLocaleString('fr-FR')} € (${Math.round((100 * data.totalHorsS1) / data.totalCa)} %)`
-          : '',
+      // Parts scriptées (tous modèles) : S1 seul, puis scripts hors Pos 1 — vide tant
+      // qu'aucune mesure. Le reste du CA total = hors scripts.
+      hint: (() => {
+        if (data.totalCa <= 0) return ''
+        const part = (label: string, v: number) =>
+          `${label} : ${Math.round(v).toLocaleString('fr-FR')} € (${Math.round((100 * v) / data.totalCa)} %)`
+        const parts = [
+          ...(data.totalS1 != null ? [part('S1', data.totalS1)] : []),
+          ...(data.totalHorsS1 != null ? [part('hors S1', data.totalHorsS1)] : []),
+        ]
+        return parts.length ? `dont ${parts.join(' · ')}` : ''
+      })(),
     },
     {
       key: 'subs',
