@@ -66,7 +66,13 @@ export async function forgeSessionInto(email: string, expectedUserId: string): P
   if (verifyError) throw new Error('forge: verifyOtp failed')
 
   const { data } = await client.auth.getClaims()
-  if (data?.claims?.sub !== expectedUserId) throw new Error('forge: sub mismatch')
+  if (data?.claims?.sub !== expectedUserId) {
+    // Fail-closed : verifyOtp a déjà écrit les cookies de session forgée ; on les retire
+    // AVANT de throw (sinon session forgée orpheline = usurpation). imp_sid n'est pas encore
+    // posé à cet instant (setStateCookie est appelé par l'appelant APRÈS un forge réussi).
+    await client.auth.signOut({ scope: 'local' }).catch(() => {})
+    throw new Error('forge: sub mismatch')
+  }
 }
 
 /**
@@ -85,6 +91,8 @@ export async function revokeForged(accessToken: string): Promise<void> {
  * Lit l'access token de la session courante (la forgée) depuis les cookies, pour pouvoir la
  * révoquer localement au teardown. Retourne null si aucune session. Pas de log de token.
  */
+// À appeler UNIQUEMENT en Server Action / Route Handler : getSession() peut déclencher un
+// refresh → écriture cookie (setAll throw hors contexte mutable).
 export async function readForgedAccessToken(): Promise<string | null> {
   const client = await forgeClient()
   const { data } = await client.auth.getSession()
@@ -110,7 +118,7 @@ export async function setStateCookie(sid: string, expMs: number): Promise<void> 
 /** Efface le cookie d'état `imp_sid`. */
 export async function clearStateCookie(): Promise<void> {
   const store = await cookies()
-  store.delete(STATE_COOKIE)
+  store.delete({ name: STATE_COOKIE, path: '/' })
 }
 
 /**
