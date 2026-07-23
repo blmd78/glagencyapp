@@ -61,8 +61,10 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
     { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int, zeroOk: false },
     { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: int, zeroOk: false },
     { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1, fmtDelta: dec1, zeroOk: false },
-    // % du CA hors script N°1 MyPuls (écarts en points) — « — » tant que pas de mesure.
-    // zeroOk : 0 % est une vraie mesure (modèle mono-script → tout le CA scripté vient du N°1).
+    // % du CA par sous-ensemble de scripts (écarts en points) — « — » tant que pas de
+    // mesure. zeroOk : 0 % est une vraie mesure (ex. mono-script → tout vient du N°1,
+    // « Hors S1 » = 0 ; et réciproquement). S1 + Hors S1 ≤ 100, le reste = hors scripts.
+    { label: 'S1', cur: m.s1, prev: m.s1Prev, lm: m.s1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt`, zeroOk: true },
     { label: 'Hors S1', cur: m.horsS1, prev: m.horsS1Prev, lm: m.horsS1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt`, zeroOk: true },
   ] as const
 

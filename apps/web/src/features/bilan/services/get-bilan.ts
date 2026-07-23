@@ -36,10 +36,13 @@ interface BilanReport {
   script: Array<{
     creator_id: string
     autres_cur: number | null
+    s1_cur: number | null
     mesure_cur: boolean
     autres_prev: number | null
+    s1_prev: number | null
     mesure_prev: boolean
     autres_lm: number | null
+    s1_lm: number | null
     mesure_lm: boolean
   }>
 }
@@ -106,9 +109,10 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   }
 
   // CA scripté par fenêtre : autres = somme des scripts HORS N°1 (position ≠ 1),
-  // mesure = au moins une valeur jour connue (non-null).
+  // s1 = somme du script N°1 seul, mesure = au moins une valeur jour connue (non-null).
   interface ScriptAgg {
     autres: number
+    s1: number
     mesure: boolean
   }
   const scriptWins: Record<'cur' | 'prev' | 'lm', Map<string, ScriptAgg>> = {
@@ -116,19 +120,24 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     prev: new Map(),
     lm: new Map(),
   }
-  // Scripts hors N°1 par fenêtre — déjà agrégés par le RPC (autres = Σ position≠1,
-  // mesure = ≥1 valeur jour connue). Entrée posée seulement quand mesure=true (identique
-  // au reduce JS qui ne créait l'entrée que sur une valeur non-null).
+  // Scripts par fenêtre — déjà agrégés par le RPC 0082 (autres = Σ position≠1,
+  // s1 = Σ position=1, mesure = ≥1 valeur jour connue). Entrée posée seulement quand
+  // mesure=true (identique au reduce JS qui ne créait l'entrée que sur une valeur non-null).
   for (const r of rep.script) {
-    if (r.mesure_cur) scriptWins.cur.set(r.creator_id, { autres: Number(r.autres_cur) || 0, mesure: true })
-    if (r.mesure_prev) scriptWins.prev.set(r.creator_id, { autres: Number(r.autres_prev) || 0, mesure: true })
-    if (r.mesure_lm) scriptWins.lm.set(r.creator_id, { autres: Number(r.autres_lm) || 0, mesure: true })
+    if (r.mesure_cur) scriptWins.cur.set(r.creator_id, { autres: Number(r.autres_cur) || 0, s1: Number(r.s1_cur) || 0, mesure: true })
+    if (r.mesure_prev) scriptWins.prev.set(r.creator_id, { autres: Number(r.autres_prev) || 0, s1: Number(r.s1_prev) || 0, mesure: true })
+    if (r.mesure_lm) scriptWins.lm.set(r.creator_id, { autres: Number(r.autres_lm) || 0, s1: Number(r.s1_lm) || 0, mesure: true })
   }
-  // % = CA des scripts AUTRES que le N°1 ÷ CA total de la fenêtre (le CA non scripté
-  // ne compte pas dans le numérateur — demande Benoit : « tous les scripts sauf le N°1 »).
-  const horsS1Of = (sa: ScriptAgg | undefined, agg: Agg | undefined): number | null => {
+  // % = CA du sous-ensemble de scripts ÷ CA total de la fenêtre (le CA non scripté
+  // ne compte pas dans le numérateur — demande Benoit : « tous les scripts sauf le N°1 »,
+  // complété par la part du N°1 seul ; les deux partagent le même dénominateur).
+  const shareOf = (
+    sa: ScriptAgg | undefined,
+    agg: Agg | undefined,
+    get: (s: ScriptAgg) => number,
+  ): number | null => {
     if (!sa?.mesure || !agg || agg.ca <= 0) return null
-    return Math.max(0, Math.min(100, 100 * (sa.autres / agg.ca)))
+    return Math.max(0, Math.min(100, 100 * (get(sa) / agg.ca)))
   }
 
   const creatorById = new Map((creators ?? []).map((c) => [c.id, c]))
@@ -153,9 +162,12 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
         ltv: ltvOf(cur),
         ltvPrev: ltvOf(pv),
         ltvLm: ltvOf(lw),
-        horsS1: horsS1Of(scriptWins.cur.get(id), cur),
-        horsS1Prev: horsS1Of(scriptWins.prev.get(id), pv),
-        horsS1Lm: horsS1Of(scriptWins.lm.get(id), lw),
+        horsS1: shareOf(scriptWins.cur.get(id), cur, (s) => s.autres),
+        horsS1Prev: shareOf(scriptWins.prev.get(id), pv, (s) => s.autres),
+        horsS1Lm: shareOf(scriptWins.lm.get(id), lw, (s) => s.autres),
+        s1: shareOf(scriptWins.cur.get(id), cur, (s) => s.s1),
+        s1Prev: shareOf(scriptWins.prev.get(id), pv, (s) => s.s1),
+        s1Lm: shareOf(scriptWins.lm.get(id), lw, (s) => s.s1),
       }
     })
     .sort((a, b) => b.ca - a.ca)
@@ -169,11 +181,13 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   const totalCaLm = r2(models.reduce((s, m) => s + m.caLm, 0))
   const totalNewSubsPrev = models.reduce((s, m) => s + m.newSubsPrev, 0)
   const totalNewSubsLm = models.reduce((s, m) => s + m.newSubsLm, 0)
-  // Total global « hors S1 » (€) : somme des scripts ≠ Pos 1 sur la semaine courante.
+  // Totaux globaux (€) semaine courante : « hors S1 » = Σ scripts ≠ Pos 1, « S1 » = Σ Pos 1.
   let totalHorsS1: number | null = null
+  let totalS1: number | null = null
   for (const sa of scriptWins.cur.values()) {
     if (!sa.mesure) continue
     totalHorsS1 = (totalHorsS1 ?? 0) + sa.autres
+    totalS1 = (totalS1 ?? 0) + sa.s1
   }
 
   const pub = models.filter((m) => !m.excluded)
@@ -191,6 +205,7 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
     totalNewSubsPrev,
     totalNewSubsLm,
     totalHorsS1,
+    totalS1,
     avgLtv: ltvFormula(pubCa, pubSubs),
     avgLtvPrev: ltvFormula(
       pub.reduce((s, m) => s + m.caPrev, 0),
