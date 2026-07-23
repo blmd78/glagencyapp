@@ -131,6 +131,7 @@ export async function clearStateCookie(): Promise<void> {
 export async function readStateCookie(): Promise<{ sid: string; exp: number } | null> {
   const store = await cookies()
   const raw = store.get(STATE_COOKIE)?.value
+  if (!raw) return null // pas de cookie d'impersonation → secret non requis (l'app tourne sans le secret tant que personne n'impersonne)
   return verifyState(raw, getImpersonationSecret())
 }
 

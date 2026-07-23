@@ -55,8 +55,9 @@ export async function fullLogout(): Promise<void> {
 export async function performStop(): Promise<void> {
   const state = await readStateCookie()
   if (!state) {
-    // Pas d'état : rien à restaurer, mais on garantit une sortie propre.
-    await fullLogout()
+    // Pas d'état : aucune impersonation en cours, rien à restaurer — no-op. Ne PAS appeler
+    // fullLogout() ici : ça déconnecterait un utilisateur courant qui n'impersonne pas
+    // (ex. navigation vers /impersonation/stop sans état actif).
     return
   }
 
