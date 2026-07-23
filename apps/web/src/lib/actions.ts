@@ -38,6 +38,8 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
   input: unknown
   guard: () => Promise<{ ok: true } | { ok: false; error: string }>
   handler: (values: z.infer<S>) => Promise<T>
+  /** Nom lisible de l'action, pour l'audit d'impersonation. */
+  label?: string
 }): Promise<ActionResult<T>> {
   // Tout le pipeline sous try : une garde qui THROW (ex. échec Supabase dans getProfile)
   // est capturée comme une erreur technique — pas d'unhandled rejection possible.
@@ -45,9 +47,9 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
     const gate = await opts.guard()
     if (!gate.ok) return { success: false, error: gate.error }
 
-    // Breadcrumb best-effort : rattache l'acteur réel si la requête a lieu en impersonation
+    // Audit best-effort : rattache l'acteur réel si la requête a lieu en impersonation
     // (no-op hors impersonation — une seule lecture de cookie qui retourne null).
-    await attributeIfImpersonating()
+    await attributeIfImpersonating(opts.label)
 
     const parsed = opts.schema.safeParse(opts.input)
     if (!parsed.success) {
