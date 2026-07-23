@@ -5,7 +5,6 @@ import {
   forgeSessionInto,
   revokeForged,
   readForgedAccessToken,
-  getCurrentSub,
   clearStateCookie,
   readStateCookie,
   endRow,
@@ -46,12 +45,11 @@ export async function fullLogout(): Promise<void> {
  * (redirection déclenchée à l'expiration).
  *
  * Snapshot du token forgé AVANT toute restauration (sinon on ne peut plus le révoquer) →
- * `getRowById(sid)` (sans filtre, pour distinguer `ended` de `absente`) → vérif porteur
- * (`sub === target_id`, anti-rejeu d'un sid volé) → re-mint admin (`row.actorId`) → assert
- * rôle admin/superadmin BRUT → révocation locale du forgé → clôture row → clear cookie →
- * Sentry. **Toute** anomalie (row introuvable/`null`, porteur ≠ cible, acteur non-admin, forge
- * KO) bascule sur `fullLogout()` : une session forgée ne doit jamais survivre. Le nettoyage
- * n'est JAMAIS conditionné à un lookup réussi.
+ * `getRowById(sid)` (sans filtre, pour distinguer `ended` de `absente`) → re-mint admin
+ * (`row.actorId`) → assert rôle admin/superadmin BRUT → révocation locale du forgé → clôture
+ * row → clear cookie → Sentry. **Toute** anomalie (row introuvable/`null`, acteur non-admin,
+ * forge KO) bascule sur `fullLogout()` : une session forgée ne doit jamais survivre. Le
+ * nettoyage n'est JAMAIS conditionné à un lookup réussi.
  */
 export async function performStop(): Promise<void> {
   const sid = await readStateCookie()
@@ -83,14 +81,12 @@ export async function performStop(): Promise<void> {
       return
     }
 
-    // ⚠️ Lien porteur↔session : la session COURANTE doit être la CIBLE de cette row. Sinon, un
-    // admin qui aurait rejoué le `sid` d'un autre (le cookie opaque n'est pas lié cryptographi-
-    // quement au porteur) obtiendrait, via le re-mint ci-dessous, la session de `row.actorId`
-    // (= escalade). Placé APRÈS `row.ended` (idempotence préservée) : on ne re-minte l'acteur
-    // QUE pour le vrai impersonateur. Mismatch → fail-closed (throw → catch → fullLogout).
-    const currentSub = await getCurrentSub()
-    if (currentSub !== row.targetId) throw new Error('bearer mismatch: session courante ≠ cible')
-
+    // Note sécu : l'escalade admin→superadmin (un admin rejouant le `sid` d'un autre pour
+    // re-minter sa session) est fermée par la RLS `0083` — la table n'est plus lisible par les
+    // `authenticated`, donc le `sid` d'autrui n'est jamais récupérable. On NE remet PAS de garde
+    // « porteur === cible » côté app : elle était fragile (lecture de session flaky → déloge le
+    // vrai utilisateur) ET imparfaite (trou « même cible »). Défense-en-profondeur possible mais
+    // PROPRE = contrainte DB « une impersonation active par cible » (à ajouter si besoin).
     const admin = createAdminClient()
     const { data: au } = await admin.auth.admin.getUserById(row.actorId)
     if (!au?.user?.email) throw new Error('admin sans email')
