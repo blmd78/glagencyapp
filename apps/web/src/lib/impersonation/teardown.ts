@@ -8,7 +8,7 @@ import {
   clearStateCookie,
   readStateCookie,
   endRow,
-  getActorForSid,
+  getRowById,
 } from '@/lib/impersonation/session'
 
 /**
@@ -67,10 +67,20 @@ export async function performStop(): Promise<void> {
   try {
     forged = await readForgedAccessToken()
 
-    // ⚠️ NE PAS conditionner le nettoyage à une row : `null` (panne DB) est indistinguable
-    // de « pas de row ». Un null → on throw → fallback fullLogout (session forgée tuée).
-    const row = await getActorForSid(state.sid)
+    // On lit la row SANS filtrer ended_at, pour distinguer deux cas très différents :
+    //   • row absente (null) → sid inconnu / panne DB → fail-closed → fullLogout.
+    //   • row DÉJÀ clôturée (ended) → une course (rafale d'expiration du compteur ou double
+    //     /stop) a déjà fait le teardown ET restauré l'admin → IDEMPOTENT : on efface juste le
+    //     cookie, JAMAIS fullLogout (sinon on détruit la session admin fraîchement restaurée →
+    //     c'était LE bug « Quitter/expiration me déconnecte »).
+    const row = await getRowById(state.sid)
     if (!row) throw new Error('row introuvable')
+
+    if (row.ended) {
+      if (forged) await revokeForged(forged)
+      await clearStateCookie()
+      return
+    }
 
     const admin = createAdminClient()
     const { data: au } = await admin.auth.admin.getUserById(row.actorId)
@@ -90,6 +100,8 @@ export async function performStop(): Promise<void> {
     }
 
     // Révoque la session forgée (locale, best-effort) puis clôt l'audit + le cookie.
+    // `endRow` est idempotent (`.is('ended_at', null)`) : deux /stop concurrents sur une row
+    // active re-mintent tous deux l'admin (sûr) et seul le premier pose `ended_at`.
     if (forged) await revokeForged(forged)
     await endRow(state.sid)
     await clearStateCookie()
@@ -98,8 +110,9 @@ export async function performStop(): Promise<void> {
       extra: { actor_id: row.actorId },
     })
   } catch {
-    // Fallback fail-closed : tuer le forgé (best-effort) + logout total. TOUJOURS, même
-    // si `row` était null (panne DB indistinguable de « pas de row »).
+    // Fallback fail-closed : tuer le forgé (best-effort) + logout total. Réservé aux vrais
+    // échecs (row absente/panne, admin sans email, forge KO, acteur non-admin) — plus jamais
+    // déclenché par une row « déjà clôturée » (traitée en idempotent ci-dessus).
     if (forged) await revokeForged(forged).catch(() => {})
     await fullLogout()
   }

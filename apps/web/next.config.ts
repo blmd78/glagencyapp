@@ -34,7 +34,13 @@ const nextConfig: NextConfig = {
       {
         source: '/(.*)',
         headers: [
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          {
+            key: 'Content-Security-Policy',
+            // Directives statiques (aucun nonce → zéro coût PPR/cacheComponents) : anti-clickjacking
+            // + durcissement défense-en-profondeur. `form-action 'self'` : les Server Actions POSTent
+            // en same-origin. `base-uri/object-src 'none'` : anti-injection <base>/<object>.
+            value: "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'",
+          },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },

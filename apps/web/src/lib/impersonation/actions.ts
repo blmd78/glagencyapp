@@ -84,8 +84,8 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
         throw new BusinessError('Impossible de démarrer la consultation')
       }
 
-      // (9) Cookie d'état signé (30 min) + (10) audit Sentry (jamais de token).
-      await setStateCookie(sid, Date.now() + 30 * 60_000)
+      // (9) Cookie d'état signé (TTL interne, aligné sur la row) + (10) audit Sentry (jamais de token).
+      await setStateCookie(sid)
       Sentry.captureMessage('impersonate:start', {
         level: 'info',
         extra: { actor_id: caller.id, target_id: id },
@@ -107,11 +107,11 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
  * introuvable/`null` de panne DB, acteur non-admin, forge KO) bascule sur `fullLogout()` :
  * une session forgée ne doit jamais survivre. On redirige toujours vers Membres ensuite.
  */
-export async function stopImpersonation(): Promise<ActionResult> {
+export async function stopImpersonation(): Promise<void> {
   // Le teardown vit dans `teardown.ts` (`performStop`), partagé avec le Route Handler
   // `/impersonation/stop`. On le garde sous `runAction` pour la parité de contrat (try/catch
-  // Sentry + `ActionResult`) ; `performStop` est déjà fail-closed en interne (fullLogout).
-  const result = await runAction({
+  // Sentry) ; `performStop` est déjà fail-closed en interne (fullLogout).
+  await runAction({
     schema: z.void(),
     input: undefined,
     guard: async () => ({ ok: true as const }),
@@ -122,6 +122,5 @@ export async function stopImpersonation(): Promise<ActionResult> {
 
   // Redirection HORS runAction. Inconditionnelle : succès → session admin restaurée ; échec
   // → fullLogout a déconnecté (la page Membres renverra alors vers /login). Voir note en tête.
-  void result
   redirect('/chatter/members')
 }

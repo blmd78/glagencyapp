@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createAdminClient, type Database } from '@glagency/db'
-import { signState, verifyState } from '@glagency/core'
+import { signState, verifyState } from '@glagency/core/impersonation/cookie-sign'
 import { getPublicEnv, getImpersonationSecret } from '@/lib/env'
 
 /**
@@ -103,9 +103,10 @@ export async function readForgedAccessToken(): Promise<string | null> {
  * dédié). httpOnly + secure + sameSite=lax + maxAge=8h (> exp logique). Aucun token dans le
  * cookie.
  */
-export async function setStateCookie(sid: string, expMs: number): Promise<void> {
+export async function setStateCookie(sid: string): Promise<void> {
   const store = await cookies()
-  const value = signState({ sid, exp: expMs }, getImpersonationSecret())
+  // exp logique = même source de vérité que la row (`TTL_MS`) → cookie et `expires_at` alignés.
+  const value = signState({ sid, exp: Date.now() + TTL_MS }, getImpersonationSecret())
   store.set(STATE_COOKIE, value, {
     httpOnly: true,
     secure: true,
@@ -171,19 +172,42 @@ export async function endRow(sid: string): Promise<void> {
 }
 
 /**
- * Lit la row ACTIVE (`ended_at is null`) par id. Retourne l'acteur/cible + expiration, ou
- * null si absente/close/erreur (fail-closed : « pas de session active » côté garde).
+ * Lit la row ACTIVE (`ended_at is null` ET non expirée) par id. Retourne l'acteur/cible, ou
+ * null si absente/close/EXPIRÉE/erreur (fail-closed côté garde/tripwire). Le filtre
+ * `.gt('expires_at', now)` rend le TTL 30 min AUTORITATIF côté serveur (pas seulement le
+ * cookie) : passé l'expiration, la row n'est plus « active » → le tripwire force le teardown.
+ * (Le teardown lui-même passe par `getRowById`, sans filtre d'expiration → clôture quand même.)
  */
 export async function getActorForSid(
   sid: string,
-): Promise<{ actorId: string; targetId: string; expiresAt: string } | null> {
+): Promise<{ actorId: string; targetId: string } | null> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('impersonation_sessions')
-    .select('actor_id, target_id, expires_at')
+    .select('actor_id, target_id')
     .eq('id', sid)
     .is('ended_at', null)
+    .gt('expires_at', new Date().toISOString())
     .maybeSingle()
   if (error || !data) return null
-  return { actorId: data.actor_id, targetId: data.target_id, expiresAt: data.expires_at }
+  return { actorId: data.actor_id, targetId: data.target_id }
+}
+
+/**
+ * Lit la row par id SANS filtrer `ended_at`, en distinguant `ended` (déjà clôturée) de
+ * `null` (absente/panne). Utilisé par `performStop` pour rendre le teardown IDEMPOTENT : une
+ * row « déjà clôturée » (course avec l'expiration ou un autre `/stop`) ne doit PAS déclencher
+ * `fullLogout` (la restauration admin a déjà eu lieu) — seule une row absente/panne le doit.
+ */
+export async function getRowById(
+  sid: string,
+): Promise<{ actorId: string; targetId: string; ended: boolean } | null> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('impersonation_sessions')
+    .select('actor_id, target_id, ended_at')
+    .eq('id', sid)
+    .maybeSingle()
+  if (error || !data) return null
+  return { actorId: data.actor_id, targetId: data.target_id, ended: data.ended_at !== null }
 }

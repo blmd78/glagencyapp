@@ -11,17 +11,18 @@ import { readStateCookie, getActorForSid } from '@/lib/impersonation/session'
  * Une mutation qui RÉUSSIT ne lève rien → on capture explicitement via `captureMessage`, comme
  * `impersonate:start`/`impersonate:stop` (`actions.ts`/`teardown.ts`).
  */
-export async function attributeIfImpersonating(label?: string): Promise<void> {
+export async function attributeIfImpersonating(): Promise<void> {
   try {
     const state = await readStateCookie()
     if (!state) return
     const row = await getActorForSid(state.sid)
-    Sentry.captureMessage('impersonation:mutation', {
+    // Nommé « action » (et non « mutation ») : runAction appelle ce hook sur TOUTE action
+    // (lectures comprises) ; le cœur de l'audit reste l'acteur réel derrière la session cible.
+    Sentry.captureMessage('impersonation:action', {
       level: 'info',
       extra: {
         real_actor: row?.actorId ?? 'unknown',
         target: row?.targetId ?? 'unknown',
-        action: label ?? 'unspecified',
       },
     })
   } catch {

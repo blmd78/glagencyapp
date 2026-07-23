@@ -18,6 +18,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { stopImpersonation } from '@/lib/impersonation/actions'
 
 export function NavUser({
   email,
@@ -113,14 +114,16 @@ export function NavUser({
             <DropdownMenuSeparator />
             {impersonating ? (
               // Consultation en cours : JAMAIS de signout global (cf. doc prop ci-dessus).
-              // Navigation simple (pas de <Link>) : un <Link> préchargerait cette route au
-              // survol/apparition et déclencherait le teardown avant même le clic.
-              <DropdownMenuItem asChild>
-                <a href="/impersonation/stop">
-                  <LogOut />
-                  Quitter la consultation
-                </a>
-              </DropdownMenuItem>
+              // Teardown via la Server Action `stopImpersonation` (comme le bandeau) — pas un
+              // GET : évite qu'un préchargement/nav cross-site ne déclenche le teardown.
+              <form action={stopImpersonation}>
+                <DropdownMenuItem asChild>
+                  <button type="submit" className="w-full">
+                    <LogOut />
+                    Quitter la consultation
+                  </button>
+                </DropdownMenuItem>
+              </form>
             ) : (
               <DropdownMenuItem onClick={logout}>
                 <LogOut />
