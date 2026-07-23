@@ -1,4 +1,4 @@
-import { stopImpersonation } from '@/features/impersonation/actions'
+import { stopImpersonation } from '@/lib/impersonation/actions'
 import { getImpersonationState } from '@/features/impersonation/read-state'
 import { Countdown } from './countdown'
 

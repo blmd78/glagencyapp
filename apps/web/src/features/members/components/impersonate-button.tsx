@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
-import { startImpersonation } from '@/features/impersonation/actions'
+import { startImpersonation } from '@/lib/impersonation/actions'
 
 /**
  * Déclencheur « consulter en tant que » (colonne Actions de Membres, admin uniquement — la
@@ -25,7 +25,7 @@ import { startImpersonation } from '@/features/impersonation/actions'
  * On NE réutilise PAS `ConfirmDialog` : son `onConfirm` est enveloppé dans un try/catch
  * générique (voir `components/confirm-dialog.tsx`), qui avalerait le `NEXT_REDIRECT` levé par
  * `startImpersonation` en cas de succès (`redirect('/')` — voir la note en tête de
- * `features/impersonation/actions.ts`) et l'afficherait comme « Une erreur est survenue » au
+ * `lib/impersonation/actions.ts`) et l'afficherait comme « Une erreur est survenue » au
  * lieu de naviguer. Ici, l'appel à l'action n'est catché nulle part : le succès (redirect)
  * propage librement ; seul l'échec (retour `ActionResult` avec `success: false`, jamais un
  * throw) est traité, en toast.
@@ -74,7 +74,7 @@ export function ImpersonateButton({
         <AlertDialogHeader>
           <AlertDialogTitle>Consulter en tant que {memberName} ?</AlertDialogTitle>
           <AlertDialogDescription>
-            Tu verras l'application avec les accès de {memberName} pendant 30 minutes. Le
+            Tu verras l&apos;application avec les accès de {memberName} pendant 30 minutes. Le
             bandeau affiché permet de revenir à ta session à tout moment.
           </AlertDialogDescription>
         </AlertDialogHeader>

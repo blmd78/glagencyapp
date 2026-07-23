@@ -14,7 +14,7 @@ import {
   createRow,
   endRow,
 } from '@/lib/impersonation/session'
-import { performStop } from '@/features/impersonation/teardown'
+import { performStop } from '@/lib/impersonation/teardown'
 
 /**
  * Server Actions d'impersonation admin (« consulter/agir en tant que »).
