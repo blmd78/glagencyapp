@@ -202,13 +202,18 @@ export async function getActorForSid(
  */
 export async function getRowById(
   sid: string,
-): Promise<{ actorId: string; targetId: string; ended: boolean } | null> {
+): Promise<{ actorId: string; actorEmail: string; targetId: string; ended: boolean } | null> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('impersonation_sessions')
-    .select('actor_id, target_id, ended_at')
+    .select('actor_id, actor_email, target_id, ended_at')
     .eq('id', sid)
     .maybeSingle()
   if (error || !data) return null
-  return { actorId: data.actor_id, targetId: data.target_id, ended: data.ended_at !== null }
+  return {
+    actorId: data.actor_id,
+    actorEmail: data.actor_email,
+    targetId: data.target_id,
+    ended: data.ended_at !== null,
+  }
 }

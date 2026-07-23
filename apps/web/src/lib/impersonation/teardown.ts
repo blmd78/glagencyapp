@@ -87,12 +87,14 @@ export async function performStop(): Promise<void> {
     // « porteur === cible » côté app : elle était fragile (lecture de session flaky → déloge le
     // vrai utilisateur) ET imparfaite (trou « même cible »). Défense-en-profondeur possible mais
     // PROPRE = contrainte DB « une impersonation active par cible » (à ajouter si besoin).
+    // Re-mint la session admin depuis l'email STOCKÉ dans la row (posé au start) — pas de
+    // getUserById(actorId) : cet appel externe échouait par intermittence → le teardown
+    // retombait sur fullLogout = déloge l'admin. L'email stocké est fiable.
     const admin = createAdminClient()
-    const { data: au } = await admin.auth.admin.getUserById(row.actorId)
-    if (!au?.user?.email) throw new Error('admin sans email')
+    if (!row.actorEmail) throw new Error('actor email manquant')
 
     // Re-mint la session admin (assert sub===actorId à l'intérieur du forge).
-    await forgeSessionInto(au.user.email, row.actorId)
+    await forgeSessionInto(row.actorEmail, row.actorId)
 
     // Assert : l'acteur restauré est bien admin/superadmin (rôle BRUT), sinon fallback.
     const { data: prof } = await admin

@@ -53,21 +53,25 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
 
       const admin = createAdminClient()
 
-      // (4) Cible fail-closed sur le rôle BRUT (jamais le rôle collapsé de getProfile) :
-      // seuls les rôles non-admin (allowlist `isImpersonatable`) sont consultables.
-      const { data: prof } = await admin.from('profiles').select('role').eq('id', id).single()
+      // (4) Cible fail-closed sur le rôle BRUT (jamais le rôle collapsé de getProfile) : seuls les
+      // rôles non-admin (allowlist `isImpersonatable`) sont consultables. On lit aussi l'email du
+      // profil, utilisé en fallback à l'étape 5.
+      const { data: prof } = await admin.from('profiles').select('role, email').eq('id', id).single()
       if (!isImpersonatable(prof?.role)) throw new BusinessError('Membre non consultable')
 
-      // (5) Résolution de la cible par id : email COURANT requis (pour forger via generateLink).
-      // On N'EXIGE PAS email_confirmed_at : un membre créé mais jamais connecté a un email non
-      // confirmé, et le magiclink de la forge le confirme de toute façon. Seul l'email doit exister.
+      // (5) Email de la cible pour forger (generateLink). On préfère l'email auth À JOUR
+      // (getUserById) mais on retombe sur profiles.email si l'appel échoue — getUserById est un
+      // appel externe INTERMITTENT et ne doit pas bloquer. Email faux → la forge échoue de toute
+      // façon sur l'assert sub===targetId (fail-closed). On n'exige pas email_confirmed_at (un
+      // membre jamais connecté a un email non confirmé ; le magiclink le confirme).
       const { data: tu } = await admin.auth.admin.getUserById(id)
-      const targetEmail = tu?.user?.email
+      const targetEmail = tu?.user?.email ?? prof?.email
       if (!targetEmail) throw new BusinessError('Compte cible sans email')
 
-      // (6) Email admin (pour le re-mint à la sortie + audit de la row).
-      const { data: au } = await admin.auth.admin.getUserById(caller.id)
-      const adminEmail = au?.user?.email
+      // (6) Email admin = celui du profil de l'appelant, DÉJÀ chargé par getProfile (fiable). On
+      // NE fait PAS de getUserById(caller.id) : cet appel externe échouait par intermittence et
+      // donnait « Compte admin sans email » au 1er clic (puis OK au 2e).
+      const adminEmail = caller.email
       if (!adminEmail) throw new BusinessError('Compte admin sans email')
 
       // (7) Row d'audit (aucun token stocké).
