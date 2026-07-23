@@ -47,6 +47,8 @@ export interface InsightsData {
 export interface RankingRow {
   chatterId: string
   chatterName: string
+  /** Jours actifs (jours avec données MyPuls) — porte le seuil « classé » du score Général. */
+  days: number
   ca: number
   presenceH: number
   propose: number
