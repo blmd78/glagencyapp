@@ -58,13 +58,12 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
       const { data: prof } = await admin.from('profiles').select('role').eq('id', id).single()
       if (!isImpersonatable(prof?.role)) throw new BusinessError('Membre non consultable')
 
-      // (5) Résolution de la cible par id : email COURANT + confirmé exigés.
+      // (5) Résolution de la cible par id : email COURANT requis (pour forger via generateLink).
+      // On N'EXIGE PAS email_confirmed_at : un membre créé mais jamais connecté a un email non
+      // confirmé, et le magiclink de la forge le confirme de toute façon. Seul l'email doit exister.
       const { data: tu } = await admin.auth.admin.getUserById(id)
-      const targetUser = tu?.user
-      if (!targetUser?.email || !targetUser.email_confirmed_at) {
-        throw new BusinessError('Compte cible sans email confirmé')
-      }
-      const targetEmail = targetUser.email
+      const targetEmail = tu?.user?.email
+      if (!targetEmail) throw new BusinessError('Compte cible sans email')
 
       // (6) Email admin (pour le re-mint à la sortie + audit de la row).
       const { data: au } = await admin.auth.admin.getUserById(caller.id)

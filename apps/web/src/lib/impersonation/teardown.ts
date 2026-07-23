@@ -118,10 +118,14 @@ export async function performStop(): Promise<void> {
       level: 'info',
       extra: { actor_id: row.actorId },
     })
-  } catch {
+  } catch (e) {
     // Fallback fail-closed : tuer le forgé (best-effort) + logout total. Réservé aux vrais
-    // échecs (row absente/panne, admin sans email, forge KO, acteur non-admin) — plus jamais
-    // déclenché par une row « déjà clôturée » (traitée en idempotent ci-dessus).
+    // échecs (row absente/panne, porteur ≠ cible, admin sans email, forge KO, acteur non-admin).
+    // On trace la CAUSE (sans token) : un teardown qui déloge est anormal côté UX, on doit savoir.
+    Sentry.captureMessage('impersonate:teardown-fallback', {
+      level: 'warning',
+      extra: { reason: e instanceof Error ? e.message : String(e) },
+    })
     if (forged) await revokeForged(forged).catch(() => {})
     await fullLogout()
   }
