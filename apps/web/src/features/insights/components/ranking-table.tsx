@@ -31,6 +31,10 @@ const WEIGHTS: Record<BaseMetric, number> = { ca: 3, presence: 2, propose: 1, co
 const TOTAL_WEIGHT = BASE_METRICS.reduce((s, k) => s + WEIGHTS[k], 0)
 const MIN_DAYS = 4
 
+/** Règle du score Général — affichée par le ⓘ de l'en-tête de colonne « Score /100 ». */
+const SCORE_INFO =
+  'Note sur 100 qui combine les 5 critères de la semaine : le CA compte triple, la présence double, le reste simple. Il faut au moins 4 jours d’activité pour être classé. Survole un score pour voir le détail.'
+
 interface MetricDef {
   label: string
   get: (r: RankingRow) => number | null
@@ -155,7 +159,15 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
     },
     {
       id: 'value',
-      header: m.label,
+      header:
+        metric === 'general'
+          ? () => (
+              <div className="flex items-center justify-end gap-1.5">
+                {m.label}
+                <HeaderInfo text={SCORE_INFO} />
+              </div>
+            )
+          : m.label,
       cell: ({ row }) => {
         const v = m.get(row.original)
         return (
@@ -174,12 +186,9 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold">
+        <h3 className="text-sm font-semibold">
           Classement —{' '}
           {metric === 'general' ? 'Général (score /100 · 5 critères pondérés)' : m.label}
-          {metric === 'general' && (
-            <HeaderInfo text="Moyenne pondérée des percentiles par critère — CA ×3, Présence ×2, Médias / Conversion / Réactivité ×1 — parmi les classés (≥ 4 jours actifs sur la semaine). Sans donnée sur un critère = 0 point. Survoler un score affiche sa décomposition." />
-          )}
         </h3>
         {ranking.weekStart && (
           <span className="text-xs text-muted-foreground">
