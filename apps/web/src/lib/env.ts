@@ -25,21 +25,3 @@ export function getPublicEnv() {
   }
   return cached
 }
-
-/**
- * Secret HMAC dédié à la signature du cookie d'état d'impersonation (≠ clés Supabase).
- * Getter PARESSEUX, volontairement hors du schéma Zod eager ci-dessus : la feature
- * impersonation n'est pas encore branchée, donc ce secret ne doit PAS être requis au
- * boot de l'app (sinon crash tant que la valeur n'est pas posée). Il n'est lu/validé
- * qu'au premier appel, côté serveur uniquement.
- */
-export function getImpersonationSecret(): string {
-  const secret = process.env.IMPERSONATION_COOKIE_SECRET
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      'IMPERSONATION_COOKIE_SECRET manquant ou trop court (min 32 caractères) — ' +
-        'voir .env.example (openssl rand -hex 32).',
-    )
-  }
-  return secret
-}

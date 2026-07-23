@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 /**
- * Compte à rebours `MM:SS` du bandeau d'impersonation (Task 7). Tick 1 s côté client à
- * partir de `expiresAt` (le `exp` logique signé, pas le cookie). À `≤0`, `router.refresh()`
- * relance `getImpersonationState()` côté serveur : `isExpired` devient vrai → redirect
- * teardown (`/impersonation/stop`). Le tick ne déclenche donc PAS lui-même le teardown, il
- * se contente de provoquer le prochain rendu serveur qui, lui, le fera.
+ * Compte à rebours `MM:SS` du bandeau d'impersonation (Task 7). Tick 1 s côté client à partir
+ * de `expiresAt` (l'`expires_at` de la row en base). À `≤0`, `router.refresh()` relance
+ * `getImpersonationState()` côté serveur : la row est alors expirée (`getActorForSid` renvoie
+ * null) → redirect teardown (`/impersonation/stop`). Le tick ne déclenche donc PAS lui-même le
+ * teardown, il se contente de provoquer le prochain rendu serveur qui, lui, le fera.
  */
 export function Countdown({ expiresAt }: { expiresAt: number }) {
   const router = useRouter()

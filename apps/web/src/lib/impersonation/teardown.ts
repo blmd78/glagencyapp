@@ -14,10 +14,9 @@ import {
 /**
  * Teardown partagé de l'impersonation admin (« consulter/agir en tant que »).
  *
- * Runtime **NODE uniquement** : `performStop`/`fullLogout` touchent `node:crypto`
- * (`verifyState` via `readStateCookie`) et la DB (Supabase admin). À n'appeler QUE depuis
- * une Server Action (`stopImpersonation`) ou un Route Handler (`/impersonation/stop`) — jamais
- * depuis le proxy EDGE.
+ * Runtime **NODE uniquement** : `performStop` touche la DB (Supabase admin) + le re-mint de
+ * session (`forgeSessionInto`). À n'appeler QUE depuis une Server Action (`stopImpersonation`)
+ * ou un Route Handler (`/impersonation/stop`) — jamais depuis le proxy EDGE.
  *
  * Ce module n'est **pas** `'use server'` : `performStop`/`fullLogout` ne sont PAS des Server
  * Actions exposées au client, juste des helpers serveur partagés entre l'action et la route.
@@ -53,8 +52,8 @@ export async function fullLogout(): Promise<void> {
  * jamais survivre. Le nettoyage n'est JAMAIS conditionné à un lookup réussi.
  */
 export async function performStop(): Promise<void> {
-  const state = await readStateCookie()
-  if (!state) {
+  const sid = await readStateCookie()
+  if (!sid) {
     // Pas d'état : aucune impersonation en cours, rien à restaurer — no-op. Ne PAS appeler
     // fullLogout() ici : ça déconnecterait un utilisateur courant qui n'impersonne pas
     // (ex. navigation vers /impersonation/stop sans état actif).
@@ -73,7 +72,7 @@ export async function performStop(): Promise<void> {
     //     /stop) a déjà fait le teardown ET restauré l'admin → IDEMPOTENT : on efface juste le
     //     cookie, JAMAIS fullLogout (sinon on détruit la session admin fraîchement restaurée →
     //     c'était LE bug « Quitter/expiration me déconnecte »).
-    const row = await getRowById(state.sid)
+    const row = await getRowById(sid)
     if (!row) throw new Error('row introuvable')
 
     if (row.ended) {
@@ -103,7 +102,7 @@ export async function performStop(): Promise<void> {
     // `endRow` est idempotent (`.is('ended_at', null)`) : deux /stop concurrents sur une row
     // active re-mintent tous deux l'admin (sûr) et seul le premier pose `ended_at`.
     if (forged) await revokeForged(forged)
-    await endRow(state.sid)
+    await endRow(sid)
     await clearStateCookie()
     Sentry.captureMessage('impersonate:stop', {
       level: 'info',

@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { isExpired, isImpersonatable } from '@glagency/core'
+import { isImpersonatable } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { readStateCookie, getActorForSid } from '@/lib/impersonation/session'
 
@@ -11,9 +11,9 @@ import { readStateCookie, getActorForSid } from '@/lib/impersonation/session'
  * le cas commun (pas de consultation en cours).
  *
  * Deux gardes redirigent vers `/impersonation/stop` (teardown, cf. `performStop`) :
- * - **Expiration** : `exp` (TTL logique 30 min) dépassé alors que le cookie survit encore
- *   (maxAge 8h, cf. `setStateCookie`) — c'est précisément ce décalage qui permet de détecter
- *   l'expiration ici plutôt que de compter sur l'expiration du cookie lui-même.
+ * - **Expiration / session close** : `getActorForSid` ne renvoie une ligne que si elle est
+ *   active ET non expirée (filtre `.gt('expires_at')` = TTL 30 min autoritatif en base) ;
+ *   `null` → teardown. Le cookie (maxAge 8h) survit à la row pour permettre cette détection.
  * - **Tripwire** : la cible a été promue admin/superadmin pendant la session (ou son profil
  *   a disparu) — re-vérifiée à CHAQUE appel sur le rôle BRUT (jamais mise en cache).
  *
@@ -27,12 +27,11 @@ export type ImpersonationState = {
 }
 
 export async function getImpersonationState(): Promise<ImpersonationState> {
-  const state = await readStateCookie()
-  if (!state) return { active: false }
+  const sid = await readStateCookie()
+  if (!sid) return { active: false }
 
-  if (isExpired(state.exp, Date.now())) redirect('/impersonation/stop')
-
-  const row = await getActorForSid(state.sid)
+  // Ligne active + non expirée (TTL en base). null → session absente/close/expirée → teardown.
+  const row = await getActorForSid(sid)
   if (!row) redirect('/impersonation/stop')
 
   // Tripwire : rôle BRUT de la cible re-vérifié à chaque appel (jamais le rôle collapsé).
@@ -43,5 +42,9 @@ export async function getImpersonationState(): Promise<ImpersonationState> {
     .single()
   if (!data || !isImpersonatable(data.role)) redirect('/impersonation/stop')
 
-  return { active: true, targetName: data.display_name ?? '—', expiresAt: state.exp }
+  return {
+    active: true,
+    targetName: data.display_name ?? '—',
+    expiresAt: new Date(row.expiresAt).getTime(),
+  }
 }

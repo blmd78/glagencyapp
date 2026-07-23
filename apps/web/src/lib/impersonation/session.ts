@@ -1,15 +1,16 @@
 import { cookies } from 'next/headers'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createAdminClient, type Database } from '@glagency/db'
-import { signState, verifyState } from '@glagency/core/impersonation/cookie-sign'
-import { getPublicEnv, getImpersonationSecret } from '@/lib/env'
+import { getPublicEnv } from '@/lib/env'
 
 /**
  * Glue de session pour l'impersonation admin (« consulter/agir en tant que »).
  *
  * Invariants de sécurité (non négociables) :
  * - **Aucun token** ne transite jamais par le cookie d'état ni par la base : le cookie
- *   `imp_sid` ne contient QUE `{ sid, exp }` signé HMAC ; la row `impersonation_sessions`
+ *   `imp_sid` ne contient QUE le `sid` (jeton de session OPAQUE = UUID aléatoire, pattern
+ *   recommandé quand l'état vit côté serveur ; pas de HMAC, inutile ici — cf. la ligne en
+ *   base est la source de vérité, revalidée à chaque lecture) ; la row `impersonation_sessions`
  *   ne stocke QUE des identités + horodatages (audit/TTL).
  * - La vraie session de la cible est forgée dans les cookies Supabase standard
  *   (`sb-*-auth-token`) via un **client SSR dédié non mémoïsé** dont le `setAll` **laisse
@@ -99,21 +100,18 @@ export async function readForgedAccessToken(): Promise<string | null> {
 }
 
 /**
- * Pose le cookie d'état `imp_sid` = `signState({ sid, exp })` (HMAC, helpers core + secret
- * dédié). httpOnly + secure + sameSite=lax + maxAge=8h (> exp logique). Aucun token dans le
- * cookie.
+ * Pose le cookie d'état `imp_sid` = le `sid` BRUT (jeton opaque). Pas de signature : le `sid`
+ * est un UUID aléatoire impossible à deviner/forger, et sa validité est re-vérifiée en base
+ * (`getActorForSid` : ligne active + non expirée) à chaque lecture. httpOnly + secure +
+ * sameSite=lax. maxAge=8h (> TTL 30 min) : le cookie survit à l'expiration de la row pour que
+ * la lecture (dont le filtre `.gt('expires_at')`) détecte « présent mais expiré » → teardown.
  */
 export async function setStateCookie(sid: string): Promise<void> {
   const store = await cookies()
-  // exp logique = même source de vérité que la row (`TTL_MS`) → cookie et `expires_at` alignés.
-  const value = signState({ sid, exp: Date.now() + TTL_MS }, getImpersonationSecret())
-  store.set(STATE_COOKIE, value, {
+  store.set(STATE_COOKIE, sid, {
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
-    // maxAge (cookie) > exp (TTL logique) → permet la détection d'expiration côté layout :
-    // le cookie doit survivre à son `exp` signé (30 min, posé par l'appelant) pour que la
-    // couche node (Task 7) le voie « expiré mais présent » et déclenche le teardown.
     maxAge: 8 * 3600,
     path: '/',
   })
@@ -125,15 +123,18 @@ export async function clearStateCookie(): Promise<void> {
   store.delete({ name: STATE_COOKIE, path: '/' })
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /**
- * Lit + vérifie (HMAC) le cookie d'état. Retourne `{ sid, exp }` ou null si absent/falsifié.
- * L'expiration (`exp`) est vérifiée par l'appelant (garde).
+ * Lit le `sid` (jeton opaque) du cookie d'état, ou null si absent/mal formé. Aucune
+ * vérification cryptographique : la validité (session active, non expirée, appartenance) est
+ * établie en base par `getActorForSid`/`getRowById`. Le format UUID est juste contrôlé pour
+ * éviter d'envoyer une valeur bidon à une requête sur colonne `uuid` (qui lèverait).
  */
-export async function readStateCookie(): Promise<{ sid: string; exp: number } | null> {
+export async function readStateCookie(): Promise<string | null> {
   const store = await cookies()
-  const raw = store.get(STATE_COOKIE)?.value
-  if (!raw) return null // pas de cookie d'impersonation → secret non requis (l'app tourne sans le secret tant que personne n'impersonne)
-  return verifyState(raw, getImpersonationSecret())
+  const sid = store.get(STATE_COOKIE)?.value
+  return sid && UUID_RE.test(sid) ? sid : null
 }
 
 /**
@@ -180,17 +181,17 @@ export async function endRow(sid: string): Promise<void> {
  */
 export async function getActorForSid(
   sid: string,
-): Promise<{ actorId: string; targetId: string } | null> {
+): Promise<{ actorId: string; targetId: string; expiresAt: string } | null> {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('impersonation_sessions')
-    .select('actor_id, target_id')
+    .select('actor_id, target_id, expires_at')
     .eq('id', sid)
     .is('ended_at', null)
     .gt('expires_at', new Date().toISOString())
     .maybeSingle()
   if (error || !data) return null
-  return { actorId: data.actor_id, targetId: data.target_id }
+  return { actorId: data.actor_id, targetId: data.target_id, expiresAt: data.expires_at }
 }
 
 /**

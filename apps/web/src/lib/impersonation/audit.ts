@@ -13,9 +13,9 @@ import { readStateCookie, getActorForSid } from '@/lib/impersonation/session'
  */
 export async function attributeIfImpersonating(): Promise<void> {
   try {
-    const state = await readStateCookie()
-    if (!state) return
-    const row = await getActorForSid(state.sid)
+    const sid = await readStateCookie()
+    if (!sid) return
+    const row = await getActorForSid(sid)
     // Nommé « action » (et non « mutation ») : runAction appelle ce hook sur TOUTE action
     // (lectures comprises) ; le cœur de l'audit reste l'acteur réel derrière la session cible.
     Sentry.captureMessage('impersonation:action', {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isImpersonatable, isExpired } from './rules'
+import { isImpersonatable } from './rules'
 describe('isImpersonatable', () => {
   it('accepte les rôles opérationnels', () => {
     for (const r of ['manager','sous-manager','police','chatteur']) expect(isImpersonatable(r)).toBe(true)
@@ -7,7 +7,4 @@ describe('isImpersonatable', () => {
   it('refuse admin/superadmin/user/null (fail-closed)', () => {
     for (const r of ['admin','superadmin','user','',null,undefined]) expect(isImpersonatable(r as string)).toBe(false)
   })
-})
-describe('isExpired', () => {
-  it('vrai après exp', () => { expect(isExpired(1000, 1001)).toBe(true); expect(isExpired(1000, 999)).toBe(false) })
 })
