@@ -101,7 +101,8 @@ export async function readForgedAccessToken(): Promise<string | null> {
 
 /**
  * Pose le cookie d'état `imp_sid` = `signState({ sid, exp })` (HMAC, helpers core + secret
- * dédié). httpOnly + secure + sameSite=lax + maxAge=1800. Aucun token dans le cookie.
+ * dédié). httpOnly + secure + sameSite=lax + maxAge=8h (> exp logique). Aucun token dans le
+ * cookie.
  */
 export async function setStateCookie(sid: string, expMs: number): Promise<void> {
   const store = await cookies()
@@ -110,7 +111,10 @@ export async function setStateCookie(sid: string, expMs: number): Promise<void> 
     httpOnly: true,
     secure: true,
     sameSite: 'lax',
-    maxAge: TTL_SECONDS,
+    // maxAge (cookie) > exp (TTL logique) → permet la détection d'expiration côté layout :
+    // le cookie doit survivre à son `exp` signé (30 min, posé par l'appelant) pour que la
+    // couche node (Task 7) le voie « expiré mais présent » et déclenche le teardown.
+    maxAge: 8 * 3600,
     path: '/',
   })
 }

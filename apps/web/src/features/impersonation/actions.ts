@@ -1,6 +1,5 @@
 'use server'
 
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
@@ -10,15 +9,12 @@ import { getProfile } from '@/lib/auth'
 import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import {
   forgeSessionInto,
-  revokeForged,
-  readForgedAccessToken,
   setStateCookie,
-  clearStateCookie,
   readStateCookie,
   createRow,
   endRow,
-  getActorForSid,
 } from '@/lib/impersonation/session'
+import { performStop } from '@/features/impersonation/teardown'
 
 /**
  * Server Actions d'impersonation admin (« consulter/agir en tant que »).
@@ -33,23 +29,6 @@ import {
  * et Sentry recevrait un faux exception à CHAQUE start/stop). Le handler fait tout le travail
  * gardé et renvoie ; la redirection est déclenchée ensuite, sur le résultat.
  */
-
-/**
- * Teardown fail-closed « dernier recours » : efface TOUS les cookies d'auth Supabase
- * (`sb-*`) + le cookie d'état `imp_sid`. Ne throw jamais (best-effort) — une session forgée
- * ne doit JAMAIS survivre à un échec de restauration, même si l'audit/DB est en panne.
- */
-async function fullLogout(): Promise<void> {
-  try {
-    const store = await cookies()
-    for (const c of store.getAll()) {
-      if (c.name.startsWith('sb-')) store.delete({ name: c.name, path: '/' })
-    }
-  } catch {
-    /* best-effort : ne throw jamais */
-  }
-  await clearStateCookie().catch(() => {})
-}
 
 /**
  * Démarre une consultation « en tant que » la cible `targetId`.
@@ -129,60 +108,15 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
  * une session forgée ne doit jamais survivre. On redirige toujours vers Membres ensuite.
  */
 export async function stopImpersonation(): Promise<ActionResult> {
+  // Le teardown vit dans `teardown.ts` (`performStop`), partagé avec le Route Handler
+  // `/impersonation/stop`. On le garde sous `runAction` pour la parité de contrat (try/catch
+  // Sentry + `ActionResult`) ; `performStop` est déjà fail-closed en interne (fullLogout).
   const result = await runAction({
     schema: z.void(),
     input: undefined,
     guard: async () => ({ ok: true as const }),
     handler: async () => {
-      const state = await readStateCookie()
-      if (!state) {
-        // Pas d'état : rien à restaurer, mais on garantit une sortie propre.
-        await fullLogout()
-        return
-      }
-
-      // Snapshot du token forgé AVANT toute restauration (déclaré hors du try pour que le
-      // fallback puisse le révoquer). Toute panne en aval retombe sur fullLogout (fail-closed).
-      let forged: string | null = null
-      try {
-        forged = await readForgedAccessToken()
-
-        // ⚠️ NE PAS conditionner le nettoyage à une row : `null` (panne DB) est indistinguable
-        // de « pas de row ». Un null → on throw → fallback fullLogout (session forgée tuée).
-        const row = await getActorForSid(state.sid)
-        if (!row) throw new Error('row introuvable')
-
-        const admin = createAdminClient()
-        const { data: au } = await admin.auth.admin.getUserById(row.actorId)
-        if (!au?.user?.email) throw new Error('admin sans email')
-
-        // Re-mint la session admin (assert sub===actorId à l'intérieur du forge).
-        await forgeSessionInto(au.user.email, row.actorId)
-
-        // Assert : l'acteur restauré est bien admin/superadmin (rôle BRUT), sinon fallback.
-        const { data: prof } = await admin
-          .from('profiles')
-          .select('role')
-          .eq('id', row.actorId)
-          .single()
-        if (prof?.role !== 'admin' && prof?.role !== 'superadmin') {
-          throw new Error('acteur non-admin')
-        }
-
-        // Révoque la session forgée (locale, best-effort) puis clôt l'audit + le cookie.
-        if (forged) await revokeForged(forged)
-        await endRow(state.sid)
-        await clearStateCookie()
-        Sentry.captureMessage('impersonate:stop', {
-          level: 'info',
-          extra: { actor_id: row.actorId },
-        })
-      } catch {
-        // Fallback fail-closed : tuer le forgé (best-effort) + logout total. TOUJOURS, même
-        // si `row` était null (panne DB indistinguable de « pas de row »).
-        if (forged) await revokeForged(forged).catch(() => {})
-        await fullLogout()
-      }
+      await performStop()
     },
   })
 
