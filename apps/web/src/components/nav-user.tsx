@@ -53,7 +53,10 @@ export function NavUser({
     // clic déconnexion — en import statique il partait dans le bundle critique de TOUTES
     // les pages du dash (mesuré à ~15 % du First Load JS gzip).
     const { createClient } = await import('@/lib/supabase/client')
-    await createClient().auth.signOut()
+    // scope 'local' : ne déconnecte que cet appareil (jamais toutes les sessions). Sécurité :
+    // si une session forgée d'impersonation a survécu au cookie imp_sid (abandon > 8h), un
+    // signOut global déconnecterait la vraie cible partout.
+    await createClient().auth.signOut({ scope: 'local' })
     router.push('/login')
     router.refresh()
   }
