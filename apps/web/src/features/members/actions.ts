@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { getProfile, type Profile } from '@/lib/auth'
 import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
+import { readStateCookie } from '@/lib/impersonation/session'
 import {
   authorizeRoleAndScope,
   managerIdPatch,
@@ -108,6 +109,7 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       return { ok: true }
     },
     handler: async (values) => {
+      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
       // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
@@ -222,6 +224,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       return { ok: true }
     },
     handler: async (values) => {
+      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
       const { scope, id, displayName, pages, creatorIds, workLink, managerId, closingRole, closingTeam, chatterId } =
@@ -298,6 +301,7 @@ export async function deleteMember(raw: unknown): Promise<ActionResult> {
       return { ok: true }
     },
     handler: async (id) => {
+      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
       const caller = await getProfile()
       if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
       const admin = createAdminClient()

@@ -3,7 +3,6 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { createAdminClient, type Database } from '@glagency/db'
 import { signState, verifyState } from '@glagency/core'
 import { getPublicEnv, getImpersonationSecret } from '@/lib/env'
-import { BusinessError } from '@/lib/actions'
 
 /**
  * Glue de session pour l'impersonation admin (« consulter/agir en tant que »).
@@ -186,14 +185,4 @@ export async function getActorForSid(
     .maybeSingle()
   if (error || !data) return null
   return { actorId: data.actor_id, targetId: data.target_id, expiresAt: data.expires_at }
-}
-
-/**
- * Garde métier : interdit une action de mutation tant qu'un état d'impersonation est actif
- * (cookie `imp_sid` présent et valide). Utilisée par la Task 10 (mode consultation).
- */
-export async function assertNotImpersonating(): Promise<void> {
-  if (await readStateCookie()) {
-    throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
-  }
 }
