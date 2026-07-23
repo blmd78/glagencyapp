@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes phrases</title>
+<style>
+  /* ── Épuré : hiérarchie par la typo et l'espace, bordures fonctionnelles uniquement ── */
+  :root {
+    --bg: #ffffff; --fg: #111111; --muted: #6b7280; --border: #e5e7eb;
+    --hover: #f9fafb; --accent: #111111; --ok: #16a34a; --warn: #b45309; --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f10; --fg: #f3f4f6; --muted: #9ca3af; --border: #27272a;
+      --hover: #18181b; --accent: #f3f4f6; --ok: #4ade80; --warn: #fbbf24; --danger: #f87171;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 720px; margin: 0 auto; padding: 32px 20px 80px;
+  }
+  h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .status { font-size: 12px; color: var(--muted); }
+  .status.ok::before { content: "● "; color: var(--ok); }
+  .status.warn::before { content: "● "; color: var(--warn); }
+
+  .toolbar { display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap; }
+  input[type="search"], input[type="text"], textarea {
+    font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; width: 100%;
+  }
+  input[type="search"] { flex: 1; min-width: 180px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--muted); }
+  textarea { resize: vertical; min-height: 72px; }
+
+  button {
+    font: inherit; cursor: pointer; border-radius: 8px; padding: 8px 14px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  }
+  button:hover { background: var(--hover); }
+  button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  button.small { padding: 4px 10px; font-size: 13px; }
+  button.ghost { border: none; background: none; color: var(--muted); padding: 4px 6px; }
+  button.ghost:hover { color: var(--fg); background: var(--hover); }
+
+  .banner {
+    margin-top: 16px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; color: var(--muted); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  }
+  .banner button { flex-shrink: 0; }
+
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 24px; }
+  .tab {
+    padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: none; color: var(--fg); font-size: 14px;
+  }
+  .tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .fam-actions { display: flex; align-items: center; gap: 2px; margin-top: 16px; }
+  .fam-actions .compte { flex: 1; font-size: 12px; color: var(--muted); }
+
+  .famille { margin-top: 28px; }
+  .famille h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+  .phrase {
+    margin-top: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .phrase:hover { background: var(--hover); }
+  .phrase .contenu { flex: 1; min-width: 0; cursor: pointer; }
+  .phrase .label { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 2px; }
+  .phrase .texte { white-space: pre-wrap; word-break: break-word; }
+  .phrase .cote { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+  .phrase .cote .maj { opacity: 0; transition: opacity 0.15s; display: flex; gap: 2px; }
+  .phrase:hover .cote .maj { opacity: 1; }
+  .btn-copier { min-width: 84px; }
+  .btn-copier.ok { border-color: var(--ok); color: var(--ok); }
+
+  .add-form { margin-top: 8px; padding: 12px 14px; border: 1px dashed var(--border); border-radius: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .add-form .row { display: flex; gap: 8px; justify-content: flex-end; }
+
+  .empty { margin-top: 48px; text-align: center; color: var(--muted); }
+  .empty p { margin-bottom: 16px; }
+  .footer-note { margin-top: 56px; font-size: 12px; color: var(--muted); text-align: center; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mes phrases</h1>
+  <span id="statut" class="status"></span>
+</header>
+
+<div class="toolbar">
+  <input type="search" id="recherche" placeholder="Rechercher dans toutes les familles…" aria-label="Rechercher dans toutes les familles">
+  <button id="btn-exporter" class="small ghost" title="Télécharger une copie de mes phrases (JSON)">Exporter</button>
+  <button id="btn-importer" class="small ghost" title="Restaurer depuis un fichier JSON">Importer</button>
+  <input type="file" id="fichier-import" accept=".json,application/json" class="hidden" aria-label="Fichier de sauvegarde à importer">
+</div>
+
+<!-- Bannière sauvegarde fichier : proposée quand pas de fichier lié, ou permission à réactiver -->
+<div id="banniere-fichier" class="banner hidden"></div>
+
+<div id="contenu"></div>
+
+<p class="footer-note">Tes phrases sont enregistrées sur cet ordinateur, dans ce navigateur — et dans ton fichier de sauvegarde si tu en as créé un. Elles ne sont envoyées nulle part.</p>
+
+<script>
+'use strict';
+/**
+ * Mes phrases — bibliothèque perso de phrases à copier, 100 % locale.
+ * Stockage de travail : localStorage. Sauvegarde : fichier JSON réécrit automatiquement
+ * à chaque modification (File System Access API, Chrome/Edge) + Exporter/Importer en secours.
+ */
+
+const CLE = 'mes-phrases-v1';
+const CLE_TAB = 'mes-phrases-tab';
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+/* ── État ─────────────────────────────────────────────────────────────────── */
+let data = { version: 1, familles: [] }; // familles: [{id, nom, phrases: [{id, label, texte}]}]
+let activeId = localStorage.getItem(CLE_TAB); // onglet (famille) actif
+let recherche = '';
+let formulaireOuvert = null; // id de famille dont le formulaire d'ajout est ouvert
+let enEdition = null;        // {familleId, phraseId} en cours d'édition
+
+function charger() {
+  try {
+    const brut = localStorage.getItem(CLE);
+    if (brut) {
+      const p = JSON.parse(brut);
+      if (p && Array.isArray(p.familles)) data = p;
+    }
+  } catch { /* données illisibles → on repart proprement, le fichier de sauvegarde reste */ }
+}
+
+function sauvegarder() {
+  localStorage.setItem(CLE, JSON.stringify(data));
+  majStatut('Enregistré');
+  ecrireFichierBientot();
+}
+
+/* ── Fichier de sauvegarde (File System Access) ───────────────────────────── */
+const fsaDisponible = 'showSaveFilePicker' in window;
+let handleFichier = null;
+let timerEcriture = null;
+
+// Mini-wrapper IndexedDB : persiste le handle du fichier entre les sessions.
+function idb() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('mes-phrases-db', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('handles');
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+async function idbGet(cle) {
+  const db = await idb();
+  return new Promise((res) => {
+    const tx = db.transaction('handles').objectStore('handles').get(cle);
+    tx.onsuccess = () => res(tx.result ?? null);
+    tx.onerror = () => res(null);
+  });
+}
+async function idbSet(cle, val) {
+  const db = await idb();
+  return new Promise((res) => {
+    const tx = db.transaction('handles', 'readwrite').objectStore('handles').put(val, cle);
+    tx.onsuccess = () => res();
+    tx.onerror = () => res();
+  });
+}
+
+async function permissionFichier(demander) {
+  if (!handleFichier) return 'aucun';
+  const opts = { mode: 'readwrite' };
+  let etat = await handleFichier.queryPermission(opts);
+  if (etat === 'prompt' && demander) etat = await handleFichier.requestPermission(opts);
+  return etat;
+}
+
+async function ecrireFichier() {
+  if (!handleFichier) return;
+  if ((await permissionFichier(false)) !== 'granted') { majBanniereFichier(); return; }
+  try {
+    const w = await handleFichier.createWritable();
+    await w.write(JSON.stringify(data, null, 2));
+    await w.close();
+    majStatut('Enregistré + fichier à jour', 'ok');
+  } catch {
+    majStatut('Fichier de sauvegarde inaccessible', 'warn');
+  }
+}
+function ecrireFichierBientot() {
+  if (!fsaDisponible || !handleFichier) return;
+  clearTimeout(timerEcriture);
+  timerEcriture = setTimeout(ecrireFichier, 400);
+}
+
+async function creerFichierSauvegarde() {
+  try {
+    handleFichier = await window.showSaveFilePicker({
+      suggestedName: 'mes-phrases.json',
+      types: [{ description: 'Sauvegarde Mes phrases', accept: { 'application/json': ['.json'] } }],
+    });
+    await idbSet('sauvegarde', handleFichier);
+    await ecrireFichier();
+    majBanniereFichier();
+  } catch { /* annulé par l'utilisateur */ }
+}
+
+async function reactiverFichier() {
+  if ((await permissionFichier(true)) === 'granted') {
+    await ecrireFichier();
+    majBanniereFichier();
+  }
+}
+
+async function initFichier() {
+  if (!fsaDisponible) return;
+  handleFichier = await idbGet('sauvegarde');
+  if (handleFichier && (await permissionFichier(false)) === 'granted') ecrireFichier();
+  majBanniereFichier();
+}
+
+function majBanniereFichier() {
+  const b = document.getElementById('banniere-fichier');
+  b.innerHTML = '';
+  b.classList.add('hidden');
+  if (!fsaDisponible) return; // navigateur sans API → Exporter/Importer suffisent
+  if (!handleFichier) {
+    b.classList.remove('hidden');
+    b.append('Protège tes phrases : crée un fichier de sauvegarde, il sera mis à jour tout seul à chaque modification.');
+    const btn = document.createElement('button');
+    btn.className = 'small primary';
+    btn.textContent = '📁 Créer mon fichier de sauvegarde';
+    btn.onclick = creerFichierSauvegarde;
+    b.append(btn);
+  } else {
+    permissionFichier(false).then((etat) => {
+      if (etat === 'granted') return;
+      b.classList.remove('hidden');
+      b.append('Ton fichier de sauvegarde attend une autorisation pour être mis à jour.');
+      const btn = document.createElement('button');
+      btn.className = 'small primary';
+      btn.textContent = 'Autoriser';
+      btn.onclick = reactiverFichier;
+      b.append(btn);
+    });
+  }
+}
+
+/* ── Statut ───────────────────────────────────────────────────────────────── */
+let timerStatut = null;
+function majStatut(texte, classe = 'ok') {
+  const el = document.getElementById('statut');
+  el.textContent = texte;
+  el.className = 'status ' + classe;
+  clearTimeout(timerStatut);
+  timerStatut = setTimeout(() => { el.textContent = ''; el.className = 'status'; }, 2500);
+}
+
+/* ── Actions ──────────────────────────────────────────────────────────────── */
+function nouvelleFamille() {
+  const nom = prompt('Nom de la famille (ex. Sexting, Relationnel) :');
+  if (!nom || !nom.trim()) return;
+  const f = { id: uid(), nom: nom.trim(), phrases: [] };
+  data.familles.push(f);
+  activeId = f.id;
+  localStorage.setItem(CLE_TAB, activeId);
+  sauvegarder();
+  rendre();
+}
+
+function renommerFamille(f) {
+  const nom = prompt('Nouveau nom :', f.nom);
+  if (!nom || !nom.trim()) return;
+  f.nom = nom.trim();
+  sauvegarder();
+  rendre();
+}
+
+function supprimerFamille(f) {
+  const n = f.phrases.length;
+  if (!confirm(`Supprimer « ${f.nom} »${n ? ` et ses ${n} phrase(s)` : ''} ?`)) return;
+  data.familles = data.familles.filter((x) => x.id !== f.id);
+  sauvegarder();
+  rendre();
+}
+
+function supprimerPhrase(f, p) {
+  if (!confirm('Supprimer cette phrase ?')) return;
+  f.phrases = f.phrases.filter((x) => x.id !== p.id);
+  sauvegarder();
+  rendre();
+}
+
+async function copier(p, bouton) {
+  try {
+    await navigator.clipboard.writeText(p.texte);
+  } catch {
+    // Fallback vieux navigateurs / contextes restreints
+    const ta = document.createElement('textarea');
+    ta.value = p.texte;
+    document.body.append(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  bouton.textContent = 'Copié ✓';
+  bouton.classList.add('ok');
+  setTimeout(() => { bouton.textContent = 'Copier'; bouton.classList.remove('ok'); }, 1200);
+}
+
+function exporter() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mes-phrases.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importer(fichier) {
+  const lecteur = new FileReader();
+  lecteur.onload = () => {
+    try {
+      const p = JSON.parse(String(lecteur.result));
+      if (!p || !Array.isArray(p.familles)) throw new Error();
+      if (!confirm('Remplacer toutes les phrases actuelles par celles du fichier ?')) return;
+      data = p;
+      sauvegarder();
+      rendre();
+      majStatut('Import réussi');
+    } catch {
+      alert("Ce fichier n'est pas une sauvegarde « Mes phrases » valide.");
+    }
+  };
+  lecteur.readAsText(fichier);
+}
+
+/* ── Rendu (DOM construit à la main — jamais d'innerHTML avec du contenu utilisateur) ── */
+
+/** Carte d'une phrase : contenu cliquable + bouton Copier permanent + ✎/🗑 au survol. */
+function cartePhrase(f, p) {
+  const carte = document.createElement('div');
+  carte.className = 'phrase';
+
+  const contenu = document.createElement('div');
+  contenu.className = 'contenu';
+  contenu.title = 'Cliquer pour copier';
+  if (p.label) {
+    const lab = document.createElement('div');
+    lab.className = 'label';
+    lab.textContent = p.label;
+    contenu.append(lab);
+  }
+  const txt = document.createElement('div');
+  txt.className = 'texte';
+  txt.textContent = p.texte;
+  contenu.append(txt);
+
+  const cote = document.createElement('span');
+  cote.className = 'cote';
+  const maj = document.createElement('span');
+  maj.className = 'maj';
+  const btnE = document.createElement('button');
+  btnE.className = 'ghost small';
+  btnE.title = 'Modifier';
+  btnE.textContent = '✎';
+  btnE.onclick = () => { enEdition = { familleId: f.id, phraseId: p.id }; rendre(); };
+  const btnD = document.createElement('button');
+  btnD.className = 'ghost small';
+  btnD.title = 'Supprimer';
+  btnD.textContent = '🗑';
+  btnD.onclick = () => supprimerPhrase(f, p);
+  maj.append(btnE, btnD);
+  const btnCopier = document.createElement('button');
+  btnCopier.className = 'small btn-copier';
+  btnCopier.textContent = 'Copier';
+  btnCopier.onclick = () => copier(p, btnCopier);
+  cote.append(maj, btnCopier);
+
+  contenu.onclick = () => copier(p, btnCopier);
+  carte.append(contenu, cote);
+  return carte;
+}
+
+function rendre() {
+  const racine = document.getElementById('contenu');
+  racine.innerHTML = '';
+
+  if (data.familles.length === 0) {
+    const vide = document.createElement('div');
+    vide.className = 'empty';
+    const p = document.createElement('p');
+    p.textContent = 'Crée ta première famille de phrases — par exemple « Sexting » ou « Relationnel ».';
+    const btn = document.createElement('button');
+    btn.className = 'primary';
+    btn.textContent = '+ Créer une famille';
+    btn.onclick = nouvelleFamille;
+    vide.append(p, btn);
+    racine.append(vide);
+    return;
+  }
+
+  // ── Onglets : une famille = un tab, « + » au bout ──
+  if (!data.familles.some((f) => f.id === activeId)) activeId = data.familles[0].id;
+  const tabs = document.createElement('div');
+  tabs.className = 'tabs';
+  for (const f of data.familles) {
+    const t = document.createElement('button');
+    t.className = 'tab' + (f.id === activeId ? ' active' : '');
+    t.textContent = f.nom;
+    t.onclick = () => {
+      activeId = f.id;
+      localStorage.setItem(CLE_TAB, activeId);
+      formulaireOuvert = null;
+      enEdition = null;
+      rendre();
+    };
+    tabs.append(t);
+  }
+  const plus = document.createElement('button');
+  plus.className = 'tab';
+  plus.title = 'Nouvelle famille';
+  plus.textContent = '+';
+  plus.onclick = nouvelleFamille;
+  tabs.append(plus);
+  racine.append(tabs);
+
+  const filtre = recherche.trim().toLowerCase();
+
+  // ── Recherche : résultats de TOUTES les familles, groupés ──
+  if (filtre) {
+    let aucun = true;
+    for (const f of data.familles) {
+      const visibles = f.phrases.filter((p) =>
+        (p.label + ' ' + p.texte).toLowerCase().includes(filtre),
+      );
+      if (visibles.length === 0) continue;
+      aucun = false;
+      const section = document.createElement('section');
+      section.className = 'famille';
+      const h2 = document.createElement('h2');
+      h2.textContent = f.nom;
+      section.append(h2);
+      for (const p of visibles) section.append(cartePhrase(f, p));
+      racine.append(section);
+    }
+    if (aucun) {
+      const vide = document.createElement('p');
+      vide.className = 'empty';
+      vide.textContent = 'Aucune phrase ne correspond.';
+      racine.append(vide);
+    }
+    return;
+  }
+
+  // ── Famille active : compteur + actions, puis les phrases ──
+  const f = data.familles.find((x) => x.id === activeId);
+  const ligne = document.createElement('div');
+  ligne.className = 'fam-actions';
+  const compte = document.createElement('span');
+  compte.className = 'compte';
+  compte.textContent = `${f.phrases.length} phrase${f.phrases.length > 1 ? 's' : ''}`;
+  const btnR = document.createElement('button');
+  btnR.className = 'ghost small';
+  btnR.title = 'Renommer la famille';
+  btnR.textContent = '✎ Renommer';
+  btnR.onclick = () => renommerFamille(f);
+  const btnS = document.createElement('button');
+  btnS.className = 'ghost small';
+  btnS.title = 'Supprimer la famille';
+  btnS.textContent = '🗑 Supprimer';
+  btnS.onclick = () => supprimerFamille(f);
+  ligne.append(compte, btnR, btnS);
+  racine.append(ligne);
+
+  for (const p of f.phrases) {
+    if (enEdition && enEdition.phraseId === p.id) racine.append(formulairePhrase(f, p));
+    else racine.append(cartePhrase(f, p));
+  }
+
+  if (formulaireOuvert === f.id) {
+    racine.append(formulairePhrase(f, null));
+  } else {
+    const btnA = document.createElement('button');
+    btnA.className = 'ghost small';
+    btnA.style.marginTop = '8px';
+    btnA.textContent = '+ Ajouter une phrase';
+    btnA.onclick = () => { formulaireOuvert = f.id; enEdition = null; rendre(); };
+    racine.append(btnA);
+  }
+}
+
+/** Formulaire d'ajout (phrase = null) ou d'édition d'une phrase. */
+function formulairePhrase(f, phrase) {
+  const form = document.createElement('div');
+  form.className = 'add-form';
+  const label = document.createElement('input');
+  label.type = 'text';
+  label.placeholder = 'Intitulé (optionnel — ex. Relance douce)';
+  label.value = phrase?.label ?? '';
+  const texte = document.createElement('textarea');
+  texte.placeholder = 'Le texte à copier…';
+  texte.value = phrase?.texte ?? '';
+  const row = document.createElement('div');
+  row.className = 'row';
+  const annuler = document.createElement('button');
+  annuler.className = 'small';
+  annuler.textContent = 'Annuler';
+  annuler.onclick = () => { formulaireOuvert = null; enEdition = null; rendre(); };
+  const ok = document.createElement('button');
+  ok.className = 'small primary';
+  ok.textContent = phrase ? 'Enregistrer' : 'Ajouter';
+  ok.onclick = () => {
+    const t = texte.value.trim();
+    if (!t) { texte.focus(); return; }
+    if (phrase) {
+      phrase.label = label.value.trim();
+      phrase.texte = t;
+    } else {
+      f.phrases.push({ id: uid(), label: label.value.trim(), texte: t });
+    }
+    formulaireOuvert = null;
+    enEdition = null;
+    sauvegarder();
+    rendre();
+  };
+  row.append(annuler, ok);
+  form.append(label, texte, row);
+  setTimeout(() => (phrase ? texte : label).focus(), 0);
+  return form;
+}
+
+/* ── Init ─────────────────────────────────────────────────────────────────── */
+document.getElementById('btn-exporter').onclick = exporter;
+document.getElementById('btn-importer').onclick = () => document.getElementById('fichier-import').click();
+document.getElementById('fichier-import').onchange = (e) => {
+  if (e.target.files[0]) importer(e.target.files[0]);
+  e.target.value = '';
+};
+document.getElementById('recherche').oninput = (e) => { recherche = e.target.value; rendre(); };
+
+charger();
+rendre();
+initFichier();
+</script>
+</body>
+</html>

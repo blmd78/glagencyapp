@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { getProfile, hasWriteAccess } from '@/lib/auth'
+import { attributeIfImpersonating } from '@/lib/impersonation/audit'
 import type { PageSlug } from '@/config/workspaces'
 
 /** Contrat de retour UNIQUE des Server Actions (spec 2026-07-16 §2.5). */
@@ -43,6 +44,10 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
   try {
     const gate = await opts.guard()
     if (!gate.ok) return { success: false, error: gate.error }
+
+    // Audit best-effort : rattache l'acteur réel si la requête a lieu en impersonation
+    // (no-op hors impersonation — une seule lecture de cookie qui retourne null).
+    await attributeIfImpersonating()
 
     const parsed = opts.schema.safeParse(opts.input)
     if (!parsed.success) {

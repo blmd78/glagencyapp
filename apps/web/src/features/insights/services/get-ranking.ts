@@ -44,11 +44,13 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
 
   const acc = new Map<
     string,
-    { ca: number; propose: number; vendu: number; presenceH: number; reactSum: number; reactN: number }
+    { days: number; ca: number; propose: number; vendu: number; presenceH: number; reactSum: number; reactN: number }
   >()
   for (const d of daily ?? []) {
     const a =
-      acc.get(d.chatter_id) ?? { ca: 0, propose: 0, vendu: 0, presenceH: 0, reactSum: 0, reactN: 0 }
+      acc.get(d.chatter_id) ??
+      { days: 0, ca: 0, propose: 0, vendu: 0, presenceH: 0, reactSum: 0, reactN: 0 }
+    a.days += 1 // une ligne chatter_daily = un jour actif (même à CA 0)
     a.ca += Number(d.ca) || 0
     a.propose += Number(d.propose) || 0
     a.vendu += Number(d.vendu) || 0
@@ -63,6 +65,7 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
   const rows: RankingRow[] = [...acc.entries()].map(([chatterId, a]) => ({
     chatterId,
     chatterName: nameById[chatterId] ?? '?',
+    days: a.days,
     ca: round2(a.ca),
     presenceH: round2(a.presenceH),
     propose: a.propose,

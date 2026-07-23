@@ -1,4 +1,5 @@
 export * from './domain/types'
+export * from './impersonation/rules'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
 export { runRules } from './insights/engine'

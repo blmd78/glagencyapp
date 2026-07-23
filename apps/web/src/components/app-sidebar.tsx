@@ -48,6 +48,7 @@ export function AppSidebar({
   allowedPages,
   insightsCountPromise,
   workLink = '',
+  impersonating = false,
 }: {
   userEmail: string
   isAdmin?: boolean
@@ -61,6 +62,8 @@ export function AppSidebar({
   insightsCountPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
   workLink?: string
+  /** Consultation « en tant que » active (Task 9) — bascule le logout de NavUser. */
+  impersonating?: boolean
 }) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -292,7 +295,7 @@ export function AppSidebar({
       </SidebarContent>
 
       <SidebarFooter>
-        <NavUser email={userEmail} workLink={workLink} />
+        <NavUser email={userEmail} workLink={workLink} impersonating={impersonating} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

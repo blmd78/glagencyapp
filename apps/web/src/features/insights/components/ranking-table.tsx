@@ -3,6 +3,7 @@
 import type { ColumnDef } from '@tanstack/react-table'
 import { frDayShort } from '@glagency/core'
 import { DataTable } from '@/components/data-table/data-table'
+import { HeaderInfo } from '@/components/data-table/header-info'
 import { eur, num, pct } from '@/lib/format'
 import type { RankingData, RankingRow } from '../types'
 
@@ -20,7 +21,19 @@ const SHORT_LABEL: Record<BaseMetric, string> = {
   react: 'Réact.',
 }
 
-const ord = (n: number) => (n === 1 ? '1er' : `${n}e`)
+/**
+ * Score Général /100 : poids managériaux (le CA prime, la présence ensuite) et seuil
+ * « classé » (jours actifs minimum — en dessous, les micro-actifs squattent les bons
+ * percentiles réactivité/conversion avec 3 conversations sur 1 jour). Réglage validé
+ * avec Benoit — ajuster ici si la règle évolue.
+ */
+const WEIGHTS: Record<BaseMetric, number> = { ca: 3, presence: 2, propose: 1, conv: 1, react: 1 }
+const TOTAL_WEIGHT = BASE_METRICS.reduce((s, k) => s + WEIGHTS[k], 0)
+const MIN_DAYS = 4
+
+/** Règle du score Général — affichée par le ⓘ de l'en-tête de colonne « Score /100 ». */
+const SCORE_INFO =
+  'Note sur 100 qui combine les 5 critères de la semaine : le CA compte triple, la présence double, le reste simple. Il faut au moins 4 jours d’activité pour être classé. Survole un score pour voir le détail.'
 
 interface MetricDef {
   label: string
@@ -51,7 +64,7 @@ const medal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '�
 
 /**
  * Rangs d'une métrique (classement « competition » : ex æquo = même rang).
- * Sans donnée = dernier (N), conformément à la règle du classement Général.
+ * Sans donnée = dernier (N) — converti en 0 point par le percentile du score Général.
  */
 function ranksFor(rows: RankingRow[], def: MetricDef): Map<string, number> {
   const withVal = rows
@@ -72,35 +85,53 @@ function ranksFor(rows: RankingRow[], def: MetricDef): Map<string, number> {
 }
 
 /**
- * Tableau de classement global des chatteurs — par métrique, ou « Général » = rang moyen
- * sur les 5 critères (le plus bas gagne ; détail des rangs au survol). Bâti sur le
- * `DataTable` partagé (pagination/recherche identiques au reste de l'app).
+ * Tableau de classement global des chatteurs — par métrique, ou « Général » = score /100
+ * pondéré sur les 5 critères (percentile par critère parmi les classés ≥ MIN_DAYS jours
+ * actifs, moyenne pondérée par WEIGHTS ; décomposition au survol — le rang s'explique par
+ * ses propres composantes, sans IA). Les non-classés restent visibles en bas (« — »).
+ * Bâti sur le `DataTable` partagé (pagination/recherche identiques au reste de l'app).
  */
 export function RankingTable({ ranking, metric }: { ranking: RankingData; metric: RankMetric }) {
-  // « Général » : rang moyen sur les 5 critères + détail par chatteur (tooltip).
+  // « Général » : score /100 pondéré + décomposition par chatteur (tooltip).
   const general = (() => {
     if (metric !== 'general') return null
-    const rankMaps = BASE_METRICS.map((k) => [k, ranksFor(ranking.rows, METRICS[k])] as const)
+    const classed = ranking.rows.filter((r) => r.days >= MIN_DAYS)
+    const n = classed.length
+    const rankMaps = BASE_METRICS.map((k) => [k, ranksFor(classed, METRICS[k])] as const)
+    // Rang compétition (1 = meilleur) → percentile 0-100. Sans donnée : ranksFor donne N
+    // → 0 point sur le critère. n ≤ 1 : pas de comparaison possible → 100.
+    const pctOf = (rank: number) => (n > 1 ? ((n - rank) / (n - 1)) * 100 : 100)
     const score = new Map<string, number>()
     const detail = new Map<string, string>()
-    for (const r of ranking.rows) {
-      const ranks = rankMaps.map(([, m]) => m.get(r.chatterId)!)
-      score.set(r.chatterId, ranks.reduce((a, b) => a + b, 0) / ranks.length)
+    for (const r of classed) {
+      const parts = rankMaps.map(([k, m]) => [k, pctOf(m.get(r.chatterId)!)] as const)
+      score.set(
+        r.chatterId,
+        parts.reduce((s, [k, p]) => s + WEIGHTS[k] * p, 0) / TOTAL_WEIGHT,
+      )
       detail.set(
         r.chatterId,
-        rankMaps.map(([k, m]) => `${SHORT_LABEL[k]} ${ord(m.get(r.chatterId)!)}`).join(' · '),
+        parts
+          .map(
+            ([k, p]) =>
+              `${SHORT_LABEL[k]} ${Math.round(p)}${WEIGHTS[k] > 1 ? ` ×${WEIGHTS[k]}` : ''}`,
+          )
+          .join(' · '),
       )
     }
+    for (const r of ranking.rows)
+      if (!score.has(r.chatterId))
+        detail.set(r.chatterId, `Non classé — ${r.days} j actif(s) (minimum ${MIN_DAYS})`)
     return { score, detail }
   })()
 
   const m: MetricDef =
     metric === 'general'
       ? {
-          label: 'Rang moyen',
+          label: 'Score /100',
           get: (r) => general!.score.get(r.chatterId) ?? null,
-          fmt: (v) => v.toLocaleString('fr-FR', { maximumFractionDigits: 1 }),
-          dir: 'asc',
+          fmt: (v) => `${Math.round(v)}`,
+          dir: 'desc',
         }
       : METRICS[metric]
 
@@ -128,7 +159,15 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
     },
     {
       id: 'value',
-      header: m.label,
+      header:
+        metric === 'general'
+          ? () => (
+              <div className="flex items-center justify-end gap-1.5">
+                {m.label}
+                <HeaderInfo text={SCORE_INFO} />
+              </div>
+            )
+          : m.label,
       cell: ({ row }) => {
         const v = m.get(row.original)
         return (
@@ -149,7 +188,7 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">
           Classement —{' '}
-          {metric === 'general' ? 'Général (rang moyen sur les 5 critères)' : m.label}
+          {metric === 'general' ? 'Général (score /100 · 5 critères pondérés)' : m.label}
         </h3>
         {ranking.weekStart && (
           <span className="text-xs text-muted-foreground">
@@ -157,7 +196,14 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
           </span>
         )}
       </div>
+      {/* key={metric} : REMONTE la table à chaque changement de métrique. Indispensable —
+          les lignes du DataTable partagé sont mémoïsées par identité de `row.original`
+          (data-table.tsx) ; or changer de métrique ne change QUE les colonnes (format,
+          unité) et l'ordre, pas les refs de lignes → sans remount, les lignes déjà
+          affichées gardent la valeur/médaille de l'ANCIENNE métrique (unités mélangées,
+          classement faussé). Bonus : recherche et pagination repartent de zéro. */}
       <DataTable
+        key={metric}
         data={sorted}
         columns={columns}
         filterColumnId="chatterName"

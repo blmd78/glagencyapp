@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
+import { TodoPeek } from './todo-peek'
 import {
   priorityLabel,
   PRIORITY_CLASS,
@@ -26,8 +27,9 @@ import {
 } from '../types'
 
 /**
- * Ligne de la vue liste (panneau « Backlog » Jira) : icône de type + titre à gauche ; méta
- * discrète, pastille de statut, auteur, actions à droite, dans cet ordre. La pastille de
+ * Ligne de la vue liste (panneau « Backlog » Jira) : icône de type + titre + aperçu de la
+ * description (tronqué, spec 2026-07-23) à gauche ; méta discrète, pastille de statut, auteur,
+ * actions (œil TodoPeek / crayon / poubelle) à droite, dans cet ordre. La pastille de
  * statut remplace l'icône de statut à gauche (ancienne maquette) : un `Button`, pas un
  * `Badge` — c'est un DÉCLENCHEUR de menu (le même `DropdownMenuRadioGroup`/`onMove` qu'avant),
  * pas une étiquette passive ; `Badge` rend un `<span>` sans gestion clavier/focus native, il
@@ -52,10 +54,28 @@ export function TodoRow({
   const PriorityIcon = PRIORITY_ICON[todo.priority]
   return (
     <div className="group flex items-center gap-2 px-3 py-2 hover:bg-muted/50">
-      {Icon && todo.type && (
-        <Icon role="img" aria-label={typeLabel(todo.type)} className={cn('size-4 shrink-0', TYPE_CLASS[todo.type])} />
+      {/* COLONNE titre à largeur FIXE (w-72, plafonnée à 50 % sur écran étroit) quand une
+          description suit : tous les titres « s'arrêtent au même endroit », les aperçus de
+          description démarrent donc alignés d'une ligne à l'autre. L'icône de type vit DANS la
+          colonne : elle est conditionnelle, la laisser dehors décalerait l'alignement des
+          lignes sans type. Sans description, pas de colonne — le titre reprend toute la
+          largeur comme avant. */}
+      <div
+        className={cn(
+          'flex min-w-0 items-center gap-2',
+          todo.description ? 'w-72 max-w-[50%] shrink-0' : 'flex-1',
+        )}
+      >
+        {Icon && todo.type && (
+          <Icon role="img" aria-label={typeLabel(todo.type)} className={cn('size-4 shrink-0', TYPE_CLASS[todo.type])} />
+        )}
+        <span className="truncate text-sm font-medium">{todo.title}</span>
+      </div>
+      {/* Aperçu de la description, tronqué (`truncate` = nowrap : les sauts de ligne saisis
+          s'aplatissent en espaces — la mise en forme complète se lit dans l'œil, TodoPeek). */}
+      {todo.description && (
+        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{todo.description}</span>
       )}
-      <span className="min-w-0 flex-1 truncate text-sm font-medium">{todo.title}</span>
       <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
         {/* Priorité en icône, TOUJOURS affichée (y compris « moyenne ») : une échelle qui
             disparaît à mi-course ne se scanne plus — l'œil ne sait pas si l'absence veut dire
@@ -100,6 +120,8 @@ export function TodoRow({
           donc aucun spectateur en lecture seule à qui masquer ces actions. Les révéler au
           survol les rendait introuvables au doigt et invisibles au premier coup d'œil. */}
       <div className="ml-1 flex shrink-0 items-center justify-end gap-1">
+        {/* Consultation rapide (popover lecture seule) — AVANT le crayon : lire avant d'éditer. */}
+        <TodoPeek todo={todo} />
         <Button variant="ghost" size="icon" className="size-7" aria-label="Modifier" onClick={onEdit}>
           <Pencil className="size-3.5" />
         </Button>

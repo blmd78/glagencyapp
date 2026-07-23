@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   // Packages workspace consommés en TS source → transpilés par Next.
   transpilePackages: ['@glagency/core', '@glagency/db'],
+  // CSRF des Server Actions = check Origin===Host par défaut de Next (same-origin, fonctionne sur
+  // Vercel prod ET preview). On épingle en plus le domaine prod (belt-and-suspenders ; le same-origin
+  // reste autorisé → ne casse pas les preview).
+  // NB : encore sous `experimental` dans les types Next 16.2.10 installés ici (pas top-level —
+  // vérifié dans next/dist/server/config-shared.d.ts : `serverActions` n'existe que dans
+  // `ExperimentalConfig`, et config.js ne le lit que via `result.experimental.serverActions`).
+  experimental: {
+    serverActions: { allowedOrigins: ['glagencyapp-web.vercel.app'] },
+  },
   // Dashboard interne sur URL publique : anti-embed/sniff/leak. CSP volontairement sans
   // nonce (le nonce force le rendu dynamique — incompatible PPR/cacheComponents).
   async headers() {
@@ -25,7 +34,13 @@ const nextConfig: NextConfig = {
       {
         source: '/(.*)',
         headers: [
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          {
+            key: 'Content-Security-Policy',
+            // Directives statiques (aucun nonce → zéro coût PPR/cacheComponents) : anti-clickjacking
+            // + durcissement défense-en-profondeur. `form-action 'self'` : les Server Actions POSTent
+            // en same-origin. `base-uri/object-src 'none'` : anti-injection <base>/<object>.
+            value: "frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'",
+          },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },

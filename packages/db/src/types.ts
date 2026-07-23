@@ -824,6 +824,54 @@ export type Database = {
           },
         ]
       }
+      impersonation_sessions: {
+        Row: {
+          actor_email: string
+          actor_id: string
+          ended_at: string | null
+          expires_at: string
+          id: string
+          started_at: string
+          target_email: string
+          target_id: string
+        }
+        Insert: {
+          actor_email: string
+          actor_id: string
+          ended_at?: string | null
+          expires_at: string
+          id?: string
+          started_at?: string
+          target_email: string
+          target_id: string
+        }
+        Update: {
+          actor_email?: string
+          actor_id?: string
+          ended_at?: string | null
+          expires_at?: string
+          id?: string
+          started_at?: string
+          target_email?: string
+          target_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impersonation_sessions_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "impersonation_sessions_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ingest_runs: {
         Row: {
           error: string | null
