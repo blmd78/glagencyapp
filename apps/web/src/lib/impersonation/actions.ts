@@ -23,11 +23,11 @@ import { performStop } from '@/lib/impersonation/teardown'
  * (rollback sur échec), re-mint de la session admin et révocation au teardown. Invariant
  * absolu : **aucun token** ne sort jamais du helper de session ni ne part dans Sentry.
  *
- * ⚠️ `redirect()` est appelé **HORS** `runAction` (piège Next.js documenté dans
- * `features/members/authz.ts` : `runAction` tourne sous try/catch Sentry, qui avalerait le
- * `NEXT_REDIRECT` et le transformerait en erreur générique — la navigation ne se ferait pas
- * et Sentry recevrait un faux exception à CHAQUE start/stop). Le handler fait tout le travail
- * gardé et renvoie ; la redirection est déclenchée ensuite, sur le résultat.
+ * Navigation : `startImpersonation` NE redirige PAS côté serveur (le swap de session casse
+ * une navigation RSC → « unexpected response ») — il renvoie l'`ActionResult` et le bouton fait
+ * une navigation DURE (`window.location`) sur succès. `stopImpersonation`, lui, redirige, mais
+ * **HORS** `runAction` (piège Next.js : `runAction` tourne sous try/catch Sentry qui avalerait
+ * le `NEXT_REDIRECT` → faux exception + navigation muette) et via un form-action (nav pleine page).
  */
 
 /**
@@ -36,7 +36,7 @@ import { performStop } from '@/lib/impersonation/teardown'
  * Ordre strict (fail-closed) : garde appelant (admin) → re-vérif rôle → no-nesting →
  * rôle BRUT de la cible (allowlist) → résolution email confirmé par id → email admin (pour
  * le re-mint de sortie) → row d'audit → forge (rollback si échec) → cookie d'état → Sentry.
- * `redirect('/')` n'a lieu qu'en cas de succès (voir note en tête de fichier).
+ * Renvoie l'`ActionResult` (pas de redirect serveur — cf. note en tête de fichier).
  */
 export async function startImpersonation(targetId: string): Promise<ActionResult> {
   const result = await runAction({
@@ -95,8 +95,10 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
     },
   })
 
-  // (11) Redirection HORS runAction : uniquement si tout a réussi.
-  if (result.success) redirect('/')
+  // (11) PAS de redirect serveur ici : le start a échangé la session (cookies), et une
+  // navigation RSC (soft) après ce swap échoue côté client (« An unexpected response was
+  // received from the server »). On renvoie le résultat ; le bouton fait une navigation DURE
+  // (window.location) sur succès — équivalent d'un refresh, qui lui fonctionne.
   return result
 }
 

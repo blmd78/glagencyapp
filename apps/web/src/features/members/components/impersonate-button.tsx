@@ -22,13 +22,10 @@ import { startImpersonation } from '@/lib/impersonation/actions'
  * Déclencheur « consulter en tant que » (colonne Actions de Membres, admin uniquement — la
  * visibilité est gérée par l'appelant via `isImpersonatable(role brut)`).
  *
- * On NE réutilise PAS `ConfirmDialog` : son `onConfirm` est enveloppé dans un try/catch
- * générique (voir `components/confirm-dialog.tsx`), qui avalerait le `NEXT_REDIRECT` levé par
- * `startImpersonation` en cas de succès (`redirect('/')` — voir la note en tête de
- * `lib/impersonation/actions.ts`) et l'afficherait comme « Une erreur est survenue » au
- * lieu de naviguer. Ici, l'appel à l'action n'est catché nulle part : le succès (redirect)
- * propage librement ; seul l'échec (retour `ActionResult` avec `success: false`, jamais un
- * throw) est traité, en toast.
+ * `startImpersonation` ne redirige PAS côté serveur (le swap de session casserait une
+ * navigation RSC — « unexpected response »). Sur succès, on fait une **navigation DURE**
+ * (`window.location`) : le navigateur recharge `/` avec la session de la cible (robuste,
+ * comme un refresh). Sur échec, `ActionResult { success: false }` (jamais un throw) → toast.
  */
 export function ImpersonateButton({
   memberId,
@@ -43,9 +40,11 @@ export function ImpersonateButton({
   const confirm = () => {
     startTransition(async () => {
       const res = await startImpersonation(memberId)
-      // Atteint uniquement en cas d'échec (BusinessError) : le succès redirige avant de
-      // renvoyer quoi que ce soit à ce point.
-      if (!res.success) {
+      if (res.success) {
+        // Navigation DURE (pas router.push) : la session vient de changer → une soft-nav RSC
+        // échoue. Le navigateur recharge `/` avec la session de la cible.
+        window.location.href = '/'
+      } else {
         toast.error(res.error)
         setOpen(false)
       }
