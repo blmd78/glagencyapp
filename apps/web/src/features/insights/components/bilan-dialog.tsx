@@ -92,6 +92,7 @@ export function BilanDialog({
   pending: boolean
   onSave: (bilan: InsightBilan) => void
 }) {
+  'use no memo'
   const {
     register,
     control,

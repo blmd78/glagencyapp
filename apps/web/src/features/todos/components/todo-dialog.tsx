@@ -74,6 +74,7 @@ export function TodoDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  'use no memo'
   // Triple générique (Input, Context, Output) : `todoCreateInput` a des champs `.default()`,
   // donc son type d'ENTRÉE diverge de `TodoCreateInput` (la sortie `z.infer`). Même patron que
   // `BilanFormInput`/`BilanForm` dans insights/schema.ts.

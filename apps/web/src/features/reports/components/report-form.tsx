@@ -14,6 +14,7 @@ import { upsertReportInput, type UpsertReportInput } from '../schema'
  * Pas de suppression : le jour courant est toujours en édition, on remplace le contenu.
  */
 export function ReportForm({ initialContent }: { initialContent: string }) {
+  'use no memo'
   const {
     register,
     handleSubmit,

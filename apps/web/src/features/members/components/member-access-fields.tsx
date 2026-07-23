@@ -31,6 +31,7 @@ export function MemberAccessFields({
   attachables: { id: string; name: string }[]
   isSubmitting: boolean
 }) {
+  'use no memo'
   return (
     <>
       <Controller

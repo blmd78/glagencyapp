@@ -30,6 +30,7 @@ export function ControlPanel({
   data: PoliceData
   onChatterChange: (id: string) => void
 }) {
+  'use no memo'
   const {
     control,
     register,

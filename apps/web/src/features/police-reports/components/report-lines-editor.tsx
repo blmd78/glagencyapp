@@ -38,6 +38,7 @@ export function ReportLinesEditor({
   modelSelected: boolean
   disabled?: boolean
 }) {
+  'use no memo'
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
 
   // Nom d'un chatteur depuis son id : le sélecteur renvoie l'id, la carte affiche le nom.

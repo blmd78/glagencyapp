@@ -69,6 +69,7 @@ function CrmSelect({
 /** Crayon + dialog : édite le shift (matin/aprem/soir) d'un chatteur.
  *  Le rôle (setter/closer) et l'équipe (rouge/bleue) sont désormais gérés sur le MEMBRE. */
 export function ChatterCrmDialog({ chatter }: { chatter: ChatterRow }) {
+  'use no memo'
   const [open, setOpen] = useState(false)
   const form = useForm<UpdateChatterCrmInput>({
     resolver: zodResolver(updateChatterCrmInput),

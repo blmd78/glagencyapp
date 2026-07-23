@@ -64,6 +64,7 @@ export function BlockDialog({
   open: boolean
   onClose: () => void
 }) {
+  'use no memo'
   const {
     register,
     control,

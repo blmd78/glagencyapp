@@ -16,6 +16,7 @@ export function MemberChatterLinkField({
   chatters: { id: string; name: string }[]
   isSubmitting: boolean
 }) {
+  'use no memo'
   return (
     <Controller
       name="chatterId"

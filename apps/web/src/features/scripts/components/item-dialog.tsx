@@ -51,6 +51,7 @@ export function ItemDialog({
   open: boolean
   onClose: () => void
 }) {
+  'use no memo'
   const {
     register,
     control,

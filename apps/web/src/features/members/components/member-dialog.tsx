@@ -63,6 +63,7 @@ export function MemberDialog({
   /** Propriétaire : option rôle Admin (garde serveur en plus du sélecteur). */
   superadmin?: boolean
 }) {
+  'use no memo'
   const [open, setOpen] = useState(false)
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
   const scopeSlugs = new Set(choices.map((c) => c.slug as string))
