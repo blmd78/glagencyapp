@@ -3,6 +3,7 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { AlertTriangle, Pencil, ShieldCheck, Trash2, UserPlus } from 'lucide-react'
+import { isImpersonatable } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
@@ -16,6 +17,7 @@ import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { deleteMember } from '../actions'
+import { ImpersonateButton } from './impersonate-button'
 import { MemberDialog } from './member-dialog'
 import type { Member } from '../types'
 
@@ -57,6 +59,11 @@ function RowActions({
 
   return (
     <div className="flex justify-end gap-1.5">
+      {/* Consulter en tant que : admin uniquement, rôle BRUT de la ligne dans l'allowlist
+          (garde d'affichage seule — la vraie barrière est côté serveur, `startImpersonation`). */}
+      {viewer === 'admin' && isImpersonatable(member.role) && (
+        <ImpersonateButton memberId={member.id} memberName={member.displayName} />
+      )}
       <MemberDialog
         member={member}
         creators={creators}
