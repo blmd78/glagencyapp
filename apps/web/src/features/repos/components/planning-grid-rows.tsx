@@ -53,7 +53,7 @@ export function PlanningGridRows({
             const placeholderByKind = {
               police: 'Rechercher un policier…',
               manager: 'Rechercher un manager…',
-              chatteur: 'Rechercher un chatteur…',
+              chatteur: 'Rechercher un chatter…',
             }
             return (
               <td key={c.key} className={cn('p-1 align-top', border)}>
@@ -62,7 +62,7 @@ export function PlanningGridRows({
                   trigger={
                     <button
                       type="button"
-                      title="Cliquer pour choisir les chatteurs au repos"
+                      title="Cliquer pour choisir les chatters au repos"
                       className={cn(
                         'group flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-left transition-colors',
                         'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',

@@ -9,15 +9,15 @@ export function ChattersTemplate({ data, canWrite }: { data: ChattersData; canWr
   return (
     <div className="flex flex-col gap-6">
       <p className="-mt-4 text-sm text-muted-foreground">
-        {data.period} · {data.chatters.length} chatteurs ({active} actifs)
+        {data.period} · {data.chatters.length} chatters ({active} actifs)
       </p>
 
       {data.chatters.length === 0 ? (
         <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm font-medium">Aucune donnée chatteur sur cette période</p>
+          <p className="text-sm font-medium">Aucune donnée chatter sur cette période</p>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Aucune activité chatteur enregistrée sur la plage sélectionnée. Les données par
-            chatteur sont ingérées chaque soir depuis le 30 juin — choisis une période couvrant
+            Aucune activité chatter enregistrée sur la plage sélectionnée. Les données par
+            chatter sont ingérées chaque soir depuis le 30 juin — choisis une période couvrant
             ces jours.
           </p>
         </div>

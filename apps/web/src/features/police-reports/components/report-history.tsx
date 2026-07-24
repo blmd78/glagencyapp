@@ -69,7 +69,7 @@ export function ReportHistory({
     const opts = [...seen]
       .map(([value, label]) => ({ value, label }))
       .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
-    return [{ value: ALL, label: 'Tous les chatteurs' }, ...opts]
+    return [{ value: ALL, label: 'Tous les chatters' }, ...opts]
   }, [reports])
 
   // Filtrage combinable (modèle ET chatteur) dans le jour. Sur filtre chatteur, chaque rapport ne
@@ -160,7 +160,7 @@ export function ReportHistory({
         <div className="flex flex-col gap-2">
           {report.lines.map((line) => (
             <div key={line.id} className="text-sm">
-              <span className="text-muted-foreground">Chatteur</span>{' '}
+              <span className="text-muted-foreground">Chatter</span>{' '}
               <span className="font-medium">{line.chatterName}</span>
               {!line.aMarche && !line.aRegler && <span className="text-muted-foreground"> — </span>}
               {(line.aMarche || line.aRegler) && (
@@ -240,8 +240,8 @@ export function ReportHistory({
               options={chatterOptions}
               value={chatterFilter}
               onChange={setChatterFilter}
-              placeholder="Tous les chatteurs"
-              searchPlaceholder="Filtrer par chatteur…"
+              placeholder="Tous les chatters"
+              searchPlaceholder="Filtrer par chatter…"
             />
           </div>
 

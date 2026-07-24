@@ -47,7 +47,7 @@ export function MemberAccessFields({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="chatteur">Chatteur</SelectItem>
+                <SelectItem value="chatteur">Chatter</SelectItem>
                 {/* Rôle fonctionnel, pas hiérarchique — pas d'équipe, pas de to-do/planning. */}
                 <SelectItem value="police">Police</SelectItem>
                 <SelectItem value="sous-manager">Sous-manager</SelectItem>

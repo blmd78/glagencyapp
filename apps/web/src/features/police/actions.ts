@@ -37,7 +37,7 @@ async function assertChatteurMember(chatterId: string): Promise<void> {
   const admin = createAdminClient()
   const { data, error } = await admin.from('profiles').select('role').eq('id', chatterId).maybeSingle()
   if (error) throw new Error(error.message)
-  if (data?.role !== 'chatteur') throw new BusinessError('La cible n’est pas un chatteur')
+  if (data?.role !== 'chatteur') throw new BusinessError('La cible n’est pas un chatter')
 }
 
 export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {

@@ -20,7 +20,7 @@ export default async function StatChatteurPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Stat chatteur</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">Stat chatter</h1>
       <Suspense
         fallback={
           <SectionFallback>

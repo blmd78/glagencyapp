@@ -60,7 +60,7 @@ export function ModelHealthCard({ model, target }: { model: ModelHealth; target:
               className="flex w-full items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <ChevronRight className={cn('size-3.5 transition-transform', open && 'rotate-90')} />
-              Voir les chatteurs ({model.chatters.length})
+              Voir les chatters ({model.chatters.length})
             </button>
             {open && (
               <ul className="mt-2 grid gap-1 sm:grid-cols-2">

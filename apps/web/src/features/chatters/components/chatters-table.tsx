@@ -44,12 +44,12 @@ export function ChattersTable({
       data={filtered}
       columns={columns}
       filterColumnId="name"
-      filterPlaceholder="Filtrer par chatteur…"
+      filterPlaceholder="Filtrer par chatter…"
       initialSorting={[{ id: 'ca', desc: true }]}
       getRowId={(c) => c.id}
       getRowCanExpand={(row) => canExpand(row.original)}
       renderSubRows={chatterSubRows}
-      countLabel={(n) => `${n} chatteur(s)`}
+      countLabel={(n) => `${n} chatter(s)`}
       toolbar={
         <>
           <Combobox

@@ -111,7 +111,7 @@ export function PoliceFeed({
             <article key={g.chatterId} className="flex flex-col gap-3 rounded-xl border p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm">
-                  <span className="text-muted-foreground">Chatteur</span>{' '}
+                  <span className="text-muted-foreground">Chatter</span>{' '}
                   <span className="font-medium">{g.chatterName}</span>
                 </span>
                 {g.warnCount > 0 && (

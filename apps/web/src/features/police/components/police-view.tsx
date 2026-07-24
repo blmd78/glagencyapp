@@ -19,7 +19,7 @@ function policeKpis(data: PoliceData): Kpi[] {
   return [
     { key: 'malus', label: `Total malus ${suffix}`, value: eur(data.totalMalusEur), deltaPct: null, trendLabel: isMonth ? 'Sanctions du mois' : 'Sanctions du jour', hint },
     { key: 'avert', label: 'Avertissements', value: String(data.warningCount), deltaPct: null, trendLabel: 'Fautes relevées', hint },
-    { key: 'chatters', label: 'Chatteurs concernés', value: String(data.chattersConcerned), deltaPct: null, trendLabel: isMonth ? 'Contrôlés ce mois' : 'Contrôlés aujourd’hui', hint },
+    { key: 'chatters', label: 'Chatters concernés', value: String(data.chattersConcerned), deltaPct: null, trendLabel: isMonth ? 'Contrôlés ce mois' : 'Contrôlés aujourd’hui', hint },
   ]
 }
 

@@ -24,17 +24,17 @@ export function MemberChatterLinkField({
       render={({ field }) => (
         <div className="grid gap-1.5">
           <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Chatteur MyPuls lié
+            Chatter MyPuls lié
           </label>
           <Combobox
             options={[{ value: 'none', label: 'Aucun' }, ...chatters.map((c) => ({ value: c.id, label: c.name }))]}
             value={field.value || 'none'}
             onChange={(v) => field.onChange(v === 'none' ? '' : v)}
-            placeholder="Rechercher un chatteur…"
+            placeholder="Rechercher un chatter…"
             disabled={isSubmitting}
           />
           <p className="text-xs text-muted-foreground">
-            Lie ce membre à son chatteur MyPuls (rôle/équipe closing lus depuis ce membre).
+            Lie ce membre à son chatter MyPuls (rôle/équipe closing lus depuis ce membre).
           </p>
         </div>
       )}

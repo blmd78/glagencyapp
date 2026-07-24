@@ -154,7 +154,7 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
     },
     {
       accessorKey: 'chatterName',
-      header: 'Chatteur',
+      header: 'Chatter',
       cell: ({ row }) => <span className="font-medium">{row.original.chatterName}</span>,
     },
     {
@@ -207,8 +207,8 @@ export function RankingTable({ ranking, metric }: { ranking: RankingData; metric
         data={sorted}
         columns={columns}
         filterColumnId="chatterName"
-        filterPlaceholder="Rechercher un chatteur…"
-        countLabel={(n) => `${n} chatteur(s)`}
+        filterPlaceholder="Rechercher un chatter…"
+        countLabel={(n) => `${n} chatter(s)`}
         getRowId={(r) => r.chatterId}
       />
     </div>

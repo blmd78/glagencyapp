@@ -25,12 +25,12 @@ export const reportInput = z.object({
   lines: z
     .array(
       z.object({
-        chatterId: z.uuid('Choisis un chatteur'),
+        chatterId: z.uuid('Choisis un chatter'),
         aMarche: optionalText(2000, 'Note trop longue'),
         aRegler: optionalText(2000, 'Note trop longue'),
       }),
     )
-    .max(100, 'Trop de chatteurs'),
+    .max(100, 'Trop de chatters'),
 })
 export type ReportInput = z.infer<typeof reportInput>
 // Type d'ENTRÉE du formulaire (le schéma a des `.default()`/`.transform()` → input ≠ output).

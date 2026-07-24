@@ -144,12 +144,12 @@ export async function getOverview(
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
     { key: 'ca', label: 'CA total', value: eur(totalCa), deltaPct: null, trendLabel: restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
-    { key: 'active', label: 'Chatteurs actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: scopeHint },
-    { key: 'avgCa', label: 'CA moyen / chatteur', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatteurs, ${scopeHint}` : `${int(active)} chatteurs avec CA` },
+    { key: 'active', label: 'Chatters actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: scopeHint },
+    { key: 'avgCa', label: 'CA moyen / chatter', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatters, ${scopeHint}` : `${int(active)} chatters avec CA` },
     // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
     ...(restricted
       ? []
-      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(caByChatter.size)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'chatteurs sous le seuil' } satisfies Kpi]),
+      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(caByChatter.size)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'chatters sous le seuil' } satisfies Kpi]),
   ]
 
   // Insights : vides tant que le moteur de règles @glagency/core n'est pas branché.

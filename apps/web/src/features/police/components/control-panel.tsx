@@ -83,7 +83,7 @@ export function ControlPanel({
       {/* Chatteur + shift */}
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex min-w-52 flex-1 flex-col gap-1">
-          <Label>Chatteur contrôlé</Label>
+          <Label>Chatter contrôlé</Label>
           <Controller
             name="chatterId"
             control={control}
@@ -95,8 +95,8 @@ export function ControlPanel({
                   field.onChange(id)
                   onChatterChange(id)
                 }}
-                placeholder="Choisir un chatteur…"
-                searchPlaceholder="Rechercher un chatteur…"
+                placeholder="Choisir un chatter…"
+                searchPlaceholder="Rechercher un chatter…"
               />
             )}
           />

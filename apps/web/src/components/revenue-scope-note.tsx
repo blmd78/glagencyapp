@@ -6,7 +6,7 @@ import type { RevenueScope } from '@/lib/types/revenue'
 type ScopeKey = keyof RevenueScope
 
 const SCOPES: { key: ScopeKey; label: string }[] = [
-  { key: 'attributed', label: 'Attribué chatteurs' },
+  { key: 'attributed', label: 'Attribué chatters' },
   { key: 'messaging', label: 'Messagerie tous comptes' },
   { key: 'allAccounts', label: 'Total MyPuls' },
 ]
@@ -59,7 +59,7 @@ export function RevenueScopeNote({
         <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
           Écart {eur(gap)} (pas une erreur) :{' '}
           <b className="text-foreground">+{eur(notAttributed)}</b> messagerie non attribuée à un
-          chatteur (comptes privés + rattachement) ·{' '}
+          chatter (comptes privés + rattachement) ·{' '}
           <b className="text-foreground">+{eur(offMessaging)}</b> hors messagerie (Médias push,
           Media On Demand, Renouvellement abo.).
         </p>

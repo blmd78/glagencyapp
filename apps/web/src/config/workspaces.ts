@@ -77,7 +77,7 @@ export interface Workspace {
 export const WORKSPACES: Workspace[] = [
   {
     id: 'chatter',
-    label: 'Chatteurs',
+    label: 'Chatters',
     subtitle: 'Performance',
     icon: MessageSquare,
     basePath: '/chatter',
@@ -116,7 +116,7 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/spenders/alertes', label: 'Alertes R10', icon: TriangleAlert, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/spenders/archive', label: 'Archive', icon: Archive, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/stats', label: 'Stats', icon: ChartColumn, group: 'performance' },
-      { href: '/chatter/stat-chatteur', label: 'Stat chatteur', icon: Trophy, group: 'performance' },
+      { href: '/chatter/stat-chatteur', label: 'Stat chatter', icon: Trophy, group: 'performance' },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse, group: 'performance' },
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
