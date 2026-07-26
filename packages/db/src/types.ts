@@ -1368,7 +1368,9 @@ export type Database = {
         Row: {
           badge: string
           bullets: Json
+          categories: Json
           color: string
+          days: Json
           created_at: string
           id: string
           planning_id: string
@@ -1381,7 +1383,9 @@ export type Database = {
         Insert: {
           badge?: string
           bullets?: Json
+          categories?: Json
           color?: string
+          days?: Json
           created_at?: string
           id?: string
           planning_id: string
@@ -1394,7 +1398,9 @@ export type Database = {
         Update: {
           badge?: string
           bullets?: Json
+          categories?: Json
           color?: string
+          days?: Json
           created_at?: string
           id?: string
           planning_id?: string

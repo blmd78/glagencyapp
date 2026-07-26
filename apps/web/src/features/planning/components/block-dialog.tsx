@@ -1,8 +1,10 @@
 'use client'
 
-import { useForm, Controller } from 'react-hook-form'
+import { useState } from 'react'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { Plus, Trash2 } from 'lucide-react'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,19 +28,28 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { saveBlock } from '../actions'
 import { blockForm, type BlockForm } from '../schema'
-import { SECTION_LABELS, type PlanningBlock } from '../types'
+import { DAY_SHORT, PLANNING_DAYS, SECTION_LABELS, type PlanningBlock } from '../types'
 
 /** Couleurs d'accent proposées (mêmes pastilles que les fiches VA). */
 const COLORS = ['#f59e0b', '#22d3ee', '#6366f1', '#22c55e', '#e1306c', '#0ea5e9', '#a855f7', '#ef4444']
+
+type Mode = 'simple' | 'cat'
+
+const linesToArray = (text: string): string[] =>
+  text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
 
 const emptyForm: BlockForm = {
   section: 'matin',
   timeStart: '09:30',
   timeEnd: '10:00',
   title: '',
-  badge: '',
   color: COLORS[5],
   bulletsText: '',
+  categories: [],
+  days: [],
 }
 
 const toForm = (b: PlanningBlock): BlockForm => ({
@@ -46,9 +57,14 @@ const toForm = (b: PlanningBlock): BlockForm => ({
   timeStart: b.timeStart,
   timeEnd: b.timeEnd,
   title: b.title,
-  badge: b.badge,
   color: b.color,
   bulletsText: b.bullets.join('\n'),
+  categories: b.categories.map((c) => ({
+    subtitle: c.subtitle,
+    badge: c.badge,
+    bulletsText: c.bullets.join('\n'),
+  })),
+  days: b.days,
 })
 
 /** Dialog d'édition : création/édition d'un bloc horaire (RHF + zod, schéma partagé). */
@@ -75,6 +91,25 @@ export function BlockDialog({
     resolver: zodResolver(blockForm),
     values: block ? toForm(block) : emptyForm,
   })
+  const { fields, append, remove, replace } = useFieldArray({ control, name: 'categories' })
+
+  // Mode « tâche simple » (puces) OU « sous-tâches » (catégories). Resynchronisé à chaque
+  // OUVERTURE selon le bloc (ajustement d'état pendant le rendu — PAS dans un effet) : un bloc
+  // avec catégories ouvre en mode sous-tâches, sinon simple.
+  const [mode, setMode] = useState<Mode>('simple')
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) setMode(block && block.categories.length > 0 ? 'cat' : 'simple')
+  }
+
+  const switchMode = (m: Mode) => {
+    setMode(m)
+    // On garde les données du mode actif cohérentes : vide de catégories en mode simple,
+    // au moins une catégorie en mode sous-tâches (le sous-titre est obligatoire).
+    if (m === 'simple') replace([])
+    else if (fields.length === 0) replace([{ subtitle: '', badge: '', bulletsText: '' }])
+  }
 
   const submit = handleSubmit(async (values) => {
     const res = await saveBlock({
@@ -84,12 +119,18 @@ export function BlockDialog({
       timeStart: values.timeStart,
       timeEnd: values.timeEnd,
       title: values.title,
-      badge: values.badge.toUpperCase(),
       color: values.color,
-      bullets: values.bulletsText
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean),
+      // Un seul mode enregistré : puces plates OU catégories (l'autre part vide).
+      bullets: mode === 'simple' ? linesToArray(values.bulletsText) : [],
+      categories:
+        mode === 'cat'
+          ? values.categories.map((c) => ({
+              subtitle: c.subtitle.trim(),
+              badge: c.badge.trim(),
+              bullets: linesToArray(c.bulletsText),
+            }))
+          : [],
+      days: values.days,
     })
     if (!res.success) {
       setError('root', { message: res.error })
@@ -106,7 +147,7 @@ export function BlockDialog({
         <DialogHeader>
           <DialogTitle>{block ? 'Modifier le bloc' : 'Nouveau bloc'}</DialogTitle>
           <DialogDescription>
-            Un créneau du planning : horaires, contenu et catégorie (badge coloré).
+            Un créneau du planning : horaires, jours et contenu (tâche simple ou sous-tâches).
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="grid gap-4">
@@ -147,66 +188,182 @@ export function BlockDialog({
               )}
             </div>
           </div>
+
           <div className="grid gap-1.5">
             <Label htmlFor="b-title">Titre</Label>
-            <Input id="b-title" placeholder="Formation setters — Session 1" disabled={isSubmitting} {...register('title')} />
+            <Input id="b-title" placeholder="Comptabilité + Formation des équipes" disabled={isSubmitting} {...register('title')} />
             {errors.title && (
               <p className="text-xs text-red-600 dark:text-red-400">{errors.title.message}</p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="b-badge">Badge (catégorie)</Label>
-              <Input id="b-badge" placeholder="SETTERS" disabled={isSubmitting} {...register('badge')} />
-              <p className="text-xs text-muted-foreground">
-                Sert aussi à la répartition du temps en bas de page.
-              </p>
-              {errors.badge && (
-                <p className="text-xs text-red-600 dark:text-red-400">{errors.badge.message}</p>
-              )}
-            </div>
-            <Controller
-              name="color"
-              control={control}
-              render={({ field }) => (
-                <div className="grid gap-1.5">
-                  <Label>Couleur</Label>
-                  <div className="flex flex-wrap gap-1.5 pt-1.5">
-                    {COLORS.map((c) => (
+
+          <Controller
+            name="color"
+            control={control}
+            render={({ field }) => (
+              <div className="grid gap-1.5">
+                <Label>Couleur</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      disabled={isSubmitting}
+                      aria-label={`Couleur ${c}`}
+                      className={cn(
+                        'size-6 rounded-full border-2',
+                        field.value === c ? 'border-foreground' : 'border-transparent',
+                      )}
+                      style={{ backgroundColor: c }}
+                      onClick={() => field.onChange(c)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          />
+
+          {/* Jours — vide = tous les jours ; sinon « Uniquement … » à l'affichage. */}
+          <Controller
+            name="days"
+            control={control}
+            render={({ field }) => (
+              <div className="grid gap-1.5">
+                <Label>Jours</Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PLANNING_DAYS.map((d) => {
+                    const on = field.value.includes(d)
+                    return (
                       <button
-                        key={c}
+                        key={d}
                         type="button"
                         disabled={isSubmitting}
-                        aria-label={`Couleur ${c}`}
+                        onClick={() =>
+                          field.onChange(on ? field.value.filter((x) => x !== d) : [...field.value, d])
+                        }
                         className={cn(
-                          'size-6 rounded-full border-2',
-                          field.value === c ? 'border-foreground' : 'border-transparent',
+                          'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                          on
+                            ? 'border-foreground bg-foreground text-background'
+                            : 'text-muted-foreground hover:bg-accent',
                         )}
-                        style={{ backgroundColor: c }}
-                        onClick={() => field.onChange(c)}
-                      />
-                    ))}
-                  </div>
+                      >
+                        {DAY_SHORT[d]}
+                      </button>
+                    )
+                  })}
                 </div>
-              )}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="b-bullets">Contenu (une puce par ligne)</Label>
-            <Textarea
-              id="b-bullets"
-              rows={4}
-              placeholder={'Voc live avec les setters du shift : review de chats en direct\nTravailler l’enchaînement accroche → qualification → vente'}
-              disabled={isSubmitting}
-              {...register('bulletsText')}
-            />
-            <p className="text-xs text-muted-foreground">
-              Le texte avant « : » s’affiche en gras (« Lead : détail »).
-            </p>
-            {errors.bulletsText && (
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.bulletsText.message}</p>
+                <p className="text-xs text-muted-foreground">
+                  Vide = tous les jours. Sinon le bloc affiche « Uniquement … ».
+                </p>
+              </div>
+            )}
+          />
+
+          {/* Mode : tâche simple (puces) OU sous-tâches (catégories). */}
+          <div className="grid gap-2">
+            <Label>Contenu</Label>
+            <div className="inline-flex w-fit rounded-md border p-0.5 text-sm">
+              {(
+                [
+                  ['simple', 'Tâche simple'],
+                  ['cat', 'Sous-tâches'],
+                ] as const
+              ).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => switchMode(m)}
+                  className={cn(
+                    'rounded px-3 py-1 font-medium transition-colors',
+                    mode === m ? 'bg-foreground text-background' : 'text-muted-foreground',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === 'simple' ? (
+              <div className="grid gap-1.5">
+                <Textarea
+                  rows={4}
+                  placeholder={'Une puce par ligne'}
+                  disabled={isSubmitting}
+                  {...register('bulletsText')}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Une puce par ligne. Le texte avant « : » s’affiche en gras.
+                </p>
+                {errors.bulletsText && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{errors.bulletsText.message}</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                {fields.map((f, i) => (
+                  <div key={f.id} className="grid gap-2 rounded-lg border p-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">
+                        Sous-tâche {i + 1}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-red-600 hover:text-red-700"
+                        disabled={isSubmitting || fields.length <= 1}
+                        onClick={() => remove(i)}
+                        aria-label="Retirer la sous-tâche"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        placeholder="Sous-titre (ex. COMPTABILITÉ)"
+                        disabled={isSubmitting}
+                        {...register(`categories.${i}.subtitle`)}
+                      />
+                      <Input
+                        placeholder="Badge (ex. obligatoire)"
+                        disabled={isSubmitting}
+                        {...register(`categories.${i}.badge`)}
+                      />
+                    </div>
+                    {errors.categories?.[i]?.subtitle && (
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {errors.categories[i]?.subtitle?.message}
+                      </p>
+                    )}
+                    <Textarea
+                      rows={3}
+                      placeholder={'Une puce par ligne'}
+                      disabled={isSubmitting}
+                      {...register(`categories.${i}.bulletsText`)}
+                    />
+                    {errors.categories?.[i]?.bulletsText && (
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {errors.categories[i]?.bulletsText?.message}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-self-start"
+                  disabled={isSubmitting || fields.length >= 6}
+                  onClick={() => append({ subtitle: '', badge: '', bulletsText: '' })}
+                >
+                  <Plus className="size-3.5" /> Ajouter une sous-tâche
+                </Button>
+              </div>
             )}
           </div>
+
           {errors.root && (
             <p className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
           )}

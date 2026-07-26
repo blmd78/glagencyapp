@@ -18,7 +18,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, type Profile } from '@/lib/auth'
 import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
-import { blockInput, metaInput } from './schema'
+import { blockInput } from './schema'
 
 /** Rôle + rattachement de la cible (client session, RLS appliquée). Erreur TECHNIQUE thrown
  *  (Sentry via runAction) ; 0-row (PGRST116 = cible inexistante) → null (métier). */
@@ -124,9 +124,10 @@ export async function saveBlock(raw: unknown): Promise<ActionResult> {
         time_start: d.timeStart,
         time_end: d.timeEnd,
         title: d.title,
-        badge: d.badge,
         color: d.color,
         bullets: d.bullets,
+        categories: d.categories,
+        days: d.days,
       }
       if (d.id) {
         // .eq planning_id : un couple (profileId, id de bloc d'un AUTRE membre) incohérent
@@ -191,41 +192,6 @@ export async function deleteBlock(raw: unknown): Promise<ActionResult> {
       if ('error' in guard) throw new BusinessError(guard.error)
 
       const { error } = await supabase.from('planning_blocks').delete().eq('id', id)
-      if (error) throw new Error(error.message)
-      revalidatePath('/chatter/planning')
-    },
-  })
-}
-
-/** Enregistre l'encart priorité, la note de pause et les tâches annexes. */
-export async function savePlanningMeta(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: metaInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      const guard = await requireCanEdit(d.profileId)
-      if ('error' in guard) throw new BusinessError(guard.error)
-      const admin = guard.profile
-      const supabase = await createClient()
-
-      const planning = await ensurePlanning(supabase, d.profileId, admin.id)
-      if ('error' in planning) throw new Error(planning.error)
-
-      const { error } = await supabase
-        .from('plannings')
-        .update({
-          priority_title: d.priorityTitle,
-          priority_body: d.priorityBody,
-          priority_forbidden: d.priorityForbidden,
-          priority_allowed: d.priorityAllowed,
-          pause_note: d.pauseNote,
-          annexes: d.annexes,
-          annex_note: d.annexNote,
-          updated_at: new Date().toISOString(),
-          updated_by: admin.id,
-        })
-        .eq('id', planning.id)
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/planning')
     },

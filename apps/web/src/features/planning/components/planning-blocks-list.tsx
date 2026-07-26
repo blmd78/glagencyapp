@@ -8,7 +8,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { deleteBlock } from '../actions'
 import { SECTION_LABELS, durationMin, fmtDuration, fmtTime, toMin } from '../types'
-import type { PlanningBlock, PlanningData, PlanningSection } from '../types'
+import type { PlanningBlock, PlanningSection } from '../types'
 
 /** « Lead : détail » → lead en gras (convention de saisie des puces). */
 function Bullet({ text }: { text: string }) {
@@ -34,12 +34,10 @@ function Bullet({ text }: { text: string }) {
  * docs/guidelines-standard-feature.md §1) — DOM inchangé.
  */
 export function PlanningBlocksList({
-  data,
   bySection,
   canEdit,
   onEdit,
 }: {
-  data: PlanningData
   bySection: { section: PlanningSection; blocks: PlanningBlock[] }[]
   canEdit: boolean
   onEdit: (block: PlanningBlock) => void
@@ -75,9 +73,6 @@ export function PlanningBlocksList({
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                   Pause {fmtTime(pauseStart)} – {fmtTime(first.timeStart)}
                 </p>
-                {data.pauseNote && (
-                  <p className="mt-0.5 text-xs text-muted-foreground/70">{data.pauseNote}</p>
-                )}
               </div>
             )}
             <div className="flex items-baseline gap-3">
@@ -120,12 +115,42 @@ export function PlanningBlocksList({
                         </Badge>
                       )}
                     </div>
-                    {b.bullets.length > 0 && (
-                      <ul className="mt-1.5 space-y-1">
-                        {b.bullets.map((t, i) => (
-                          <Bullet key={i} text={t} />
+                    {/* Catégories → rendu structuré (sous-titre + badge + puces). Sinon puces plates. */}
+                    {b.categories.length > 0 ? (
+                      <div className="mt-2 space-y-3">
+                        {b.categories.map((c, ci) => (
+                          <div key={ci}>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                {c.subtitle}
+                              </h4>
+                              {c.badge && (
+                                <Badge
+                                  className="border-transparent text-[10px] font-semibold tracking-wider"
+                                  style={{ backgroundColor: `${b.color}24`, color: b.color }}
+                                >
+                                  {c.badge}
+                                </Badge>
+                              )}
+                            </div>
+                            {c.bullets.length > 0 && (
+                              <ul className="mt-1 space-y-1">
+                                {c.bullets.map((t, i) => (
+                                  <Bullet key={i} text={t} />
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         ))}
-                      </ul>
+                      </div>
+                    ) : (
+                      b.bullets.length > 0 && (
+                        <ul className="mt-1.5 space-y-1">
+                          {b.bullets.map((t, i) => (
+                            <Bullet key={i} text={t} />
+                          ))}
+                        </ul>
+                      )
                     )}
                   </div>
                   {canEdit && (

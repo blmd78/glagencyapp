@@ -2,6 +2,43 @@
 
 export type PlanningSection = 'matin' | 'apres_midi' | 'soir'
 
+/** Jour de la semaine (restriction d'un bloc à certains jours). */
+export type PlanningDay =
+  | 'lundi'
+  | 'mardi'
+  | 'mercredi'
+  | 'jeudi'
+  | 'vendredi'
+  | 'samedi'
+  | 'dimanche'
+
+/** Jours dans l'ordre + libellés courts (sélecteur d'édition + affichage « Uniquement… »). */
+export const PLANNING_DAYS: readonly PlanningDay[] = [
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+  'dimanche',
+] as const
+export const DAY_SHORT: Record<PlanningDay, string> = {
+  lundi: 'Lun',
+  mardi: 'Mar',
+  mercredi: 'Mer',
+  jeudi: 'Jeu',
+  vendredi: 'Ven',
+  samedi: 'Sam',
+  dimanche: 'Dim',
+}
+
+/** Catégorie d'un bloc : sous-titre + badge optionnel + puces (ex. « COMPTABILITÉ »). */
+export interface PlanningCategory {
+  subtitle: string
+  badge: string
+  bullets: string[]
+}
+
 export interface PlanningBlock {
   id: string
   section: PlanningSection
@@ -15,6 +52,10 @@ export interface PlanningBlock {
   /** Barre d'accent + teinte du badge. */
   color: string
   bullets: string[]
+  /** Catégories (sous-titre + badge + puces). Non vide → remplace le rendu plat `bullets`. */
+  categories: PlanningCategory[]
+  /** Jours autorisés (vide = tous les jours). */
+  days: PlanningDay[]
 }
 
 export interface PlanningData {
@@ -23,13 +64,6 @@ export interface PlanningData {
   profileName: string
   /** false = aucun planning enregistré pour ce membre (page vide côté manager). */
   exists: boolean
-  priorityTitle: string
-  priorityBody: string
-  priorityForbidden: string
-  priorityAllowed: string
-  pauseNote: string
-  annexes: { title: string; detail: string }[]
-  annexNote: string
   blocks: PlanningBlock[]
 }
 
