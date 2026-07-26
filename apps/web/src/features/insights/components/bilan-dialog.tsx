@@ -147,7 +147,7 @@ export function BilanDialog({
                   )}
                 />
               </Field>
-              <Field label="État du chatteur">
+              <Field label="État du chatter">
                 <Controller
                   name="etat"
                   control={control}
@@ -183,7 +183,7 @@ export function BilanDialog({
               )}
             </Field>
 
-            <Field label="Actions engagées par le chatteur" optional>
+            <Field label="Actions engagées par le chatter" optional>
               <textarea
                 rows={2}
                 className={areaCls}

@@ -85,7 +85,7 @@ export function InsightsView({
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un chatteur…"
+              placeholder="Rechercher un chatter…"
               className="h-8 w-56 pl-8 text-xs"
             />
           </div>

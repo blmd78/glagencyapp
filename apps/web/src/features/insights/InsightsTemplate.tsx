@@ -29,7 +29,7 @@ export function InsightsTemplate({
       <p className="-mt-4 text-sm text-muted-foreground">
         {data.weekStart
           ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
-          : 'Analyses hebdomadaires des quotas par chatteur'}
+          : 'Analyses hebdomadaires des quotas par chatter'}
       </p>
       <InsightsView
         data={data}

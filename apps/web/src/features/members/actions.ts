@@ -42,7 +42,7 @@ async function applyChatterLink(
       .maybeSingle()
     if (error) throw new Error(error.message)
     if (taken) {
-      throw new BusinessError('Ce chatteur est déjà lié à un autre membre.', {
+      throw new BusinessError('Ce chatter est déjà lié à un autre membre.', {
         chatterId: ['Déjà lié ailleurs.'],
       })
     }
@@ -52,7 +52,7 @@ async function applyChatterLink(
     // 23505 = course sur la contrainte `unique` (un autre membre a pris ce chatteur entre le check
     // et l'update) → refus MÉTIER propre (pas une « erreur inattendue » technique + bruit Sentry).
     if (error.code === '23505')
-      throw new BusinessError('Ce chatteur est déjà lié à un autre membre.', { chatterId: ['Déjà lié ailleurs.'] })
+      throw new BusinessError('Ce chatter est déjà lié à un autre membre.', { chatterId: ['Déjà lié ailleurs.'] })
     throw new Error(error.message)
   }
 }

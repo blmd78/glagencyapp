@@ -1,6 +1,6 @@
 'use client'
 
-import { CalendarPlus, SlidersHorizontal } from 'lucide-react'
+import { CalendarPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { fmtDuration } from '../types'
 import type { PlanningData } from '../types'
@@ -17,7 +17,6 @@ export function PlanningHeader({
   canEdit,
   totalMin,
   shiftsCount,
-  onOpenMeta,
   onAddBlock,
 }: {
   data: PlanningData
@@ -25,7 +24,6 @@ export function PlanningHeader({
   canEdit: boolean
   totalMin: number
   shiftsCount: number
-  onOpenMeta: () => void
   onAddBlock: () => void
 }) {
   return (
@@ -44,10 +42,6 @@ export function PlanningHeader({
       </div>
       {canEdit && (
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={onOpenMeta}>
-            <SlidersHorizontal className="size-3.5" />
-            Priorité & annexes
-          </Button>
           <Button size="sm" className="gap-1.5" onClick={onAddBlock}>
             <CalendarPlus className="size-3.5" />
             Ajouter un bloc

@@ -118,7 +118,7 @@ export async function exportChattersCsv(): Promise<ActionResult<ChattersCsvExpor
       // un point décimal, Excel FR lit « 37.25 » comme du texte et « 37 » comme un nombre.
       const frNum = (v: number | null) => (v == null ? null : String(v).replace('.', ','))
       const rows: string[] = [
-        'chatteur;modele;presence_h_chatteur;reactivite_s_chatteur;propose_chatteur;taux_conv_pct_chatteur;ca_eur;ppv_eur;tips_eur;vendu',
+        'chatter;modele;presence_h_chatter;reactivite_s_chatter;propose_chatter;taux_conv_pct_chatter;ca_eur;ppv_eur;tips_eur;vendu',
       ]
       for (const c of data.chatters) {
         for (const m of c.models) {

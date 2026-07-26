@@ -44,7 +44,7 @@ export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
         if (cErr) throw new Error(cErr.message)
         const allowedIds = new Set((allowed ?? []).map((r) => r.profile_id))
         if (values.lines.some((l) => !allowedIds.has(l.chatterId)))
-          throw new BusinessError('Un chatteur sélectionné n’appartient pas à ce modèle')
+          throw new BusinessError('Un chatter sélectionné n’appartient pas à ce modèle')
       }
       // Upsert en-tête + remplacement complet des lignes en UNE transaction (RPC `0073`,
       // SECURITY INVOKER → la RLS s'applique, `author = auth.uid()` posé côté SQL). Atomique :

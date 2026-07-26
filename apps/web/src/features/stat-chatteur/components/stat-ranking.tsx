@@ -32,7 +32,7 @@ const TEAM_OPTS: { value: TeamFiltre; label: string }[] = [
 const columns: ColumnDef<ClosingChatterRow>[] = [
   {
     accessorKey: 'name',
-    header: ({ column }) => <Sortable column={column} label="Chatteur" />,
+    header: ({ column }) => <Sortable column={column} label="Chatter" />,
     cell: ({ getValue }) => <span className="font-medium">{getValue() as string}</span>,
   },
   {
@@ -84,7 +84,7 @@ export function StatRanking({ rows }: { rows: ClosingChatterRow[] }) {
       columns={columns}
       initialSorting={[{ id: 'vendu', desc: true }]}
       getRowId={(r) => r.id}
-      countLabel={(n) => `${n} chatteur(s)`}
+      countLabel={(n) => `${n} chatter(s)`}
       toolbar={
         <div className="flex flex-wrap gap-2">
           <Select value={roleFiltre} onValueChange={(v) => setRoleFiltre(v as RoleFiltre)}>

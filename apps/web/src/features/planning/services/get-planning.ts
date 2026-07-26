@@ -1,6 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
-import type { PlanningBlock, PlanningData, PlanningMember, PlanningSection } from '../types'
+import type {
+  PlanningBlock,
+  PlanningCategory,
+  PlanningData,
+  PlanningDay,
+  PlanningMember,
+  PlanningSection,
+} from '../types'
 
 const SECTION_ORDER: Record<PlanningSection, number> = { matin: 0, apres_midi: 1, soir: 2 }
 
@@ -26,13 +33,6 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
       profileId,
       profileName,
       exists: false,
-      priorityTitle: '',
-      priorityBody: '',
-      priorityForbidden: '',
-      priorityAllowed: '',
-      pauseNote: '',
-      annexes: [],
-      annexNote: '',
       blocks: [],
     }
   }
@@ -55,6 +55,8 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
       badge: b.badge,
       color: b.color,
       bullets: Array.isArray(b.bullets) ? (b.bullets as string[]) : [],
+      categories: Array.isArray(b.categories) ? (b.categories as unknown as PlanningCategory[]) : [],
+      days: Array.isArray(b.days) ? (b.days as unknown as PlanningDay[]) : [],
     }))
     // Tri stable : section puis heure de début (la position départage les égalités).
     .sort(
@@ -68,15 +70,6 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
     profileId,
     profileName,
     exists: true,
-    priorityTitle: planning.priority_title,
-    priorityBody: planning.priority_body,
-    priorityForbidden: planning.priority_forbidden,
-    priorityAllowed: planning.priority_allowed,
-    pauseNote: planning.pause_note,
-    annexes: Array.isArray(planning.annexes)
-      ? (planning.annexes as { title: string; detail: string }[])
-      : [],
-    annexNote: planning.annex_note,
     blocks: rows,
   }
 }

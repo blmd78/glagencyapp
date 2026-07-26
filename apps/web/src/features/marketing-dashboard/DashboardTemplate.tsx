@@ -71,7 +71,7 @@ export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardDat
         net >= 0
           ? 'border-t-green-400 dark:border-t-green-600'
           : 'border-t-red-400 dark:border-t-red-600',
-      info: 'Revenus des liens de la période − dépenses staff de la période. Ne compte que le pôle marketing (pas le CA chatteurs).',
+      info: 'Revenus des liens de la période − dépenses staff de la période. Ne compte que le pôle marketing (pas le CA chatters).',
     },
   ]
 

@@ -23,7 +23,7 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
   {
     id: 'name',
     accessorKey: 'name',
-    header: ({ column }) => <Sortable column={column} label="Chatteur" />,
+    header: ({ column }) => <Sortable column={column} label="Chatter" />,
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
         <ChevronRight

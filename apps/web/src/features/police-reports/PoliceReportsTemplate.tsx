@@ -50,7 +50,7 @@ export function PoliceReportsTemplate({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Rapport du soir</h1>
           <p className="text-sm text-muted-foreground">
-            Chiffres du modèle et suivi individuel des chatteurs, un rapport par modèle et par soir.
+            Chiffres du modèle et suivi individuel des chatters, un rapport par modèle et par soir.
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">

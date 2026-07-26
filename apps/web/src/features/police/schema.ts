@@ -38,7 +38,7 @@ export const updateMalusInput = z.object({
 
 // ── Schéma du FORM client (ControlPanel) : montant en texte, vide = simple avertissement.
 export const controlFormSchema = z.object({
-  chatterId: z.string().min(1, 'Choisis un chatteur.'),
+  chatterId: z.string().min(1, 'Choisis un chatter.'),
   errorKey: z.string().min(1, 'Choisis un type d’erreur.'),
   shift: z.string().optional(),
   amount: z

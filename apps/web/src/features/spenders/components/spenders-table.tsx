@@ -90,7 +90,7 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
   {
     id: 'chatter',
     accessorFn: (r) => r.chatterName ?? r.assignedLabel ?? '',
-    header: ({ column }) => <Sortable column={column} label="Chatteur" />,
+    header: ({ column }) => <Sortable column={column} label="Chatter" />,
     cell: ({ row }) => {
       const name = row.original.chatterName ?? row.original.assignedLabel
       if (!name) return <span className="text-xs italic text-muted-foreground">non assigné</span>

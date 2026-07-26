@@ -27,7 +27,7 @@ export function MembersTemplate({
       <p className="-mt-4 text-sm text-muted-foreground">
         {data.members.length} compte(s)
         {scope === 'marketing' &&
-          ' · droits du pôle marketing (les droits chatteurs se gèrent depuis leur face)'}
+          ' · droits du pôle marketing (les droits chatters se gèrent depuis leur face)'}
       </p>
 
       <MembersTable

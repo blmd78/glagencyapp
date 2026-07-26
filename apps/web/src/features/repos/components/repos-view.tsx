@@ -75,7 +75,7 @@ export function ReposView({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Planning des repos</h1>
           <p className="text-sm text-muted-foreground">
-            Jours de repos des chatteurs par équipe · {data.weekLabel}
+            Jours de repos des chatters par équipe · {data.weekLabel}
           </p>
         </div>
         <div className="ml-auto">

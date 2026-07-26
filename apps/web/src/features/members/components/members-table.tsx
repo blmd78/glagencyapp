@@ -195,8 +195,8 @@ export function MembersTable({
               {/* Warning : membre chatteur SANS chatteur MyPuls lié → à relier (badges closing
                   vides tant que le lien manque). Visible aux admins (seuls à pouvoir relier). */}
               {viewer === 'admin' && row.original.role === 'chatteur' && !row.original.chatterId && (
-                <span title="Aucun chatteur MyPuls lié — à relier dans la fiche" className="shrink-0">
-                  <AlertTriangle className="size-3.5 text-amber-500" aria-label="Aucun chatteur MyPuls lié" />
+                <span title="Aucun chatter MyPuls lié — à relier dans la fiche" className="shrink-0">
+                  <AlertTriangle className="size-3.5 text-amber-500" aria-label="Aucun chatter MyPuls lié" />
                 </span>
               )}
             </div>
@@ -225,7 +225,7 @@ export function MembersTable({
           <Badge className={cn('text-xs', STATUS_COLORS.warning)}>Police</Badge>
         ) : (
           <div className="flex flex-wrap items-center gap-1">
-            <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatteur</Badge>
+            <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatter</Badge>
             <RoleBadge role={row.original.closingRole} />
             <TeamBadge team={row.original.closingTeam} />
           </div>

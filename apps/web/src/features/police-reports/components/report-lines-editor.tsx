@@ -53,7 +53,7 @@ export function ReportLinesEditor({
 
   return (
     <div className="flex flex-col gap-3">
-      <Label>Suivi par chatteur</Label>
+      <Label>Suivi par chatter</Label>
 
       {!modelSelected ? (
         <p className="text-sm text-muted-foreground">Choisis d’abord un modèle.</p>
@@ -69,14 +69,14 @@ export function ReportLinesEditor({
               if (id) append({ chatterId: id, aMarche: '', aRegler: '' })
             }}
             placeholder={
-              available.length ? 'Ajouter un chatteur suivi…' : 'Tous les chatteurs sont ajoutés'
+              available.length ? 'Ajouter un chatter suivi…' : 'Tous les chatters sont ajoutés'
             }
-            searchPlaceholder="Rechercher un chatteur…"
+            searchPlaceholder="Rechercher un chatter…"
             disabled={disabled || available.length === 0}
           />
 
           {fields.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun chatteur suivi pour l’instant.</p>
+            <p className="text-sm text-muted-foreground">Aucun chatter suivi pour l’instant.</p>
           ) : (
             <ul className="flex flex-col gap-3">
               {fields.map((f, index) => (
@@ -84,7 +84,7 @@ export function ReportLinesEditor({
                   {/* Nom du chatteur (fixe) + retirer. L'id voyage en champ caché → soumission. */}
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm">
-                      <span className="text-muted-foreground">Chatteur</span>{' '}
+                      <span className="text-muted-foreground">Chatter</span>{' '}
                       <span className="font-medium">{nameById.get(f.chatterId) ?? '—'}</span>
                     </span>
                     <Button
@@ -92,7 +92,7 @@ export function ReportLinesEditor({
                       variant="ghost"
                       size="icon"
                       className="size-7 shrink-0 text-muted-foreground"
-                      aria-label="Retirer ce chatteur"
+                      aria-label="Retirer ce chatter"
                       disabled={disabled}
                       onClick={() => remove(index)}
                     >
