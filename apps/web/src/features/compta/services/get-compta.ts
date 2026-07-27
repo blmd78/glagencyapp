@@ -117,13 +117,18 @@ export async function getCompta({
   const primeById = new Map((primes ?? []).map((p) => [p.chatter_id, Number(p.amount)]))
   const daySet = new Set(days)
 
-  // Jours couverts, TOUS chatteurs confondus — sert UNIQUEMENT à `overdue` ci-dessous (aperçu
-  // global des quinzaines en retard, tous membres). La prime, elle, se calcule PAR CHATTEUR
-  // plus bas (round de correction 1) : sinon le paiement d'un collègue masquerait la quinzaine
-  // impayée d'un autre et déplacerait sa prime.
-  const coveredAll = new Set<string>()
+  // Jours couverts PAR MEMBRE (tous paiements confondus, toutes quinzaines) — construit UNE
+  // SEULE fois par un regroupement sur `payments` (au lieu de refiltrer `payments` pour
+  // chaque ligne). Sert aux DEUX usages qui exigent « couvert POUR CE membre » : la prime
+  // (ci-dessous, par ligne) et `overdue` (plus bas, global) — jamais un total fusionné tous
+  // chatteurs confondus, sinon UN SEUL chatteur payé masquerait la quinzaine de tous les
+  // autres (round de correction 2 : c'était le bug résiduel de `overdue` après le round 1
+  // qui n'avait corrigé que la prime).
+  const coveredDaysByMember = new Map<string, Set<string>>()
   for (const p of payments ?? []) {
-    for (const d of (p.covered_days as string[] | null) ?? []) coveredAll.add(d)
+    const set = coveredDaysByMember.get(p.chatter_id) ?? new Set<string>()
+    for (const d of (p.covered_days as string[] | null) ?? []) set.add(d)
+    coveredDaysByMember.set(p.chatter_id, set)
   }
 
   const rows: ComptaRow[] = (members ?? []).map((m) => {
@@ -147,13 +152,11 @@ export async function getCompta({
       kind: e.kind === 'warning' ? 'warning' : 'malus',
     }))
 
-    // Couverture de CE membre, tous paiements confondus (toutes quinzaines) — sert à la fois à
-    // la prime et à la couverture de la quinzaine affichée (`paid`/`paidOn` plus bas).
+    // Couverture de CE membre (map précalculée ci-dessus) — sert à la prime. `myPayments`
+    // (liste, pas set) reste nécessaire séparément pour `covered`/`paid`/`paidOn` plus bas,
+    // qui ont besoin du `paid_at` PAR jour, pas juste de son appartenance à l'ensemble couvert.
     const myPayments = mine(payments ?? [])
-    const myCoveredDays = new Set<string>()
-    for (const p of myPayments) {
-      for (const d of (p.covered_days as string[] | null) ?? []) myCoveredDays.add(d)
-    }
+    const myCoveredDays = coveredDaysByMember.get(m.id) ?? new Set<string>()
     // La prime ne s'affiche que sur la quinzaine ÉCHUE LA PLUS ANCIENNE non couverte DE CE
     // MEMBRE (spec §4). Sans le filtre ÉCHUE (`f.to < today`), la quinzaine en cours — jamais
     // encore couverte puisqu'elle n'est pas terminée — la déclencherait en permanence, même à
@@ -224,10 +227,19 @@ export async function getCompta({
   })
 
   // Quinzaines ÉCHUES incomplètement couvertes — le retard se déduit de la couverture, pas
-  // d'une échéance théorique (spec §7).
+  // d'une échéance théorique (spec §7). « Incomplètement couverte » = il existe AU MOINS UN
+  // membre dont un jour de cette quinzaine n'est couvert par AUCUN de SES paiements — jamais
+  // une fusion tous chatteurs confondus (un seul payé masquerait sinon tous les impayés,
+  // round de correction 2).
   const overdue = choices
     .filter((f) => f.to < today && !(f.month === fortnight.month && f.period === fortnight.period))
-    .filter((f) => daysIn(f).some((d) => !coveredAll.has(d)))
+    .filter((f) => {
+      const fDays = daysIn(f)
+      return (members ?? []).some((m) => {
+        const covered = coveredDaysByMember.get(m.id) ?? new Set<string>()
+        return fDays.some((d) => !covered.has(d))
+      })
+    })
     .slice(0, 6)
 
   return { fortnight, choices, rows, overdue }
