@@ -2171,3 +2171,80 @@ Relevé dans la feuille de juillet, absent de l'app :
 - **Divers** — ligne d'ajustement libre, signée (observée à −20, −10, −5).
 - Renommer « Prime nouveau chatteur » en **« Prime d'embauche »**, le terme de la feuille
   (montant identique : 100 €, versée à 10 personnes en juillet).
+
+---
+
+### Task 16 : Aligner le modèle sur la feuille — retrait du mode fixe, setter depuis Membres
+
+> **Décidé par Benoit le 2026-07-27** : « je pense qu'il sert pas, ma référence c'est ce
+> document ». La feuille de juillet est désormais la référence du modèle de paie.
+
+**Constats mesurés sur la feuille (onglet juillet)** :
+- **Personne n'est en mode « fixe au lieu du pourcentage »**. Les 95 chatteurs de la semaine S1
+  ont tous un net = `CA × taux` : **86 à 10 %**, **5 à 11 %** (Seth, Néleck, Flo, Benj2p,
+  Junior), **4 à 10,5 %** (Michel, kwasi, Alain, Juliot). Le mode `fixed` vient de l'ancienne
+  branche et ne correspond à aucune pratique.
+- **Le fixe setter s'AJOUTE au pourcentage**, il ne le remplace pas. Vérifié : Carl = 4,379 €
+  (commission) + 75 € (fixe) + 19,20 € (handoffs) = 98,579 € ; Martin = 27,55 + 75 + 21 =
+  123,55 € ; Julie = 0 + 40 + 3,60 = 43,60 €. C'est déjà ce que fait `computePayslip`.
+- **Le fixe setter est versé UNE fois par période de paie**, pas par semaine : rempli
+  uniquement dans le bloc S2 (celui qui porte le paiement), 59 personnes, montants **37,5 / 40
+  / 75 €**. Le 37,5 prouve qu'il est ajustable au cas par cas.
+- **« Divers » n'est pas une ligne d'ajustement libre** : c'est la somme
+  `fixe setter + 0,60 × handoffs − malus`. Rien à construire — retirer cette ligne du reste-à-faire.
+
+**Files:**
+- Modify: `packages/core/src/compta/payslip.ts` + `payslip.test.ts`
+- Create: `packages/db/supabase/migrations/0089_compta_settings_simplification.sql`
+- Modify: `apps/web/src/features/compta/` (schema, actions, types, services, composants)
+- Modify: `docs/superpowers/specs/2026-07-27-compta-paie-design.md` (§2, §4, §5)
+
+- [ ] **Step 1 : Retirer le mode fixe du domaine**
+
+`PayslipInput` perd `mode`, `fixedAmount` et `weekCount` (ce dernier ne servait qu'au mode
+fixe). `base` devient toujours `Σ round2(ca_modèle × taux)`. Supprimer les tests du mode fixe et
+**vérifier que les tests restants discriminent encore** — en réintroduisant temporairement la
+régression, et en rapportant ce qui a été observé.
+
+- [ ] **Step 2 : Le statut setter vient de Membres**
+
+`compta_settings.is_setter` disparaît : la source de vérité est **`profiles.closing_role`**
+(`check in ('setter','closer')`, réglé depuis Membres). Deux sources pour un même fait
+finissent toujours par diverger.
+
+⚠️ **Trou de données connu et assumé par Benoit** (« ils vont le faire ») : `closing_role` vaut
+`'setter'` pour **1 seul** profil en prod (13 `closer`, 91 non renseignés) alors que la feuille
+verse un fixe setter à 59 personnes. Tant que Membres n'est pas rempli, presque aucun fixe
+setter ne s'appliquera. Ne pas « compenser » ça en code.
+
+- [ ] **Step 3 : Le fixe setter devient un réglage, ajustable**
+
+`compta_settings.fixed_amount` (qui portait le montant du mode fixe, désormais mort) est
+**réutilisé** comme montant du fixe setter **par période**. Il s'applique automatiquement à
+qui a `closing_role = 'setter'` — sinon il faudrait le retaper pour 59 personnes toutes les
+deux semaines, ce que l'app doit justement éviter.
+
+La saisie `compta_week_entries.fixe_setter` est conservée comme **ajustement** : non nulle, elle
+REMPLACE le montant du réglage pour cette période (cas du 37,50 € observé). Elle ne s'y ajoute
+pas — ce serait un double versement. La fiche doit dire lequel s'applique (« Fixe setter — 75 € »
+vs « Fixe setter — 37,50 € (ajusté) »).
+
+- [ ] **Step 4 : Le dialog de réglages**
+
+Après retrait du mode et du statut setter, il reste **le taux, le fixe setter, la prime** — et
+**UN SEUL bouton « Enregistrer »** (demande de Benoit). Les deux Server Actions
+(`saveComptaSettings`, `savePrime`) peuvent rester distinctes côté serveur, mais l'écran n'a
+qu'un bouton : au clic, les deux partent, et une erreur de l'une ne doit pas laisser croire que
+l'autre a échoué.
+
+- [ ] **Step 5 : La base**
+
+Migration `0089` : supprimer `compta_settings.mode` (et son `check`), `compta_settings.is_setter`,
+et `compta_payments.mode_applied` (colonne d'instantané devenue morte). Sans risque :
+`compta_settings` et `compta_payments` sont **vides** (à revérifier avant d'agir), et
+`0085`/`0087`/`0088` ne sont pas en production. Régénérer `packages/db/src/types.ts`.
+
+- [ ] **Step 6 : Vérifier** — `core test`, `typecheck`, `lint`, `build`, puis rejouer la
+comparaison avec la feuille (période 06→19/07).
+
+- [ ] **Step 7 : Commit** — ne pas commiter depuis un subagent.
