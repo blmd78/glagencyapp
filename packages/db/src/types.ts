@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       chatter_alias: {
@@ -324,7 +299,7 @@ export type Database = {
             foreignKeyName: "compta_day_entries_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -372,43 +347,76 @@ export type Database = {
       compta_payments: {
         Row: {
           amount: number
+          base_amount: number
+          bonus_amount: number
+          ca_reference: number
           chatter_id: string
           covered_days: string[] | null
           created_at: string
+          handoffs_amount: number
           id: string
+          malus_amount: number
+          mode_applied: string
           month: string
           note: string | null
           paid_at: string
           paid_by: string | null
+          period: number
+          prime_amount: number
+          rate_applied: number
+          sanctions_amount: number
+          setter_amount: number
         }
         Insert: {
           amount: number
+          base_amount?: number
+          bonus_amount?: number
+          ca_reference?: number
           chatter_id: string
           covered_days?: string[] | null
           created_at?: string
+          handoffs_amount?: number
           id?: string
+          malus_amount?: number
+          mode_applied?: string
           month: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
+          period?: number
+          prime_amount?: number
+          rate_applied?: number
+          sanctions_amount?: number
+          setter_amount?: number
         }
         Update: {
           amount?: number
+          base_amount?: number
+          bonus_amount?: number
+          ca_reference?: number
           chatter_id?: string
           covered_days?: string[] | null
           created_at?: string
+          handoffs_amount?: number
           id?: string
+          malus_amount?: number
+          mode_applied?: string
           month?: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
+          period?: number
+          prime_amount?: number
+          rate_applied?: number
+          sanctions_amount?: number
+          setter_amount?: number
         }
         Relationships: [
           {
             foreignKeyName: "compta_payments_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -422,7 +430,7 @@ export type Database = {
       }
       compta_primes: {
         Row: {
-          amount: string
+          amount: number
           chatter_id: string
           note: string | null
           paid_at: string | null
@@ -431,7 +439,7 @@ export type Database = {
           updated_by: string | null
         }
         Insert: {
-          amount?: string
+          amount?: number
           chatter_id: string
           note?: string | null
           paid_at?: string | null
@@ -440,7 +448,7 @@ export type Database = {
           updated_by?: string | null
         }
         Update: {
-          amount?: string
+          amount?: number
           chatter_id?: string
           note?: string | null
           paid_at?: string | null
@@ -453,7 +461,7 @@ export type Database = {
             foreignKeyName: "compta_primes_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: true
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -498,7 +506,7 @@ export type Database = {
             foreignKeyName: "compta_settings_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: true
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -549,7 +557,7 @@ export type Database = {
             foreignKeyName: "compta_week_entries_chatter_id_fkey"
             columns: ["chatter_id"]
             isOneToOne: false
-            referencedRelation: "chatters"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -1370,8 +1378,8 @@ export type Database = {
           bullets: Json
           categories: Json
           color: string
-          days: Json
           created_at: string
+          days: Json
           id: string
           planning_id: string
           position: number
@@ -1385,8 +1393,8 @@ export type Database = {
           bullets?: Json
           categories?: Json
           color?: string
-          days?: Json
           created_at?: string
+          days?: Json
           id?: string
           planning_id: string
           position?: number
@@ -1400,8 +1408,8 @@ export type Database = {
           bullets?: Json
           categories?: Json
           color?: string
-          days?: Json
           created_at?: string
+          days?: Json
           id?: string
           planning_id?: string
           position?: number
@@ -2465,9 +2473,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
