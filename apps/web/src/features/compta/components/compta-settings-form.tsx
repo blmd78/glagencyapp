@@ -1,10 +1,9 @@
 'use client'
 
-import { Controller, useForm, useWatch } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { frDateNumeric } from '@glagency/core'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -17,230 +16,179 @@ import {
 import { ActionButton } from '@/components/action-button'
 import { eur2 } from '@/lib/format'
 import { saveComptaSettings, savePrime } from '../actions'
-import {
-  settingsInput,
-  primeInput,
-  type SettingsInput,
-  type SettingsFormValues,
-  type PrimeInput,
-  type PrimeFormValues,
-} from '../schema'
+import { settingsFormInput, type SettingsFormInput, type SettingsFormValues } from '../schema'
 import type { ComptaRow } from '../types'
 
 /**
- * Réglages de rémunération d'un membre — ADMIN seul (`canConfigure`). Sans cet écran, la
- * colonne gardait ses défauts pour tout le monde : 10 % en `percent`, `is_setter` faux (donc le
- * champ « Fixe setter » de la saisie hebdo jamais monté) et le mode `fixed` inatteignable.
+ * Réglages de paie d'un membre — ADMIN seul (`canConfigure`). Sans cet écran, la colonne garde
+ * ses défauts pour tout le monde : 10 % de commission et aucun fixe.
  *
- * Même patron que `compta-entry-form.tsx` : `'use no memo'` (le React Compiler casse
- * `formState`), `zodResolver`, et le triple générique `useForm<Input, unknown, Output>` — les
- * champs `z.coerce.number()` ont un type d'ENTRÉE `unknown`, donc input ≠ output.
+ * TROIS RÉGLAGES, UN SEUL BOUTON (demande du propriétaire, 2026-07-27 : « y'a toujours le champ
+ * setter dans paramètres et on peut pas mettre un fixe + com ») :
  *
- * NI CADRE NI TITRE depuis le 2026-07-27 : le formulaire vit dans le dialog de l'engrenage
- * (`compta-settings-dialog.tsx`), dont le `DialogTitle` porte déjà « Réglages de paie — <nom> ».
- * Il a d'abord été monté dans une `CollapsibleSection` du panneau déplié, dont le trigger jouait
- * ce même rôle ; le dialog l'a remplacée le même jour.
+ *  - le TAUX de commission, toujours appliqué ;
+ *  - le FIXE de la période, qui S'AJOUTE à la commission dès qu'il est non nul — il ne la
+ *    remplace pas. Le choix `% du CA` / `Fixe hebdo` a disparu (migration 0089) : il décrivait
+ *    un mode que la feuille du propriétaire ne pratique nulle part ;
+ *  - la PRIME nouveau chatteur.
+ *
+ * La case « Setter » a disparu du même geste. Le statut de setter vit dans **Membres**
+ * (`profiles.closing_role`) et ne commande RIEN ici : conditionner le versement du fixe à ce
+ * champ le rendrait inopérant pour presque tout le monde en silence (mesuré le 2026-07-27 :
+ * `closing_role = 'setter'` sur 1 seul profil en prod, alors que la feuille verse un fixe à
+ * 59 personnes).
+ *
+ * DEUX TABLES, DEUX SERVER ACTIONS, mais UN SEUL geste à l'écran : `saveComptaSettings` écrit
+ * `compta_settings`, `savePrime` écrit `compta_primes`. Le sous-titrage de l'échec est donc
+ * OBLIGATOIRE — une erreur sur l'une ne doit jamais laisser croire que l'autre est passée
+ * (`submit` ci-dessous nomme systématiquement ce qui a été enregistré et ce qui ne l'a pas été).
+ *
+ * Patron habituel : `'use no memo'` (le React Compiler casse `formState`), `zodResolver`, et le
+ * triple générique `useForm<Input, unknown, Output>` — les champs `z.coerce.number()` ont un
+ * type d'ENTRÉE `unknown`, donc input ≠ output.
  */
 export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
   'use no memo'
 
+  // Une prime déjà VERSÉE est figée : `status`/`paid_at` sont la trace du virement posée par
+  // `payPeriod`, et `savePrime` refuse de la réécrire côté serveur. Ses deux champs cèdent la
+  // place à la trace, et le submit ne l'envoie pas.
+  const primeFrozen = row.prime?.status === 'paid'
+
   const {
     register,
     control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
-  } = useForm<SettingsFormValues, unknown, SettingsInput>({
-    resolver: zodResolver(settingsInput),
+  } = useForm<SettingsFormValues, unknown, SettingsFormInput>({
+    resolver: zodResolver(settingsFormInput),
     defaultValues: {
       chatterId: row.id,
-      mode: row.mode,
       rate: row.rate,
       fixedAmount: row.fixedAmount,
-      isSetter: row.isSetter,
-    },
-  })
-
-  // Le champ `rate` n'a de sens qu'en `percent`, `fixedAmount` qu'en `fixed` : on masque celui
-  // qui ne s'applique pas plutôt que d'afficher un champ inerte. RHF conserve la valeur d'un
-  // champ démonté (`shouldUnregister` vaut false par défaut), donc le schéma reste satisfait.
-  const mode = useWatch({ control, name: 'mode' })
-
-  const submit = handleSubmit(async (values) => {
-    const res = await saveComptaSettings(values)
-    if (!res.success) {
-      setError('root.serverError', { message: res.error })
-      toast.error(res.error)
-      return
-    }
-    toast.success('Réglages enregistrés')
-  })
-
-  return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      {/* DEUX colonnes et non quatre depuis le passage en dialog : le `sm:grid-cols-4` était
-          taillé pour la largeur d'un panneau déplié (toute la table). Dans un `DialogContent`
-          (`max-w-lg`), quatre colonnes écrasaient le Select du mode. */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-1.5">
-          <Label htmlFor={`mode-${row.id}`}>Mode</Label>
-          {/* Un Select Radix dans RHF passe par Controller, jamais register
-              (docs/guidelines-standard-feature.md §5, « Pièges »). */}
-          <Controller
-            control={control}
-            name="mode"
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
-                <SelectTrigger id={`mode-${row.id}`} aria-label="Mode de rémunération">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="percent">% du CA</SelectItem>
-                  <SelectItem value="fixed">Fixe hebdo</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-        </div>
-
-        {mode === 'percent' ? (
-          <div className="grid gap-1.5">
-            <Label htmlFor={`rate-${row.id}`}>Taux %</Label>
-            <Input id={`rate-${row.id}`} type="number" step="0.01" {...register('rate')} />
-            {errors.rate && (
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.rate.message}</p>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-1.5">
-            <Label htmlFor={`fixed-${row.id}`}>Fixe hebdo €</Label>
-            <Input id={`fixed-${row.id}`} type="number" step="0.01" {...register('fixedAmount')} />
-            {errors.fixedAmount && (
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.fixedAmount.message}</p>
-            )}
-          </div>
-        )}
-
-        <Controller
-          control={control}
-          name="isSetter"
-          render={({ field }) => (
-            <label className="flex cursor-pointer items-center gap-2 self-end rounded-md border px-2.5 py-2 text-sm has-[[data-state=checked]]:border-primary/50 has-[[data-state=checked]]:bg-primary/5">
-              <Checkbox
-                checked={field.value}
-                // `onCheckedChange` peut valoir `'indeterminate'` : comparer à `true` garde un
-                // booléen strict, que `z.boolean()` exige.
-                onCheckedChange={(c) => field.onChange(c === true)}
-                disabled={isSubmitting}
-              />
-              <span>Setter</span>
-            </label>
-          )}
-        />
-      </div>
-      {errors.root?.serverError && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {errors.root.serverError.message}
-        </p>
-      )}
-      <ActionButton type="submit" pending={isSubmitting} className="self-end">
-        Enregistrer
-      </ActionButton>
-    </form>
-  )
-}
-
-/**
- * Prime « nouveau chatteur » — ADMIN seul. La spec §2 la veut MANUELLE : rien ne la déclenche,
- * l'admin la crée quand il l'a décidée. Elle s'ajoute ensuite à la fiche de toute période
- * échue tant qu'elle n'a pas été versée (spec §4).
- *
- * Une prime déjà versée n'est plus éditable : `status`/`paid_at` sont la trace du virement, et
- * `payPeriod` les a posés. `savePrime` refuse aussi ce cas côté serveur.
- */
-export function ComptaPrimeForm({ row }: { row: ComptaRow }) {
-  if (row.prime?.status === 'paid') {
-    return (
-      <p className="text-xs text-muted-foreground">
-        Prime nouveau chatteur — {eur2(row.prime.amount)} déjà versée
-        {row.prime.paidAt ? ` le ${frDateNumeric(row.prime.paidAt)}` : ''}.
-      </p>
-    )
-  }
-  return <PrimeEditor row={row} />
-}
-
-/** Séparé de `ComptaPrimeForm` pour que ses hooks soient appelés sans condition. */
-function PrimeEditor({ row }: { row: ComptaRow }) {
-  'use no memo'
-
-  const {
-    register,
-    control,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<PrimeFormValues, unknown, PrimeInput>({
-    resolver: zodResolver(primeInput),
-    defaultValues: {
-      chatterId: row.id,
       // 100 € = le défaut de la colonne `compta_primes.amount`, repris ici pour que le montant
       // usuel n'ait pas à être ressaisi à chaque création.
-      amount: row.prime?.amount ?? 100,
-      status: row.prime?.status === 'skipped' ? 'skipped' : 'due',
+      primeAmount: row.prime?.amount ?? 100,
+      primeStatus: row.prime?.status === 'skipped' ? 'skipped' : 'due',
     },
   })
 
-  const submit = handleSubmit(async (values) => {
-    const res = await savePrime(values)
-    if (!res.success) {
-      setError('root.serverError', { message: res.error })
-      toast.error(res.error)
+  const submit = handleSubmit(async (v) => {
+    const settings = await saveComptaSettings({
+      chatterId: v.chatterId,
+      rate: v.rate,
+      fixedAmount: v.fixedAmount,
+    })
+    // La prime part MÊME SI les réglages ont échoué : les deux écritures sont indépendantes, et
+    // renoncer à la seconde parce que la première a échoué ferait perdre une saisie valide.
+    const prime = primeFrozen
+      ? null
+      : await savePrime({ chatterId: v.chatterId, amount: v.primeAmount, status: v.primeStatus })
+
+    const settingsError = settings.success ? null : settings.error
+    const primeError = prime == null || prime.success ? null : prime.error
+
+    if (!settingsError && !primeError) {
+      toast.success('Réglages enregistrés')
       return
     }
-    toast.success('Prime enregistrée')
+
+    // Message qui NOMME ce qui est passé et ce qui ne l'est pas. Un seul bouton à l'écran, deux
+    // écritures derrière : « Erreur » tout court laisserait l'admin croire que rien n'a été
+    // enregistré alors que la moitié l'a peut-être été — sur des règles de paie, c'est le genre
+    // de malentendu qui se paie deux semaines plus tard.
+    const message =
+      settingsError && primeError
+        ? `Rien n'a été enregistré. Taux et fixe : ${settingsError} Prime : ${primeError}`
+        : settingsError
+          ? `Taux et fixe NON enregistrés : ${settingsError}${prime == null ? '' : ' — la prime, elle, a bien été enregistrée.'}`
+          : `Taux et fixe enregistrés, mais PAS la prime : ${primeError}`
+
+    setError('root.serverError', { message })
+    toast.error(message)
   })
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3">
-      {/* Titre CONSERVÉ, contrairement à celui des réglages : la prime est un second
-          formulaire, avec son propre bouton « Enregistrer », dans le même dialog — sans lui,
-          rien ne dirait lequel des deux boutons enregistre quoi. */}
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Prime nouveau chatteur
-      </p>
+    <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
-          <Label htmlFor={`prime-amount-${row.id}`}>Montant €</Label>
-          <Input
-            id={`prime-amount-${row.id}`}
-            type="number"
-            step="0.01"
-            {...register('amount')}
-          />
-          {errors.amount && (
-            <p className="text-xs text-red-600 dark:text-red-400">{errors.amount.message}</p>
+          <Label htmlFor={`rate-${row.id}`}>Commission %</Label>
+          <Input id={`rate-${row.id}`} type="number" step="0.01" {...register('rate')} />
+          {errors.rate && (
+            <p className="text-xs text-red-600 dark:text-red-400">{errors.rate.message}</p>
           )}
         </div>
         <div className="grid gap-1.5">
-          <Label htmlFor={`prime-status-${row.id}`}>Statut</Label>
-          <Controller
-            control={control}
-            name="status"
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange} disabled={isSubmitting}>
-                <SelectTrigger id={`prime-status-${row.id}`} aria-label="Statut de la prime">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="due">À verser</SelectItem>
-                  <SelectItem value="skipped">Renoncée</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
+          <Label htmlFor={`fixed-${row.id}`}>Fixe par période €</Label>
+          <Input id={`fixed-${row.id}`} type="number" step="0.01" {...register('fixedAmount')} />
+          {errors.fixedAmount && (
+            <p className="text-xs text-red-600 dark:text-red-400">{errors.fixedAmount.message}</p>
+          )}
         </div>
       </div>
+      {/* Ce que le fixe fait, dit là où on le saisit : il s'ajoute, il vaut pour la période
+          entière, et une saisie hebdo peut le remplacer. Sans cette phrase, « Fixe par
+          période » se lit encore comme l'ancien « fixe au lieu du pourcentage ». */}
+      <p className="text-xs text-muted-foreground">
+        Le fixe s&apos;ajoute à la commission et vaut pour la période entière (14 jours). Une
+        saisie « Fixe setter » dans la fiche le remplace pour cette période-là.
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Prime nouveau chatteur
+        </p>
+        {primeFrozen ? (
+          <p className="text-xs text-muted-foreground">
+            {eur2(row.prime?.amount ?? 0)} déjà versée
+            {row.prime?.paidAt ? ` le ${frDateNumeric(row.prime.paidAt)}` : ''} — elle n&apos;est
+            plus modifiable.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="grid gap-1.5">
+              <Label htmlFor={`prime-amount-${row.id}`}>Montant €</Label>
+              <Input
+                id={`prime-amount-${row.id}`}
+                type="number"
+                step="0.01"
+                {...register('primeAmount')}
+              />
+              {errors.primeAmount && (
+                <p className="text-xs text-red-600 dark:text-red-400">
+                  {errors.primeAmount.message}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor={`prime-status-${row.id}`}>Statut</Label>
+              {/* Un Select Radix dans RHF passe par Controller, jamais register
+                  (docs/guidelines-standard-feature.md §5, « Pièges »). */}
+              <Controller
+                control={control}
+                name="primeStatus"
+                render={({ field }) => (
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={isSubmitting}
+                  >
+                    <SelectTrigger id={`prime-status-${row.id}`} aria-label="Statut de la prime">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="due">À verser</SelectItem>
+                      <SelectItem value="skipped">Renoncée</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {errors.root?.serverError && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {errors.root.serverError.message}

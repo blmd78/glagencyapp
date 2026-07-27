@@ -18,10 +18,12 @@ export interface ComptaRow {
   role: string
   /** `profiles.chatter_id` — null = non relié à MyPuls, donc aucun CA calculable. */
   chatterId: string | null
-  mode: 'percent' | 'fixed'
   rate: number
+  /** Fixe de la PÉRIODE (`compta_settings.fixed_amount`) — il S'AJOUTE à la commission et
+   *  s'applique dès qu'il est non nul. Le montant réellement versé est `payslip.setter` : une
+   *  saisie hebdo le remplace pour cette période (`payslip.setterAdjusted`). Gardé sur la ligne
+   *  pour le formulaire de réglages et pour dire, sur la fiche, quel montant a été remplacé. */
   fixedAmount: number
-  isSetter: boolean
   /** Prime « nouveau chatteur » enregistrée pour ce membre (`compta_primes`), null si aucune.
    *  `status` : `'due'` (à verser) | `'paid'` (versée, figée par `payPeriod`) | `'skipped'`
    *  (renoncée). Portée pour le formulaire de réglages : le CALCUL, lui, ne retient que `'due'`

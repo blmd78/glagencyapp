@@ -246,7 +246,8 @@ export async function loadComptaSources({
     firstSeen: firstSeen ?? [],
     /** CA de la période par chatteur MyPuls, ventilé par NOM de modèle. */
     caByChatter,
-    /** Les 2 lundis de la période — `weekCount` de la formule (spec §4). */
+    /** Les 2 lundis de la période — ils bornent la lecture de `compta_week_entries`. Ils
+     *  n'entrent dans AUCUN montant depuis la tâche 16 : le fixe est versé par période. */
     mondays,
     days: daysIn(period),
   }

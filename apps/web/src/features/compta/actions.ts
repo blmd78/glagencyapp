@@ -59,14 +59,14 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
 }
 
 /**
- * Réglages de rémunération d'un membre (mode, taux, fixe hebdomadaire, statut setter).
+ * Réglages de rémunération d'un membre : le TAUX de commission et le FIXE de la période.
  * `adminGuard` et non `managerPageGuard` : la spec §6 réserve `compta_settings` à l'admin en
  * écriture, et la RLS `compta_settings_admin_write` (`for all` sous `is_admin()` en `using` ET
  * `with check`) est le verrou réel — la garde n'est que la défense en profondeur.
  *
  * Upsert sur `chatter_id`, PK de la table : un membre n'a qu'une ligne de réglages, créée à sa
  * première configuration. Tant qu'elle n'existe pas, `loadComptaRows` applique les défauts de
- * la colonne (percent, 10 %, fixe 0, non setter).
+ * la colonne (10 %, fixe 0).
  */
 export async function saveComptaSettings(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -80,10 +80,8 @@ export async function saveComptaSettings(raw: unknown): Promise<ActionResult> {
       const { error } = await supabase.from('compta_settings').upsert(
         {
           chatter_id: v.chatterId,
-          mode: v.mode,
           rate: v.rate,
           fixed_amount: v.fixedAmount,
-          is_setter: v.isSetter,
           // Posé à la main : aucun trigger ne rafraîchit `updated_at` sur ces tables (même
           // constat que `saveWeekEntry`), et le défaut `now()` ne joue qu'à l'INSERT.
           updated_at: new Date().toISOString(),

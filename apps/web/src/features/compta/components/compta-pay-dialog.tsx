@@ -41,7 +41,6 @@ export function ComptaPayDialog({ row, period }: { row: ComptaRow; period: PayPe
           coveredDays: daysIn(period),
           amount: p.net,
           caReference: p.ca,
-          modeApplied: row.mode,
           rateApplied: row.rate,
           baseAmount: p.base,
           setterAmount: p.setter,

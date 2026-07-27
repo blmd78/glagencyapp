@@ -21,14 +21,12 @@ import { weekEntryInput, type WeekEntryInput, type WeekEntryFormValues } from '.
  * pistes. Un `auto` y serait mesuré séparément de part et d'autre (rien à mesurer dans
  * l'en-tête, un bouton dans les lignes) et décalerait toutes les colonnes.
  *
- * Les deux variantes sont écrites EN CLAIR et non construites : Tailwind ne voit que les
- * littéraux présents dans le source.
+ * Littéral et non construit : Tailwind ne voit que les classes présentes en clair dans le
+ * source. Une seule variante depuis la tâche 16 — les 4 champs sont montés pour tout le monde,
+ * `compta_settings.is_setter` ne commande plus la colonne « Fixe setter » (elle n'existe plus).
  */
-function entryGridCols(isSetter: boolean): string {
-  return isSetter
-    ? 'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(4,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
-    : 'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(3,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
-}
+const ENTRY_GRID_COLS =
+  'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(4,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
 
 /**
  * En-tête de colonnes des saisies : les libellés sont écrits UNE fois pour les 2 semaines
@@ -40,14 +38,14 @@ function entryGridCols(isSetter: boolean): string {
  * lecteurs d'écran — cet en-tête est le relais VISUEL, l'annoncer une seconde fois doublerait
  * chaque champ.
  */
-export function ComptaEntryHeader({ isSetter }: { isSetter: boolean }) {
+export function ComptaEntryHeader() {
   return (
-    <div className={cn('hidden sm:grid', entryGridCols(isSetter))} aria-hidden>
+    <div className={cn('hidden sm:grid', ENTRY_GRID_COLS)} aria-hidden>
       <span />
       <span className={COL_HEAD}>Bonus €</span>
       <span className={COL_HEAD}>Malus €</span>
       <span className={COL_HEAD}>Handoffs</span>
-      {isSetter && <span className={COL_HEAD}>Fixe setter €</span>}
+      <span className={COL_HEAD}>Fixe setter €</span>
       <span />
     </div>
   )
@@ -73,6 +71,10 @@ function Field({ id, label, children }: { id: string; label: string; children: R
  * Saisie hebdomadaire (bonus, malus, handoffs, fixe setter). Une semaine appartient
  * entièrement à la période de son lundi — elle n'est jamais découpée.
  *
+ * « Fixe setter » y est un AJUSTEMENT de la période : renseigné, il REMPLACE le fixe des
+ * réglages pour cette paie (le demi-fixe à 37,50 € de la feuille), il ne s'y ajoute jamais —
+ * ce serait un double versement. Laissé à 0, c'est le réglage qui s'applique (`computePayslip`).
+ *
  * UNE LIGNE par semaine depuis le 2026-07-27 (« simplifie l'affichage ») : c'était un encadré
  * titré par semaine, soit 2 cartes empilées répétant les mêmes quatre champs, et c'est ce
  * qui rendait le panneau déplié écrasant pour un admin. Le cadre a sauté avec le titre : la
@@ -83,14 +85,12 @@ export function ComptaEntryForm({
   weekStart,
   weekLabel,
   initial,
-  isSetter,
   onSaved,
 }: {
   chatterId: string
   weekStart: string
   weekLabel: string
   initial: { bonus: number; malus: number; handoffs: number; fixeSetter: number; note: string | null }
-  isSetter: boolean
   onSaved?: () => void
 }) {
   'use no memo'
@@ -120,7 +120,7 @@ export function ComptaEntryForm({
   })
 
   return (
-    <form onSubmit={submit} className={cn('grid', entryGridCols(isSetter))}>
+    <form onSubmit={submit} className={cn('grid', ENTRY_GRID_COLS)}>
       <span className="col-span-2 text-sm font-medium sm:col-span-1">Semaine du {weekLabel}</span>
 
       <Field id={`bonus-${weekStart}`} label="Bonus €">
@@ -132,11 +132,9 @@ export function ComptaEntryForm({
       <Field id={`handoffs-${weekStart}`} label="Handoffs">
         <Input id={`handoffs-${weekStart}`} type="number" {...register('handoffs')} />
       </Field>
-      {isSetter && (
-        <Field id={`fixe-${weekStart}`} label="Fixe setter €">
-          <Input id={`fixe-${weekStart}`} type="number" step="0.01" {...register('fixeSetter')} />
-        </Field>
-      )}
+      <Field id={`fixe-${weekStart}`} label="Fixe setter €">
+        <Input id={`fixe-${weekStart}`} type="number" step="0.01" {...register('fixeSetter')} />
+      </Field>
 
       <ActionButton
         type="submit"

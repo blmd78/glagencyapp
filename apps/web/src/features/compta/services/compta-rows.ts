@@ -117,11 +117,9 @@ export async function loadComptaRows({
 
     const modelCa = m.chatter_id ? (src.caByChatter.get(m.chatter_id) ?? {}) : {}
     const payslip = computePayslip({
-      mode: s?.mode === 'fixed' ? 'fixed' : 'percent',
       rate: Number(s?.rate ?? 10),
+      // Défauts de la colonne quand le membre n'a jamais été réglé : 10 % et aucun fixe.
       fixedAmount: Number(s?.fixed_amount ?? 0),
-      isSetter: s?.is_setter ?? false,
-      weekCount: src.mondays.length,
       modelCa,
       fixeSetter,
       bonus,
@@ -150,10 +148,8 @@ export async function loadComptaRows({
       name: m.display_name ?? m.email ?? '—',
       role: m.role,
       chatterId: m.chatter_id,
-      mode: s?.mode === 'fixed' ? 'fixed' : 'percent',
       rate: Number(s?.rate ?? 10),
       fixedAmount: Number(s?.fixed_amount ?? 0),
-      isSetter: s?.is_setter ?? false,
       prime,
       handoffs,
       modelCa,

@@ -66,8 +66,10 @@ export function periodOf(day: string): PayPeriod {
 
 /**
  * Les DEUX lundis de la période — toujours deux, par construction : `start` est un lundi et la
- * période dure exactement 14 jours. C'est `weekCount` de la formule (spec §4), et le nombre de
- * lignes de saisie hebdomadaire de la fiche.
+ * période dure exactement 14 jours. Ils bornent les saisies hebdomadaires rattachées à la
+ * période (`compta_week_entries.week_start`) et donnent le nombre de lignes de saisie de la
+ * fiche. Plus aucun montant ne s'en déduit : le `weekCount` de la formule a disparu avec le
+ * mode fixe (tâche 16) — le fixe est un montant PAR PÉRIODE, multiplié par rien.
  *
  * L'ancien découpage calendaire en rendait 2 ou 3 selon le mois ; cette variabilité disparaît.
  */

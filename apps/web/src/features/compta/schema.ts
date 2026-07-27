@@ -68,7 +68,8 @@ export const payInput = z
     coveredDays: z.array(iso).min(1, 'Au moins un jour couvert'),
     amount: netMoney,
     caReference: money,
-    modeApplied: z.enum(['percent', 'fixed']),
+    // `modeApplied` a disparu avec `compta_settings.mode` (migration 0089) : il n'existe plus
+    // qu'un seul mode de rémunération — commission + fixe éventuel.
     // `rate` et non `money` : c'est un TAUX (cf. sa définition en haut de fichier).
     rateApplied: rate,
     baseAmount: money,
@@ -160,19 +161,36 @@ export type PayAllInput = z.infer<typeof payAllInput>
 
 /**
  * Réglages de rémunération d'un membre (`compta_settings`, PK `chatter_id`) — ADMIN seul
- * (spec §6). Ce sont eux qui rendent le mode `fixed` et le fixe setter ATTEIGNABLES : sans cet
- * écran, tout le monde restait au défaut de la colonne (percent, 10 %, `is_setter` false).
+ * (spec §6). Sans cet écran, tout le monde reste au défaut de la colonne : 10 % et aucun fixe.
+ *
+ * DEUX CHAMPS, plus un mode ni un statut de setter (migration 0089, tâche 16) : la rémunération
+ * est TOUJOURS `commission + fixe éventuel`. Le choix `percent | fixed` faisait remplacer l'une
+ * par l'autre, ce que la feuille du propriétaire ne pratique nulle part ; `is_setter`
+ * dupliquait `profiles.closing_role`, réglé depuis Membres.
  */
 export const settingsInput = z.object({
   chatterId: z.uuid(),
-  mode: z.enum(['percent', 'fixed']),
   rate,
-  /** Montant HEBDOMADAIRE du mode `fixed` (spec §4) — multiplié par le nombre de semaines. */
+  /** Fixe de la PÉRIODE de paie (spec §4) — s'ajoute à la commission, multiplié par rien. Il
+   *  s'applique dès qu'il est non nul : aucun drapeau ne le commande. */
   fixedAmount: money,
-  isSetter: z.boolean(),
 })
 export type SettingsInput = z.infer<typeof settingsInput>
-export type SettingsFormValues = z.input<typeof settingsInput>
+
+/**
+ * Ce que l'ENGRENAGE édite : les réglages ci-dessus ET la prime, dans un seul formulaire à
+ * UN SEUL bouton « Enregistrer » (demande du propriétaire, 2026-07-27). Deux tables et deux
+ * Server Actions côté serveur (`compta_settings` / `compta_primes`), un seul geste à l'écran.
+ *
+ * `settingsInput.extend(...)` et non un objet réécrit : les contraintes du taux et du fixe ne
+ * peuvent pas diverger de ce que l'action valide.
+ */
+export const settingsFormInput = settingsInput.extend({
+  primeAmount: money,
+  primeStatus: z.enum(['due', 'skipped']),
+})
+export type SettingsFormInput = z.infer<typeof settingsFormInput>
+export type SettingsFormValues = z.input<typeof settingsFormInput>
 
 /**
  * Prime « nouveau chatteur » (`compta_primes`, PK `chatter_id`) — ADMIN seul, décidée à la main
@@ -181,6 +199,10 @@ export type SettingsFormValues = z.input<typeof settingsInput>
  * `'paid'` est ACCEPTÉ PAR LA COLONNE (check `due | paid | skipped`) mais absent d'ici : il
  * n'est posé que par `payPeriod`, au moment où la prime part réellement. L'offrir dans un
  * formulaire laisserait marquer « versée » une prime que rien n'a versée.
+ *
+ * CONTRAT DE L'ACTION, plus d'un formulaire : la prime se saisit dans l'écran unique de
+ * l'engrenage (`settingsFormInput`), qui mappe ses deux champs sur ce schéma. `savePrime` le
+ * revalide côté serveur — c'est lui qui fait foi.
  */
 export const primeInput = z.object({
   chatterId: z.uuid(),
@@ -188,7 +210,6 @@ export const primeInput = z.object({
   status: z.enum(['due', 'skipped']),
 })
 export type PrimeInput = z.infer<typeof primeInput>
-export type PrimeFormValues = z.input<typeof primeInput>
 
 /**
  * Lien `profiles.chatter_id` posé DEPUIS la compta — ADMIN seul. Sans lien, aucun CA n'est

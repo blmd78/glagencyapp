@@ -59,7 +59,6 @@ export async function recordPayment({
     covered_days: coveredDays,
     amount: p.net,
     ca_reference: p.ca,
-    mode_applied: row.mode,
     rate_applied: row.rate,
     base_amount: p.base,
     setter_amount: p.setter,

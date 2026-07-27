@@ -56,60 +56,56 @@ function Line({ label, amount, red }: { label: string; amount: number; red?: boo
  * `numeric(12,2)` (vérifié sur information_schema, UAT, 0 ligne à plus de 2 décimales), donc les
  * CA par modèle sont exacts au centime et leurs lignes somment exactement au total.
  *
- * En mode `percent`, cette grille EST la base de la fiche : sa colonne « Commission » totalise
- * `payslip.base`. C'est pour ça que la ligne « Commission — X € × Y % » a disparu le
- * 2026-07-27 — elle affichait les deux mêmes nombres (`payslip.ca`, `payslip.base`) à un
- * deuxième endroit, deux blocs plus loin.
+ * Cette grille EST la base de la fiche : sa colonne « Commission » totalise `payslip.base`.
+ * C'est pour ça que la ligne « Commission — X € × Y % » a disparu le 2026-07-27 — elle
+ * affichait les deux mêmes nombres (`payslip.ca`, `payslip.base`) à un deuxième endroit, deux
+ * blocs plus loin.
  *
- * En mode `fixed`, la colonne commission N'EXISTE PAS : la base vaut `fixedAmount × weekCount`
- * et le CA n'y entre pas (spec §4). Afficher un pourcentage du CA y serait un chiffre qui ne
- * correspond à rien — la ventilation y reste une INFORMATION, dite comme telle par sa légende.
+ * Plus de variante « mode fixe » depuis la tâche 16 : la commission est TOUJOURS la base, le
+ * fixe éventuel s'y ajoute en ligne d'ajustement. La branche qui masquait cette colonne
+ * décrivait un mode que personne ne pratiquait.
  */
 function ModelBreakdown({ models, row }: { models: [string, number][]; row: ComptaRow }) {
-  const percent = row.mode === 'percent'
   const total = 'border-t pt-1.5 font-medium'
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div
-        className={
-          percent
-            ? 'grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-1.5 text-sm'
-            : 'grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 text-sm'
-        }
-      >
-        <span className={COL_HEAD}>Modèle</span>
-        <span className={`${COL_HEAD} text-right`}>CA</span>
-        {percent && <span className={`${COL_HEAD} text-right`}>Commission ({row.rate} %)</span>}
+    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-1.5 text-sm">
+      <span className={COL_HEAD}>Modèle</span>
+      <span className={`${COL_HEAD} text-right`}>CA</span>
+      <span className={`${COL_HEAD} text-right`}>Commission ({row.rate} %)</span>
 
-        {models.map(([name, ca]) => (
-          <Fragment key={name}>
-            <span className="min-w-0">
-              {/* Badge coloré conservé : c'est l'identification visuelle des modèles partout
-                  ailleurs dans l'app (`modelColor`), aucun style nouveau introduit ici. */}
-              <Badge className={modelColor(name)}>{name}</Badge>
-            </span>
-            <span className="text-right tabular-nums">{eur2(ca)}</span>
-            {percent && (
-              <span className="text-right tabular-nums">{eur2(round2((ca * row.rate) / 100))}</span>
-            )}
-          </Fragment>
-        ))}
+      {models.map(([name, ca]) => (
+        <Fragment key={name}>
+          <span className="min-w-0">
+            {/* Badge coloré conservé : c'est l'identification visuelle des modèles partout
+                ailleurs dans l'app (`modelColor`), aucun style nouveau introduit ici. */}
+            <Badge className={modelColor(name)}>{name}</Badge>
+          </span>
+          <span className="text-right tabular-nums">{eur2(ca)}</span>
+          <span className="text-right tabular-nums">{eur2(round2((ca * row.rate) / 100))}</span>
+        </Fragment>
+      ))}
 
-        <span className={total}>Total</span>
-        <span className={`${total} text-right tabular-nums`}>{eur2(row.payslip.ca)}</span>
-        {percent && (
-          <span className={`${total} text-right tabular-nums`}>{eur2(row.payslip.base)}</span>
-        )}
-      </div>
-
-      {!percent && (
-        <p className="text-xs text-muted-foreground">
-          Pour information : en mode fixe, le CA n&apos;est pas commissionné.
-        </p>
-      )}
+      <span className={total}>Total</span>
+      <span className={`${total} text-right tabular-nums`}>{eur2(row.payslip.ca)}</span>
+      <span className={`${total} text-right tabular-nums`}>{eur2(row.payslip.base)}</span>
     </div>
   )
+}
+
+/**
+ * Libellé de la ligne du FIXE. Il doit dire LEQUEL des deux montants s'applique : celui du
+ * réglage, ou celui d'une saisie hebdomadaire qui l'a remplacé pour cette période (le demi-fixe
+ * à 37,50 € de la feuille). Sans ça, un admin qui lit 37,50 € alors que le réglage dit 75 €
+ * n'a aucun moyen de savoir si c'est voulu ou si le calcul s'est trompé.
+ *
+ * `payslip.setterAdjusted` vient de `computePayslip` : l'arbitrage entre les deux montants est
+ * une règle de la formule, jamais une comparaison refaite ici.
+ */
+function fixeLabel(row: ComptaRow): string {
+  if (!row.payslip.setterAdjusted) return 'Fixe setter'
+  if (row.fixedAmount > 0) return `Fixe setter — ajusté (réglage : ${eur(row.fixedAmount)})`
+  return 'Fixe setter — saisi sur la période'
 }
 
 /**
@@ -150,24 +146,21 @@ function SanctionLines({ sanctions, amount }: { sanctions: ComptaRow['sanctions'
 export function ComptaPayslipCalc({
   row,
   period,
-  mondays,
   canPay,
   periodElapsed,
 }: {
   row: ComptaRow
   period: PayPeriod
-  mondays: string[]
   canPay: boolean
   periodElapsed: boolean
 }) {
   const p = row.payslip
-  const percent = row.mode === 'percent'
   const models = Object.entries(row.modelCa).sort(([, a], [, b]) => b - a)
 
   // Une composante nulle ne fait PAS de ligne (règle déjà en place avant la refonte) : le titre
   // « Ajustements » ne doit donc apparaître que si au moins une ligne le suit.
   const hasAdjustments =
-    row.isSetter ||
+    p.setter !== 0 ||
     p.bonus !== 0 ||
     p.malus !== 0 ||
     row.handoffs > 0 ||
@@ -176,41 +169,23 @@ export function ComptaPayslipCalc({
 
   return (
     <div className="flex flex-col gap-4">
-      {percent ? (
-        models.length > 0 ? (
-          <ModelBreakdown models={models} row={row} />
-        ) : (
-          // Sans aucun modèle la ventilation ne rend rien : la base sortirait de l'écran.
-          // C'est le SEUL cas où l'ancienne ligne « Commission — X € × Y % » survit.
-          <div className="flex flex-col gap-1">
-            <Line label={`Commission — ${eur(p.ca)} × ${row.rate} %`} amount={p.base} />
-            <p className="text-xs text-muted-foreground">
-              Aucun CA sur la période — rien à ventiler par modèle.
-            </p>
-          </div>
-        )
+      {models.length > 0 ? (
+        <ModelBreakdown models={models} row={row} />
       ) : (
-        <>
-          {/* Le calcul réel est `fixedAmount × weekCount` (cf. payslip.ts) — afficher
-              « × plage de dates » multipliait un montant par un intervalle, ce qui ne veut
-              rien dire. `mondays.length` EST le nombre de semaines rattachées, et il vaut
-              TOUJOURS 2 depuis que la période fait 14 jours calés sur les lundis : c'est bien
-              cette valeur-là qui est passée en `weekCount` à `computePayslip`
-              (`compta-rows.ts`), donc l'affichage ne peut pas diverger du calcul. Le pluriel
-              reste conditionnel — retirer la branche figerait le libellé sur une hypothèse
-              plutôt que sur la donnée. */}
-          <Line
-            label={`Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${mondays.length} semaine${mondays.length > 1 ? 's' : ''}`}
-            amount={p.base}
-          />
-          {models.length > 0 && <ModelBreakdown models={models} row={row} />}
-        </>
+        // Sans aucun modèle la ventilation ne rend rien : la base sortirait de l'écran.
+        // C'est le SEUL cas où l'ancienne ligne « Commission — X € × Y % » survit.
+        <div className="flex flex-col gap-1">
+          <Line label={`Commission — ${eur(p.ca)} × ${row.rate} %`} amount={p.base} />
+          <p className="text-xs text-muted-foreground">
+            Aucun CA sur la période — rien à ventiler par modèle.
+          </p>
+        </div>
       )}
 
       {hasAdjustments && (
         <div className="flex flex-col gap-1.5">
           <span className={SECTION_HEAD}>Ajustements</span>
-          {row.isSetter && <Line label="Fixe setter" amount={p.setter} />}
+          {p.setter !== 0 && <Line label={fixeLabel(row)} amount={p.setter} />}
           {p.bonus !== 0 && <Line label="Bonus" amount={p.bonus} />}
           {p.malus !== 0 && <Line label="Malus saisis" amount={-p.malus} red />}
           {row.handoffs > 0 && (

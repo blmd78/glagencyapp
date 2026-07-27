@@ -19,13 +19,13 @@ import type { ComptaRow } from '../types'
  *   2. CE QU'ON SAISIT — une LIGNE par semaine, en-tête de colonnes écrit une seule fois.
  *
  * CE QU'ON CONFIGURE a QUITTÉ ce panneau le même jour (« je pense qu'on peut mettre un
- * engrenage pour gérer les paramètres de chaque chatter pour simplifier l'affichage ») : mode,
- * taux, statut de setter et prime vivent derrière l'engrenage de la ligne
- * (`compta-settings-dialog.tsx`), joignable SANS déplier. Ce composant ne prend donc plus
- * `canConfigure` — c'est `makeComptaColumns` qui le porte désormais.
+ * engrenage pour gérer les paramètres de chaque chatter pour simplifier l'affichage ») : taux,
+ * fixe et prime vivent derrière l'engrenage de la ligne (`compta-settings-dialog.tsx`),
+ * joignable SANS déplier. Ce composant ne prend donc plus `canConfigure` — c'est
+ * `makeComptaColumns` qui le porte désormais.
  *
- * Rien n'est perdu à l'écran fermé : la colonne « Commission » de la table dit le mode, le taux
- * et le statut de setter, la colonne « Prime » dit son montant et son état.
+ * Rien n'est perdu à l'écran fermé : la colonne « Rémunération » de la table dit le taux et le
+ * fixe, la colonne « Prime » dit son montant et son état.
  */
 export function ComptaPayslip({
   row,
@@ -63,25 +63,18 @@ export function ComptaPayslip({
 
   return (
     <div className="flex flex-col gap-6">
-      <ComptaPayslipCalc
-        row={row}
-        period={period}
-        mondays={mondays}
-        canPay={canPay}
-        periodElapsed={periodElapsed}
-      />
+      <ComptaPayslipCalc row={row} period={period} canPay={canPay} periodElapsed={periodElapsed} />
 
       {canEnter && (
         <div className="flex flex-col gap-2">
           <span className={SECTION_HEAD}>Saisies hebdomadaires</span>
-          <ComptaEntryHeader isSetter={row.isSetter} />
+          <ComptaEntryHeader />
           {mondays.map((m) => (
             <ComptaEntryForm
               key={m}
               chatterId={row.id}
               weekStart={m}
               weekLabel={frDayShort(m)}
-              isSetter={row.isSetter}
               initial={
                 row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }
               }

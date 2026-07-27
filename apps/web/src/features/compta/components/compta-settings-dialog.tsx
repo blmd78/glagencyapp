@@ -11,7 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { ComptaSettingsForm, ComptaPrimeForm } from './compta-settings-form'
+import { ComptaSettingsForm } from './compta-settings-form'
 import type { ComptaRow } from '../types'
 
 /**
@@ -23,13 +23,15 @@ import type { ComptaRow } from '../types'
  * vivaient dans une `CollapsibleSection` « Réglages de paie », qui obligeait à déplier la ligne
  * pour changer un taux — deux gestes, dans un panneau qu'on venait justement d'alléger.
  *
- * DEUX FORMULAIRES, DEUX BOUTONS « Enregistrer » — pas une fusion : `saveComptaSettings` écrit
- * `compta_settings`, `savePrime` écrit `compta_primes`, et une prime déjà versée est figée alors
- * que le taux reste éditable. Un seul bouton pour les deux aurait à décider quoi faire quand la
- * moitié de l'écriture est refusée.
+ * UN SEUL FORMULAIRE, UN SEUL BOUTON « Enregistrer » depuis la tâche 16 (demande du
+ * propriétaire) : c'étaient deux blocs à deux boutons, et rien à l'écran ne disait lequel
+ * enregistrait quoi. Les deux Server Actions restent distinctes côté serveur
+ * (`compta_settings` / `compta_primes`) ; c'est `ComptaSettingsForm` qui les enchaîne et
+ * NOMME celle qui a échoué — un seul bouton ne doit pas pouvoir laisser croire qu'une écriture
+ * refusée est passée.
  *
- * Le dialog NE SE REFERME PAS sur un enregistrement : refermer après le premier bouton perdrait
- * la saisie en cours dans l'autre formulaire. On sort par la croix ou Échap, comme partout.
+ * Le dialog NE SE REFERME PAS sur un enregistrement : le résultat (succès ou échec détaillé)
+ * s'affiche dans le formulaire. On sort par la croix ou Échap, comme partout.
  */
 export function ComptaSettingsDialog({ row }: { row: ComptaRow }) {
   const [open, setOpen] = useState(false)
@@ -53,15 +55,12 @@ export function ComptaSettingsDialog({ row }: { row: ComptaRow }) {
         <DialogHeader>
           <DialogTitle>Réglages de paie — {row.name}</DialogTitle>
           <DialogDescription>
-            Mode de rémunération, taux (ou fixe hebdo) et statut de setter, puis la prime nouveau
-            chatteur. Chaque bloc s&apos;enregistre séparément.
+            Commission, fixe par période et prime nouveau chatteur. Le fixe s&apos;ajoute à la
+            commission — il ne la remplace pas.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          <ComptaSettingsForm row={row} />
-          <ComptaPrimeForm row={row} />
-        </div>
+        <ComptaSettingsForm row={row} />
       </DialogContent>
     </Dialog>
   )

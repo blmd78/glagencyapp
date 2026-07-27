@@ -1,21 +1,20 @@
 import { describe, expect, it } from 'vitest'
 import { computePayslip, HANDOFF_EUR, type PayslipInput } from './payslip'
-import { mondaysIn, periodOf } from './periods'
 
 const base: PayslipInput = {
-  mode: 'percent', rate: 10, fixedAmount: 0, isSetter: false, weekCount: 2,
+  rate: 10, fixedAmount: 0,
   modelCa: {}, fixeSetter: 0, bonus: 0, malus: 0, handoffs: 0, primeDue: 0, sanctions: 0,
 }
 
 describe('computePayslip — base', () => {
-  it('mode percent : applique le taux modele par modele puis somme', () => {
+  it('applique le taux modele par modele puis somme', () => {
     const r = computePayslip({ ...base, modelCa: { a: 2500, b: 1700 } })
     expect(r.ca).toBe(4200)
     expect(r.base).toBe(420)
     expect(r.net).toBe(420)
   })
 
-  it('mode percent : chaque modele est ARRONDI avant la somme, pas apres', () => {
+  it('chaque modele est ARRONDI avant la somme, pas apres', () => {
     // 4 modeles a 100,05 EUR, 10 % : chaque ligne vaut 10,005 -> 10,01 arrondie, soit 40,04.
     // L ancienne formule (round2 de la somme brute) donnait 40,02 : les 4 lignes affichees
     // dans la fiche n auraient pas fait le total affiche. Ecart de 2 centimes, assume.
@@ -25,45 +24,67 @@ describe('computePayslip — base', () => {
     expect(r.base).toBe(40.04)
     expect(r.net).toBe(40.04)
   })
+})
 
-  it('mode fixed : le fixe est HEBDOMADAIRE, multiplie par le nombre de semaines', () => {
-    const r = computePayslip({ ...base, mode: 'fixed', fixedAmount: 200, weekCount: 2, modelCa: { a: 9999 } })
-    // 200 et 2 sont choisis DISTINCTS et != 1 : 400 ne s'obtient ni en ignorant `weekCount`
-    // (200), ni en l'additionnant (202), ni en prenant `fixedAmount` seul par semaine.
-    expect(r.base).toBe(400)
-    expect(r.ca).toBe(9999) // le CA reste affiche, mais n entre pas dans la base
+describe('computePayslip — le fixe', () => {
+  it("s AJOUTE a la commission, il ne la remplace jamais", () => {
+    // LA regression du 2026-07-27 : `mode: 'fixed'` faisait REMPLACER la commission par le fixe.
+    // 1000 EUR a 10 % = 100 de commission, 75 de fixe : les trois nombres (100, 75, 175) sont
+    // distincts, donc un remplacement (net 75) comme un fixe ignore (net 100) tombent ici.
+    const r = computePayslip({ ...base, modelCa: { a: 1000 }, fixedAmount: 75 })
+    expect(r.base).toBe(100)
+    expect(r.setter).toBe(75)
+    expect(r.net).toBe(175)
   })
 
-  it('le weekCount de l app vient de mondaysIn : une periode de paie en donne 2', () => {
-    // Test de BOUT EN BOUT du seul chemin reel : `compta-rows.ts` passe
-    // `weekCount: mondaysIn(period).length`, et la fiche affiche « X € × N semaines » avec ce
-    // meme N (`compta-payslip-calc.tsx`). Ce test tombe si `mondaysIn` cesse de rendre 2
-    // lundis OU si `computePayslip` cesse de multiplier — il rattache la valeur affichee au
-    // decoupage, ce qu'un `weekCount` litteral ne ferait pas.
-    const weekCount = mondaysIn(periodOf('2026-07-10')).length
-    expect(weekCount).toBe(2)
-    expect(computePayslip({ ...base, mode: 'fixed', fixedAmount: 175, weekCount }).base).toBe(350)
+  it("est un montant PAR PERIODE : il n est multiplie par rien", () => {
+    // L ancienne formule versait `fixedAmount * weekCount` (2 semaines) = 150. La feuille du
+    // proprietaire ne remplit le fixe QU UNE fois par periode de paie, jamais par semaine.
+    expect(computePayslip({ ...base, fixedAmount: 75 }).setter).toBe(75)
   })
 
-  it('mode fixed : le net cumule les composantes malgre le CA ignore dans la base', () => {
-    const r = computePayslip({
-      ...base,
-      mode: 'fixed', fixedAmount: 150, weekCount: 2, modelCa: { a: 5000 },
-      isSetter: true, fixeSetter: 80, bonus: 10, malus: 5, handoffs: 3, primeDue: 20, sanctions: 15,
-    })
-    // base = 150 * 2 = 300 (CA ignore) ; setter = 80 ; handoffs = 3 * 0,60 = 1,8
-    // net = 300 + 80 + 10 - 5 + 1,8 + 20 - 15 = 391,8
-    expect(r.base).toBe(300)
-    expect(r.net).toBe(391.8)
+  it("s applique des qu il est renseigne — aucun drapeau ne le commande", () => {
+    // `compta_settings.is_setter` a disparu (0089) : il valait faux par defaut et aurait retenu
+    // le fixe de 59 personnes. Un fixe a 0 ne fait simplement pas de ligne.
+    expect(computePayslip({ ...base, fixedAmount: 40 }).setter).toBe(40)
+    expect(computePayslip({ ...base, fixedAmount: 0 }).setter).toBe(0)
+  })
+
+  it('une saisie hebdo REMPLACE le fixe du reglage pour cette periode', () => {
+    // Le demi-fixe a 37,50 EUR releve sur la feuille. 112,50 (addition) et 75 (reglage seul)
+    // sont les deux erreurs possibles : ni l un ni l autre n est 37,50.
+    const r = computePayslip({ ...base, fixedAmount: 75, fixeSetter: 37.5 })
+    expect(r.setter).toBe(37.5)
+    expect(r.setterAdjusted).toBe(true)
+  })
+
+  it('une saisie hebdo seule vaut fixe de la periode, sans reglage', () => {
+    const r = computePayslip({ ...base, fixedAmount: 0, fixeSetter: 40 })
+    expect(r.setter).toBe(40)
+    expect(r.setterAdjusted).toBe(true)
+  })
+
+  it("sans saisie hebdo, c est le reglage qui s applique — et la fiche doit pouvoir le dire", () => {
+    const r = computePayslip({ ...base, fixedAmount: 75, fixeSetter: 0 })
+    expect(r.setter).toBe(75)
+    expect(r.setterAdjusted).toBe(false)
+  })
+
+  it('reproduit une ligne de la feuille : commission + fixe + handoffs', () => {
+    // Ordres de grandeur de la ligne « Carl » relevee sur la feuille de juillet (plan, tache 16) :
+    // 4,379 EUR de commission + 75 EUR de fixe + 19,20 EUR de handoffs = 98,579 EUR.
+    // Le CA de 43,79 EUR est celui qui PRODUIT cette commission a 10 % — il n a pas ete releve.
+    // Le net vaut 98,58 et non 98,579 : la feuille ne borne pas ses decimales, la fiche arrondit
+    // chaque composante au centime (spec §4).
+    const r = computePayslip({ ...base, modelCa: { a: 43.79 }, fixedAmount: 75, handoffs: 32 })
+    expect(r.base).toBe(4.38)
+    expect(r.setter).toBe(75)
+    expect(r.handoffsAmount).toBe(19.2)
+    expect(r.net).toBe(98.58)
   })
 })
 
 describe('computePayslip — composantes', () => {
-  it('le fixe setter ne compte que si is_setter', () => {
-    expect(computePayslip({ ...base, fixeSetter: 300, isSetter: false }).setter).toBe(0)
-    expect(computePayslip({ ...base, fixeSetter: 300, isSetter: true }).setter).toBe(300)
-  })
-
   it('les handoffs sont payes 0,60 EUR l unite', () => {
     expect(HANDOFF_EUR).toBe(0.6)
     expect(computePayslip({ ...base, handoffs: 12 }).handoffsAmount).toBe(7.2)
@@ -84,7 +105,7 @@ describe('computePayslip — composantes', () => {
   it('une periode entierement vide donne 0 partout', () => {
     const r = computePayslip(base)
     expect(r).toEqual({
-      ca: 0, base: 0, setter: 0, bonus: 0, malus: 0,
+      ca: 0, base: 0, setter: 0, setterAdjusted: false, bonus: 0, malus: 0,
       handoffsAmount: 0, prime: 0, sanctions: 0, net: 0,
     })
   })
@@ -93,7 +114,7 @@ describe('computePayslip — composantes', () => {
 describe('computePayslip — invariant', () => {
   it('net = base + setter + bonus - malus + handoffs + prime - sanctions', () => {
     const r = computePayslip({
-      mode: 'percent', rate: 12.5, fixedAmount: 0, isSetter: true, weekCount: 2,
+      rate: 12.5, fixedAmount: 0,
       modelCa: { a: 3333.33, b: 1111.11 }, fixeSetter: 150, bonus: 50, malus: 20,
       handoffs: 7, primeDue: 100, sanctions: 45,
     })

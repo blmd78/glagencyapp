@@ -103,10 +103,12 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
         ['sanctions', v.sanctionsAmount, p.sanctions],
         ['taux', v.rateApplied, row.rate],
       ]
+      // Plus de contrôle sur le mode de rémunération : il n'y en a plus qu'un (0089). Le fixe,
+      // lui, EST vérifié — il arrive dans la ligne « fixe setter » ci-dessus, qu'il vienne du
+      // réglage ou d'une saisie hebdo.
       const drifted = checks
         .filter(([, sent, computed]) => Math.abs(sent - computed) > 0.01)
         .map(([label]) => label)
-      if (v.modeApplied !== row.mode) drifted.push('mode de rémunération')
       if (drifted.length > 0) {
         throw new BusinessError(
           `La fiche de ${row.name} a changé depuis l'ouverture de la page (${drifted.join(', ')}). ` +

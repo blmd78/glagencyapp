@@ -43,7 +43,9 @@ Arbitrées avec le propriétaire le 2026-07-27. Les trois premières **écrasent
 | Handoffs | **Payés 0,60 € l'unité** | ✅ identique |
 | Population payée | Les **membres de l'app** (`profiles`, rôle chatteur) | la branche partait de `chatters` (MyPuls) |
 | Base du % | CA du chatteur **par modèle**, sommé sur la période | ✅ compatible |
-| Fixe setter | **En plus** du pourcentage | ✅ identique |
+| Fixe setter | **En plus** du pourcentage, jamais à sa place | ✅ identique |
+| Mode de rémunération | **Il n'y en a qu'un** : commission + fixe éventuel | la branche offrait `percent` OU `fixed` |
+| Statut de setter | **Ne commande rien en compta** — il vit dans Membres | la branche le dupliquait dans `compta_settings` |
 | Semaine à cheval | Rattachée à la période de son **lundi** | ✅ identique |
 | Sanctions police | **Cumulées** avec le malus manuel | absent (la Police n'existait pas) |
 | Immuabilité | **Instantané figé au paiement** | la branche recalculait tout à la volée |
@@ -61,6 +63,22 @@ disparaît. Il n'existait que parce que le mois coupait les semaines à ses born
 
 **Effet de bord** : `chatter_first_seen()` n'a plus d'usage en compta (elle servait la prime
 automatique). On la conserve — `0056` la durcit et `get-chatters.ts` la mentionne.
+
+> **Correction du 2026-07-27 (tâche 16), après relecture de la feuille — deux lignes de la
+> branche tombent.** Les mesures : les 95 chatteurs de la semaine S1 ont TOUS un net `CA × taux`
+> (86 à 10 %, 5 à 11 %, 4 à 10,5 %) — personne n'est « au fixe au lieu du pourcentage » ; et
+> 59 d'entre eux touchent EN PLUS un fixe (37,50 / 40 / 75 €), rempli une seule fois par période
+> de paie. Carl = 4,379 € de commission + 75 € de fixe + 19,20 € de handoffs = 98,579 €.
+>
+> Donc : `compta_settings.mode` et `compta_settings.is_setter` sont **supprimés** (migration
+> `0089`), avec l'instantané `compta_payments.mode_applied` devenu sans objet. Le fixe s'applique
+> **dès qu'il est renseigné** (`fixed_amount > 0`), sans drapeau.
+>
+> **`profiles.closing_role` ne commande PAS le versement**, contrairement à ce qu'un plan
+> intermédiaire proposait : la colonne vaut `'setter'` pour **1 seul** profil en prod (13
+> `closer`, 91 non renseignés) alors que la feuille verse un fixe à 59 personnes — le fixe
+> aurait été inopérant pour presque tout le monde, en silence. Le statut de setter reste dans
+> Membres, pour le classement des setters.
 
 ---
 
@@ -89,7 +107,9 @@ Les montants **hebdomadaires** (`compta_week_entries` : bonus, malus, handoffs, 
 sont rattachés à la période où tombe le **lundi** de leur semaine. Une semaine n'est jamais
 découpée — et depuis ce découpage elle ne peut plus l'être : une période contient **exactement
 2 lundis** (`mondaysIn`) et **exactement 14 jours** (`daysIn`), contre 2 ou 3 lundis et 15 ou
-16 jours avec les quinzaines calendaires. Le `weekCount` de la formule (§4) vaut donc toujours 2.
+16 jours avec les quinzaines calendaires. Ces deux lundis ne servent plus qu'à BORNER les
+saisies hebdomadaires : aucun montant ne se multiplie par leur nombre (le `weekCount` de la
+formule a disparu avec le mode fixe — tâche 16, §4).
 
 Les montants **journaliers** (`compta_day_entries`) sont rattachés par leur date.
 
@@ -113,13 +133,16 @@ groupés et les paiements partiels sans logique supplémentaire.
 Pour un chatteur et une période :
 
 ```
-  Base            mode percent : Σ sur les modèles ( Σ chatter_creator_daily.ca
-                                 des 14 jours de la période ) × rate / 100
-                  mode fixed   : fixed_amount × (nombre de semaines rattachées = 2)
-                                 -- fixed_amount est un montant HEBDOMADAIRE
+  Base            Σ sur les modèles ( Σ chatter_creator_daily.ca
+                  des 14 jours de la période ) × rate / 100
+                  -- TOUJOURS. Il n'existe plus de mode où le CA n'est pas commissionné.
 
-+ Fixe setter     si is_setter : Σ compta_week_entries.fixe_setter
-                  des 2 semaines rattachées à la période
++ Fixe            Σ compta_week_entries.fixe_setter des 2 semaines rattachées
+                  si cette somme est > 0 ; SINON compta_settings.fixed_amount
+                  -- montant PAR PÉRIODE, multiplié par rien
+                  -- versé dès qu'il est renseigné : aucun drapeau ne le commande
+                  -- la saisie hebdo est un AJUSTEMENT : elle REMPLACE le réglage,
+                     elle ne s'y ajoute jamais (ce serait un double versement)
 
 + Bonus           Σ compta_day_entries.bonus (jours de la période)
                 + Σ compta_week_entries.bonus (semaines rattachées)
@@ -146,13 +169,20 @@ n'ouvre — la prime restait invisible là où on la cherchait. Le garde contre 
 est INCHANGÉ : c'est `compta_payments.prime_amount` (instantané figé), et non la position de la
 période, qui interdit de la verser deux fois.
 
-**Hypothèse à confirmer — `fixed_amount` est HEBDOMADAIRE.** Ce n'est pas une décision du
-propriétaire : c'est déduit de la branche WIP, qui calculait `fixedAmount × jours / 7`. Aucun
-chatteur n'est en mode `fixed` en prod aujourd'hui (l'unique ligne de réglages était en
-`percent`), donc rien ne permet de le vérifier sur la donnée. Si le fixe est en réalité mensuel
-ou par période, seule cette ligne de la formule change. Depuis le découpage en 14 jours, le
-multiplicateur vaut toujours 2 — la fiche affiche donc invariablement « × 2 semaines », ce qui
-rend l'hypothèse plus visible, pas plus vraie.
+**Hypothèse TRANCHÉE — `fixed_amount` est PAR PÉRIODE, et il s'AJOUTE (tâche 16).** Cette
+section supposait un fixe HEBDOMADAIRE (`× 2 semaines`) et un mode `fixed` qui REMPLAÇAIT la
+commission. Les deux venaient de la branche WIP, pas d'une pratique. La feuille de juillet
+tranche : le fixe n'est rempli qu'une fois par période de paie (bloc S2, 59 personnes, montants
+37,50 / 40 / 75 €), jamais dans chaque bloc hebdomadaire, et il s'additionne à une commission
+versée à tout le monde (Carl = 4,379 + 75 + 19,20 = 98,579 €). `compta_settings.mode` et
+`is_setter` sont donc supprimés (§5, migration `0089`), et `weekCount` disparaît de la formule.
+
+Le montant par défaut vient des **réglages** (`compta_settings.fixed_amount`), pour ne pas avoir
+à le retaper pour 59 personnes toutes les deux semaines ; une **saisie hebdo** `fixe_setter` non
+nulle le **remplace** pour cette période (le 37,50 € observé = un demi-fixe). Conséquence
+assumée : « pas de saisie » et « saisie à 0 » sont le même état en base (`numeric not null
+default 0`), donc on n'annule pas le fixe d'une seule période par une saisie — on passe par le
+réglage. La fiche dit lequel des deux montants s'applique (`payslip.setterAdjusted`).
 
 `HANDOFF_EUR = 0.60` est une constante documentée de `packages/core`, pas un nombre en dur dans
 un composant. Les entrées `kind = 'warning'` de la Police valent 0 € : elles sont listées avec
@@ -171,11 +201,12 @@ cumulatif.
 
 ---
 
-## 5. Modèle de données — migrations `0085` … `0088`
+## 5. Modèle de données — migrations `0085` … `0089`
 
 `0085` porte l'essentiel (les tables étant vides) ; `0086` ouvre la lecture cloisonnée des
 sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
-`compta_payments` sur le découpage en 14 jours.
+`compta_payments` sur le découpage en 14 jours, `0089` supprime le mode de rémunération et le
+statut de setter (§5.5).
 
 **5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
 étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
@@ -192,10 +223,9 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | Colonne | Type | Rôle |
 |---|---|---|
 | `ca_reference` | `numeric(10,2)` | CA ayant servi de base |
-| `mode_applied` | `text check (mode_applied in ('percent','fixed'))` | mode au moment du paiement |
 | `rate_applied` | `numeric(5,2)` | taux au moment du paiement |
 | `base_amount` | `numeric(10,2)` | base calculée |
-| `setter_amount` | `numeric(10,2)` | fixe setter |
+| `setter_amount` | `numeric(10,2)` | fixe de la période (réglage ou saisie hebdo) |
 | `bonus_amount` | `numeric(10,2)` | bonus cumulés |
 | `malus_amount` | `numeric(10,2)` | malus manuels |
 | `handoffs_amount` | `numeric(10,2)` | handoffs × 0,60 |
@@ -204,6 +234,10 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 
 `amount` reste le **net versé**. Invariant :
 `amount = base + setter + bonus − malus + handoffs + prime − sanctions`.
+
+`mode_applied` figurait ici jusqu'à la tâche 16 (`text check (mode_applied in
+('percent','fixed'))`, mode au moment du paiement) : `0089` la supprime avec le mode lui-même —
+une colonne `not null` qu'aucun code ne peut plus remplir.
 
 **Aucune de ces colonnes n'a de valeur par défaut** (arbitré le 2026-07-27). Un `default 0` les
 rendrait optionnelles dans le type `Insert` généré : un paiement omettant `sanctions_amount`
@@ -238,6 +272,20 @@ non-chevauchement `compta_payment_no_overlap` (`0087`) ne bouge pas non plus —
 `covered_days` et `chatter_id`, jamais sur la période (vérifié : c'est la seule fonction de
 `public` qui mentionne `compta_payments`, et aucune vue n'en dépend). Même chose pour le garde
 « on ne fige que des jours révolus » de `payPeriod`, qui compare des jours à `todayParis()`.
+
+**5.5 Un seul mode de rémunération — migration `0089`.** Trois colonnes disparaissent :
+`compta_settings.mode` (et son `check`), `compta_settings.is_setter`, et l'instantané
+`compta_payments.mode_applied`. Le raisonnement et les mesures sont en §2 et §4.
+
+`compta_settings.fixed_amount` **change de sens sans changer de type** : montant hebdomadaire du
+mode fixe → fixe de la PÉRIODE, qui s'ajoute à la commission et s'applique dès qu'il est `> 0`.
+Le sens vit dans un `comment on column`, pas dans un renommage : la colonne est vide, mais
+renommer casserait les requêtes ad hoc écrites jusqu'ici sans rien apprendre de plus.
+
+Sans risque : `compta_settings` et `compta_payments` sont **vides** (0 ligne chacune, mesuré sur
+l'UAT le 2026-07-27 juste avant d'appliquer), et `0085`/`0087`/`0088` ne sont pas en production.
+La prod n'a pas été ouverte pour cette tâche — `compta_settings` y sera revérifiée avant de
+pousser.
 
 ---
 
@@ -305,12 +353,17 @@ sanction en clair (`05/07 — Réponse > 45 s : 15 €`), la ventilation du CA p
 compte de handoffs. Sous la fiche : la saisie des bonus/malus/handoffs, et pour un admin le
 bouton **Marquer payé** qui fige l'instantané et enregistre `covered_days`.
 
-**Réglages (admin seul).** Toujours sous la fiche : les **réglages de paie** du chatteur (mode
-`percent`/`fixed`, taux ou fixe hebdomadaire, statut setter) et sa **prime** (montant, à verser
-ou renoncée). Sans eux, `compta_settings` et `compta_primes` restaient aux défauts de leurs
-colonnes pour tout le monde et n'étaient modifiables qu'en SQL — le mode `fixed` et le fixe
-setter étaient inatteignables, et la prime « manuelle » de la §2 ne pouvait pas être créée. Une
-prime déjà versée s'affiche en lecture seule : son statut est la trace du virement.
+**Réglages (admin seul).** Derrière l'**engrenage** de la ligne, un dialog à **trois champs et un
+seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le **fixe par période** en €
+(il s'ajoute à la commission), et la **prime** nouveau chatteur (montant, à verser ou renoncée).
+Sans cet écran, `compta_settings` et `compta_primes` resteraient aux défauts de leurs colonnes
+pour tout le monde, modifiables en SQL seulement, et la prime « manuelle » de la §2 ne pourrait
+pas être créée. Une prime déjà versée s'affiche en lecture seule : son statut est la trace du
+virement.
+
+Deux tables derrière un seul bouton, donc deux Server Actions : l'écran **nomme** celle qui a
+échoué (« Taux et fixe enregistrés, mais PAS la prime : … »). Un « Erreur » global laisserait
+croire que rien n'a été écrit alors que la moitié l'a été.
 
 **Chatteur non relié à MyPuls.** `profiles.chatter_id` est nullable : 30 profils chatteurs sur
 102 ne sont pas reliés en prod. Sans lien, aucun CA n'est calculable. La ligne affiche un
@@ -389,10 +442,16 @@ période à cheval sur deux mois puis sur deux années, `mondaysIn` toujours à 
 à 14 sur un large balayage, une semaine jamais découpée, et `recentPeriods` sans trou ni
 recouvrement.
 
-**`payslip.ts`** — mode percent, mode fixed (dont un cas branché sur `mondaysIn(periodOf(…))`,
-qui rattache le multiplicateur affiché au découpage réel), setter avec et sans fixe, handoffs à
-0,60, prime due puis payée, sanctions `malus` et `warning` mélangées, cumul malus manuel +
-sanction police, période entièrement vide, et l'invariant
+**`payslip.ts`** — la commission modèle par modèle et son arrondi par ligne ; le **fixe**, qui
+concentre les régressions de la tâche 16 : il s'ajoute à la commission (il ne la remplace pas),
+il n'est multiplié par rien, il s'applique sans drapeau, une saisie hebdo le remplace (jamais ne
+s'y ajoute), et la fiche sait lequel des deux montants s'applique ; plus une ligne de la feuille
+rejouée de bout en bout (commission + fixe + handoffs). Puis handoffs à 0,60, prime due, cumul
+malus manuel + sanction police, période entièrement vide, et l'invariant
 `net = base + setter + bonus − malus + handoffs + prime − sanctions`.
+
+Ces tests sont **vérifiés discriminants** : chaque régression a été réintroduite une par une
+dans `computePayslip`, et le test correspondant est tombé (détail dans le rapport de tâche 16).
+Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
 
 Pas de test côté `apps/web` : le harnais n'existe pas et le monter dépasse ce périmètre.

@@ -167,18 +167,19 @@ export function makeComptaColumns({
       cell: ({ row }) => <ModelCaCell modelCa={row.original.modelCa} />,
     },
     {
-      id: 'mode',
-      header: 'Commission',
-      // Le statut de SETTER est collé au mode : c'est un réglage de paie, il commande le champ
-      // « Fixe setter » de la saisie hebdo et la ligne du même nom dans le calcul. Il vivait
-      // dans le résumé de l'ancienne section repliée « Réglages de paie » ; depuis que celle-ci
-      // est devenue un dialog (engrenage), c'est ICI qu'il reste lisible sans rien ouvrir.
+      id: 'remuneration',
+      header: 'Rémunération',
+      // LES DEUX RÉGLAGES, jamais l'un OU l'autre (tâche 16) : le taux s'applique toujours, le
+      // fixe s'y AJOUTE dès qu'il est renseigné. La colonne disait « Commission » et affichait
+      // `10 %` ou `Fixe 75 €` selon un mode qui n'existe plus.
+      //
+      // C'est le fixe du RÉGLAGE qui est montré ici, pas celui de la période : une saisie hebdo
+      // peut le remplacer (37,50 € au lieu de 75 €), et c'est la fiche dépliée qui le dit —
+      // cette cellule décrit la configuration du membre, pas le résultat d'une période.
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
-          {row.original.mode === 'percent'
-            ? `${row.original.rate} %`
-            : `Fixe ${eur(row.original.fixedAmount)}`}
-          {row.original.isSetter && ' · Setter'}
+          {row.original.rate} %
+          {row.original.fixedAmount > 0 && ` · fixe ${eur(row.original.fixedAmount)}`}
         </span>
       ),
     },

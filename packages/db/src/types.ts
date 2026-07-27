@@ -356,7 +356,6 @@ export type Database = {
           handoffs_amount: number
           id: string
           malus_amount: number
-          mode_applied: string
           note: string | null
           paid_at: string
           paid_by: string | null
@@ -377,7 +376,6 @@ export type Database = {
           handoffs_amount: number
           id?: string
           malus_amount: number
-          mode_applied: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
@@ -398,7 +396,6 @@ export type Database = {
           handoffs_amount?: number
           id?: string
           malus_amount?: number
-          mode_applied?: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
@@ -474,8 +471,6 @@ export type Database = {
         Row: {
           chatter_id: string
           fixed_amount: number
-          is_setter: boolean
-          mode: string
           rate: number
           updated_at: string
           updated_by: string | null
@@ -483,8 +478,6 @@ export type Database = {
         Insert: {
           chatter_id: string
           fixed_amount?: number
-          is_setter?: boolean
-          mode?: string
           rate?: number
           updated_at?: string
           updated_by?: string | null
@@ -492,8 +485,6 @@ export type Database = {
         Update: {
           chatter_id?: string
           fixed_amount?: number
-          is_setter?: boolean
-          mode?: string
           rate?: number
           updated_at?: string
           updated_by?: string | null
