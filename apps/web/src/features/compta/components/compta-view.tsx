@@ -44,7 +44,10 @@ export function ComptaView({
       deltaPct: null, trendLabel: data.fortnight.label, hint: `${due.length} chatteur${due.length > 1 ? 's' : ''}`,
     },
     {
-      key: 'paid', label: 'Déjà payé', value: eur(data.rows.filter((r) => r.paid).reduce((s, r) => s + r.payslip.net, 0)),
+      // L'INSTANTANÉ (`paidAmount`), pas `payslip.net` : ce dernier est le recalcul du jour, et
+      // une ré-ingestion du CA le ferait diverger des virements réellement passés — c'est
+      // précisément ce que l'instantané existe pour éviter (spec §5.3).
+      key: 'paid', label: 'Déjà payé', value: eur(data.rows.reduce((s, r) => s + (r.paidAmount ?? 0), 0)),
       deltaPct: null, trendLabel: 'Quinzaine couverte', hint: `${data.rows.length - due.length} réglé${data.rows.length - due.length > 1 ? 's' : ''}`,
     },
     {
@@ -89,7 +92,11 @@ export function ComptaView({
       <MembersAccordion
         items={data.rows}
         hint={(r) =>
-          r.chatterId == null ? '⚠ non relié à MyPuls' : r.paid ? `payé le ${r.paidOn}` : `${eur(r.payslip.net)} à payer`
+          r.chatterId == null
+            ? '⚠ non relié à MyPuls'
+            : r.paid
+              ? `payé le ${r.paidOn} — ${eur(r.paidAmount ?? 0)}`
+              : `${eur(r.payslip.net)} à payer`
         }
       >
         {(r) => (
@@ -99,6 +106,7 @@ export function ComptaView({
             mondays={mondaysIn(data.fortnight)}
             canEnter={canEnter}
             canPay={canPay}
+            fortnightElapsed={data.fortnightElapsed}
           />
         )}
       </MembersAccordion>

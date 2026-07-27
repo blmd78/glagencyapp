@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { eur } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ComptaEntryForm } from './compta-entry-form'
+import { ComptaPayDialog } from './compta-pay-dialog'
 import type { ComptaRow } from '../types'
 
 /** Une ligne de la fiche : libellé à gauche, montant aligné à droite en tabulaire. */
@@ -24,22 +25,27 @@ function Line({ label, amount, muted }: { label: string; amount: number; muted?:
  */
 export function ComptaPayslip({
   row,
+  fortnight,
   mondays,
   canEnter,
+  canPay,
+  fortnightElapsed,
 }: {
   row: ComptaRow
-  /** Conservé dans la signature pour `compta-view.tsx` (tâche 6) ; plus utilisé dans le corps
-   *  depuis que le libellé du mode `fixed` affiche `mondays.length` plutôt que `fortnight.label`
-   *  (correction post-revue) — non déstructuré pour ne pas rouvrir le warning ESLint résolu. */
+  /** Quinzaine affichée — identifie le paiement `(month, period)` et fournit ses `covered_days`. */
   fortnight: Fortnight
   /** Lundis des semaines rattachées — un formulaire de saisie par semaine (tâche 8). */
   mondays: string[]
   /** Droit de SAISIE (manager/sous-manager sur ses rattachés, ou admin) — spec §6, distinct de
    *  `canPay` (admin seul). Conditionne `ComptaEntryForm`. */
   canEnter: boolean
-  /** Droit de PAIEMENT (admin seul) — pas encore lu ici, câblé pour le bouton de paiement de
-   *  la tâche 9. Ne pas retirer même inutilisé : la tâche 9 devra le remettre sinon. */
+  /** Droit de PAIEMENT (admin seul) — spec §6. Masquer le bouton n'est qu'optimiste :
+   *  `adminGuard` et la RLS 0085 (`compta_payments_admin_write`) sont le verrou réel. */
   canPay: boolean
+  /** Quinzaine terminée — DISTINCT de `canPay` : l'un est un droit, l'autre un état de la
+   *  période. `payFortnight` refuse de figer des jours non révolus ; ne pas monter un bouton
+   *  qui échouerait à coup sûr. */
+  fortnightElapsed: boolean
 }) {
   const p = row.payslip
 
@@ -107,6 +113,19 @@ export function ComptaPayslip({
         <span>Net à payer</span>
         <span className="tabular-nums">{eur(p.net)}</span>
       </div>
+
+      {row.paid && (
+        <p className="text-xs text-muted-foreground">
+          Payé le {row.paidOn} — {eur(row.paidAmount ?? 0)}
+          {/* Écart possible avec le « Net à payer » ci-dessus : celui-ci est recalculé
+              aujourd'hui, celui-là est l'instantané figé au virement. C'est l'instantané
+              qui fait foi. */}
+        </p>
+      )}
+
+      {canPay && fortnightElapsed && !row.paid && (
+        <ComptaPayDialog row={row} fortnight={fortnight} />
+      )}
 
       {canEnter &&
         mondays.map((m) => (

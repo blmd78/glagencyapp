@@ -35,13 +35,22 @@ export interface ComptaRow {
   /** Tous les jours de la quinzaine sont couverts par un paiement. */
   paid: boolean
   paidOn: string | null
+  /** Montant RÉELLEMENT versé (instantané `compta_payments.amount`), null si non payé. Distinct
+   *  de `payslip.net`, qui est le recalcul du jour : c'est cette valeur-là qui fait foi. */
+  paidAmount: number | null
 }
 
 export interface ComptaData {
   fortnight: Fortnight
+  /** Quinzaine TERMINÉE (son dernier jour est révolu) — seul cas où le paiement est ouvert.
+   *  Calculé côté serveur, comme le garde de `payFortnight` : un `todayParis()` évalué dans le
+   *  composant client dépendrait de l'horloge du poste, alors que c'est le serveur qui tranche. */
+  fortnightElapsed: boolean
   /** Quinzaines proposées au sélecteur, la plus récente d'abord. */
   choices: Fortnight[]
   rows: ComptaRow[]
-  /** Quinzaines ÉCHUES dont un jour n'est couvert par aucun paiement. */
+  /** Quinzaines ÉCHUES dont un jour n'est couvert par aucun paiement — pour un membre qu'elles
+   *  CONCERNENT, c'est-à-dire déjà arrivé (`chatter_first_seen()`). Les membres non reliés à
+   *  MyPuls en sont exclus : l'application ne peut pas les payer. */
   overdue: Fortnight[]
 }
