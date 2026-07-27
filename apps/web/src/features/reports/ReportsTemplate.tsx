@@ -32,9 +32,14 @@ export function ReportsTemplate({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Pas de sélecteur quand on est seul à consulter (rédacteur sans encadré). */}
+      {/* Pas de sélecteur quand on est seul à consulter (rédacteur sans encadré).
+          « Consulter : » — sans lui, le combobox n'annonce pas ce qu'il pilote (il affiche
+          « Tous les membres » ou un nom, sans plus). Il n'y en a pas sur le Planning : là-bas
+          le sélecteur est partagé par deux onglets et change de sens de l'un à l'autre, aucun
+          libellé unique ne serait juste. */}
       {selectableMembers.length > 1 && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-sm text-muted-foreground">Consulter :</span>
           <MemberSelect members={selectableMembers} value={filterId} allowAll />
         </div>
       )}

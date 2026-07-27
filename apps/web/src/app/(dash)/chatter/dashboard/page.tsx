@@ -1,15 +1,21 @@
 import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
 import { applyFilter, resolveFilter, selfLabel } from '@/lib/roster'
-import { getReportDays, getReports, getReportMembers } from '@/features/reports/services/get-reports'
+import {
+  getReportDays,
+  getReportMembers,
+  getReports,
+  isPiled,
+} from '@/features/reports/services/get-reports'
 import { ReportsTemplate } from '@/features/reports/ReportsTemplate'
 import { ReportsSkeleton } from '@/features/reports/components/reports-skeleton'
 import type { ReportEntry, ReportMember } from '@/features/reports/types'
 
 /**
  * Dashboard = comptes rendus journaliers. Chacun rédige LE SIEN ; la consultation hiérarchique
- * (manager → ses rattachés directs ; admin/superadmin → tout) empile TOUS les noms en
- * accordéons, un par ligne. Le sélecteur `?membre=` reste disponible comme FILTRE optionnel :
+ * (manager → ses rattachés directs ; admin/superadmin → tout) empile les noms de
+ * l'ENCADREMENT en accordéons, un par ligne — les chatteurs, trop nombreux pour une pile,
+ * restent joignables par le sélecteur. Celui-ci est un FILTRE optionnel :
  * absent = tout le monde empilé, présent = cette personne seule, affichée à plat. La liste ne
  * contient que l'encadrement (chatteurs écartés, cf. `getReportMembers`). RLS = verrou réel.
  */
@@ -52,19 +58,25 @@ async function DashboardContent({
   membre?: string
   membersPromise: Promise<ReportMember[]>
 }) {
-  // Personnes consultables hors soi (la RLS de `profiles` a déjà scopé par hiérarchie, le
-  // service a déjà écarté chatteurs et superadmins). SOI en tête ; le « (moi) » ne sert qu'à
-  // se distinguer des autres : inutile quand on est seul.
+  // Personnes consultables hors soi (la RLS de `profiles` a déjà scopé par hiérarchie). SOI en
+  // tête ; le « (moi) » ne sert qu'à se distinguer des autres : inutile quand on est seul.
   const others = (await membersPromise).filter((m) => m.id !== profileId)
   const roster: ReportMember[] = [
     { id: profileId, name: selfLabel(selfName, others), role: '' },
     ...others,
   ]
 
-  // `?membre=` validé = FILTRE : une seule personne à charger, affichée à plat. Absent =
-  // tout le monde, empilé en accordéons.
+  // DEUX périmètres distincts, et c'est volontaire :
+  // — le SÉLECTEUR liste `roster`, tout le monde, chatteurs compris : on doit pouvoir aller
+  //   lire le compte rendu d'un chatteur en le choisissant ;
+  // — la PILE d'accordéons ne montre que l'encadrement (`isPiled`), sinon la page déroulerait
+  //   cent noms de chatteurs.
+  // `?membre=` validé sur le roster COMPLET : filtrer sur un chatteur reste donc possible, et
+  // l'affiche à plat.
   const filterId = resolveFilter(roster, membre)
-  const shown = applyFilter(roster, filterId)
+  const shown = filterId
+    ? applyFilter(roster, filterId)
+    : roster.filter((m) => isPiled(m, profileId))
 
   // Une seule personne à afficher → rendu à plat : on charge SON contenu tout de suite, il n'y
   // a pas d'accordéon à déplier. Sinon on ne charge que les JOURS d'écriture (repère de la

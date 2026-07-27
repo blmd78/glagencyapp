@@ -62,26 +62,30 @@ export async function getReportDays(profileIds: string[]): Promise<Map<string, s
 }
 
 /**
- * Rôles listés sur le Dashboard : l'ENCADREMENT, jamais les chatteurs (demande du
- * propriétaire, 2026-07-26 — avant, la requête ne filtrait que `superadmin`, donc chatteurs
- * et `'user'` non migrés apparaissaient). Liste explicite plutôt qu'une exclusion, comme
- * `getPlanningMembers` : un rôle ajouté plus tard doit être un choix, pas un effet de bord.
- * Le superadmin reste hors liste (il ne rédige pas). Un rôle absent d'ici garde son propre
- * compte rendu : SOI n'est pas filtré par cette requête, la page l'ajoute en tête.
+ * Rôles EMPILÉS en accordéons : l'encadrement (demande du propriétaire, 2026-07-26 — « pas
+ * mettre les chatteurs »). Ce n'est PAS un filtre de lecture : un chatteur reste joignable par
+ * le SÉLECTEUR, qui liste tout le monde — on ne veut simplement pas dérouler 100 chatteurs sur
+ * la page. Le superadmin, lui, ne rédige pas (v1) et reste hors des deux.
  */
-const LISTED_ROLES = ['admin', 'manager', 'sous-manager', 'police']
+const PILED_ROLES = ['admin', 'manager', 'sous-manager', 'police']
+
+/** Cette personne a-t-elle sa ligne dans la pile ? Soi toujours (`role: ''`). */
+export const isPiled = (member: ReportMember, selfId: string): boolean =>
+  member.id === selfId || PILED_ROLES.includes(member.role)
 
 /**
- * Personnes consultables sur le Dashboard. La RLS de `profiles` (0054) fait le scoping
- * hiérarchique par-dessus le filtre de rôle : admin/superadmin → tout le monde ;
- * manager/sous-manager → soi + rattachés directs (`manager_id`) ; chatteur → soi seul.
+ * Personnes consultables sur le Dashboard — TOUT LE MONDE sauf le superadmin, chatteurs
+ * compris : c'est ce qui alimente le sélecteur. La RLS de `profiles` (0054) fait le scoping
+ * hiérarchique : admin/superadmin → tout le monde ; manager/sous-manager → soi + rattachés
+ * directs (`manager_id`) ; chatteur → soi seul. Le tri de la PILE se fait ensuite côté page
+ * (`isPiled`), pas ici — sinon le sélecteur perdrait les chatteurs avec elle.
  */
 export async function getReportMembers(): Promise<ReportMember[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, email, role')
-    .in('role', LISTED_ROLES)
+    .neq('role', 'superadmin')
     .order('display_name')
   if (error) throw new Error(error.message)
   return (data ?? []).map((p) => ({ id: p.id, name: p.display_name ?? p.email ?? '—', role: p.role }))
