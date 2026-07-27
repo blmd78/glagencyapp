@@ -52,3 +52,4 @@ export {
   daysIn,
   type Fortnight,
 } from './compta/periods'
+export { computePayslip, HANDOFF_EUR, type Payslip, type PayslipInput } from './compta/payslip'
