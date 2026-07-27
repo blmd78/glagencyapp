@@ -120,8 +120,16 @@ ou par quinzaine, seule cette ligne de la formule change.
 un composant. Les entrées `kind = 'warning'` de la Police valent 0 € : elles sont listées avec
 leur motif mais n'entrent pas dans le calcul.
 
-Tous les montants sont arrondis à 2 décimales à l'affichage seulement ; le calcul reste en
-`numeric` côté base et en nombre flottant côté TS, arrondi une seule fois en fin de chaîne.
+**Arrondi — chaque composante d'abord, le net ensuite** (arbitré le 2026-07-27). Chaque ligne de
+la fiche est arrondie à 2 décimales, puis le net est la SOMME de ces lignes arrondies. Une fiche
+de paie doit s'additionner exactement à l'écran : un chatteur doit pouvoir refaire le calcul de
+tête. L'écart au résultat mathématiquement exact est borné à ~3-4 centimes par fiche et n'est pas
+cumulatif.
+
+> Cette section disait auparavant « arrondi une seule fois en fin de chaîne ». C'était une erreur,
+> et elle contredisait le test d'invariant de la §11 — écrit dans la même spec — qui échoue avec
+> cette approche (écart de 0,01 € sur `3333,33 × 12,5 %`). La contradiction a été découverte à
+> l'implémentation de la tâche 2.
 
 ---
 
