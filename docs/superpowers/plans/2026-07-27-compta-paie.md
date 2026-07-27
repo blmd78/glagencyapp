@@ -1636,20 +1636,85 @@ git commit -m "feat(compta): saisie hebdomadaire des bonus, malus, handoffs et f
 
 ### Task 9 : Paiement et instantané figé
 
+> **Révisée avant exécution** (relecture du plan contre le code réel, 2026-07-27). Six défauts
+> corrigés ici : absence de contrainte d'unicité en base, `net` négatif refusé par Zod, bouton
+> de confirmation libellé « Supprimer » en rouge, `paid_at` calculé en UTC, prime soldée sans
+> filtre de statut, et emplacement d'insertion inexistant. Détail dans chaque étape.
+
 **Files:**
+- Create: `packages/db/supabase/migrations/0087_compta_payments_unique.sql`
+- Modify: `apps/web/src/features/compta/schema.ts`
+- Modify: `apps/web/src/features/compta/types.ts`
+- Modify: `apps/web/src/features/compta/services/get-compta.ts`
 - Modify: `apps/web/src/features/compta/actions.ts`
 - Create: `apps/web/src/features/compta/components/compta-pay-dialog.tsx`
 - Modify: `apps/web/src/features/compta/components/compta-payslip.tsx`
+- Modify: `apps/web/src/features/compta/components/compta-view.tsx`
 
 **Interfaces:**
-- Consumes: `adminGuard` de `@/lib/actions`, `payInput` (Task 4), `daysIn` de `@glagency/core`.
-- Produces: `payFortnight(raw: unknown): Promise<ActionResult>`.
+- Consumes: `adminGuard` de `@/lib/actions`, `payInput` (Task 4), `daysIn` et `todayParis` de
+  `@glagency/core`, `ConfirmDialog` de `@/components/confirm-dialog`.
+- Produces: `payFortnight(raw: unknown): Promise<ActionResult>` ; `ComptaRow.paidAmount`.
 
-- [ ] **Step 1 : Ajouter l'action de paiement**
+- [ ] **Step 1 : Rendre le double paiement impossible en base**
+
+`compta_payments` n'a **aucune contrainte d'unicité** sur `(chatter_id, month, period)` —
+vérifié sur l'UAT : seules la PK sur `id` et trois index non uniques existent. Un garde
+applicatif « lire puis insérer » ne suffit pas : entre les deux requêtes, un second clic ou un
+second admin insère un doublon, et deux virements sont enregistrés pour la même quinzaine. Sur
+de l'argent, l'unicité doit venir de la base.
+
+Créer `packages/db/supabase/migrations/0087_compta_payments_unique.sql` :
+
+```sql
+-- Un seul paiement par (chatteur, quinzaine). Sans cette contrainte, le garde applicatif de
+-- `payFortnight` est un TOCTOU : deux clics concurrents passent tous les deux la lecture et
+-- insèrent deux virements pour la même quinzaine.
+-- `create unique index if not exists` = idempotent, et échouera bruyamment si des doublons
+-- existent déjà (aucun aujourd'hui : 0 ligne dans `compta_payments`).
+create unique index if not exists compta_payments_chatter_period_uniq
+  on public.compta_payments (chatter_id, month, period);
+```
+
+Appliquer sur l'**UAT seulement** (comme `0085` et `0086`) :
+
+```bash
+cd packages/db && supabase db push --db-url "$DATABASE_URL_UAT"
+```
+
+Puis régénérer `packages/db/src/types.ts` si nécessaire (un index ne change pas les types —
+vérifier que le fichier est inchangé plutôt que de le régénérer à l'aveugle).
+
+- [ ] **Step 2 : Autoriser un net négatif**
+
+`schema.ts` définit `money = z.coerce.number().min(0)`, et `payInput.amount` l'utilise. Or le
+net **peut être négatif** : `net = base + setter + bonus − malus + handoffs + prime − sanctions`
+(cf. `packages/core/src/compta/payslip.ts`). Un fixe de 50 €/semaine sur 2 semaines avec 150 €
+de sanctions Police donne −50 €. Tel quel, l'action refuserait ce paiement avec « Montant
+positif attendu », un message qui n'a aucun sens ici.
+
+Dans `apps/web/src/features/compta/schema.ts`, à côté de `money`, ajouter :
+
+```ts
+/**
+ * Le NET d'une quinzaine, seul montant SIGNÉ de la feature : malus et sanctions Police peuvent
+ * dépasser les gains (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le
+ * traitement du solde dû relève de `compta_debts`, hors périmètre (spec §9). Toutes les autres
+ * lignes (`base`, `bonus`, `sanctions`…) restent des `money` positifs : ce sont des composantes,
+ * c'est leur combinaison qui porte le signe.
+ */
+const netMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
+```
+
+et dans `payInput`, remplacer `amount: money,` par `amount: netMoney,`. Ne toucher à aucune
+autre ligne du schéma.
+
+- [ ] **Step 3 : Ajouter l'action de paiement**
 
 Dans `apps/web/src/features/compta/actions.ts`, ajouter :
 
 ```ts
+import { todayParis } from '@glagency/core'
 import { adminGuard } from '@/lib/actions'
 import { payInput } from './schema'
 
@@ -1669,16 +1734,6 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       if (!profile) throw new Error('Session expirée')
       const supabase = await createClient()
 
-      const { data: existing, error: readErr } = await supabase
-        .from('compta_payments')
-        .select('id')
-        .eq('chatter_id', v.chatterId)
-        .eq('month', v.month)
-        .eq('period', v.period)
-        .maybeSingle()
-      if (readErr) throw new Error(readErr.message)
-      if (existing) throw new BusinessError('Cette quinzaine a déjà été payée pour ce chatteur.')
-
       const { error } = await supabase.from('compta_payments').insert({
         chatter_id: v.chatterId,
         month: v.month,
@@ -1697,15 +1752,31 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
         sanctions_amount: v.sanctionsAmount,
         note: v.note,
         paid_by: profile.id,
+        // `paid_at` a un défaut `CURRENT_DATE` — mais c'est la date du SERVEUR (UTC), pas le
+        // jour métier. Un paiement enregistré à 00 h 30 à Paris en été serait daté de la
+        // veille. `todayParis()` est le jour métier de toute l'app.
+        paid_at: todayParis(),
       })
+      // 23505 = violation de l'unicité posée par 0087 : la quinzaine est déjà payée. C'est la
+      // BASE qui l'arbitre, pas une lecture préalable — sinon deux clics concurrents passent
+      // tous les deux et enregistrent deux virements.
+      if (error?.code === '23505') {
+        throw new BusinessError('Cette quinzaine a déjà été payée pour ce chatteur.')
+      }
+      if (error?.code === '42501') {
+        throw new BusinessError("Vous n'avez pas le droit d'enregistrer ce paiement.")
+      }
       if (error) throw new Error(error.message)
 
       // La prime n'est due qu'UNE fois : si elle entrait dans ce paiement, elle est soldée.
+      // `status = 'due'` explicite : sans ce filtre, une prime déjà `skipped` (renoncée)
+      // basculerait en `paid` alors qu'elle n'a rien versé.
       if (v.primeAmount > 0) {
         const { error: primeErr } = await supabase
           .from('compta_primes')
-          .update({ status: 'paid', paid_at: new Date().toISOString().slice(0, 10), updated_by: profile.id })
+          .update({ status: 'paid', paid_at: todayParis(), updated_by: profile.id })
           .eq('chatter_id', v.chatterId)
+          .eq('status', 'due')
         if (primeErr) throw new Error(primeErr.message)
       }
 
@@ -1715,7 +1786,55 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
 }
 ```
 
-- [ ] **Step 2 : Écrire le dialog de confirmation**
+Vérifier que `BusinessError`, `getProfile`, `createClient`, `revalidatePath` et `ActionResult`
+sont déjà importés en tête du fichier (Task 8 les a posés) — n'ajouter que ce qui manque.
+
+- [ ] **Step 4 : Exposer le montant réellement versé**
+
+Le KPI « Déjà payé » (`compta-view.tsx:47`) somme `r.payslip.net`, c'est-à-dire le **recalcul
+d'aujourd'hui**, pas ce qui a été versé. C'est exactement ce que l'instantané existe pour
+éviter : après une ré-ingestion du CA, le total affiché ne correspondrait plus aux virements.
+
+Dans `types.ts`, ajouter à `ComptaRow`, sous `paidOn` :
+
+```ts
+  /** Montant RÉELLEMENT versé (instantané `compta_payments.amount`), null si non payé. Distinct
+   *  de `payslip.net`, qui est le recalcul du jour : c'est cette valeur-là qui fait foi. */
+  paidAmount: number | null
+```
+
+Dans `get-compta.ts`, à côté du calcul de `paid` (autour de la ligne 197), ajouter :
+
+```ts
+    // `payments` couvre TOUTES les quinzaines (nécessaire à `overdue`) — restreindre à celle-ci.
+    const thisPayment = myPayments.find(
+      (p) => p.month === fortnight.month && p.period === fortnight.period,
+    )
+```
+
+et dans l'objet retourné, après `paidOn: …` :
+
+```ts
+      paidAmount: thisPayment ? Number(thisPayment.amount) : null,
+```
+
+Dans `compta-view.tsx`, le KPI `'paid'` somme désormais l'instantané :
+
+```ts
+      value: eur(data.rows.reduce((s, r) => s + (r.paidAmount ?? 0), 0)),
+```
+
+et le `hint` affiche le montant versé :
+
+```tsx
+          r.chatterId == null
+            ? '⚠ non relié à MyPuls'
+            : r.paid
+              ? `payé le ${r.paidOn} — ${eur(r.paidAmount ?? 0)}`
+              : `${eur(r.payslip.net)} à payer`
+```
+
+- [ ] **Step 5 : Écrire le dialog de confirmation**
 
 Créer `apps/web/src/features/compta/components/compta-pay-dialog.tsx` :
 
@@ -1740,13 +1859,22 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
   return (
     <ConfirmDialog
       title={`Payer ${row.name} — ${eur(p.net)} ?`}
-      description="Le détail du calcul sera figé : une correction du CA après coup ne modifiera plus ce paiement."
+      description={
+        p.net < 0
+          ? 'Le net est NÉGATIF : malus et sanctions dépassent les gains. Enregistrer ce paiement acte un solde dû, il ne déclenche aucun virement.'
+          : 'Le détail du calcul sera figé : une correction du CA après coup ne modifiera plus ce paiement.'
+      }
+      // `ConfirmDialog` est d'abord un dialog de SUPPRESSION : sans ces deux props, le bouton
+      // de confirmation d'un paiement s'appellerait « Supprimer » et serait rouge.
+      confirmLabel="Marquer payé"
+      destructive={false}
       trigger={
         <Button size="sm" className="self-end">
           Marquer payé
         </Button>
       }
-      // Renvoyer le message d'erreur garde le dialog ouvert et l'affiche.
+      // `ConfirmDialog` affiche lui-même la string renvoyée et RESTE ouvert. Pas de `toast.error`
+      // en plus : la même erreur apparaîtrait deux fois.
       onConfirm={async () => {
         const res = await payFortnight({
           chatterId: row.id,
@@ -1766,10 +1894,7 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
           sanctionsAmount: p.sanctions,
           note: null,
         })
-        if (!res.success) {
-          toast.error(res.error)
-          return res.error
-        }
+        if (!res.success) return res.error
         toast.success('Paiement enregistré')
       }}
     />
@@ -1777,29 +1902,47 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
 }
 ```
 
-- [ ] **Step 3 : Brancher dans la fiche**
+- [ ] **Step 6 : Brancher dans la fiche**
 
-Dans `compta-payslip.tsx`, importer `ComptaPayDialog` et remplacer le paragraphe provisoire
-« Le bouton de paiement arrive à la tâche 9. » par :
+⚠️ Le plan disait de remplacer un paragraphe « Le bouton de paiement arrive à la tâche 9. » —
+**il n'existe pas** dans `compta-payslip.tsx`. Insérer plutôt le bloc juste **après** le
+`<div>` « Net à payer » (`compta-payslip.tsx:106-109`) et **avant** le `{canEnter && …}` :
 
 ```tsx
-      {canPay && !row.paid && row.chatterId != null && (
-        <ComptaPayDialog row={row} fortnight={fortnight} />
+      {row.paid && (
+        <p className="text-xs text-muted-foreground">
+          Payé le {row.paidOn} — {eur(row.paidAmount ?? 0)}
+          {/* Écart possible avec le « Net à payer » ci-dessus : celui-ci est recalculé
+              aujourd'hui, celui-là est l'instantané figé au virement. C'est l'instantané
+              qui fait foi. */}
+        </p>
       )}
+
+      {canPay && !row.paid && <ComptaPayDialog row={row} fortnight={fortnight} />}
 ```
 
-- [ ] **Step 4 : Vérifier**
+Deux points sur ce gate :
+- `canPay` est enfin **lu** — retirer le commentaire « pas encore lu ici » de sa doc de prop.
+- ne PAS ajouter `row.chatterId != null` : le composant fait déjà un early-return complet quand
+  `chatterId` est nul (`compta-payslip.tsx:46`), la condition serait morte.
 
-Run : `pnpm --filter @glagency/web typecheck && pnpm --filter @glagency/web lint`
-Expected : 0 erreur.
+`fortnight` redevient utilisé dans le corps → le déstructurer et retirer le commentaire
+« Conservé dans la signature… plus utilisé dans le corps ».
 
-- [ ] **Step 5 : Commit**
+- [ ] **Step 7 : Vérifier**
+
+Run : `pnpm --filter @glagency/web typecheck && pnpm --filter @glagency/web lint && pnpm --filter @glagency/web build`
+Expected : 0 erreur ; seuls les 3 warnings ESLint préexistants (`data-table.tsx`) subsistent.
+
+- [ ] **Step 8 : Commit**
+
+Ne PAS commiter depuis un subagent : `CLAUDE.md` soumet chaque commit à l'accord de Benoit.
+Signaler que la tâche est prête et laisser la session principale commiter.
 
 ```bash
-git add apps/web/src/features/compta
+git add packages/db/supabase/migrations/0087_compta_payments_unique.sql apps/web/src/features/compta
 git commit -m "feat(compta): paiement d'une quinzaine avec instantané figé (admin seul)"
 ```
-
 ---
 
 ### Task 10 : Vérification finale
@@ -1847,4 +1990,8 @@ git commit --allow-empty -m "chore(compta): vérification de bout en bout"
 - Aucune saisie JOURNALIÈRE dans l'UI (`compta_day_entries` est lu et sommé, mais la saisie se
   fait à la semaine). À ajouter si le besoin apparaît.
 - Aucun export comptable.
-- `0085` n'est pas poussée en production par ce plan.
+- Le DÉTAIL figé d'une quinzaine payée n'est pas affiché : seuls le montant versé et sa date le
+  sont (Task 9, Step 6). Les 11 colonnes d'instantané sont écrites et exploitables, mais la
+  fiche dépliée continue de montrer le recalcul du jour. À faire si un écart apparaît en usage.
+- `0085`, `0086` et `0087` ne sont poussées QU'EN UAT par ce plan — jamais en production sans
+  validation explicite de Benoit.
