@@ -760,7 +760,11 @@ export const payInput = z.object({
   amount: money,
   caReference: money,
   modeApplied: z.enum(['percent', 'fixed']),
-  rateApplied: money,
+  // PAS `money` : c'est un TAUX en %, pas un montant, et la colonne est `numeric(5,2)` —
+  // plafonnée à 999,99. Avec la borne des montants (99 999), un taux aberrant passait Zod
+  // puis explosait en `numeric field overflow` Postgres brut, au lieu d'une erreur de
+  // validation lisible.
+  rateApplied: z.coerce.number().min(0, 'Taux positif attendu').max(999.99, 'Taux hors bornes'),
   baseAmount: money,
   setterAmount: money,
   bonusAmount: money,
