@@ -197,6 +197,17 @@ Les policies actuelles (`has_page('compta')` sans cloisonnement) donnent la lect
 la compta à quiconque a la page. Elles sont remplacées par
 `is_admin() or (is_manager() and manages(chatter_id))`.
 
+**Lecture des sanctions depuis la compta** (arbitré le 2026-07-27). `police_entries` n'est lisible
+qu'avec le droit de page `police` (0078), lequel donne accès à **toutes** les sanctions, non
+cloisonnées. Or 5 sous-managers portent `compta` sans `police` : leur fiche affichait 0 € de
+sanctions **sans erreur**, donc un net surestimé.
+
+Corrigé par une policy ADDITIONNELLE et CLOISONNÉE (`0086`) : un porteur de `compta` lit les
+sanctions de **ses rattachés directs uniquement** (`manages(chatter_id)`). La policy `police_read`
+existante n'est pas touchée — la page Police garde son comportement. Personne ne reçoit le droit
+`police`, et personne ne gagne d'accès global : la compta ne récupère que la valeur qui concerne
+le chatteur affiché.
+
 La triade du repo s'applique (`guidelines-standard-feature.md` §4) : **RLS** = verrou réel ;
 **serveur** `managerPageGuard('compta')` sur les écritures de saisie, `adminGuard` sur le
 paiement ; **UI** un `canPay` threadé `page → Template → composants` pour masquer le bouton de
