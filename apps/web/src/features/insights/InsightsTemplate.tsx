@@ -19,16 +19,17 @@ export function InsightsTemplate({
   canWrite: boolean
   currentUserId: string
 }) {
-  const critical = data.insights.filter((i) => i.severity === 'critical').length
-  const open = data.insights.filter((i) => i.status === 'new' || i.status === 'in_progress').length
-
   return (
     <div className="flex flex-col gap-6">
       {/* -mt-4 : compense le gap-6 déjà posé par le h1 remonté dans page.tsx (streaming
-          shell + Suspense) — cf. docs/guidelines-standard-feature.md §2.5. */}
+          shell + Suspense) — cf. docs/guidelines-standard-feature.md §2.5.
+          Les COMPTEURS (cartes / critiques / à traiter) ont quitté cette ligne : ils sont
+          désormais dans les cartes KPI juste en dessous (`insights-view.tsx`), et les répéter
+          ici affichait deux fois les mêmes chiffres à trois centimètres d'écart. Ne reste que
+          ce que les KPIs ne disent pas : la période couverte et ce à quoi elle est comparée. */}
       <p className="-mt-4 text-sm text-muted-foreground">
         {data.weekStart
-          ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours · ${data.insights.length} carte(s) · ${critical} critique(s) · ${open} à traiter`
+          ? `S-1 · semaine du ${frDayLong(data.weekStart)} au ${frDayLong(addDays(data.weekStart, 6))}, comparée à la semaine en cours`
           : 'Analyses hebdomadaires des quotas par chatter'}
       </p>
       <InsightsView

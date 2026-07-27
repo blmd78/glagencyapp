@@ -7,11 +7,33 @@
 // Le superadmin n'écrit pas (form non rendu).
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
 import { runAction, pageGuard, type ActionResult } from '@/lib/actions'
+import { getReports } from './services/get-reports'
 import { upsertReportInput } from './schema'
+import type { Report } from './types'
+
+/**
+ * LECTURE à la demande — dérogation assumée à « les Server Actions sont pour les mutations ».
+ * La pile de noms s'affiche repliée : charger d'emblée 30 jours de texte × tous les encadrants
+ * gonflerait le payload du premier rendu pour du contenu que personne ne regarde. Déplier est
+ * une action CLIENT, donc il faut un aller-retour ; entre une Server Action et un Route Handler
+ * (réservé aux webhooks/OAuth/IA par les guidelines), l'action est le chemin le plus court.
+ * `pageGuard` (et non `managerPageGuard`) : c'est une lecture, un chatteur y a droit pour lui.
+ * La RLS `daily_reports_read` (0053/0064) reste le vrai cloisonnement.
+ * Schéma inline : mono-usage, serveur uniquement, aucun resolver client à partager (§5).
+ */
+export async function loadReports(input: unknown): Promise<ActionResult<Report[]>> {
+  return runAction({
+    schema: z.object({ profileId: z.uuid() }),
+    input,
+    guard: pageGuard('dashboard'),
+    handler: ({ profileId }) => getReports(profileId),
+  })
+}
 
 /** Crée ou met à jour SON compte rendu DU JOUR (upsert sur (profile_id, day=aujourd'hui)). */
 export async function upsertReport(input: unknown): Promise<ActionResult> {

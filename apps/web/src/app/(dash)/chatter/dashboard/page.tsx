@@ -1,13 +1,17 @@
 import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
-import { getReports, getReportMembers } from '@/features/reports/services/get-reports'
+import { applyFilter, resolveFilter, selfLabel } from '@/lib/roster'
+import { getReportDays, getReports, getReportMembers } from '@/features/reports/services/get-reports'
 import { ReportsTemplate } from '@/features/reports/ReportsTemplate'
 import { ReportsSkeleton } from '@/features/reports/components/reports-skeleton'
-import type { ReportMember } from '@/features/reports/types'
+import type { ReportEntry, ReportMember } from '@/features/reports/types'
 
 /**
- * Dashboard = comptes rendus journaliers. Chacun rédige LE SIEN ; consultation hiérarchique
- * via `?membre=` (manager → ses rattachés directs ; admin/superadmin → tout). RLS = verrou réel.
+ * Dashboard = comptes rendus journaliers. Chacun rédige LE SIEN ; la consultation hiérarchique
+ * (manager → ses rattachés directs ; admin/superadmin → tout) empile TOUS les noms en
+ * accordéons, un par ligne. Le sélecteur `?membre=` reste disponible comme FILTRE optionnel :
+ * absent = tout le monde empilé, présent = cette personne seule, affichée à plat. La liste ne
+ * contient que l'encadrement (chatteurs écartés, cf. `getReportMembers`). RLS = verrou réel.
  */
 export default async function DashboardPage({
   searchParams,
@@ -48,27 +52,44 @@ async function DashboardContent({
   membre?: string
   membersPromise: Promise<ReportMember[]>
 }) {
-  // Personnes consultables hors soi (la RLS de `profiles` a déjà scopé par rôle). S'il y en a,
-  // on préfixe SOI (« (moi) ») pour le sélecteur ; sinon pas de sélecteur.
+  // Personnes consultables hors soi (la RLS de `profiles` a déjà scopé par hiérarchie, le
+  // service a déjà écarté chatteurs et superadmins). SOI en tête ; le « (moi) » ne sert qu'à
+  // se distinguer des autres : inutile quand on est seul.
   const others = (await membersPromise).filter((m) => m.id !== profileId)
-  const members: ReportMember[] = others.length
-    ? [{ id: profileId, name: `${selfName} (moi)`, role: '' }, ...others]
-    : []
-  const target = membre && members.some((m) => m.id === membre) ? membre : profileId
-  const isSelf = target === profileId
-  // On ne rédige que LE SIEN ; le superadmin ne rédige pas (v1).
-  const canWrite = isSelf && !superadmin
-  const targetName = isSelf ? selfName : (others.find((m) => m.id === target)?.name ?? '—')
-  const reports = await getReports(target)
+  const roster: ReportMember[] = [
+    { id: profileId, name: selfLabel(selfName, others), role: '' },
+    ...others,
+  ]
+
+  // `?membre=` validé = FILTRE : une seule personne à charger, affichée à plat. Absent =
+  // tout le monde, empilé en accordéons.
+  const filterId = resolveFilter(roster, membre)
+  const shown = applyFilter(roster, filterId)
+
+  // Une seule personne à afficher → rendu à plat : on charge SON contenu tout de suite, il n'y
+  // a pas d'accordéon à déplier. Sinon on ne charge que les JOURS d'écriture (repère de la
+  // ligne repliée) ; le texte part à l'ouverture (`loadReports`). `getReportDays` pré-remplit
+  // une entrée par id — le `?? []` n'est là que pour TypeScript.
+  const single = shown.length === 1
+  const [reports, days] = await Promise.all([
+    single ? getReports(shown[0].id) : Promise.resolve([]),
+    single ? Promise.resolve(new Map<string, string[]>()) : getReportDays(shown.map((m) => m.id)),
+  ])
+  const entries: ReportEntry[] = shown.map((m) => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    days: days.get(m.id) ?? [],
+    // On ne rédige que LE SIEN ; le superadmin ne rédige pas (v1).
+    canWrite: m.id === profileId && !superadmin,
+  }))
 
   return (
     <ReportsTemplate
+      entries={entries}
       reports={reports}
-      targetName={targetName}
-      members={members}
-      target={target}
-      canWrite={canWrite}
-      isSelf={isSelf}
+      selectableMembers={roster}
+      filterId={filterId}
     />
   )
 }

@@ -37,10 +37,13 @@ export function PlanningBlocksList({
   bySection,
   canEdit,
   onEdit,
+  onDeleted,
 }: {
   bySection: { section: PlanningSection; blocks: PlanningBlock[] }[]
   canEdit: boolean
   onEdit: (block: PlanningBlock) => void
+  /** Suppression réussie — permet au parent de recharger un planning détenu en état client. */
+  onDeleted?: () => void
 }) {
   if (bySection.length === 0) {
     return (
@@ -184,6 +187,7 @@ export function PlanningBlocksList({
                             return res.error
                           }
                           toast.success('Bloc supprimé')
+                          onDeleted?.()
                         }}
                       />
                     </div>

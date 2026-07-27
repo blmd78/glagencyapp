@@ -3,9 +3,10 @@
 import { useState, useTransition } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { CollapsibleSection } from '@/components/collapsible-section'
+import { InsightDot, isATraiter } from './insight-dot'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
@@ -19,10 +20,12 @@ import { InsightWeekColumn } from './insight-week-column'
 import { frWeekdayShort } from '@glagency/core'
 import type { InsightBilan, InsightRow, InsightStatus } from '../types'
 
+// Plus de `border-l-*` ici : la carte porte le cadre commun (`CollapsibleSection`) et la
+// sévérité est signalée par le point de couleur du trigger (`insight-dot.tsx`).
 const SEVERITY = {
-  critical: { label: 'Critique', className: STATUS_COLORS.danger, border: 'border-l-red-500' },
-  warning: { label: 'Moyen', className: STATUS_COLORS.warning, border: 'border-l-amber-500' },
-  ok: { label: 'Sain', className: STATUS_COLORS.positive, border: 'border-l-green-500' },
+  critical: { label: 'Critique', className: STATUS_COLORS.danger },
+  warning: { label: 'Moyen', className: STATUS_COLORS.warning },
+  ok: { label: 'Sain', className: STATUS_COLORS.positive },
 } as const
 
 /** Carte insight « quotas hebdo » : chips, split modèles S-1/semaine en cours, plan, statuts. */
@@ -133,12 +136,20 @@ export function InsightCard({
   ) : null
 
   return (
-    <Card className={cn('border-l-4 py-0', sev.border)}>
-      <Collapsible>
-        <CollapsibleTrigger className="flex w-full items-center gap-2.5 px-4 py-3 text-left">
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90 [[data-state=open]>&]:rotate-90" />
+    <CollapsibleSection
+      contentClassName="p-4"
+      trigger={
+        <>
+          {/* Repère de couleur — remplace l'ancienne barre `border-l-4` de sévérité, que le
+              cadre commun ne porte pas. Rouge prime sur ambre : une carte critique ET à
+              traiter est d'abord critique. */}
+          {insight.severity === 'critical' ? (
+            <InsightDot tone="critique" title="Critique" />
+          ) : isATraiter(status) ? (
+            <InsightDot tone="a-traiter" title="À traiter" />
+          ) : null}
           <Badge className={cn('shrink-0 text-xs uppercase', sev.className)}>{sev.label}</Badge>
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{insight.title}</span>
+          <span className="min-w-0 flex-1 truncate font-medium">{insight.title}</span>
           {/* 5 pastilles quotas : vert = atteint, rouge = manqué. */}
           <span className="hidden shrink-0 gap-1 sm:flex" aria-hidden>
             {insight.kpis.map((k) => (
@@ -149,12 +160,13 @@ export function InsightCard({
               />
             ))}
           </span>
-          <Badge className={cn('shrink-0 text-xs', STATUS_STYLE[status])}>
+          <Badge className={cn('shrink-0 text-xs font-normal', STATUS_STYLE[status])}>
             {STATUS_LABELS[status]}
           </Badge>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-      <CardContent className="flex flex-col gap-3 px-4 pb-4">
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-4 lg:items-start lg:gap-4">
         {/* ── Colonne gauche (3/4) : l'analyse S-1 ── */}
         <div className="flex min-w-0 flex-col gap-3 lg:col-span-3">
@@ -260,9 +272,7 @@ export function InsightCard({
         )}
 
         {insight.actionPlan.trim() === '' && statusBlock}
-      </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
-    </Card>
+      </div>
+    </CollapsibleSection>
   )
 }

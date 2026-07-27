@@ -11,67 +11,98 @@ import type {
 
 const SECTION_ORDER: Record<PlanningSection, number> = { matin: 0, apres_midi: 1, soir: 2 }
 
+/** Colonnes lues sur `planning_blocks` — jamais `select('*')`. */
+const BLOCK_COLS =
+  'id, section, position, time_start, time_end, title, badge, color, bullets, categories, days'
+
+/** Ligne brute — `bullets`/`categories`/`days` sont du `Json` en base. */
+interface BlockRow {
+  id: string
+  section: string
+  position: number
+  time_start: string
+  time_end: string
+  title: string
+  badge: string
+  color: string
+  bullets: unknown
+  categories: unknown
+  days: unknown
+}
+
+/** snake_case → camelCase, avec `Array.isArray` défensif sur les 3 colonnes `Json`. */
+const toBlock = (b: BlockRow): PlanningBlock => ({
+  id: b.id,
+  section: b.section as PlanningSection,
+  position: b.position,
+  timeStart: b.time_start,
+  timeEnd: b.time_end,
+  title: b.title,
+  badge: b.badge,
+  color: b.color,
+  bullets: Array.isArray(b.bullets) ? (b.bullets as string[]) : [],
+  categories: Array.isArray(b.categories) ? (b.categories as PlanningCategory[]) : [],
+  days: Array.isArray(b.days) ? (b.days as PlanningDay[]) : [],
+})
+
 /**
- * Planning d'UN membre — le RLS fait le cloisonnement (un membre ne lit que le sien,
- * l'admin tout). `exists: false` si aucun planning n'a encore été créé pour lui.
+ * Planning d'UNE personne — le RLS fait le cloisonnement (0043/0061/0062). Chargé À LA DEMANDE
+ * quand on déplie son nom (`loadPlanning`, actions.ts), et directement par la page en vue
+ * filtrée. Le nom vient de la base et NON du roster : ce dernier porte le suffixe « (moi) »,
+ * utile dans la pile mais parasite dans l'en-tête du planning.
+ * Volume : quelques blocs → pas de `fetchAll` nécessaire.
  */
 export async function getPlanning(profileId: string): Promise<PlanningData> {
   const supabase = await createClient()
-  const [
-    { data: profile, error: profileErr },
-    { data: planning, error: planningErr },
-  ] = await Promise.all([
-    supabase.from('profiles').select('id, display_name, email').eq('id', profileId).maybeSingle(),
-    supabase.from('plannings').select('*').eq('profile_id', profileId).maybeSingle(),
-  ])
+  const [{ data: profile, error: profileErr }, { data: planning, error: planningErr }] =
+    await Promise.all([
+      supabase.from('profiles').select('display_name, email').eq('id', profileId).maybeSingle(),
+      supabase.from('plannings').select('id').eq('profile_id', profileId).maybeSingle(),
+    ])
   if (profileErr) throw new Error(profileErr.message)
   if (planningErr) throw new Error(planningErr.message)
   const profileName = profile?.display_name ?? profile?.email ?? '—'
 
-  if (!planning) {
-    return {
-      profileId,
-      profileName,
-      exists: false,
-      blocks: [],
-    }
-  }
+  if (!planning) return { profileId, profileName, exists: false, blocks: [] }
 
   const { data: blocks, error: blocksErr } = await supabase
     .from('planning_blocks')
-    .select('*')
+    .select(BLOCK_COLS)
     .eq('planning_id', planning.id)
     .order('position')
+    .order('id')
   if (blocksErr) throw new Error(blocksErr.message)
-
-  const rows: PlanningBlock[] = (blocks ?? [])
-    .map((b) => ({
-      id: b.id,
-      section: b.section as PlanningSection,
-      position: b.position,
-      timeStart: b.time_start,
-      timeEnd: b.time_end,
-      title: b.title,
-      badge: b.badge,
-      color: b.color,
-      bullets: Array.isArray(b.bullets) ? (b.bullets as string[]) : [],
-      categories: Array.isArray(b.categories) ? (b.categories as unknown as PlanningCategory[]) : [],
-      days: Array.isArray(b.days) ? (b.days as unknown as PlanningDay[]) : [],
-    }))
-    // Tri stable : section puis heure de début (la position départage les égalités).
-    .sort(
-      (a, b) =>
-        SECTION_ORDER[a.section] - SECTION_ORDER[b.section] ||
-        a.timeStart.localeCompare(b.timeStart) ||
-        a.position - b.position,
-    )
 
   return {
     profileId,
     profileName,
     exists: true,
-    blocks: rows,
+    // Tri stable : section, puis heure de début (la position départage les égalités).
+    blocks: (blocks ?? [])
+      .map(toBlock)
+      .sort(
+        (a, b) =>
+          SECTION_ORDER[a.section] - SECTION_ORDER[b.section] ||
+          a.timeStart.localeCompare(b.timeStart) ||
+          a.position - b.position,
+      ),
   }
+}
+
+/**
+ * QUI possède déjà un planning, parmi les ids demandés — une seule requête, sans aucun bloc.
+ * C'est tout ce dont la pile repliée a besoin (repère « Aucun planning ») ; le contenu part à
+ * l'ouverture. Sans ça, afficher 19 noms embarquerait les blocs des 19 dans le premier rendu.
+ */
+export async function getPlanningOwners(profileIds: string[]): Promise<Set<string>> {
+  if (!profileIds.length) return new Set()
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('plannings')
+    .select('profile_id')
+    .in('profile_id', profileIds)
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map((p) => p.profile_id))
 }
 
 /**
@@ -82,8 +113,6 @@ export async function getPlanning(profileId: string): Promise<PlanningData> {
  * sous-managers ; manager → ses sous-managers directs (RLS `profiles`) ; sinon personne.
  */
 export async function getPlanningMembers(role: Profile['baseRole']): Promise<PlanningMember[]> {
-  // Qui peut être sélectionné, par rôle du spectateur. Les SUPERADMINS ne sont visibles que
-  // d'un superadmin (la RLS 0061 l'autorisait déjà : la restriction était purement ici).
   const roles =
     role === 'superadmin'
       ? ['superadmin', 'admin', 'manager', 'sous-manager']

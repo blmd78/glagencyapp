@@ -1,23 +1,30 @@
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
-import { getPlanning, getPlanningMembers } from '@/features/planning/services/get-planning'
+import {
+  getPlanning,
+  getPlanningMembers,
+  getPlanningOwners,
+} from '@/features/planning/services/get-planning'
 import { PlanningTemplate } from '@/features/planning/PlanningTemplate'
-import { PlanningSkeleton } from '@/features/planning/components/planning-skeleton'
-import { MemberSelect } from '@/features/planning/components/member-select'
+import { RowsSkeleton } from '@/components/skeletons/rows-skeleton'
+import { MemberSelect } from '@/components/member-select'
 import { getTodos } from '@/features/todos/services/get-todos'
 import { TodosTemplate } from '@/features/todos/TodosTemplate'
 import { TodosSkeleton } from '@/features/todos/components/todos-skeleton'
 import { TodosTabs } from '@/features/todos/components/todos-tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { requireAccess } from '@/lib/auth'
-import type { PlanningMember } from '@/features/planning/types'
+import { applyFilter, resolveFilter, selfLabel } from '@/lib/roster'
+import type { PlanningEntry, PlanningMember } from '@/features/planning/types'
 
 /**
  * Deux onglets sur la même page (`?vue=`) : le planning journalier et la to-do personnelle.
- * Le sélecteur `?membre=` est COMMUN aux deux (superadmin → tout, superadmins compris ;
- * admin → managers/sous-managers ; manager → ses sous-managers directs ; sous-manager →
- * personne). Droits distincts : on n'édite pas SON planning (sauf superadmin), mais on gère
- * toujours SA to-do (spec 2026-07-20).
+ * Le périmètre des personnes est COMMUN (superadmin → tout, superadmins compris ; admin →
+ * managers/sous-managers ; manager → ses sous-managers directs ; sous-manager → personne),
+ * et le sélecteur `?membre=` reste COMMUN aux deux — mais son rôle diffère depuis 2026-07-26 :
+ * sur le planning il FILTRE une pile de noms dépliables (sans filtre, tout le monde est
+ * empilé) ; sur la to-do il désigne la personne dont on gère la liste. Droits distincts : on
+ * n'édite pas SON planning (sauf superadmin), mais on gère toujours SA to-do (spec 2026-07-20).
  */
 export default async function PlanningPage({
   searchParams,
@@ -35,18 +42,18 @@ export default async function PlanningPage({
   // relire le cookie ici et repasser `affichage` à `TodosSkeleton`/`TodosTemplate` (cf.
   // todos-view.tsx pour l'écriture et le reste de la chaîne à rétablir).
 
-  // Kickoff SANS await : le sélecteur est un widget client (useRouter) qui a besoin de
-  // `members` — tout le composite streame dans un seul boundary. `[]` pour sous-manager.
+  // Kickoff SANS await : la liste des personnes conditionne TOUT le composite (accordéons du
+  // planning ou sélecteur de la to-do) — il streame dans un seul boundary. `[]` pour sous-manager.
   const membersPromise = getPlanningMembers(profile.baseRole)
 
   return (
     <div className="flex flex-col gap-6">
       {/* `h1` HORS du `<Suspense>` : il ne dépend d'aucune donnée async (juste le rôle, déjà
           résolu par `requireAccess`) et doit rester affiché pendant tout le streaming — sinon
-          titre + sélecteur + onglets disparaissent puis réapparaissent (clignotement). Seuls
-          le sélecteur (dépend de `membersPromise`) et le contenu des onglets restent dans le
-          boundary ; leur silhouette de secours (ci-dessous) enchaîne sans saut visible avec
-          celle de `loading.tsx`. */}
+          titre + sélecteur + onglets disparaissent puis réapparaissent (clignotement). TOUT le
+          reste est dans le boundary — le sélecteur y compris, puisqu'il dépend de
+          `membersPromise` ; sa silhouette de secours (ci-dessous) enchaîne sans saut visible
+          avec celle de `loading.tsx`. */}
       <h1 className="text-2xl font-semibold tracking-tight">Planning</h1>
       <Suspense
         fallback={
@@ -57,7 +64,7 @@ export default async function PlanningPage({
               </div>
               <Skeleton className="h-10 w-64" />
             </div>
-            {vue === 'todo' ? <TodosSkeleton /> : <PlanningSkeleton />}
+            {vue === 'todo' ? <TodosSkeleton /> : <RowsSkeleton />}
           </div>
         }
       >
@@ -89,19 +96,22 @@ async function PlanningContent({
   vue: 'planning' | 'todo'
   membersPromise: Promise<PlanningMember[]>
 }) {
-  // Personnes gérables (hors soi). S'il n'y en a aucune → pas de sélecteur (members vide),
-  // on ouvre le sien. SOI-MÊME en tête. `role: ''` = pas de suffixe de rôle dans le libellé.
+  // Personnes gérables (hors soi), SOI-MÊME en tête. `role: ''` = pas de suffixe de rôle.
+  // Le « (moi) » ne sert qu'à se distinguer des autres : inutile quand on est seul.
   const others = (await membersPromise).filter((m) => m.id !== profileId)
-  const members: PlanningMember[] = others.length
-    ? [{ id: profileId, name: `${selfName} (moi)`, role: '', hasPlanningPage: true }, ...others]
-    : []
-  const target = membre && members.some((m) => m.id === membre) ? membre : profileId
-  // Édition du PLANNING : on ne modifie jamais le sien (préparé par un rôle au-dessus) ; le
-  // superadmin fait exception. RLS 0043/0061 + requireCanEdit = la vraie défense.
-  const canEdit = superadmin || target !== profileId
-  // La to-do, elle, est TOUJOURS gérée par son porteur — pas de flag symétrique (spec §1).
-  const targetMember = members.find((m) => m.id === target)
+  const roster: PlanningMember[] = [
+    { id: profileId, name: selfLabel(selfName, others), role: '', hasPlanningPage: true },
+    ...others,
+  ]
+  // `?membre=` validé : sur le planning c'est un FILTRE (absent = tout le monde), sur la
+  // to-do c'est la cible (absente = soi).
+  const filterId = resolveFilter(roster, membre)
+  const target = filterId ?? profileId
+  // La to-do est TOUJOURS gérée par son porteur — pas de flag symétrique au planning (spec §1).
+  const targetMember = roster.find((m) => m.id === target)
   const targetName = target === profileId ? selfName : (targetMember?.name ?? '')
+  // Planning filtré → une seule personne à charger (et `PlanningTemplate` l'affiche à plat).
+  const shown = applyFilter(roster, filterId)
 
   // Un seul des deux onglets est actif à la fois (`?vue=`) : on ne charge — et ne construit
   // l'élément — que celui-là. Sans ça, `getTodos` devient une dépendance dure du planning
@@ -112,31 +122,105 @@ async function PlanningContent({
   // le contenu de l'onglet actif (`Presence` de `@radix-ui/react-tabs`, pas de `forceMount`
   // posé ici) — mais ça ne joue qu'après coup, une fois le RSC déjà produit ; encore faut-il ne
   // pas construire l'élément de l'onglet inactif en amont.
+  //
+  // Chaque onglet a son PROPRE boundary : sans lui, `PlanningContent` attendrait toute la
+  // chaîne (membres → plannings → blocs, 3 allers-retours en série) avant de rendre quoi que
+  // ce soit, alors que le sélecteur et la barre d'onglets ne dépendent que du premier. Ici la
+  // coquille part dès `membersPromise` résolu, et le contenu la rejoint en streaming.
   const planningNode =
-    vue === 'planning' ? <PlanningTemplate data={await getPlanning(target)} canEdit={canEdit} /> : null
+    vue === 'planning' ? (
+      <Suspense fallback={<RowsSkeleton />}>
+        <PlanningTab members={shown} profileId={profileId} superadmin={superadmin} />
+      </Suspense>
+    ) : null
   const todoNode =
     vue === 'todo' ? (
-      <TodosTemplate
-        todos={await getTodos(target)}
-        profileId={target}
-        targetName={targetName}
-        isSelf={target === profileId}
-        targetHasAccess={targetMember?.hasPlanningPage ?? true}
-      />
+      <Suspense fallback={<TodosSkeleton />}>
+        <TodoTab
+          target={target}
+          targetName={targetName}
+          isSelf={target === profileId}
+          targetHasAccess={targetMember?.hasPlanningPage ?? true}
+        />
+      </Suspense>
     ) : null
 
   return (
     <div className="flex flex-col gap-6">
       {/* Le sélecteur vit AU-DESSUS des onglets : Radix démonte le contenu de l'onglet
-          inactif, donc un sélecteur logé dans l'en-tête du planning disparaîtrait dès qu'on
-          bascule sur la to-do. Le `h1` « Planning », lui, est monté par `PlanningPage`
-          (hors boundary, cf. plus haut) — pas ici. */}
-      {members.length > 0 && (
+          inactif, donc un sélecteur logé dans l'en-tête disparaîtrait à la bascule. Sa valeur
+          affichée dépend de l'onglet actif — « Tous les membres » quand le planning n'est pas
+          filtré, la cible sur la to-do (où « tous » n'aurait pas de sens, d'où `allowAll`).
+          Le `h1` « Planning » est monté par `PlanningPage` (hors boundary, cf. plus haut). */}
+      {others.length > 0 && (
         <div className="flex justify-end">
-          <MemberSelect members={members} value={target} />
+          <MemberSelect
+            members={roster}
+            value={vue === 'planning' ? filterId : target}
+            allowAll={vue === 'planning'}
+          />
         </div>
       )}
       <TodosTabs vue={vue} planning={planningNode} todo={todoNode} />
     </div>
   )
 }
+
+/**
+ * Contenu de l'onglet Planning — isolé pour que son chargement ne retienne pas la coquille.
+ *
+ * Une seule personne à afficher → rendu à plat : on charge SON planning tout de suite, il n'y a
+ * pas d'accordéon à déplier. Sinon on ne charge que « qui a un planning » (repère de la ligne
+ * repliée) ; les blocs partent à l'ouverture (`loadPlanning`). Sans ça, dérouler 19 noms
+ * embarquerait les blocs des 19 dans le premier rendu.
+ */
+async function PlanningTab({
+  members,
+  profileId,
+  superadmin,
+}: {
+  members: PlanningMember[]
+  profileId: string
+  superadmin: boolean
+}) {
+  const single = members.length === 1
+  const [data, owners] = await Promise.all([
+    single ? getPlanning(members[0].id) : Promise.resolve(null),
+    single ? Promise.resolve(new Set<string>()) : getPlanningOwners(members.map((m) => m.id)),
+  ])
+  // On ne modifie jamais SON propre planning (préparé par un rôle au-dessus) ; le superadmin
+  // fait exception. La RLS 0043/0061 + `requireCanEdit` restent la vraie défense — `canEdit`
+  // n'est qu'optimiste côté UI.
+  const entries: PlanningEntry[] = members.map((m) => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    hasPlanning: single ? (data?.exists ?? false) : owners.has(m.id),
+    canEdit: superadmin || m.id !== profileId,
+  }))
+  return <PlanningTemplate entries={entries} data={data} />
+}
+
+/** Contenu de l'onglet To-do — même raison d'être que `PlanningTab`. */
+async function TodoTab({
+  target,
+  targetName,
+  isSelf,
+  targetHasAccess,
+}: {
+  target: string
+  targetName: string
+  isSelf: boolean
+  targetHasAccess: boolean
+}) {
+  return (
+    <TodosTemplate
+      todos={await getTodos(target)}
+      profileId={target}
+      targetName={targetName}
+      isSelf={isSelf}
+      targetHasAccess={targetHasAccess}
+    />
+  )
+}
+

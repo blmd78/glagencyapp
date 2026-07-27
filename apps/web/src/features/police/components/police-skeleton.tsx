@@ -3,7 +3,7 @@ import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
 
 /**
  * Silhouette PLEINE PAGE de Police — INCLUT le bloc titre + le sélecteur de jour (même
- * raison que `scripts-skeleton.tsx`/`planning-skeleton.tsx`/`bilan-skeleton.tsx`) : le
+ * raison que `scripts-skeleton.tsx`/`bilan-skeleton.tsx`) : le
  * sélecteur (`PoliceView`) est un widget client (useRouter) qui a besoin de
  * `data.day`/`data.days` — titre et sélecteur vivent sur la MÊME zone, pas de h1
  * « immédiat » séparable dans `page.tsx` sans casser la mise en page

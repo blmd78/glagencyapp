@@ -3,7 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 /** Silhouette de la to-do — fallback du Suspense quand ?vue=todo (page.tsx). */
 export function TodosSkeleton() {
   return (
-    // role="status" + sr-only : convention des skeletons du repo (planning-skeleton.tsx).
+    // role="status" + sr-only : convention des skeletons du repo (components/skeletons/).
     <div role="status">
       <span className="sr-only">Chargement…</span>
       <div aria-hidden="true" className="flex flex-col gap-4">

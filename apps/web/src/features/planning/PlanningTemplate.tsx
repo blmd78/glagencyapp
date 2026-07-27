@@ -1,19 +1,27 @@
+import { PlanningMembers } from './components/planning-members'
 import { PlanningView } from './components/planning-view'
-import type { PlanningData } from './types'
+import type { PlanningData, PlanningEntry } from './types'
 
 /**
- * Planning journalier — chacun lit LE SIEN (RLS) ; édition réservée aux rôles gérants
- * (admin/superadmin, et manager sur ses sous-managers directs). L'édition (canEdit) est
- * pilotée par la page ; le sélecteur de membre, lui, n'y transite plus (hissé au-dessus des
- * onglets, cf. `page.tsx`/`member-select.tsx`). Plages/pauses/répartition CALCULÉES des blocs.
+ * Planning journalier — TOUS les noms consultables sont posés sur la page, un par ligne,
+ * dépliables sur leur emploi du temps (maquette du propriétaire, 2026-07-26). Le sélecteur
+ * `?membre=` reste disponible au-dessus des onglets pour se restreindre à UNE personne :
+ * dans ce cas la page ne passe qu'une entrée, avec son planning DÉJÀ chargé (`data`), affiché
+ * à plat sans accordéon ni aller-retour. En pile, le contenu part à l'ouverture.
+ * Les droits d'édition sont calculés par la page, membre par membre (`entry.canEdit`) — la
+ * RLS 0043/0061 + `requireCanEdit` restent le vrai verrou. Plages/pauses CALCULÉES des blocs.
  */
 export function PlanningTemplate({
+  entries,
   data,
-  canEdit,
 }: {
-  data: PlanningData
-  /** Édition de la cible (on ne modifie pas SON propre planning, sauf superadmin). */
-  canEdit: boolean
+  entries: PlanningEntry[]
+  /** Planning de la personne affichée à plat — `null` en mode pile (chargé à l'ouverture). */
+  data: PlanningData | null
 }) {
-  return <PlanningView data={data} canEdit={canEdit} />
+  // Une seule personne (filtre `?membre=`, ou sous-manager qui n'a personne à consulter) :
+  // pas d'accordéon à une seule ligne, son planning directement.
+  if (entries.length === 1 && data)
+    return <PlanningView data={data} canEdit={entries[0].canEdit} />
+  return <PlanningMembers entries={entries} />
 }

@@ -81,6 +81,26 @@ export interface PlanningMember {
   hasPlanningPage: boolean
 }
 
+/**
+ * Une personne + SON planning. La page en empile une par ligne, dépliable (accordéon) ; le
+ * sélecteur `?membre=` reste disponible pour se restreindre à une seule personne, auquel cas
+ * la page ne construit qu'une entrée et l'affiche à plat.
+ */
+export interface PlanningEntry {
+  id: string
+  name: string
+  /** Rôle brut, pour le badge — '' = soi-même (pas de badge). */
+  role: string
+  /**
+   * Cette personne a-t-elle déjà un planning ? SANS les blocs : c'est tout ce dont la ligne
+   * repliée a besoin pour son repère. Le contenu est chargé à l'ouverture (`loadPlanning`),
+   * sinon afficher 19 noms embarquerait les blocs des 19 dans le premier rendu.
+   */
+  hasPlanning: boolean
+  /** Le spectateur peut éditer CE planning (jamais le sien, sauf superadmin). */
+  canEdit: boolean
+}
+
 // ── Sections + formatage (constantes de domaine + helpers purs, absorbés depuis l'ancien
 // sections.ts à la racine de la feature — cf. docs/guidelines-standard-feature.md §1, même
 // convention que features/spenders/types.ts (daysSince/parisDaysSince/isARelancer)).

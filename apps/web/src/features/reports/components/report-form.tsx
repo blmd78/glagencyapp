@@ -12,8 +12,20 @@ import { upsertReportInput, type UpsertReportInput } from '../schema'
  * Rédaction de SON compte rendu DU JOUR (le seul modifiable — les jours passés sont figés).
  * `initialContent` = le CR du jour s'il existe déjà (édition) ; vide sinon (nouveau jour).
  * Pas de suppression : le jour courant est toujours en édition, on remplace le contenu.
+ *
+ * `onSaved` : quand le panneau détient les comptes rendus en ÉTAT CLIENT (pile d'accordéons,
+ * chargés à la demande), `revalidatePath` ne les rafraîchit PAS — il ne repatche que l'arbre
+ * serveur. Sans ce rappel, changer de jour puis revenir remonte le formulaire sur la version
+ * d'avant l'enregistrement, et re-sauvegarder écraserait le texte fraîchement écrit. Absent en
+ * mode « à plat » : là, les comptes rendus viennent des props serveur et `revalidatePath` suffit.
  */
-export function ReportForm({ initialContent }: { initialContent: string }) {
+export function ReportForm({
+  initialContent,
+  onSaved,
+}: {
+  initialContent: string
+  onSaved?: () => void
+}) {
   'use no memo'
   const {
     register,
@@ -33,6 +45,7 @@ export function ReportForm({ initialContent }: { initialContent: string }) {
       return
     }
     toast.success('Compte rendu enregistré')
+    onSaved?.()
   })
 
   return (
