@@ -1047,7 +1047,7 @@ git commit -m "feat(compta): lecture d'une quinzaine (CA par modèle, saisies, s
 
 **Interfaces:**
 - Consumes: `getCompta` (Task 5), `ComptaData` (Task 4), `MembersAccordion` de `@/components/members-accordion`, `KpiGrid`/`Kpi` de `@/components/kpi-card`, `RowsSkeleton` de `@/components/skeletons/rows-skeleton`, `eur` de `@/lib/format`.
-- Produces: `<ComptaTemplate data canPay />`, `<ComptaView data canPay />`, `<ComptaSkeleton />`.
+- Produces: `<ComptaTemplate data canEnter canPay />`, `<ComptaView data canEnter canPay />`, `<ComptaSkeleton />`.
 
 - [ ] **Step 1 : Écrire le squelette**
 
@@ -1099,7 +1099,7 @@ import type { ComptaData } from '../types'
  * noms dépliables (même grammaire que le Planning et le Dashboard). Le sélecteur pousse
  * `?month=`&`?period=` — la page, Server Component, se recharge sur la quinzaine choisie.
  */
-export function ComptaView({ data, canPay }: { data: ComptaData; canPay: boolean }) {
+export function ComptaView({ data, canEnter, canPay }: { data: ComptaData; canEnter: boolean; canPay: boolean }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -1172,6 +1172,7 @@ export function ComptaView({ data, canPay }: { data: ComptaData; canPay: boolean
             row={r}
             fortnight={data.fortnight}
             mondays={mondaysIn(data.fortnight)}
+            canEnter={canEnter}
             canPay={canPay}
           />
         )}
@@ -1194,8 +1195,8 @@ import type { ComptaData } from './types'
  * récupérées par `app/(dash)/chatter/compta/page.tsx`). Toute l'interactivité vit dans
  * `ComptaView` : sélecteur de période, pile de noms, saisies et paiement.
  */
-export function ComptaTemplate({ data, canPay }: { data: ComptaData; canPay: boolean }) {
-  return <ComptaView data={data} canPay={canPay} />
+export function ComptaTemplate({ data, canEnter, canPay }: { data: ComptaData; canEnter: boolean; canPay: boolean }) {
+  return <ComptaView data={data} canEnter={canEnter} canPay={canPay} />
 }
 ```
 
@@ -1205,7 +1206,7 @@ Remplacer `apps/web/src/app/(dash)/chatter/compta/page.tsx` :
 
 ```tsx
 import { Suspense } from 'react'
-import { requireAccess } from '@/lib/auth'
+import { hasWriteAccess, requireAccess } from '@/lib/auth'
 import { getCompta } from '@/features/compta/services/get-compta'
 import { ComptaTemplate } from '@/features/compta/ComptaTemplate'
 import { ComptaSkeleton } from '@/features/compta/components/compta-skeleton'
@@ -1227,7 +1228,15 @@ export default async function ComptaPage({
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Compta</h1>
       <Suspense fallback={<ComptaSkeleton />}>
-        <ComptaContent month={month} period={period} canPay={profile.role === 'admin'} />
+        <ComptaContent
+          month={month}
+          period={period}
+          // DEUX droits distincts (spec §6) : le manager SAISIT, seul l'admin PAIE.
+          // `profile.role` ne vaut que 'admin' ou 'chatteur' — un manager y est mappé sur
+          // 'chatteur' (lib/auth). Le tester ici priverait tout manager du formulaire.
+          canEnter={hasWriteAccess(profile, 'compta')}
+          canPay={profile.role === 'admin'}
+        />
       </Suspense>
     </div>
   )
@@ -1236,13 +1245,17 @@ export default async function ComptaPage({
 async function ComptaContent({
   month,
   period,
+  canEnter,
   canPay,
 }: {
   month?: string
   period?: string
+  canEnter: boolean
   canPay: boolean
 }) {
-  return <ComptaTemplate data={await getCompta({ month, period })} canPay={canPay} />
+  return (
+    <ComptaTemplate data={await getCompta({ month, period })} canEnter={canEnter} canPay={canPay} />
+  )
 }
 ```
 
@@ -1283,7 +1296,7 @@ Ne pas commiter seul : enchaîner sur la Task 7 puis commiter les deux ensemble.
 
 **Interfaces:**
 - Consumes: `ComptaRow` (Task 4), `Fortnight` de `@glagency/core`, `eur` de `@/lib/format`, `frDayShort` de `@glagency/core`.
-- Produces: `<ComptaPayslip row fortnight canPay />`.
+- Produces: `<ComptaPayslip row fortnight mondays canEnter canPay />`.
 
 - [ ] **Step 1 : Écrire le composant**
 
@@ -1313,14 +1326,19 @@ function Line({ label, amount, muted }: { label: string; amount: number; muted?:
  */
 export function ComptaPayslip({
   row,
-  fortnight,
   mondays,
+  canEnter,
   canPay,
 }: {
   row: ComptaRow
+  /** Reste dans le type (l'appelant le passe, la tâche 9 le lira) sans être déstructuré ici. */
   fortnight: Fortnight
-  /** Lundis des semaines rattachées — un formulaire de saisie par semaine (tâche 8). */
+  /** Lundis des semaines rattachées — un formulaire de saisie par semaine. */
   mondays: string[]
+  /** Le manager SAISIT — miroir applicatif de `managerPageGuard('compta')`. */
+  canEnter: boolean
+  /** Seul l'admin PAIE (les virements). Distinct de `canEnter` : `profile.role` ne vaut
+   *  qu'`admin` ou `chatteur`, un manager y est mappé sur `chatteur` (lib/auth). */
   canPay: boolean
 }) {
   const p = row.payslip
@@ -1583,7 +1601,7 @@ modification dans `compta-payslip.tsx` : importer `ComptaEntryForm` et remplacer
 « Le bouton de paiement arrive à la tâche 9. » par
 
 ```tsx
-      {canPay &&
+      {canEnter &&
         mondays.map((m) => (
           <ComptaEntryForm
             key={m}
