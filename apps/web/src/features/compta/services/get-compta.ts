@@ -117,20 +117,14 @@ export async function getCompta({
   const primeById = new Map((primes ?? []).map((p) => [p.chatter_id, Number(p.amount)]))
   const daySet = new Set(days)
 
-  // Jours couverts, TOUTES quinzaines confondues — sert à deux choses : décider si la
-  // quinzaine affichée est soldée, et trouver la plus ancienne non couverte (règle de prime).
+  // Jours couverts, TOUS chatteurs confondus — sert UNIQUEMENT à `overdue` ci-dessous (aperçu
+  // global des quinzaines en retard, tous membres). La prime, elle, se calcule PAR CHATTEUR
+  // plus bas (round de correction 1) : sinon le paiement d'un collègue masquerait la quinzaine
+  // impayée d'un autre et déplacerait sa prime.
   const coveredAll = new Set<string>()
   for (const p of payments ?? []) {
     for (const d of (p.covered_days as string[] | null) ?? []) coveredAll.add(d)
   }
-  // La prime ne s'affiche que sur la quinzaine ÉCHUE LA PLUS ANCIENNE non couverte (spec §4).
-  // Sans ça, deux quinzaines impayées l'afficheraient chacune, laissant croire qu'elle est due
-  // deux fois. `choices` est trié du plus récent au plus ancien → on prend la dernière.
-  const oldestOpen = [...choices].reverse().find((f) => daysIn(f).some((d) => !coveredAll.has(d)))
-  const primeApplies =
-    oldestOpen != null &&
-    oldestOpen.month === fortnight.month &&
-    oldestOpen.period === fortnight.period
 
   const rows: ComptaRow[] = (members ?? []).map((m) => {
     const s = settingsById.get(m.id)
@@ -153,6 +147,29 @@ export async function getCompta({
       kind: e.kind === 'warning' ? 'warning' : 'malus',
     }))
 
+    // Couverture de CE membre, tous paiements confondus (toutes quinzaines) — sert à la fois à
+    // la prime et à la couverture de la quinzaine affichée (`paid`/`paidOn` plus bas).
+    const myPayments = mine(payments ?? [])
+    const myCoveredDays = new Set<string>()
+    for (const p of myPayments) {
+      for (const d of (p.covered_days as string[] | null) ?? []) myCoveredDays.add(d)
+    }
+    // La prime ne s'affiche que sur la quinzaine ÉCHUE LA PLUS ANCIENNE non couverte DE CE
+    // MEMBRE (spec §4). Sans le filtre ÉCHUE (`f.to < today`), la quinzaine en cours — jamais
+    // encore couverte puisqu'elle n'est pas terminée — la déclencherait en permanence, même à
+    // jour de paie. Sans le calcul PAR MEMBRE, le paiement d'un collègue masquerait la
+    // quinzaine impayée d'un autre et déplacerait sa prime. `choices` est trié du plus récent
+    // au plus ancien → filtré aux échues puis inversé, on prend la première trouvée = la plus
+    // ancienne.
+    const myOldestOpen = [...choices]
+      .filter((f) => f.to < today)
+      .reverse()
+      .find((f) => daysIn(f).some((d) => !myCoveredDays.has(d)))
+    const primeApplies =
+      myOldestOpen != null &&
+      myOldestOpen.month === fortnight.month &&
+      myOldestOpen.period === fortnight.period
+
     const modelCa = m.chatter_id ? (caByChatter.get(m.chatter_id) ?? {}) : {}
     const payslip = computePayslip({
       mode: s?.mode === 'fixed' ? 'fixed' : 'percent',
@@ -171,7 +188,7 @@ export async function getCompta({
 
     // Couverture : la quinzaine est payée si CHACUN de ses jours figure dans un `covered_days`.
     const covered = new Map<string, string>()
-    for (const p of mine(payments ?? [])) {
+    for (const p of myPayments) {
       for (const d of (p.covered_days as string[] | null) ?? []) if (daySet.has(d)) covered.set(d, p.paid_at)
     }
     const paid = days.every((d) => covered.has(d))
