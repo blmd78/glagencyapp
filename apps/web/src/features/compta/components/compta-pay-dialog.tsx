@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { eur } from '@/lib/format'
-import { payPeriod } from '../actions'
+import { payPeriod } from '../actions-pay'
 import type { ComptaRow } from '../types'
 
 /**

@@ -4,11 +4,13 @@ import { loadComptaSources } from './compta-sources'
 import type { ComptaRow, ComptaSanction } from '../types'
 
 /**
- * LE calcul de la compta — une fiche de paie par membre sur une période de paie. Appelé DEUX
+ * LE calcul de la compta — une fiche de paie par membre sur une période de paie. Appelé TROIS
  * FOIS avec le même code :
  *  - par `getCompta`, pour la page (tous les membres) ;
  *  - par `payPeriod`, pour RECALCULER côté serveur le membre qu'on s'apprête à payer
- *    (`memberId`) et refuser un montant qui ne correspond plus.
+ *    (`memberId`) et refuser un montant qui ne correspond plus ;
+ *  - par `payAllForPeriod` (paiement groupé), SANS `memberId` : le lot recalcule toute la
+ *    population et ne verse que ce résultat-là — aucun montant ne transite par le navigateur.
  *
  * Une seconde implémentation du calcul serait pire que pas de vérification du tout : elle
  * divergerait un jour et bloquerait des paiements corrects, ou en laisserait passer de faux.
@@ -170,6 +172,9 @@ export async function loadComptaRows({
       ),
       payslip,
       paid,
+      // `covered` ne contient que les jours DE CETTE PÉRIODE (filtrés par `daySet` juste
+      // au-dessus) : non vide = le trigger 0087 refuserait de recouvrir la période entière.
+      anyDayPaid: covered.size > 0,
       // Le DERNIER versement, pas celui qui couvre le premier jour : réglée en deux fois, la
       // période n'est soldée qu'au complément. Les `paid_at` sont des `YYYY-MM-DD`, donc
       // l'ordre lexicographique est l'ordre chronologique.

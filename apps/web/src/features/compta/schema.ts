@@ -58,7 +58,7 @@ export type WeekEntryFormValues = z.input<typeof weekEntryInput>
  * `periodStart` (le lundi de départ) a remplacé le couple `month` + `period 1|2` : une période
  * de 14 jours ne se rattache plus à aucun mois, et trois d'entre elles peuvent démarrer dans le
  * même (migration 0088). Le format ISO n'est qu'un pré-filtre — l'APPARTENANCE à la fenêtre
- * proposée est vérifiée par `payPeriod` (`actions.ts`), qui seule connaît l'alignement du
+ * proposée est vérifiée par `payPeriod` (`actions-pay.ts`), qui seule connaît l'alignement du
  * découpage.
  */
 export const payInput = z
@@ -95,7 +95,7 @@ export const payInput = z
    * `computePayslip` (`packages/core/src/compta/payslip.ts`) garantit cette égalité PAR
    * CONSTRUCTION sur toute sortie : un payload périmé est parfaitement cohérent avec lui-même
    * et passe ce contrôle. Ce cas-là est traité par le RECALCUL SERVEUR de `payPeriod`
-   * (`actions.ts`), qui refait le calcul et refuse au-delà de 0,01 € d'écart. Ce commentaire a
+   * (`actions-pay.ts`), qui refait le calcul et refuse au-delà de 0,01 € d'écart. Ce commentaire a
    * affirmé le contraire jusqu'au 2026-07-27 : documenter une protection inexistante est pire
    * que ne rien documenter.
    *
@@ -129,6 +129,34 @@ export const payInput = z
     ctx.addIssue({ code: 'custom', message })
   })
 export type PayInput = z.infer<typeof payInput>
+
+/**
+ * PAIEMENT GROUPÉ d'une période — tout le lot en un geste (admin seul, `payAllForPeriod`).
+ *
+ * ⚠️ CE PAYLOAD NE DÉCRIT PAS CE QUI SERA VERSÉ. L'action recalcule intégralement la population
+ * payable et son total par `loadComptaRows` + `planBatchPay`, et n'écrit QUE ce résultat-là :
+ * aucun des montants de l'instantané ne transite par le navigateur, contrairement au paiement
+ * unitaire (`payInput`, onze montants).
+ *
+ * `memberIds` et `total` ne servent donc qu'à VÉRIFIER que l'écran cliqué disait bien la même
+ * chose que le serveur — l'équivalent, pour le lot, du contrôle de dérive du paiement unitaire.
+ * C'est le cas de l'ONGLET PÉRIMÉ : un manager saisit un malus, la Police pose une sanction, ou
+ * un autre admin règle trois fiches pendant que le dialog « Payer 87 chatters — 42 300 € » est
+ * ouvert. Sans cette comparaison, l'admin validerait un montant et un lot qu'il n'a jamais vus.
+ */
+export const payAllInput = z.object({
+  periodStart: iso,
+  /** Les membres que l'écran annonçait. `max` : borne de payload, ~100 membres en prod. */
+  memberIds: z.array(z.uuid()).min(1, 'Aucun chatteur à payer').max(500, 'Lot trop grand'),
+  /**
+   * Total ANNONCÉ à l'écran. Borne propre, et non `money`/`netMoney` (99 999 €) : un lot d'une
+   * centaine de fiches peut dépasser ce plafond, qui transformerait alors un paiement légitime
+   * en « Saisie invalide » sans rien expliquer. `min(0)` est un garde en plus : `planBatchPay`
+   * écarte les nets négatifs, un total négatif ne peut donc pas venir de l'écran.
+   */
+  total: z.coerce.number().min(0, 'Total positif attendu').max(9_999_999, 'Total hors bornes'),
+})
+export type PayAllInput = z.infer<typeof payAllInput>
 
 /**
  * Réglages de rémunération d'un membre (`compta_settings`, PK `chatter_id`) — ADMIN seul

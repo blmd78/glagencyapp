@@ -7,6 +7,7 @@ import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { Combobox } from '@/components/ui/combobox'
 import { eur } from '@/lib/format'
 import { ComptaTable } from './compta-table'
+import { ComptaPayAllDialog } from './compta-pay-all-dialog'
 import type { ComptaData } from '../types'
 
 /**
@@ -65,21 +66,33 @@ export function ComptaView({
 
   return (
     <div className={pending ? 'flex flex-col gap-6 opacity-60' : 'flex flex-col gap-6'}>
-      {/* `Combobox` et non `UrlSelect` : ce dernier est typé `param: 'day' | 'month'`, et
+      {/* Le PAIEMENT GROUPÉ vit ici, en tête de page à côté du sélecteur — pas dans une fiche
+          dépliée : il règle toute la période d'un coup. Monté sous `canPay` uniquement (admin) ;
+          il dit lui-même pourquoi il n'y a pas de bouton quand il n'y en a pas.
+          `Combobox` et non `UrlSelect` : ce dernier est typé `param: 'day' | 'month'`, et
           `debut` n'en fait pas partie. La valeur EST le lundi de départ — une période n'a plus
           d'autre identifiant depuis 0088.
           `w-72` et non `w-56` : le libellé dit « du 22 juin au 5 juillet 2026 » quand la période
           chevauche deux mois, ce que 14 rem tronquerait. */}
-      <div className="flex items-center justify-end gap-2">
-        <span className="text-sm text-muted-foreground">Période :</span>
-        <Combobox
-          value={data.period.start}
-          onChange={select}
-          disabled={pending}
-          className="w-72"
-          searchPlaceholder="Rechercher une période…"
-          options={data.choices.map((p) => ({ value: p.start, label: p.label }))}
-        />
+      <div className="flex flex-wrap items-center gap-3">
+        {canPay && (
+          <ComptaPayAllDialog
+            rows={data.rows}
+            period={data.period}
+            periodElapsed={data.periodElapsed}
+          />
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Période :</span>
+          <Combobox
+            value={data.period.start}
+            onChange={select}
+            disabled={pending}
+            className="w-72"
+            searchPlaceholder="Rechercher une période…"
+            options={data.choices.map((p) => ({ value: p.start, label: p.label }))}
+          />
+        </div>
       </div>
 
       <KpiGrid
