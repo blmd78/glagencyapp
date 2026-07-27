@@ -1564,29 +1564,31 @@ export function ComptaEntryForm({
 
 - [ ] **Step 3 : Brancher le formulaire dans la fiche**
 
-Dans `compta-payslip.tsx`, remplacer le paragraphe « Le bouton de paiement arrive à la tâche 9. » par le rendu d'un `<ComptaEntryForm>` par semaine de la quinzaine. Cela suppose que `ComptaRow` porte les saisies existantes : ajouter dans `types.ts` (Task 4) le champ
-
-```ts
-  /** Saisies hebdo existantes, par lundi. */
-  weekEntries: Record<string, { bonus: number; malus: number; handoffs: number; fixeSetter: number; note: string | null }>
-```
-
-et le remplir dans `get-compta.ts` (Task 5) à partir de `we`. Puis, dans `compta-payslip.tsx`, ajouter la prop `mondays: string[]` et rendre :
+Tout est déjà en place : `ComptaRow.weekEntries` est défini en tâche 4 et rempli en tâche 5,
+`ComptaPayslip` reçoit déjà `mondays` en tâche 7, et `compta-view.tsx` le passe déjà. **Ne rien
+ajouter à `types.ts` ni à `get-compta.ts`** — vérifier que les trois existent, puis une seule
+modification dans `compta-payslip.tsx` : importer `ComptaEntryForm` et remplacer le paragraphe
+« Le bouton de paiement arrive à la tâche 9. » par
 
 ```tsx
-      {canPay && mondays.map((m) => (
-        <ComptaEntryForm
-          key={m}
-          chatterId={row.id}
-          weekStart={m}
-          weekLabel={frDayShort(m)}
-          isSetter={row.isSetter}
-          initial={row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }}
-        />
-      ))}
+      {canPay &&
+        mondays.map((m) => (
+          <ComptaEntryForm
+            key={m}
+            chatterId={row.id}
+            weekStart={m}
+            weekLabel={frDayShort(m)}
+            isSetter={row.isSetter}
+            initial={
+              row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }
+            }
+          />
+        ))}
 ```
 
-`compta-view.tsx` passe `mondays={mondaysIn(data.fortnight)}`.
+Pas de `onSaved` ici : `initial` vient des props SERVEUR, que `revalidatePath('/chatter/compta')`
+rafraîchit déjà. C'est la différence avec le Dashboard, dont le panneau détient ses données en
+état client — là-bas le rappel était indispensable.
 
 - [ ] **Step 4 : Vérifier**
 
