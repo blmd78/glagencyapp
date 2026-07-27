@@ -23,11 +23,13 @@ function Line({ label, amount, muted }: { label: string; amount: number; muted?:
  */
 export function ComptaPayslip({
   row,
-  fortnight,
   mondays,
   canPay,
 }: {
   row: ComptaRow
+  /** Conservé dans la signature pour `compta-view.tsx` (tâche 6) ; plus utilisé dans le corps
+   *  depuis que le libellé du mode `fixed` affiche `mondays.length` plutôt que `fortnight.label`
+   *  (correction post-revue) — non déstructuré pour ne pas rouvrir le warning ESLint résolu. */
   fortnight: Fortnight
   /** Lundis des semaines rattachées — un formulaire de saisie par semaine (tâche 8). */
   mondays: string[]
@@ -51,7 +53,10 @@ export function ComptaPayslip({
           label={
             row.mode === 'percent'
               ? `Commission — ${eur(p.ca)} × ${row.rate} %`
-              : `Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${fortnight.label}`
+              : // Le calcul réel est `fixedAmount × weekCount` (cf. payslip.ts) — afficher
+                // « × plage de dates » multipliait un montant par un intervalle, ce qui ne
+                // veut rien dire. `mondays.length` EST le nombre de semaines rattachées.
+                `Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${mondays.length} semaine${mondays.length > 1 ? 's' : ''}`
           }
           amount={p.base}
         />
