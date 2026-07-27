@@ -1341,7 +1341,10 @@ export function ComptaPayslip({
           label={
             row.mode === 'percent'
               ? `Commission — ${eur(p.ca)} × ${row.rate} %`
-              : `Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${fortnight.label}`
+              : // Le calcul réel est `fixedAmount × weekCount` (cf. payslip.ts) — afficher
+                // « × plage de dates » multipliait un montant par un intervalle, ce qui ne
+                // veut rien dire. `mondays.length` EST le nombre de semaines rattachées.
+                `Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${mondays.length} semaine${mondays.length > 1 ? 's' : ''}`
           }
           amount={p.base}
         />
