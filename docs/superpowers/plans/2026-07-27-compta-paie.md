@@ -2086,3 +2086,88 @@ Mettre la spec §4 à jour en même temps : c'est un écart assumé, pas un oubl
 seul chemin qui exerce la branche `fixed` de `computePayslip`**, jamais exécutée à ce jour.
 
 - [ ] **Step 7 : Commit** — ne pas commiter depuis un subagent (accord de Benoit requis).
+
+---
+
+### Task 15 : La période de paie devient 2 semaines lundi→dimanche
+
+> **Décidé par Benoit le 2026-07-27, après lecture de sa feuille Google Sheets de juillet.**
+> C'est une correction d'une erreur d'interprétation de ma part, pas un changement d'avis :
+> quand il a dit « il paye toutes les 2 semaines… 2 paiements par mois », j'ai traduit en
+> quinzaines calendaires 1–15 / 16–fin. Sa feuille prouve que ce sont **14 jours calés sur les
+> lundis**.
+
+**Preuve, tirée de la feuille (onglet juillet, `gid=872644203`)** :
+- Bloc S1 = lundi 06/07 → dimanche 12/07 ; S2 = lundi 13/07 → dimanche 19/07.
+- Le bloc S2 porte « Net à payer 1 » (= le net de S1, vérifié au centime : Seth 809,3816 €),
+  « Net à payer 2 » (= le net de S2) et « -NET TOTAL- » = leur somme. **Le paiement couvre
+  donc 06/07 → 19/07.**
+- La feuille « juillet » couvre en réalité **06/07 → 02/08** : elle ne suit pas le mois.
+- Cadence : 26 périodes par an, pas 24.
+
+**Ancre vérifiée** : le lundi 2026-07-06 démarre une période. Toute période démarre donc un
+lundi `M` tel que `(M − 2026-07-06) mod 14 = 0` (2026-07-20 et 2026-06-22 le confirment).
+
+**Files:**
+- Modify: `packages/core/src/compta/periods.ts` + `periods.test.ts` + `packages/core/src/index.ts`
+- Create: `packages/db/supabase/migrations/0088_compta_period_start.sql`
+- Modify: toute la feature `apps/web/src/features/compta/` (types, schema, actions, services, composants)
+
+- [ ] **Step 1 : Le domaine**
+
+`Fortnight { month, period: 1|2, from, to, label }` devient une période de 14 jours identifiée
+par **son lundi de départ**. `period: 1|2` disparaît : il n'a plus de sens (une période ne se
+rattache plus à un mois — celle du 20/07 finit en août). `month` aussi.
+
+Nouvelle forme suggérée : `PayPeriod { start, end, label }` où `start` est un lundi et
+`end = start + 13`. `fortnightOf(day)` → `periodOf(day)` ; `recentFortnights(today, n)` →
+`recentPeriods(today, n)` ; `mondaysIn` rend **exactement 2 lundis** (plus jamais 3 — c'est une
+simplification, l'ancien modèle en avait 2 ou 3 selon le mois) ; `daysIn` rend **exactement
+14 jours** (contre 15 ou 16). `fortnightsOfMonth` disparaît.
+
+⚠️ `mondaysIn` rendant toujours 2 lundis, le libellé du mode fixe (`fixedAmount × N semaines`)
+devient toujours « × 2 semaines ». Vérifier que `computePayslip` reçoit bien `weekCount = 2` et
+que le test correspondant reste discriminant.
+
+- [ ] **Step 2 : La base**
+
+`compta_payments` porte `month date` + `period smallint check (period in (1,2))`. Avec des
+périodes de 14 jours, **il peut y en avoir 3 qui démarrent dans le même mois** : la contrainte
+`in (1,2)` deviendrait fausse, et stocker un lundi dans une colonne nommée `month` serait un
+mensonge permanent.
+
+Migration `0088` : renommer `month` → `period_start` et **supprimer** `period` (+ sa contrainte).
+C'est sans risque : `compta_payments` est **vide** (0 ligne, vérifié le 2026-07-27 sur l'UAT et
+la prod), et `0085`/`0087` ne sont pas en production. Régénérer `packages/db/src/types.ts`.
+
+`compta_day_entries` (clé par date) et `compta_week_entries` (clé par lundi) ne bougent PAS :
+elles sont déjà indépendantes du découpage.
+
+- [ ] **Step 3 : La feature**
+
+Propager partout : `?month=`/`?period=` dans l'URL → un seul `?debut=` (le lundi) ; le
+`Combobox` du sélecteur ; `payInput` ; `payFortnight` ; `thisPayments` (filtre `(month, period)`
+→ `period_start`) ; `coverage.ts` ; `overdueFortnights`. Le garde « on ne fige que des jours
+révolus » et le trigger de non-chevauchement `0087` restent inchangés — ils raisonnent sur
+`covered_days`, pas sur le découpage.
+
+- [ ] **Step 4 : Vérifier contre la feuille**
+
+Rejouer sur l'UAT la période **06/07 → 19/07** et comparer, chatteur par chatteur, avec la
+colonne « -NET TOTAL- » du bloc S2 de la feuille. Les taux réels y sont : **86 à 10 %, 5 à 11 %**
+(Seth, Néleck, Flo, Benj2p, Junior), **4 à 10,5 %** (Michel, kwasi, Alain, Juliot). Écarts
+attendus et légitimes : les sanctions Police (absentes de la feuille) et les lignes non encore
+implémentées (RESTE SEMAINE PASSEE, Divers, PRIME TOP15 SETTER, PRIME TOP3 MOIS).
+
+- [ ] **Step 5 : Commit** — ne pas commiter depuis un subagent.
+
+---
+
+### Reste à faire, hors périmètre de la tâche 15
+
+Relevé dans la feuille de juillet, absent de l'app :
+- **PRIME TOP15 SETTER** et **PRIME TOP3 MOIS** — deux primes mensuelles.
+- **RESTE SEMAINE PASSEE** — report d'une période sur la suivante.
+- **Divers** — ligne d'ajustement libre, signée (observée à −20, −10, −5).
+- Renommer « Prime nouveau chatteur » en **« Prime d'embauche »**, le terme de la feuille
+  (montant identique : 100 €, versée à 10 personnes en juillet).
