@@ -6,6 +6,7 @@ import { eur } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ComptaEntryForm } from './compta-entry-form'
 import { ComptaPayDialog } from './compta-pay-dialog'
+import { ComptaSettingsForm, ComptaPrimeForm } from './compta-settings-form'
 import type { ComptaRow } from '../types'
 
 /** Une ligne de la fiche : libellé à gauche, montant aligné à droite en tabulaire. */
@@ -29,6 +30,7 @@ export function ComptaPayslip({
   mondays,
   canEnter,
   canPay,
+  canConfigure,
   fortnightElapsed,
 }: {
   row: ComptaRow
@@ -42,6 +44,10 @@ export function ComptaPayslip({
   /** Droit de PAIEMENT (admin seul) — spec §6. Masquer le bouton n'est qu'optimiste :
    *  `adminGuard` et la RLS 0085 (`compta_payments_admin_write`) sont le verrou réel. */
   canPay: boolean
+  /** Droit de RÉGLAGE (taux, mode, setter, prime) — admin seul, spec §6. Booléen DISTINCT de
+   *  `canPay` bien que dérivé du même rôle aujourd'hui : régler un taux et exécuter un virement
+   *  sont deux gestes différents. Verrous réels : `adminGuard` + RLS `*_admin_write`. */
+  canConfigure: boolean
   /** Quinzaine terminée — DISTINCT de `canPay` : l'un est un droit, l'autre un état de la
    *  période. `payFortnight` refuse de figer des jours non révolus ; ne pas monter un bouton
    *  qui échouerait à coup sûr. */
@@ -125,6 +131,15 @@ export function ComptaPayslip({
 
       {canPay && fortnightElapsed && !row.paid && (
         <ComptaPayDialog row={row} fortnight={fortnight} />
+      )}
+
+      {/* Réglages AVANT les saisies : c'est `is_setter` qui décide de la présence du champ
+          « Fixe setter » dans le formulaire hebdomadaire juste en dessous. */}
+      {canConfigure && (
+        <>
+          <ComptaSettingsForm row={row} />
+          <ComptaPrimeForm row={row} />
+        </>
       )}
 
       {canEnter &&

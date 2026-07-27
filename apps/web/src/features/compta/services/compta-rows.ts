@@ -1,4 +1,4 @@
-import { computePayslip, daysIn, type Fortnight } from '@glagency/core'
+import { computePayslip, type Fortnight } from '@glagency/core'
 import { buildCoverage, type Coverage } from './coverage'
 import { loadComptaSources } from './compta-sources'
 import type { ComptaRow, ComptaSanction } from '../types'
@@ -39,13 +39,10 @@ export interface ComptaRowsResult {
 
 export async function loadComptaRows({
   fortnight,
-  choices,
   today,
   memberId,
 }: {
   fortnight: Fortnight
-  /** Fenêtre de quinzaines proposées — sert à situer la prime (cf. `myOldestOpen`). */
-  choices: Fortnight[]
   today: string
   /** Restreint la population à UN membre (recalcul serveur d'un paiement). */
   memberId?: string
@@ -83,31 +80,38 @@ export async function loadComptaRows({
       kind: e.kind === 'warning' ? 'warning' : 'malus',
     }))
 
-    // Couverture de CE membre (map précalculée ci-dessus) — sert à la prime. `myPayments`
-    // (liste, pas set) reste nécessaire séparément pour `covered`/`paid`/`paidOn` plus bas,
-    // qui ont besoin du `paid_at` PAR jour, pas juste de son appartenance à l'ensemble couvert.
+    // `myPayments` (liste, pas set) sert `covered`/`paid`/`paidOn` plus bas, qui ont besoin du
+    // `paid_at` PAR jour, pas seulement de l'appartenance du jour à l'ensemble couvert.
     const myPayments = mine(src.payments)
-    const myCoveredDays = coverage.daysByMember.get(m.id) ?? new Set<string>()
-    // La prime ne s'affiche que sur la quinzaine ÉCHUE LA PLUS ANCIENNE non couverte DE CE
-    // MEMBRE (spec §4). Sans le filtre ÉCHUE (`f.to < today`), la quinzaine en cours — jamais
-    // encore couverte puisqu'elle n'est pas terminée — la déclencherait en permanence, même à
-    // jour de paie. Sans le calcul PAR MEMBRE, le paiement d'un collègue masquerait la
-    // quinzaine impayée d'un autre et déplacerait sa prime. Sans `concerns`, elle remontait
-    // jusqu'aux quinzaines d'AVANT son embauche et s'affichait sur une période que personne
-    // ne regarde, au lieu de la première réellement travaillée. `choices` est trié du plus
-    // récent au plus ancien → filtré puis inversé, la première trouvée est la plus ancienne.
-    const myOldestOpen = [...choices]
-      .filter((f) => f.to < today && coverage.concerns(m.id, f))
-      .reverse()
-      .find((f) => daysIn(f).some((d) => !myCoveredDays.has(d)))
-    // `!coverage.primePaid.has(...)` est la condition DÉCISIVE contre le double versement (cf.
-    // `coverage.ts`) : un membre dont la prime est déjà partie ne peut plus la redéclencher,
-    // quel que soit l'état de `compta_primes`.
-    const primeApplies =
-      !coverage.primePaid.has(m.id) &&
-      myOldestOpen != null &&
-      myOldestOpen.month === fortnight.month &&
-      myOldestOpen.period === fortnight.period
+
+    // ── LA PRIME S'AFFICHE SUR LA QUINZAINE CONSULTÉE ───────────────────────────────────────
+    // Deux conditions, et deux seulement (spec §4, écart arbitré par Benoit le 2026-07-27) :
+    // la quinzaine affichée est ÉCHUE, et le membre n'a JAMAIS reçu de prime.
+    //
+    // La règle précédente l'ancrait sur « la quinzaine échue la plus ancienne non couverte de
+    // ce membre ». Elle est inutilisable à l'amorçage : tant qu'aucun paiement n'existe, la
+    // plus ancienne non couverte est la plus vieille de la fenêtre (12 quinzaines en arrière),
+    // que personne n'ouvre — la prime restait donc invisible partout où on la cherchait.
+    //
+    // `!coverage.primePaid.has(...)` est LE garde contre le double versement, inchangé : sa
+    // source de vérité est l'instantané figé `compta_payments.prime_amount` (cf. `coverage.ts`),
+    // pas la position de la quinzaine ni `compta_primes.status`. La prime reste donc versable
+    // une seule fois, quelle que soit la quinzaine par laquelle on passe.
+    //
+    // `coverage.concerns` n'est PLUS appliqué ici : il ne servait qu'à empêcher l'ancrage
+    // automatique sur une quinzaine d'avant l'embauche, alors que la quinzaine est désormais
+    // choisie par l'admin. L'y garder aurait privé de prime tout membre sans date d'entrée
+    // (aucun jour dans `chatter_daily`), ce que la spec §10 rend dû malgré tout : « Quinzaine
+    // sans aucune donnée CA → net = 0 […] les bonus/primes restent dus ».
+    //
+    // `fortnight.to < today` = le même prédicat « quinzaine échue » que `fortnightElapsed`
+    // (`get-compta.ts`), `overdueFortnights` et le garde de `payFortnight`.
+    const primeApplies = !coverage.primePaid.has(m.id) && fortnight.to < today
+    const prime = src.primeById.get(m.id) ?? null
+    // Le filtre `status = 'due'` vit ICI depuis que `compta-sources.ts` lit tous les statuts
+    // (le formulaire admin a besoin de l'état réel) : une prime `'paid'` ou `'skipped'` ne
+    // rentre pas dans le calcul.
+    const primeDue = primeApplies && prime?.status === 'due' ? prime.amount : 0
 
     const modelCa = m.chatter_id ? (src.caByChatter.get(m.chatter_id) ?? {}) : {}
     const payslip = computePayslip({
@@ -121,7 +125,7 @@ export async function loadComptaRows({
       bonus,
       malus,
       handoffs,
-      primeDue: primeApplies ? (src.primeById.get(m.id) ?? 0) : 0,
+      primeDue,
       sanctions: sancRows.reduce((t, x) => t + x.amount, 0),
     })
 
@@ -148,6 +152,7 @@ export async function loadComptaRows({
       rate: Number(s?.rate ?? 10),
       fixedAmount: Number(s?.fixed_amount ?? 0),
       isSetter: s?.is_setter ?? false,
+      prime,
       handoffs,
       modelCa,
       sanctions: sancRows,

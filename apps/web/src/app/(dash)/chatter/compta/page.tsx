@@ -27,11 +27,16 @@ export default async function ComptaPage({
       <Suspense fallback={<ComptaSkeleton />}>
         <ComptaContent
           data={data}
-          // DEUX droits distincts (spec §6) : le manager SAISIT, seul l'admin PAIE.
+          // TROIS droits distincts (spec §6) : le manager SAISIT, seul l'admin PAIE et RÈGLE.
           // `profile.role` ne vaut que 'admin' ou 'chatteur' — un manager y est mappé sur
           // 'chatteur' (lib/auth). Le tester ici priverait tout manager du formulaire.
           canEnter={hasWriteAccess(profile, 'compta')}
           canPay={profile.role === 'admin'}
+          // Booléen SÉPARÉ de `canPay`, bien qu'ils dérivent aujourd'hui du même rôle : régler
+          // un taux et exécuter un virement sont deux gestes différents, et les avoir confondus
+          // est exactement ce qui avait produit le défaut `canEnter`/`canPay`. Le jour où l'un
+          // des deux s'ouvre à un autre rôle, il n'y a qu'une ligne à changer.
+          canConfigure={profile.role === 'admin'}
         />
       </Suspense>
     </div>
@@ -42,10 +47,19 @@ async function ComptaContent({
   data,
   canEnter,
   canPay,
+  canConfigure,
 }: {
   data: Promise<ComptaData>
   canEnter: boolean
   canPay: boolean
+  canConfigure: boolean
 }) {
-  return <ComptaTemplate data={await data} canEnter={canEnter} canPay={canPay} />
+  return (
+    <ComptaTemplate
+      data={await data}
+      canEnter={canEnter}
+      canPay={canPay}
+      canConfigure={canConfigure}
+    />
+  )
 }

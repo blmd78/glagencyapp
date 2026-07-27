@@ -22,7 +22,7 @@ export async function getCompta({
   const wanted = choices.find((f) => f.month === month && f.period === Number(period))
   const fortnight: Fortnight = wanted ?? choices[0]
 
-  const { rows, coverage } = await loadComptaRows({ fortnight, choices, today })
+  const { rows, coverage } = await loadComptaRows({ fortnight, today })
 
   // Bandeau de retard — définition et pièges dans `coverage.ts`. `rows` tient lieu de liste de
   // membres : chaque ligne porte déjà `id`, et c'est exactement la population que la RLS a

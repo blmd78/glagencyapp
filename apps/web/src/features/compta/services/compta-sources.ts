@@ -66,7 +66,10 @@ export async function loadComptaSources({
     memberId ? membersQuery.eq('id', memberId) : membersQuery,
     // Une ligne par membre au plus (PK `chatter_id`) → sous le plafond.
     supabase.from('compta_settings').select('*'),
-    supabase.from('compta_primes').select('*').eq('status', 'due'),
+    // TOUS les statuts, et non les seules primes `'due'` : le formulaire de réglages (admin) a
+    // besoin de l'état RÉEL pour ne pas proposer de recréer une prime déjà versée ou renoncée.
+    // Le filtre `'due'` n'a pas disparu, il s'applique au CALCUL dans `compta-rows.ts`.
+    supabase.from('compta_primes').select('*'),
     // `fetchAll` : 96 membres × 16 jours = 1 536 lignes possibles sur une quinzaine, au-delà du
     // plafond PostgREST de 1000 — franchi, il tronque EN SILENCE (CLAUDE.md,
     // guidelines-data-loading §2). Tronqué, ce sont des bonus ET des malus manuels qui
@@ -192,7 +195,12 @@ export async function loadComptaSources({
   return {
     members: members ?? [],
     settingsById: new Map((settings ?? []).map((s) => [s.chatter_id, s])),
-    primeById: new Map((primes ?? []).map((p) => [p.chatter_id, Number(p.amount)])),
+    primeById: new Map(
+      (primes ?? []).map((p) => [
+        p.chatter_id,
+        { amount: Number(p.amount), status: p.status, paidAt: p.paid_at },
+      ]),
+    ),
     dayEntries,
     weekEntries: weekEntries ?? [],
     payments,

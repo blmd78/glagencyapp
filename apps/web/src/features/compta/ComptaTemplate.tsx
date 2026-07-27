@@ -10,10 +10,14 @@ export function ComptaTemplate({
   data,
   canEnter,
   canPay,
+  canConfigure,
 }: {
   data: ComptaData
   canEnter: boolean
   canPay: boolean
+  canConfigure: boolean
 }) {
-  return <ComptaView data={data} canEnter={canEnter} canPay={canPay} />
+  return (
+    <ComptaView data={data} canEnter={canEnter} canPay={canPay} canConfigure={canConfigure} />
+  )
 }

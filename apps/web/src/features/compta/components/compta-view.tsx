@@ -20,10 +20,12 @@ export function ComptaView({
   data,
   canEnter,
   canPay,
+  canConfigure,
 }: {
   data: ComptaData
   canEnter: boolean
   canPay: boolean
+  canConfigure: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -106,6 +108,7 @@ export function ComptaView({
             mondays={mondaysIn(data.fortnight)}
             canEnter={canEnter}
             canPay={canPay}
+            canConfigure={canConfigure}
             fortnightElapsed={data.fortnightElapsed}
           />
         )}

@@ -22,6 +22,11 @@ export interface ComptaRow {
   rate: number
   fixedAmount: number
   isSetter: boolean
+  /** Prime « nouveau chatteur » enregistrée pour ce membre (`compta_primes`), null si aucune.
+   *  `status` : `'due'` (à verser) | `'paid'` (versée, figée par `payFortnight`) | `'skipped'`
+   *  (renoncée). Portée pour le formulaire de réglages : le CALCUL, lui, ne retient que `'due'`
+   *  et passe par `payslip.prime`. */
+  prime: { amount: number; status: string; paidAt: string | null } | null
   handoffs: number
   /** CA par modèle (nom du modèle → €), pour la ventilation de la fiche. */
   modelCa: Record<string, number>

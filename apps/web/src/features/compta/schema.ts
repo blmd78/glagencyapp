@@ -17,6 +17,14 @@ const money = z.coerce.number().min(0, 'Montant positif attendu').max(99999, 'Mo
  */
 const netMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
 
+/**
+ * Un TAUX de commission en %, et PAS un montant : les colonnes `compta_settings.rate` et
+ * `compta_payments.rate_applied` sont des `numeric(5,2)` — plafonnées à 999,99. Avec la borne
+ * des montants (99 999), un taux aberrant passait Zod puis explosait en `numeric field
+ * overflow` Postgres brut, au lieu d'une erreur de validation lisible.
+ */
+const rate = z.coerce.number().min(0, 'Taux positif attendu').max(999.99, 'Taux hors bornes')
+
 /** Saisie d'un JOUR (bonus/malus/handoffs). */
 export const dayEntryInput = z.object({
   chatterId: z.uuid(),
@@ -54,11 +62,8 @@ export const payInput = z
     amount: netMoney,
     caReference: money,
     modeApplied: z.enum(['percent', 'fixed']),
-    // PAS `money` : c'est un TAUX en %, pas un montant, et la colonne est `numeric(5,2)` —
-    // plafonnée à 999,99. Avec la borne des montants (99 999), un taux aberrant passait Zod
-    // puis explosait en `numeric field overflow` Postgres brut, au lieu d'une erreur de
-    // validation lisible.
-    rateApplied: z.coerce.number().min(0, 'Taux positif attendu').max(999.99, 'Taux hors bornes'),
+    // `rate` et non `money` : c'est un TAUX (cf. sa définition en haut de fichier).
+    rateApplied: rate,
     baseAmount: money,
     setterAmount: money,
     bonusAmount: money,
@@ -117,3 +122,35 @@ export const payInput = z
     ctx.addIssue({ code: 'custom', message })
   })
 export type PayInput = z.infer<typeof payInput>
+
+/**
+ * Réglages de rémunération d'un membre (`compta_settings`, PK `chatter_id`) — ADMIN seul
+ * (spec §6). Ce sont eux qui rendent le mode `fixed` et le fixe setter ATTEIGNABLES : sans cet
+ * écran, tout le monde restait au défaut de la colonne (percent, 10 %, `is_setter` false).
+ */
+export const settingsInput = z.object({
+  chatterId: z.uuid(),
+  mode: z.enum(['percent', 'fixed']),
+  rate,
+  /** Montant HEBDOMADAIRE du mode `fixed` (spec §4) — multiplié par le nombre de semaines. */
+  fixedAmount: money,
+  isSetter: z.boolean(),
+})
+export type SettingsInput = z.infer<typeof settingsInput>
+export type SettingsFormValues = z.input<typeof settingsInput>
+
+/**
+ * Prime « nouveau chatteur » (`compta_primes`, PK `chatter_id`) — ADMIN seul, décidée à la main
+ * (spec §2 : « manuelle, l'admin décide »).
+ *
+ * `'paid'` est ACCEPTÉ PAR LA COLONNE (check `due | paid | skipped`) mais absent d'ici : il
+ * n'est posé que par `payFortnight`, au moment où la prime part réellement. L'offrir dans un
+ * formulaire laisserait marquer « versée » une prime que rien n'a versée.
+ */
+export const primeInput = z.object({
+  chatterId: z.uuid(),
+  amount: money,
+  status: z.enum(['due', 'skipped']),
+})
+export type PrimeInput = z.infer<typeof primeInput>
+export type PrimeFormValues = z.input<typeof primeInput>

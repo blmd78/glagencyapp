@@ -99,16 +99,23 @@ Pour un chatteur et une quinzaine :
 
 + Handoffs        ( Σ handoffs jour + Σ handoffs semaine ) × 0,60 €
 
-+ Prime           compta_primes.amount si status = 'due', et UNIQUEMENT sur la
-                  quinzaine échue la plus ancienne non couverte de ce chatteur
-                  -- sans cette restriction, deux quinzaines impayées afficheraient
-                  chacune la prime, laissant croire qu'elle est due deux fois
++ Prime           compta_primes.amount si status = 'due', sur la quinzaine CONSULTÉE
+                  dès lors qu'elle est échue et que ce chatteur n'a jamais reçu de
+                  prime (compta_payments.prime_amount)
 
 − Sanctions       Σ police_entries.amount_eur où kind = 'malus'
                   et occurred_on dans la quinzaine
 
 = Net à payer
 ```
+
+**Écart assumé sur la prime — arbitré par Benoit le 2026-07-27, ce n'est pas un oubli.** Cette
+section demandait auparavant que la prime ne s'affiche que sur « la quinzaine échue la plus
+ancienne non couverte » du chatteur. Inutilisable à l'amorçage : tant qu'aucun paiement n'existe,
+cette quinzaine est la plus ancienne de la fenêtre (12 quinzaines en arrière), que personne
+n'ouvre — la prime restait invisible là où on la cherchait. Le garde contre le double versement
+est INCHANGÉ : c'est `compta_payments.prime_amount` (instantané figé), et non la position de la
+quinzaine, qui interdit de la verser deux fois.
 
 **Hypothèse à confirmer — `fixed_amount` est HEBDOMADAIRE.** Ce n'est pas une décision du
 propriétaire : c'est déduit de la branche WIP, qui calculait `fixedAmount × jours / 7`. Aucun
@@ -243,6 +250,13 @@ Le repère de droite répond sans déplier : combien, et payé ou non.
 sanction en clair (`05/07 — Réponse > 45 s : 15 €`), la ventilation du CA par modèle, et le
 compte de handoffs. Sous la fiche : la saisie des bonus/malus/handoffs, et pour un admin le
 bouton **Marquer payé** qui fige l'instantané et enregistre `covered_days`.
+
+**Réglages (admin seul).** Toujours sous la fiche : les **réglages de paie** du chatteur (mode
+`percent`/`fixed`, taux ou fixe hebdomadaire, statut setter) et sa **prime** (montant, à verser
+ou renoncée). Sans eux, `compta_settings` et `compta_primes` restaient aux défauts de leurs
+colonnes pour tout le monde et n'étaient modifiables qu'en SQL — le mode `fixed` et le fixe
+setter étaient inatteignables, et la prime « manuelle » de la §2 ne pouvait pas être créée. Une
+prime déjà versée s'affiche en lecture seule : son statut est la trace du virement.
 
 **Chatteur non relié à MyPuls.** `profiles.chatter_id` est nullable : 30 profils chatteurs sur
 102 ne sont pas reliés en prod. Sans lien, aucun CA n'est calculable. La ligne affiche un

@@ -1,7 +1,8 @@
 'use server'
 
 // Server Actions de la Compta. Saisies = manager/sous-manager sur SES rattachés
-// (`managerPageGuard` + RLS 0085) ; paiement = admin seul (`adminGuard` + RLS 0085).
+// (`managerPageGuard` + RLS 0085) ; réglages, prime et paiement = admin seul (`adminGuard` +
+// RLS `compta_settings_admin_write` / `compta_primes_admin_write` / `compta_payments_admin_write`).
 
 import { revalidatePath } from 'next/cache'
 import { recentFortnights, todayParis } from '@glagency/core'
@@ -16,7 +17,7 @@ import {
   type ActionResult,
 } from '@/lib/actions'
 import { loadComptaRows } from './services/compta-rows'
-import { weekEntryInput, payInput } from './schema'
+import { weekEntryInput, payInput, settingsInput, primeInput } from './schema'
 
 /**
  * Crée ou met à jour la saisie HEBDOMADAIRE d'un chatteur (bonus, malus, handoffs, fixe
@@ -48,6 +49,97 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
       )
       // 42501 = violation RLS : la cible est hors périmètre. Message MÉTIER, pas Sentry.
       if (error?.code === '42501') throw new BusinessError("Ce chatteur n'est pas dans ton périmètre.")
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/compta')
+    },
+  })
+}
+
+/**
+ * Réglages de rémunération d'un membre (mode, taux, fixe hebdomadaire, statut setter).
+ * `adminGuard` et non `managerPageGuard` : la spec §6 réserve `compta_settings` à l'admin en
+ * écriture, et la RLS `compta_settings_admin_write` (`for all` sous `is_admin()` en `using` ET
+ * `with check`) est le verrou réel — la garde n'est que la défense en profondeur.
+ *
+ * Upsert sur `chatter_id`, PK de la table : un membre n'a qu'une ligne de réglages, créée à sa
+ * première configuration. Tant qu'elle n'existe pas, `loadComptaRows` applique les défauts de
+ * la colonne (percent, 10 %, fixe 0, non setter).
+ */
+export async function saveComptaSettings(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: settingsInput,
+    input: raw,
+    guard: adminGuard,
+    handler: async (v) => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée')
+      const supabase = await createClient()
+      const { error } = await supabase.from('compta_settings').upsert(
+        {
+          chatter_id: v.chatterId,
+          mode: v.mode,
+          rate: v.rate,
+          fixed_amount: v.fixedAmount,
+          is_setter: v.isSetter,
+          // Posé à la main : aucun trigger ne rafraîchit `updated_at` sur ces tables (même
+          // constat que `saveWeekEntry`), et le défaut `now()` ne joue qu'à l'INSERT.
+          updated_at: new Date().toISOString(),
+          updated_by: profile.id,
+        },
+        { onConflict: 'chatter_id' },
+      )
+      if (error?.code === '42501') {
+        throw new BusinessError("Vous n'avez pas le droit de modifier les réglages de paie.")
+      }
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/compta')
+    },
+  })
+}
+
+/**
+ * Prime « nouveau chatteur » — créée ou modifiée À LA MAIN par l'admin (spec §2). Upsert sur
+ * `chatter_id`, PK de la table : un membre n'a qu'une prime.
+ *
+ * Une prime déjà VERSÉE est refusée à l'écriture : `payFortnight` a posé `status = 'paid'` et
+ * `paid_at`, qui sont la trace du virement. La réécrire en `'due'` ne provoquerait aucun double
+ * versement — `coverage.primePaid` fait foi sur l'instantané figé `compta_payments.prime_amount`
+ * (cf. `coverage.ts`) — mais effacerait cette trace. Le formulaire ne la propose pas non plus.
+ */
+export async function savePrime(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: primeInput,
+    input: raw,
+    guard: adminGuard,
+    handler: async (v) => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée')
+      const supabase = await createClient()
+
+      // `maybeSingle` : la ligne n'existe pas tant que la prime n'a jamais été créée.
+      const { data: existing, error: readErr } = await supabase
+        .from('compta_primes')
+        .select('status')
+        .eq('chatter_id', v.chatterId)
+        .maybeSingle()
+      if (readErr) throw new Error(readErr.message)
+      if (existing?.status === 'paid') {
+        throw new BusinessError('La prime de ce chatteur a déjà été versée — elle ne peut plus être modifiée.')
+      }
+
+      const { error } = await supabase.from('compta_primes').upsert(
+        {
+          chatter_id: v.chatterId,
+          amount: v.amount,
+          status: v.status,
+          updated_at: new Date().toISOString(),
+          updated_by: profile.id,
+        },
+        { onConflict: 'chatter_id' },
+      )
+      if (error?.code === '42501') {
+        throw new BusinessError("Vous n'avez pas le droit de modifier la prime de ce chatteur.")
+      }
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/compta')
     },
@@ -107,12 +199,7 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       if (!fortnight) {
         throw new BusinessError("Cette quinzaine n'est plus dans la fenêtre payable — recharge la page.")
       }
-      const { rows } = await loadComptaRows({
-        fortnight,
-        choices,
-        today,
-        memberId: v.chatterId,
-      })
+      const { rows } = await loadComptaRows({ fortnight, today, memberId: v.chatterId })
       const row = rows[0]
       // Ni le membre, ni la RLS : soit le compte a disparu, soit il n'est plus rôle chatteur.
       if (!row) throw new BusinessError('Ce membre est introuvable dans la compta — recharge la page.')
