@@ -6,9 +6,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { recentFortnights, todayParis } from '@glagency/core'
+import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
 import { eur2 } from '@/lib/format'
+import { applyChatterLink } from '@/lib/chatter-link'
 import {
   runAction,
   managerPageGuard,
@@ -17,7 +19,7 @@ import {
   type ActionResult,
 } from '@/lib/actions'
 import { loadComptaRows } from './services/compta-rows'
-import { weekEntryInput, payInput, settingsInput, primeInput } from './schema'
+import { weekEntryInput, payInput, settingsInput, primeInput, chatterLinkInput } from './schema'
 
 /**
  * Crée ou met à jour la saisie HEBDOMADAIRE d'un chatteur (bonus, malus, handoffs, fixe
@@ -142,6 +144,38 @@ export async function savePrime(raw: unknown): Promise<ActionResult> {
       }
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/compta')
+    },
+  })
+}
+
+/**
+ * Relie un membre à son chatteur MyPuls SANS quitter la compta (`profiles.chatter_id`). Sans
+ * ce lien aucun CA n'est calculable, donc aucune fiche de paie : c'est le seul geste qui
+ * débloque la ligne, et l'imposer via la page Membres coupait le flux de la paie.
+ *
+ * `adminGuard` : `applyChatterLink` est admin-seul et IGNORE SILENCIEUSEMENT un non-admin
+ * (cf. lib/chatter-link.ts) — sans cette garde, un manager verrait « Membre relié » sans que
+ * rien ne soit écrit. La garde est ici le seul rempart : `profiles.chatter_id` est écrit par
+ * client SERVICE-ROLE (`auth.admin` est requis ailleurs dans le même helper), donc la RLS ne
+ * tranche pas. L'UI ne monte le bouton que pour `canConfigure`, ce qui reste optimiste.
+ *
+ * La garde d'unicité et la traduction du `23505` viennent du helper partagé avec Membres —
+ * une seule implémentation.
+ */
+export async function linkChatter(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: chatterLinkInput,
+    input: raw,
+    guard: adminGuard,
+    handler: async (v) => {
+      const caller = await getProfile()
+      if (!caller) throw new Error('Session expirée')
+      await applyChatterLink(createAdminClient(), caller, v.memberId, v.chatterId)
+      revalidatePath('/chatter/compta')
+      // Le lien est la MÊME colonne que celle affichée par Membres (badge « à relier »,
+      // sélecteur de la fiche) : ne revalider que la compta y laisserait une vue périmée.
+      revalidatePath('/chatter/members')
+      revalidatePath('/marketing/members')
     },
   })
 }

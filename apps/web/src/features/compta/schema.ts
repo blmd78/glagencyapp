@@ -154,3 +154,20 @@ export const primeInput = z.object({
 })
 export type PrimeInput = z.infer<typeof primeInput>
 export type PrimeFormValues = z.input<typeof primeInput>
+
+/**
+ * Lien `profiles.chatter_id` posé DEPUIS la compta — ADMIN seul. Sans lien, aucun CA n'est
+ * calculable, et la ligne n'affichait qu'un avertissement + un renvoi vers Membres. Mesuré sur
+ * l'UAT le 2026-07-27 : 8 des 96 membres rôle chatteur sans lien (34 sur 105 en prod, chiffre
+ * rapporté par le propriétaire — la prod n'a pas été ouverte pour cette tâche).
+ *
+ * `chatterId` est un `uuid` STRICT, là où `applyChatterLink` accepte aussi `''` pour DÉLIER :
+ * ce formulaire ne sait que relier (il n'est monté que sur un membre sans lien), et un `''`
+ * qui passerait jusqu'à l'action délierait silencieusement. Restriction volontaire du contrat,
+ * jamais un affaiblissement de la garde.
+ */
+export const chatterLinkInput = z.object({
+  memberId: z.uuid(),
+  chatterId: z.uuid(),
+})
+export type ChatterLinkInput = z.infer<typeof chatterLinkInput>

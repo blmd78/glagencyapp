@@ -1,17 +1,82 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ActionButton } from '@/components/action-button'
+import { cn } from '@/lib/utils'
+import { COL_HEAD } from './compta-payslip-calc'
 import { saveWeekEntry } from '../actions'
 import { weekEntryInput, type WeekEntryInput, type WeekEntryFormValues } from '../schema'
 
 /**
+ * Gabarit de grille PARTAGÉ par l'en-tête de colonnes et par chaque ligne-semaine — les deux
+ * doivent s'aligner, donc une seule source.
+ *
+ * Pistes de largeur FIXE aux deux extrémités (libellé de semaine, bouton) et non `auto` :
+ * l'en-tête et chaque `<form>` sont des grilles CSS DISTINCTES, qui ne partagent pas leurs
+ * pistes. Un `auto` y serait mesuré séparément de part et d'autre (rien à mesurer dans
+ * l'en-tête, un bouton dans les lignes) et décalerait toutes les colonnes.
+ *
+ * Les deux variantes sont écrites EN CLAIR et non construites : Tailwind ne voit que les
+ * littéraux présents dans le source.
+ */
+function entryGridCols(isSetter: boolean): string {
+  return isSetter
+    ? 'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(4,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
+    : 'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(3,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
+}
+
+/**
+ * En-tête de colonnes des saisies : les libellés sont écrits UNE fois pour les 2 ou 3 semaines
+ * de la quinzaine, là où chaque formulaire portait les siens (jusqu'à 12 étiquettes pour
+ * 4 champs). Masqué sous `sm`, où chaque ligne repasse en pile de deux colonnes avec ses
+ * propres étiquettes visibles.
+ *
+ * `aria-hidden` : les `<label>` des champs restent en place (`sm:sr-only`) et suffisent aux
+ * lecteurs d'écran — cet en-tête est le relais VISUEL, l'annoncer une seconde fois doublerait
+ * chaque champ.
+ */
+export function ComptaEntryHeader({ isSetter }: { isSetter: boolean }) {
+  return (
+    <div className={cn('hidden sm:grid', entryGridCols(isSetter))} aria-hidden>
+      <span />
+      <span className={COL_HEAD}>Bonus €</span>
+      <span className={COL_HEAD}>Malus €</span>
+      <span className={COL_HEAD}>Handoffs</span>
+      {isSetter && <span className={COL_HEAD}>Fixe setter €</span>}
+      <span />
+    </div>
+  )
+}
+
+/**
+ * Une cellule de saisie. L'étiquette est VISIBLE en pile mobile et réservée aux lecteurs
+ * d'écran au-delà (`sm:sr-only`), où `ComptaEntryHeader` prend le relais à l'œil : `sr-only`
+ * positionne l'étiquette en absolu, elle ne crée donc aucune piste ni aucun `gap`.
+ */
+function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  return (
+    <div className="grid gap-1.5">
+      <Label htmlFor={id} className="sm:sr-only">
+        {label}
+      </Label>
+      {children}
+    </div>
+  )
+}
+
+/**
  * Saisie hebdomadaire (bonus, malus, handoffs, fixe setter). Une semaine appartient
  * entièrement à la quinzaine de son lundi — elle n'est jamais découpée.
+ *
+ * UNE LIGNE par semaine depuis le 2026-07-27 (« simplifie l'affichage ») : c'était un encadré
+ * titré par semaine, soit 2 ou 3 cartes empilées répétant les mêmes quatre champs, et c'est ce
+ * qui rendait le panneau déplié écrasant pour un admin. Le cadre a sauté avec le titre : la
+ * grille aligne les colonnes, elle n'a plus besoin d'être délimitée.
  */
 export function ComptaEntryForm({
   chatterId,
@@ -55,38 +120,38 @@ export function ComptaEntryForm({
   })
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Semaine du {weekLabel}
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="grid gap-1.5">
-          <Label htmlFor={`bonus-${weekStart}`}>Bonus €</Label>
-          <Input id={`bonus-${weekStart}`} type="number" step="0.01" {...register('bonus')} />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor={`malus-${weekStart}`}>Malus €</Label>
-          <Input id={`malus-${weekStart}`} type="number" step="0.01" {...register('malus')} />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor={`handoffs-${weekStart}`}>Handoffs</Label>
-          <Input id={`handoffs-${weekStart}`} type="number" {...register('handoffs')} />
-        </div>
-        {isSetter && (
-          <div className="grid gap-1.5">
-            <Label htmlFor={`fixe-${weekStart}`}>Fixe setter €</Label>
-            <Input id={`fixe-${weekStart}`} type="number" step="0.01" {...register('fixeSetter')} />
-          </div>
-        )}
-      </div>
+    <form onSubmit={submit} className={cn('grid', entryGridCols(isSetter))}>
+      <span className="col-span-2 text-sm font-medium sm:col-span-1">Semaine du {weekLabel}</span>
+
+      <Field id={`bonus-${weekStart}`} label="Bonus €">
+        <Input id={`bonus-${weekStart}`} type="number" step="0.01" {...register('bonus')} />
+      </Field>
+      <Field id={`malus-${weekStart}`} label="Malus €">
+        <Input id={`malus-${weekStart}`} type="number" step="0.01" {...register('malus')} />
+      </Field>
+      <Field id={`handoffs-${weekStart}`} label="Handoffs">
+        <Input id={`handoffs-${weekStart}`} type="number" {...register('handoffs')} />
+      </Field>
+      {isSetter && (
+        <Field id={`fixe-${weekStart}`} label="Fixe setter €">
+          <Input id={`fixe-${weekStart}`} type="number" step="0.01" {...register('fixeSetter')} />
+        </Field>
+      )}
+
+      <ActionButton
+        type="submit"
+        size="sm"
+        pending={isSubmitting}
+        className="col-span-2 justify-self-end sm:col-span-1 sm:w-full"
+      >
+        Enregistrer
+      </ActionButton>
+
       {errors.root?.serverError && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+        <p role="alert" className="col-span-2 text-sm text-red-600 sm:col-span-full dark:text-red-400">
           {errors.root.serverError.message}
         </p>
       )}
-      <ActionButton type="submit" pending={isSubmitting} className="self-end">
-        Enregistrer
-      </ActionButton>
     </form>
   )
 }

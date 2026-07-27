@@ -7,11 +7,22 @@ const base: PayslipInput = {
 }
 
 describe('computePayslip — base', () => {
-  it('mode percent : somme le CA par modele puis applique le taux', () => {
+  it('mode percent : applique le taux modele par modele puis somme', () => {
     const r = computePayslip({ ...base, modelCa: { a: 2500, b: 1700 } })
     expect(r.ca).toBe(4200)
     expect(r.base).toBe(420)
     expect(r.net).toBe(420)
+  })
+
+  it('mode percent : chaque modele est ARRONDI avant la somme, pas apres', () => {
+    // 4 modeles a 100,05 EUR, 10 % : chaque ligne vaut 10,005 -> 10,01 arrondie, soit 40,04.
+    // L ancienne formule (round2 de la somme brute) donnait 40,02 : les 4 lignes affichees
+    // dans la fiche n auraient pas fait le total affiche. Ecart de 2 centimes, assume.
+    const r = computePayslip({ ...base, modelCa: { a: 100.05, b: 100.05, c: 100.05, d: 100.05 } })
+    expect(r.ca).toBe(400.2)
+    // Les 4 lignes affichees par la fiche : 10,01 chacune. Leur somme EST la base.
+    expect(r.base).toBe(40.04)
+    expect(r.net).toBe(40.04)
   })
 
   it('mode fixed : le fixe est HEBDOMADAIRE, multiplie par le nombre de semaines', () => {
@@ -78,20 +89,45 @@ describe('computePayslip — invariant', () => {
     })
     // Valeurs calculees a la main (pas a partir du resultat de `r`) : le taux 12,5 % sur
     // 3333,33 / 1111,11 stresse deliberement l'arrondi flottant.
-    // base brute = 3333,33*0,125 + 1111,11*0,125 = 555,555 -> en flottant 555,5499999999999...
-    // -> round2 = 555,55 (et NON 555,56)
+    // lignes de la fiche : 3333,33*0,125 = 416,66625 -> 416,67
+    //                      1111,11*0,125 = 138,88875 -> 138,89
+    // base = 416,67 + 138,89 = 555,56.
+    //
+    // CE QUE CE TEST DISCRIMINE (verifie en reintroduisant chaque formule) : l'arrondi PAR
+    // MODELE. Avec l'ancienne formule `round2(somme brute)`, la somme brute vaut 555,555,
+    // representee 555,5499999999999 en flottant -> base 555,55 et net 794,75. Les deux
+    // valeurs ci-dessous changeraient donc si l'arrondi par modele etait retire.
     expect(r.ca).toBe(4444.44)
-    expect(r.base).toBe(555.55)
+    expect(r.base).toBe(555.56)
     expect(r.setter).toBe(150)
     expect(r.bonus).toBe(50)
     expect(r.malus).toBe(20)
     expect(r.handoffsAmount).toBe(4.2)
     expect(r.prime).toBe(100)
     expect(r.sanctions).toBe(45)
-    // net = 555,55 + 150 + 50 - 20 + 4,2 + 100 - 45 = 794,75
-    // (avec un round2 unique en fin de chaine sur les valeurs BRUTES, le calcul donnerait
-    // 794,76 : c'est precisement ce que ce test doit detecter si l'arrondi composante par
-    // composante est retire.)
-    expect(r.net).toBe(794.75)
+    // net = 555,56 + 150 + 50 - 20 + 4,2 + 100 - 45 = 794,76
+    expect(r.net).toBe(794.76)
+  })
+
+  it('les composantes sont arrondies AVANT d etre sommees dans le net', () => {
+    // Ce test-ci garde l'autre invariant (arrondi composante par composante, `payslip.ts`).
+    // Il exige des entrees SOUS LE CENTIME : depuis que la base est arrondie modele par
+    // modele, toutes les composantes issues de la base valent deja 2 decimales, et aucun jeu
+    // d'entrees a 2 decimales ne distingue plus les deux ordres (verifie par balayage).
+    // Les colonnes numeriques de la compta sont toutes en `numeric(_, 2)` (verifie sur
+    // information_schema, UAT) : ce cas n'est pas atteignable depuis la base AUJOURD'HUI —
+    // c'est le CONTRAT de la fonction pure qu'il protege, pour le jour ou une entree
+    // sous-centime arrivera (taux par modele, prorata, devise convertie).
+    const r = computePayslip({
+      ...base,
+      modelCa: { a: 1000 }, bonus: 0.004, primeDue: 0.004, handoffs: 7,
+    })
+    // bonus 0,004 -> 0,00 et prime 0,004 -> 0,00 : le net ne gagne PAS le centime que la
+    // somme brute (100 + 0,008 + 4,2) ferait apparaitre a 104,21.
+    expect(r.bonus).toBe(0)
+    expect(r.prime).toBe(0)
+    expect(r.base).toBe(100)
+    expect(r.handoffsAmount).toBe(4.2)
+    expect(r.net).toBe(104.2)
   })
 })

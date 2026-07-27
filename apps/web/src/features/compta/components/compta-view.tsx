@@ -3,18 +3,21 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
 import type { Route } from 'next'
-import { mondaysIn } from '@glagency/core'
-import { MembersAccordion } from '@/components/members-accordion'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { Combobox } from '@/components/ui/combobox'
 import { eur } from '@/lib/format'
-import { ComptaPayslip } from './compta-payslip'
+import { ComptaTable } from './compta-table'
 import type { ComptaData } from '../types'
 
 /**
- * Vue interactive de la Compta : sélecteur de quinzaine, KPIs de la période, puis la pile de
- * noms dépliables (même grammaire que le Planning et le Dashboard). Le sélecteur pousse
- * `?month=`&`?period=` — la page, Server Component, se recharge sur la quinzaine choisie.
+ * Vue interactive de la Compta : sélecteur de quinzaine, KPIs de la période, puis la table des
+ * chatteurs, dépliable sur la fiche de paie. Le sélecteur pousse `?month=`&`?period=` — la
+ * page, Server Component, se recharge sur la quinzaine choisie.
+ *
+ * La pile de noms (`MembersAccordion`, spec §7) a été remplacée par une data-table le
+ * 2026-07-27 à la demande du propriétaire, pour la lisibilité : les huit composantes du net
+ * (CA, base, bonus, malus, sanctions, prime…) se comparent d'une ligne à l'autre sans avoir à
+ * déplier. `MembersAccordion` reste la grammaire du Planning et du Dashboard.
  */
 export function ComptaView({
   data,
@@ -91,28 +94,15 @@ export function ComptaView({
         </p>
       )}
 
-      <MembersAccordion
-        items={data.rows}
-        hint={(r) =>
-          r.chatterId == null
-            ? '⚠ non relié à MyPuls'
-            : r.paid
-              ? `payé le ${r.paidOn} — ${eur(r.paidAmount ?? 0)}`
-              : `${eur(r.payslip.net)} à payer`
-        }
-      >
-        {(r) => (
-          <ComptaPayslip
-            row={r}
-            fortnight={data.fortnight}
-            mondays={mondaysIn(data.fortnight)}
-            canEnter={canEnter}
-            canPay={canPay}
-            canConfigure={canConfigure}
-            fortnightElapsed={data.fortnightElapsed}
-          />
-        )}
-      </MembersAccordion>
+      <ComptaTable
+        rows={data.rows}
+        fortnight={data.fortnight}
+        fortnightElapsed={data.fortnightElapsed}
+        linkableChatters={data.linkableChatters}
+        canEnter={canEnter}
+        canPay={canPay}
+        canConfigure={canConfigure}
+      />
     </div>
   )
 }

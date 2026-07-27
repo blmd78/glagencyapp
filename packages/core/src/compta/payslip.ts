@@ -53,7 +53,16 @@ export function computePayslip(i: PayslipInput): Payslip {
   const ca = Object.values(i.modelCa).reduce((s, v) => s + v, 0)
   const rawBase =
     i.mode === 'percent'
-      ? Object.values(i.modelCa).reduce((s, v) => s + (v * i.rate) / 100, 0)
+      ? // ARRONDI PAR MODÈLE, PUIS SOMME — et non l'inverse (2026-07-27). La fiche de paie
+        // affiche désormais une LIGNE PAR MODÈLE (`ComptaPayslip`), et ces lignes doivent
+        // s'additionner EXACTEMENT au total affiché : une fiche dont le détail ne fait pas
+        // le total ne vaut rien. C'est la même règle, un cran plus bas, que l'arrondi
+        // composante par composante juste en dessous.
+        //
+        // Ce que ça coûte : jusqu'à un demi-centime par modèle d'écart avec `round2(Σ brut)`
+        // — 40,04 € au lieu de 40,02 € sur 4 modèles à 100,05 € et 10 % (cf. test dédié).
+        // Écart assumé, arbitré par le propriétaire.
+        Object.values(i.modelCa).reduce((s, v) => s + round2((v * i.rate) / 100), 0)
       : i.fixedAmount * i.weekCount
   const rawSetter = i.isSetter ? i.fixeSetter : 0
   const rawHandoffsAmount = i.handoffs * HANDOFF_EUR

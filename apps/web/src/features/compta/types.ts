@@ -58,4 +58,8 @@ export interface ComptaData {
    *  CONCERNENT, c'est-à-dire déjà arrivé (`chatter_first_seen()`). Les membres non reliés à
    *  MyPuls en sont exclus : l'application ne peut pas les payer. */
   overdue: Fortnight[]
+  /** Chatteurs MyPuls encore LIBRES, options du dialog « Relier ». **Vide pour un non-admin** :
+   *  poser le lien est admin-seul, et c'est une liste agence-wide hors périmètre RLS
+   *  (`loadLinkableChatters`). */
+  linkableChatters: { id: string; name: string }[]
 }

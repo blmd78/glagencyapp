@@ -35,6 +35,11 @@ import type { ComptaRow } from '../types'
  * Même patron que `compta-entry-form.tsx` : `'use no memo'` (le React Compiler casse
  * `formState`), `zodResolver`, et le triple générique `useForm<Input, unknown, Output>` — les
  * champs `z.coerce.number()` ont un type d'ENTRÉE `unknown`, donc input ≠ output.
+ *
+ * NI CADRE NI TITRE depuis le 2026-07-27 : le formulaire vit dans le dialog de l'engrenage
+ * (`compta-settings-dialog.tsx`), dont le `DialogTitle` porte déjà « Réglages de paie — <nom> ».
+ * Il a d'abord été monté dans une `CollapsibleSection` du panneau déplié, dont le trigger jouait
+ * ce même rôle ; le dialog l'a remplacée le même jour.
  */
 export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
   'use no memo'
@@ -72,11 +77,11 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
   })
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Réglages de paie
-      </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      {/* DEUX colonnes et non quatre depuis le passage en dialog : le `sm:grid-cols-4` était
+          taillé pour la largeur d'un panneau déplié (toute la table). Dans un `DialogContent`
+          (`max-w-lg`), quatre colonnes écrasaient le Select du mode. */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor={`mode-${row.id}`}>Mode</Label>
           {/* Un Select Radix dans RHF passe par Controller, jamais register
@@ -156,7 +161,7 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
 export function ComptaPrimeForm({ row }: { row: ComptaRow }) {
   if (row.prime?.status === 'paid') {
     return (
-      <p className="rounded-md border p-3 text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Prime nouveau chatteur — {eur2(row.prime.amount)} déjà versée
         {row.prime.paidAt ? ` le ${frDateNumeric(row.prime.paidAt)}` : ''}.
       </p>
@@ -197,11 +202,14 @@ function PrimeEditor({ row }: { row: ComptaRow }) {
   })
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-3 rounded-md border p-3">
+    <form onSubmit={submit} className="flex flex-col gap-3">
+      {/* Titre CONSERVÉ, contrairement à celui des réglages : la prime est un second
+          formulaire, avec son propre bouton « Enregistrer », dans le même dialog — sans lui,
+          rien ne dirait lequel des deux boutons enregistre quoi. */}
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Prime nouveau chatteur
       </p>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor={`prime-amount-${row.id}`}>Montant €</Label>
           <Input
