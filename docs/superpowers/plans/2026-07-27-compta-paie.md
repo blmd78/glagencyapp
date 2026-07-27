@@ -2010,3 +2010,79 @@ git commit --allow-empty -m "chore(compta): vérification de bout en bout"
   fiche dépliée continue de montrer le recalcul du jour. À faire si un écart apparaît en usage.
 - `0085`, `0086` et `0087` ne sont poussées QU'EN UAT par ce plan — jamais en production sans
   validation explicite de Benoit.
+
+---
+
+### Task 11 : Écran de réglages (taux, mode, setter, prime) — décidé après la revue finale
+
+> **Ajoutée après coup.** La revue finale a établi qu'aucun écran n'écrit dans `compta_settings`
+> ni `compta_primes` : tout le monde reste à 10 %, `mode: 'fixed'` est inatteignable, `is_setter`
+> toujours faux (donc le champ « Fixe setter » jamais monté), et la prime — que la spec §2 dit
+> « manuelle, l'admin décide » — ne peut pas être créée. La feature n'était pas utilisable sans
+> écrire du SQL à la main. **Arbitré par Benoit : on construit l'écran maintenant.**
+
+**Files:**
+- Modify: `apps/web/src/features/compta/schema.ts`
+- Modify: `apps/web/src/features/compta/actions.ts`
+- Create: `apps/web/src/features/compta/components/compta-settings-form.tsx`
+- Modify: `apps/web/src/features/compta/components/compta-payslip.tsx`
+- Modify: `apps/web/src/features/compta/components/compta-view.tsx`
+- Modify: `apps/web/src/features/compta/ComptaTemplate.tsx`
+- Modify: `apps/web/src/app/(dash)/chatter/compta/page.tsx`
+- Modify: `apps/web/src/features/compta/services/get-compta.ts` (règle de la prime)
+
+**Aucune migration** — vérifié sur l'UAT (`pg_policy`) : `compta_settings_admin_write` et
+`compta_primes_admin_write` sont déjà `for all` sous `is_admin()` en `using` ET `with check`,
+et les policies de lecture sont cadrées `is_admin() or (is_manager() and manages(chatter_id))`.
+Colonnes de `compta_settings` : `chatter_id` (PK), `mode` (`text`, défaut `'percent'`), `rate`
+(`numeric`, défaut 10), `fixed_amount` (`numeric`, défaut 0), `is_setter` (`bool`, défaut false),
+`updated_at`, `updated_by`.
+
+- [ ] **Step 1 : Schémas**
+
+`settingsInput` : `chatterId` (uuid), `mode` (`'percent' | 'fixed'`), `rate` (le TAUX, mêmes
+bornes que `rateApplied` — `numeric(5,2)`, donc max 999,99, PAS `money`), `fixedAmount` (`money`),
+`isSetter` (bool). `primeInput` : `chatterId`, `amount` (`money`), `status` (`'due' | 'skipped'`).
+
+- [ ] **Step 2 : Actions**
+
+`saveComptaSettings` et `savePrime`, toutes deux `guard: adminGuard` (la spec §6 réserve les
+réglages, primes et paiements à l'admin ; les saisies seules sont ouvertes à l'encadrement).
+Upsert sur `chatter_id` (PK des deux tables), `updated_by: profile.id` et `updated_at` posé à la
+main (aucun trigger sur ces tables — même constat que `saveWeekEntry`). Convertir un refus RLS
+`42501` en `BusinessError`.
+
+- [ ] **Step 3 : Le formulaire**
+
+`compta-settings-form.tsx`, sur le modèle exact de `compta-entry-form.tsx` : RHF + `zodResolver`,
+**`'use no memo'` obligatoire** (le React Compiler casse `formState` — règle du dépôt), `z.input<>`
+pour le générique. Le champ `rate` n'a de sens qu'en mode `percent`, `fixedAmount` qu'en mode
+`fixed` : masquer celui qui ne s'applique pas plutôt que d'afficher un champ inerte.
+
+- [ ] **Step 4 : Le droit**
+
+`canConfigure` — nouveau booléen, **distinct de `canPay`** bien que dérivé du même
+`profile.role === 'admin'` aujourd'hui : régler un taux et exécuter un virement sont deux gestes
+différents, et les avoir confondus est exactement ce qui a produit le défaut `canEnter`/`canPay`.
+Threadé `page.tsx` → `ComptaTemplate` → `ComptaView` → `ComptaPayslip`.
+
+- [ ] **Step 5 : La prime s'affiche sur la quinzaine affichée**
+
+**Arbitré par Benoit.** La règle actuelle (`myOldestOpen` : quinzaine ÉCHUE la plus ancienne non
+couverte du membre) est conforme à la spec §4 mais inutilisable à l'amorçage — sans aucun
+paiement, elle ancre la prime sur la plus vieille quinzaine de la fenêtre (juin sur l'UAT), que
+personne n'ouvrira. Nouvelle règle : la prime s'affiche sur la **quinzaine affichée** si elle est
+échue et que le membre n'en a jamais reçu.
+
+`coverage.primePaid` (source de vérité = `compta_payments.prime_amount` figé) reste le garde :
+elle ne peut être versée qu'une fois, quelle que soit la quinzaine par laquelle on passe.
+`myOldestOpen` disparaît — vérifier qu'il n'a **aucun autre consommateur** avant de le supprimer.
+Mettre la spec §4 à jour en même temps : c'est un écart assumé, pas un oubli.
+
+- [ ] **Step 6 : Vérifier**
+
+`pnpm --filter @glagency/web typecheck && lint && build`. Puis, sur l'UAT : régler un chatteur en
+`fixed`, vérifier que sa fiche bascule sur « Fixe hebdomadaire — X € × N semaines » — **c'est le
+seul chemin qui exerce la branche `fixed` de `computePayslip`**, jamais exécutée à ce jour.
+
+- [ ] **Step 7 : Commit** — ne pas commiter depuis un subagent (accord de Benoit requis).
