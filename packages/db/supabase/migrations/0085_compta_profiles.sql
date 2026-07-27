@@ -53,18 +53,23 @@ alter table public.compta_primes alter column amount set default 100;
 -- `amount` reste le NET versé. Invariant applicatif :
 --   amount = base + setter + bonus − malus + handoffs + prime − sanctions
 
+-- AUCUN `default` — volontaire, arbitré le 2026-07-27. Un défaut rendrait ces colonnes
+-- OPTIONNELLES dans le type `Insert` généré : un enregistrement de paiement omettant
+-- `sanctions_amount` compilerait et écrirait 0 €, faisant disparaître une retenue sans bruit.
+-- Sans défaut, TypeScript exige les 8 composantes à chaque paiement. La table est purgée
+-- juste au-dessus, donc aucune ligne existante à remplir : le défaut ne servait à rien.
 alter table public.compta_payments
-  add column if not exists period            smallint not null default 1,
-  add column if not exists ca_reference      numeric(10,2) not null default 0,
-  add column if not exists mode_applied      text not null default 'percent',
-  add column if not exists rate_applied      numeric(5,2) not null default 0,
-  add column if not exists base_amount       numeric(10,2) not null default 0,
-  add column if not exists setter_amount     numeric(10,2) not null default 0,
-  add column if not exists bonus_amount      numeric(10,2) not null default 0,
-  add column if not exists malus_amount      numeric(10,2) not null default 0,
-  add column if not exists handoffs_amount   numeric(10,2) not null default 0,
-  add column if not exists prime_amount      numeric(10,2) not null default 0,
-  add column if not exists sanctions_amount  numeric(10,2) not null default 0;
+  add column if not exists period            smallint not null,
+  add column if not exists ca_reference      numeric(10,2) not null,
+  add column if not exists mode_applied      text not null,
+  add column if not exists rate_applied      numeric(5,2) not null,
+  add column if not exists base_amount       numeric(10,2) not null,
+  add column if not exists setter_amount     numeric(10,2) not null,
+  add column if not exists bonus_amount      numeric(10,2) not null,
+  add column if not exists malus_amount      numeric(10,2) not null,
+  add column if not exists handoffs_amount   numeric(10,2) not null,
+  add column if not exists prime_amount      numeric(10,2) not null,
+  add column if not exists sanctions_amount  numeric(10,2) not null;
 
 alter table public.compta_payments
   add constraint compta_payments_period_check check (period in (1, 2));

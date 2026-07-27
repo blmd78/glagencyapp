@@ -369,25 +369,25 @@ export type Database = {
         }
         Insert: {
           amount: number
-          base_amount?: number
-          bonus_amount?: number
-          ca_reference?: number
+          base_amount: number
+          bonus_amount: number
+          ca_reference: number
           chatter_id: string
           covered_days?: string[] | null
           created_at?: string
-          handoffs_amount?: number
+          handoffs_amount: number
           id?: string
-          malus_amount?: number
-          mode_applied?: string
+          malus_amount: number
+          mode_applied: string
           month: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
-          period?: number
-          prime_amount?: number
-          rate_applied?: number
-          sanctions_amount?: number
-          setter_amount?: number
+          period: number
+          prime_amount: number
+          rate_applied: number
+          sanctions_amount: number
+          setter_amount: number
         }
         Update: {
           amount?: number
