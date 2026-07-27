@@ -9,7 +9,7 @@ const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ')
 const money = z.coerce.number().min(0, 'Montant positif attendu').max(99999, 'Montant trop élevé')
 
 /**
- * Le NET d'une quinzaine, seul montant SIGNÉ de la feature : malus et sanctions Police peuvent
+ * Le NET d'une période, seul montant SIGNÉ de la feature : malus et sanctions Police peuvent
  * dépasser les gains (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le
  * traitement du solde dû relève de `compta_debts`, hors périmètre (spec §9). Toutes les autres
  * lignes (`base`, `bonus`, `sanctions`…) restent des `money` positifs : ce sont des composantes,
@@ -52,12 +52,19 @@ export type WeekEntryInput = z.infer<typeof weekEntryInput>
 // `ReportFormValues` dans police-reports/schema.ts.
 export type WeekEntryFormValues = z.input<typeof weekEntryInput>
 
-/** Paiement d'une quinzaine — porte l'INSTANTANÉ figé (spec §5.3). */
+/**
+ * Paiement d'une période — porte l'INSTANTANÉ figé (spec §5.3).
+ *
+ * `periodStart` (le lundi de départ) a remplacé le couple `month` + `period 1|2` : une période
+ * de 14 jours ne se rattache plus à aucun mois, et trois d'entre elles peuvent démarrer dans le
+ * même (migration 0088). Le format ISO n'est qu'un pré-filtre — l'APPARTENANCE à la fenêtre
+ * proposée est vérifiée par `payPeriod` (`actions.ts`), qui seule connaît l'alignement du
+ * découpage.
+ */
 export const payInput = z
   .object({
     chatterId: z.uuid(),
-    month: iso,
-    period: z.union([z.literal(1), z.literal(2)]),
+    periodStart: iso,
     coveredDays: z.array(iso).min(1, 'Au moins un jour couvert'),
     amount: netMoney,
     caReference: money,
@@ -87,7 +94,7 @@ export const payInput = z
    * CE QU'IL N'ATTRAPE PAS — l'ONGLET PÉRIMÉ. Les onze nombres viennent tous du même rendu, et
    * `computePayslip` (`packages/core/src/compta/payslip.ts`) garantit cette égalité PAR
    * CONSTRUCTION sur toute sortie : un payload périmé est parfaitement cohérent avec lui-même
-   * et passe ce contrôle. Ce cas-là est traité par le RECALCUL SERVEUR de `payFortnight`
+   * et passe ce contrôle. Ce cas-là est traité par le RECALCUL SERVEUR de `payPeriod`
    * (`actions.ts`), qui refait le calcul et refuse au-delà de 0,01 € d'écart. Ce commentaire a
    * affirmé le contraire jusqu'au 2026-07-27 : documenter une protection inexistante est pire
    * que ne rien documenter.
@@ -144,7 +151,7 @@ export type SettingsFormValues = z.input<typeof settingsInput>
  * (spec §2 : « manuelle, l'admin décide »).
  *
  * `'paid'` est ACCEPTÉ PAR LA COLONNE (check `due | paid | skipped`) mais absent d'ici : il
- * n'est posé que par `payFortnight`, au moment où la prime part réellement. L'offrir dans un
+ * n'est posé que par `payPeriod`, au moment où la prime part réellement. L'offrir dans un
  * formulaire laisserait marquer « versée » une prime que rien n'a versée.
  */
 export const primeInput = z.object({

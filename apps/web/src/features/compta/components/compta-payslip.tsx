@@ -1,12 +1,12 @@
 'use client'
 
-import { frDayShort, type Fortnight } from '@glagency/core'
+import { frDayShort, type PayPeriod } from '@glagency/core'
 import { ComptaEntryForm, ComptaEntryHeader } from './compta-entry-form'
 import { ComptaPayslipCalc, SECTION_HEAD } from './compta-payslip-calc'
 import type { ComptaRow } from '../types'
 
 /**
- * Fiche de paie d'un chatteur sur une quinzaine — le détail de la formule, ligne à ligne, avec
+ * Fiche de paie d'un chatteur sur une période — le détail de la formule, ligne à ligne, avec
  * les motifs de sanction en clair. Un chatteur non relié à MyPuls affiche un avertissement au
  * lieu d'un 0 € trompeur : sans lien, aucun CA n'est calculable (spec §7).
  *
@@ -29,16 +29,17 @@ import type { ComptaRow } from '../types'
  */
 export function ComptaPayslip({
   row,
-  fortnight,
+  period,
   mondays,
   canEnter,
   canPay,
-  fortnightElapsed,
+  periodElapsed,
 }: {
   row: ComptaRow
-  /** Quinzaine affichée — identifie le paiement `(month, period)` et fournit ses `covered_days`. */
-  fortnight: Fortnight
-  /** Lundis des semaines rattachées — un formulaire de saisie par semaine (tâche 8). */
+  /** Période affichée — son `start` identifie le paiement (`period_start`, 0088) et ses 14
+   *  jours en sont les `covered_days`. */
+  period: PayPeriod
+  /** Les 2 lundis de la période — un formulaire de saisie par semaine (tâche 8). */
   mondays: string[]
   /** Droit de SAISIE (manager/sous-manager sur ses rattachés, ou admin) — spec §6, distinct de
    *  `canPay` (admin seul). Conditionne `ComptaEntryForm`. */
@@ -46,10 +47,10 @@ export function ComptaPayslip({
   /** Droit de PAIEMENT (admin seul) — spec §6. Masquer le bouton n'est qu'optimiste :
    *  `adminGuard` et la RLS 0085 (`compta_payments_admin_write`) sont le verrou réel. */
   canPay: boolean
-  /** Quinzaine terminée — DISTINCT de `canPay` : l'un est un droit, l'autre un état de la
-   *  période. `payFortnight` refuse de figer des jours non révolus ; ne pas monter un bouton
+  /** Période terminée — DISTINCT de `canPay` : l'un est un droit, l'autre un état de la
+   *  période. `payPeriod` refuse de figer des jours non révolus ; ne pas monter un bouton
    *  qui échouerait à coup sûr. */
-  fortnightElapsed: boolean
+  periodElapsed: boolean
 }) {
   if (row.chatterId == null) {
     return (
@@ -64,10 +65,10 @@ export function ComptaPayslip({
     <div className="flex flex-col gap-6">
       <ComptaPayslipCalc
         row={row}
-        fortnight={fortnight}
+        period={period}
         mondays={mondays}
         canPay={canPay}
-        fortnightElapsed={fortnightElapsed}
+        periodElapsed={periodElapsed}
       />
 
       {canEnter && (

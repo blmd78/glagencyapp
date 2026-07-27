@@ -5,7 +5,7 @@
 // RLS `compta_settings_admin_write` / `compta_primes_admin_write` / `compta_payments_admin_write`).
 
 import { revalidatePath } from 'next/cache'
-import { recentFortnights, todayParis } from '@glagency/core'
+import { recentPeriods, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
@@ -103,7 +103,7 @@ export async function saveComptaSettings(raw: unknown): Promise<ActionResult> {
  * Prime « nouveau chatteur » — créée ou modifiée À LA MAIN par l'admin (spec §2). Upsert sur
  * `chatter_id`, PK de la table : un membre n'a qu'une prime.
  *
- * Une prime déjà VERSÉE est refusée à l'écriture : `payFortnight` a posé `status = 'paid'` et
+ * Une prime déjà VERSÉE est refusée à l'écriture : `payPeriod` a posé `status = 'paid'` et
  * `paid_at`, qui sont la trace du virement. La réécrire en `'due'` ne provoquerait aucun double
  * versement — `coverage.primePaid` fait foi sur l'instantané figé `compta_payments.prime_amount`
  * (cf. `coverage.ts`) — mais effacerait cette trace. Le formulaire ne la propose pas non plus.
@@ -181,7 +181,7 @@ export async function linkChatter(raw: unknown): Promise<ActionResult> {
 }
 
 /**
- * Enregistre le paiement d'une quinzaine avec son INSTANTANÉ (spec §5.3). `adminGuard` : les
+ * Enregistre le paiement d'une PÉRIODE avec son INSTANTANÉ (spec §5.3). `adminGuard` : les
  * virements sont le fait de l'admin seul, un manager ne fait que saisir. Le détail est figé
  * ici — le CA étant ré-ingéré depuis MyPuls, un recalcul ultérieur ferait bouger un montant
  * déjà versé.
@@ -189,7 +189,7 @@ export async function linkChatter(raw: unknown): Promise<ActionResult> {
  * Le montant versé est RECALCULÉ ici (cf. bloc « recalcul serveur ») et refusé s'il s'écarte
  * de plus de 0,01 € du payload : ce qu'on fige, c'est ce que le serveur a calculé.
  */
-export async function payFortnight(raw: unknown): Promise<ActionResult> {
+export async function payPeriod(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: payInput,
     input: raw,
@@ -199,15 +199,17 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       if (!profile) throw new Error('Session expirée')
       const supabase = await createClient()
 
-      // On ne fige que des jours RÉVOLUS. Payer une quinzaine en cours gèlerait un CA encore
+      // On ne fige que des jours RÉVOLUS. Payer une période en cours gèlerait un CA encore
       // incomplet tout en marquant ses jours couverts — la perte serait définitive et jamais
       // signalée par le bandeau de retard, qui se déduit de la couverture.
+      // Ce garde raisonne sur les JOURS COUVERTS, pas sur le découpage : le passage aux périodes
+      // de 14 jours ne le change en rien.
       // Une seule lecture d'horloge pour toute l'action : trois appels séparés pourraient
       // tomber de part et d'autre de minuit et dater le paiement autrement que la prime.
       const today = todayParis()
       if (v.coveredDays.some((d) => d >= today)) {
         throw new BusinessError(
-          "Cette quinzaine n'est pas terminée — elle ne peut être payée qu'à partir du lendemain de son dernier jour.",
+          "Cette période n'est pas terminée — elle ne peut être payée qu'à partir du lendemain de son dernier jour.",
         )
       }
 
@@ -228,12 +230,15 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       // transaction possible depuis supabase-js. On ferme un trou qui se compte en MINUTES
       // (l'onglet ouvert) avec un trou qui se compte en millisecondes ; le chevauchement de
       // jours, lui, est arbitré par la base sous verrou (trigger 0087).
-      const choices = recentFortnights(today, 12)
-      const fortnight = choices.find((f) => f.month === v.month && f.period === v.period)
-      if (!fortnight) {
-        throw new BusinessError("Cette quinzaine n'est plus dans la fenêtre payable — recharge la page.")
+      // La période est validée PAR APPARTENANCE à la fenêtre proposée, comme dans
+      // `get-compta.ts` : `periodStart` est un lundi aligné sur le découpage ou n'est rien.
+      // Un `iso` bien formé mais décalé fabriquerait une période chevauchant ses voisines.
+      const choices = recentPeriods(today, 12)
+      const period = choices.find((p) => p.start === v.periodStart)
+      if (!period) {
+        throw new BusinessError("Cette période n'est plus dans la fenêtre payable — recharge la page.")
       }
-      const { rows } = await loadComptaRows({ fortnight, today, memberId: v.chatterId })
+      const { rows } = await loadComptaRows({ period, today, memberId: v.chatterId })
       const row = rows[0]
       // Ni le membre, ni la RLS : soit le compte a disparu, soit il n'est plus rôle chatteur.
       if (!row) throw new BusinessError('Ce membre est introuvable dans la compta — recharge la page.')
@@ -269,12 +274,13 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
 
       // Les MONTANTS RECALCULÉS sont écrits, pas ceux du payload : ils viennent d'être
       // vérifiés équivalents, et l'instantané doit être celui que le serveur a arbitré.
-      // `coveredDays`, `month`/`period` et `note` restent ceux de la requête — ce sont des
-      // choix de l'admin, pas des résultats de calcul.
+      // `coveredDays` et `note` restent ceux de la requête — ce sont des choix de l'admin, pas
+      // des résultats de calcul. `period_start` vient de `period`, l'option de la fenêtre que
+      // le `find` ci-dessus a reconnue : même valeur que `v.periodStart`, mais issue du
+      // découpage serveur et non de la chaîne reçue.
       const { error } = await supabase.from('compta_payments').insert({
         chatter_id: v.chatterId,
-        month: v.month,
-        period: v.period,
+        period_start: period.start,
         covered_days: v.coveredDays,
         amount: p.net,
         ca_reference: p.ca,
@@ -300,7 +306,7 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       // concurrents passeraient tous les deux. Le complément d'un paiement PARTIEL reste
       // permis : seul le chevauchement est refusé.
       if (error?.code === '23505') {
-        throw new BusinessError('Un paiement couvre déjà au moins un jour de cette quinzaine pour ce chatteur.')
+        throw new BusinessError('Un paiement couvre déjà au moins un jour de cette période pour ce chatteur.')
       }
       if (error?.code === '42501') {
         throw new BusinessError("Vous n'avez pas le droit d'enregistrer ce paiement.")

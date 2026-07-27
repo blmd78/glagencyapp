@@ -6,20 +6,23 @@ import { ComptaSkeleton } from '@/features/compta/components/compta-skeleton'
 import type { ComptaData } from '@/features/compta/types'
 
 /**
- * Compta = paie des chatteurs, par quinzaine (1–15 / 16–fin). L'admin voit tout et exécute les
- * virements ; manager et sous-manager gèrent les saisies de LEURS rattachés (RLS 0085). Le
- * chatteur n'a jamais la page.
+ * Compta = paie des chatteurs, par PÉRIODE DE 14 JOURS calée sur les lundis (26 par an).
+ * L'admin voit tout et exécute les virements ; manager et sous-manager gèrent les saisies de
+ * LEURS rattachés (RLS 0085). Le chatteur n'a jamais la page.
+ *
+ * `?debut=` = le lundi de départ, seul identifiant d'une période depuis 0088 — il a remplacé
+ * le couple `?month=` + `?period=` des quinzaines calendaires.
  */
 export default async function ComptaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; period?: string }>
+  searchParams: Promise<{ debut?: string }>
 }) {
   const profile = await requireAccess('compta')
-  const { month, period } = await searchParams
+  const { debut } = await searchParams
   // Kickoff SANS await : le h1 s'affiche immédiatement, la pile de noms streame dans son
   // boundary quand la lecture répond (docs/guidelines-standard-feature.md §2.2).
-  const data = getCompta({ month, period })
+  const data = getCompta({ debut })
 
   return (
     <div className="flex flex-col gap-6">

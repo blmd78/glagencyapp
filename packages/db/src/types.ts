@@ -357,11 +357,10 @@ export type Database = {
           id: string
           malus_amount: number
           mode_applied: string
-          month: string
           note: string | null
           paid_at: string
           paid_by: string | null
-          period: number
+          period_start: string
           prime_amount: number
           rate_applied: number
           sanctions_amount: number
@@ -379,11 +378,10 @@ export type Database = {
           id?: string
           malus_amount: number
           mode_applied: string
-          month: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
-          period: number
+          period_start: string
           prime_amount: number
           rate_applied: number
           sanctions_amount: number
@@ -401,11 +399,10 @@ export type Database = {
           id?: string
           malus_amount?: number
           mode_applied?: string
-          month?: string
           note?: string | null
           paid_at?: string
           paid_by?: string | null
-          period?: number
+          period_start?: string
           prime_amount?: number
           rate_applied?: number
           sanctions_amount?: number

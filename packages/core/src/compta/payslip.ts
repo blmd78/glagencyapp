@@ -3,7 +3,7 @@ import { round2 } from '../domain/dates'
 /** Tarif d'un passage de relais. Constante métier — jamais un nombre en dur dans un composant. */
 export const HANDOFF_EUR = 0.6
 
-/** Entrées de la formule, déjà agrégées sur UNE quinzaine pour UN chatteur. */
+/** Entrées de la formule, déjà agrégées sur UNE période de paie pour UN chatteur. */
 export interface PayslipInput {
   mode: 'percent' | 'fixed'
   /** Taux de commission en %, ex. 10 pour 10 %. */
@@ -11,9 +11,14 @@ export interface PayslipInput {
   /** Montant fixe HEBDOMADAIRE (mode `fixed`) — hypothèse spec §4, à confirmer. */
   fixedAmount: number
   isSetter: boolean
-  /** Semaines rattachées à la quinzaine (leur lundi y tombe) — 2 ou 3. */
+  /**
+   * Semaines rattachées à la période = `mondaysIn(period).length`. TOUJOURS 2 depuis que la
+   * période fait 14 jours calés sur les lundis (`periods.ts`) ; c'était 2 ou 3 avec les
+   * quinzaines calendaires. Reste un PARAMÈTRE et non une constante : `fixedAmount` est un
+   * montant hebdomadaire, la multiplication est la formule, pas un facteur de conversion.
+   */
   weekCount: number
-  /** CA du chatteur par modèle sur la quinzaine (creatorId → €). */
+  /** CA du chatteur par modèle sur la période (creatorId → €). */
   modelCa: Record<string, number>
   /** Σ des `fixe_setter` des semaines rattachées. */
   fixeSetter: number
@@ -23,9 +28,9 @@ export interface PayslipInput {
   malus: number
   /** Σ handoffs jour + semaine. */
   handoffs: number
-  /** Montant de la prime si elle est due sur cette quinzaine, 0 sinon. */
+  /** Montant de la prime si elle est due sur cette période, 0 sinon. */
   primeDue: number
-  /** Σ `police_entries.amount_eur` (kind = 'malus') sur la quinzaine. */
+  /** Σ `police_entries.amount_eur` (kind = 'malus') sur la période. */
   sanctions: number
 }
 
@@ -43,7 +48,7 @@ export interface Payslip {
 }
 
 /**
- * Fiche de paie d'une quinzaine (spec §4). Fonction PURE : aucune date, aucun accès base —
+ * Fiche de paie d'une période (spec §4). Fonction PURE : aucune date, aucun accès base —
  * l'appelant a déjà borné et agrégé. C'est ce qui la rend testable.
  *
  * Le pourcentage est appliqué MODÈLE PAR MODÈLE puis sommé : identique à un calcul sur le CA

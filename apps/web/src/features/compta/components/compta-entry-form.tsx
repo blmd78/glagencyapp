@@ -31,8 +31,8 @@ function entryGridCols(isSetter: boolean): string {
 }
 
 /**
- * En-tête de colonnes des saisies : les libellés sont écrits UNE fois pour les 2 ou 3 semaines
- * de la quinzaine, là où chaque formulaire portait les siens (jusqu'à 12 étiquettes pour
+ * En-tête de colonnes des saisies : les libellés sont écrits UNE fois pour les 2 semaines
+ * de la période, là où chaque formulaire portait les siens (jusqu'à 8 étiquettes pour
  * 4 champs). Masqué sous `sm`, où chaque ligne repasse en pile de deux colonnes avec ses
  * propres étiquettes visibles.
  *
@@ -71,10 +71,10 @@ function Field({ id, label, children }: { id: string; label: string; children: R
 
 /**
  * Saisie hebdomadaire (bonus, malus, handoffs, fixe setter). Une semaine appartient
- * entièrement à la quinzaine de son lundi — elle n'est jamais découpée.
+ * entièrement à la période de son lundi — elle n'est jamais découpée.
  *
  * UNE LIGNE par semaine depuis le 2026-07-27 (« simplifie l'affichage ») : c'était un encadré
- * titré par semaine, soit 2 ou 3 cartes empilées répétant les mêmes quatre champs, et c'est ce
+ * titré par semaine, soit 2 cartes empilées répétant les mêmes quatre champs, et c'est ce
  * qui rendait le panneau déplié écrasant pour un admin. Le cadre a sauté avec le titre : la
  * grille aligne les colonnes, elle n'a plus besoin d'être délimitée.
  */

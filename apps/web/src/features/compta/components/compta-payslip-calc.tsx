@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment } from 'react'
-import { addDays, frDateNumeric, frDayShort, type Fortnight } from '@glagency/core'
+import { addDays, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { eur, eur2, round2 } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
@@ -149,16 +149,16 @@ function SanctionLines({ sanctions, amount }: { sanctions: ComptaRow['sanctions'
  */
 export function ComptaPayslipCalc({
   row,
-  fortnight,
+  period,
   mondays,
   canPay,
-  fortnightElapsed,
+  periodElapsed,
 }: {
   row: ComptaRow
-  fortnight: Fortnight
+  period: PayPeriod
   mondays: string[]
   canPay: boolean
-  fortnightElapsed: boolean
+  periodElapsed: boolean
 }) {
   const p = row.payslip
   const percent = row.mode === 'percent'
@@ -185,7 +185,7 @@ export function ComptaPayslipCalc({
           <div className="flex flex-col gap-1">
             <Line label={`Commission — ${eur(p.ca)} × ${row.rate} %`} amount={p.base} />
             <p className="text-xs text-muted-foreground">
-              Aucun CA sur la quinzaine — rien à ventiler par modèle.
+              Aucun CA sur la période — rien à ventiler par modèle.
             </p>
           </div>
         )
@@ -193,7 +193,12 @@ export function ComptaPayslipCalc({
         <>
           {/* Le calcul réel est `fixedAmount × weekCount` (cf. payslip.ts) — afficher
               « × plage de dates » multipliait un montant par un intervalle, ce qui ne veut
-              rien dire. `mondays.length` EST le nombre de semaines rattachées. */}
+              rien dire. `mondays.length` EST le nombre de semaines rattachées, et il vaut
+              TOUJOURS 2 depuis que la période fait 14 jours calés sur les lundis : c'est bien
+              cette valeur-là qui est passée en `weekCount` à `computePayslip`
+              (`compta-rows.ts`), donc l'affichage ne peut pas diverger du calcul. Le pluriel
+              reste conditionnel — retirer la branche figerait le libellé sur une hypothèse
+              plutôt que sur la donnée. */}
           <Line
             label={`Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${mondays.length} semaine${mondays.length > 1 ? 's' : ''}`}
             amount={p.base}
@@ -223,21 +228,21 @@ export function ComptaPayslipCalc({
           <span className="text-base font-semibold">Net à payer</span>
           <div className="flex items-center gap-4">
             <span className="text-base font-semibold tabular-nums">{eur(p.net)}</span>
-            {canPay && fortnightElapsed && !row.paid && (
-              <ComptaPayDialog row={row} fortnight={fortnight} />
+            {canPay && periodElapsed && !row.paid && (
+              <ComptaPayDialog row={row} period={period} />
             )}
           </div>
         </div>
-        {/* Quinzaine EN COURS : dire pourquoi il n'y a pas de bouton. Sans ça, l'écran par
-            défaut — le sélecteur ouvre toujours la quinzaine courante — est un cul-de-sac
+        {/* Période EN COURS : dire pourquoi il n'y a pas de bouton. Sans ça, l'écran par
+            défaut — le sélecteur ouvre toujours la période courante — est un cul-de-sac
             silencieux pour l'admin, qui cherche un bouton absent sans savoir qu'il attend la
-            fin de la période. `payFortnight` refuse de figer des jours non révolus (un CA
+            fin de la période. `payPeriod` refuse de figer des jours non révolus (un CA
             encore incomplet serait versé définitivement, et le bandeau de retard ne le
             signalerait jamais puisqu'il se déduit de la couverture). */}
-        {canPay && !fortnightElapsed && !row.paid && (
+        {canPay && !periodElapsed && !row.paid && (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Quinzaine en cours — le paiement s&apos;ouvre à partir du{' '}
-            {frDateNumeric(addDays(fortnight.to, 1))}, quand le CA de la période est complet.
+            Période en cours — le paiement s&apos;ouvre à partir du{' '}
+            {frDateNumeric(addDays(period.end, 1))}, quand le CA de la période est complet.
           </p>
         )}
         {row.paid && (

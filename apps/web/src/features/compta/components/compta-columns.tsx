@@ -85,8 +85,8 @@ const PRIME_STATUS: Record<string, string> = {
 
 /**
  * Colonne « Prime ». Deux lectures différentes, à ne pas confondre :
- *  - `payslip.prime` — ce que la prime PÈSE dans le net de cette quinzaine (donc 0 si elle est
- *    versée, renoncée, ou si la quinzaine n'est pas encore échue) ;
+ *  - `payslip.prime` — ce que la prime PÈSE dans le net de cette période (donc 0 si elle est
+ *    versée, renoncée, ou si la période n'est pas encore échue) ;
  *  - `row.prime` — la prime ENREGISTRÉE pour ce membre, avec son état.
  *
  * Le premier cas s'affiche comme n'importe quel montant du calcul. Le second, en muted et
@@ -101,7 +101,7 @@ function PrimeCell({ row }: { row: ComptaRow }) {
   return (
     <span
       className="text-xs text-muted-foreground"
-      title="Prime enregistrée — non comptée dans le net de cette quinzaine."
+      title="Prime enregistrée — non comptée dans le net de cette période."
     >
       {eur(row.prime.amount)} {PRIME_STATUS[row.prime.status] ?? row.prime.status}
     </span>

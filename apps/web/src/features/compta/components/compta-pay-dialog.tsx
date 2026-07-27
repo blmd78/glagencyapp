@@ -1,11 +1,11 @@
 'use client'
 
-import { daysIn, type Fortnight } from '@glagency/core'
+import { daysIn, type PayPeriod } from '@glagency/core'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { eur } from '@/lib/format'
-import { payFortnight } from '../actions'
+import { payPeriod } from '../actions'
 import type { ComptaRow } from '../types'
 
 /**
@@ -13,7 +13,7 @@ import type { ComptaRow } from '../types'
  * refuse l'action côté serveur). Envoie l'INSTANTANÉ complet : le détail est figé au moment du
  * virement, une correction du CA après coup ne le modifiera plus.
  */
-export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight: Fortnight }) {
+export function ComptaPayDialog({ row, period }: { row: ComptaRow; period: PayPeriod }) {
   const p = row.payslip
   return (
     <ConfirmDialog
@@ -35,11 +35,10 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
       // `ConfirmDialog` affiche lui-même la string renvoyée et RESTE ouvert. Pas de `toast.error`
       // en plus : la même erreur apparaîtrait deux fois.
       onConfirm={async () => {
-        const res = await payFortnight({
+        const res = await payPeriod({
           chatterId: row.id,
-          month: fortnight.month,
-          period: fortnight.period,
-          coveredDays: daysIn(fortnight),
+          periodStart: period.start,
+          coveredDays: daysIn(period),
           amount: p.net,
           caReference: p.ca,
           modeApplied: row.mode,

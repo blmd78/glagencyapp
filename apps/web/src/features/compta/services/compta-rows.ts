@@ -1,13 +1,13 @@
-import { computePayslip, type Fortnight } from '@glagency/core'
+import { computePayslip, type PayPeriod } from '@glagency/core'
 import { buildCoverage, type Coverage } from './coverage'
 import { loadComptaSources } from './compta-sources'
 import type { ComptaRow, ComptaSanction } from '../types'
 
 /**
- * LE calcul de la compta — une fiche de paie par membre sur une quinzaine. Appelé DEUX FOIS
- * avec le même code :
+ * LE calcul de la compta — une fiche de paie par membre sur une période de paie. Appelé DEUX
+ * FOIS avec le même code :
  *  - par `getCompta`, pour la page (tous les membres) ;
- *  - par `payFortnight`, pour RECALCULER côté serveur le membre qu'on s'apprête à payer
+ *  - par `payPeriod`, pour RECALCULER côté serveur le membre qu'on s'apprête à payer
  *    (`memberId`) et refuser un montant qui ne correspond plus.
  *
  * Une seconde implémentation du calcul serait pire que pas de vérification du tout : elle
@@ -38,19 +38,19 @@ export interface ComptaRowsResult {
 }
 
 export async function loadComptaRows({
-  fortnight,
+  period,
   today,
   memberId,
 }: {
-  fortnight: Fortnight
+  period: PayPeriod
   today: string
   /** Restreint la population à UN membre (recalcul serveur d'un paiement). */
   memberId?: string
 }): Promise<ComptaRowsResult> {
-  const src = await loadComptaSources({ fortnight, memberId })
+  const src = await loadComptaSources({ period, memberId })
   const daySet = new Set(src.days)
 
-  // Jours couverts par membre, primes déjà versées, et « cette quinzaine le concerne-t-il ? » —
+  // Jours couverts par membre, primes déjà versées, et « cette période le concerne-t-elle ? » —
   // un seul regroupement sur `payments` (au lieu de le refiltrer pour chaque ligne). Le détail
   // et le POURQUOI de chaque sortie sont dans `coverage.ts`.
   const coverage = buildCoverage({
@@ -84,29 +84,29 @@ export async function loadComptaRows({
     // `paid_at` PAR jour, pas seulement de l'appartenance du jour à l'ensemble couvert.
     const myPayments = mine(src.payments)
 
-    // ── LA PRIME S'AFFICHE SUR LA QUINZAINE CONSULTÉE ───────────────────────────────────────
+    // ── LA PRIME S'AFFICHE SUR LA PÉRIODE CONSULTÉE ─────────────────────────────────────────
     // Deux conditions, et deux seulement (spec §4, écart arbitré par Benoit le 2026-07-27) :
-    // la quinzaine affichée est ÉCHUE, et le membre n'a JAMAIS reçu de prime.
+    // la période affichée est ÉCHUE, et le membre n'a JAMAIS reçu de prime.
     //
-    // La règle précédente l'ancrait sur « la quinzaine échue la plus ancienne non couverte de
+    // La règle précédente l'ancrait sur « la période échue la plus ancienne non couverte de
     // ce membre ». Elle est inutilisable à l'amorçage : tant qu'aucun paiement n'existe, la
-    // plus ancienne non couverte est la plus vieille de la fenêtre (12 quinzaines en arrière),
+    // plus ancienne non couverte est la plus vieille de la fenêtre (12 périodes en arrière),
     // que personne n'ouvre — la prime restait donc invisible partout où on la cherchait.
     //
     // `!coverage.primePaid.has(...)` est LE garde contre le double versement, inchangé : sa
     // source de vérité est l'instantané figé `compta_payments.prime_amount` (cf. `coverage.ts`),
-    // pas la position de la quinzaine ni `compta_primes.status`. La prime reste donc versable
-    // une seule fois, quelle que soit la quinzaine par laquelle on passe.
+    // pas la position de la période ni `compta_primes.status`. La prime reste donc versable
+    // une seule fois, quelle que soit la période par laquelle on passe.
     //
     // `coverage.concerns` n'est PLUS appliqué ici : il ne servait qu'à empêcher l'ancrage
-    // automatique sur une quinzaine d'avant l'embauche, alors que la quinzaine est désormais
+    // automatique sur une période d'avant l'embauche, alors que la période est désormais
     // choisie par l'admin. L'y garder aurait privé de prime tout membre sans date d'entrée
-    // (aucun jour dans `chatter_daily`), ce que la spec §10 rend dû malgré tout : « Quinzaine
+    // (aucun jour dans `chatter_daily`), ce que la spec §10 rend dû malgré tout : « Période
     // sans aucune donnée CA → net = 0 […] les bonus/primes restent dus ».
     //
-    // `fortnight.to < today` = le même prédicat « quinzaine échue » que `fortnightElapsed`
-    // (`get-compta.ts`), `overdueFortnights` et le garde de `payFortnight`.
-    const primeApplies = !coverage.primePaid.has(m.id) && fortnight.to < today
+    // `period.end < today` = le même prédicat « période échue » que `periodElapsed`
+    // (`get-compta.ts`), `overduePeriods` et le garde de `payPeriod`.
+    const primeApplies = !coverage.primePaid.has(m.id) && period.end < today
     const prime = src.primeById.get(m.id) ?? null
     // Le filtre `status = 'due'` vit ICI depuis que `compta-sources.ts` lit tous les statuts
     // (le formulaire admin a besoin de l'état réel) : une prime `'paid'` ou `'skipped'` ne
@@ -129,19 +129,19 @@ export async function loadComptaRows({
       sanctions: sancRows.reduce((t, x) => t + x.amount, 0),
     })
 
-    // Couverture : la quinzaine est payée si CHACUN de ses jours figure dans un `covered_days`.
+    // Couverture : la période est payée si CHACUN de ses jours figure dans un `covered_days`.
     const covered = new Map<string, string>()
     for (const p of myPayments) {
       for (const d of (p.covered_days as string[] | null) ?? []) if (daySet.has(d)) covered.set(d, p.paid_at)
     }
     const paid = src.days.every((d) => covered.has(d))
-    // `payments` couvre TOUTES les quinzaines (nécessaire à `overdue`) — restreindre à celle-ci.
+    // `payments` couvre TOUTES les périodes (nécessaire à `overdue`) — restreindre à celle-ci.
+    // Le lundi de départ EST la clé d'une période depuis 0088 (`period_start`), là où il
+    // fallait auparavant comparer le couple `(month, period 1|2)`.
     // Au PLURIEL : un règlement partiel puis son complément font deux lignes (spec §3 et §10),
     // que le trigger 0087 autorise tant que les jours ne se chevauchent pas. Prendre le premier
     // sous-déclarerait ce qui a été versé.
-    const thisPayments = myPayments.filter(
-      (p) => p.month === fortnight.month && p.period === fortnight.period,
-    )
+    const thisPayments = myPayments.filter((p) => p.period_start === period.start)
 
     return {
       id: m.id,
@@ -171,7 +171,7 @@ export async function loadComptaRows({
       payslip,
       paid,
       // Le DERNIER versement, pas celui qui couvre le premier jour : réglée en deux fois, la
-      // quinzaine n'est soldée qu'au complément. Les `paid_at` sont des `YYYY-MM-DD`, donc
+      // période n'est soldée qu'au complément. Les `paid_at` sont des `YYYY-MM-DD`, donc
       // l'ordre lexicographique est l'ordre chronologique.
       paidOn: paid ? ([...covered.values()].sort().at(-1) ?? null) : null,
       paidAmount: thisPayments.length

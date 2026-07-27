@@ -45,11 +45,12 @@ export {
   round2,
 } from './domain/dates'
 export {
-  fortnightOf,
-  fortnightsOfMonth,
-  recentFortnights,
+  periodOf,
+  recentPeriods,
   mondaysIn,
   daysIn,
-  type Fortnight,
+  PERIOD_ANCHOR,
+  PERIOD_DAYS,
+  type PayPeriod,
 } from './compta/periods'
 export { computePayslip, HANDOFF_EUR, type Payslip, type PayslipInput } from './compta/payslip'

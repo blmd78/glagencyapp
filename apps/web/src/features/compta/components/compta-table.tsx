@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { mondaysIn, type Fortnight } from '@glagency/core'
+import { mondaysIn, type PayPeriod } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { DataTable } from '@/components/data-table/data-table'
@@ -28,16 +28,16 @@ import type { ComptaRow } from '../types'
  */
 export function ComptaTable({
   rows,
-  fortnight,
-  fortnightElapsed,
+  period,
+  periodElapsed,
   linkableChatters,
   canEnter,
   canPay,
   canConfigure,
 }: {
   rows: ComptaRow[]
-  fortnight: Fortnight
-  fortnightElapsed: boolean
+  period: PayPeriod
+  periodElapsed: boolean
   /** Chatteurs MyPuls libres — vide pour un non-admin (`ComptaData.linkableChatters`). */
   linkableChatters: { id: string; name: string }[]
   canEnter: boolean
@@ -55,7 +55,7 @@ export function ComptaTable({
   const data = onlyUnlinked ? rows.filter((r) => r.chatterId == null) : rows
 
   const columns = makeComptaColumns({ canConfigure, linkableChatters })
-  const mondays = mondaysIn(fortnight)
+  const mondays = mondaysIn(period)
 
   return (
     <DataTable
@@ -80,11 +80,11 @@ export function ComptaTable({
           <TableCell colSpan={columns.length} className="p-4 whitespace-normal sm:p-5">
             <ComptaPayslip
               row={row.original}
-              fortnight={fortnight}
+              period={period}
               mondays={mondays}
               canEnter={canEnter}
               canPay={canPay}
-              fortnightElapsed={fortnightElapsed}
+              periodElapsed={periodElapsed}
             />
           </TableCell>
         </TableRow>

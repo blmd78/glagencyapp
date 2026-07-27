@@ -152,11 +152,11 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
 
 /**
  * Prime « nouveau chatteur » — ADMIN seul. La spec §2 la veut MANUELLE : rien ne la déclenche,
- * l'admin la crée quand il l'a décidée. Elle s'ajoute ensuite à la fiche de toute quinzaine
+ * l'admin la crée quand il l'a décidée. Elle s'ajoute ensuite à la fiche de toute période
  * échue tant qu'elle n'a pas été versée (spec §4).
  *
  * Une prime déjà versée n'est plus éditable : `status`/`paid_at` sont la trace du virement, et
- * `payFortnight` les a posés. `savePrime` refuse aussi ce cas côté serveur.
+ * `payPeriod` les a posés. `savePrime` refuse aussi ce cas côté serveur.
  */
 export function ComptaPrimeForm({ row }: { row: ComptaRow }) {
   if (row.prime?.status === 'paid') {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computePayslip, HANDOFF_EUR, type PayslipInput } from './payslip'
+import { mondaysIn, periodOf } from './periods'
 
 const base: PayslipInput = {
   mode: 'percent', rate: 10, fixedAmount: 0, isSetter: false, weekCount: 2,
@@ -27,12 +28,21 @@ describe('computePayslip — base', () => {
 
   it('mode fixed : le fixe est HEBDOMADAIRE, multiplie par le nombre de semaines', () => {
     const r = computePayslip({ ...base, mode: 'fixed', fixedAmount: 200, weekCount: 2, modelCa: { a: 9999 } })
+    // 200 et 2 sont choisis DISTINCTS et != 1 : 400 ne s'obtient ni en ignorant `weekCount`
+    // (200), ni en l'additionnant (202), ni en prenant `fixedAmount` seul par semaine.
     expect(r.base).toBe(400)
     expect(r.ca).toBe(9999) // le CA reste affiche, mais n entre pas dans la base
   })
 
-  it('mode fixed sur une quinzaine a 3 semaines', () => {
-    expect(computePayslip({ ...base, mode: 'fixed', fixedAmount: 200, weekCount: 3 }).base).toBe(600)
+  it('le weekCount de l app vient de mondaysIn : une periode de paie en donne 2', () => {
+    // Test de BOUT EN BOUT du seul chemin reel : `compta-rows.ts` passe
+    // `weekCount: mondaysIn(period).length`, et la fiche affiche « X € × N semaines » avec ce
+    // meme N (`compta-payslip-calc.tsx`). Ce test tombe si `mondaysIn` cesse de rendre 2
+    // lundis OU si `computePayslip` cesse de multiplier — il rattache la valeur affichee au
+    // decoupage, ce qu'un `weekCount` litteral ne ferait pas.
+    const weekCount = mondaysIn(periodOf('2026-07-10')).length
+    expect(weekCount).toBe(2)
+    expect(computePayslip({ ...base, mode: 'fixed', fixedAmount: 175, weekCount }).base).toBe(350)
   })
 
   it('mode fixed : le net cumule les composantes malgre le CA ignore dans la base', () => {
@@ -71,7 +81,7 @@ describe('computePayslip — composantes', () => {
     expect(computePayslip({ ...base, modelCa: { a: 7200 }, primeDue: 100 }).net).toBe(820)
   })
 
-  it('une quinzaine entierement vide donne 0 partout', () => {
+  it('une periode entierement vide donne 0 partout', () => {
     const r = computePayslip(base)
     expect(r).toEqual({
       ca: 0, base: 0, setter: 0, bonus: 0, malus: 0,

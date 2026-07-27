@@ -10,9 +10,9 @@ import { ComptaTable } from './compta-table'
 import type { ComptaData } from '../types'
 
 /**
- * Vue interactive de la Compta : sélecteur de quinzaine, KPIs de la période, puis la table des
- * chatteurs, dépliable sur la fiche de paie. Le sélecteur pousse `?month=`&`?period=` — la
- * page, Server Component, se recharge sur la quinzaine choisie.
+ * Vue interactive de la Compta : sélecteur de période, KPIs de la période, puis la table des
+ * chatteurs, dépliable sur la fiche de paie. Le sélecteur pousse `?debut=` (le lundi de départ)
+ * — la page, Server Component, se recharge sur la période choisie.
  *
  * La pile de noms (`MembersAccordion`, spec §7) a été remplacée par une data-table le
  * 2026-07-27 à la demande du propriétaire, pour la lisibilité : les huit composantes du net
@@ -34,11 +34,9 @@ export function ComptaView({
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
 
-  const select = (value: string) => {
-    const [month, period] = value.split('|')
+  const select = (debut: string) => {
     const params = new URLSearchParams(searchParams)
-    params.set('month', month)
-    params.set('period', period)
+    params.set('debut', debut)
     startTransition(() => router.replace(`/chatter/compta?${params.toString()}` as Route, { scroll: false }))
   }
 
@@ -46,14 +44,14 @@ export function ComptaView({
   const kpis: Kpi[] = [
     {
       key: 'due', label: 'À payer', value: eur(due.reduce((s, r) => s + r.payslip.net, 0)),
-      deltaPct: null, trendLabel: data.fortnight.label, hint: `${due.length} chatteur${due.length > 1 ? 's' : ''}`,
+      deltaPct: null, trendLabel: data.period.label, hint: `${due.length} chatteur${due.length > 1 ? 's' : ''}`,
     },
     {
       // L'INSTANTANÉ (`paidAmount`), pas `payslip.net` : ce dernier est le recalcul du jour, et
       // une ré-ingestion du CA le ferait diverger des virements réellement passés — c'est
       // précisément ce que l'instantané existe pour éviter (spec §5.3).
       key: 'paid', label: 'Déjà payé', value: eur(data.rows.reduce((s, r) => s + (r.paidAmount ?? 0), 0)),
-      deltaPct: null, trendLabel: 'Quinzaine couverte', hint: `${data.rows.length - due.length} réglé${data.rows.length - due.length > 1 ? 's' : ''}`,
+      deltaPct: null, trendLabel: 'Période couverte', hint: `${data.rows.length - due.length} réglé${data.rows.length - due.length > 1 ? 's' : ''}`,
     },
     {
       key: 'ca', label: 'CA de la période', value: eur(data.rows.reduce((s, r) => s + r.payslip.ca, 0)),
@@ -67,17 +65,20 @@ export function ComptaView({
 
   return (
     <div className={pending ? 'flex flex-col gap-6 opacity-60' : 'flex flex-col gap-6'}>
-      {/* `Combobox` et non `UrlSelect` : ce dernier est typé `param: 'day' | 'month'` et ne
-          pilote qu'UN paramètre, alors qu'une quinzaine en demande deux (`month` + `period`). */}
+      {/* `Combobox` et non `UrlSelect` : ce dernier est typé `param: 'day' | 'month'`, et
+          `debut` n'en fait pas partie. La valeur EST le lundi de départ — une période n'a plus
+          d'autre identifiant depuis 0088.
+          `w-72` et non `w-56` : le libellé dit « du 22 juin au 5 juillet 2026 » quand la période
+          chevauche deux mois, ce que 14 rem tronquerait. */}
       <div className="flex items-center justify-end gap-2">
-        <span className="text-sm text-muted-foreground">Quinzaine :</span>
+        <span className="text-sm text-muted-foreground">Période :</span>
         <Combobox
-          value={`${data.fortnight.month}|${data.fortnight.period}`}
+          value={data.period.start}
           onChange={select}
           disabled={pending}
-          className="w-56"
-          searchPlaceholder="Rechercher une quinzaine…"
-          options={data.choices.map((f) => ({ value: `${f.month}|${f.period}`, label: f.label }))}
+          className="w-72"
+          searchPlaceholder="Rechercher une période…"
+          options={data.choices.map((p) => ({ value: p.start, label: p.label }))}
         />
       </div>
 
@@ -88,16 +89,16 @@ export function ComptaView({
 
       {data.overdue.length > 0 && (
         <p role="alert" className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-          {data.overdue.length} quinzaine{data.overdue.length > 1 ? 's' : ''} antérieure
+          {data.overdue.length} période{data.overdue.length > 1 ? 's' : ''} antérieure
           {data.overdue.length > 1 ? 's' : ''} incomplètement couverte
-          {data.overdue.length > 1 ? 's' : ''} : {data.overdue.map((f) => f.label).join(' · ')}
+          {data.overdue.length > 1 ? 's' : ''} : {data.overdue.map((p) => p.label).join(' · ')}
         </p>
       )}
 
       <ComptaTable
         rows={data.rows}
-        fortnight={data.fortnight}
-        fortnightElapsed={data.fortnightElapsed}
+        period={data.period}
+        periodElapsed={data.periodElapsed}
         linkableChatters={data.linkableChatters}
         canEnter={canEnter}
         canPay={canPay}

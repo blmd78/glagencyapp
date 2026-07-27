@@ -1,10 +1,10 @@
-import { daysIn, mondaysIn, type Fortnight } from '@glagency/core'
+import { daysIn, mondaysIn, type PayPeriod } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 
 /**
- * LECTURES de la compta d'une quinzaine — rien d'autre. Séparé de `compta-rows.ts` (qui
+ * LECTURES de la compta d'une période de paie — rien d'autre. Séparé de `compta-rows.ts` (qui
  * assemble les fiches) pour tenir les deux fichiers sous 300 lignes (CLAUDE.md) et parce que
  * c'est une frontière nette : ici les requêtes et le POURQUOI de chacune, là le calcul.
  *
@@ -63,17 +63,17 @@ export async function loadLinkableChatters(): Promise<{ id: string; name: string
  * complet des paiements, et le filtrage par membre se fait de toute façon ligne par ligne.
  */
 export async function loadComptaSources({
-  fortnight,
+  period,
   memberId,
 }: {
-  fortnight: Fortnight
+  period: PayPeriod
   memberId?: string
 }) {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const mondays = mondaysIn(fortnight)
-  const from = fortnight.from
-  const to = fortnight.to
+  const mondays = mondaysIn(period)
+  const from = period.start
+  const to = period.end
 
   // La population vient de `profiles` (rôle chatteur), pas de `chatters` : c'est le MEMBRE
   // qu'on paie (0085). 96 lignes sur l'UAT — loin du plafond PostgREST.
@@ -107,7 +107,7 @@ export async function loadComptaSources({
     // besoin de l'état RÉEL pour ne pas proposer de recréer une prime déjà versée ou renoncée.
     // Le filtre `'due'` n'a pas disparu, il s'applique au CALCUL dans `compta-rows.ts`.
     supabase.from('compta_primes').select('*'),
-    // `fetchAll` : 96 membres × 16 jours = 1 536 lignes possibles sur une quinzaine, au-delà du
+    // `fetchAll` : 96 membres × 14 jours = 1 344 lignes possibles sur une période, au-delà du
     // plafond PostgREST de 1000 — franchi, il tronque EN SILENCE (CLAUDE.md,
     // guidelines-data-loading §2). Tronqué, ce sont des bonus ET des malus manuels qui
     // disparaissent : le net dérive dans les deux sens sans une seule erreur.
@@ -122,21 +122,22 @@ export async function loadComptaSources({
         .order('date')
         .range(f, t),
     ),
-    // Pas de `fetchAll` ici, et c'est mesuré : une quinzaine contient AU PLUS 3 lundis, donc
-    // 3 × 96 membres = 288 lignes. Le plafond ne serait atteint qu'au-delà de 333 membres.
+    // Pas de `fetchAll` ici, et c'est mesuré : une période contient EXACTEMENT 2 lundis
+    // (`mondaysIn`, 14 jours calés sur les lundis), donc 2 × 96 membres = 192 lignes. Le
+    // plafond ne serait atteint qu'au-delà de 500 membres.
     supabase.from('compta_week_entries').select('*').in('week_start', mondays.length ? mondays : ['1970-01-01']),
-    // TOUTE la table, sans filtre de quinzaine : `overdue` et la couverture raisonnent sur
+    // TOUTE la table, sans filtre de période : `overdue` et la couverture raisonnent sur
     // l'historique complet. Donc `fetchAll` obligatoire — PostgREST tronque à 1000 lignes EN
-    // SILENCE (CLAUDE.md, guidelines-data-loading §2), et ~96 chatteurs × 24 quinzaines/an
+    // SILENCE (CLAUDE.md, guidelines-data-loading §2), et ~96 chatteurs × 26 périodes/an
     // franchissent le plafond en quelques mois. Tronquée, la table ferait redevenir `paid`
-    // faux sur des quinzaines réglées (bouton « Marquer payé » de retour sur une ligne déjà
+    // faux sur des périodes réglées (bouton « Marquer payé » de retour sur une ligne déjà
     // payée) et mentir les deux KPI monétaires. `.order('id')` = la PK complète de
     // `compta_payments` → pagination déterministe.
     fetchAll((f, t) => supabase.from('compta_payments').select('*').order('id').range(f, t)),
     // `fetchAll` pour la MÊME raison, et c'est le cas le plus coûteux : ce sont les RETENUES.
     // Tronquée, la table fait disparaître des sanctions → net surestimé → l'admin SUR-PAIE,
     // sans erreur. Le plafond est atteignable dès que les 96 membres cumulent quelques entrées
-    // par jour sur les 16 jours de la quinzaine. `.order('id')` = la PK de `police_entries`
+    // par jour sur les 14 jours de la période. `.order('id')` = la PK de `police_entries`
     // (colonne non sélectionnée, PostgREST l'accepte — vérifié en HTTP 200 sur l'UAT).
     fetchAll((f, t) =>
       supabase
@@ -148,7 +149,7 @@ export async function loadComptaSources({
         .range(f, t),
     ),
     // Date d'entrée de chaque chatteur MyPuls (`min(chatter_daily.date)`) — elle borne les
-    // quinzaines qui le concernent (retard ET prime). Client ADMIN et non RLS : la fonction
+    // périodes qui le concernent (retard ET prime). Client ADMIN et non RLS : la fonction
     // est `security invoker` et `chatter_daily` ne porte qu'une policy
     // `chatter_daily_admin_read` (vérifié sur `pg_policy`, UAT) → appelée par un manager elle
     // renverrait ZÉRO ligne, et le bandeau comme la prime disparaîtraient de sa vue sans une
@@ -165,13 +166,13 @@ export async function loadComptaSources({
   if (sancErr) throw new Error(sancErr.message)
   if (firstSeenErr) throw new Error(firstSeenErr.message)
 
-  // CA par (chatteur MyPuls, modèle) sur la quinzaine.
+  // CA par (chatteur MyPuls, modèle) sur la période.
   //
   // ── CLIENT ADMIN, CADRAGE APPLICATIF ────────────────────────────────────────────────────
   // POURQUOI PAS SOUS RLS : `chatter_creator_daily_scoped_read` cloisonne PAR MODÈLE
   // (`profile_creators`), pas par chatteur. Un encadrant qui suit un chatteur sans être assigné
   // à TOUS les modèles sur lesquels celui-ci travaille y lit un CA AMPUTÉ — la requête ne lève
-  // pas, elle renvoie moins de lignes. Mesuré sur l'UAT, quinzaine 01–15/07/2026 : Giovani
+  // pas, elle renvoie moins de lignes. Mesuré sur l'UAT, plage 01–15/07/2026 : Giovani
   // 1 527,27 € réels → 97,54 € vus par Chérif (6 %) ; Benj2p 7 320,80 € → 4 728,22 € vus par
   // Marco. La base valant CA × taux, la fiche de paie affichée était fausse.
   //
@@ -189,7 +190,7 @@ export async function loadComptaSources({
   // que les noms de `creators` plus bas.
   //
   // `fetchAll` : table de faits journaliers, troncature SILENCIEUSE à 1000 lignes sinon
-  // (1 426 lignes mesurées sur la seule quinzaine 01–15/07/2026, UAT).
+  // (1 426 lignes mesurées sur la seule plage 01–15/07/2026, UAT).
   const linked = (members ?? []).map((m) => m.chatter_id).filter((v): v is string => v != null)
   const { data: ccd, error: ccdErr } = linked.length
     ? await fetchAll<CcdRow>((f, t) =>
@@ -243,10 +244,10 @@ export async function loadComptaSources({
     payments,
     sanctions,
     firstSeen: firstSeen ?? [],
-    /** CA de la quinzaine par chatteur MyPuls, ventilé par NOM de modèle. */
+    /** CA de la période par chatteur MyPuls, ventilé par NOM de modèle. */
     caByChatter,
-    /** Lundis rattachés — `weekCount` de la formule (spec §4). */
+    /** Les 2 lundis de la période — `weekCount` de la formule (spec §4). */
     mondays,
-    days: daysIn(fortnight),
+    days: daysIn(period),
   }
 }

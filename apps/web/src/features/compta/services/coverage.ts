@@ -1,10 +1,10 @@
-import { daysIn, type Fortnight } from '@glagency/core'
+import { daysIn, type PayPeriod } from '@glagency/core'
 
 /**
- * Couverture des quinzaines : qui a été payé de quoi, qui était déjà arrivé, et quelles
- * quinzaines sont en retard. Extrait de `get-compta.ts` pour le tenir sous 300 lignes
- * (CLAUDE.md) — c'est un bloc cohérent : les trois sorties dérivent des MÊMES paiements et
- * servent les mêmes décisions (prime, bandeau de retard, ligne « payé »).
+ * Couverture des périodes : qui a été payé de quoi, qui était déjà arrivé, et quelles périodes
+ * sont en retard. Extrait de `get-compta.ts` pour le tenir sous 300 lignes (CLAUDE.md) — c'est
+ * un bloc cohérent : les trois sorties dérivent des MÊMES paiements et servent les mêmes
+ * décisions (prime, bandeau de retard, ligne « payé »).
  */
 
 /** Sous-ensemble des colonnes de `compta_payments` dont la couverture a besoin. */
@@ -21,12 +21,12 @@ interface MemberLike {
 }
 
 export interface Coverage {
-  /** Jours couverts PAR MEMBRE, tous paiements et toutes quinzaines confondus. */
+  /** Jours couverts PAR MEMBRE, tous paiements et toutes périodes confondus. */
   daysByMember: Map<string, Set<string>>
   /** Membres dont une prime est DÉJÀ partie. */
   primePaid: Set<string>
-  /** La quinzaine concerne-t-elle ce membre ? (cf. `buildCoverage`) */
-  concerns: (memberId: string, f: Fortnight) => boolean
+  /** La période concerne-t-elle ce membre ? (cf. `buildCoverage`) */
+  concerns: (memberId: string, p: PayPeriod) => boolean
 }
 
 /**
@@ -34,25 +34,25 @@ export interface Coverage {
  * lieu de refiltrer la liste pour chaque ligne affichée.
  *
  * `daysByMember` est bien PAR MEMBRE et jamais un total fusionné tous chatteurs confondus :
- * un seul chatteur payé masquerait sinon la quinzaine impayée de tous les autres.
+ * un seul chatteur payé masquerait sinon la période impayée de tous les autres.
  *
  * `primePaid` a pour source de vérité UNIQUE l'instantané `compta_payments.prime_amount`, figé
  * au virement (spec §5.3). `compta_primes.status` ne peut pas l'être : l'insert du paiement et
  * son passage à `'paid'` sont deux allers-retours sans transaction, donc le second peut échouer
- * en laissant la prime `'due'` — au rechargement, la quinzaine ouverte la plus ancienne
+ * en laissant la prime `'due'` — au rechargement, la période ouverte la plus ancienne
  * glisserait sur la suivante et la prime serait versée une SECONDE fois. Le paiement, lui,
  * existe ou n'existe pas.
  *
- * `concerns(membre, f)` = `f` se termine à ou après l'entrée du membre (`chatter_first_seen()`,
+ * `concerns(membre, p)` = `p` se termine à ou après l'entrée du membre (`chatter_first_seen()`,
  * clée sur le `chatter_id` MyPuls — la jointure passe donc par `profiles.chatter_id`, jamais
- * par `profiles.id`). `f.to >= first_seen` et non `f.from >= first_seen` : une quinzaine à
+ * par `profiles.id`). `p.end >= first_seen` et non `p.start >= first_seen` : une période à
  * cheval sur l'arrivée a été partiellement travaillée, elle est donc due ; seule celle qui se
  * TERMINE avant l'arrivée ne le concerne pas.
  *
- * Sans date d'entrée → AUCUNE quinzaine. Deux populations :
+ * Sans date d'entrée → AUCUNE période. Deux populations :
  *  - le membre sans `profiles.chatter_id` : `ComptaPayslip` lui fait un early-return (ni fiche,
  *    ni bouton), donc l'application ne peut JAMAIS le payer, donc ses jours ne seront jamais
- *    couverts et il qualifierait toute quinzaine échue à perpétuité. Son exclusion est une
+ *    couverts et il qualifierait toute période échue à perpétuité. Son exclusion est une
  *    conséquence ASSUMÉE de cet early-return, pas un oubli (8 profils sur 96 sur l'UAT ; la
  *    spec §7 en annonce 30 sur 102 en prod) ;
  *  - le membre relié mais sans aucun jour dans `chatter_daily` : jamais actif, donc rien à lui
@@ -85,27 +85,28 @@ export function buildCoverage({
     if (fs != null) byMember.set(m.id, fs)
   }
 
-  const concerns = (memberId: string, f: Fortnight) => {
+  const concerns = (memberId: string, p: PayPeriod) => {
     const fs = byMember.get(memberId)
-    return fs != null && f.to >= fs
+    return fs != null && p.end >= fs
   }
 
   return { daysByMember, primePaid, concerns }
 }
 
 /**
- * Quinzaines ÉCHUES incomplètement couvertes — le retard se déduit de la couverture, pas d'une
+ * Périodes ÉCHUES incomplètement couvertes — le retard se déduit de la couverture, pas d'une
  * échéance théorique (spec §7). « Incomplètement couverte » = il existe AU MOINS UN membre que
- * la quinzaine CONCERNE dont un jour n'est couvert par AUCUN de SES paiements.
+ * la période CONCERNE dont un jour n'est couvert par AUCUN de SES paiements.
  *
  * Sans le filtre `concerns`, deux populations allumaient le bandeau en permanence : les membres
- * non reliés à MyPuls, que l'application ne peut pas payer, et les nouveaux, dont les
- * quinzaines d'avant l'embauche ne seront jamais couvertes. Le bandeau affichait son plafond de
- * 6 en continu et ne signalait donc plus rien.
+ * non reliés à MyPuls, que l'application ne peut pas payer, et les nouveaux, dont les périodes
+ * d'avant l'embauche ne seront jamais couvertes. Le bandeau affichait son plafond de 6 en
+ * continu et ne signalait donc plus rien.
  *
- * La quinzaine AFFICHÉE est exclue : elle est déjà sous les yeux, ligne par ligne.
+ * La période AFFICHÉE est exclue : elle est déjà sous les yeux, ligne par ligne. Elle s'identifie
+ * par son seul `start` — le lundi de départ EST la clé d'une période (0088).
  */
-export function overdueFortnights({
+export function overduePeriods({
   choices,
   today,
   current,
@@ -113,21 +114,21 @@ export function overdueFortnights({
   coverage,
   max = 6,
 }: {
-  choices: Fortnight[]
+  choices: PayPeriod[]
   today: string
-  current: Fortnight
+  current: PayPeriod
   members: { id: string }[]
   coverage: Coverage
   max?: number
-}): Fortnight[] {
+}): PayPeriod[] {
   return choices
-    .filter((f) => f.to < today && !(f.month === current.month && f.period === current.period))
-    .filter((f) => {
-      const fDays = daysIn(f)
+    .filter((p) => p.end < today && p.start !== current.start)
+    .filter((p) => {
+      const pDays = daysIn(p)
       return members.some((m) => {
-        if (!coverage.concerns(m.id, f)) return false
+        if (!coverage.concerns(m.id, p)) return false
         const covered = coverage.daysByMember.get(m.id) ?? new Set<string>()
-        return fDays.some((d) => !covered.has(d))
+        return pDays.some((d) => !covered.has(d))
       })
     })
     .slice(0, max)
