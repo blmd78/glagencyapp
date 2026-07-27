@@ -4,6 +4,7 @@ import { frDayShort, type Fortnight } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { eur } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
+import { ComptaEntryForm } from './compta-entry-form'
 import type { ComptaRow } from '../types'
 
 /** Une ligne de la fiche : libellé à gauche, montant aligné à droite en tabulaire. */
@@ -102,11 +103,19 @@ export function ComptaPayslip({
         <span className="tabular-nums">{eur(p.net)}</span>
       </div>
 
-      {canPay && !row.paid && (
-        <p className="text-xs text-muted-foreground">
-          Le bouton de paiement arrive à la tâche 9.
-        </p>
-      )}
+      {canPay &&
+        mondays.map((m) => (
+          <ComptaEntryForm
+            key={m}
+            chatterId={row.id}
+            weekStart={m}
+            weekLabel={frDayShort(m)}
+            isSetter={row.isSetter}
+            initial={
+              row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }
+            }
+          />
+        ))}
     </div>
   )
 }

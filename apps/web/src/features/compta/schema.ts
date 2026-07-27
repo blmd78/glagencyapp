@@ -30,6 +30,10 @@ export const weekEntryInput = z.object({
   note: z.string().trim().max(500, '500 caractères max').nullable(),
 })
 export type WeekEntryInput = z.infer<typeof weekEntryInput>
+// Type d'ENTRÉE du formulaire (les champs `money`/`z.coerce.number()` ont un input `unknown` —
+// input ≠ output). Sert de `TFieldValues` à `useForm` côté client, même patron que
+// `ReportFormValues` dans police-reports/schema.ts.
+export type WeekEntryFormValues = z.input<typeof weekEntryInput>
 
 /** Paiement d'une quinzaine — porte l'INSTANTANÉ figé (spec §5.3). */
 export const payInput = z.object({
