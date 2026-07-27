@@ -164,7 +164,13 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | `sanctions_amount` | `numeric(10,2)` | sanctions police |
 
 `month` conserve son sens (1er jour du mois) et `amount` reste le **net versé**. Invariant :
-`amount = base + setter + bonus − malus + handoffs + prime − sanctions`. Des colonnes explicites
+`amount = base + setter + bonus − malus + handoffs + prime − sanctions`.
+
+**Aucune de ces colonnes n'a de valeur par défaut** (arbitré le 2026-07-27). Un `default 0` les
+rendrait optionnelles dans le type `Insert` généré : un paiement omettant `sanctions_amount`
+compilerait et écrirait 0 €, faisant disparaître une retenue sans bruit. Sans défaut, le
+compilateur exige les huit composantes à chaque enregistrement — l'invariant ci-dessus devient
+structurel, et non plus une affaire de discipline. Des colonnes explicites
 plutôt qu'un `jsonb` — pour répondre à « combien de sanctions retenues ce trimestre ? » d'une
 requête plutôt que d'un parcours applicatif.
 
