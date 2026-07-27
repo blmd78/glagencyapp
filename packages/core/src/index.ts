@@ -44,3 +44,11 @@ export {
   round1,
   round2,
 } from './domain/dates'
+export {
+  fortnightOf,
+  fortnightsOfMonth,
+  recentFortnights,
+  mondaysIn,
+  daysIn,
+  type Fortnight,
+} from './compta/periods'
