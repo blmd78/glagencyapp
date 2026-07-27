@@ -4,6 +4,7 @@ import {
   type ChatterModelDayInput,
   type QuotaTargets,
   type WeekWindow,
+  lastFullWeekStartFrom,
   mondayOf,
   addDays,
   weekLabel,
@@ -73,9 +74,7 @@ export async function generateWeeklyInsights(
   // dimanche est ingéré (cas du run de la nuit dim.→lun. : maxDate = dimanche), sinon la
   // précédente. Ancrer sur maxDate et pas sur l'horloge : le run de 23h05 UTC tourne
   // avant minuit UTC, l'horloge donnerait la bascule avec un jour de retard.
-  const maxMonday = mondayOf(maxDate)
-  const candidateMonday =
-    maxDate >= addDays(maxMonday, 6) ? maxMonday : addDays(maxMonday, -7)
+  const candidateMonday = lastFullWeekStartFrom(maxDate)
   let evaluatedRaw: Omit<WeekWindow, 'label'> = await fetchWindow(
     db,
     candidateMonday,
@@ -83,7 +82,7 @@ export async function generateWeeklyInsights(
   )
   if (evaluatedRaw.days.length === 0) {
     // Amorçage : aucune semaine complète avec données → semaine de maxDate, partielle.
-    evaluatedRaw = await fetchWindow(db, maxMonday, maxDate)
+    evaluatedRaw = await fetchWindow(db, mondayOf(maxDate), maxDate)
   }
   const evaluated: WeekWindow = { ...evaluatedRaw, label: weekLabel(evaluatedRaw.start) }
   const nextMonday = addDays(evaluated.start, 7)

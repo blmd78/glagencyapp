@@ -1,4 +1,12 @@
-import { addDays, frDayShort as frDay, mondayOf, round2 as r2, todayParis } from '@glagency/core'
+import {
+  addDays,
+  currentWeekStart,
+  frDayShort as frDay,
+  lastWeekStart,
+  mondayOf,
+  round2 as r2,
+  todayParis,
+} from '@glagency/core'
 import { ltvOf as ltvFormula } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
 import type { BilanData, ModelBilan, WeekChoice } from '../types'
@@ -6,7 +14,9 @@ import type { BilanData, ModelBilan, WeekChoice } from '../types'
 /** Semaines complètes (lun→dim) COUVERTES PAR LA BASE, la plus récente d'abord
  *  (12 max) — pas de semaines vides avant la première donnée ingérée. */
 function completeWeeks(today: string, minDate: string | null): WeekChoice[] {
-  const currentMonday = mondayOf(today)
+  // La boucle démarre à i = 1, donc `out[0]` vaut exactement `lastWeekStart(today)` : la S-1
+  // de l'horloge. Même définition que le repli ligne ~67, un seul endroit où la changer.
+  const currentMonday = currentWeekStart(today)
   const firstMonday = minDate ? mondayOf(minDate) : null
   const out: WeekChoice[] = []
   for (let i = 1; i <= 12; i++) {
@@ -64,7 +74,7 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
   if (firstErr) throw new Error(firstErr.message)
   const weeks = completeWeeks(today, first?.[0]?.date ?? null)
   if (weeks.length === 0) {
-    const start = mondayOf(addDays(today, -7))
+    const start = lastWeekStart(today)
     weeks.push({ start, end: addDays(start, 6), label: `Sem. du ${frDay(start)} au ${frDay(addDays(start, 6))}` })
   }
 

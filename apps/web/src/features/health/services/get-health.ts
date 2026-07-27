@@ -1,4 +1,4 @@
-import { daysBetween, endOfMonth, mondayOf, todayParis } from '@glagency/core'
+import { currentWeekStart, daysBetween, endOfMonth, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
 import { round1, round2, eur, num, ltvOf } from '@/lib/format'
@@ -51,7 +51,7 @@ export async function getHealth(
 
   // Lundi de la semaine courante : passé au RPC pour que la borne « semaine en cours »
   // soit IDENTIQUE au calcul d'origine (indépendante du fuseau horaire de la base).
-  const weekFrom = mondayOf(todayParis())
+  const weekFrom = currentWeekStart(todayParis())
 
   const [
     { data: creators, error: creatorsErr },
