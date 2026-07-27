@@ -72,13 +72,23 @@ export const payInput = z
    * L'invariant de la spec §5.3 (`amount = base + setter + bonus − malus + handoffs + prime −
    * sanctions`) VÉRIFIÉ, et non plus seulement documenté. La spec le disait « structurel » du
    * fait de colonnes sans valeur par défaut : c'est inexact — l'absence de défaut force à
-   * FOURNIR les huit composantes, elle ne contrôle pas leur SOMME. `payFortnight` recopie les
-   * onze montants du client sans rien recalculer, et la base ne les arbitre pas non plus.
+   * FOURNIR les huit composantes, elle ne contrôle pas leur SOMME, et la base ne les arbitre
+   * pas non plus.
    *
-   * Le cas réel n'est pas la malveillance mais l'ONGLET PÉRIMÉ : l'admin ouvre la compta, un
-   * manager saisit un malus entre-temps, l'admin clique « Marquer payé ». `revalidatePath`
-   * invalide le cache serveur, jamais une page déjà rendue dans un navigateur — le montant
-   * figé serait celui d'avant la saisie, sans que personne ne le voie.
+   * CE QUE CE REFINE ATTRAPE, ET RIEN D'AUTRE : une incohérence INTERNE au payload —
+   * falsification à la main d'un des montants, ou divergence entre la formule du client et
+   * celle du serveur. Rien de plus.
+   *
+   * CE QU'IL N'ATTRAPE PAS — l'ONGLET PÉRIMÉ. Les onze nombres viennent tous du même rendu, et
+   * `computePayslip` (`packages/core/src/compta/payslip.ts`) garantit cette égalité PAR
+   * CONSTRUCTION sur toute sortie : un payload périmé est parfaitement cohérent avec lui-même
+   * et passe ce contrôle. Ce cas-là est traité par le RECALCUL SERVEUR de `payFortnight`
+   * (`actions.ts`), qui refait le calcul et refuse au-delà de 0,01 € d'écart. Ce commentaire a
+   * affirmé le contraire jusqu'au 2026-07-27 : documenter une protection inexistante est pire
+   * que ne rien documenter.
+   *
+   * Gardé quand même : défense en profondeur, coût nul, et il s'exécute AVANT toute lecture
+   * base côté serveur.
    *
    * Tolérance 0,01 € : `computePayslip` arrondit déjà chaque composante à 2 décimales, mais
    * leur somme en flottant peut dériver d'un centime.
@@ -94,8 +104,11 @@ export const payInput = z
       v.sanctionsAmount
     if (Math.abs(v.amount - expected) <= 0.01) return
 
+    // Message calé sur ce que le refine détecte VRAIMENT : le net envoyé ne s'additionne pas à
+    // partir des lignes envoyées. Ce n'est pas un onglet périmé (celui-ci reste cohérent avec
+    // lui-même, cf. le commentaire ci-dessus) — donc pas de « la fiche a changé ».
     const message =
-      "Le montant ne correspond plus au détail de la fiche : elle a changé depuis l'ouverture de la page. Recharge la page avant d'enregistrer ce paiement."
+      "Le montant envoyé ne correspond pas au détail envoyé (le net n'est pas la somme des lignes). Recharge la page ; si l'erreur persiste, préviens l'admin technique."
     ctx.addIssue({ code: 'custom', message, path: ['amount'] })
     // Doublon à la RACINE, volontaire : `runAction` ne remonte dans `error` que les issues
     // `custom` de path VIDE (lib/actions.ts), et le paiement passe par un `ConfirmDialog` qui

@@ -4,9 +4,10 @@
 // (`managerPageGuard` + RLS 0085) ; paiement = admin seul (`adminGuard` + RLS 0085).
 
 import { revalidatePath } from 'next/cache'
-import { todayParis } from '@glagency/core'
+import { recentFortnights, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
+import { eur2 } from '@/lib/format'
 import {
   runAction,
   managerPageGuard,
@@ -14,6 +15,7 @@ import {
   BusinessError,
   type ActionResult,
 } from '@/lib/actions'
+import { loadComptaRows } from './services/compta-rows'
 import { weekEntryInput, payInput } from './schema'
 
 /**
@@ -57,6 +59,9 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
  * virements sont le fait de l'admin seul, un manager ne fait que saisir. Le détail est figé
  * ici — le CA étant ré-ingéré depuis MyPuls, un recalcul ultérieur ferait bouger un montant
  * déjà versé.
+ *
+ * Le montant versé est RECALCULÉ ici (cf. bloc « recalcul serveur ») et refusé s'il s'écarte
+ * de plus de 0,01 € du payload : ce qu'on fige, c'est ce que le serveur a calculé.
  */
 export async function payFortnight(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -80,22 +85,87 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
         )
       }
 
+      // ── RECALCUL SERVEUR ────────────────────────────────────────────────────────────────
+      // Le navigateur envoie onze montants ; les recopier en base ferait du CLIENT l'autorité
+      // sur ce qui est versé. On refait donc le calcul ici, par LE code de la page
+      // (`loadComptaRows`, une seule implémentation — deux divergeraient), et c'est ce
+      // résultat-là qui est écrit.
+      //
+      // Le cas réel n'est pas la malveillance mais l'ONGLET PÉRIMÉ : l'admin ouvre la compta,
+      // un manager saisit un malus ou la Police pose une sanction entre-temps, l'admin clique
+      // « Marquer payé ». `revalidatePath` invalide le cache serveur, jamais une page déjà
+      // rendue dans un navigateur — sans ce recalcul, le montant figé serait celui d'AVANT la
+      // saisie, et rien ne le signalerait. Le `superRefine` du schéma ne peut pas l'attraper :
+      // les onze nombres périmés sont cohérents ENTRE EUX (cf. `schema.ts`).
+      //
+      // Il reste une fenêtre de quelques millisecondes entre ce recalcul et l'`insert` — pas de
+      // transaction possible depuis supabase-js. On ferme un trou qui se compte en MINUTES
+      // (l'onglet ouvert) avec un trou qui se compte en millisecondes ; le chevauchement de
+      // jours, lui, est arbitré par la base sous verrou (trigger 0087).
+      const choices = recentFortnights(today, 12)
+      const fortnight = choices.find((f) => f.month === v.month && f.period === v.period)
+      if (!fortnight) {
+        throw new BusinessError("Cette quinzaine n'est plus dans la fenêtre payable — recharge la page.")
+      }
+      const { rows } = await loadComptaRows({
+        fortnight,
+        choices,
+        today,
+        memberId: v.chatterId,
+      })
+      const row = rows[0]
+      // Ni le membre, ni la RLS : soit le compte a disparu, soit il n'est plus rôle chatteur.
+      if (!row) throw new BusinessError('Ce membre est introuvable dans la compta — recharge la page.')
+
+      const p = row.payslip
+      // Tolérance 0,01 € : `computePayslip` arrondit chaque composante à 2 décimales, la somme
+      // en flottant peut dériver d'un centime. Toutes les lignes sont comparées, pas seulement
+      // le net : deux dérives opposées (bonus +5, malus +5) laisseraient le net intact tout en
+      // figeant un détail faux.
+      const checks: [label: string, sent: number, computed: number][] = [
+        ['net', v.amount, p.net],
+        ['CA de référence', v.caReference, p.ca],
+        ['base', v.baseAmount, p.base],
+        ['fixe setter', v.setterAmount, p.setter],
+        ['bonus', v.bonusAmount, p.bonus],
+        ['malus', v.malusAmount, p.malus],
+        ['handoffs', v.handoffsAmount, p.handoffsAmount],
+        ['prime', v.primeAmount, p.prime],
+        ['sanctions', v.sanctionsAmount, p.sanctions],
+        ['taux', v.rateApplied, row.rate],
+      ]
+      const drifted = checks
+        .filter(([, sent, computed]) => Math.abs(sent - computed) > 0.01)
+        .map(([label]) => label)
+      if (v.modeApplied !== row.mode) drifted.push('mode de rémunération')
+      if (drifted.length > 0) {
+        throw new BusinessError(
+          `La fiche de ${row.name} a changé depuis l'ouverture de la page (${drifted.join(', ')}). ` +
+            `Net recalculé : ${eur2(p.net)} au lieu de ${eur2(v.amount)}. ` +
+            "Recharge la page avant d'enregistrer ce paiement.",
+        )
+      }
+
+      // Les MONTANTS RECALCULÉS sont écrits, pas ceux du payload : ils viennent d'être
+      // vérifiés équivalents, et l'instantané doit être celui que le serveur a arbitré.
+      // `coveredDays`, `month`/`period` et `note` restent ceux de la requête — ce sont des
+      // choix de l'admin, pas des résultats de calcul.
       const { error } = await supabase.from('compta_payments').insert({
         chatter_id: v.chatterId,
         month: v.month,
         period: v.period,
         covered_days: v.coveredDays,
-        amount: v.amount,
-        ca_reference: v.caReference,
-        mode_applied: v.modeApplied,
-        rate_applied: v.rateApplied,
-        base_amount: v.baseAmount,
-        setter_amount: v.setterAmount,
-        bonus_amount: v.bonusAmount,
-        malus_amount: v.malusAmount,
-        handoffs_amount: v.handoffsAmount,
-        prime_amount: v.primeAmount,
-        sanctions_amount: v.sanctionsAmount,
+        amount: p.net,
+        ca_reference: p.ca,
+        mode_applied: row.mode,
+        rate_applied: row.rate,
+        base_amount: p.base,
+        setter_amount: p.setter,
+        bonus_amount: p.bonus,
+        malus_amount: p.malus,
+        handoffs_amount: p.handoffsAmount,
+        prime_amount: p.prime,
+        sanctions_amount: p.sanctions,
         note: v.note,
         paid_by: profile.id,
         // `paid_at` a un défaut `CURRENT_DATE` — mais c'est la date du SERVEUR (UTC), pas le
@@ -123,7 +193,7 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       // statut reste utile comme trace et pour les autres lectures de `compta_primes`.
       // `status = 'due'` explicite : sans ce filtre, une prime déjà `skipped` (renoncée)
       // basculerait en `paid` alors qu'elle n'a rien versé.
-      if (v.primeAmount > 0) {
+      if (p.prime > 0) {
         const { error: primeErr } = await supabase
           .from('compta_primes')
           // `updated_at` posé explicitement : aucun trigger ne le rafraîchit (vérifié sur
