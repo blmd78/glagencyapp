@@ -1642,7 +1642,7 @@ git commit -m "feat(compta): saisie hebdomadaire des bonus, malus, handoffs et f
 > filtre de statut, et emplacement d'insertion inexistant. Détail dans chaque étape.
 
 **Files:**
-- Create: `packages/db/supabase/migrations/0087_compta_payments_unique.sql`
+- Create: `packages/db/supabase/migrations/0087_compta_payments_no_overlap.sql`
 - Modify: `apps/web/src/features/compta/schema.ts`
 - Modify: `apps/web/src/features/compta/types.ts`
 - Modify: `apps/web/src/features/compta/services/get-compta.ts`
@@ -1658,23 +1658,24 @@ git commit -m "feat(compta): saisie hebdomadaire des bonus, malus, handoffs et f
 
 - [ ] **Step 1 : Rendre le double paiement impossible en base**
 
-`compta_payments` n'a **aucune contrainte d'unicité** sur `(chatter_id, month, period)` —
-vérifié sur l'UAT : seules la PK sur `id` et trois index non uniques existent. Un garde
-applicatif « lire puis insérer » ne suffit pas : entre les deux requêtes, un second clic ou un
-second admin insère un doublon, et deux virements sont enregistrés pour la même quinzaine. Sur
-de l'argent, l'unicité doit venir de la base.
+> **Corrigé en cours d'exécution.** La première version posait un index unique sur
+> `(chatter_id, month, period)`. C'était faux : `spec:77-78` et `spec:306` conçoivent le
+> **paiement partiel** comme un cas nominal (`covered_days` ne couvre qu'une partie, la
+> quinzaine reste « incomplète »). L'invariant réel n'est pas « un paiement par quinzaine »
+> mais **« aucun jour payé deux fois »**. Signalé par l'implémenteur, vérifié contre la spec.
 
-Créer `packages/db/supabase/migrations/0087_compta_payments_unique.sql` :
+`compta_payments` n'a **aucune garde** contre le double paiement — vérifié sur l'UAT : seules
+la PK sur `id` et trois index non uniques existent. Un garde applicatif « lire puis insérer »
+ne suffit pas : entre les deux requêtes, un second clic ou un second admin insère un doublon,
+et deux virements sont enregistrés. Sur de l'argent, la garde doit venir de la base.
 
-```sql
--- Un seul paiement par (chatteur, quinzaine). Sans cette contrainte, le garde applicatif de
--- `payFortnight` est un TOCTOU : deux clics concurrents passent tous les deux la lecture et
--- insèrent deux virements pour la même quinzaine.
--- `create unique index if not exists` = idempotent, et échouera bruyamment si des doublons
--- existent déjà (aucun aujourd'hui : 0 ligne dans `compta_payments`).
-create unique index if not exists compta_payments_chatter_period_uniq
-  on public.compta_payments (chatter_id, month, period);
-```
+Créer `packages/db/supabase/migrations/0087_compta_payments_no_overlap.sql` : un trigger
+`before insert or update` qui refuse un `covered_days` chevauchant (`&&`) celui d'un paiement
+existant du même chatteur, en `raise ... using errcode = '23505'` pour que `payFortnight` le
+traduise en message métier. Un `pg_advisory_xact_lock(hashtext(chatter_id::text))` en tête
+rend la garde réellement atomique — un `exists` seul, en READ COMMITTED, ne verrouille rien et
+laisserait passer deux insertions concurrentes. `security definer` : la fonction doit voir les
+paiements de tous pour détecter un doublon, ce que la RLS masquerait à un manager.
 
 Appliquer sur l'**UAT seulement** (comme `0085` et `0086`) :
 
@@ -1682,8 +1683,9 @@ Appliquer sur l'**UAT seulement** (comme `0085` et `0086`) :
 cd packages/db && supabase db push --db-url "$DATABASE_URL_UAT"
 ```
 
-Puis régénérer `packages/db/src/types.ts` si nécessaire (un index ne change pas les types —
-vérifier que le fichier est inchangé plutôt que de le régénérer à l'aveugle).
+Vérifier **en base**, pas par déduction : qu'un paiement partiel suivi de son complément passe
+tous les deux, et qu'un chevauchement lève bien un 23505. `packages/db/src/types.ts` reste
+inchangé (un trigger ne touche pas les types générés).
 
 - [ ] **Step 2 : Autoriser un net négatif**
 
@@ -1734,6 +1736,17 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       if (!profile) throw new Error('Session expirée')
       const supabase = await createClient()
 
+      // On ne fige que des jours RÉVOLUS. Payer une quinzaine en cours gèlerait un CA encore
+      // incomplet tout en marquant ses jours couverts — la perte serait définitive et jamais
+      // signalée par le bandeau de retard, qui se déduit de la couverture. Ni la spec ni la
+      // première version du plan ne traitaient ce cas.
+      const today = todayParis()
+      if (v.coveredDays.some((d) => d >= today)) {
+        throw new BusinessError(
+          "Cette quinzaine n'est pas terminée — elle ne peut être payée qu'à partir du lendemain de son dernier jour.",
+        )
+      }
+
       const { error } = await supabase.from('compta_payments').insert({
         chatter_id: v.chatterId,
         month: v.month,
@@ -1757,9 +1770,9 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
         // veille. `todayParis()` est le jour métier de toute l'app.
         paid_at: todayParis(),
       })
-      // 23505 = violation de l'unicité posée par 0087 : la quinzaine est déjà payée. C'est la
-      // BASE qui l'arbitre, pas une lecture préalable — sinon deux clics concurrents passent
-      // tous les deux et enregistrent deux virements.
+      // 23505 = le trigger de 0087 : au moins un de ces jours est déjà couvert par un autre
+      // paiement. C'est la BASE qui l'arbitre, pas une lecture préalable — sinon deux clics
+      // concurrents passent tous les deux et enregistrent deux virements.
       if (error?.code === '23505') {
         throw new BusinessError('Cette quinzaine a déjà été payée pour ce chatteur.')
       }
@@ -1918,11 +1931,13 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
         </p>
       )}
 
-      {canPay && !row.paid && <ComptaPayDialog row={row} fortnight={fortnight} />}
+      {canPay && !row.paid && isClosed && <ComptaPayDialog row={row} fortnight={fortnight} />}
 ```
 
 Deux points sur ce gate :
 - `canPay` est enfin **lu** — retirer le commentaire « pas encore lu ici » de sa doc de prop.
+- `isClosed` (quinzaine échue) vient de `compta-view.tsx` : ne pas monter un bouton dont
+  l'action échouerait toujours, la garde serveur ci-dessus étant l'autorité.
 - ne PAS ajouter `row.chatterId != null` : le composant fait déjà un early-return complet quand
   `chatterId` est nul (`compta-payslip.tsx:46`), la condition serait morte.
 
@@ -1940,7 +1955,7 @@ Ne PAS commiter depuis un subagent : `CLAUDE.md` soumet chaque commit à l'accor
 Signaler que la tâche est prête et laisser la session principale commiter.
 
 ```bash
-git add packages/db/supabase/migrations/0087_compta_payments_unique.sql apps/web/src/features/compta
+git add packages/db/supabase/migrations/0087_compta_payments_no_overlap.sql apps/web/src/features/compta
 git commit -m "feat(compta): paiement d'une quinzaine avec instantané figé (admin seul)"
 ```
 ---
