@@ -25,7 +25,7 @@ function Line({ label, amount, muted }: { label: string; amount: number; muted?:
 export function ComptaPayslip({
   row,
   mondays,
-  canPay,
+  canEnter,
 }: {
   row: ComptaRow
   /** Conservé dans la signature pour `compta-view.tsx` (tâche 6) ; plus utilisé dans le corps
@@ -34,6 +34,11 @@ export function ComptaPayslip({
   fortnight: Fortnight
   /** Lundis des semaines rattachées — un formulaire de saisie par semaine (tâche 8). */
   mondays: string[]
+  /** Droit de SAISIE (manager/sous-manager sur ses rattachés, ou admin) — spec §6, distinct de
+   *  `canPay` (admin seul). Conditionne `ComptaEntryForm`. */
+  canEnter: boolean
+  /** Droit de PAIEMENT (admin seul) — pas encore lu ici, câblé pour le bouton de paiement de
+   *  la tâche 9. Ne pas retirer même inutilisé : la tâche 9 devra le remettre sinon. */
   canPay: boolean
 }) {
   const p = row.payslip
@@ -103,7 +108,7 @@ export function ComptaPayslip({
         <span className="tabular-nums">{eur(p.net)}</span>
       </div>
 
-      {canPay &&
+      {canEnter &&
         mondays.map((m) => (
           <ComptaEntryForm
             key={m}

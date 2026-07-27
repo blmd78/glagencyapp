@@ -16,7 +16,15 @@ import type { ComptaData } from '../types'
  * noms dépliables (même grammaire que le Planning et le Dashboard). Le sélecteur pousse
  * `?month=`&`?period=` — la page, Server Component, se recharge sur la quinzaine choisie.
  */
-export function ComptaView({ data, canPay }: { data: ComptaData; canPay: boolean }) {
+export function ComptaView({
+  data,
+  canEnter,
+  canPay,
+}: {
+  data: ComptaData
+  canEnter: boolean
+  canPay: boolean
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -89,6 +97,7 @@ export function ComptaView({ data, canPay }: { data: ComptaData; canPay: boolean
             row={r}
             fortnight={data.fortnight}
             mondays={mondaysIn(data.fortnight)}
+            canEnter={canEnter}
             canPay={canPay}
           />
         )}

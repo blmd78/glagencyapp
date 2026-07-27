@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { requireAccess } from '@/lib/auth'
+import { requireAccess, hasWriteAccess } from '@/lib/auth'
 import { getCompta } from '@/features/compta/services/get-compta'
 import { ComptaTemplate } from '@/features/compta/ComptaTemplate'
 import { ComptaSkeleton } from '@/features/compta/components/compta-skeleton'
@@ -25,7 +25,14 @@ export default async function ComptaPage({
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Compta</h1>
       <Suspense fallback={<ComptaSkeleton />}>
-        <ComptaContent data={data} canPay={profile.role === 'admin'} />
+        <ComptaContent
+          data={data}
+          // DEUX droits distincts (spec §6) : le manager SAISIT, seul l'admin PAIE.
+          // `profile.role` ne vaut que 'admin' ou 'chatteur' — un manager y est mappé sur
+          // 'chatteur' (lib/auth). Le tester ici priverait tout manager du formulaire.
+          canEnter={hasWriteAccess(profile, 'compta')}
+          canPay={profile.role === 'admin'}
+        />
       </Suspense>
     </div>
   )
@@ -33,10 +40,12 @@ export default async function ComptaPage({
 
 async function ComptaContent({
   data,
+  canEnter,
   canPay,
 }: {
   data: Promise<ComptaData>
+  canEnter: boolean
   canPay: boolean
 }) {
-  return <ComptaTemplate data={await data} canPay={canPay} />
+  return <ComptaTemplate data={await data} canEnter={canEnter} canPay={canPay} />
 }
