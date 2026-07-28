@@ -2248,3 +2248,78 @@ et `compta_payments.mode_applied` (colonne d'instantané devenue morte). Sans ri
 comparaison avec la feuille (période 06→19/07).
 
 - [ ] **Step 7 : Commit** — ne pas commiter depuis un subagent.
+
+---
+
+## Lot final — remplacer le tableur (tâches 21 à 24)
+
+> **Demande de Benoit (2026-07-28)** : « implémente tout pour que tout colle à l'Excel, c'est le
+> but de ne plus en avoir besoin. Pense que ça doit être simple et intuitif, pas plus chiant que
+> le document. »
+
+**Inventaire vérifié** de ce qui manque, relevé sur TOUS les onglets et TOUS les libellés :
+`RESTE SEMAINE PASSEE`, `PRIME TOP15 SETTER`, `PRIME TOP3 MOIS`, `Nbre de handoff / Mois`,
+`Total Mois`, l'onglet `CLASSEMENT SETTER`, l'onglet `SUIVI PRIMES NVX CHATTEURS` (41 primes en
+attente), l'onglet `COMPTA CHATTEURS OFF ⛔`, et les rôles `nouveau` / `hybride` de la légende.
+
+**Contrainte d'ergonomie, non négociable** : pas plus pénible que la feuille. La feuille se
+parcourt d'un coup d'œil et se remplit au clavier. Trois onglets sur la page compta, qui
+reprennent le découpage mental de Benoit — **Période** (l'existant), **Classement**,
+**Suivi** — et rien de plus. Aucun nouvel écran ailleurs dans l'app.
+
+### Task 21 : Le socle de données (migration `0090`)
+
+- **`compta_period_entries`** — une ligne par `(chatter_id, period_start)` : `carryover`
+  (`RESTE SEMAINE PASSEE`) et `top3_prime` (`PRIME TOP3 MOIS`, manuelle, règle inconnue).
+  Une seule table pour les deux : ce sont les mêmes clés, le même écran, le même droit.
+- **`compta_setter_scale`** — `rank smallint primary key`, `amount numeric(10,2)`. Le barème du
+  TOP15, réglable (Benoit : « je veux pouvoir le régler »). Valeurs de juin en amorce :
+  200, 175, 165, 140, 130, 120, 115, 110, 105, 100, 95, 90, 87, 84, 80.
+- **`compta_debts`** — `amount` **text → numeric(10,2)** (défaut actuel `'100 €'`, valeurs vues
+  `'10$'`, `'43$'`). Table **vide** (vérifié UAT et prod), conversion sans risque. Ajouter
+  `settled_by uuid references profiles(id)`.
+- **`profiles.closing_role`** — le `check` passe de `('setter','closer')` à
+  `('setter','closer','nouveau','hybride')`, d'après la légende de la feuille (L96-98 :
+  🟢 setter, 🔵 closer, 🔴 nouveau, plus « chatteurs hybrides »).
+- RLS : mêmes régimes que l'existant — écriture admin sur les barèmes et les dettes, écriture
+  encadrement cadrée sur `compta_period_entries` (c'est de la saisie, comme les semaines).
+
+**UAT uniquement.** Vérifier que les tables sont vides avant d'agir.
+
+### Task 22 : Le domaine (`packages/core`)
+
+`PayslipInput` gagne `carryover`, `setterPrime` (TOP15) et `monthlyPrime` (TOP3). Les trois
+s'ajoutent au net. `Payslip` les expose séparément — la fiche doit montrer chaque ligne, comme
+la feuille.
+
+**Le classement setter** est une fonction pure : `rankSetters(handoffsByMember, scale)` →
+rang + montant. Ex æquo : rang partagé, montant du rang le plus favorable — à trancher et
+justifier. Le classement porte sur les **handoffs de la période** (Benoit : « met en 2 semaines
+tkt pas »).
+
+⚠️ **Le comptage qui fait foi n'est pas tranché** : l'onglet CLASSEMENT SETTER de Benoit et les
+handoffs de sa compta divergent (Godgive 86 contre 111 en juin). On prend **les handoffs saisis
+dans l'app** — seule donnée dont on garantisse la provenance. À signaler à Benoit, pas à masquer.
+
+### Task 23 : Les services et les actions
+
+- `compta_period_entries` : lecture dans `compta-sources.ts`, saisie via une action cadrée
+  `managerPageGuard`.
+- Classement des setters sur la période, injecté dans les fiches.
+- **Suivi des primes d'embauche** : `chatter_first_seen()` donne la date d'arrivée ;
+  l'échéance est **arrivée + 1 mois** (colonnes `Début` / `Fin 1er mois` de la feuille, 100 $
+  chacune). Un membre est **éligible** quand `first_seen + 1 mois <= aujourd'hui` et qu'aucun
+  paiement ne porte encore sa prime.
+- **Dettes** : CRUD admin sur `compta_debts`.
+
+### Task 24 : L'écran — trois onglets, rien de plus
+
+- **Période** — inchangé, plus les nouvelles lignes dans la fiche (report, prime setter,
+  prime du mois) et deux champs de saisie (report, prime top 3).
+- **Classement** — le tableau des setters de la période : rang, nom, handoffs, prime. Plus
+  l'édition du barème pour l'admin.
+- **Suivi** — deux listes : les primes d'embauche **échues et non versées** (avec la date
+  d'éligibilité), et les **soldes des partants** (`compta_debts`), avec un bouton « soldé ».
+
+**Ergonomie** : la saisie doit se faire au clavier sans quitter la ligne, comme la saisie hebdo
+qui s'enregistre seule. Aucun bouton « Enregistrer » par ligne.
