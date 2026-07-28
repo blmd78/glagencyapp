@@ -313,7 +313,7 @@ export type Database = {
       }
       compta_debts: {
         Row: {
-          amount: string
+          amount: number
           created_at: string
           id: string
           model: string | null
@@ -321,9 +321,10 @@ export type Database = {
           note: string | null
           settled: boolean
           settled_at: string | null
+          settled_by: string | null
         }
         Insert: {
-          amount: string
+          amount: number
           created_at?: string
           id?: string
           model?: string | null
@@ -331,9 +332,10 @@ export type Database = {
           note?: string | null
           settled?: boolean
           settled_at?: string | null
+          settled_by?: string | null
         }
         Update: {
-          amount?: string
+          amount?: number
           created_at?: string
           id?: string
           model?: string | null
@@ -341,8 +343,17 @@ export type Database = {
           note?: string | null
           settled?: boolean
           settled_at?: string | null
+          settled_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "compta_debts_settled_by_fkey"
+            columns: ["settled_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       compta_payments: {
         Row: {
@@ -422,6 +433,48 @@ export type Database = {
           },
         ]
       }
+      compta_period_entries: {
+        Row: {
+          carryover: number
+          chatter_id: string
+          period_start: string
+          top3_prime: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          carryover?: number
+          chatter_id: string
+          period_start: string
+          top3_prime?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          carryover?: number
+          chatter_id?: string
+          period_start?: string
+          top3_prime?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_period_entries_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_period_entries_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compta_primes: {
         Row: {
           amount: number
@@ -460,6 +513,35 @@ export type Database = {
           },
           {
             foreignKeyName: "compta_primes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      compta_setter_scale: {
+        Row: {
+          amount: number
+          rank: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          amount: number
+          rank: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          amount?: number
+          rank?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_setter_scale_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"

@@ -158,8 +158,53 @@ Pour un chatteur et une période :
 − Sanctions       Σ police_entries.amount_eur où kind = 'malus'
                   et occurred_on dans la période
 
++ Report          compta_period_entries.carryover — « RESTE SEMAINE PASSEE »
+                  -- SIGNÉ, seule entrée de la formule à l'être : un trop-perçu
+                     se reporte en négatif
+
++ Prime setter    la tranche de compta_setter_scale au rang du chatteur dans le
+                  classement des HANDOFFS de la période — « PRIME TOP15 SETTER »
+
++ Prime du mois   compta_period_entries.top3_prime — « PRIME TOP3 MOIS », saisie
+                  à la main : sa règle d'attribution n'est pas connue, l'admin
+                  décide et l'app n'invente rien
+
 = Net à payer
 ```
+
+**Les trois dernières lignes datent de la tâche 22 (2026-07-28)** — le lot qui remplace le
+tableur. Elles sont dans `computePayslip` et exposées séparément dans `Payslip` : la fiche doit
+montrer chaque ligne, comme la feuille. Leurs SOURCES ne sont pas encore branchées (tâche 23) ;
+`compta-rows.ts` les passe à 0 en attendant.
+
+**Classement setter — `rankSetters(handoffsByMember, scale)`**, fonction pure
+(`packages/core/src/compta/setter-rank.ts`). Le classement porte sur les handoffs **saisis dans
+l'app** sur la période. ⚠️ Le comptage qui fait foi n'est pas tranché : l'onglet CLASSEMENT SETTER
+du propriétaire et les handoffs de sa propre compta divergent (Godgive : 86 contre 111 en juin).
+On prend la donnée dont on garantit la provenance, et on le dit.
+
+**Ex æquo : rang partagé, tranches mises en commun puis divisées à parts égales.** `k` ex æquo
+occupent les `k` tranches consécutives à partir de leur rang commun ; ces montants sont
+additionnés puis partagés. Deux à 71 handoffs sur les tranches 6 et 7 (120 € + 115 €) touchent
+117,50 € chacun, et le rang suivant est 8 (classement « compétition »). Trois raisons :
+
+1. **Aucun départage arbitraire.** Toute autre règle doit trancher entre deux performances
+   identiques — par nom, par identifiant, ou par l'ordre des lignes rendues par Postgres. Le
+   dernier est un défaut silencieux (`Array.prototype.sort` est stable) ; les deux premiers font
+   perdre 5 € à quelqu'un pour une raison étrangère à son travail, à chaque période.
+2. **Le barème est un budget de 15 tranches, dépensé exactement une fois.** La règle esquissée au
+   plan (« montant du rang le plus favorable ») versait 120 € aux deux, soit 5 € de plus, et
+   laissait la tranche 7 jamais payée. Ici la somme distribuée vaut Σ du barème, ex æquo ou non.
+3. **C'est ce que le propriétaire a dépensé.** Juin, deux paires : Andria/Martin à 71 handoffs
+   (120 + 115 = 235 €) et Erielly/André à 66 (105 + 100 = 205 €) — deux tranches consommées par
+   paire. Cette règle reproduit ses **totaux au centime** ; seul le partage interne diffère, et le
+   sien n'est justifié par aucune donnée (c'est l'ordre des lignes de sa feuille).
+
+Trois choix de bord : un membre à **0 handoff n'est pas classé** (sinon il toucherait la 15e
+tranche pour n'avoir rien fait dès que la population est courte) ; le résultat contient **tout le
+monde**, y compris au-delà du barème, avec 0 € — c'est l'écran qui coupe ; un **barème incomplet**
+(rang manquant, moins de tranches que de membres) ne fait pas d'erreur, la tranche absente vaut
+0 €.
 
 **Écart assumé sur la prime — arbitré par Benoit le 2026-07-27, ce n'est pas un oubli.** Cette
 section demandait auparavant que la prime ne s'affiche que sur « la période échue la plus
@@ -214,12 +259,12 @@ cumulatif.
 
 ---
 
-## 5. Modèle de données — migrations `0085` … `0089`
+## 5. Modèle de données — migrations `0085` … `0090`
 
 `0085` porte l'essentiel (les tables étant vides) ; `0086` ouvre la lecture cloisonnée des
 sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
 `compta_payments` sur le découpage en 14 jours, `0089` supprime le mode de rémunération et le
-statut de setter (§5.5).
+statut de setter (§5.5), `0090` pose le socle du lot final (§5.6).
 
 **5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
 étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
@@ -300,20 +345,64 @@ l'UAT le 2026-07-27 juste avant d'appliquer), et `0085`/`0087`/`0088` ne sont pa
 La prod n'a pas été ouverte pour cette tâche — `compta_settings` y sera revérifiée avant de
 pousser.
 
+**5.6 Le socle du lot final — migration `0090`** (2026-07-28, appliquée sur l'UAT seulement).
+Les lignes de la feuille que l'app ne savait pas porter.
+
+| Objet | Forme | Pourquoi |
+|---|---|---|
+| `compta_period_entries` | `primary key (chatter_id, period_start)`, `carryover numeric(10,2)` **signé**, `top3_prime numeric(10,2) check (>= 0)` | Les deux montants valent pour la PÉRIODE entière — ni un jour, ni une semaine. Une table de plus, clée comme ses sœurs (`(chatter_id, date)`, `(chatter_id, week_start)`) |
+| `compta_setter_scale` | `rank smallint primary key`, `amount numeric(10,2)`, amorce = le barème de juin (200 → 80, Σ 1 796 €) | Barème réglable : une constante TypeScript aurait demandé un déploiement pour changer un chiffre |
+| `compta_debts.amount` | `text` → `numeric(10,2)`, plus `settled_by` | Même raison que `compta_primes` en 0085 : on ne calcule pas de l'argent en parsant une chaîne |
+| `profiles.closing_role` | `check` élargi à `('setter','closer','nouveau','hybride')` | La légende de la feuille connaît quatre états (L96-98) |
+
+`compta_period_entries` **reprend la contrainte d'alignement de `compta_payments`**
+(`check (mod(period_start − date '2026-07-06', 14) = 0)`) et pour la même raison : une ligne posée
+sur un lundi décalé porterait un report qu'aucune période affichée ne ramasserait — invisible, et
+jamais versé.
+
+`carryover` est la seule colonne de montant **signée** de la compta : un trop-perçu se reporte en
+négatif, et l'imposer positif obligerait à le contourner par un malus, qui ne dit pas la même
+chose sur la fiche. `top3_prime`, elle, refuse le négatif — la ligne signée d'à côté est là pour
+les corrections.
+
+Mesuré sur l'UAT le 2026-07-28 avant d'appliquer : `compta_debts` = 0 ligne, et son `amount`
+n'avait **aucun** défaut (le `'100 €'` mentionné au plan est celui de `compta_primes`). La prod
+n'a pas été ouverte. La conversion s'appuie sur le `not null` de la colonne comme garde : une
+valeur que l'expression ne sait pas réduire à un nombre donne `null`, donc la migration **échoue**
+au lieu de convertir de travers.
+
+> ⚠️ **`compta_payments` n'a AUCUNE colonne d'instantané pour ces trois montants** (`carryover`,
+> prime setter, prime du mois) — l'invariant §5.3 ne les couvre pas, et le `superRefine` de
+> `payInput` vérifie la somme des sept anciennes composantes seulement. Tant que
+> `compta-rows.ts` les passe à 0 (état actuel, tâche 22), rien ne casse ; **les brancher sans
+> migration ferait échouer tout paiement d'une fiche qui en porte une.** À traiter en tâche 23.
+>
+> ⚠️ **`profiles.closing_role` est écrit par Membres, dont l'UI porte une liste figée à deux
+> valeurs** (`CRM_ROLES`, `apps/web/src/lib/types/chatters.ts`). Élargir le `check` ne casse rien,
+> mais rien ne pourra produire `'nouveau'`/`'hybride'` avant que Membres soit élargi — et
+> `RoleBadge` afficherait « Setter » sur toute valeur ≠ `'closer'`. Volontairement non traité.
+
 ---
 
 ## 6. Droits et cloisonnement
 
 | Table | Admin | Manager / sous-manager | Chatteur |
 |---|---|---|---|
-| `compta_day_entries`, `compta_week_entries` | tout | lecture + écriture **sur ses rattachés** | — |
+| `compta_day_entries`, `compta_week_entries`, `compta_period_entries` | tout | lecture + écriture **sur ses rattachés** | — |
 | `compta_settings` | tout | lecture sur ses rattachés | — |
 | `compta_primes` | tout | lecture sur ses rattachés | — |
 | `compta_payments` | tout, **seul à écrire** | lecture sur ses rattachés | — |
+| `compta_setter_scale` | tout, **seul à écrire** | lecture (barème global) | — |
 | `compta_debts` | tout | — | — |
 
 Le chatteur n'a jamais la page. Manager **et** sous-manager ont le même accès : `is_manager()`
 couvre les deux, aucune policy distincte.
+
+`compta_setter_scale` est la seule table compta **sans `chatter_id`** : c'est une grille de
+tranches, elle ne désigne personne, donc la jambe `manages(chatter_id)` n'a rien à restreindre et
+sa lecture est ouverte à tout l'encadrement. Elle DOIT l'être : la prime setter est une composante
+du net, et un manager qui ne verrait pas le barème verrait cette prime à 0 € **sans aucune
+erreur** — exactement le défaut que `0086` a corrigé sur les sanctions Police (ci-dessous).
 
 Les policies actuelles (`has_page('compta')` sans cloisonnement) donnent la lecture de **toute**
 la compta à quiconque a la page. Elles sont remplacées par
@@ -481,9 +570,16 @@ fixe + handoffs). Puis handoffs à 0,60, prime due, cumul malus manuel + sanctio
 entièrement vide, et l'invariant
 `net = base + setter + bonus − malus + handoffs + prime − sanctions`.
 
+**`setter-rank.ts`** (tâche 22) — le classement sans ex æquo, les deux paires de juin (rang
+partagé, tranches mises en commun, et le **total du barème inchangé**), le saut de rang du
+classement « compétition », trois ex æquo et leur arrondi, une population plus courte que le
+barème, un barème incomplet (rang manquant, plus court, vide), le membre à 0 handoff exclu, et
+l'indifférence à l'ordre des entrées.
+
 Ces tests sont **vérifiés discriminants** : chaque régression a été réintroduite une par une
-dans `computePayslip`, et le test correspondant est tombé (détail dans les rapports de tâche 16
-et 19). Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
+dans `computePayslip` puis dans `rankSetters`, et le test correspondant est tombé (détail dans les
+rapports de tâche 16, 19 et 21-22 — 16 régressions couvrant chacun des tests des deux fichiers).
+Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
 
 **Les tests qui survivent à ce qu'ils gardaient sont SUPPRIMÉS, pas conservés.** La tâche 19 a
 retiré `fixeSetter` de `PayslipInput` : les quatre tests qui décrivaient son arbitrage sont

@@ -54,3 +54,4 @@ export {
   type PayPeriod,
 } from './compta/periods'
 export { computePayslip, HANDOFF_EUR, type Payslip, type PayslipInput } from './compta/payslip'
+export { rankSetters, type SetterRank, type SetterScaleRow } from './compta/setter-rank'

@@ -4,6 +4,7 @@ import { computePayslip, HANDOFF_EUR, type PayslipInput } from './payslip'
 const base: PayslipInput = {
   rate: 10, fixedAmount: 0,
   modelCa: {}, bonus: 0, malus: 0, handoffs: 0, primeDue: 0, sanctions: 0,
+  carryover: 0, setterPrime: 0, monthlyPrime: 0,
 }
 
 describe('computePayslip — base', () => {
@@ -94,19 +95,69 @@ describe('computePayslip — composantes', () => {
     // `toEqual` et non des assertions champ par champ : il compare la FORME complete de la
     // sortie. C est lui qui garde la disparition de `setterAdjusted` (tache 19) — le rendre
     // de nouveau ferait echouer ce test sur une cle en trop, sans que personne ait a y penser.
+    // Depuis la tache 22 il garde AUSSI la presence des trois lignes du lot final : les fondre
+    // dans `prime` (au lieu de les exposer separement, comme la feuille) fait tomber ce test.
     expect(r).toEqual({
       ca: 0, base: 0, setter: 0, bonus: 0, malus: 0,
-      handoffsAmount: 0, prime: 0, sanctions: 0, net: 0,
+      handoffsAmount: 0, prime: 0, sanctions: 0,
+      carryover: 0, setterPrime: 0, monthlyPrime: 0, net: 0,
     })
   })
 })
 
+describe('computePayslip — les trois lignes du lot final', () => {
+  // Trois valeurs DISTINCTES et distinctes de la prime d embauche : fondre deux de ces lignes
+  // l une dans l autre, ou en oublier une dans le net, se voit dans les nombres.
+  const trio = { ...base, modelCa: { a: 1000 }, carryover: 30, setterPrime: 117.5, monthlyPrime: 60 }
+
+  it('le report de la periode precedente s ajoute au net', () => {
+    const r = computePayslip({ ...base, modelCa: { a: 1000 }, carryover: 30 })
+    expect(r.carryover).toBe(30)
+    expect(r.net).toBe(130) // 100 de commission + 30 de report
+  })
+
+  it('le report est SIGNE : un trop-percu se reporte en negatif', () => {
+    // Seule entree signee de la formule. Un `Math.abs` ou un `- carryover` recopie sur le malus
+    // (stocke positif, soustrait) donnerait 120 ou 80 au lieu de 80... donc trois valeurs
+    // distinctes : 100 (report ignore), 120 (signe inverse), 80 (attendu).
+    const r = computePayslip({ ...base, modelCa: { a: 1000 }, carryover: -20 })
+    expect(r.carryover).toBe(-20)
+    expect(r.net).toBe(80)
+  })
+
+  it('la prime setter (TOP15) s ajoute au net, sur sa propre ligne', () => {
+    const r = computePayslip({ ...base, modelCa: { a: 1000 }, setterPrime: 117.5 })
+    expect(r.setterPrime).toBe(117.5)
+    expect(r.prime).toBe(0) // pas confondue avec la prime d embauche
+    expect(r.net).toBe(217.5)
+  })
+
+  it('la prime du mois (TOP3) s ajoute au net, sur sa propre ligne', () => {
+    const r = computePayslip({ ...base, modelCa: { a: 1000 }, monthlyPrime: 60 })
+    expect(r.monthlyPrime).toBe(60)
+    expect(r.prime).toBe(0)
+    expect(r.net).toBe(160)
+  })
+
+  it('les trois cohabitent, chacune lisible, et le net les contient toutes', () => {
+    const r = computePayslip(trio)
+    expect(r.carryover).toBe(30)
+    expect(r.setterPrime).toBe(117.5)
+    expect(r.monthlyPrime).toBe(60)
+    // 100 + 30 + 117,5 + 60. Le net est la SOMME DES LIGNES AFFICHEES : c est ce qui permet a un
+    // chatteur de refaire sa fiche de tete (spec §4).
+    expect(r.net).toBe(307.5)
+    expect(r.net).toBe(r.base + r.carryover + r.setterPrime + r.monthlyPrime)
+  })
+})
+
 describe('computePayslip — invariant', () => {
-  it('net = base + setter + bonus - malus + handoffs + prime - sanctions', () => {
+  it('net = base + setter + bonus - malus + handoffs + prime - sanctions + report + primes', () => {
     const r = computePayslip({
       rate: 12.5, fixedAmount: 150,
       modelCa: { a: 3333.33, b: 1111.11 }, bonus: 50, malus: 20,
       handoffs: 7, primeDue: 100, sanctions: 45,
+      carryover: -12.5, setterPrime: 117.5, monthlyPrime: 60,
     })
     // Valeurs calculees a la main (pas a partir du resultat de `r`) : le taux 12,5 % sur
     // 3333,33 / 1111,11 stresse deliberement l'arrondi flottant.
@@ -126,8 +177,12 @@ describe('computePayslip — invariant', () => {
     expect(r.handoffsAmount).toBe(4.2)
     expect(r.prime).toBe(100)
     expect(r.sanctions).toBe(45)
-    // net = 555,56 + 150 + 50 - 20 + 4,2 + 100 - 45 = 794,76
-    expect(r.net).toBe(794.76)
+    expect(r.carryover).toBe(-12.5)
+    expect(r.setterPrime).toBe(117.5)
+    expect(r.monthlyPrime).toBe(60)
+    // 555,56 + 150 + 50 - 20 + 4,2 + 100 - 45 = 794,76 (le net d avant la tache 22),
+    // puis - 12,5 + 117,5 + 60 = 959,76.
+    expect(r.net).toBe(959.76)
   })
 
   it('les composantes sont arrondies AVANT d etre sommees dans le net', () => {
@@ -142,11 +197,17 @@ describe('computePayslip — invariant', () => {
     const r = computePayslip({
       ...base,
       modelCa: { a: 1000 }, bonus: 0.004, primeDue: 0.004, handoffs: 7,
+      // Les trois lignes de la tache 22 sont soumises a la MEME regle que les anciennes : leur
+      // arrondi doit preceder la somme, sinon elles reintroduisent l ecart a elles seules.
+      carryover: 0.004, setterPrime: 0.004, monthlyPrime: 0.004,
     })
-    // bonus 0,004 -> 0,00 et prime 0,004 -> 0,00 : le net ne gagne PAS le centime que la
-    // somme brute (100 + 0,008 + 4,2) ferait apparaitre a 104,21.
+    // Chaque composante sous le centime -> 0,00 : le net ne gagne PAS les deux centimes que la
+    // somme brute (100 + 5 x 0,004 + 4,2 = 104,22) ferait apparaitre.
     expect(r.bonus).toBe(0)
     expect(r.prime).toBe(0)
+    expect(r.carryover).toBe(0)
+    expect(r.setterPrime).toBe(0)
+    expect(r.monthlyPrime).toBe(0)
     expect(r.base).toBe(100)
     expect(r.handoffsAmount).toBe(4.2)
     expect(r.net).toBe(104.2)

@@ -130,6 +130,20 @@ export async function loadComptaRows({
       handoffs,
       primeDue,
       sanctions: sancRows.reduce((t, x) => t + x.amount, 0),
+      // ── PAS ENCORE BRANCHÉES (tâche 23) ─────────────────────────────────────────────────
+      // Les trois lignes du lot final existent dans la formule (tâche 22) mais leurs sources
+      // n'y sont pas encore reliées : `carryover` et `monthlyPrime` viennent de
+      // `compta_period_entries` (table créée par 0090, pas encore lue par `compta-sources.ts`),
+      // `setterPrime` du classement `rankSetters` sur les handoffs de la période.
+      //
+      // ⚠️ AVANT DE LES REMPLIR, LIRE `.superpowers/sdd/2026-07-27-compta-paie/task-21-22-report.md`
+      // §« Ce que la tâche 23 doit reprendre » : `compta_payments` n'a AUCUNE colonne
+      // d'instantané pour ces trois montants, et le `superRefine` de `payInput` vérifie
+      // `amount = base + setter + bonus − malus + handoffs + prime − sanctions`. Les rendre non
+      // nulles sans migration ferait échouer TOUT paiement d'une fiche qui en porte une.
+      carryover: 0,
+      setterPrime: 0,
+      monthlyPrime: 0,
     })
 
     // Couverture : la période est payée si CHACUN de ses jours figure dans un `covered_days`.
