@@ -123,7 +123,7 @@ const columns: ColumnDef<MktLinkRow>[] = [
       const v = getValue() as number | null
       return (
         <span className="tabular-nums text-muted-foreground">
-          {v != null ? `${v.toLocaleString('fr-FR')} €` : '—'}
+          {v != null ? eur(v) : '—'}
         </span>
       )
     },

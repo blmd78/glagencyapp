@@ -1,6 +1,6 @@
 /**
  * Formateurs et arrondis partagés (fr-FR). Source unique — évite les copies dans chaque
- * service/table. `eur` arrondit à l'entier, `eur2` garde 2 décimales, `int` arrondit sans €.
+ * service/table. `eur` et `eur2` affichent 2 décimales, `int` arrondit sans €.
  * Les arrondis métier (`round1`/`round2`) viennent de @glagency/core (source unique web+ingestion).
  *
  * Intl.NumberFormat HOISTÉS : `toLocaleString(locale, options)` construit un formateur
@@ -16,8 +16,12 @@ const NF_2MAX = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 2 })
 const NF_1 = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
 const NF = new Intl.NumberFormat('fr-FR')
 
-export const eur = (n: number) => `${NF_INT.format(n)} €`
-export const eur2 = (n: number) => `${NF_2.format(n)} €`
+// Décision Benoit 2026-07-28 : les centimes s'affichent PARTOUT, plus d'arrondi à l'unité
+// sur un montant — deux formats pour un même chiffre étaient la source de confusions
+// (872,44 € ici, 872 € là). `eur` === `eur2` désormais ; `eur2` est conservé pour ne pas
+// réécrire les ~40 sites d'appel de la compta qui l'utilisent déjà.
+export const eur = (n: number) => `${NF_2.format(n)} €`
+export const eur2 = eur
 /** € avec jusqu'à 2 décimales (aucune si entier) — ex. montants de malus. */
 export const eur2max = (n: number) => `${NF_2MAX.format(n)} €`
 export const pct = (n: number) => `${NF_1.format(n)} %`

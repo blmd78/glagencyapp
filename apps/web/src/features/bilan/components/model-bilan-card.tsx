@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { num } from '@/lib/format'
+import { num, eur } from '@/lib/format'
 import type { ModelBilan } from '../types'
 
 /** Cellule de référence : le VRAI montant de la période (S-1/M-1), suivi de
@@ -52,7 +52,6 @@ const HEAD = 'text-right text-[10px] font-medium uppercase tracking-wide text-mu
  * période avec l'écart signé entre parenthèses — ex. « 20 936 € (+3 623) ».
  */
 export function ModelBilanCard({ m }: { m: ModelBilan }) {
-  const eur = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`
   const eur1 = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €`
 
   const int = (v: number) => Math.round(v).toLocaleString('fr-FR')

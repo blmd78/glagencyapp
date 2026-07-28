@@ -16,6 +16,7 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import type { DailyPoint } from '../types'
+import { eur } from '@/lib/format'
 
 const chartConfig = {
   revenue: { label: 'CA', color: 'var(--primary)' },
@@ -40,7 +41,7 @@ export function RevenueChart({
       <CardHeader className="border-b py-5">
         <CardTitle>CA quotidien</CardTitle>
         <CardDescription>
-          {periodLabel} · {Math.round(total).toLocaleString('fr-FR')} € au total
+          {periodLabel} · {eur(total)} au total
         </CardDescription>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6">
@@ -66,7 +67,7 @@ export function RevenueChart({
                     frDayLong(value)
                   }
                   formatter={(value) => (
-                    <span className="tabular-nums">{Number(value).toLocaleString('fr-FR')} €</span>
+                    <span className="tabular-nums">{eur(Number(value))}</span>
                   )}
                 />
               }
