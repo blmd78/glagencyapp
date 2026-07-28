@@ -30,7 +30,8 @@ import type { SuiviData, SuiviDebt, SuiviPrime } from '../types'
  * `compta_primes` n'a pas de ligne tant que l'admin n'a pas décidé un montant, et
  * `compta-rows.ts` ne compte la prime dans le net que si la ligne existe en `'due'`. Un membre
  * échu SANS ligne ne recevra donc RIEN, en silence. On le renvoie quand même (`missing: true`) :
- * c'est précisément la ligne sur laquelle l'admin doit agir.
+ * c'est précisément la ligne sur laquelle l'admin doit agir. À l'inverse, une prime RENONCÉE
+ * (`status = 'skipped'`) sort de la liste : rien n'est dû, même règle que le calcul.
  */
 export async function getSuivi(): Promise<SuiviData> {
   const today = todayParis()
@@ -48,13 +49,16 @@ export async function getSuivi(): Promise<SuiviData> {
     { data: primes, error: primesErr },
     { data: payments, error: payErr },
     { data: debts, error: debtsErr },
+    { data: firstSeen, error: fsErr },
   ] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, display_name, email, chatter_id')
       .eq('role', 'chatteur')
       .order('display_name'),
-    supabase.from('compta_primes').select('chatter_id, amount'),
+    // `status` AUSSI : une prime `'skipped'` (renoncée) n'a rien à faire dans une liste
+    // d'argent dû — elle est exclue plus bas, pas étiquetée.
+    supabase.from('compta_primes').select('chatter_id, amount, status'),
     // TOUTE la table, sans filtre : « ce membre a-t-il DÉJÀ reçu une prime » se lit sur
     // l'historique complet. `fetchAll` obligatoire — PostgREST tronque à 1000 lignes EN SILENCE,
     // et ~96 chatteurs × 26 périodes/an franchissent le plafond en quelques mois. Tronquée, la
@@ -73,22 +77,24 @@ export async function getSuivi(): Promise<SuiviData> {
           .order('settled')
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    // Date d'entrée : client ADMIN et non RLS, MÊME MOTIF que dans `compta-sources.ts` —
+    // `chatter_first_seen()` est `security invoker` et `chatter_daily` ne porte qu'une policy
+    // `chatter_daily_admin_read`. Appelée par un manager, elle rendrait ZÉRO ligne et l'onglet
+    // Suivi serait vide pour lui, sans une seule erreur. Aucune donnée brute n'en ressort : on
+    // n'y lit que les dates des membres déjà renvoyés par la RLS ci-dessus. Indépendante des
+    // autres lectures → dans le même `Promise.all` (pas de waterfall).
+    admin.rpc('chatter_first_seen'),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (primesErr) throw new Error(primesErr.message)
   if (payErr) throw new Error(payErr.message)
   if (debtsErr) throw new Error(debtsErr.message)
-
-  // Date d'entrée : client ADMIN et non RLS, MÊME MOTIF que dans `compta-sources.ts` —
-  // `chatter_first_seen()` est `security invoker` et `chatter_daily` ne porte qu'une policy
-  // `chatter_daily_admin_read`. Appelée par un manager, elle rendrait ZÉRO ligne et l'onglet
-  // Suivi serait vide pour lui, sans une seule erreur. Aucune donnée brute n'en ressort : on n'y
-  // lit que les dates des membres déjà renvoyés par la RLS ci-dessus.
-  const { data: firstSeen, error: fsErr } = await admin.rpc('chatter_first_seen')
   if (fsErr) throw new Error(fsErr.message)
 
   const seenByChatter = new Map((firstSeen ?? []).map((r) => [r.chatter_id, r.first_seen]))
-  const primeByMember = new Map((primes ?? []).map((p) => [p.chatter_id, Number(p.amount)]))
+  const primeByMember = new Map(
+    (primes ?? []).map((p) => [p.chatter_id, { amount: Number(p.amount), status: p.status }]),
+  )
   const primePaid = new Set(payments.filter((p) => Number(p.prime_amount) > 0).map((p) => p.chatter_id))
 
   const suiviPrimes: SuiviPrime[] = (members ?? []).flatMap((m) => {
@@ -99,19 +105,23 @@ export async function getSuivi(): Promise<SuiviData> {
     const fs = m.chatter_id ? seenByChatter.get(m.chatter_id) : undefined
     if (fs == null) return []
     if (primePaid.has(m.id)) return []
+    const prime = primeByMember.get(m.id)
+    // Prime RENONCÉE (`status = 'skipped'`) : rien n'est dû, le membre sort de la liste — même
+    // règle que le calcul (`compta-rows.ts`, seul `'due'` se verse). L'étiqueter « renoncée »
+    // ici serait faux : cette liste est une liste d'argent à verser, pas un état des lieux.
+    if (prime?.status === 'skipped') return []
     const dueOn = addMonthsSameDay(fs, 1)
     // ÉCHUE seulement : l'échéance est passée. `<=` et non `<` — le jour même compte, c'est le
     // premier jour où le mois d'essai est complet.
     if (dueOn > today) return []
-    const amount = primeByMember.get(m.id)
     return [
       {
         memberId: m.id,
         name: m.display_name ?? m.email ?? '—',
         firstSeen: fs,
         dueOn,
-        amount: amount ?? 0,
-        missing: amount == null,
+        amount: prime?.amount ?? 0,
+        missing: prime == null,
       },
     ]
   })

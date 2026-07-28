@@ -34,7 +34,9 @@ export function WeekSwitcher({
   const selectWeek = (start: string) => {
     const next = new URLSearchParams(searchParams)
     next.set('week', start)
-    startTransition(() => router.push(`?${next.toString()}`))
+    // `replace` + `scroll: false` (guidelines §6, cf. `date-range-picker.tsx`) : un filtre
+    // d'URL ne crée pas d'entrée d'historique ni ne remonte la page.
+    startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
 
   return (

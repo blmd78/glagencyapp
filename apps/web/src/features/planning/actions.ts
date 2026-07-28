@@ -177,10 +177,11 @@ export async function saveBlock(raw: unknown): Promise<ActionResult> {
           .insert({ ...row, position: count ?? 0 })
         if (error) throw new Error(error.message)
       }
-      await supabase
+      const { error: touchErr } = await supabase
         .from('plannings')
         .update({ updated_at: new Date().toISOString(), updated_by: admin.id })
         .eq('id', planning.id)
+      if (touchErr) throw new Error(touchErr.message)
       revalidatePath('/chatter/planning')
     },
   })

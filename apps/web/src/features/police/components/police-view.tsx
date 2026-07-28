@@ -47,12 +47,14 @@ export function PoliceView({
   const selectDay = (day: string) => {
     const next = new URLSearchParams(searchParams)
     next.set('day', day)
-    startTransition(() => router.push(`?${next.toString()}`))
+    // `replace` + `scroll: false` (guidelines §6) : filtre d'URL, pas d'entrée d'historique.
+    startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
   const selectMonth = (month: string) => {
     const next = new URLSearchParams(searchParams)
     next.set('month', month)
-    startTransition(() => router.push(`?${next.toString()}`))
+    // `replace` + `scroll: false` (guidelines §6) : filtre d'URL, pas d'entrée d'historique.
+    startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
 
   // Saisie visible seulement pour un écrivain ET en mode jour (le mois = consultation pure).

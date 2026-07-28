@@ -3,7 +3,7 @@
 import { frDateNumeric } from '@glagency/core'
 import { eur2 } from '@/lib/format'
 import { ComptaDebtList } from './compta-debt-list'
-import { SECTION_HEAD, COL_HEAD } from './compta-payslip-calc'
+import { SECTION_HEAD, COL_HEAD } from './styles'
 import type { SuiviData, SuiviPrime } from '../types'
 
 /**
@@ -45,7 +45,8 @@ export function ComptaSuiviView({
  * Les primes ÉCHUES et NON VERSÉES. Échéance = arrivée + 1 mois ; « non versée » se lit sur
  * l'instantané `compta_payments.prime_amount`, jamais sur `compta_primes.status` — ce dernier est
  * posé par un second aller-retour qui peut échouer, et une prime réellement versée y resterait
- * `'due'` (cf. `services/get-suivi.ts`).
+ * `'due'` (cf. `services/get-suivi.ts`). Une prime RENONCÉE (`status = 'skipped'`) n'apparaît
+ * pas : rien n'est dû.
  *
  * LA COLONNE MONTANT EST LA RAISON D'ÊTRE DE CETTE LISTE. Une prime n'entre dans le net que si
  * une ligne `compta_primes` existe avec un montant : un membre échu SANS montant ne recevra

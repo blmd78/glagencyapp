@@ -7,7 +7,7 @@ import type { PayPeriod, SetterScaleRow } from '@glagency/core'
 import { Combobox } from '@/components/ui/combobox'
 import { eur2 } from '@/lib/format'
 import { ComptaScaleForm } from './compta-scale-form'
-import { SECTION_HEAD, COL_HEAD } from './compta-payslip-calc'
+import { SECTION_HEAD, COL_HEAD } from './styles'
 import type { SetterRankingRow } from '../types'
 
 /**

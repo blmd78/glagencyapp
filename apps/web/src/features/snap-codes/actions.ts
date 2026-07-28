@@ -5,9 +5,9 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { encryptSecret } from '@/lib/snap-crypto'
-import { SNAP_STATUTS } from './types'
+import { MDP_KEY_MISSING, SNAP_STATUTS } from './types'
 
 // Zod NON partagé côté client (le tableau appelle l'action directement, pas de form RHF)
 // → reste inline (même choix que features/quotas/actions.ts).
@@ -26,6 +26,15 @@ export async function saveSnapCode(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: adminGuard,
     handler: async (values) => {
+      // La SENTINELLE de lecture (« clé de déchiffrement absente ») n'est pas un mot de passe :
+      // c'est la valeur que `getSnapCodes` injecte dans le champ quand la clé manque. En
+      // autosave, un simple blur la renverrait telle quelle — la chiffrer écraserait l'ancien
+      // ciphertext, encore récupérable avec la bonne clé. Refus MÉTIER explicite.
+      if (values.mdp === MDP_KEY_MISSING) {
+        throw new BusinessError(
+          'Mot de passe non enregistré : la valeur affichée est un avertissement (clé de déchiffrement absente), pas le mot de passe.',
+        )
+      }
       // Chiffré au repos (AES-256-GCM, clé en env) : un dump de la base ne révèle rien.
       // Une clé absente/invalide fait throw encryptSecret — erreur technique, capturée par
       // runAction (Sentry + message générique), jamais le détail brut à l'UI.

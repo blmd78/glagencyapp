@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { itemInput } from './schema'
 
 /** Crée (id null → en fin de script) ou modifie un item du script d'un modèle. */
@@ -154,7 +154,10 @@ export async function moveScriptItem(raw: unknown): Promise<ActionResult> {
         .order('position', { ascending: direction === 'down' })
         .limit(1)
         .maybeSingle()
-      if (!neighbor) throw new Error('Déjà en bout de script')
+      // Refus MÉTIER (message français écrit par nous, guidelines §3) : `BusinessError` remonte
+      // tel quel dans l'ActionResult — une `Error` nue serait avalée en « Erreur inattendue »
+      // et polluerait Sentry pour un cas normal (course avec un autre déplacement).
+      if (!neighbor) throw new BusinessError('Déjà en bout de script')
 
       // Échange des positions (2 updates — un échec au milieu laisse au pire un doublon de
       // position sans perte de données, corrigé au prochain déplacement).

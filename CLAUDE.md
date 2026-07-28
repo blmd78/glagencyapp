@@ -67,8 +67,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `police_report_lines.a_marche`/`a_regler`, migrations `0071`/`0072`). Upsert sur (auteur,
   modèle, jour). **Écriture** : police / manager avec la page / admin (miroir RLS + garde
   `requireReporter`) ; la saisie est masquée aux lecteurs seuls. **Lecture** : qui a la page +
-  admins. **Cloisonnement modèle côté app** via `profile_creators` (helper `assignedCreatorIds`
-  — même source pour lecture, écriture et options ; jamais `getChatterScope`). Consultation =
+  admins. **NON cloisonné par modèle** depuis la migration `0078` (qui annule 0074/0075 et
+  repointe `chatter_id` sur `profiles`) : tout porteur de la page voit tous les modèles et tous
+  les rapports ; `profile_creators` ne sert plus qu'à grouper les chatteurs par modèle dans le
+  formulaire (`getChattersByModel`, client admin). Consultation =
   historique filtrable par modèle / par chatteur (suppression de son propre rapport uniquement).
 
 ## Données MyPuls — workflow d'ajout

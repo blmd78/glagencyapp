@@ -5,7 +5,7 @@ import type { WheelEvent } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { COL_HEAD } from './compta-payslip-calc'
+import { COL_HEAD } from './styles'
 
 /**
  * La GRILLE des saisies hebdomadaires — en-tête de colonnes, cellule de saisie, témoin

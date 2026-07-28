@@ -1,24 +1,13 @@
 'use client'
 
-import { addDays, DEFAULT_RATE, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
+import { addDays, DEFAULT_RATE, HANDOFF_EUR, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
 import { eur2 } from '@/lib/format'
 import { ComptaModelBreakdown } from './compta-model-breakdown'
 import { ComptaPayDialog } from './compta-pay-dialog'
+// `SECTION_HEAD`/`COL_HEAD` vivent dans `./styles` (module sans 'use client') : exportées d'ici,
+// un Server Component qui les importe recevrait des références client, pas les classes CSS.
+import { SECTION_HEAD } from './styles'
 import type { ComptaRow } from '../types'
-
-/**
- * Titre de BLOC de la fiche (« Ajustements », « Saisies hebdomadaires »…). Reprise EXACTE de
- * l'échelle que portaient déjà les en-têtes de formulaire de la feature
- * (`compta-entry-form.tsx`, `compta-settings-form.tsx`) — aucune échelle nouvelle introduite.
- */
-export const SECTION_HEAD = 'text-xs font-medium uppercase tracking-wide text-muted-foreground'
-
-/**
- * Titre de COLONNE — un cran plus discret que le titre de bloc. C'est cet écart-là qui fait la
- * hiérarchie : deux niveaux, pas six blocs au même volume. Partagé avec l'en-tête des saisies
- * (`compta-entry-form.tsx`), qui doit parler la même langue que la ventilation.
- */
-export const COL_HEAD = 'text-[10px] font-semibold uppercase tracking-wide text-muted-foreground'
 
 /**
  * Une ligne de calcul : libellé à gauche, montant aligné à droite en tabulaire. Le SIGNE est
@@ -125,7 +114,7 @@ export function ComptaPayslipCalc({
           {p.bonus !== 0 && <Line label="Bonus" amount={p.bonus} />}
           {p.malus !== 0 && <Line label="Malus saisis" amount={-p.malus} red />}
           {row.handoffs > 0 && (
-            <Line label={`Handoffs — ${row.handoffs} × 0,60 €`} amount={p.handoffsAmount} />
+            <Line label={`Handoffs — ${row.handoffs} × ${eur2(HANDOFF_EUR)}`} amount={p.handoffsAmount} />
           )}
           {p.prime !== 0 && <Line label="Prime nouveau chatteur" amount={p.prime} />}
           {/* La PRIME SETTER, sur SA ligne comme les autres composantes : la fiche doit se

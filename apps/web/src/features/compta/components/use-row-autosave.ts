@@ -45,7 +45,6 @@ export function useRowAutosave<TIn extends FieldValues, TOut extends FieldValues
   fields,
   initial,
   save,
-  onSaved,
 }: {
   /** `useForm<TIn, unknown, TOut>` de l'appelant — input ≠ output, les champs `z.coerce.number()`
    *  ont un type d'entrée `unknown`. */
@@ -56,7 +55,6 @@ export function useRowAutosave<TIn extends FieldValues, TOut extends FieldValues
   /** Valeurs rendues par le serveur — la référence de départ de « ça a changé ». */
   initial: Readonly<Record<string, number>>
   save: (values: TOut) => Promise<ActionResult>
-  onSaved?: () => void
 }): {
   status: SaveStatus
   /** À étaler sur le `<form>` de la ligne. */
@@ -124,7 +122,6 @@ export function useRowAutosave<TIn extends FieldValues, TOut extends FieldValues
         // `changed()` de nouveau : si l'utilisateur a retapé pendant l'envoi, la ligne est encore
         // en attente — annoncer « Enregistré » serait faux. Le prochain `commit()` l'écrira.
         setStatus(changed() ? 'dirty' : 'saved')
-        onSaved?.()
       },
       () => {
         // Zod client a refusé : RIEN n'est parti. Les messages sont sous les champs fautifs, et

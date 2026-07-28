@@ -42,13 +42,11 @@ export function ComptaEntryForm({
   weekStart,
   weekLabel,
   initial,
-  onSaved,
 }: {
   chatterId: string
   weekStart: string
   weekLabel: string
   initial: { bonus: number; malus: number; handoffs: number; note: string | null }
-  onSaved?: () => void
 }) {
   'use no memo'
 
@@ -69,7 +67,6 @@ export function ComptaEntryForm({
     fields: AMOUNT_FIELDS,
     initial: { bonus: initial.bonus, malus: initial.malus, handoffs: initial.handoffs },
     save: saveWeekEntry,
-    onSaved,
   })
 
   const err = (f: (typeof AMOUNT_FIELDS)[number]) => errors[f]?.message

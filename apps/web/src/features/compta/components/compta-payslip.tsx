@@ -3,7 +3,8 @@
 import { frDayShort, type PayPeriod } from '@glagency/core'
 import { ComptaEntryForm } from './compta-entry-form'
 import { ComptaEntryHeader } from './compta-entry-grid'
-import { ComptaPayslipCalc, SECTION_HEAD } from './compta-payslip-calc'
+import { ComptaPayslipCalc } from './compta-payslip-calc'
+import { SECTION_HEAD } from './styles'
 import type { ComptaRow } from '../types'
 
 /**

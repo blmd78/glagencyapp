@@ -3,8 +3,9 @@
 // Server Actions du tracker spenders (relances R1→R10, reset, archive) — supabase-js + RLS.
 // Droit : admin ou page `crm-spenders`. Le cloisonnement par modèle est appliqué par la RLS
 // (policies de 0038) ; on garde ici le contrôle d'accès de page + la validation zod.
-// Standard runAction (docs/guidelines-standard-feature.md §4) : la garde d'entrée vit dans
-// `guard` ; `handler` re-dérive le même résultat à partir des `values` déjà validées.
+// ⚠️ ANCIEN patron guard+handler sur `addRelance` (pré-check métier dans le `guard`, re-dérivé
+// dans le `handler`) — dette DOCUMENTÉE, à migrer vers « vérification une seule fois dans le
+// handler » (docs/guidelines-standard-feature.md §4, migration au coup par coup).
 
 import { revalidatePath } from 'next/cache'
 import { todayParis } from '@glagency/core'
@@ -65,7 +66,9 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
     handler: async (p) => {
       const supabase = await createClient()
       const [profile, { data: crm }] = await Promise.all([
-        getProfile(), // React.cache : déjà résolu par le guard dans cette même requête.
+        // Dette guard+handler : getProfile refait la requête ici (`cache()` inopérant hors
+        // rendu RSC) — cf. docs/guidelines-standard-feature.md §4, résorbé à la migration.
+        getProfile(),
         supabase
           .from('spender_crm')
           .select('compteur_base, compteur_reset_at')

@@ -1,6 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { decryptSecret } from '@/lib/snap-crypto'
-import { SNAP_STATUTS, type SnapCodesData, type SnapCodeRow, type SnapStatut } from '../types'
+import {
+  MDP_KEY_MISSING,
+  SNAP_STATUTS,
+  type SnapCodesData,
+  type SnapCodeRow,
+  type SnapStatut,
+} from '../types'
 
 /**
  * Codes Snap : UNE ligne par modèle actif (les modèles sans code apparaissent vides —
@@ -37,8 +43,10 @@ export async function getSnapCodes(): Promise<SnapCodesData> {
         creatorId: c.id,
         model: c.name,
         pseudo: code?.pseudo ?? '',
-        // Stocké chiffré (AES-256-GCM) — null = clé absente : état dégradé lisible.
-        mdp: decryptSecret(code?.mdp ?? '') ?? '⚠ clé de déchiffrement absente',
+        // Stocké chiffré (AES-256-GCM) — null = clé absente : état dégradé lisible. La
+        // sentinelle est REFUSÉE à l'écriture (`saveSnapCode`) : en autosave, un blur la
+        // persisterait sinon par-dessus l'ancien mot de passe encore déchiffrable.
+        mdp: decryptSecret(code?.mdp ?? '') ?? MDP_KEY_MISSING,
         statut: (SNAP_STATUTS as readonly string[]).includes(statut ?? '')
           ? (statut as SnapStatut)
           : 'actif',

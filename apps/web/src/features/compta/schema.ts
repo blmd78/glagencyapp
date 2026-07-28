@@ -56,19 +56,9 @@ const rateSegments = z
   )
   .max(14, 'Trop de segments de taux')
 
-/** Saisie d'un JOUR (bonus/malus/handoffs). */
-export const dayEntryInput = z.object({
-  chatterId: z.uuid(),
-  date: iso,
-  bonus: money,
-  malus: money,
-  handoffs: z.coerce.number().int().min(0).max(999),
-  note: z.string().trim().max(500, '500 caractères max').nullable(),
-})
-export type DayEntryInput = z.infer<typeof dayEntryInput>
-
 /**
- * Saisie d'une SEMAINE — les MÊMES trois montants que le jour.
+ * Saisie d'une SEMAINE — bonus/malus/handoffs. (L'ancien `dayEntryInput`, saisie au JOUR,
+ * a été retiré : plus aucun consommateur depuis le passage au grain hebdomadaire.)
  *
  * `fixeSetter` a quitté ce contrat le 2026-07-28 (tâche 19), et pas seulement le formulaire :
  * un champ que l'écran ne peut plus produire mais que l'action accepte encore reste une porte

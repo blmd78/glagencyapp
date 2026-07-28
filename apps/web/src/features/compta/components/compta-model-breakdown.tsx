@@ -5,7 +5,7 @@ import { DEFAULT_RATE, frDayLong, type PayslipSegment } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { eur2 } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
-import { COL_HEAD } from './compta-payslip-calc'
+import { COL_HEAD } from './styles'
 import type { ComptaRow } from '../types'
 
 /** « du 6 au 12 juillet » — les bornes d'un segment de taux, comme la feuille nomme ses blocs. */

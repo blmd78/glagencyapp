@@ -1,6 +1,6 @@
 import { frDayShort } from '@glagency/core'
 import { eur2 } from '@/lib/format'
-import { SECTION_HEAD, COL_HEAD } from './compta-payslip-calc'
+import { SECTION_HEAD, COL_HEAD } from './styles'
 import type { MoisData, MoisRow } from '../types'
 
 /**

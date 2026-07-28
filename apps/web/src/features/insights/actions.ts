@@ -7,7 +7,7 @@ import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { getChatters } from '@/lib/services/get-chatters'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { setInsightStateInput } from './schema'
 
 /**
@@ -57,7 +57,9 @@ export async function setInsightState(raw: unknown): Promise<ActionResult> {
     handler: async (values) => {
       // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
       const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      // Message métier (français, écrit par nous) → BusinessError (guidelines §3) : remonte tel
+      // quel dans l'ActionResult au lieu d'être avalé en « Erreur inattendue » + bruit Sentry.
+      if (!profile) throw new BusinessError('Session expirée') // impossible si le guard a laissé passer
 
       const supabase = await createClient()
       const { error } = await supabase.from('insight_states').upsert(

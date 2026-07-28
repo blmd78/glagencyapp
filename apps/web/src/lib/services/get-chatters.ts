@@ -10,8 +10,6 @@ import type {
 
 import { conv, round1, round2 } from '@/lib/format'
 
-/** Barème de commission par défaut (10 % du CA) — à remplacer par la vraie config plus tard. */
-
 /** Forme brute renvoyée par le RPC `chatters_report` — sommes déjà agrégées EN BASE. */
 interface Report {
   /** Agrégat tous-modèles par chatteur (chatter_daily). Vide en restreint (RLS admin-only). */
