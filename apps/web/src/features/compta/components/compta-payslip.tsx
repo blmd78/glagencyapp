@@ -13,10 +13,15 @@ import type { ComptaRow } from '../types'
  * DEUX ZONES, dans cet ordre (refonte du 2026-07-27, demande du propriétaire : « quand on
  * ouvre l'accordéon simplifie l'affichage que ce soit facile à lire simple et intuitif ») :
  *
- *   1. CE QU'ON LIT — `ComptaPayslipCalc` : la base, les ajustements, le net qui conclut avec
+ *   1. CE QU'ON SAISIT — une LIGNE par semaine, en-tête de colonnes écrit une seule fois.
+ *   2. CE QU'ON LIT — `ComptaPayslipCalc` : la base, les ajustements, le net qui conclut avec
  *      le bouton de paiement à côté. C'était six blocs empilés au même volume visuel, le net
  *      coincé au milieu.
- *   2. CE QU'ON SAISIT — une LIGNE par semaine, en-tête de colonnes écrit une seule fois.
+ *
+ * La saisie passe DEVANT le calcul (demande du propriétaire, « il faudrait remonter saisie
+ * hebdomadaire en haut ») : on déplie une ligne pour SAISIR, le calcul est la conséquence
+ * qu'on lit ensuite. L'ordre suit le geste, pas la logique de la formule. Le net reste la
+ * conclusion visuelle du panneau, en bas — c'est aussi là que se trouve le bouton de paiement.
  *
  * CE QU'ON CONFIGURE a QUITTÉ ce panneau le même jour (« je pense qu'on peut mettre un
  * engrenage pour gérer les paramètres de chaque chatter pour simplifier l'affichage ») : taux,
@@ -63,8 +68,6 @@ export function ComptaPayslip({
 
   return (
     <div className="flex flex-col gap-6">
-      <ComptaPayslipCalc row={row} period={period} canPay={canPay} periodElapsed={periodElapsed} />
-
       {canEnter && (
         <div className="flex flex-col gap-2">
           <span className={SECTION_HEAD}>Saisies hebdomadaires</span>
@@ -82,6 +85,8 @@ export function ComptaPayslip({
           ))}
         </div>
       )}
+
+      <ComptaPayslipCalc row={row} period={period} canPay={canPay} periodElapsed={periodElapsed} />
     </div>
   )
 }
