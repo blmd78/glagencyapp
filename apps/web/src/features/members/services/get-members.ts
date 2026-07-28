@@ -32,7 +32,9 @@ export async function getMembers(): Promise<MembersData> {
   const admin = createAdminClient()
   // Le lien chatteur est admin-only → on ne requête/expose la liste agence-wide des chatteurs QUE
   // pour un admin (getProfile est caché : déjà appelé par requireAdminOrManager dans le même rendu).
-  const isAdmin = (await getProfile())?.role === 'admin'
+  // `caller` sert AUSSI à calculer `editable` ligne par ligne, plus bas.
+  const caller = await getProfile()
+  const isAdmin = caller?.role === 'admin'
   const [
     { data: profiles, error: profilesErr },
     { data: links, error: linksErr },
@@ -172,6 +174,23 @@ export async function getMembers(): Promise<MembersData> {
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
       chatterId: p.chatter_id ?? '',
       createdAt: p.created_at,
+      // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────
+      // La règle est celle de `requireEditableTarget` (`authz.ts`), recopiée telle quelle :
+      // `caller.role !== 'admin' && (target.role !== 'chatteur' || target.manager_id !==
+      // caller.id)` → refus. Donc admin (superadmin compris, `getProfile` les mappe tous deux
+      // sur `'admin'` — la MÊME valeur que lit `authz.ts`) : tout ; manager/sous-manager :
+      // uniquement un `chatteur` qu'il encadre DIRECTEMENT.
+      //
+      // Depuis 0087 la RLS `profiles` rend à un manager TOUT son sous-arbre, alors que
+      // `authz.ts` est resté direct (à raison : voir ≠ éditer). Sans ce drapeau, la table
+      // afficherait Modifier/Supprimer sur les chatteurs de ses sous-managers — des boutons
+      // qui échouent à tous les coups sur « Ce membre n'est pas dans ton équipe ».
+      //
+      // C'est de l'OPTIMISTE UI, rien d'autre : la garde réelle reste `authz.ts` côté action
+      // et la RLS côté base. Aucune décision de sécurité ne repose sur ce booléen.
+      // Les deux autres refus de `requireEditableTarget` (cible superadmin, cible admin vue
+      // par un non-propriétaire) restent où ils sont déjà traités — `RowActions`.
+      editable: isAdmin || (p.role === 'chatteur' && p.manager_id === caller?.id),
       // `undefined` (et pas un objet aux défauts) pour un non-admin : c'est ce qui fait que
       // l'onglet n'est pas monté. Les `Number(...)` : PostgREST rend le `numeric` en chaîne.
       pay: isAdmin

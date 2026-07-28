@@ -101,3 +101,10 @@ create policy profile_creators_self_admin_or_team_read on public.profile_creator
     or (select public.is_admin())
     or ((select public.is_manager()) and profile_id = any (array(select public.managed_subtree())))
   );
+
+-- Les default privileges du projet Supabase donnent EXECUTE à anon/authenticated/service_role
+-- à la CRÉATION d'une fonction — un `revoke … from public` ne retire PAS ces grants explicites
+-- (vérifié : has_function_privilege('anon', …) = true malgré le revoke ci-dessus). anon n'a
+-- rien à faire ici : auth.uid() null → set vide, mais on ne laisse pas une fonction RLS
+-- exposée en rpc anonyme. (Déjà appliqué sur l'UAT à la main, preuve avant/après t→f.)
+revoke execute on function public.managed_subtree() from anon;

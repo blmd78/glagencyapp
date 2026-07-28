@@ -46,6 +46,13 @@ export interface Member {
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string
+  /** L'appelant peut-il MODIFIER/SUPPRIMER cette ligne ? Calqué sur `requireEditableTarget`
+   *  (`authz.ts`), calculé côté serveur dans `get-members.ts` : admin → tout ; manager →
+   *  uniquement un compte `chatteur` dont il est le manager DIRECT. Nécessaire depuis 0087 :
+   *  la RLS `profiles` lui laisse VOIR tout son sous-arbre alors que l'écriture est restée
+   *  directe — sans ce drapeau, l'écran offrirait des boutons qu'`authz.ts` refuse toujours.
+   *  **Optimiste UI seulement** : la garde réelle reste `authz.ts` + la RLS. */
+  editable: boolean
   /** Réglages de paie — **`undefined` pour un non-admin**, et c'est délibéré : la RLS
    *  `compta_settings_admin_write` / `compta_primes_admin_write` (0085) réserve l'écriture à
    *  l'admin. Un manager peut ouvrir ce dialog dans son périmètre : lui envoyer ces valeurs
