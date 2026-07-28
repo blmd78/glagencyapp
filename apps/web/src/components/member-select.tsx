@@ -33,7 +33,11 @@ export function MemberSelect({
   members: SelectableMember[]
   /** Personne visée, ou `null` = aucun filtre (affiche « Tous les membres »). */
   value: string | null
-  /** Propose « Tous les membres ». Faux là où « tous » n'a pas de sens (cible d'une to-do). */
+  /**
+   * Propose « Tous les membres ». Les deux appelants actuels (Planning, Rapports) le passent
+   * toujours : partout où ce sélecteur est monté, il FILTRE une pile de noms. Le défaut `false`
+   * reste pour un appelant futur qui exigerait de désigner UNE personne.
+   */
   allowAll?: boolean
 }) {
   const router = useRouter()

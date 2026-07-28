@@ -1,19 +1,6 @@
 // Types / forme des props de la feature « Police » (tracker sanctions chatteurs).
-
-/** 11 types d'erreurs contrôlés — repris de l'outil HTML source (setters/closers). */
-export const POLICE_ERRORS = [
-  { key: 'media_argent', label: 'Parle de média/argent directement' },
-  { key: 'reactivite', label: 'Réponse > 45 s par sub' },
-  { key: 'media_rapide', label: 'Envoi de média trop rapide' },
-  { key: 'fautes', label: "Fautes d'orthographe" },
-  { key: 'setter_lent', label: 'Ne récupère pas vite les nouveaux (setter)' },
-  { key: 'hors_script', label: "Ne suit pas l'histoire du script" },
-  { key: 'sexu_faible', label: 'Sexualisation faible (ne fait pas baver)' },
-  { key: 'promesse', label: 'Promesse non tenue (setter)' },
-  { key: 'temps_media', label: "N'attend pas le temps du média" },
-  { key: 'infos_non_transmises', label: 'Ne transmet pas les infos' },
-  { key: 'infos_non_notees', label: 'Ne note pas les infos' },
-] as const
+// Les motifs de sanction (`POLICE_ERRORS`, `ERROR_LABEL`) vivent dans
+// `lib/types/police-errors.ts` — partagés avec `features/compta` (import cross-feature interdit).
 
 /** Moments de contrôle (métadonnée optionnelle sur une ligne). */
 export const SHIFTS = ['matin', 'aprem', 'soir'] as const

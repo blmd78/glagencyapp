@@ -158,7 +158,7 @@ export function RelanceCounter({
 }
 
 /** Bouton « Reset compteur » — proposé quand le fan a reconverti. */
-export function ResetButton({ target, title }: { target: Target; title?: string }) {
+function ResetButton({ target, title }: { target: Target; title?: string }) {
   const [pending, startTransition] = useTransition()
   const { apply } = useSpendersOptimistic()
   return (

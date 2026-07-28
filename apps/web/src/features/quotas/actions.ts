@@ -9,8 +9,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
 
 // ── Seuils journaliers ────────────────────────────────────────────────────────
 
@@ -37,11 +36,11 @@ export async function saveQuotas(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: saveQuotasSchema,
     input: raw,
-    guard: adminGuard,
+    // Le handler a besoin du profil (updated_by) → contrôle admin en tête de handler,
+    // une seule requête (patron §4 des guidelines, requireAdminProfile).
+    guard: noGuard,
     handler: async ({ upserts, deletes }) => {
-      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const profile = await requireAdminProfile()
 
       const supabase = await createClient()
 

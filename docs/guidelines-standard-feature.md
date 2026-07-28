@@ -176,8 +176,12 @@ features/<f>/
   dépend d'une lecture DB ou d'un droit fin (« Bloc introuvable », « Cette tâche n'existe
   plus », cible hors périmètre du manager…), la vérification vit **exclusivement dans le
   `handler`**, jamais dans le `guard`. Un refus lève `throw new BusinessError('message',
-  fieldErrors?)`. Le `guard` associé est `noGuard` (`const noGuard = async () => ({ ok: true as
-  const })` — `runAction` exige un `guard`, `noGuard` le satisfait sans rien vérifier).
+  fieldErrors?)`. Le `guard` associé est `noGuard` (exporté par `lib/actions` — `runAction`
+  exige un `guard`, `noGuard` le satisfait sans rien vérifier). Quand le handler a besoin du
+  profil (updated\_by, paid\_by…) ET que le droit est générique, `lib/actions` fournit les
+  jumeaux côté handler des gardes partagées : `requireAdminProfile()`,
+  `requireWriteProfile(slug)`, `requirePageProfile(slug)` — une seule requête, refus =
+  `BusinessError('Accès refusé')`, retourne le `Profile`.
   Exemples canoniques : `features/todos/actions.ts` (`requireCanWriteTodo`),
   `features/planning/actions.ts` (`requireCanEdit`, `saveBlock`).
 
@@ -219,11 +223,14 @@ features/<f>/
   fait DEPUIS une Server Action (`guard`/`handler` de `runAction`) — deux contextes d'exécution
   différents, une seule des deux mémoïse.
 
-  État du code (2026-07) : `todos/actions.ts` et `planning/actions.ts` suivent déjà ce patron ;
-  `members/actions.ts`, `insights/actions.ts`, `police/actions.ts`, `quotas/actions.ts`,
-  `scripts/actions.ts`, `repos/actions.ts`, `spenders/actions.ts` (`addRelance`) et
-  `marketing-staff/actions.ts` montrent encore l'ancien — migration au coup par coup (chantier
-  séparé par feature, avec test manuel), pas un find-and-replace en masse.
+  État du code : dette **soldée le 2026-07-28** (chantier audit-normes, vague 2). Tous les
+  `actions*.ts` suivent ce patron : `todos` et `planning` (pilotes), puis `members/actions.ts`
+  (+ `actions-pay.ts`), `insights`, `police`, `quotas`, `scripts`, `repos`, `spenders`
+  (`addRelance`), `marketing-staff`, `reports` (`upsertReport`), `police-reports` et les trois
+  fichiers de `compta` (`actions.ts`, `actions-pay.ts`, `actions-config.ts`). Une action dont
+  le handler n'a besoin ni du profil ni d'un pré-check DB garde une garde générique
+  (`adminGuard`/`pageGuard`/`managerPageGuard`) — c'est conforme : rien n'y est vérifié deux
+  fois. L'ancien patron ne survit nulle part — ne pas le réintroduire.
 - **Gardes de `runAction` — ne jamais passer un helper `redirect()` de `lib/auth`.** LE piège :
   `requireAdmin`/`requireAccess` (`lib/auth`) font un `redirect()` qui serait AVALÉ par le
   `try/catch` de `runAction`. Comme `guard`, utiliser une garde qui **retourne** un résultat :

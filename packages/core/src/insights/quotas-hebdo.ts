@@ -115,7 +115,10 @@ export interface InsightDraft {
 
 import { round1 as r1, round2 as r2 } from '../domain/dates'
 
-const eur = (n: number) => `${Math.round(n).toLocaleString('fr-FR')} €`
+// Centimes partout (décision Benoit 2026-07-28) : même règle que `lib/format.ts` côté web —
+// la même carte Insight mélangeait « 600 € » (ce formateur) et « 600,00 € » (le web).
+const NF_EUR = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const eur = (n: number) => `${NF_EUR.format(n)} €`
 
 /** Niveau gamification hérité du legacy (mois-équivalent = CA moy/j × 30). */
 export function levelOf(caPerDay: number): string {

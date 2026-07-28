@@ -92,15 +92,6 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
     meta: { align: 'right' },
   },
   {
-    accessorKey: 'com',
-    header: 'Com.',
-    cell: ({ getValue }) => {
-      const v = getValue() as number | null
-      return <span className="tabular-nums text-muted-foreground">{v === null ? '—' : eur(v)}</span>
-    },
-    meta: { align: 'right' },
-  },
-  {
     accessorKey: 'ppv',
     header: ({ column }) => <Sortable column={column} label="PPV" className="justify-end" />,
     cell: ({ getValue }) => <span className="tabular-nums">{eur(getValue() as number)}</span>,
@@ -184,7 +175,7 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
  * n'apparaît que pour un compte en écriture (`canWrite` = admin ou manager/sous-manager) — un
  * chatteur est en lecture seule (aligné sur la policy `chatters_crm_update` / `hasWriteAccess`).
  * La colonne reste toujours présente (cellule vide pour un chatteur) pour préserver
- * l'alignement des sous-lignes (`chatters-sub-rows.tsx`, 13 cellules).
+ * l'alignement des sous-lignes (`chatters-sub-rows.tsx`, 12 cellules).
  */
 export function makeChattersColumns({ canWrite }: { canWrite: boolean }): ColumnDef<ChatterRow>[] {
   return [

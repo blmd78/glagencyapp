@@ -3,6 +3,7 @@ import { KpiGrid } from '@/components/kpi-card'
 import { ModelBilanCard } from './components/model-bilan-card'
 import { WeekSwitcher } from './components/week-switcher'
 import type { BilanData } from './types'
+import { eur, num } from '@/lib/format'
 
 /**
  * Template Bilan hebdomadaire (Server Component) : 4 KPI + une carte par modèle.
@@ -14,7 +15,7 @@ export function BilanTemplate({ data }: { data: BilanData }) {
     {
       key: 'ca',
       label: 'CA total semaine',
-      value: `${Math.round(data.totalCa).toLocaleString('fr-FR')} €`,
+      value: eur(data.totalCa),
       deltaPct: null,
       trendLabel: '',
       // Parts scriptées (tous modèles) : S1 seul, puis scripts hors Pos 1 — vide tant
@@ -22,7 +23,7 @@ export function BilanTemplate({ data }: { data: BilanData }) {
       hint: (() => {
         if (data.totalCa <= 0) return ''
         const part = (label: string, v: number) =>
-          `${label} : ${Math.round(v).toLocaleString('fr-FR')} € (${Math.round((100 * v) / data.totalCa)} %)`
+          `${label} : ${eur(v)} (${Math.round((100 * v) / data.totalCa)} %)`
         const parts = [
           ...(data.totalS1 != null ? [part('S1', data.totalS1)] : []),
           ...(data.totalHorsS1 != null ? [part('hors S1', data.totalHorsS1)] : []),
@@ -33,7 +34,7 @@ export function BilanTemplate({ data }: { data: BilanData }) {
     {
       key: 'subs',
       label: 'Nouveaux abonnés',
-      value: data.totalNewSubs.toLocaleString('fr-FR'),
+      value: num(data.totalNewSubs),
       deltaPct: null,
       trendLabel: '',
       hint: '',
@@ -41,7 +42,7 @@ export function BilanTemplate({ data }: { data: BilanData }) {
     {
       key: 'ltv',
       label: 'LTV moyenne',
-      value: data.avgLtv != null ? `${data.avgLtv.toLocaleString('fr-FR')} €/sub` : '—',
+      value: data.avgLtv != null ? `${eur(data.avgLtv)}/sub` : '—',
       deltaPct: null,
       trendLabel: '',
       hint: 'hors comptes privés',

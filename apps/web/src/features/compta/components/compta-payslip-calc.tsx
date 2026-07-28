@@ -1,0 +1,177 @@
+'use client'
+
+import { addDays, DEFAULT_RATE, HANDOFF_EUR, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
+import { eur2 } from '@/lib/format'
+import { ComptaModelBreakdown } from './compta-model-breakdown'
+import { ComptaPayDialog } from './compta-pay-dialog'
+// `SECTION_HEAD`/`COL_HEAD` vivent dans `./styles` (module sans 'use client') : exportées d'ici,
+// un Server Component qui les importe recevrait des références client, pas les classes CSS.
+import { SECTION_HEAD } from './styles'
+import type { ComptaRow } from '../types'
+
+/**
+ * Une ligne de calcul : libellé à gauche, montant aligné à droite en tabulaire. Le SIGNE est
+ * porté par l'appelant (`-p.malus`) — malus et sanctions sont stockés POSITIFS, ce sont des
+ * composantes que `computePayslip` soustrait.
+ */
+function Line({ label, amount, red }: { label: string; amount: number; red?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4 text-sm">
+      <span>{label}</span>
+      <span className={red ? 'tabular-nums text-red-700 dark:text-red-400' : 'tabular-nums'}>
+        {eur2(amount)}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Sanctions Police — le TOTAL sur une ligne d'ajustement comme les autres, puis chaque entrée
+ * avec son motif, en retrait.
+ *
+ * Le motif reste à l'écran (c'est une retenue sur salaire, elle doit être justifiée), mais le
+ * bloc encadré rouge a sauté le 2026-07-27 : il criait plus fort que le net, qui est la
+ * conclusion de la fiche. Le rouge survit là où il informe — sur le montant retenu.
+ */
+function SanctionLines({ sanctions, amount }: { sanctions: ComptaRow['sanctions']; amount: number }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <Line label="Sanctions Police" amount={-amount} red />
+      <div className="flex flex-col gap-0.5 pl-4 text-xs text-muted-foreground">
+        {sanctions.map((s, i) => (
+          <div key={i} className="flex justify-between gap-4">
+            <span>
+              {frDayShort(s.day)} — {s.label ?? 'Malus'}
+            </span>
+            <span className="tabular-nums">
+              {s.kind === 'warning' ? 'avertissement' : eur2(-s.amount)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * ZONE 1 de la fiche — CE QU'ON LIT : d'où vient la base, ce qui s'y ajoute ou s'en retire, et
+ * le net qui CONCLUT, bouton de paiement à côté de lui.
+ *
+ * Ordre voulu par le propriétaire (2026-07-27, « simplifie l'affichage ») : le net était
+ * enterré au milieu de la pile, entre la ventilation et les formulaires.
+ */
+export function ComptaPayslipCalc({
+  row,
+  period,
+  canPay,
+  periodElapsed,
+}: {
+  row: ComptaRow
+  period: PayPeriod
+  canPay: boolean
+  periodElapsed: boolean
+}) {
+  const p = row.payslip
+  // Le taux QUI S'APPLIQUE quand il n'y a aucun CA à ventiler — le dernier de l'historique, ou
+  // le défaut. Sert uniquement à la ligne de repli juste en dessous.
+  const rateSansCa = row.rateHistory.at(-1)?.rate ?? DEFAULT_RATE
+
+  // Une composante nulle ne fait PAS de ligne (règle déjà en place avant la refonte) : le titre
+  // « Ajustements » ne doit donc apparaître que si au moins une ligne le suit.
+  const hasAdjustments =
+    p.setter !== 0 ||
+    p.bonus !== 0 ||
+    p.malus !== 0 ||
+    row.handoffs > 0 ||
+    p.prime !== 0 ||
+    row.sanctions.length > 0 ||
+    p.setterPrime !== 0
+
+  return (
+    <div className="flex flex-col gap-4">
+      {p.segments.length > 0 ? (
+        <ComptaModelBreakdown payslip={p} />
+      ) : (
+        // Sans aucun modèle la ventilation ne rend rien : la base sortirait de l'écran.
+        // C'est le SEUL cas où l'ancienne ligne « Commission — X € × Y % » survit. Le taux
+        // affiché est le DERNIER de l'historique : sans CA il n'y a aucun segment, donc aucun
+        // taux « appliqué » — et 0 € × n'importe quel taux vaut 0 €.
+        <div className="flex flex-col gap-1">
+          <Line label={`Commission — ${eur2(p.ca)} × ${rateSansCa} %`} amount={p.base} />
+          <p className="text-xs text-muted-foreground">
+            Aucun CA sur la période — rien à ventiler par modèle.
+          </p>
+        </div>
+      )}
+
+      {hasAdjustments && (
+        <div className="flex flex-col gap-1.5">
+          <span className={SECTION_HEAD}>Ajustements</span>
+          {/* Libellé NU depuis la tâche 19. Il disait auparavant lequel des deux montants
+              s'appliquait (« ajusté (réglage : 75 €) ») — il n'y en a plus qu'un, celui de
+              du réglage de Membres, et la colonne « Rémunération » de la table l'affiche déjà. */}
+          {p.setter !== 0 && <Line label="Fixe setter" amount={p.setter} />}
+          {p.bonus !== 0 && <Line label="Bonus" amount={p.bonus} />}
+          {p.malus !== 0 && <Line label="Malus saisis" amount={-p.malus} red />}
+          {row.handoffs > 0 && (
+            <Line label={`Handoffs — ${row.handoffs} × ${eur2(HANDOFF_EUR)}`} amount={p.handoffsAmount} />
+          )}
+          {p.prime !== 0 && <Line label="Prime nouveau chatteur" amount={p.prime} />}
+          {/* La PRIME SETTER, sur SA ligne comme les autres composantes : la fiche doit se
+              relire comme la feuille, ligne à ligne, et le net s'additionner exactement à
+              partir de ce qui est affiché (`computePayslip` arrondit chaque composante avant
+              la somme). Elle porte son RANG dans le libellé : sans lui, c'est un montant sans
+              provenance, et le rang est précisément ce que le chatteur voudra vérifier. Les
+              lignes « Report période précédente » et « Prime du mois (top 3) » qui
+              l'encadraient ont été retirées le 2026-07-28 avec leurs concepts (décision de
+              Benoit). */}
+          {p.setterPrime !== 0 && (
+            <Line
+              label={
+                row.setterRank
+                  ? `Prime setter — rang ${row.setterRank.rank} (${row.setterRank.handoffs} handoffs)`
+                  : 'Prime setter'
+              }
+              amount={p.setterPrime}
+            />
+          )}
+          {row.sanctions.length > 0 && (
+            <SanctionLines sanctions={row.sanctions} amount={p.sanctions} />
+          )}
+        </div>
+      )}
+
+      <div className="border-t pt-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <span className="text-base font-semibold">Net à payer</span>
+          <div className="flex items-center gap-4">
+            <span className="text-base font-semibold tabular-nums">{eur2(p.net)}</span>
+            {canPay && periodElapsed && !row.paid && (
+              <ComptaPayDialog row={row} period={period} />
+            )}
+          </div>
+        </div>
+        {/* Période EN COURS : dire pourquoi il n'y a pas de bouton. Sans ça, l'écran par
+            défaut — le sélecteur ouvre toujours la période courante — est un cul-de-sac
+            silencieux pour l'admin, qui cherche un bouton absent sans savoir qu'il attend la
+            fin de la période. `payPeriod` refuse de figer des jours non révolus (un CA
+            encore incomplet serait versé définitivement, et le bandeau de retard ne le
+            signalerait jamais puisqu'il se déduit de la couverture). */}
+        {canPay && !periodElapsed && !row.paid && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Période en cours — le paiement s&apos;ouvre à partir du{' '}
+            {frDateNumeric(addDays(period.end, 1))}, quand le CA de la période est complet.
+          </p>
+        )}
+        {row.paid && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Payé le {row.paidOn ? frDateNumeric(row.paidOn) : '—'} — {eur2(row.paidAmount ?? 0)}
+            {/* Écart possible avec le « Net à payer » ci-dessus : celui-ci est recalculé
+                aujourd'hui, celui-là est l'instantané figé au virement. C'est l'instantané
+                qui fait foi. */}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}

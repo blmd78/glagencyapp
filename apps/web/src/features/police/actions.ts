@@ -8,25 +8,23 @@ import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
-import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
-/** Garde : miroir de la policy RLS `police_insert`/`police_update` (`can_write_page('police')
- *  OR (is_police() AND has_page('police'))`) — `hasWriteAccess` couvre la 1ʳᵉ branche, le rôle
- *  fonctionnel `police` doit AUSSI avoir la page pour couvrir la 2ᵉ (sinon la RLS le bloquerait
- *  avec une erreur brute au lieu d'un refus propre ici). */
-async function requirePoliceProfile(): Promise<Profile | null> {
+/** Contrôle d'écriture Police (NON cloisonné, cf. 0078) : miroir de la policy RLS
+ *  `police_insert`/`police_update` (`can_write_page('police')` OR (`is_police()` AND
+ *  `has_page('police')`)) — `hasWriteAccess` couvre la 1ʳᵉ branche, le rôle fonctionnel
+ *  `police` doit AUSSI avoir la page pour couvrir la 2ᵉ (sinon la RLS le bloquerait avec une
+ *  erreur brute au lieu d'un refus propre ici). Vérifié UNE SEULE FOIS, en tête de handler
+ *  (patron §4 des guidelines) — refus = BusinessError, aucun filtre chatteur/modèle. */
+async function requirePoliceProfile(): Promise<Profile> {
   const profile = await getProfile()
-  if (!profile) return null
-  const isFunctionalPolice = profile.baseRole === 'police' && profile.pages.includes('police')
-  return hasWriteAccess(profile, 'police') || isFunctionalPolice ? profile : null
-}
-
-/** Garde d'écriture Police (NON cloisonné, cf. 0078) : seule compte l'autorisation d'écriture de la
- *  page — aucun filtre chatteur/modèle. Partagée par les 3 mutations (avert./malus/édition). */
-const policeWriteGuard = async (): Promise<{ ok: true } | { ok: false; error: string }> => {
-  const profile = await requirePoliceProfile()
-  return profile ? { ok: true } : { ok: false, error: 'Accès refusé' }
+  const isFunctionalPolice =
+    !!profile && profile.baseRole === 'police' && profile.pages.includes('police')
+  if (!profile || !(hasWriteAccess(profile, 'police') || isFunctionalPolice)) {
+    throw new BusinessError('Accès refusé')
+  }
+  return profile
 }
 
 /** La cible d'une sanction doit être un MEMBRE role chatteur (cohérent avec la validation des lignes
@@ -44,11 +42,9 @@ export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: warningInput,
     input: raw,
-    guard: policeWriteGuard,
+    guard: noGuard,
     handler: async (values) => {
-      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const profile = await requirePoliceProfile()
       await assertChatteurMember(values.chatterId)
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').insert({
@@ -70,10 +66,9 @@ export async function addPoliceMalus(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: malusInput,
     input: raw,
-    guard: policeWriteGuard,
+    guard: noGuard,
     handler: async (values) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const profile = await requirePoliceProfile()
       await assertChatteurMember(values.chatterId)
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').insert({
@@ -96,8 +91,9 @@ export async function updatePoliceMalus(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: updateMalusInput,
     input: raw,
-    guard: policeWriteGuard,
+    guard: noGuard,
     handler: async (values) => {
+      await requirePoliceProfile()
       const supabase = await createClient()
       const { error } = await supabase
         .from('police_entries')

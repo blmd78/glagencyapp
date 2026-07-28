@@ -207,7 +207,7 @@ export async function getHealth(
       value: `${below.length} / ${rated.length}`,
       deltaPct: null,
       trendLabel: worst
-        ? `Le plus bas : ${worst.name} (${worst.ltv!.toLocaleString('fr-FR')} €)`
+        ? `Le plus bas : ${worst.name} (${eur(worst.ltv!)})`
         : 'Tous les modèles sont au-dessus',
       hint: `LTV < ${LTV_TARGET} € / nouvel abonné`,
     },

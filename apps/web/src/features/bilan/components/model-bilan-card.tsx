@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { num } from '@/lib/format'
+import { num, eur, int, dec2 } from '@/lib/format'
 import type { ModelBilan } from '../types'
 
 /** Cellule de référence : le VRAI montant de la période (S-1/M-1), suivi de
@@ -49,18 +49,18 @@ const HEAD = 'text-right text-[10px] font-medium uppercase tracking-wide text-mu
 /**
  * Carte bilan d'un modèle : une grille UNIQUE alignée en colonnes
  * (Semaine · S-1 · M-1). Les colonnes de référence montrent le VRAI montant de la
- * période avec l'écart signé entre parenthèses — ex. « 20 936 € (+3 623) ».
+ * période avec l'écart signé entre parenthèses — ex. « 20 936,45 € (+3 623,12) ».
  */
 export function ModelBilanCard({ m }: { m: ModelBilan }) {
-  const eur = (v: number) => `${Math.round(v).toLocaleString('fr-FR')} €`
-  const eur1 = (v: number) => `${v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €`
-
-  const int = (v: number) => Math.round(v).toLocaleString('fr-FR')
-  const dec1 = (v: number) => v.toLocaleString('fr-FR', { maximumFractionDigits: 1 })
+  // Deltas MONÉTAIRES en `dec2` (2 décimales sans le glyphe €, déjà porté par le montant
+  // principal — le répéter dans la parenthèse doublerait le bruit) ; formateurs partagés
+  // de lib/format, jamais de `toLocaleString` par appel (formateur reconstruit à chaque fois).
   const rows = [
     { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int, zeroOk: false },
-    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: int, zeroOk: false },
-    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur1, fmtDelta: dec1, zeroOk: false },
+    // Union du merge 2026-07-28 : la branche compta apporte eur/dec2 (centimes partout) sur
+    // CA net et LTV ; develop (f9250a8) apporte les écarts S1/Hors S1 en % — les deux tiennent.
+    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: dec2, zeroOk: false },
+    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur, fmtDelta: dec2, zeroOk: false },
     // % du CA par sous-ensemble de scripts (valeurs ET écarts en %) — « — » tant que pas de
     // mesure. zeroOk : 0 % est une vraie mesure (ex. mono-script → tout vient du N°1,
     // « Hors S1 » = 0 ; et réciproquement). S1 + Hors S1 ≤ 100, le reste = hors scripts.

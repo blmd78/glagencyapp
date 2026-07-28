@@ -4,10 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
-import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { reportInput, deleteReportInput } from './schema'
-
-const noGuard = async () => ({ ok: true as const })
 
 /** Miroir de la RLS d'écriture : page police + (droit d'écriture OU rôle police fonctionnel). */
 async function requireReporter(): Promise<Profile | null> {

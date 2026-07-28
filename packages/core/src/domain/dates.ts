@@ -114,6 +114,26 @@ export function addMonths(day: string, n: number): string {
   return isoDate(d)
 }
 
+/**
+ * Même QUANTIÈME, `n` mois plus tard — à ne pas confondre avec `addMonths`, qui ramène au 1er du
+ * mois cible (il sert aux sélecteurs de mois). Ici on répond à « un mois après le 15 juin ».
+ *
+ * ÉCRIT POUR L'ÉCHÉANCE DE LA PRIME D'EMBAUCHE (spec §7, onglet Suivi) : arrivée + 1 mois. Passer
+ * par `addMonths` aurait daté toutes les échéances du 1er du mois — un arrivant du 28 juin serait
+ * devenu éligible le 1er juillet, trois jours après son arrivée.
+ *
+ * DÉBORDEMENT : le 31 janvier + 1 mois donne le 28 (ou 29) février, jamais le 3 mars. C'est le
+ * comportement de Postgres (`date '2026-01-31' + interval '1 month'`) et celui qu'attend un
+ * calendrier de paie ; `setUTCMonth` seul, lui, déborderait sur le mois suivant.
+ */
+export function addMonthsSameDay(day: string, n: number): string {
+  // Cast tuple : une date ISO `YYYY-MM-DD` a toujours 3 segments (contrat d'entrée du module).
+  const [y, m, d] = day.slice(0, 10).split('-').map(Number) as [number, number, number]
+  // Jour 0 du mois M+1 = dernier jour du mois M — la borne à ne pas dépasser.
+  const lastDay = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate()
+  return isoDate(new Date(Date.UTC(y, m - 1 + n, Math.min(d, lastDay))))
+}
+
 /** « juillet 2026 » — mois en toutes lettres + année (pour le sélecteur de mois). */
 export const frMonthLong = (day: string): string =>
   new Date(`${day.slice(0, 7)}-01T00:00:00Z`).toLocaleDateString('fr-FR', {

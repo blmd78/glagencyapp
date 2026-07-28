@@ -150,7 +150,7 @@ export function ScriptsView({ data, isAdmin }: { data: ScriptsData; isAdmin?: bo
         />
         <Combobox
           value={data.creatorId ?? ''}
-          onChange={(id) => router.push(`/chatter/scripts?modele=${id}`)}
+          onChange={(id) => router.replace(`/chatter/scripts?modele=${id}`, { scroll: false })}
           className="w-52"
           placeholder="Choisir un modèle…"
           searchPlaceholder="Rechercher un modèle…"

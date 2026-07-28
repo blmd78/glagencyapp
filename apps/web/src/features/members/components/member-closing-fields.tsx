@@ -11,13 +11,24 @@ import {
 import { CRM_ROLES, CRM_TEAMS, type CrmRole, type CrmTeam } from '@/lib/types/chatters'
 import type { MemberForm } from '../schema'
 
-const ROLE_LABEL: Record<CrmRole, string> = { closer: 'Closer', setter: 'Setter' }
+// QUATRE entrées depuis le 2026-07-28 : `profiles.closing_role` accepte `hybride` et `nouveau`
+// (migration 0090, légende de la feuille de paie). Sans elles, `z.enum(CRM_ROLES)` refusait
+// d'enregistrer un membre déjà posé sur l'une des deux — `member-dialog.tsx` réinjecte
+// `member?.closingRole` dans les valeurs par défaut, donc le formulaire échouait au submit tant
+// qu'on ne touchait pas au champ. Le `Record<CrmRole, …>` rend l'oubli impossible à recompiler.
+const ROLE_LABEL: Record<CrmRole, string> = {
+  closer: 'Closer',
+  setter: 'Setter',
+  hybride: 'Hybride',
+  nouveau: 'Nouveau',
+}
 const TEAM_LABEL: Record<CrmTeam, string> = { rouge: 'Rouge', bleue: 'Bleue' }
 
 /**
- * Désignation « closing » d'un chatteur : rôle (setter/closer) + équipe (rouge/bleue), portée par
- * le MEMBRE (cf. migration 0077). Masquée pour les autres rôles — le serveur force null. Sentinelle
- * 'none' ↔ null car Radix interdit value="" sur un item (même patron que le rattachement manager).
+ * Désignation « closing » d'un chatteur : rôle (setter/closer/hybride/nouveau) + équipe
+ * (rouge/bleue), portée par le MEMBRE (cf. migration 0077). Masquée pour les autres rôles — le
+ * serveur force null. Sentinelle 'none' ↔ null car Radix interdit value="" sur un item (même
+ * patron que le rattachement manager).
  */
 export function MemberClosingFields({
   control,

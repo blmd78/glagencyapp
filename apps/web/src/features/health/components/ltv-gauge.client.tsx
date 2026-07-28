@@ -3,6 +3,7 @@
 import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from 'recharts'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
 import type { LtvStatus } from '../types'
+import { eur } from '@/lib/format'
 
 // Couleurs de statut alignées sur lib/status-color.ts (green/amber/red) — recharts exige
 // un fill littéral, d'où les hex (tailwind green-500 / amber-500 / red-500).
@@ -66,7 +67,7 @@ export function LtvGauge({
                   >
                     {ltv === null
                       ? '—'
-                      : `${ltv.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €`}
+                      : eur(ltv)}
                   </tspan>
                   {lg && (
                     <tspan x={cx} y={y + 8} className="fill-muted-foreground text-xs">

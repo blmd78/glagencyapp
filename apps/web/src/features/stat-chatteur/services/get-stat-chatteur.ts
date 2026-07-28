@@ -35,6 +35,12 @@ export async function getStatChatteur(
   period: Period,
   opts: { restricted?: boolean } = {},
 ): Promise<StatChatteurData> {
+  // Le SELECT profiles (mode admin) est indépendant du RPC de getChatters — lancé tout de
+  // suite, awaité après. `Promise.resolve` déclenche le fetch immédiatement : un builder
+  // postgrest-js est PromiseLike mais PARESSEUX (même patron que get-insights.ts).
+  const membersPromise = opts.restricted
+    ? null
+    : Promise.resolve(createAdminClient().from('profiles').select('closing_role, closing_team'))
   const chattersData = await getChatters(period, opts)
 
   const rows = chattersData.chatters
@@ -49,11 +55,8 @@ export async function getStatChatteur(
     .sort((a, b) => b.vendu - a.vendu)
 
   let kpis
-  if (opts.restricted) {
-    kpis = countDesignations(chattersData.chatters)
-  } else {
-    const admin = createAdminClient()
-    const membersRes = await admin.from('profiles').select('closing_role, closing_team')
+  if (membersPromise) {
+    const membersRes = await membersPromise
     if (membersRes.error) throw new Error(membersRes.error.message)
     kpis = countDesignations(
       (membersRes.data ?? []).map((m) => ({
@@ -61,6 +64,8 @@ export async function getStatChatteur(
         closingTeam: m.closing_team,
       })),
     )
+  } else {
+    kpis = countDesignations(chattersData.chatters)
   }
 
   return { period: chattersData.period, kpis, rows }

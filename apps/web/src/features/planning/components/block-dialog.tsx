@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
-import { Plus, Trash2 } from 'lucide-react'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
 import {
@@ -24,16 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { saveBlock } from '../actions'
 import { blockForm, type BlockForm } from '../schema'
 import { DAY_SHORT, PLANNING_DAYS, SECTION_LABELS, type PlanningBlock } from '../types'
+import { BlockContentFields, type Mode } from './block-content-fields'
 
 /** Couleurs d'accent proposées (mêmes pastilles que les fiches VA). */
 const COLORS = ['#f59e0b', '#22d3ee', '#6366f1', '#22c55e', '#e1306c', '#0ea5e9', '#a855f7', '#ef4444']
-
-type Mode = 'simple' | 'cat'
 
 const linesToArray = (text: string): string[] =>
   text
@@ -94,24 +91,15 @@ export function BlockDialog({
     resolver: zodResolver(blockForm),
     values: block ? toForm(block) : emptyForm,
   })
-  const { fields, append, remove, replace } = useFieldArray({ control, name: 'categories' })
-
   // Mode « tâche simple » (puces) OU « sous-tâches » (catégories). Resynchronisé à chaque
   // OUVERTURE selon le bloc (ajustement d'état pendant le rendu — PAS dans un effet) : un bloc
-  // avec catégories ouvre en mode sous-tâches, sinon simple.
+  // avec catégories ouvre en mode sous-tâches, sinon simple. L'état reste ICI (le submit en
+  // dépend) ; la bascule et l'éditeur vivent dans `BlockContentFields`.
   const [mode, setMode] = useState<Mode>('simple')
   const [wasOpen, setWasOpen] = useState(false)
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) setMode(block && block.categories.length > 0 ? 'cat' : 'simple')
-  }
-
-  const switchMode = (m: Mode) => {
-    setMode(m)
-    // On garde les données du mode actif cohérentes : vide de catégories en mode simple,
-    // au moins une catégorie en mode sous-tâches (le sous-titre est obligatoire).
-    if (m === 'simple') replace([])
-    else if (fields.length === 0) replace([{ subtitle: '', badge: '', bulletsText: '' }])
   }
 
   const submit = handleSubmit(async (values) => {
@@ -264,112 +252,18 @@ export function BlockDialog({
             )}
           />
 
-          {/* Mode : tâche simple (puces) OU sous-tâches (catégories). */}
-          <div className="grid gap-2">
-            <Label>Contenu</Label>
-            <div className="inline-flex w-fit rounded-md border p-0.5 text-sm">
-              {(
-                [
-                  ['simple', 'Tâche simple'],
-                  ['cat', 'Sous-tâches'],
-                ] as const
-              ).map(([m, label]) => (
-                <button
-                  key={m}
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => switchMode(m)}
-                  className={cn(
-                    'rounded px-3 py-1 font-medium transition-colors',
-                    mode === m ? 'bg-foreground text-background' : 'text-muted-foreground',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {mode === 'simple' ? (
-              <div className="grid gap-1.5">
-                <Textarea
-                  rows={4}
-                  placeholder={'Une puce par ligne'}
-                  disabled={isSubmitting}
-                  {...register('bulletsText')}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Une puce par ligne. Le texte avant « : » s’affiche en gras.
-                </p>
-                {errors.bulletsText && (
-                  <p className="text-xs text-red-600 dark:text-red-400">{errors.bulletsText.message}</p>
-                )}
-              </div>
-            ) : (
-              <div className="grid gap-2">
-                {fields.map((f, i) => (
-                  <div key={f.id} className="grid gap-2 rounded-lg border p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Sous-tâche {i + 1}
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-red-600 hover:text-red-700"
-                        disabled={isSubmitting || fields.length <= 1}
-                        onClick={() => remove(i)}
-                        aria-label="Retirer la sous-tâche"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        placeholder="Sous-titre (ex. COMPTABILITÉ)"
-                        disabled={isSubmitting}
-                        {...register(`categories.${i}.subtitle`)}
-                      />
-                      <Input
-                        placeholder="Badge (ex. obligatoire)"
-                        disabled={isSubmitting}
-                        {...register(`categories.${i}.badge`)}
-                      />
-                    </div>
-                    {errors.categories?.[i]?.subtitle && (
-                      <p className="text-xs text-red-600 dark:text-red-400">
-                        {errors.categories[i]?.subtitle?.message}
-                      </p>
-                    )}
-                    <Textarea
-                      rows={3}
-                      placeholder={'Une puce par ligne'}
-                      disabled={isSubmitting}
-                      {...register(`categories.${i}.bulletsText`)}
-                    />
-                    {errors.categories?.[i]?.bulletsText && (
-                      <p className="text-xs text-red-600 dark:text-red-400">
-                        {errors.categories[i]?.bulletsText?.message}
-                      </p>
-                    )}
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="justify-self-start"
-                  disabled={isSubmitting || fields.length >= 6}
-                  onClick={() => append({ subtitle: '', badge: '', bulletsText: '' })}
-                >
-                  <Plus className="size-3.5" /> Ajouter une sous-tâche
-                </Button>
-              </div>
-            )}
-          </div>
+          {/* Mode : tâche simple (puces) OU sous-tâches (catégories) — cf. block-content-fields. */}
+          <BlockContentFields
+            control={control}
+            register={register}
+            errors={errors}
+            isSubmitting={isSubmitting}
+            mode={mode}
+            onModeChange={setMode}
+          />
 
           {errors.root && (
-            <p className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
           )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>

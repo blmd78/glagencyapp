@@ -9,15 +9,13 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasWriteAccess } from '@/lib/auth'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
-
-/** Garde d'action : admin, ou manager/sous-manager ayant la page `repos` (0060 — chatteur
- *  en lecture seule). Les managers/sous-managers gèrent le planning des repos. */
-async function requireRepos() {
-  const profile = await getProfile()
-  return hasWriteAccess(profile, 'repos') ? profile : null
-}
+import {
+  runAction,
+  noGuard,
+  requireAdminProfile,
+  requireWriteProfile,
+  type ActionResult,
+} from '@/lib/actions'
 
 const cellInput = z.object({
   weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -33,11 +31,10 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
     input: raw,
     // Ajout/retrait d'un repos dans une case = ADMIN uniquement (les managers sont en lecture
     // seule sur les cases ; seule la case « envoyé Telegram » leur reste, cf. setReposSent).
-    guard: adminGuard,
+    // Contrôle en tête de handler (patron §4) : le profil sert aussi à `updated_by`.
+    guard: noGuard,
     handler: async (values) => {
-      // getProfile pour `updated_by` (traçabilité) — l'accès est déjà tranché par adminGuard.
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const profile = await requireAdminProfile()
       const { weekStart, day, col, chatterIds, names } = values
 
       const supabase = await createClient()
@@ -73,10 +70,9 @@ export async function saveReposColumnMembers(raw: unknown): Promise<ActionResult
   return runAction({
     schema: colMembersInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (values) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const profile = await requireAdminProfile()
 
       const supabase = await createClient()
       const { error } = await supabase.from('rest_planning_column_members').upsert(
@@ -104,13 +100,11 @@ export async function setReposSent(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: sentInput,
     input: raw,
-    guard: async () => {
-      const profile = await requireRepos()
-      return profile ? { ok: true } : { ok: false, error: 'Accès refusé' }
-    },
+    // Admin, ou manager/sous-manager ayant la page `repos` (0060 — chatteur en lecture
+    // seule) : les managers/sous-managers gèrent la case « envoyé Telegram ».
+    guard: noGuard,
     handler: async (values) => {
-      const profile = await requireRepos()
-      if (!profile) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      const profile = await requireWriteProfile('repos')
 
       const supabase = await createClient()
       const { error } = await supabase.from('rest_planning_weeks').upsert(

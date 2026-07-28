@@ -29,6 +29,25 @@ export interface Todo {
   doneAt: string | null
 }
 
+/**
+ * Une ligne de la pile de noms de la to-do. Porte le strict nécessaire à la ligne REPLIÉE ;
+ * les tâches elles-mêmes partent à l'ouverture (`loadTodos`). Conforme structurellement à
+ * `SelectableMember` (id, name, role), comme l'exige `MembersAccordion`.
+ */
+export interface TodoEntry {
+  id: string
+  name: string
+  /** Rôle brut, pour le badge — '' = soi-même (pas de badge). */
+  role: string
+  /** Tâches non terminées (`todo` + `in_progress`) — repère « N à traiter » (rien à 0). */
+  openCount: number
+  /**
+   * La personne peut-elle ouvrir la page Planning ? Sinon elle ne verra jamais la liste qu'on
+   * lui écrit — l'avertissement est affiché dans SON panneau.
+   */
+  hasPlanningPage: boolean
+}
+
 /** Statuts, dans l'ordre d'affichage — sections de la liste, colonnes du kanban en pause. */
 export const STATUSES: { value: TodoStatus; label: string }[] = [
   { value: 'todo', label: 'À faire' },

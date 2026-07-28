@@ -42,7 +42,7 @@ export function HealthTemplate({ data }: { data: HealthData }) {
                 <b>Manque à gagner vs objectif LTV {data.target} € :</b>{' '}
                 <b>{eur(data.plan.missing)}</b>{' '}
                 <span className="text-muted-foreground">
-                  (à rattraper : ≈ {num(data.plan.perDay)} €/j sur les {data.plan.remainingDays} j
+                  (à rattraper : ≈ {eur(data.plan.perDay)}/j sur les {data.plan.remainingDays} j
                   restants du mois)
                 </span>
               </span>

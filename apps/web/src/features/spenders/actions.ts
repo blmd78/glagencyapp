@@ -3,14 +3,21 @@
 // Server Actions du tracker spenders (relances R1→R10, reset, archive) — supabase-js + RLS.
 // Droit : admin ou page `crm-spenders`. Le cloisonnement par modèle est appliqué par la RLS
 // (policies de 0038) ; on garde ici le contrôle d'accès de page + la validation zod.
-// Standard runAction (docs/guidelines-standard-feature.md §4) : la garde d'entrée vit dans
-// `guard` ; `handler` re-dérive le même résultat à partir des `values` déjà validées.
+// `addRelance` suit le patron §4 des guidelines : tout le contrôle (droit + pré-check métier)
+// vit en tête de handler, une seule fois.
 
 import { revalidatePath } from 'next/cache'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasPageAccess, hasWriteAccess } from '@/lib/auth'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
+import {
+  runAction,
+  adminGuard,
+  noGuard,
+  requirePageProfile,
+  BusinessError,
+  type ActionResult,
+} from '@/lib/actions'
 import { archiveInput, relanceInput, setCompteurInput, targetInput } from './schema'
 
 // Scope 'layout' : ce layout (app/(dash)/chatter/spenders/layout.tsx) ne fetch plus rien
@@ -19,12 +26,6 @@ import { archiveInput, relanceInput, setCompteurInput, targetInput } from './sch
 // 'layout' continue donc de couvrir exactement les 4, qu'il y ait un fetch au niveau
 // layout ou non. '/chatter/spenders' seul (type 'page') ne cible que la redirection.
 const SPENDERS_PATH = '/chatter/spenders'
-
-// LECTURE / relance : ouvert au chatteur (has_page). SEUL addRelance l'utilise.
-async function crmGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const profile = await getProfile()
-  return hasPageAccess(profile, 'crm-spenders') ? { ok: true } : { ok: false, error: 'Accès refusé' }
-}
 
 // ÉCRITURE non-relance (reset / archive) : admin ou manager/sous-manager — pas le chatteur
 // (0060). Miroir de la RLS can_write_page('crm-spenders').
@@ -46,26 +47,23 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: relanceInput,
     input: raw,
-    guard: async () => {
-      const parsed = relanceInput.safeParse(raw)
-      if (!parsed.success) return { ok: true } // saisie invalide : laissée au safeParse de runAction
-      const gate = await crmGuard()
-      if (!gate.ok) return gate
-      const supabase = await createClient()
-      const { count, error } = await supabase
-        .from('relances')
-        .select('id', { count: 'exact', head: true })
-        .eq('creator_id', parsed.data.creatorId)
-        .eq('fan_id', parsed.data.fanId)
-        .eq('jour_paris', todayParis())
-      if (error) throw new Error(error.message)
-      if ((count ?? 0) > 0) return { ok: false, error: 'Déjà relancé aujourd’hui' }
-      return { ok: true }
-    },
+    // LECTURE / relance : ouvert au chatteur (has_page) — contrôle en tête de handler
+    // (patron §4), le profil sert aussi à `created_by`.
+    guard: noGuard,
     handler: async (p) => {
+      const profile = await requirePageProfile('crm-spenders')
       const supabase = await createClient()
-      const [profile, { data: crm }] = await Promise.all([
-        getProfile(), // React.cache : déjà résolu par le guard dans cette même requête.
+
+      // Pré-check « 1 relance/jour » + lecture du compteur : deux lectures indépendantes,
+      // en parallèle. Leurs erreurs sont thrown (techniques) — un échec silencieux du
+      // compteur fabriquerait un numero_r faux.
+      const [dup, { data: crm, error: crmError }] = await Promise.all([
+        supabase
+          .from('relances')
+          .select('id', { count: 'exact', head: true })
+          .eq('creator_id', p.creatorId)
+          .eq('fan_id', p.fanId)
+          .eq('jour_paris', todayParis()),
         supabase
           .from('spender_crm')
           .select('compteur_base, compteur_reset_at')
@@ -73,7 +71,9 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
           .eq('fan_id', p.fanId)
           .maybeSingle(),
       ])
-      if (!profile) throw new Error('Profil introuvable') // impossible : le guard vient de le vérifier
+      if (dup.error) throw new Error(dup.error.message)
+      if ((dup.count ?? 0) > 0) throw new BusinessError('Déjà relancé aujourd’hui')
+      if (crmError) throw new Error(crmError.message)
 
       let q = supabase
         .from('relances')
@@ -90,10 +90,9 @@ export async function addRelance(raw: unknown): Promise<ActionResult> {
         created_by: profile.id,
         // R affiché après cette relance : base (force admin) + relances depuis reset + 1.
         numero_r: (crm?.compteur_base ?? 0) + (count ?? 0) + 1,
-        note: p.note ?? null,
       })
-      // 23505 résiduel = course ultra-serrée entre le pré-check du guard et cet insert :
-      // déjà couvert par le message précis du guard dans l'immense majorité des cas.
+      // 23505 résiduel = course ultra-serrée entre le pré-check ci-dessus et cet insert :
+      // déjà couvert par le message précis du pré-check dans l'immense majorité des cas.
       if (error) throw new Error(error.message)
       revalidatePath(SPENDERS_PATH, 'layout')
     },

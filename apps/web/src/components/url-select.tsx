@@ -45,13 +45,15 @@ export function UrlSelect({
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
 
-  // Navigation interne (défaut) : pose `param` dans les searchParams puis push, sous transition.
+  // Navigation interne (défaut) : pose `param` dans les searchParams puis replace, sous
+  // transition — `replace` + `scroll: false`, comme tout état de filtre par URL (guidelines
+  // §6 : pas d'entrée d'historique parasite, pas de remontée de page).
   const select = (next: string) => {
     const params = new URLSearchParams(searchParams)
     params.set(param, next)
     // Route construite dynamiquement (query only) → cast (pas un href statique connu de typedRoutes,
     // convention `period-toggle.tsx`).
-    startTransition(() => router.push(`?${params.toString()}` as Route))
+    startTransition(() => router.replace(`?${params.toString()}` as Route, { scroll: false }))
   }
   const handleChange = onSelect ?? select
   // Grisage interne uniquement quand UrlSelect navigue lui-même ; sinon l'appelant pilote `disabled`.

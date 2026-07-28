@@ -86,7 +86,7 @@ export async function syncAssignments(admin: Admin, profileId: string, wanted: s
  * tient au filtre .eq('profile_id', caller.id) : depuis 0054 la RLS profile_creators
  * laisse un manager lire son équipe — elle n'est plus une ceinture pour cette requête.
  */
-export async function requireOwnCreators(
+async function requireOwnCreators(
   callerId: string,
   creatorIds: string[],
 ): Promise<{ error: string } | { allowed: Set<string> }> {

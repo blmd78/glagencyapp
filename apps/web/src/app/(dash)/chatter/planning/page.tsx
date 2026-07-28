@@ -9,6 +9,7 @@ import { PlanningTemplate } from '@/features/planning/PlanningTemplate'
 import { RowsSkeleton } from '@/components/skeletons/rows-skeleton'
 import { MemberSelect } from '@/components/member-select'
 import { getTodos } from '@/features/todos/services/get-todos'
+import { getTodoCounts } from '@/features/todos/services/get-todo-counts'
 import { TodosTemplate } from '@/features/todos/TodosTemplate'
 import { TodosSkeleton } from '@/features/todos/components/todos-skeleton'
 import { TodosTabs } from '@/features/todos/components/todos-tabs'
@@ -16,15 +17,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { requireAccess } from '@/lib/auth'
 import { applyFilter, resolveFilter, selfLabel } from '@/lib/roster'
 import type { PlanningEntry, PlanningMember } from '@/features/planning/types'
+import type { TodoEntry } from '@/features/todos/types'
 
 /**
  * Deux onglets sur la même page (`?vue=`) : le planning journalier et la to-do personnelle.
  * Le périmètre des personnes est COMMUN (superadmin → tout, superadmins compris ; admin →
  * managers/sous-managers ; manager → ses sous-managers directs ; sous-manager → personne),
- * et le sélecteur `?membre=` reste COMMUN aux deux — mais son rôle diffère depuis 2026-07-26 :
- * sur le planning il FILTRE une pile de noms dépliables (sans filtre, tout le monde est
- * empilé) ; sur la to-do il désigne la personne dont on gère la liste. Droits distincts : on
- * n'édite pas SON planning (sauf superadmin), mais on gère toujours SA to-do (spec 2026-07-20).
+ * et le sélecteur `?membre=` reste COMMUN aux deux — et depuis 2026-07-28 il y joue le MÊME
+ * rôle : un FILTRE sur une pile de noms dépliables (sans filtre, tout le monde est empilé ;
+ * avec, la personne seule, à plat). Droits distincts en revanche : on n'édite pas SON planning
+ * (sauf superadmin), mais on gère toujours SA to-do (spec 2026-07-20).
  */
 export default async function PlanningPage({
   searchParams,
@@ -103,14 +105,10 @@ async function PlanningContent({
     { id: profileId, name: selfLabel(selfName, others), role: '', hasPlanningPage: true },
     ...others,
   ]
-  // `?membre=` validé : sur le planning c'est un FILTRE (absent = tout le monde), sur la
-  // to-do c'est la cible (absente = soi).
+  // `?membre=` est un FILTRE sur les DEUX onglets depuis 2026-07-28 : absent = tout le monde
+  // empilé, présent = cette personne seule, affichée à plat. Avant, la to-do s'en servait pour
+  // désigner sa cible — les deux onglets se comportent désormais pareil.
   const filterId = resolveFilter(roster, membre)
-  const target = filterId ?? profileId
-  // La to-do est TOUJOURS gérée par son porteur — pas de flag symétrique au planning (spec §1).
-  const targetMember = roster.find((m) => m.id === target)
-  const targetName = target === profileId ? selfName : (targetMember?.name ?? '')
-  // Planning filtré → une seule personne à charger (et `PlanningTemplate` l'affiche à plat).
   const shown = applyFilter(roster, filterId)
 
   // Un seul des deux onglets est actif à la fois (`?vue=`) : on ne charge — et ne construit
@@ -136,12 +134,7 @@ async function PlanningContent({
   const todoNode =
     vue === 'todo' ? (
       <Suspense fallback={<TodosSkeleton />}>
-        <TodoTab
-          target={target}
-          targetName={targetName}
-          isSelf={target === profileId}
-          targetHasAccess={targetMember?.hasPlanningPage ?? true}
-        />
+        <TodoTab members={shown} profileId={profileId} />
       </Suspense>
     ) : null
 
@@ -149,16 +142,12 @@ async function PlanningContent({
     <div className="flex flex-col gap-6">
       {/* Le sélecteur vit AU-DESSUS des onglets : Radix démonte le contenu de l'onglet
           inactif, donc un sélecteur logé dans l'en-tête disparaîtrait à la bascule. Sa valeur
-          affichée dépend de l'onglet actif — « Tous les membres » quand le planning n'est pas
-          filtré, la cible sur la to-do (où « tous » n'aurait pas de sens, d'où `allowAll`).
-          Le `h1` « Planning » est monté par `PlanningPage` (hors boundary, cf. plus haut). */}
+          et son option « Tous les membres » sont désormais les MÊMES sur les deux onglets —
+          c'est un seul et même filtre (`filterId`), plus une cible d'un côté et un filtre de
+          l'autre. Le `h1` « Planning » est monté par `PlanningPage` (hors boundary, plus haut). */}
       {others.length > 0 && (
         <div className="flex justify-end">
-          <MemberSelect
-            members={roster}
-            value={vue === 'planning' ? filterId : target}
-            allowAll={vue === 'planning'}
-          />
+          <MemberSelect members={roster} value={filterId} allowAll />
         </div>
       )}
       <TodosTabs vue={vue} planning={planningNode} todo={todoNode} />
@@ -201,26 +190,33 @@ async function PlanningTab({
   return <PlanningTemplate entries={entries} data={data} />
 }
 
-/** Contenu de l'onglet To-do — même raison d'être que `PlanningTab`. */
+/**
+ * Contenu de l'onglet To-do — même raison d'être que `PlanningTab`.
+ *
+ * Une seule personne à afficher → rendu à plat : on charge SA liste tout de suite, il n'y a pas
+ * d'accordéon à déplier. Sinon on ne charge que les COMPTEURS (repère de la ligne repliée) ;
+ * les tâches partent à l'ouverture (`loadTodos`). Sans ça, dérouler 19 noms embarquerait les
+ * tâches des 19 dans le premier rendu.
+ */
 async function TodoTab({
-  target,
-  targetName,
-  isSelf,
-  targetHasAccess,
+  members,
+  profileId,
 }: {
-  target: string
-  targetName: string
-  isSelf: boolean
-  targetHasAccess: boolean
+  members: PlanningMember[]
+  profileId: string
 }) {
-  return (
-    <TodosTemplate
-      todos={await getTodos(target)}
-      profileId={target}
-      targetName={targetName}
-      isSelf={isSelf}
-      targetHasAccess={targetHasAccess}
-    />
-  )
+  const single = members.length === 1
+  const [todos, counts] = await Promise.all([
+    single ? getTodos(members[0].id) : Promise.resolve([]),
+    single ? Promise.resolve(new Map<string, number>()) : getTodoCounts(members.map((m) => m.id)),
+  ])
+  const entries: TodoEntry[] = members.map((m) => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    openCount: counts.get(m.id) ?? 0,
+    hasPlanningPage: m.hasPlanningPage,
+  }))
+  return <TodosTemplate entries={entries} todos={single ? todos : null} profileId={profileId} />
 }
 

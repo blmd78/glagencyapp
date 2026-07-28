@@ -11,15 +11,17 @@
 // lit ni n'alimente jamais le cache). Un `guard` qui vérifiait le droit puis un handler qui le
 // revérifiait payaient donc deux fois la requête Supabase — et le refus du `guard` court-
 // circuitait `runAction` AVANT le `schema.safeParse` officiel, donc avec son propre parsing
-// dupliqué. `runAction` exige quand même un `guard` : `noGuard` ci-dessous le satisfait sans
-// rien vérifier, tout le contrôle vit dans le handler (`BusinessError` = message métier affiché
-// tel quel, jamais l'« Erreur inattendue » d'un throw générique).
+// dupliqué. `runAction` exige quand même un `guard` : `noGuard` (lib/actions) le satisfait
+// sans rien vérifier, tout le contrôle vit dans le handler (`BusinessError` = message métier
+// affiché tel quel, jamais l'« Erreur inattendue » d'un throw générique).
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, type Profile } from '@/lib/auth'
-import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
-import { todoCreateInput, todoDeleteInput, todoStatusInput, todoUpdateInput } from './schema'
+import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { todoCreateInput, todoDeleteInput, todoLoadInput, todoStatusInput, todoUpdateInput } from './schema'
+import { getTodos } from './services/get-todos'
+import type { Todo } from './types'
 
 const ENCADRANTS = ['superadmin', 'admin', 'manager', 'sous-manager']
 
@@ -60,9 +62,6 @@ const requireCanWriteTodo = async (targetId: string): Promise<{ profile: Profile
   }
   return { error: 'Accès réservé' }
 }
-
-/** `runAction` exige un `guard` ; le contrôle réel vit dans le handler (voir en tête de fichier). */
-const noGuard = async () => ({ ok: true as const })
 
 const revalidateTodos = () => revalidatePath('/chatter/planning')
 
@@ -177,6 +176,24 @@ export async function deleteTodo(raw: unknown): Promise<ActionResult> {
       if (error) throw new Error(error.message)
       if (!data) throw new BusinessError('Cette tâche n’existe plus — elle a peut-être déjà été supprimée.')
       revalidateTodos()
+    },
+  })
+}
+
+/**
+ * Contenu de la liste d'UNE personne, pour le panneau de la pile. Lecture seule : le droit est
+ * vérifié en tête de handler comme partout dans ce fichier (`noGuard` + `requireCanWriteTodo`),
+ * la RLS `todos_select` restant l'enforcement réel. Sur `todos`, lecture = écriture (0067).
+ */
+export async function loadTodos(raw: unknown): Promise<ActionResult<Todo[]>> {
+  return runAction({
+    schema: todoLoadInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ profileId }) => {
+      const res = await requireCanWriteTodo(profileId)
+      if ('error' in res) throw new BusinessError(res.error)
+      return getTodos(profileId)
     },
   })
 }

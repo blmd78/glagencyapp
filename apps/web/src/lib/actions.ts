@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
-import { getProfile, hasWriteAccess } from '@/lib/auth'
+import { getProfile, hasPageAccess, hasWriteAccess, type Profile } from '@/lib/auth'
 import { attributeIfImpersonating } from '@/lib/impersonation/audit'
 import type { PageSlug } from '@/config/workspaces'
 
@@ -98,4 +98,36 @@ export function managerPageGuard(slug: PageSlug) {
     const profile = await getProfile()
     return hasWriteAccess(profile, slug) ? { ok: true } : { ok: false, error: 'Accès refusé' }
   }
+}
+
+/** `runAction` exige un `guard` ; quand tout le contrôle vit dans le handler (patron §4 des
+ *  guidelines — vérification UNE SEULE FOIS, en tête de handler), `noGuard` le satisfait
+ *  sans rien vérifier ni requêter. */
+export const noGuard = async () => ({ ok: true as const })
+
+/**
+ * Jumeau d'`adminGuard` côté HANDLER, pour les mutations dont le handler a besoin du profil
+ * (updated_by, paid_by…) : une seule requête au lieu de guard + getProfile — `cache()` (React)
+ * ne mémoïse pas hors rendu RSC (guidelines §4). Refus = `BusinessError`, même message
+ * qu'`adminGuard`.
+ */
+export async function requireAdminProfile(): Promise<Profile> {
+  const profile = await getProfile()
+  if (profile?.role !== 'admin') throw new BusinessError('Accès refusé')
+  return profile
+}
+
+/** Jumeau de `managerPageGuard` côté HANDLER (écritures réservées, miroir RLS
+ *  `can_write_page`) — même logique et même message que `requireAdminProfile`. */
+export async function requireWriteProfile(slug: PageSlug): Promise<Profile> {
+  const profile = await getProfile()
+  if (!hasWriteAccess(profile, slug)) throw new BusinessError('Accès refusé')
+  return profile
+}
+
+/** Jumeau de `pageGuard` côté HANDLER (LECTURE / actions ouvertes au chatteur). */
+export async function requirePageProfile(slug: PageSlug): Promise<Profile> {
+  const profile = await getProfile()
+  if (!hasPageAccess(profile, slug)) throw new BusinessError('Accès refusé')
+  return profile
 }

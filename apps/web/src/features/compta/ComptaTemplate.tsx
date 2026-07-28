@@ -1,15 +1,23 @@
-// Template de la feature « compta » — reçoit les données en props et appelle les composants.
-// Convention archi-web : AUCUN fetch ici (la récup se fait dans app/(dash)/compta/page.tsx).
+import { ComptaView } from './components/compta-view'
+import type { ComptaData } from './types'
 
-export interface ComptaTemplateProps {
-  data?: unknown // TODO: typer (cf. ./types)
-}
-
-export function ComptaTemplate({ data: _data }: ComptaTemplateProps = {}) {
+/**
+ * Compta — paie des chatteurs par période de 14 jours. Server Component, aucun fetch (données en props,
+ * récupérées par `app/(dash)/chatter/compta/page.tsx`). Toute l'interactivité vit dans
+ * `ComptaView` : sélecteur de période, pile de noms, saisies et paiement.
+ */
+export function ComptaTemplate({
+  data,
+  canEnter,
+  canPay,
+  canConfigure,
+}: {
+  data: ComptaData
+  canEnter: boolean
+  canPay: boolean
+  canConfigure: boolean
+}) {
   return (
-    <section className="space-y-2">
-      <h1 className="text-xl font-semibold">Compta</h1>
-      <p className="text-sm text-muted-foreground">TODO — feature « compta »</p>
-    </section>
+    <ComptaView data={data} canEnter={canEnter} canPay={canPay} canConfigure={canConfigure} />
   )
 }

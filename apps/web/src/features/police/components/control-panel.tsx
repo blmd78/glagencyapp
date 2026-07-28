@@ -14,9 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { eur2max } from '@/lib/format'
 import { addPoliceWarning, addPoliceMalus } from '../actions'
 import { controlFormSchema, type ControlForm } from '../schema'
-import { POLICE_ERRORS, SHIFTS, type PoliceData } from '../types'
+import { POLICE_ERRORS } from '@/lib/types/police-errors'
+import { SHIFTS, type PoliceData } from '../types'
 
 /**
  * Saisie d'un contrôle (RHF + Zod, schéma partagé avec le serveur). Chatteur + type d'erreur,
@@ -194,7 +196,7 @@ export function ControlPanel({
           variant={isMalus ? 'destructive' : 'default'}
           className="mt-5 min-w-40"
         >
-          {isMalus ? `Infliger le malus (${amountEur} €)` : 'Ajouter l’avertissement'}
+          {isMalus ? `Infliger le malus (${eur2max(amountEur)})` : 'Ajouter l’avertissement'}
         </ActionButton>
       </div>
 

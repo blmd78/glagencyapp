@@ -35,7 +35,7 @@
 | `packages/core/src/compta/payslip.ts` | La formule de paie. Pur. |
 | `packages/core/src/compta/payslip.test.ts` | Tests de la formule. |
 | `packages/core/src/index.ts` | Ajout des exports compta. |
-| `packages/db/supabase/migrations/0085_compta_profiles.sql` | Re-cléage sur `profiles`, prime en numeric, colonnes d'instantané, RLS cloisonnée. |
+| `packages/db/supabase/migrations/0085_compta_paie.sql` | **Migration unique de la feature** (fusion 0085→0095 du 2026-07-28, prod restée à 0084) : re-cléage sur `profiles`, périodes de 14 jours, taux daté (`compta_rates`), instantané de paiement, barème setter, RLS cloisonnée — spec §5. |
 | `apps/web/src/features/compta/types.ts` | Contrat de domaine local. |
 | `apps/web/src/features/compta/schema.ts` | Schémas Zod partagés RHF ↔ actions. |
 | `apps/web/src/features/compta/services/get-compta.ts` | Lecture d'une quinzaine. |
@@ -532,18 +532,23 @@ alter table public.compta_primes alter column amount set default 100;
 -- `amount` reste le NET versé. Invariant applicatif :
 --   amount = base + setter + bonus − malus + handoffs + prime − sanctions
 
+-- AUCUN `default` — volontaire, arbitré le 2026-07-27. Un défaut rendrait ces colonnes
+-- OPTIONNELLES dans le type `Insert` généré : un enregistrement de paiement omettant
+-- `sanctions_amount` compilerait et écrirait 0 €, faisant disparaître une retenue sans bruit.
+-- Sans défaut, TypeScript exige les 8 composantes à chaque paiement. La table est purgée
+-- juste au-dessus, donc aucune ligne existante à remplir : le défaut ne servait à rien.
 alter table public.compta_payments
-  add column if not exists period            smallint not null default 1,
-  add column if not exists ca_reference      numeric(10,2) not null default 0,
-  add column if not exists mode_applied      text not null default 'percent',
-  add column if not exists rate_applied      numeric(5,2) not null default 0,
-  add column if not exists base_amount       numeric(10,2) not null default 0,
-  add column if not exists setter_amount     numeric(10,2) not null default 0,
-  add column if not exists bonus_amount      numeric(10,2) not null default 0,
-  add column if not exists malus_amount      numeric(10,2) not null default 0,
-  add column if not exists handoffs_amount   numeric(10,2) not null default 0,
-  add column if not exists prime_amount      numeric(10,2) not null default 0,
-  add column if not exists sanctions_amount  numeric(10,2) not null default 0;
+  add column if not exists period            smallint not null,
+  add column if not exists ca_reference      numeric(10,2) not null,
+  add column if not exists mode_applied      text not null,
+  add column if not exists rate_applied      numeric(5,2) not null,
+  add column if not exists base_amount       numeric(10,2) not null,
+  add column if not exists setter_amount     numeric(10,2) not null,
+  add column if not exists bonus_amount      numeric(10,2) not null,
+  add column if not exists malus_amount      numeric(10,2) not null,
+  add column if not exists handoffs_amount   numeric(10,2) not null,
+  add column if not exists prime_amount      numeric(10,2) not null,
+  add column if not exists sanctions_amount  numeric(10,2) not null;
 
 alter table public.compta_payments
   add constraint compta_payments_period_check check (period in (1, 2));
@@ -755,7 +760,11 @@ export const payInput = z.object({
   amount: money,
   caReference: money,
   modeApplied: z.enum(['percent', 'fixed']),
-  rateApplied: money,
+  // PAS `money` : c'est un TAUX en %, pas un montant, et la colonne est `numeric(5,2)` —
+  // plafonnée à 999,99. Avec la borne des montants (99 999), un taux aberrant passait Zod
+  // puis explosait en `numeric field overflow` Postgres brut, au lieu d'une erreur de
+  // validation lisible.
+  rateApplied: z.coerce.number().min(0, 'Taux positif attendu').max(999.99, 'Taux hors bornes'),
   baseAmount: money,
   setterAmount: money,
   bonusAmount: money,
@@ -1038,7 +1047,7 @@ git commit -m "feat(compta): lecture d'une quinzaine (CA par modèle, saisies, s
 
 **Interfaces:**
 - Consumes: `getCompta` (Task 5), `ComptaData` (Task 4), `MembersAccordion` de `@/components/members-accordion`, `KpiGrid`/`Kpi` de `@/components/kpi-card`, `RowsSkeleton` de `@/components/skeletons/rows-skeleton`, `eur` de `@/lib/format`.
-- Produces: `<ComptaTemplate data canPay />`, `<ComptaView data canPay />`, `<ComptaSkeleton />`.
+- Produces: `<ComptaTemplate data canEnter canPay />`, `<ComptaView data canEnter canPay />`, `<ComptaSkeleton />`.
 
 - [ ] **Step 1 : Écrire le squelette**
 
@@ -1090,7 +1099,7 @@ import type { ComptaData } from '../types'
  * noms dépliables (même grammaire que le Planning et le Dashboard). Le sélecteur pousse
  * `?month=`&`?period=` — la page, Server Component, se recharge sur la quinzaine choisie.
  */
-export function ComptaView({ data, canPay }: { data: ComptaData; canPay: boolean }) {
+export function ComptaView({ data, canEnter, canPay }: { data: ComptaData; canEnter: boolean; canPay: boolean }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
@@ -1163,6 +1172,7 @@ export function ComptaView({ data, canPay }: { data: ComptaData; canPay: boolean
             row={r}
             fortnight={data.fortnight}
             mondays={mondaysIn(data.fortnight)}
+            canEnter={canEnter}
             canPay={canPay}
           />
         )}
@@ -1185,8 +1195,8 @@ import type { ComptaData } from './types'
  * récupérées par `app/(dash)/chatter/compta/page.tsx`). Toute l'interactivité vit dans
  * `ComptaView` : sélecteur de période, pile de noms, saisies et paiement.
  */
-export function ComptaTemplate({ data, canPay }: { data: ComptaData; canPay: boolean }) {
-  return <ComptaView data={data} canPay={canPay} />
+export function ComptaTemplate({ data, canEnter, canPay }: { data: ComptaData; canEnter: boolean; canPay: boolean }) {
+  return <ComptaView data={data} canEnter={canEnter} canPay={canPay} />
 }
 ```
 
@@ -1196,7 +1206,7 @@ Remplacer `apps/web/src/app/(dash)/chatter/compta/page.tsx` :
 
 ```tsx
 import { Suspense } from 'react'
-import { requireAccess } from '@/lib/auth'
+import { hasWriteAccess, requireAccess } from '@/lib/auth'
 import { getCompta } from '@/features/compta/services/get-compta'
 import { ComptaTemplate } from '@/features/compta/ComptaTemplate'
 import { ComptaSkeleton } from '@/features/compta/components/compta-skeleton'
@@ -1218,7 +1228,15 @@ export default async function ComptaPage({
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Compta</h1>
       <Suspense fallback={<ComptaSkeleton />}>
-        <ComptaContent month={month} period={period} canPay={profile.role === 'admin'} />
+        <ComptaContent
+          month={month}
+          period={period}
+          // DEUX droits distincts (spec §6) : le manager SAISIT, seul l'admin PAIE.
+          // `profile.role` ne vaut que 'admin' ou 'chatteur' — un manager y est mappé sur
+          // 'chatteur' (lib/auth). Le tester ici priverait tout manager du formulaire.
+          canEnter={hasWriteAccess(profile, 'compta')}
+          canPay={profile.role === 'admin'}
+        />
       </Suspense>
     </div>
   )
@@ -1227,13 +1245,17 @@ export default async function ComptaPage({
 async function ComptaContent({
   month,
   period,
+  canEnter,
   canPay,
 }: {
   month?: string
   period?: string
+  canEnter: boolean
   canPay: boolean
 }) {
-  return <ComptaTemplate data={await getCompta({ month, period })} canPay={canPay} />
+  return (
+    <ComptaTemplate data={await getCompta({ month, period })} canEnter={canEnter} canPay={canPay} />
+  )
 }
 ```
 
@@ -1274,7 +1296,7 @@ Ne pas commiter seul : enchaîner sur la Task 7 puis commiter les deux ensemble.
 
 **Interfaces:**
 - Consumes: `ComptaRow` (Task 4), `Fortnight` de `@glagency/core`, `eur` de `@/lib/format`, `frDayShort` de `@glagency/core`.
-- Produces: `<ComptaPayslip row fortnight canPay />`.
+- Produces: `<ComptaPayslip row fortnight mondays canEnter canPay />`.
 
 - [ ] **Step 1 : Écrire le composant**
 
@@ -1304,14 +1326,19 @@ function Line({ label, amount, muted }: { label: string; amount: number; muted?:
  */
 export function ComptaPayslip({
   row,
-  fortnight,
   mondays,
+  canEnter,
   canPay,
 }: {
   row: ComptaRow
+  /** Reste dans le type (l'appelant le passe, la tâche 9 le lira) sans être déstructuré ici. */
   fortnight: Fortnight
-  /** Lundis des semaines rattachées — un formulaire de saisie par semaine (tâche 8). */
+  /** Lundis des semaines rattachées — un formulaire de saisie par semaine. */
   mondays: string[]
+  /** Le manager SAISIT — miroir applicatif de `managerPageGuard('compta')`. */
+  canEnter: boolean
+  /** Seul l'admin PAIE (les virements). Distinct de `canEnter` : `profile.role` ne vaut
+   *  qu'`admin` ou `chatteur`, un manager y est mappé sur `chatteur` (lib/auth). */
   canPay: boolean
 }) {
   const p = row.payslip
@@ -1332,7 +1359,10 @@ export function ComptaPayslip({
           label={
             row.mode === 'percent'
               ? `Commission — ${eur(p.ca)} × ${row.rate} %`
-              : `Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${fortnight.label}`
+              : // Le calcul réel est `fixedAmount × weekCount` (cf. payslip.ts) — afficher
+                // « × plage de dates » multipliait un montant par un intervalle, ce qui ne
+                // veut rien dire. `mondays.length` EST le nombre de semaines rattachées.
+                `Fixe hebdomadaire — ${eur(row.fixedAmount)} × ${mondays.length} semaine${mondays.length > 1 ? 's' : ''}`
           }
           amount={p.base}
         />
@@ -1564,29 +1594,31 @@ export function ComptaEntryForm({
 
 - [ ] **Step 3 : Brancher le formulaire dans la fiche**
 
-Dans `compta-payslip.tsx`, remplacer le paragraphe « Le bouton de paiement arrive à la tâche 9. » par le rendu d'un `<ComptaEntryForm>` par semaine de la quinzaine. Cela suppose que `ComptaRow` porte les saisies existantes : ajouter dans `types.ts` (Task 4) le champ
-
-```ts
-  /** Saisies hebdo existantes, par lundi. */
-  weekEntries: Record<string, { bonus: number; malus: number; handoffs: number; fixeSetter: number; note: string | null }>
-```
-
-et le remplir dans `get-compta.ts` (Task 5) à partir de `we`. Puis, dans `compta-payslip.tsx`, ajouter la prop `mondays: string[]` et rendre :
+Tout est déjà en place : `ComptaRow.weekEntries` est défini en tâche 4 et rempli en tâche 5,
+`ComptaPayslip` reçoit déjà `mondays` en tâche 7, et `compta-view.tsx` le passe déjà. **Ne rien
+ajouter à `types.ts` ni à `get-compta.ts`** — vérifier que les trois existent, puis une seule
+modification dans `compta-payslip.tsx` : importer `ComptaEntryForm` et remplacer le paragraphe
+« Le bouton de paiement arrive à la tâche 9. » par
 
 ```tsx
-      {canPay && mondays.map((m) => (
-        <ComptaEntryForm
-          key={m}
-          chatterId={row.id}
-          weekStart={m}
-          weekLabel={frDayShort(m)}
-          isSetter={row.isSetter}
-          initial={row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }}
-        />
-      ))}
+      {canEnter &&
+        mondays.map((m) => (
+          <ComptaEntryForm
+            key={m}
+            chatterId={row.id}
+            weekStart={m}
+            weekLabel={frDayShort(m)}
+            isSetter={row.isSetter}
+            initial={
+              row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }
+            }
+          />
+        ))}
 ```
 
-`compta-view.tsx` passe `mondays={mondaysIn(data.fortnight)}`.
+Pas de `onSaved` ici : `initial` vient des props SERVEUR, que `revalidatePath('/chatter/compta')`
+rafraîchit déjà. C'est la différence avec le Dashboard, dont le panneau détient ses données en
+état client — là-bas le rappel était indispensable.
 
 - [ ] **Step 4 : Vérifier**
 
@@ -1604,20 +1636,87 @@ git commit -m "feat(compta): saisie hebdomadaire des bonus, malus, handoffs et f
 
 ### Task 9 : Paiement et instantané figé
 
+> **Révisée avant exécution** (relecture du plan contre le code réel, 2026-07-27). Six défauts
+> corrigés ici : absence de contrainte d'unicité en base, `net` négatif refusé par Zod, bouton
+> de confirmation libellé « Supprimer » en rouge, `paid_at` calculé en UTC, prime soldée sans
+> filtre de statut, et emplacement d'insertion inexistant. Détail dans chaque étape.
+
 **Files:**
+- Create: `packages/db/supabase/migrations/0087_compta_payments_no_overlap.sql`
+- Modify: `apps/web/src/features/compta/schema.ts`
+- Modify: `apps/web/src/features/compta/types.ts`
+- Modify: `apps/web/src/features/compta/services/get-compta.ts`
 - Modify: `apps/web/src/features/compta/actions.ts`
 - Create: `apps/web/src/features/compta/components/compta-pay-dialog.tsx`
 - Modify: `apps/web/src/features/compta/components/compta-payslip.tsx`
+- Modify: `apps/web/src/features/compta/components/compta-view.tsx`
 
 **Interfaces:**
-- Consumes: `adminGuard` de `@/lib/actions`, `payInput` (Task 4), `daysIn` de `@glagency/core`.
-- Produces: `payFortnight(raw: unknown): Promise<ActionResult>`.
+- Consumes: `adminGuard` de `@/lib/actions`, `payInput` (Task 4), `daysIn` et `todayParis` de
+  `@glagency/core`, `ConfirmDialog` de `@/components/confirm-dialog`.
+- Produces: `payFortnight(raw: unknown): Promise<ActionResult>` ; `ComptaRow.paidAmount`.
 
-- [ ] **Step 1 : Ajouter l'action de paiement**
+- [ ] **Step 1 : Rendre le double paiement impossible en base**
+
+> **Corrigé en cours d'exécution.** La première version posait un index unique sur
+> `(chatter_id, month, period)`. C'était faux : `spec:77-78` et `spec:306` conçoivent le
+> **paiement partiel** comme un cas nominal (`covered_days` ne couvre qu'une partie, la
+> quinzaine reste « incomplète »). L'invariant réel n'est pas « un paiement par quinzaine »
+> mais **« aucun jour payé deux fois »**. Signalé par l'implémenteur, vérifié contre la spec.
+
+`compta_payments` n'a **aucune garde** contre le double paiement — vérifié sur l'UAT : seules
+la PK sur `id` et trois index non uniques existent. Un garde applicatif « lire puis insérer »
+ne suffit pas : entre les deux requêtes, un second clic ou un second admin insère un doublon,
+et deux virements sont enregistrés. Sur de l'argent, la garde doit venir de la base.
+
+Créer `packages/db/supabase/migrations/0087_compta_payments_no_overlap.sql` : un trigger
+`before insert or update` qui refuse un `covered_days` chevauchant (`&&`) celui d'un paiement
+existant du même chatteur, en `raise ... using errcode = '23505'` pour que `payFortnight` le
+traduise en message métier. Un `pg_advisory_xact_lock(hashtext(chatter_id::text))` en tête
+rend la garde réellement atomique — un `exists` seul, en READ COMMITTED, ne verrouille rien et
+laisserait passer deux insertions concurrentes. `security definer` : la fonction doit voir les
+paiements de tous pour détecter un doublon, ce que la RLS masquerait à un manager.
+
+Appliquer sur l'**UAT seulement** (comme `0085` et `0086`) :
+
+```bash
+cd packages/db && supabase db push --db-url "$DATABASE_URL_UAT"
+```
+
+Vérifier **en base**, pas par déduction : qu'un paiement partiel suivi de son complément passe
+tous les deux, et qu'un chevauchement lève bien un 23505. `packages/db/src/types.ts` reste
+inchangé (un trigger ne touche pas les types générés).
+
+- [ ] **Step 2 : Autoriser un net négatif**
+
+`schema.ts` définit `money = z.coerce.number().min(0)`, et `payInput.amount` l'utilise. Or le
+net **peut être négatif** : `net = base + setter + bonus − malus + handoffs + prime − sanctions`
+(cf. `packages/core/src/compta/payslip.ts`). Un fixe de 50 €/semaine sur 2 semaines avec 150 €
+de sanctions Police donne −50 €. Tel quel, l'action refuserait ce paiement avec « Montant
+positif attendu », un message qui n'a aucun sens ici.
+
+Dans `apps/web/src/features/compta/schema.ts`, à côté de `money`, ajouter :
+
+```ts
+/**
+ * Le NET d'une quinzaine, seul montant SIGNÉ de la feature : malus et sanctions Police peuvent
+ * dépasser les gains (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le
+ * traitement du solde dû relève de `compta_debts`, hors périmètre (spec §9). Toutes les autres
+ * lignes (`base`, `bonus`, `sanctions`…) restent des `money` positifs : ce sont des composantes,
+ * c'est leur combinaison qui porte le signe.
+ */
+const netMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
+```
+
+et dans `payInput`, remplacer `amount: money,` par `amount: netMoney,`. Ne toucher à aucune
+autre ligne du schéma.
+
+- [ ] **Step 3 : Ajouter l'action de paiement**
 
 Dans `apps/web/src/features/compta/actions.ts`, ajouter :
 
 ```ts
+import { todayParis } from '@glagency/core'
 import { adminGuard } from '@/lib/actions'
 import { payInput } from './schema'
 
@@ -1637,15 +1736,16 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
       if (!profile) throw new Error('Session expirée')
       const supabase = await createClient()
 
-      const { data: existing, error: readErr } = await supabase
-        .from('compta_payments')
-        .select('id')
-        .eq('chatter_id', v.chatterId)
-        .eq('month', v.month)
-        .eq('period', v.period)
-        .maybeSingle()
-      if (readErr) throw new Error(readErr.message)
-      if (existing) throw new BusinessError('Cette quinzaine a déjà été payée pour ce chatteur.')
+      // On ne fige que des jours RÉVOLUS. Payer une quinzaine en cours gèlerait un CA encore
+      // incomplet tout en marquant ses jours couverts — la perte serait définitive et jamais
+      // signalée par le bandeau de retard, qui se déduit de la couverture. Ni la spec ni la
+      // première version du plan ne traitaient ce cas.
+      const today = todayParis()
+      if (v.coveredDays.some((d) => d >= today)) {
+        throw new BusinessError(
+          "Cette quinzaine n'est pas terminée — elle ne peut être payée qu'à partir du lendemain de son dernier jour.",
+        )
+      }
 
       const { error } = await supabase.from('compta_payments').insert({
         chatter_id: v.chatterId,
@@ -1665,15 +1765,31 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
         sanctions_amount: v.sanctionsAmount,
         note: v.note,
         paid_by: profile.id,
+        // `paid_at` a un défaut `CURRENT_DATE` — mais c'est la date du SERVEUR (UTC), pas le
+        // jour métier. Un paiement enregistré à 00 h 30 à Paris en été serait daté de la
+        // veille. `todayParis()` est le jour métier de toute l'app.
+        paid_at: todayParis(),
       })
+      // 23505 = le trigger de 0087 : au moins un de ces jours est déjà couvert par un autre
+      // paiement. C'est la BASE qui l'arbitre, pas une lecture préalable — sinon deux clics
+      // concurrents passent tous les deux et enregistrent deux virements.
+      if (error?.code === '23505') {
+        throw new BusinessError('Cette quinzaine a déjà été payée pour ce chatteur.')
+      }
+      if (error?.code === '42501') {
+        throw new BusinessError("Vous n'avez pas le droit d'enregistrer ce paiement.")
+      }
       if (error) throw new Error(error.message)
 
       // La prime n'est due qu'UNE fois : si elle entrait dans ce paiement, elle est soldée.
+      // `status = 'due'` explicite : sans ce filtre, une prime déjà `skipped` (renoncée)
+      // basculerait en `paid` alors qu'elle n'a rien versé.
       if (v.primeAmount > 0) {
         const { error: primeErr } = await supabase
           .from('compta_primes')
-          .update({ status: 'paid', paid_at: new Date().toISOString().slice(0, 10), updated_by: profile.id })
+          .update({ status: 'paid', paid_at: todayParis(), updated_by: profile.id })
           .eq('chatter_id', v.chatterId)
+          .eq('status', 'due')
         if (primeErr) throw new Error(primeErr.message)
       }
 
@@ -1683,7 +1799,55 @@ export async function payFortnight(raw: unknown): Promise<ActionResult> {
 }
 ```
 
-- [ ] **Step 2 : Écrire le dialog de confirmation**
+Vérifier que `BusinessError`, `getProfile`, `createClient`, `revalidatePath` et `ActionResult`
+sont déjà importés en tête du fichier (Task 8 les a posés) — n'ajouter que ce qui manque.
+
+- [ ] **Step 4 : Exposer le montant réellement versé**
+
+Le KPI « Déjà payé » (`compta-view.tsx:47`) somme `r.payslip.net`, c'est-à-dire le **recalcul
+d'aujourd'hui**, pas ce qui a été versé. C'est exactement ce que l'instantané existe pour
+éviter : après une ré-ingestion du CA, le total affiché ne correspondrait plus aux virements.
+
+Dans `types.ts`, ajouter à `ComptaRow`, sous `paidOn` :
+
+```ts
+  /** Montant RÉELLEMENT versé (instantané `compta_payments.amount`), null si non payé. Distinct
+   *  de `payslip.net`, qui est le recalcul du jour : c'est cette valeur-là qui fait foi. */
+  paidAmount: number | null
+```
+
+Dans `get-compta.ts`, à côté du calcul de `paid` (autour de la ligne 197), ajouter :
+
+```ts
+    // `payments` couvre TOUTES les quinzaines (nécessaire à `overdue`) — restreindre à celle-ci.
+    const thisPayment = myPayments.find(
+      (p) => p.month === fortnight.month && p.period === fortnight.period,
+    )
+```
+
+et dans l'objet retourné, après `paidOn: …` :
+
+```ts
+      paidAmount: thisPayment ? Number(thisPayment.amount) : null,
+```
+
+Dans `compta-view.tsx`, le KPI `'paid'` somme désormais l'instantané :
+
+```ts
+      value: eur(data.rows.reduce((s, r) => s + (r.paidAmount ?? 0), 0)),
+```
+
+et le `hint` affiche le montant versé :
+
+```tsx
+          r.chatterId == null
+            ? '⚠ non relié à MyPuls'
+            : r.paid
+              ? `payé le ${r.paidOn} — ${eur(r.paidAmount ?? 0)}`
+              : `${eur(r.payslip.net)} à payer`
+```
+
+- [ ] **Step 5 : Écrire le dialog de confirmation**
 
 Créer `apps/web/src/features/compta/components/compta-pay-dialog.tsx` :
 
@@ -1708,13 +1872,22 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
   return (
     <ConfirmDialog
       title={`Payer ${row.name} — ${eur(p.net)} ?`}
-      description="Le détail du calcul sera figé : une correction du CA après coup ne modifiera plus ce paiement."
+      description={
+        p.net < 0
+          ? 'Le net est NÉGATIF : malus et sanctions dépassent les gains. Enregistrer ce paiement acte un solde dû, il ne déclenche aucun virement.'
+          : 'Le détail du calcul sera figé : une correction du CA après coup ne modifiera plus ce paiement.'
+      }
+      // `ConfirmDialog` est d'abord un dialog de SUPPRESSION : sans ces deux props, le bouton
+      // de confirmation d'un paiement s'appellerait « Supprimer » et serait rouge.
+      confirmLabel="Marquer payé"
+      destructive={false}
       trigger={
         <Button size="sm" className="self-end">
           Marquer payé
         </Button>
       }
-      // Renvoyer le message d'erreur garde le dialog ouvert et l'affiche.
+      // `ConfirmDialog` affiche lui-même la string renvoyée et RESTE ouvert. Pas de `toast.error`
+      // en plus : la même erreur apparaîtrait deux fois.
       onConfirm={async () => {
         const res = await payFortnight({
           chatterId: row.id,
@@ -1734,10 +1907,7 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
           sanctionsAmount: p.sanctions,
           note: null,
         })
-        if (!res.success) {
-          toast.error(res.error)
-          return res.error
-        }
+        if (!res.success) return res.error
         toast.success('Paiement enregistré')
       }}
     />
@@ -1745,29 +1915,49 @@ export function ComptaPayDialog({ row, fortnight }: { row: ComptaRow; fortnight:
 }
 ```
 
-- [ ] **Step 3 : Brancher dans la fiche**
+- [ ] **Step 6 : Brancher dans la fiche**
 
-Dans `compta-payslip.tsx`, importer `ComptaPayDialog` et remplacer le paragraphe provisoire
-« Le bouton de paiement arrive à la tâche 9. » par :
+⚠️ Le plan disait de remplacer un paragraphe « Le bouton de paiement arrive à la tâche 9. » —
+**il n'existe pas** dans `compta-payslip.tsx`. Insérer plutôt le bloc juste **après** le
+`<div>` « Net à payer » (`compta-payslip.tsx:106-109`) et **avant** le `{canEnter && …}` :
 
 ```tsx
-      {canPay && !row.paid && row.chatterId != null && (
-        <ComptaPayDialog row={row} fortnight={fortnight} />
+      {row.paid && (
+        <p className="text-xs text-muted-foreground">
+          Payé le {row.paidOn} — {eur(row.paidAmount ?? 0)}
+          {/* Écart possible avec le « Net à payer » ci-dessus : celui-ci est recalculé
+              aujourd'hui, celui-là est l'instantané figé au virement. C'est l'instantané
+              qui fait foi. */}
+        </p>
       )}
+
+      {canPay && !row.paid && isClosed && <ComptaPayDialog row={row} fortnight={fortnight} />}
 ```
 
-- [ ] **Step 4 : Vérifier**
+Deux points sur ce gate :
+- `canPay` est enfin **lu** — retirer le commentaire « pas encore lu ici » de sa doc de prop.
+- `isClosed` (quinzaine échue) vient de `compta-view.tsx` : ne pas monter un bouton dont
+  l'action échouerait toujours, la garde serveur ci-dessus étant l'autorité.
+- ne PAS ajouter `row.chatterId != null` : le composant fait déjà un early-return complet quand
+  `chatterId` est nul (`compta-payslip.tsx:46`), la condition serait morte.
 
-Run : `pnpm --filter @glagency/web typecheck && pnpm --filter @glagency/web lint`
-Expected : 0 erreur.
+`fortnight` redevient utilisé dans le corps → le déstructurer et retirer le commentaire
+« Conservé dans la signature… plus utilisé dans le corps ».
 
-- [ ] **Step 5 : Commit**
+- [ ] **Step 7 : Vérifier**
+
+Run : `pnpm --filter @glagency/web typecheck && pnpm --filter @glagency/web lint && pnpm --filter @glagency/web build`
+Expected : 0 erreur ; seuls les 3 warnings ESLint préexistants (`data-table.tsx`) subsistent.
+
+- [ ] **Step 8 : Commit**
+
+Ne PAS commiter depuis un subagent : `CLAUDE.md` soumet chaque commit à l'accord de Benoit.
+Signaler que la tâche est prête et laisser la session principale commiter.
 
 ```bash
-git add apps/web/src/features/compta
+git add packages/db/supabase/migrations/0087_compta_payments_no_overlap.sql apps/web/src/features/compta
 git commit -m "feat(compta): paiement d'une quinzaine avec instantané figé (admin seul)"
 ```
-
 ---
 
 ### Task 10 : Vérification finale
@@ -1808,6 +1998,12 @@ git commit --allow-empty -m "chore(compta): vérification de bout en bout"
 
 ## Ce que ce plan ne fait pas
 
+- **Le report (« RESTE SEMAINE PASSEE ») et la prime du mois (« PRIME TOP3 MOIS ») ont été
+  RETIRÉS à la demande de Benoit le 2026-07-28** (construits aux tâches 21-24, retirés à la
+  tâche 28, migration `0095`) : la prime du mois est un montant MENSUEL qui n'a pas de sens sur
+  un écran de période de 2 semaines, et le « reste semaine passée » n'a jamais été élucidé
+  (« ça existera pas, à part si on me le demande »). La prime setter (TOP15), calculée et non
+  saisie, reste.
 - `/marketing/compta` (paie du staff) reste un placeholder.
 - `compta_debts` n'est pas exploité — registre indépendant de la paie (spec §9).
 - Aucun taux par modèle : la base est calculée modèle par modèle pour le permettre plus tard,
@@ -1815,4 +2011,321 @@ git commit --allow-empty -m "chore(compta): vérification de bout en bout"
 - Aucune saisie JOURNALIÈRE dans l'UI (`compta_day_entries` est lu et sommé, mais la saisie se
   fait à la semaine). À ajouter si le besoin apparaît.
 - Aucun export comptable.
-- `0085` n'est pas poussée en production par ce plan.
+- Le DÉTAIL figé d'une quinzaine payée n'est pas affiché : seuls le montant versé et sa date le
+  sont (Task 9, Step 6). Les 11 colonnes d'instantané sont écrites et exploitables, mais la
+  fiche dépliée continue de montrer le recalcul du jour. À faire si un écart apparaît en usage.
+- `0085`, `0086` et `0087` ne sont poussées QU'EN UAT par ce plan — jamais en production sans
+  validation explicite de Benoit.
+
+---
+
+### Task 11 : Écran de réglages (taux, mode, setter, prime) — décidé après la revue finale
+
+> **Ajoutée après coup.** La revue finale a établi qu'aucun écran n'écrit dans `compta_settings`
+> ni `compta_primes` : tout le monde reste à 10 %, `mode: 'fixed'` est inatteignable, `is_setter`
+> toujours faux (donc le champ « Fixe setter » jamais monté), et la prime — que la spec §2 dit
+> « manuelle, l'admin décide » — ne peut pas être créée. La feature n'était pas utilisable sans
+> écrire du SQL à la main. **Arbitré par Benoit : on construit l'écran maintenant.**
+
+**Files:**
+- Modify: `apps/web/src/features/compta/schema.ts`
+- Modify: `apps/web/src/features/compta/actions.ts`
+- Create: `apps/web/src/features/compta/components/compta-settings-form.tsx`
+- Modify: `apps/web/src/features/compta/components/compta-payslip.tsx`
+- Modify: `apps/web/src/features/compta/components/compta-view.tsx`
+- Modify: `apps/web/src/features/compta/ComptaTemplate.tsx`
+- Modify: `apps/web/src/app/(dash)/chatter/compta/page.tsx`
+- Modify: `apps/web/src/features/compta/services/get-compta.ts` (règle de la prime)
+
+**Aucune migration** — vérifié sur l'UAT (`pg_policy`) : `compta_settings_admin_write` et
+`compta_primes_admin_write` sont déjà `for all` sous `is_admin()` en `using` ET `with check`,
+et les policies de lecture sont cadrées `is_admin() or (is_manager() and manages(chatter_id))`.
+Colonnes de `compta_settings` : `chatter_id` (PK), `mode` (`text`, défaut `'percent'`), `rate`
+(`numeric`, défaut 10), `fixed_amount` (`numeric`, défaut 0), `is_setter` (`bool`, défaut false),
+`updated_at`, `updated_by`.
+
+- [ ] **Step 1 : Schémas**
+
+`settingsInput` : `chatterId` (uuid), `mode` (`'percent' | 'fixed'`), `rate` (le TAUX, mêmes
+bornes que `rateApplied` — `numeric(5,2)`, donc max 999,99, PAS `money`), `fixedAmount` (`money`),
+`isSetter` (bool). `primeInput` : `chatterId`, `amount` (`money`), `status` (`'due' | 'skipped'`).
+
+- [ ] **Step 2 : Actions**
+
+`saveComptaSettings` et `savePrime`, toutes deux `guard: adminGuard` (la spec §6 réserve les
+réglages, primes et paiements à l'admin ; les saisies seules sont ouvertes à l'encadrement).
+Upsert sur `chatter_id` (PK des deux tables), `updated_by: profile.id` et `updated_at` posé à la
+main (aucun trigger sur ces tables — même constat que `saveWeekEntry`). Convertir un refus RLS
+`42501` en `BusinessError`.
+
+- [ ] **Step 3 : Le formulaire**
+
+`compta-settings-form.tsx`, sur le modèle exact de `compta-entry-form.tsx` : RHF + `zodResolver`,
+**`'use no memo'` obligatoire** (le React Compiler casse `formState` — règle du dépôt), `z.input<>`
+pour le générique. Le champ `rate` n'a de sens qu'en mode `percent`, `fixedAmount` qu'en mode
+`fixed` : masquer celui qui ne s'applique pas plutôt que d'afficher un champ inerte.
+
+- [ ] **Step 4 : Le droit**
+
+`canConfigure` — nouveau booléen, **distinct de `canPay`** bien que dérivé du même
+`profile.role === 'admin'` aujourd'hui : régler un taux et exécuter un virement sont deux gestes
+différents, et les avoir confondus est exactement ce qui a produit le défaut `canEnter`/`canPay`.
+Threadé `page.tsx` → `ComptaTemplate` → `ComptaView` → `ComptaPayslip`.
+
+- [ ] **Step 5 : La prime s'affiche sur la quinzaine affichée**
+
+**Arbitré par Benoit.** La règle actuelle (`myOldestOpen` : quinzaine ÉCHUE la plus ancienne non
+couverte du membre) est conforme à la spec §4 mais inutilisable à l'amorçage — sans aucun
+paiement, elle ancre la prime sur la plus vieille quinzaine de la fenêtre (juin sur l'UAT), que
+personne n'ouvrira. Nouvelle règle : la prime s'affiche sur la **quinzaine affichée** si elle est
+échue et que le membre n'en a jamais reçu.
+
+`coverage.primePaid` (source de vérité = `compta_payments.prime_amount` figé) reste le garde :
+elle ne peut être versée qu'une fois, quelle que soit la quinzaine par laquelle on passe.
+`myOldestOpen` disparaît — vérifier qu'il n'a **aucun autre consommateur** avant de le supprimer.
+Mettre la spec §4 à jour en même temps : c'est un écart assumé, pas un oubli.
+
+- [ ] **Step 6 : Vérifier**
+
+`pnpm --filter @glagency/web typecheck && lint && build`. Puis, sur l'UAT : régler un chatteur en
+`fixed`, vérifier que sa fiche bascule sur « Fixe hebdomadaire — X € × N semaines » — **c'est le
+seul chemin qui exerce la branche `fixed` de `computePayslip`**, jamais exécutée à ce jour.
+
+- [ ] **Step 7 : Commit** — ne pas commiter depuis un subagent (accord de Benoit requis).
+
+---
+
+### Task 15 : La période de paie devient 2 semaines lundi→dimanche
+
+> **Décidé par Benoit le 2026-07-27, après lecture de sa feuille Google Sheets de juillet.**
+> C'est une correction d'une erreur d'interprétation de ma part, pas un changement d'avis :
+> quand il a dit « il paye toutes les 2 semaines… 2 paiements par mois », j'ai traduit en
+> quinzaines calendaires 1–15 / 16–fin. Sa feuille prouve que ce sont **14 jours calés sur les
+> lundis**.
+
+**Preuve, tirée de la feuille (onglet juillet, `gid=872644203`)** :
+- Bloc S1 = lundi 06/07 → dimanche 12/07 ; S2 = lundi 13/07 → dimanche 19/07.
+- Le bloc S2 porte « Net à payer 1 » (= le net de S1, vérifié au centime : Seth 809,3816 €),
+  « Net à payer 2 » (= le net de S2) et « -NET TOTAL- » = leur somme. **Le paiement couvre
+  donc 06/07 → 19/07.**
+- La feuille « juillet » couvre en réalité **06/07 → 02/08** : elle ne suit pas le mois.
+- Cadence : 26 périodes par an, pas 24.
+
+**Ancre vérifiée** : le lundi 2026-07-06 démarre une période. Toute période démarre donc un
+lundi `M` tel que `(M − 2026-07-06) mod 14 = 0` (2026-07-20 et 2026-06-22 le confirment).
+
+**Files:**
+- Modify: `packages/core/src/compta/periods.ts` + `periods.test.ts` + `packages/core/src/index.ts`
+- Create: `packages/db/supabase/migrations/0088_compta_period_start.sql`
+- Modify: toute la feature `apps/web/src/features/compta/` (types, schema, actions, services, composants)
+
+- [ ] **Step 1 : Le domaine**
+
+`Fortnight { month, period: 1|2, from, to, label }` devient une période de 14 jours identifiée
+par **son lundi de départ**. `period: 1|2` disparaît : il n'a plus de sens (une période ne se
+rattache plus à un mois — celle du 20/07 finit en août). `month` aussi.
+
+Nouvelle forme suggérée : `PayPeriod { start, end, label }` où `start` est un lundi et
+`end = start + 13`. `fortnightOf(day)` → `periodOf(day)` ; `recentFortnights(today, n)` →
+`recentPeriods(today, n)` ; `mondaysIn` rend **exactement 2 lundis** (plus jamais 3 — c'est une
+simplification, l'ancien modèle en avait 2 ou 3 selon le mois) ; `daysIn` rend **exactement
+14 jours** (contre 15 ou 16). `fortnightsOfMonth` disparaît.
+
+⚠️ `mondaysIn` rendant toujours 2 lundis, le libellé du mode fixe (`fixedAmount × N semaines`)
+devient toujours « × 2 semaines ». Vérifier que `computePayslip` reçoit bien `weekCount = 2` et
+que le test correspondant reste discriminant.
+
+- [ ] **Step 2 : La base**
+
+`compta_payments` porte `month date` + `period smallint check (period in (1,2))`. Avec des
+périodes de 14 jours, **il peut y en avoir 3 qui démarrent dans le même mois** : la contrainte
+`in (1,2)` deviendrait fausse, et stocker un lundi dans une colonne nommée `month` serait un
+mensonge permanent.
+
+Migration `0088` : renommer `month` → `period_start` et **supprimer** `period` (+ sa contrainte).
+C'est sans risque : `compta_payments` est **vide** (0 ligne, vérifié le 2026-07-27 sur l'UAT et
+la prod), et `0085`/`0087` ne sont pas en production. Régénérer `packages/db/src/types.ts`.
+
+`compta_day_entries` (clé par date) et `compta_week_entries` (clé par lundi) ne bougent PAS :
+elles sont déjà indépendantes du découpage.
+
+- [ ] **Step 3 : La feature**
+
+Propager partout : `?month=`/`?period=` dans l'URL → un seul `?debut=` (le lundi) ; le
+`Combobox` du sélecteur ; `payInput` ; `payFortnight` ; `thisPayments` (filtre `(month, period)`
+→ `period_start`) ; `coverage.ts` ; `overdueFortnights`. Le garde « on ne fige que des jours
+révolus » et le trigger de non-chevauchement `0087` restent inchangés — ils raisonnent sur
+`covered_days`, pas sur le découpage.
+
+- [ ] **Step 4 : Vérifier contre la feuille**
+
+Rejouer sur l'UAT la période **06/07 → 19/07** et comparer, chatteur par chatteur, avec la
+colonne « -NET TOTAL- » du bloc S2 de la feuille. Les taux réels y sont : **86 à 10 %, 5 à 11 %**
+(Seth, Néleck, Flo, Benj2p, Junior), **4 à 10,5 %** (Michel, kwasi, Alain, Juliot). Écarts
+attendus et légitimes : les sanctions Police (absentes de la feuille) et les lignes non encore
+implémentées (RESTE SEMAINE PASSEE, Divers, PRIME TOP15 SETTER, PRIME TOP3 MOIS).
+
+- [ ] **Step 5 : Commit** — ne pas commiter depuis un subagent.
+
+---
+
+### Reste à faire, hors périmètre de la tâche 15
+
+Relevé dans la feuille de juillet, absent de l'app :
+- **PRIME TOP15 SETTER** et **PRIME TOP3 MOIS** — deux primes mensuelles.
+- **RESTE SEMAINE PASSEE** — report d'une période sur la suivante.
+- **Divers** — ligne d'ajustement libre, signée (observée à −20, −10, −5).
+- Renommer « Prime nouveau chatteur » en **« Prime d'embauche »**, le terme de la feuille
+  (montant identique : 100 €, versée à 10 personnes en juillet).
+
+---
+
+### Task 16 : Aligner le modèle sur la feuille — retrait du mode fixe, setter depuis Membres
+
+> **Décidé par Benoit le 2026-07-27** : « je pense qu'il sert pas, ma référence c'est ce
+> document ». La feuille de juillet est désormais la référence du modèle de paie.
+
+**Constats mesurés sur la feuille (onglet juillet)** :
+- **Personne n'est en mode « fixe au lieu du pourcentage »**. Les 95 chatteurs de la semaine S1
+  ont tous un net = `CA × taux` : **86 à 10 %**, **5 à 11 %** (Seth, Néleck, Flo, Benj2p,
+  Junior), **4 à 10,5 %** (Michel, kwasi, Alain, Juliot). Le mode `fixed` vient de l'ancienne
+  branche et ne correspond à aucune pratique.
+- **Le fixe setter s'AJOUTE au pourcentage**, il ne le remplace pas. Vérifié : Carl = 4,379 €
+  (commission) + 75 € (fixe) + 19,20 € (handoffs) = 98,579 € ; Martin = 27,55 + 75 + 21 =
+  123,55 € ; Julie = 0 + 40 + 3,60 = 43,60 €. C'est déjà ce que fait `computePayslip`.
+- **Le fixe setter est versé UNE fois par période de paie**, pas par semaine : rempli
+  uniquement dans le bloc S2 (celui qui porte le paiement), 59 personnes, montants **37,5 / 40
+  / 75 €**. Le 37,5 prouve qu'il est ajustable au cas par cas.
+- **« Divers » n'est pas une ligne d'ajustement libre** : c'est la somme
+  `fixe setter + 0,60 × handoffs − malus`. Rien à construire — retirer cette ligne du reste-à-faire.
+
+**Files:**
+- Modify: `packages/core/src/compta/payslip.ts` + `payslip.test.ts`
+- Create: `packages/db/supabase/migrations/0089_compta_settings_simplification.sql`
+- Modify: `apps/web/src/features/compta/` (schema, actions, types, services, composants)
+- Modify: `docs/superpowers/specs/2026-07-27-compta-paie-design.md` (§2, §4, §5)
+
+- [ ] **Step 1 : Retirer le mode fixe du domaine**
+
+`PayslipInput` perd `mode`, `fixedAmount` et `weekCount` (ce dernier ne servait qu'au mode
+fixe). `base` devient toujours `Σ round2(ca_modèle × taux)`. Supprimer les tests du mode fixe et
+**vérifier que les tests restants discriminent encore** — en réintroduisant temporairement la
+régression, et en rapportant ce qui a été observé.
+
+- [ ] **Step 2 : Le statut setter vient de Membres**
+
+`compta_settings.is_setter` disparaît : la source de vérité est **`profiles.closing_role`**
+(`check in ('setter','closer')`, réglé depuis Membres). Deux sources pour un même fait
+finissent toujours par diverger.
+
+⚠️ **Trou de données connu et assumé par Benoit** (« ils vont le faire ») : `closing_role` vaut
+`'setter'` pour **1 seul** profil en prod (13 `closer`, 91 non renseignés) alors que la feuille
+verse un fixe setter à 59 personnes. Tant que Membres n'est pas rempli, presque aucun fixe
+setter ne s'appliquera. Ne pas « compenser » ça en code.
+
+- [ ] **Step 3 : Le fixe setter devient un réglage, ajustable**
+
+`compta_settings.fixed_amount` (qui portait le montant du mode fixe, désormais mort) est
+**réutilisé** comme montant du fixe setter **par période**. Il s'applique automatiquement à
+qui a `closing_role = 'setter'` — sinon il faudrait le retaper pour 59 personnes toutes les
+deux semaines, ce que l'app doit justement éviter.
+
+La saisie `compta_week_entries.fixe_setter` est conservée comme **ajustement** : non nulle, elle
+REMPLACE le montant du réglage pour cette période (cas du 37,50 € observé). Elle ne s'y ajoute
+pas — ce serait un double versement. La fiche doit dire lequel s'applique (« Fixe setter — 75 € »
+vs « Fixe setter — 37,50 € (ajusté) »).
+
+- [ ] **Step 4 : Le dialog de réglages**
+
+Après retrait du mode et du statut setter, il reste **le taux, le fixe setter, la prime** — et
+**UN SEUL bouton « Enregistrer »** (demande de Benoit). Les deux Server Actions
+(`saveComptaSettings`, `savePrime`) peuvent rester distinctes côté serveur, mais l'écran n'a
+qu'un bouton : au clic, les deux partent, et une erreur de l'une ne doit pas laisser croire que
+l'autre a échoué.
+
+- [ ] **Step 5 : La base**
+
+Migration `0089` : supprimer `compta_settings.mode` (et son `check`), `compta_settings.is_setter`,
+et `compta_payments.mode_applied` (colonne d'instantané devenue morte). Sans risque :
+`compta_settings` et `compta_payments` sont **vides** (à revérifier avant d'agir), et
+`0085`/`0087`/`0088` ne sont pas en production. Régénérer `packages/db/src/types.ts`.
+
+- [ ] **Step 6 : Vérifier** — `core test`, `typecheck`, `lint`, `build`, puis rejouer la
+comparaison avec la feuille (période 06→19/07).
+
+- [ ] **Step 7 : Commit** — ne pas commiter depuis un subagent.
+
+---
+
+## Lot final — remplacer le tableur (tâches 21 à 24)
+
+> **Demande de Benoit (2026-07-28)** : « implémente tout pour que tout colle à l'Excel, c'est le
+> but de ne plus en avoir besoin. Pense que ça doit être simple et intuitif, pas plus chiant que
+> le document. »
+
+**Inventaire vérifié** de ce qui manque, relevé sur TOUS les onglets et TOUS les libellés :
+`RESTE SEMAINE PASSEE`, `PRIME TOP15 SETTER`, `PRIME TOP3 MOIS`, `Nbre de handoff / Mois`,
+`Total Mois`, l'onglet `CLASSEMENT SETTER`, l'onglet `SUIVI PRIMES NVX CHATTEURS` (41 primes en
+attente), l'onglet `COMPTA CHATTEURS OFF ⛔`, et les rôles `nouveau` / `hybride` de la légende.
+
+**Contrainte d'ergonomie, non négociable** : pas plus pénible que la feuille. La feuille se
+parcourt d'un coup d'œil et se remplit au clavier. Trois onglets sur la page compta, qui
+reprennent le découpage mental de Benoit — **Période** (l'existant), **Classement**,
+**Suivi** — et rien de plus. Aucun nouvel écran ailleurs dans l'app.
+
+### Task 21 : Le socle de données (migration `0090`)
+
+- **`compta_period_entries`** — une ligne par `(chatter_id, period_start)` : `carryover`
+  (`RESTE SEMAINE PASSEE`) et `top3_prime` (`PRIME TOP3 MOIS`, manuelle, règle inconnue).
+  Une seule table pour les deux : ce sont les mêmes clés, le même écran, le même droit.
+- **`compta_setter_scale`** — `rank smallint primary key`, `amount numeric(10,2)`. Le barème du
+  TOP15, réglable (Benoit : « je veux pouvoir le régler »). Valeurs de juin en amorce :
+  200, 175, 165, 140, 130, 120, 115, 110, 105, 100, 95, 90, 87, 84, 80.
+- **`compta_debts`** — `amount` **text → numeric(10,2)** (défaut actuel `'100 €'`, valeurs vues
+  `'10$'`, `'43$'`). Table **vide** (vérifié UAT et prod), conversion sans risque. Ajouter
+  `settled_by uuid references profiles(id)`.
+- **`profiles.closing_role`** — le `check` passe de `('setter','closer')` à
+  `('setter','closer','nouveau','hybride')`, d'après la légende de la feuille (L96-98 :
+  🟢 setter, 🔵 closer, 🔴 nouveau, plus « chatteurs hybrides »).
+- RLS : mêmes régimes que l'existant — écriture admin sur les barèmes et les dettes, écriture
+  encadrement cadrée sur `compta_period_entries` (c'est de la saisie, comme les semaines).
+
+**UAT uniquement.** Vérifier que les tables sont vides avant d'agir.
+
+### Task 22 : Le domaine (`packages/core`)
+
+`PayslipInput` gagne `carryover`, `setterPrime` (TOP15) et `monthlyPrime` (TOP3). Les trois
+s'ajoutent au net. `Payslip` les expose séparément — la fiche doit montrer chaque ligne, comme
+la feuille.
+
+**Le classement setter** est une fonction pure : `rankSetters(handoffsByMember, scale)` →
+rang + montant. Ex æquo : rang partagé, montant du rang le plus favorable — à trancher et
+justifier. Le classement porte sur les **handoffs de la période** (Benoit : « met en 2 semaines
+tkt pas »).
+
+⚠️ **Le comptage qui fait foi n'est pas tranché** : l'onglet CLASSEMENT SETTER de Benoit et les
+handoffs de sa compta divergent (Godgive 86 contre 111 en juin). On prend **les handoffs saisis
+dans l'app** — seule donnée dont on garantisse la provenance. À signaler à Benoit, pas à masquer.
+
+### Task 23 : Les services et les actions
+
+- `compta_period_entries` : lecture dans `compta-sources.ts`, saisie via une action cadrée
+  `managerPageGuard`.
+- Classement des setters sur la période, injecté dans les fiches.
+- **Suivi des primes d'embauche** : `chatter_first_seen()` donne la date d'arrivée ;
+  l'échéance est **arrivée + 1 mois** (colonnes `Début` / `Fin 1er mois` de la feuille, 100 $
+  chacune). Un membre est **éligible** quand `first_seen + 1 mois <= aujourd'hui` et qu'aucun
+  paiement ne porte encore sa prime.
+- **Dettes** : CRUD admin sur `compta_debts`.
+
+### Task 24 : L'écran — trois onglets, rien de plus
+
+- **Période** — inchangé, plus les nouvelles lignes dans la fiche (report, prime setter,
+  prime du mois) et deux champs de saisie (report, prime top 3).
+- **Classement** — le tableau des setters de la période : rang, nom, handoffs, prime. Plus
+  l'édition du barème pour l'admin.
+- **Suivi** — deux listes : les primes d'embauche **échues et non versées** (avec la date
+  d'éligibilité), et les **soldes des partants** (`compta_debts`), avec un bouton « soldé ».
+
+**Ergonomie** : la saisie doit se faire au clavier sans quitter la ligne, comme la saisie hebdo
+qui s'enregistre seule. Aucun bouton « Enregistrer » par ligne.

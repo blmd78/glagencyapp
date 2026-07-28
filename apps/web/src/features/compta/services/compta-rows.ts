@@ -1,0 +1,226 @@
+import { computePayslip, round2, type PayPeriod, type SetterScaleRow } from '@glagency/core'
+import { ERROR_LABEL } from '@/lib/types/police-errors'
+import { buildCoverage, type Coverage } from './coverage'
+import { loadComptaSources } from './compta-sources'
+import { segmentsOf } from './rate-segments'
+import { loadSetterRanking } from './setter-ranking'
+import type { ComptaRow, ComptaSanction, SetterRankingRow } from '../types'
+
+/**
+ * LE calcul de la compta — une fiche de paie par membre sur une période de paie. Appelé TROIS
+ * FOIS avec le même code :
+ *  - par `getCompta`, pour la page (tous les membres) ;
+ *  - par `payPeriod`, pour RECALCULER côté serveur le membre qu'on s'apprête à payer
+ *    (`memberId`) et refuser un montant qui ne correspond plus ;
+ *  - par `payAllForPeriod` (paiement groupé), SANS `memberId` : le lot recalcule toute la
+ *    population et ne verse que ce résultat-là — aucun montant ne transite par le navigateur.
+ *
+ * Une seconde implémentation du calcul serait pire que pas de vérification du tout : elle
+ * divergerait un jour et bloquerait des paiements corrects, ou en laisserait passer de faux.
+ * Les lectures vivent dans `compta-sources.ts`.
+ */
+
+export interface ComptaRowsResult {
+  rows: ComptaRow[]
+  /** Couverture des paiements — `getCompta` en a besoin pour le bandeau de retard. */
+  coverage: Coverage
+  /** L'onglet Classement — les membres VISIBLES qui ont au moins un handoff sur la période, avec
+   *  leur rang AGENCE-WIDE (cf. `setter-ranking.ts`). Trié par rang croissant. */
+  setterRanking: SetterRankingRow[]
+  /** Le barème tel qu'il est en base — affiché par l'onglet Classement, éditable par l'admin. */
+  setterScale: SetterScaleRow[]
+}
+
+export async function loadComptaRows({
+  period,
+  today,
+  memberId,
+}: {
+  period: PayPeriod
+  today: string
+  /** Restreint la population à UN membre (recalcul serveur d'un paiement). */
+  memberId?: string
+}): Promise<ComptaRowsResult> {
+  // EN PARALLÈLE, et jamais en série : les deux lectures sont indépendantes (le classement ne
+  // dépend d'aucune sortie de `loadComptaSources`), et le paiement groupé rejoue toute cette
+  // chaîne. Le classement est AGENCE-WIDE même quand `memberId` restreint la population à une
+  // personne — c'est indispensable au recalcul serveur du paiement : le rang d'un membre dépend
+  // des handoffs de tous les autres, et le calculer sur lui seul lui donnerait le rang 1.
+  const [src, ranking] = await Promise.all([
+    loadComptaSources({ period, memberId }),
+    loadSetterRanking(period),
+  ])
+  const daySet = new Set(src.days)
+
+  // Jours couverts par membre, primes déjà versées, et « cette période le concerne-t-elle ? » —
+  // un seul regroupement sur `payments` (au lieu de le refiltrer pour chaque ligne). Le détail
+  // et le POURQUOI de chaque sortie sont dans `coverage.ts`.
+  const coverage = buildCoverage({
+    members: src.members,
+    payments: src.payments,
+    firstSeen: src.firstSeen,
+  })
+
+  const rows: ComptaRow[] = src.members.map((m) => {
+    const s = src.settingsById.get(m.id)
+    // Générique : une signature figée `(arr: { chatter_id: string }[])` écraserait le type
+    // réel des lignes (bonus/malus/occurred_on/covered_days/…) au retour — chaque appelant
+    // perdrait ses champs propres. `<T extends { chatter_id: string }>` les préserve.
+    const mine = <T extends { chatter_id: string }>(arr: T[]) => arr.filter((x) => x.chatter_id === m.id)
+
+    const de = mine(src.dayEntries)
+    const we = mine(src.weekEntries)
+    const bonus = de.reduce((t, d) => t + Number(d.bonus), 0) + we.reduce((t, w) => t + Number(w.bonus), 0)
+    const malus = de.reduce((t, d) => t + Number(d.malus), 0) + we.reduce((t, w) => t + Number(w.malus), 0)
+    const handoffs = de.reduce((t, d) => t + d.handoffs, 0) + we.reduce((t, w) => t + w.handoffs, 0)
+    // `compta_week_entries.fixe_setter` N'EST PLUS LU (2026-07-28, tâche 19). Il l'était par
+    // une somme sur les 2 semaines de la période — alors que le fixe est un montant PAR
+    // PÉRIODE : le champ de saisie, hebdomadaire, s'affichait donc deux fois et retaper le
+    // même 75 € sur chaque ligne versait 150 €. Le fixe vient désormais des seuls réglages
+    // (`compta_settings.fixed_amount`, ci-dessous). La colonne reste en base — historique.
+
+    const sancRows: ComptaSanction[] = mine(src.sanctions).map((e) => ({
+      day: e.occurred_on,
+      label: e.error_key ? (ERROR_LABEL[e.error_key] ?? e.error_key) : null,
+      amount: Number(e.amount_eur),
+      kind: e.kind === 'warning' ? 'warning' : 'malus',
+    }))
+
+    // `myPayments` (liste, pas set) sert `covered`/`paid`/`paidOn` plus bas, qui ont besoin du
+    // `paid_at` PAR jour, pas seulement de l'appartenance du jour à l'ensemble couvert.
+    const myPayments = mine(src.payments)
+
+    // ── LA PRIME S'AFFICHE SUR LA PÉRIODE CONSULTÉE ─────────────────────────────────────────
+    // Deux conditions, et deux seulement (spec §4, écart arbitré par Benoit le 2026-07-27) :
+    // la période affichée est ÉCHUE, et le membre n'a JAMAIS reçu de prime.
+    //
+    // La règle précédente l'ancrait sur « la période échue la plus ancienne non couverte de
+    // ce membre ». Elle est inutilisable à l'amorçage : tant qu'aucun paiement n'existe, la
+    // plus ancienne non couverte est la plus vieille de la fenêtre (12 périodes en arrière),
+    // que personne n'ouvre — la prime restait donc invisible partout où on la cherchait.
+    //
+    // `!coverage.primePaid.has(...)` est LE garde contre le double versement, inchangé : sa
+    // source de vérité est l'instantané figé `compta_payments.prime_amount` (cf. `coverage.ts`),
+    // pas la position de la période ni `compta_primes.status`. La prime reste donc versable
+    // une seule fois, quelle que soit la période par laquelle on passe.
+    //
+    // `coverage.concerns` n'est PLUS appliqué ici : il ne servait qu'à empêcher l'ancrage
+    // automatique sur une période d'avant l'embauche, alors que la période est désormais
+    // choisie par l'admin. L'y garder aurait privé de prime tout membre sans date d'entrée
+    // (aucun jour dans `chatter_daily`), ce que la spec §10 rend dû malgré tout : « Période
+    // sans aucune donnée CA → net = 0 […] les bonus/primes restent dus ».
+    //
+    // `period.end < today` = le même prédicat « période échue » que `periodElapsed`
+    // (`get-compta.ts`), `overduePeriods` et le garde de `payPeriod`.
+    const primeApplies = !coverage.primePaid.has(m.id) && period.end < today
+    const prime = src.primeById.get(m.id) ?? null
+    // Le filtre `status = 'due'` vit ICI depuis que `compta-sources.ts` lit tous les statuts
+    // (le formulaire admin a besoin de l'état réel) : une prime `'paid'` ou `'skipped'` ne
+    // rentre pas dans le calcul.
+    const primeDue = primeApplies && prime?.status === 'due' ? prime.amount : 0
+
+    // ── LE CA, DÉCOUPÉ PAR TAUX (0093) ──────────────────────────────────────────────────────
+    // `rateHistory` VIDE = le membre n'a jamais été réglé : `rateSpans` applique alors
+    // `DEFAULT_RATE` (10 %) et marque le segment `fallback`, que la fiche AFFICHE. C'est le même
+    // taux qu'avant l'historisation — ce qui change, c'est qu'il ne se subit plus en silence.
+    const rateHistory = src.ratesById.get(m.id) ?? []
+    const segments = segmentsOf(src.days, rateHistory, m.chatter_id ? (src.caByChatter.get(m.chatter_id) ?? []) : [])
+
+    // ── LA PRIME SETTER, BRANCHÉE (tâche 23) ────────────────────────────────────────────────
+    // Elle est CALCULÉE, elle ne se saisit nulle part — c'est la tranche du barème au rang du
+    // membre dans les handoffs de la période (cf. `setter-ranking.ts`). L'instantané de paiement
+    // la fige depuis 0091 : sans cette colonne, le `superRefine` de `payInput` aurait refusé
+    // toute fiche qui en porte une. Ses deux voisines du lot final (report et prime du mois) ont
+    // été retirées le 2026-07-28 (décision de Benoit, migration 0095).
+    const setterRank = ranking.byMember.get(m.id) ?? null
+
+    const payslip = computePayslip({
+      segments,
+      // Défaut de la colonne quand le membre n'a jamais été réglé : aucun fixe.
+      fixedAmount: Number(s?.fixed_amount ?? 0),
+      bonus,
+      malus,
+      handoffs,
+      primeDue,
+      sanctions: sancRows.reduce((t, x) => t + x.amount, 0),
+      setterPrime: setterRank?.amount ?? 0,
+    })
+
+    // Couverture : la période est payée si CHACUN de ses jours figure dans un `covered_days`.
+    const covered = new Map<string, string>()
+    for (const p of myPayments) {
+      for (const d of (p.covered_days as string[] | null) ?? []) if (daySet.has(d)) covered.set(d, p.paid_at)
+    }
+    const paid = src.days.every((d) => covered.has(d))
+    // `payments` couvre TOUTES les périodes (nécessaire à `overdue`) — restreindre à celle-ci.
+    // Le lundi de départ EST la clé d'une période depuis 0088 (`period_start`), là où il
+    // fallait auparavant comparer le couple `(month, period 1|2)`.
+    // Au PLURIEL : un règlement partiel puis son complément font deux lignes (spec §3 et §10),
+    // que le trigger 0087 autorise tant que les jours ne se chevauchent pas. Prendre le premier
+    // sous-déclarerait ce qui a été versé.
+    const thisPayments = myPayments.filter((p) => p.period_start === period.start)
+
+    return {
+      id: m.id,
+      name: m.display_name ?? m.email ?? '—',
+      role: m.role,
+      chatterId: m.chatter_id,
+      // L'historique du membre, tel quel — la fiche de paie s'en sert pour dire depuis quand le
+      // taux courant s'applique, et la colonne « Rémunération » pour résumer la période.
+      rateHistory,
+      fixedAmount: Number(s?.fixed_amount ?? 0),
+      prime,
+      handoffs,
+      // Le rang, pour que la fiche puisse écrire « Prime setter — rang 6 » plutôt qu'un montant
+      // sans provenance. `null` = pas classé (aucun handoff sur la période).
+      setterRank: setterRank ? { rank: setterRank.rank, handoffs: setterRank.handoffs } : null,
+      // CA par modèle sur la période ENTIÈRE — la colonne « CA / modèle » de la table, qui ne
+      // parle pas de taux. Recomposé à partir des segments (et non gardé à part) : deux
+      // agrégations du même CA finiraient par diverger, et celle-ci doit rester la somme exacte
+      // de ce que la fiche dépliée détaille.
+      modelCa: payslip.segments.reduce<Record<string, number>>((acc, sg) => {
+        for (const mo of sg.models) acc[mo.name] = round2((acc[mo.name] ?? 0) + mo.ca)
+        return acc
+      }, {}),
+      sanctions: sancRows,
+      weekEntries: Object.fromEntries(
+        we.map((w) => [
+          w.week_start,
+          {
+            bonus: Number(w.bonus),
+            malus: Number(w.malus),
+            handoffs: w.handoffs,
+            note: w.note,
+          },
+        ]),
+      ),
+      payslip,
+      paid,
+      // `covered` ne contient que les jours DE CETTE PÉRIODE (filtrés par `daySet` juste
+      // au-dessus) : non vide = le trigger 0087 refuserait de recouvrir la période entière.
+      anyDayPaid: covered.size > 0,
+      // Le DERNIER versement, pas celui qui couvre le premier jour : réglée en deux fois, la
+      // période n'est soldée qu'au complément. Les `paid_at` sont des `YYYY-MM-DD`, donc
+      // l'ordre lexicographique est l'ordre chronologique.
+      paidOn: paid ? ([...covered.values()].sort().at(-1) ?? null) : null,
+      paidAmount: thisPayments.length
+        ? thisPayments.reduce((s, p) => s + Number(p.amount), 0)
+        : null,
+    }
+  })
+
+  // ── LE CLASSEMENT, RESTREINT À CE QUE L'APPELANT A LE DROIT DE VOIR ───────────────────────
+  // `ranking.byMember` est calculé sur TOUTE l'agence (il le faut, cf. `setter-ranking.ts`),
+  // mais on ne rend ici que les membres déjà renvoyés par la RLS `profiles` — la même barrière
+  // applicative que le CA et les noms de modèles. Un manager voit donc ses rattachés avec leur
+  // rang RÉEL, ce qui fait des trous dans la numérotation (1, 5, 9…) : c'est le prix, assumé,
+  // d'un rang qui veut dire quelque chose. L'écran le dit en toutes lettres.
+  const setterRanking: SetterRankingRow[] = rows
+    .flatMap((r) => {
+      const rank = ranking.byMember.get(r.id)
+      return rank ? [{ id: r.id, name: r.name, handoffs: rank.handoffs, rank: rank.rank, amount: rank.amount }] : []
+    })
+    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'fr'))
+
+  return { rows, coverage, setterRanking, setterScale: ranking.scale }
+}
