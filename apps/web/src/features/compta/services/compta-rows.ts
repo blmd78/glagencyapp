@@ -1,7 +1,8 @@
-import { computePayslip, type PayPeriod } from '@glagency/core'
+import { computePayslip, type PayPeriod, type SetterScaleRow } from '@glagency/core'
 import { buildCoverage, type Coverage } from './coverage'
 import { loadComptaSources } from './compta-sources'
-import type { ComptaRow, ComptaSanction } from '../types'
+import { loadSetterRanking } from './setter-ranking'
+import type { ComptaRow, ComptaSanction, SetterRankingRow } from '../types'
 
 /**
  * LE calcul de la compta — une fiche de paie par membre sur une période de paie. Appelé TROIS
@@ -37,6 +38,11 @@ export interface ComptaRowsResult {
   rows: ComptaRow[]
   /** Couverture des paiements — `getCompta` en a besoin pour le bandeau de retard. */
   coverage: Coverage
+  /** L'onglet Classement — les membres VISIBLES qui ont au moins un handoff sur la période, avec
+   *  leur rang AGENCE-WIDE (cf. `setter-ranking.ts`). Trié par rang croissant. */
+  setterRanking: SetterRankingRow[]
+  /** Le barème tel qu'il est en base — affiché par l'onglet Classement, éditable par l'admin. */
+  setterScale: SetterScaleRow[]
 }
 
 export async function loadComptaRows({
@@ -49,7 +55,15 @@ export async function loadComptaRows({
   /** Restreint la population à UN membre (recalcul serveur d'un paiement). */
   memberId?: string
 }): Promise<ComptaRowsResult> {
-  const src = await loadComptaSources({ period, memberId })
+  // EN PARALLÈLE, et jamais en série : les deux lectures sont indépendantes (le classement ne
+  // dépend d'aucune sortie de `loadComptaSources`), et le paiement groupé rejoue toute cette
+  // chaîne. Le classement est AGENCE-WIDE même quand `memberId` restreint la population à une
+  // personne — c'est indispensable au recalcul serveur du paiement : le rang d'un membre dépend
+  // des handoffs de tous les autres, et le calculer sur lui seul lui donnerait le rang 1.
+  const [src, ranking] = await Promise.all([
+    loadComptaSources({ period, memberId }),
+    loadSetterRanking(period),
+  ])
   const daySet = new Set(src.days)
 
   // Jours couverts par membre, primes déjà versées, et « cette période le concerne-t-elle ? » —
@@ -120,6 +134,16 @@ export async function loadComptaRows({
     const primeDue = primeApplies && prime?.status === 'due' ? prime.amount : 0
 
     const modelCa = m.chatter_id ? (src.caByChatter.get(m.chatter_id) ?? {}) : {}
+
+    // ── LES TROIS LIGNES DU LOT FINAL, BRANCHÉES (tâche 23) ─────────────────────────────────
+    // Le report et la prime du mois sont une SAISIE de la période (`compta_period_entries`,
+    // 0090) ; la prime setter est CALCULÉE, elle ne se saisit nulle part — c'est la tranche du
+    // barème au rang du membre dans les handoffs de la période (cf. `setter-ranking.ts`).
+    // L'instantané de paiement les fige toutes les trois depuis 0091 : sans ces colonnes, le
+    // `superRefine` de `payInput` aurait refusé toute fiche qui en porte une.
+    const entry = src.periodEntryById.get(m.id)
+    const setterRank = ranking.byMember.get(m.id) ?? null
+
     const payslip = computePayslip({
       rate: Number(s?.rate ?? 10),
       // Défauts de la colonne quand le membre n'a jamais été réglé : 10 % et aucun fixe.
@@ -130,20 +154,9 @@ export async function loadComptaRows({
       handoffs,
       primeDue,
       sanctions: sancRows.reduce((t, x) => t + x.amount, 0),
-      // ── PAS ENCORE BRANCHÉES (tâche 23) ─────────────────────────────────────────────────
-      // Les trois lignes du lot final existent dans la formule (tâche 22) mais leurs sources
-      // n'y sont pas encore reliées : `carryover` et `monthlyPrime` viennent de
-      // `compta_period_entries` (table créée par 0090, pas encore lue par `compta-sources.ts`),
-      // `setterPrime` du classement `rankSetters` sur les handoffs de la période.
-      //
-      // ⚠️ AVANT DE LES REMPLIR, LIRE `.superpowers/sdd/2026-07-27-compta-paie/task-21-22-report.md`
-      // §« Ce que la tâche 23 doit reprendre » : `compta_payments` n'a AUCUNE colonne
-      // d'instantané pour ces trois montants, et le `superRefine` de `payInput` vérifie
-      // `amount = base + setter + bonus − malus + handoffs + prime − sanctions`. Les rendre non
-      // nulles sans migration ferait échouer TOUT paiement d'une fiche qui en porte une.
-      carryover: 0,
-      setterPrime: 0,
-      monthlyPrime: 0,
+      carryover: entry?.carryover ?? 0,
+      setterPrime: setterRank?.amount ?? 0,
+      monthlyPrime: entry?.top3Prime ?? 0,
     })
 
     // Couverture : la période est payée si CHACUN de ses jours figure dans un `covered_days`.
@@ -169,6 +182,13 @@ export async function loadComptaRows({
       fixedAmount: Number(s?.fixed_amount ?? 0),
       prime,
       handoffs,
+      // Valeurs de DÉPART du formulaire de saisie de la période (fiche dépliée). Absente en base
+      // = deux zéros, jamais `null` : le formulaire a besoin d'un nombre, et 0 est exactement ce
+      // que la ligne vaut tant qu'elle n'existe pas (défauts de colonne, 0090).
+      periodEntry: entry ?? { carryover: 0, top3Prime: 0 },
+      // Le rang, pour que la fiche puisse écrire « Prime setter — rang 6 » plutôt qu'un montant
+      // sans provenance. `null` = pas classé (aucun handoff sur la période).
+      setterRank: setterRank ? { rank: setterRank.rank, handoffs: setterRank.handoffs } : null,
       modelCa,
       sanctions: sancRows,
       weekEntries: Object.fromEntries(
@@ -197,5 +217,18 @@ export async function loadComptaRows({
     }
   })
 
-  return { rows, coverage }
+  // ── LE CLASSEMENT, RESTREINT À CE QUE L'APPELANT A LE DROIT DE VOIR ───────────────────────
+  // `ranking.byMember` est calculé sur TOUTE l'agence (il le faut, cf. `setter-ranking.ts`),
+  // mais on ne rend ici que les membres déjà renvoyés par la RLS `profiles` — la même barrière
+  // applicative que le CA et les noms de modèles. Un manager voit donc ses rattachés avec leur
+  // rang RÉEL, ce qui fait des trous dans la numérotation (1, 5, 9…) : c'est le prix, assumé,
+  // d'un rang qui veut dire quelque chose. L'écran le dit en toutes lettres.
+  const setterRanking: SetterRankingRow[] = rows
+    .flatMap((r) => {
+      const rank = ranking.byMember.get(r.id)
+      return rank ? [{ id: r.id, name: r.name, handoffs: rank.handoffs, rank: rank.rank, amount: rank.amount }] : []
+    })
+    .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'fr'))
+
+  return { rows, coverage, setterRanking, setterScale: ranking.scale }
 }

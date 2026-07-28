@@ -75,6 +75,7 @@ export function EntryField({
   step,
   error,
   registration,
+  labelHidden,
 }: {
   id: string
   label: string
@@ -82,10 +83,15 @@ export function EntryField({
   step?: string
   error?: string
   registration: UseFormRegisterReturn
+  /** Étiquette réservée aux lecteurs d'écran À TOUTES LES TAILLES. Pour les lignes dont le
+   *  libellé est DÉJÀ dans la ligne (le barème dit « Rang 3 » juste à gauche du champ) : l'y
+   *  répéter en clair sur mobile ferait deux fois la même phrase. Le `<label>` reste, lui —
+   *  c'est lui qui nomme le champ pour un lecteur d'écran. */
+  labelHidden?: boolean
 }) {
   return (
     <div className="grid gap-1.5">
-      <Label htmlFor={id} className="sm:sr-only">
+      <Label htmlFor={id} className={labelHidden ? 'sr-only' : 'sm:sr-only'}>
         {label}
       </Label>
       <Input
@@ -144,23 +150,33 @@ const STATUS_CLASS: Record<Exclude<SaveStatus, 'idle'>, string> = {
  * automatique ne serait annoncé nulle part — l'utilisateur non voyant n'a même plus le clic pour
  * savoir que quelque chose est parti.
  *
- * `aria-atomic` + rappel de la semaine en `sr-only` : la période a DEUX lignes, qui diraient
- * sinon le même mot sans qu'on sache laquelle vient de changer.
+ * `aria-atomic` + rappel de la ligne en `sr-only` : un écran en porte plusieurs (2 semaines, ou
+ * 15 tranches de barème), qui diraient sinon le même mot sans qu'on sache laquelle vient de
+ * changer. `rowLabel` est le libellé COMPLET de la ligne (« Semaine du 6 juil. », « Rang 3 ») et
+ * non plus la seule semaine : le témoin sert désormais trois formulaires.
  */
-export function EntryStatus({ status, weekLabel }: { status: SaveStatus; weekLabel: string }) {
+export function EntryStatus({
+  status,
+  rowLabel,
+  // Placement dans la grille de l'appelant. Le défaut est celui des lignes de saisie, qui
+  // repassent en pile de 2 colonnes sous `sm`. Le barème, lui, garde 3 colonnes fixes à toutes
+  // les tailles : un `col-span-2` y ferait déborder la ligne.
+  className = 'col-span-2 justify-self-end sm:col-span-1 sm:justify-self-start',
+}: {
+  status: SaveStatus
+  rowLabel: string
+  className?: string
+}) {
   return (
     <span
       role="status"
       aria-live="polite"
       aria-atomic
-      className={cn(
-        'col-span-2 justify-self-end text-xs sm:col-span-1 sm:justify-self-start',
-        status !== 'idle' && STATUS_CLASS[status],
-      )}
+      className={cn('text-xs', className, status !== 'idle' && STATUS_CLASS[status])}
     >
       {status !== 'idle' && (
         <>
-          <span className="sr-only">Semaine du {weekLabel} : </span>
+          <span className="sr-only">{rowLabel} : </span>
           {STATUS_LABEL[status]}
         </>
       )}

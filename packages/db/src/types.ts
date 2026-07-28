@@ -361,12 +361,14 @@ export type Database = {
           base_amount: number
           bonus_amount: number
           ca_reference: number
+          carryover_amount: number
           chatter_id: string
           covered_days: string[] | null
           created_at: string
           handoffs_amount: number
           id: string
           malus_amount: number
+          monthly_prime_amount: number
           note: string | null
           paid_at: string
           paid_by: string | null
@@ -375,18 +377,21 @@ export type Database = {
           rate_applied: number
           sanctions_amount: number
           setter_amount: number
+          setter_prime_amount: number
         }
         Insert: {
           amount: number
           base_amount: number
           bonus_amount: number
           ca_reference: number
+          carryover_amount: number
           chatter_id: string
           covered_days?: string[] | null
           created_at?: string
           handoffs_amount: number
           id?: string
           malus_amount: number
+          monthly_prime_amount: number
           note?: string | null
           paid_at?: string
           paid_by?: string | null
@@ -395,18 +400,21 @@ export type Database = {
           rate_applied: number
           sanctions_amount: number
           setter_amount: number
+          setter_prime_amount: number
         }
         Update: {
           amount?: number
           base_amount?: number
           bonus_amount?: number
           ca_reference?: number
+          carryover_amount?: number
           chatter_id?: string
           covered_days?: string[] | null
           created_at?: string
           handoffs_amount?: number
           id?: string
           malus_amount?: number
+          monthly_prime_amount?: number
           note?: string | null
           paid_at?: string
           paid_by?: string | null
@@ -415,6 +423,7 @@ export type Database = {
           rate_applied?: number
           sanctions_amount?: number
           setter_amount?: number
+          setter_prime_amount?: number
         }
         Relationships: [
           {

@@ -3,6 +3,7 @@
 import { frDayShort, type PayPeriod } from '@glagency/core'
 import { ComptaEntryForm } from './compta-entry-form'
 import { ComptaEntryHeader } from './compta-entry-grid'
+import { ComptaPeriodForm } from './compta-period-form'
 import { ComptaPayslipCalc, SECTION_HEAD } from './compta-payslip-calc'
 import type { ComptaRow } from '../types'
 
@@ -71,7 +72,7 @@ export function ComptaPayslip({
     <div className="flex flex-col gap-6">
       {canEnter && (
         <div className="flex flex-col gap-2">
-          <span className={SECTION_HEAD}>Saisies hebdomadaires</span>
+          <span className={SECTION_HEAD}>Saisies</span>
           <ComptaEntryHeader />
           {mondays.map((m) => (
             <ComptaEntryForm
@@ -82,6 +83,16 @@ export function ComptaPayslip({
               initial={row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, note: null }}
             />
           ))}
+          {/* La saisie de la PÉRIODE vient après les semaines, dans la même grille : report et
+              prime du mois valent pour les 14 jours, ils ne se répètent pas par semaine (tâche
+              23). Le titre du bloc dit donc « Saisies » et non plus « Saisies hebdomadaires » —
+              les deux grains y cohabitent, chacun avec son en-tête de colonnes. */}
+          <ComptaPeriodForm
+            chatterId={row.id}
+            periodStart={period.start}
+            periodLabel={period.label}
+            initial={row.periodEntry}
+          />
         </div>
       )}
 

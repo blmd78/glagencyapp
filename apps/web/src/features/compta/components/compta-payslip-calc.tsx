@@ -150,7 +150,10 @@ export function ComptaPayslipCalc({
     p.malus !== 0 ||
     row.handoffs > 0 ||
     p.prime !== 0 ||
-    row.sanctions.length > 0
+    row.sanctions.length > 0 ||
+    p.carryover !== 0 ||
+    p.setterPrime !== 0 ||
+    p.monthlyPrime !== 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -180,6 +183,32 @@ export function ComptaPayslipCalc({
             <Line label={`Handoffs — ${row.handoffs} × 0,60 €`} amount={p.handoffsAmount} />
           )}
           {p.prime !== 0 && <Line label="Prime nouveau chatteur" amount={p.prime} />}
+          {/* ── LES TROIS LIGNES DU LOT FINAL ────────────────────────────────────────────
+              Chacune sur SA ligne, comme les autres composantes : la fiche doit se relire
+              comme la feuille, ligne à ligne, et le net s'additionner exactement à partir de
+              ce qui est affiché (`computePayslip` arrondit chaque composante avant la somme).
+              Le REPORT est le seul montant signé de la fiche — en rouge quand il est négatif,
+              comme les malus, parce que c'est bien une retenue sur ce qui sera versé. La PRIME
+              SETTER porte son RANG dans le libellé : sans lui, c'est un montant sans
+              provenance, et le rang est précisément ce que le chatteur voudra vérifier. */}
+          {p.carryover !== 0 && (
+            <Line
+              label="Report période précédente"
+              amount={p.carryover}
+              red={p.carryover < 0}
+            />
+          )}
+          {p.setterPrime !== 0 && (
+            <Line
+              label={
+                row.setterRank
+                  ? `Prime setter — rang ${row.setterRank.rank} (${row.setterRank.handoffs} handoffs)`
+                  : 'Prime setter'
+              }
+              amount={p.setterPrime}
+            />
+          )}
+          {p.monthlyPrime !== 0 && <Line label="Prime du mois (top 3)" amount={p.monthlyPrime} />}
           {row.sanctions.length > 0 && (
             <SanctionLines sanctions={row.sanctions} amount={p.sanctions} />
           )}

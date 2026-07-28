@@ -6,16 +6,25 @@ import { z } from 'zod'
  */
 
 const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ')
-const money = z.coerce.number().min(0, 'Montant positif attendu').max(99999, 'Montant trop élevé')
+
+/** Un montant POSITIF de la compta. EXPORTÉ pour `schema-config.ts` (barème et dettes) : deux
+ *  définitions des mêmes bornes finiraient par diverger, et c'est de l'argent. */
+export const money = z.coerce.number().min(0, 'Montant positif attendu').max(99999, 'Montant trop élevé')
 
 /**
- * Le NET d'une période, seul montant SIGNÉ de la feature : malus et sanctions Police peuvent
- * dépasser les gains (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le
- * traitement du solde dû relève de `compta_debts`, hors périmètre (spec §9). Toutes les autres
- * lignes (`base`, `bonus`, `sanctions`…) restent des `money` positifs : ce sont des composantes,
- * c'est leur combinaison qui porte le signe.
+ * Montant SIGNÉ. DEUX emplois dans toute la feature, et deux seulement :
+ *
+ *  - le NET d'une période : malus et sanctions Police peuvent dépasser les gains
+ *    (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le traitement du
+ *    solde dû relève de `compta_debts` (spec §9, onglet Suivi).
+ *  - le REPORT (`compta_period_entries.carryover`, migration 0090) : un trop-perçu se reporte en
+ *    négatif. L'imposer positif obligerait à le contourner par un malus, qui ne dit pas la même
+ *    chose sur la fiche.
+ *
+ * Toutes les autres lignes (`base`, `bonus`, `sanctions`, les deux primes…) restent des `money`
+ * positifs : ce sont des composantes, c'est leur combinaison qui porte le signe.
  */
-const netMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
+const signedMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
 
 /**
  * Un TAUX de commission en %, et PAS un montant : les colonnes `compta_settings.rate` et
@@ -65,6 +74,32 @@ export type WeekEntryInput = z.infer<typeof weekEntryInput>
 export type WeekEntryFormValues = z.input<typeof weekEntryInput>
 
 /**
+ * Saisie de la PÉRIODE (`compta_period_entries`, PK `(chatter_id, period_start)`, migration
+ * 0090) — les deux montants de la feuille qui ne sont ni journaliers ni hebdomadaires.
+ *
+ * POURQUOI UN CONTRAT À PART de `weekEntryInput`, alors que les deux sont des saisies cadrées
+ * `managerPageGuard('compta')` : le GRAIN diffère. Un montant par période saisi dans une ligne
+ * hebdomadaire est exactement le défaut d'argent corrigé à la tâche 19 (`fixe_setter` : champ
+ * affiché deux fois par période, valeurs SOMMÉES — 75 € saisis sur chaque ligne versaient 150 €).
+ * La clé du contrat porte donc `periodStart`, jamais `weekStart`.
+ *
+ * `carryover` est SIGNÉ (cf. `signedMoney`), `top3Prime` ne l'est pas : une prime négative ne veut
+ * rien dire, et la colonne le refuse déjà (`check (top3_prime >= 0)`, 0090) — le schéma dit ici la
+ * même chose que la base, pour un message français plutôt qu'un `23514` brut. `periodStart` : le
+ * format ISO n'est qu'un pré-filtre, l'APPARTENANCE à la fenêtre proposée (donc l'alignement du
+ * découpage) est vérifiée par `savePeriodEntry`, même patron que `payPeriod` — un lundi décalé
+ * porterait un report qu'aucune période affichée ne ramasserait, invisible et jamais versé.
+ */
+export const periodEntryInput = z.object({
+  chatterId: z.uuid(),
+  periodStart: iso,
+  carryover: signedMoney,
+  top3Prime: money,
+})
+export type PeriodEntryInput = z.infer<typeof periodEntryInput>
+export type PeriodEntryFormValues = z.input<typeof periodEntryInput>
+
+/**
  * Paiement d'une période — porte l'INSTANTANÉ figé (spec §5.3).
  *
  * `periodStart` (le lundi de départ) a remplacé le couple `month` + `period 1|2` : une période
@@ -78,7 +113,7 @@ export const payInput = z
     chatterId: z.uuid(),
     periodStart: iso,
     coveredDays: z.array(iso).min(1, 'Au moins un jour couvert'),
-    amount: netMoney,
+    amount: signedMoney,
     caReference: money,
     // `modeApplied` a disparu avec `compta_settings.mode` (migration 0089) : il n'existe plus
     // qu'un seul mode de rémunération — commission + fixe éventuel.
@@ -91,20 +126,29 @@ export const payInput = z
     handoffsAmount: money,
     primeAmount: money,
     sanctionsAmount: money,
+    // ── LES TROIS LIGNES DU LOT FINAL (migration 0091) ──────────────────────────────────────
+    // Elles entrent dans l'instantané au même titre que les sept ci-dessus. Les omettre tout en
+    // les comptant dans le net était le piège laissé par la tâche 22 : tout paiement d'une fiche
+    // qui en porte une aurait été refusé pour « le net n'est pas la somme des lignes ».
+    // `carryoverAmount` est le SEUL montant signé de l'instantané (cf. `signedMoney`).
+    carryoverAmount: signedMoney,
+    setterPrimeAmount: money,
+    monthlyPrimeAmount: money,
     note: z.string().trim().max(500, '500 caractères max').nullable(),
   })
   /**
    * L'invariant de la spec §5.3 (`amount = base + setter + bonus − malus + handoffs + prime −
-   * sanctions`) VÉRIFIÉ, et non plus seulement documenté. La spec le disait « structurel » du
+   * sanctions + carryover + setterPrime + monthlyPrime`) VÉRIFIÉ, et non plus seulement
+   * documenté — DIX composantes depuis 0091. La spec le disait « structurel » du
    * fait de colonnes sans valeur par défaut : c'est inexact — l'absence de défaut force à
-   * FOURNIR les huit composantes, elle ne contrôle pas leur SOMME, et la base ne les arbitre
+   * FOURNIR les dix composantes, elle ne contrôle pas leur SOMME, et la base ne les arbitre
    * pas non plus.
    *
    * CE QUE CE REFINE ATTRAPE, ET RIEN D'AUTRE : une incohérence INTERNE au payload —
    * falsification à la main d'un des montants, ou divergence entre la formule du client et
    * celle du serveur. Rien de plus.
    *
-   * CE QU'IL N'ATTRAPE PAS — l'ONGLET PÉRIMÉ. Les onze nombres viennent tous du même rendu, et
+   * CE QU'IL N'ATTRAPE PAS — l'ONGLET PÉRIMÉ. Les nombres du payload viennent tous du même rendu, et
    * `computePayslip` (`packages/core/src/compta/payslip.ts`) garantit cette égalité PAR
    * CONSTRUCTION sur toute sortie : un payload périmé est parfaitement cohérent avec lui-même
    * et passe ce contrôle. Ce cas-là est traité par le RECALCUL SERVEUR de `payPeriod`
@@ -126,7 +170,10 @@ export const payInput = z
       v.malusAmount +
       v.handoffsAmount +
       v.primeAmount -
-      v.sanctionsAmount
+      v.sanctionsAmount +
+      v.carryoverAmount +
+      v.setterPrimeAmount +
+      v.monthlyPrimeAmount
     if (Math.abs(v.amount - expected) <= 0.01) return
 
     // Message calé sur ce que le refine détecte VRAIMENT : le net envoyé ne s'additionne pas à
@@ -149,7 +196,7 @@ export type PayInput = z.infer<typeof payInput>
  * ⚠️ CE PAYLOAD NE DÉCRIT PAS CE QUI SERA VERSÉ. L'action recalcule intégralement la population
  * payable et son total par `loadComptaRows` + `planBatchPay`, et n'écrit QUE ce résultat-là :
  * aucun des montants de l'instantané ne transite par le navigateur, contrairement au paiement
- * unitaire (`payInput`, onze montants).
+ * unitaire (`payInput`, qui porte tout l'instantané).
  *
  * `memberIds` et `total` ne servent donc qu'à VÉRIFIER que l'écran cliqué disait bien la même
  * chose que le serveur — l'équivalent, pour le lot, du contrôle de dérive du paiement unitaire.

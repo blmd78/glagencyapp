@@ -1,4 +1,4 @@
-import { round2, type PayPeriod, type Payslip } from '@glagency/core'
+import { round2, type PayPeriod, type Payslip, type SetterScaleRow } from '@glagency/core'
 
 /** Une sanction Police rattachée à la période — affichée avec son motif. */
 export interface ComptaSanction {
@@ -33,6 +33,14 @@ export interface ComptaRow {
    *  passe par `payslip.prime`. */
   prime: { amount: number; status: string; paidAt: string | null } | null
   handoffs: number
+  /** Saisie de la PÉRIODE (`compta_period_entries`, 0090) — valeurs de départ du formulaire de
+   *  la fiche. `carryover` est SIGNÉ (un trop-perçu se reporte en négatif), `top3Prime` non.
+   *  Jamais `null` : une ligne absente vaut les défauts de ses colonnes, c'est-à-dire 0 et 0. */
+  periodEntry: { carryover: number; top3Prime: number }
+  /** Rang du membre au classement setter de la période, ou `null` s'il n'a aucun handoff (donc
+   *  aucune prime). Le MONTANT, lui, est dans `payslip.setterPrime` : il entre dans le net comme
+   *  les autres composantes, et c'est lui qui est figé au paiement. */
+  setterRank: { rank: number; handoffs: number } | null
   /** CA par modèle (nom du modèle → €), pour la ventilation de la fiche. */
   modelCa: Record<string, number>
   sanctions: ComptaSanction[]
@@ -59,6 +67,19 @@ export interface ComptaRow {
   paidAmount: number | null
 }
 
+/** Une ligne de l'onglet CLASSEMENT — le TOP setter de la période. */
+export interface SetterRankingRow {
+  /** `profiles.id`. */
+  id: string
+  name: string
+  handoffs: number
+  /** Rang « compétition » AGENCE-WIDE : les ex æquo le partagent, le suivant saute d'autant. */
+  rank: number
+  /** Tranche du barème due à ce rang — 0 € au-delà du barème. Ex æquo : tranches mises en commun
+   *  puis divisées (cf. `rankSetters`, spec §4). */
+  amount: number
+}
+
 export interface ComptaData {
   /** Période de paie affichée — 14 jours du lundi au dimanche (`@glagency/core`). */
   period: PayPeriod
@@ -77,6 +98,47 @@ export interface ComptaData {
    *  poser le lien est admin-seul, et c'est une liste agence-wide hors périmètre RLS
    *  (`loadLinkableChatters`). */
   linkableChatters: { id: string; name: string }[]
+  /** Onglet CLASSEMENT — les membres visibles ayant au moins un handoff, par rang croissant. */
+  setterRanking: SetterRankingRow[]
+  /** Le barème du TOP15 (`compta_setter_scale`) — affiché sous le classement, éditable par
+   *  l'admin seul (`canConfigure`). */
+  setterScale: SetterScaleRow[]
+}
+
+/** Une prime d'embauche ÉCHUE et NON VERSÉE — onglet Suivi (« SUIVI PRIMES NVX CHATTEURS »). */
+export interface SuiviPrime {
+  /** `profiles.id`. */
+  memberId: string
+  name: string
+  /** Date d'arrivée = `min(chatter_daily.date)` (`chatter_first_seen()`). */
+  firstSeen: string
+  /** Échéance = arrivée + 1 mois (colonnes `Début` / `Fin 1er mois` de la feuille). */
+  dueOn: string
+  /** Montant enregistré dans `compta_primes`. **0 = rien ne sera versé** — l'écran doit le dire,
+   *  pas l'afficher comme une prime de 0 €. */
+  amount: number
+  /** `true` si aucune ligne `compta_primes` n'existe pour ce membre : le montant n'a jamais été
+   *  décidé. Distinct d'un montant volontairement mis à 0. */
+  missing: boolean
+}
+
+/** Un solde de partant (`compta_debts`) — onglet Suivi, ADMIN seul (spec §6). */
+export interface SuiviDebt {
+  id: string
+  name: string
+  /** Modèle concerné, texte libre : une dette peut viser quelqu'un qui n'est plus chatteur. */
+  model: string | null
+  amount: number
+  settled: boolean
+  settledAt: string | null
+}
+
+export interface SuiviData {
+  primes: SuiviPrime[]
+  /** **Vide pour un non-admin** : `compta_debts` est admin-seul (RLS `compta_debts_admin_all`,
+   *  0084), et l'écran masque la section entière plutôt que d'afficher une liste vide qui
+   *  ferait croire qu'aucune dette n'existe. */
+  debts: SuiviDebt[]
 }
 
 /**

@@ -35,6 +35,7 @@ export {
   startOfMonth,
   endOfMonth,
   addMonths,
+  addMonthsSameDay,
   frMonthLong,
   daysBetween,
   weekLabel,

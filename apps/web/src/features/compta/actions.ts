@@ -9,6 +9,7 @@
 // se SAISIT, là ce qui se VERSE.
 
 import { revalidatePath } from 'next/cache'
+import { recentPeriods, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
@@ -20,7 +21,13 @@ import {
   BusinessError,
   type ActionResult,
 } from '@/lib/actions'
-import { weekEntryInput, settingsInput, primeInput, chatterLinkInput } from './schema'
+import {
+  weekEntryInput,
+  periodEntryInput,
+  settingsInput,
+  primeInput,
+  chatterLinkInput,
+} from './schema'
 
 /**
  * Crée ou met à jour la saisie HEBDOMADAIRE d'un chatteur (bonus, malus, handoffs). Upsert sur
@@ -56,6 +63,50 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
         { onConflict: 'chatter_id,week_start' },
       )
       // 42501 = violation RLS : la cible est hors périmètre. Message MÉTIER, pas Sentry.
+      if (error?.code === '42501') throw new BusinessError("Ce chatteur n'est pas dans ton périmètre.")
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/compta')
+    },
+  })
+}
+
+/**
+ * Saisie de la PÉRIODE : le report (`RESTE SEMAINE PASSEE`) et la prime du mois (`PRIME TOP3
+ * MOIS`). Upsert sur la clé métier `(chatter_id, period_start)`, table `compta_period_entries`
+ * (0090). MÊME GARDE que `saveWeekEntry` — c'est de la saisie d'encadrement, pas un réglage :
+ * `managerPageGuard('compta')` en défense, la RLS `compta_period_entries_scope` en verrou réel.
+ *
+ * LA PÉRIODE EST VALIDÉE PAR APPARTENANCE à la fenêtre proposée, jamais par la seule regex ISO
+ * du schéma — même contrôle que `payPeriod`. Sans lui, un `periodStart` bien formé mais décalé
+ * (un mardi, un lundi à +7 jours) écrirait une ligne qu'AUCUNE période affichée ne ramasserait :
+ * un report saisi, invisible, et jamais versé. La base a bien un `check` d'alignement (0090),
+ * mais il rendrait un `23514` brut — ici le refus est un message français.
+ */
+export async function savePeriodEntry(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: periodEntryInput,
+    input: raw,
+    guard: managerPageGuard('compta'),
+    handler: async (v) => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée')
+      if (!recentPeriods(todayParis(), 12).some((p) => p.start === v.periodStart)) {
+        throw new BusinessError("Cette période n'est plus dans la fenêtre affichée — recharge la page.")
+      }
+      const supabase = await createClient()
+      const { error } = await supabase.from('compta_period_entries').upsert(
+        {
+          chatter_id: v.chatterId,
+          period_start: v.periodStart,
+          carryover: v.carryover,
+          top3_prime: v.top3Prime,
+          // Posé à la main : aucun trigger ne rafraîchit `updated_at` sur ces tables, et le
+          // défaut `now()` ne joue qu'à l'INSERT.
+          updated_at: new Date().toISOString(),
+          updated_by: profile.id,
+        },
+        { onConflict: 'chatter_id,period_start' },
+      )
       if (error?.code === '42501') throw new BusinessError("Ce chatteur n'est pas dans ton périmètre.")
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/compta')

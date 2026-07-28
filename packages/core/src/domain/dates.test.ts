@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   addMonths,
+  addMonthsSameDay,
   currentWeekStart,
   frDateTimeParis,
   frMonthLong,
@@ -46,6 +47,27 @@ describe('addMonths', () => {
   it('gère le passage d’année', () => {
     expect(addMonths('2026-01-15', -1)).toBe('2025-12-01')
     expect(addMonths('2026-12-31', 1)).toBe('2027-01-01')
+  })
+})
+
+describe('addMonthsSameDay', () => {
+  it('garde le QUANTIÈME, là où addMonths ramène au 1er', () => {
+    expect(addMonthsSameDay('2026-06-15', 1)).toBe('2026-07-15')
+    // La distinction EST la raison d'être de la fonction : l'échéance d'une prime d'embauche
+    // (arrivée + 1 mois) datée du 1er rendrait un arrivant du 28 juin éligible le 1er juillet.
+    expect(addMonths('2026-06-28', 1)).toBe('2026-07-01')
+    expect(addMonthsSameDay('2026-06-28', 1)).toBe('2026-07-28')
+  })
+  it('ne déborde pas sur le mois suivant quand le quantième n’existe pas', () => {
+    expect(addMonthsSameDay('2026-01-31', 1)).toBe('2026-02-28')
+    // 2028 est bissextile.
+    expect(addMonthsSameDay('2028-01-31', 1)).toBe('2028-02-29')
+    expect(addMonthsSameDay('2026-03-31', 1)).toBe('2026-04-30')
+  })
+  it('gère le passage d’année et les décalages négatifs', () => {
+    expect(addMonthsSameDay('2026-12-15', 1)).toBe('2027-01-15')
+    expect(addMonthsSameDay('2026-01-15', -1)).toBe('2025-12-15')
+    expect(addMonthsSameDay('2026-07-21', 0)).toBe('2026-07-21')
   })
 })
 

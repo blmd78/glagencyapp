@@ -57,7 +57,7 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
       }
 
       // ── RECALCUL SERVEUR ────────────────────────────────────────────────────────────────
-      // Le navigateur envoie onze montants ; les recopier en base ferait du CLIENT l'autorité
+      // Le navigateur envoie tout l'instantané ; les recopier en base ferait du CLIENT l'autorité
       // sur ce qui est versé. On refait donc le calcul ici, par LE code de la page
       // (`loadComptaRows`, une seule implémentation — deux divergeraient), et c'est ce
       // résultat-là qui est écrit.
@@ -67,7 +67,7 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
       // « Marquer payé ». `revalidatePath` invalide le cache serveur, jamais une page déjà
       // rendue dans un navigateur — sans ce recalcul, le montant figé serait celui d'AVANT la
       // saisie, et rien ne le signalerait. Le `superRefine` du schéma ne peut pas l'attraper :
-      // les onze nombres périmés sont cohérents ENTRE EUX (cf. `schema.ts`).
+      // les nombres périmés sont cohérents ENTRE EUX (cf. `schema.ts`).
       //
       // Il reste une fenêtre de quelques millisecondes entre ce recalcul et l'`insert` — pas de
       // transaction possible depuis supabase-js. On ferme un trou qui se compte en MINUTES
@@ -102,6 +102,14 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
         ['prime', v.primeAmount, p.prime],
         ['sanctions', v.sanctionsAmount, p.sanctions],
         ['taux', v.rateApplied, row.rate],
+        // Les trois lignes du lot final (0091). La PRIME SETTER est la plus volatile des dix :
+        // elle ne vient d'aucune saisie propre au membre mais de son RANG dans le classement de
+        // toute l'agence — un handoff saisi chez QUELQU'UN D'AUTRE pendant que l'onglet est
+        // ouvert la fait bouger. Sans cette ligne, l'admin figerait une prime que l'écran ne
+        // montrait déjà plus.
+        ['report', v.carryoverAmount, p.carryover],
+        ['prime setter', v.setterPrimeAmount, p.setterPrime],
+        ['prime du mois', v.monthlyPrimeAmount, p.monthlyPrime],
       ]
       // Plus de contrôle sur le mode de rémunération : il n'y en a plus qu'un (0089). Le fixe,
       // lui, EST vérifié — il arrive dans la ligne « fixe setter » ci-dessus, qu'il vienne du

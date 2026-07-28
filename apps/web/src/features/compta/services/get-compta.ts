@@ -26,7 +26,7 @@ export async function getCompta({ debut }: { debut?: string }): Promise<ComptaDa
   // `getProfile` est `cache()` : la page a déjà appelé `requireAccess('compta')` dans le
   // même rendu, donc pas de seconde requête.
   const isAdmin = (await getProfile())?.role === 'admin'
-  const [{ rows, coverage }, linkableChatters] = await Promise.all([
+  const [{ rows, coverage, setterRanking, setterScale }, linkableChatters] = await Promise.all([
     loadComptaRows({ period, today }),
     isAdmin ? loadLinkableChatters() : Promise.resolve([]),
   ])
@@ -51,5 +51,7 @@ export async function getCompta({ debut }: { debut?: string }): Promise<ComptaDa
     rows,
     overdue,
     linkableChatters,
+    setterRanking,
+    setterScale,
   }
 }

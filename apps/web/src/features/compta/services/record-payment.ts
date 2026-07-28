@@ -67,6 +67,15 @@ export async function recordPayment({
     handoffs_amount: p.handoffsAmount,
     prime_amount: p.prime,
     sanctions_amount: p.sanctions,
+    // Les trois lignes du lot final (colonnes 0091). Elles sont FIGÉES ici pour la même raison
+    // que `ca_reference` : leurs sources bougent après coup. Le report et la prime du mois se
+    // ré-éditent dans la fiche (`compta_period_entries`), et la prime setter se RECALCULE à
+    // chaque rendu depuis les handoffs saisis — un handoff corrigé la semaine suivante
+    // changerait le rang, donc la prime, d'un membre déjà payé. Aucune valeur par défaut sur ces
+    // colonnes : les omettre ne compilerait pas (spec §5.3).
+    carryover_amount: p.carryover,
+    setter_prime_amount: p.setterPrime,
+    monthly_prime_amount: p.monthlyPrime,
     note,
     paid_by: paidBy,
     paid_at: today,

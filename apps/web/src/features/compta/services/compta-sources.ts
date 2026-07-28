@@ -99,6 +99,7 @@ export async function loadComptaSources({
     { data: payments, error: payErr },
     { data: sanctions, error: sancErr },
     { data: firstSeen, error: firstSeenErr },
+    { data: periodEntries, error: periodErr },
   ] = await Promise.all([
     memberId ? membersQuery.eq('id', memberId) : membersQuery,
     // Une ligne par membre au plus (PK `chatter_id`) → sous le plafond.
@@ -156,6 +157,16 @@ export async function loadComptaSources({
     // seule erreur. Aucune donnée brute n'en ressort : seules les dates des membres déjà
     // renvoyés par la RLS `profiles` sont lues.
     admin.rpc('chatter_first_seen'),
+    // Saisie PAR PÉRIODE (`compta_period_entries`, 0090) : le report (`RESTE SEMAINE PASSEE`) et
+    // la prime du mois (`PRIME TOP3 MOIS`). Sous RLS, comme ses deux sœurs de saisie : admin →
+    // tout, encadrement → ses rattachés.
+    //
+    // Pas de `fetchAll`, et c'est borné par la CLÉ : la PK est `(chatter_id, period_start)`, donc
+    // au plus UNE ligne par membre sur la période filtrée — 96 lignes mesurées comme population
+    // sur l'UAT, très loin du plafond de 1000. Même raisonnement que `compta_settings`
+    // ci-dessus, qui est clée par membre. Le plafond ne serait atteint qu'au-delà de 1000
+    // chatteurs, où c'est toute la page qu'il faudrait paginer.
+    supabase.from('compta_period_entries').select('*').eq('period_start', period.start),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (settingsErr) throw new Error(settingsErr.message)
@@ -165,6 +176,7 @@ export async function loadComptaSources({
   if (payErr) throw new Error(payErr.message)
   if (sancErr) throw new Error(sancErr.message)
   if (firstSeenErr) throw new Error(firstSeenErr.message)
+  if (periodErr) throw new Error(periodErr.message)
 
   // CA par (chatteur MyPuls, modèle) sur la période.
   //
@@ -244,6 +256,15 @@ export async function loadComptaSources({
     payments,
     sanctions,
     firstSeen: firstSeen ?? [],
+    /** Report et prime du mois de LA période affichée, par membre. `Number(...)` : PostgREST
+     *  rend les `numeric` en nombre, mais la conversion est explicite partout ailleurs dans ce
+     *  fichier — un `numeric` sérialisé en chaîne concaténerait au lieu d'additionner. */
+    periodEntryById: new Map(
+      (periodEntries ?? []).map((p) => [
+        p.chatter_id,
+        { carryover: Number(p.carryover), top3Prime: Number(p.top3_prime) },
+      ]),
+    ),
     /** CA de la période par chatteur MyPuls, ventilé par NOM de modèle. */
     caByChatter,
     /** Les 2 lundis de la période — ils bornent la lecture de `compta_week_entries`. Ils

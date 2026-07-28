@@ -49,6 +49,9 @@ export function ComptaPayDialog({ row, period }: { row: ComptaRow; period: PayPe
           handoffsAmount: p.handoffsAmount,
           primeAmount: p.prime,
           sanctionsAmount: p.sanctions,
+          carryoverAmount: p.carryover,
+          setterPrimeAmount: p.setterPrime,
+          monthlyPrimeAmount: p.monthlyPrime,
           note: null,
         })
         if (!res.success) return res.error

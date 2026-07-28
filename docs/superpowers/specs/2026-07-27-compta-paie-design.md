@@ -174,8 +174,10 @@ Pour un chatteur et une période :
 
 **Les trois dernières lignes datent de la tâche 22 (2026-07-28)** — le lot qui remplace le
 tableur. Elles sont dans `computePayslip` et exposées séparément dans `Payslip` : la fiche doit
-montrer chaque ligne, comme la feuille. Leurs SOURCES ne sont pas encore branchées (tâche 23) ;
-`compta-rows.ts` les passe à 0 en attendant.
+montrer chaque ligne, comme la feuille. **Leurs sources sont branchées depuis la tâche 23** : le
+report et la prime du mois viennent de `compta_period_entries` (saisis dans la fiche), la prime
+setter du classement `rankSetters` sur les handoffs de la période. Les trois sont figées au
+paiement par les colonnes d'instantané de la migration `0091` (§5.7).
 
 **Classement setter — `rankSetters(handoffsByMember, scale)`**, fonction pure
 (`packages/core/src/compta/setter-rank.ts`). Le classement porte sur les handoffs **saisis dans
@@ -259,12 +261,13 @@ cumulatif.
 
 ---
 
-## 5. Modèle de données — migrations `0085` … `0090`
+## 5. Modèle de données — migrations `0085` … `0091`
 
 `0085` porte l'essentiel (les tables étant vides) ; `0086` ouvre la lecture cloisonnée des
 sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
 `compta_payments` sur le découpage en 14 jours, `0089` supprime le mode de rémunération et le
-statut de setter (§5.5), `0090` pose le socle du lot final (§5.6).
+statut de setter (§5.5), `0090` pose le socle du lot final (§5.6), `0091` étend l'instantané de
+paiement aux trois lignes de ce lot (§5.7).
 
 **5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
 étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
@@ -290,8 +293,9 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | `prime_amount` | `numeric(10,2)` | prime éventuelle |
 | `sanctions_amount` | `numeric(10,2)` | sanctions police |
 
-`amount` reste le **net versé**. Invariant :
-`amount = base + setter + bonus − malus + handoffs + prime − sanctions`.
+`0091` en ajoute trois autres (§5.7). `amount` reste le **net versé**. Invariant, DIX composantes :
+`amount = base + setter + bonus − malus + handoffs + prime − sanctions + carryover + setterPrime
++ monthlyPrime`.
 
 `mode_applied` figurait ici jusqu'à la tâche 16 (`text check (mode_applied in
 ('percent','fixed'))`, mode au moment du paiement) : `0089` la supprime avec le mode lui-même —
@@ -300,7 +304,7 @@ une colonne `not null` qu'aucun code ne peut plus remplir.
 **Aucune de ces colonnes n'a de valeur par défaut** (arbitré le 2026-07-27). Un `default 0` les
 rendrait optionnelles dans le type `Insert` généré : un paiement omettant `sanctions_amount`
 compilerait et écrirait 0 €, faisant disparaître une retenue sans bruit. Sans défaut, le
-compilateur exige les huit composantes à chaque enregistrement — l'invariant ci-dessus devient
+compilateur exige toutes les composantes à chaque enregistrement — l'invariant ci-dessus devient
 structurel, et non plus une affaire de discipline. Des colonnes explicites
 plutôt qu'un `jsonb` — pour répondre à « combien de sanctions retenues ce trimestre ? » d'une
 requête plutôt que d'un parcours applicatif.
@@ -371,16 +375,56 @@ n'a pas été ouverte. La conversion s'appuie sur le `not null` de la colonne co
 valeur que l'expression ne sait pas réduire à un nombre donne `null`, donc la migration **échoue**
 au lieu de convertir de travers.
 
-> ⚠️ **`compta_payments` n'a AUCUNE colonne d'instantané pour ces trois montants** (`carryover`,
-> prime setter, prime du mois) — l'invariant §5.3 ne les couvre pas, et le `superRefine` de
-> `payInput` vérifie la somme des sept anciennes composantes seulement. Tant que
-> `compta-rows.ts` les passe à 0 (état actuel, tâche 22), rien ne casse ; **les brancher sans
-> migration ferait échouer tout paiement d'une fiche qui en porte une.** À traiter en tâche 23.
->
-> ⚠️ **`profiles.closing_role` est écrit par Membres, dont l'UI porte une liste figée à deux
-> valeurs** (`CRM_ROLES`, `apps/web/src/lib/types/chatters.ts`). Élargir le `check` ne casse rien,
-> mais rien ne pourra produire `'nouveau'`/`'hybride'` avant que Membres soit élargi — et
-> `RoleBadge` afficherait « Setter » sur toute valeur ≠ `'closer'`. Volontairement non traité.
+Les deux pièges que `0090` laissait ouverts ont été **traités à la tâche 23** :
+
+- `compta_payments` n'avait aucune colonne d'instantané pour les trois nouveaux montants →
+  migration `0091` (§5.7) ;
+- `profiles.closing_role` acceptait quatre valeurs que Membres ne savait ni produire ni afficher
+  → `CRM_ROLES` passe à quatre (§5.8).
+
+**5.7 L'instantané rattrape le lot final — migration `0091`** (2026-07-28, UAT seulement).
+`compta_payments` gagne `carryover_amount` (**signé**), `setter_prime_amount` et
+`monthly_prime_amount`, `numeric(10,2) not null`, **sans défaut** — la doctrine de `0085` reprise
+mot pour mot. `compta_payments` mesurée à 0 ligne sur l'UAT juste avant d'appliquer : un
+`not null` sans défaut aurait échoué sur une table peuplée, et c'est le comportement voulu (mieux
+vaut un push en échec qu'un instantané rétroactif rempli de zéros inventés).
+
+Sans ces colonnes, brancher les trois sources aurait fait **échouer tout paiement** d'une fiche
+qui en porte une : `payslip.net` les incluait, tandis que le `superRefine` de `payInput` et les
+contrôles de dérive de `payPeriod` n'en connaissaient que sept. Les trois sont donc ajoutées au
+contrat (`payInput`), au recalcul serveur (`actions-pay.ts`, treize valeurs comparées) et à
+l'écriture (`record-payment.ts`).
+
+**Pourquoi figer la prime setter en particulier** : elle n'est stockée nulle part et se recalcule
+à chaque rendu depuis le barème et les handoffs. Un handoff corrigé la semaine suivante, ou une
+tranche du barème retouchée, changerait le rang — donc la prime — d'un membre **déjà payé**.
+L'instantané rend le versement opposable, exactement comme `ca_reference` face à une
+ré-ingestion MyPuls.
+
+Aucune contrainte de somme en base : l'invariant reste vérifié côté application. Un `check` SQL
+l'exprimant refuserait les paiements légitimes dès qu'un centime d'arrondi flottant s'y glisse —
+la tolérance de 0,01 € vit dans le code.
+
+**5.8 `CRM_ROLES` passe à quatre valeurs** (2026-07-28, aucune migration). `closer`, `setter`,
+`hybride`, `nouveau` — la liste TypeScript rattrape le `check` élargi par `0090`. Trois points
+étaient à corriger, et le troisième était le plus grave :
+
+| Fichier | Avant | Après |
+|---|---|---|
+| `lib/types/chatters.ts` | `CRM_ROLES = ['closer','setter']` | quatre valeurs |
+| `features/members/components/member-closing-fields.tsx` | `Record<CrmRole, string>` à deux entrées → le `Select` ne proposait rien d'autre, et `z.enum(CRM_ROLES)` **refusait d'enregistrer** un membre déjà posé sur `'nouveau'` | quatre libellés |
+| `components/role-badge.tsx` | `role === 'closer' ? 'Closer' : 'Setter'` → **étiquetait « Setter » toute valeur ≠ `'closer'`** | `Record<CrmRole, …>` pour le libellé ET la couleur : ajouter une valeur sans passer ici ne compile plus |
+
+Le badge était le pire des trois : un `'nouveau'` s'y serait affiché **faux**, pas absent — rien
+ne l'aurait signalé. Couleurs prises dans la palette déjà en place, aucune teinte nouvelle :
+setter violet et closer orange inchangés, `hybride` vert (la seule teinte de rôle libre — rouge
+et bleu sont ceux de `TeamBadge`, ambre celui du rôle Police), `nouveau` gris neutre (un arrivant
+n'a pas encore de spécialité).
+
+Rien d'autre ne bouge : `stat-chatteur` compte toujours `'setter'` et `'closer'` séparément, et
+ses deux filtres de rôle restent ceux-là — un `'nouveau'` apparaît sous « Tous les rôles », avec
+son badge, et n'entre dans aucun des deux compteurs. C'est le comportement voulu : ces KPI
+comptent des setters et des closers.
 
 ---
 
@@ -408,6 +452,18 @@ Les policies actuelles (`has_page('compta')` sans cloisonnement) donnent la lect
 la compta à quiconque a la page. Elles sont remplacées par
 `is_admin() or (is_manager() and manages(chatter_id))`.
 
+**Le classement setter est lu AGENCE-WIDE, par client admin** (tâche 23) — troisième lecture
+cadrée applicativement, après le CA et `chatter_first_seen()`. `compta_day_entries` et
+`compta_week_entries` sont cloisonnées : un manager n'y lit que ses 15 rattachés. Classer sur
+cette lecture-là leur aurait donné les rangs 1 à 15, donc les 15 tranches du barème — son écran
+aurait annoncé 200 € là où l'agence en verse 84, **sans aucune erreur**, et l'admin qui paie
+(voyant tout) aurait figé un autre montant. Un TOP 15 est agence-wide par nature.
+
+Ce qui sort de cette lecture reste cloisonné : `loadComptaRows` ne retient du classement que les
+membres déjà renvoyés par la RLS `profiles`. Un encadrant apprend le **rang** de ses rattachés —
+la donnée dont dépend leur paie — et rien des autres : ni nom, ni handoffs. Sa numérotation a
+donc des trous (1, 5, 9…), et l'écran le dit.
+
 **Lecture des sanctions depuis la compta** (arbitré le 2026-07-27). `police_entries` n'est lisible
 qu'avec le droit de page `police` (0078), lequel donne accès à **toutes** les sanctions, non
 cloisonnées. Or 5 sous-managers portent `compta` sans `police` : leur fiche affichait 0 € de
@@ -429,6 +485,31 @@ virement aux managers.
 ## 7. Écrans
 
 Route unique : `/chatter/compta`.
+
+**TROIS ONGLETS, et rien de plus dans l'app** (tâche 24) — `?vue=` : **Période** (défaut, absent
+de l'URL), **Classement**, **Suivi**. C'est le découpage mental de la feuille qu'on remplace, pas
+trois entrées de sidebar de plus. Patron repris de la to-do du Planning (`TodosTabs`, `?vue=`) :
+`router.replace` sans `scroll`, aucune entrée d'historique parasite. `?vue=` se COMBINE avec
+`?debut=` — Période et Classement décrivent la même quinzaine, basculer ne la perd pas.
+
+**Un seul onglet est chargé à la fois** : la page ne construit même pas l'élément des deux autres
+(patron du Planning). L'onglet Suivi ne fait donc payer ses requêtes à personne, et une panne sur
+l'un ne fait pas tomber les autres. Période et Classement, eux, partagent le **même** `getCompta` :
+le classement et les fiches doivent sortir de la même exécution de `rankSetters`, sinon l'un
+afficherait un rang que l'autre ne connaît pas encore.
+
+**Contrainte d'ergonomie, la demande centrale** : « ça doit être simple et intuitif, pas plus
+chiant que le document ». La feuille se parcourt d'un coup d'œil et se remplit au clavier. D'où :
+**aucun bouton « Enregistrer » par ligne** nulle part dans les trois onglets. Toute saisie de
+ligne (semaine, période, tranche du barème) part quand le focus quitte la ligne ou sur `Entrée`,
+avec un témoin par ligne (`Non enregistré` → `Enregistrement…` → `Enregistré` / `Échec`) et un
+toast en cas d'échec — jamais de silence. La mécanique est UNE seule implémentation partagée
+(`useRowAutosave`) : trois copies auraient divergé, comme le calcul du net avant `loadComptaRows`.
+Seul l'AJOUT d'un solde de partant garde un bouton, et c'est délibéré — on y CRÉE une ligne, il
+n'y a pas de ligne à quitter, et un formulaire vide qui partirait au blur écrirait une dette de
+0 € au premier clic à côté.
+
+### 7.1 Onglet Période
 
 **Structure.** Une ligne par chatteur, dépliable — la grammaire installée le 2026-07-26 sur le
 Planning et le Dashboard. `MembersAccordion` et `CollapsibleSection` sont réutilisés tels quels.
@@ -452,10 +533,27 @@ Le repère de droite répond sans déplier : combien, et payé ou non.
 
 **Panneau déplié = la fiche de paie.** Le détail de la formule ligne à ligne, les motifs de
 sanction en clair (`05/07 — Réponse > 45 s : 15 €`), la ventilation du CA par modèle, et le
-compte de handoffs. Sous la fiche : la saisie hebdomadaire — **bonus, malus, handoffs**, une
-ligne par semaine, et rien d'autre : le fixe est un montant par période, il n'a pas de champ ici
+compte de handoffs. Sous la fiche : la saisie — **bonus, malus, handoffs**, une ligne par
+semaine, et rien d'autre : le fixe est un montant par période, il n'a pas de champ ici
 (tâche 19, cf. §4) — et pour un admin le bouton **Marquer payé** qui fige l'instantané et
 enregistre `covered_days`.
+
+**Depuis la tâche 24, la fiche porte les trois lignes du lot final et DEUX champs de plus.**
+
+Côté lecture, trois lignes d'ajustement : « Report période précédente » (en rouge s'il est
+négatif — c'est une retenue), « Prime setter — rang 6 (71 handoffs) » (**le rang est dans le
+libellé** : sans lui c'est un montant sans provenance, et c'est ce que le chatteur voudra
+vérifier), « Prime du mois (top 3) ». Chacune sur SA ligne, comme les autres composantes : le net
+doit s'additionner exactement à partir de ce qui est affiché.
+
+Côté saisie, une ligne **« Période entière »** sous les deux lignes-semaines, avec son propre
+en-tête (`Report €`, `Prime du mois €`) et **la même grille** que les semaines — la troisième
+piste reste vide pour que les colonnes s'alignent d'un bloc à l'autre. Elle est SÉPARÉE des
+semaines, et pas deux champs de plus sur chacune : c'est le défaut d'argent corrigé à la tâche 19
+(`fixe_setter`, montant par période logé dans une saisie hebdomadaire, affiché deux fois et
+sommé — 75 € retapés sur chaque ligne versaient 150 €). Le report est le seul montant signé de la
+saisie : la ligne d'aide le dit là où on le tape, sinon personne ne devine qu'un trop-perçu
+s'écrit en négatif.
 
 **Réglages (admin seul).** Derrière l'**engrenage** de la ligne, un dialog à **trois champs et un
 seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le **fixe par période** en €
@@ -491,6 +589,54 @@ passer un chatteur pour non rémunérable.
 
 **Retard.** Le bandeau des périodes incomplètes se déduit de `covered_days` : toute période
 échue dont un jour n'est couvert par aucun paiement remonte, quelle que soit la date.
+
+### 7.2 Onglet Classement
+
+Le TOP setter de la période — rang, chatteur, handoffs, prime — plus une ligne de total (Σ des
+handoffs, Σ des primes : le barème est un budget dépensé une fois). Même sélecteur de période que
+l'onglet Période.
+
+Un membre à **0 handoff n'y figure pas** : `rankSetters` ne le classe pas. Une prime à **0 €**
+(au-delà de la dernière tranche) reste affichée, en gris — être classé sans rien toucher est un
+résultat, et le voir explique pourquoi la fiche n'a pas de ligne « Prime setter ».
+
+Le rang est **agence-wide** (§6) : la liste d'un encadrant a donc des trous. L'écran le dit en
+une phrase, plutôt que de renuméroter de 1 à N — une numérotation par périmètre ne
+correspondrait à aucune prime. Il rappelle aussi que le classement porte sur les **handoffs
+saisis dans l'app**, le comptage qui fait foi n'étant pas tranché (§4).
+
+**Le barème** est affiché dessous, pour TOUT l'encadrement — un manager qui ne le verrait pas
+lirait la prime setter comme 0 € sans erreur (§6). **Éditable par l'admin seul** : quinze
+tranches en trois colonnes, une tranche = un `<form>` = une écriture (la clé primaire est le
+rang), enregistrement automatique. La phrase sous la grille dit ce qu'une modification fait :
+elle s'applique aux périodes **non encore payées**, jamais à celles déjà réglées, dont le montant
+est figé (`setter_prime_amount`, §5.7).
+
+### 7.3 Onglet Suivi
+
+Deux listes, aucune période — une prime échue le reste jusqu'à ce qu'elle soit versée, quelle que
+soit la quinzaine qu'on regarde à côté.
+
+**Primes d'embauche à verser** : chatteur, arrivée, éligible depuis, montant. Échéance = arrivée
+(`chatter_first_seen()`) **+ 1 mois au même quantième** (`addMonthsSameDay` — `addMonths` ramène
+au 1er du mois et aurait rendu un arrivant du 28 juin éligible le 1er juillet). « Non versée » se
+lit sur `compta_payments.prime_amount`, **jamais** sur `compta_primes.status` (§5.3, même
+raisonnement que `coverage.primePaid`). Triée par échéance la plus ancienne : c'est l'ordre du
+retard.
+
+**La colonne Montant est la raison d'être de cette liste.** Une prime n'entre dans le net que si
+une ligne `compta_primes` existe avec un montant : un membre échu sans montant ne recevra **rien,
+en silence**. L'écran écrit donc « aucun montant » (ambre) ou « 0 € — rien à verser » au lieu
+d'un « 0,00 € » qui ressemble à une décision. Le montant se règle derrière l'engrenage de sa
+ligne, onglet Période.
+
+**Soldes des partants** (`compta_debts`) — **ADMIN seul**. Nom, modèle, montant, état, plus un
+bouton **Soldé** (et **Rouvrir**) et une corbeille sous confirmation. Le nom est du texte libre :
+une dette vise souvent quelqu'un qui n'est plus chatteur, et une clé étrangère l'aurait fait
+disparaître avec le compte. Un solde réglé **reste à l'écran, barré, daté** : c'est une trace,
+pas un déchet — la corbeille est pour la ligne saisie par erreur. Un non-admin ne voit pas la
+section du tout : `getSuivi` n'interroge même pas la table, et une liste vide se lirait
+« aucune dette ».
 
 ---
 
