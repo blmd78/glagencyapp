@@ -10,6 +10,7 @@ import { z } from 'zod'
 import type { Json } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { SECTION_TYPES } from './types'
 
 const saveInfosModeleInput = z.object({
   creatorId: z.uuid(),
@@ -20,7 +21,7 @@ const saveInfosModeleInput = z.object({
         titre: z.string().max(120),
         contenu: z.string().max(5000),
         emoji: z.string().max(16).optional(),
-        type: z.enum(['liste', 'fiche', 'recits', 'texte']).optional(),
+        type: z.enum(SECTION_TYPES).optional(),
       }),
     )
     .max(30),

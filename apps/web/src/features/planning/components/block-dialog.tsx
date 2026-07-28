@@ -263,7 +263,7 @@ export function BlockDialog({
           />
 
           {errors.root && (
-            <p className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
+            <p role="alert" className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
           )}
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>

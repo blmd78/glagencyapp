@@ -86,10 +86,10 @@ export function rankSetters(
   const out: SetterRank[] = []
   let i = 0
   while (i < ordered.length) {
-    const handoffs = ordered[i][1]
+    const handoffs = ordered[i]![1] // `i < ordered.length` garanti par le while englobant
     // Fin du groupe d'ex æquo : le premier qui n'a pas le même compte.
     let end = i + 1
-    while (end < ordered.length && ordered[end][1] === handoffs) end++
+    while (end < ordered.length && ordered[end]![1] === handoffs) end++
 
     const size = end - i
     const rank = i + 1 // rang « compétition » : autant de membres devant, plus un.
@@ -97,7 +97,7 @@ export function rankSetters(
     for (let slot = rank; slot < rank + size; slot++) pooled += amountOfRank.get(slot) ?? 0
     const amount = round2(pooled / size)
 
-    for (let k = i; k < end; k++) out.push({ id: ordered[k][0], handoffs, rank, amount })
+    for (let k = i; k < end; k++) out.push({ id: ordered[k]![0], handoffs, rank, amount })
     i = end
   }
   return out

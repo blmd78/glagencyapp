@@ -9,14 +9,15 @@
 //
 // ADMIN SEUL, vérifié en base : `compta_settings_admin_write` et `compta_primes_admin_write`
 // (migration 0085) sont `for all to authenticated using (is_admin()) with check (is_admin())`.
-// `adminGuard` n'est que la défense en profondeur — c'est pour ça que l'onglet n'est PAS monté
-// pour un manager, qui a pourtant le droit d'ouvrir ce dialog (`authorizeRoleAndScope`) : lui
-// afficher des champs dont l'enregistrement serait refusé par la RLS le lui apprendrait tard.
+// Le contrôle admin applicatif (`requireAdminProfile` en tête de handler quand le profil sert
+// à `updated_by`, sinon `adminGuard`) n'est que la défense en profondeur — c'est pour ça que
+// l'onglet n'est PAS monté pour un manager, qui a pourtant le droit d'ouvrir ce dialog
+// (`authorizeRoleAndScope`) : lui afficher des champs dont l'enregistrement serait refusé par
+// la RLS le lui apprendrait tard.
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
 import {
   paySettingsInput,
   payPrimeInput,
@@ -42,10 +43,9 @@ export async function saveMemberPaySettings(raw: unknown): Promise<ActionResult>
   return runAction({
     schema: paySettingsInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       await writePaySettings(await createClient(), profile.id, v)
       revalidatePay()
     },
@@ -64,10 +64,9 @@ export async function saveMemberRate(raw: unknown): Promise<ActionResult<boolean
   return runAction({
     schema: payRateInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       const written = await writeRate(await createClient(), profile.id, v)
       revalidatePay()
       return written
@@ -95,10 +94,9 @@ export async function saveMemberPrime(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: payPrimeInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       await writePrime(await createClient(), profile.id, v)
       revalidatePay()
     },

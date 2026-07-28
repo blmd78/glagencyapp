@@ -3,7 +3,7 @@ import { KpiGrid } from '@/components/kpi-card'
 import { ModelBilanCard } from './components/model-bilan-card'
 import { WeekSwitcher } from './components/week-switcher'
 import type { BilanData } from './types'
-import { eur } from '@/lib/format'
+import { eur, num } from '@/lib/format'
 
 /**
  * Template Bilan hebdomadaire (Server Component) : 4 KPI + une carte par modèle.
@@ -34,7 +34,7 @@ export function BilanTemplate({ data }: { data: BilanData }) {
     {
       key: 'subs',
       label: 'Nouveaux abonnés',
-      value: data.totalNewSubs.toLocaleString('fr-FR'),
+      value: num(data.totalNewSubs),
       deltaPct: null,
       trendLabel: '',
       hint: '',

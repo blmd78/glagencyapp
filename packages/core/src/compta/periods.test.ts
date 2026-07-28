@@ -98,13 +98,13 @@ describe('recentPeriods', () => {
     ])
     // Chaque periode reprend exactement au lendemain de la precedente.
     for (let i = 1; i < list.length; i++) {
-      expect(addDays(list[i].end, 1)).toBe(list[i - 1].start)
+      expect(addDays(list[i]!.end, 1)).toBe(list[i - 1]!.start)
     }
   })
 
   it('26 periodes couvrent 364 jours — la cadence annuelle reelle, pas 24', () => {
     const list = recentPeriods('2026-07-27', 26)
     expect(list).toHaveLength(26)
-    expect(list.at(-1)?.start).toBe(addDays(list[0].start, -25 * 14))
+    expect(list.at(-1)?.start).toBe(addDays(list[0]!.start, -25 * 14))
   })
 })

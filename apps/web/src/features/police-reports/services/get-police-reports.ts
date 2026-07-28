@@ -44,8 +44,10 @@ export async function getPoliceReports(
 
   const [reportsRes, creatorsRes, profilesRes] = await Promise.all([
     reportsPromise,
-    // Résolveurs de noms (client admin) : `fetchAll` — `creators`/`profiles` peuvent dépasser
-    // 1000 lignes dans une agence, sinon des noms manqueraient silencieusement (→ « ? »).
+    // Résolveurs de noms (client admin). `creators` est DIMENSIONNELLE (quelques dizaines de
+    // modèles — le select nu de `getReportOptions` ci-dessous fait le même pari, à raison) ;
+    // `profiles`, lui, grossit avec l'effectif. `fetchAll` sur les deux = ceinture
+    // anti-troncature à coût marginal nul, pas une nécessité pour `creators`.
     fetchAll((from, to) => admin.from('creators').select('id, name').order('id').range(from, to)),
     fetchAll((from, to) => admin.from('profiles').select('id, display_name').order('id').range(from, to)),
   ])

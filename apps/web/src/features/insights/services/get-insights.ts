@@ -65,13 +65,16 @@ export async function getInsights(
       .select('insight_key, generated_at, week_start, severity, title, body, action_plan, kpis, models, week')
       .eq('week_start', weekStart)
       .eq('generated_at', genAt),
-    // `insight_states` grossit d'une ligne par (semaine, chatteur) chaque génération —
-    // pas de fenêtre naturelle pour borner, et le volume dépasse la limite PostgREST
-    // (1000 lignes) en environ un an → fetchAll, tri sur la PK (`insight_key`).
+    // `insight_states` grossit d'une ligne par (semaine, chatteur) chaque génération — borné
+    // à LA semaine affichée via le motif de clé `quotas_<weekStart>_<chatterId>` (seule
+    // famille de clés générée, `quotas-hebdo.ts` ; vérifié en préprod 2026-07-28 : zéro clé
+    // hors motif sur `insight_states` ET `insights`). `fetchAll` conservé en ceinture
+    // anti-troncature (tri PK `insight_key`) — une semaine tient largement sous 1000 lignes.
     fetchAll((f, t) =>
       supabase
         .from('insight_states')
         .select('insight_key, status, note, bilan, updated_at, updated_by')
+        .like('insight_key', `quotas_${weekStart}_%`)
         .order('insight_key')
         .range(f, t),
     ),
@@ -140,8 +143,10 @@ export async function getInsights(
 /** Compteur sidebar : cartes de la dernière semaine encore à traiter (new/in_progress). RLS-scopé. */
 export async function getOpenInsightsCount(): Promise<number> {
   const supabase = await createClient()
-  // 1 requête pour (dernière semaine, dernière génération) au lieu de 2 en série — ce
-  // compteur est dans le chemin bloquant du layout (chaque hard load + chaque action).
+  // 1 requête pour (dernière semaine, dernière génération) au lieu de 2 en série — le badge
+  // est STREAMÉ hors du chemin bloquant du layout (kickoff sans await + use() sous Suspense,
+  // cf. app/(dash)/layout.tsx), mais il tourne quand même à chaque hard load + chaque action :
+  // rester frugal.
   const { data: latest, error: latestErr } = await supabase
     .from('insights')
     .select('week_start, generated_at')
@@ -160,11 +165,14 @@ export async function getOpenInsightsCount(): Promise<number> {
       .eq('week_start', weekStart)
       .eq('generated_at', genAt)
       .neq('severity', 'ok'),
-    // Même table que `getInsights` (fetchAll obligatoire — cf. commentaire ci-dessus).
+    // Même table que `getInsights`, même borne par semaine (motif `quotas_<weekStart>_%`,
+    // cf. commentaire là-bas) : l'intersection plus bas ne garde de toute façon que les clés
+    // de LA semaine — filtrer ici évite de transférer les états de toutes les semaines.
     fetchAll((f, t) =>
       supabase
         .from('insight_states')
         .select('insight_key, status')
+        .like('insight_key', `quotas_${weekStart}_%`)
         .in('status', ['resolved', 'ignored'])
         .order('insight_key')
         .range(f, t),

@@ -74,7 +74,7 @@ describe('periodsOfMonth', () => {
     for (const [start, months] of seen) expect([start, months]).toEqual([start, [months[0]]])
     // Aucun trou : les debuts collectes se suivent de 14 en 14 jours.
     const starts = [...seen.keys()].sort()
-    for (let i = 1; i < starts.length; i++) expect(starts[i]).toBe(addDays(starts[i - 1], 14))
+    for (let i = 1; i < starts.length; i++) expect(starts[i]).toBe(addDays(starts[i - 1]!, 14))
   })
 
   it('contient toujours la periode dont on est parti', () => {

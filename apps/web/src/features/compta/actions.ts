@@ -1,8 +1,10 @@
 'use server'
 
 // Server Actions de SAISIE de la Compta : saisie hebdo = manager/sous-manager sur SES
-// rattachés (`managerPageGuard` + RLS 0085) ; le lien MyPuls = admin seul (`adminGuard`). Les
-// réglages de paie ont déménagé dans Membres (cf. plus bas).
+// rattachés (`requireWriteProfile('compta')` + RLS 0085) ; le lien MyPuls = admin seul
+// (`requireAdminProfile`). Contrôles en tête de handler (patron §4 des guidelines — le
+// handler a besoin du profil, une seule requête). Les réglages de paie ont déménagé dans
+// Membres (cf. plus bas).
 //
 // LES DEUX GESTES DE PAIEMENT VIVENT DANS `actions-pay.ts` — ce fichier avait atteint 342 lignes
 // (plafond de 300, CLAUDE.md) et le paiement groupé en ajoutait autant. Frontière : ici ce qui
@@ -11,12 +13,12 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
 import { applyChatterLink } from '@/lib/chatter-link'
 import {
   runAction,
-  managerPageGuard,
-  adminGuard,
+  noGuard,
+  requireAdminProfile,
+  requireWriteProfile,
   BusinessError,
   type ActionResult,
 } from '@/lib/actions'
@@ -37,10 +39,9 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: weekEntryInput,
     input: raw,
-    guard: managerPageGuard('compta'),
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireWriteProfile('compta')
       const supabase = await createClient()
       const { error } = await supabase.from('compta_week_entries').upsert(
         {
@@ -82,11 +83,11 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
  * ce lien aucun CA n'est calculable, donc aucune fiche de paie : c'est le seul geste qui
  * débloque la ligne, et l'imposer via la page Membres coupait le flux de la paie.
  *
- * `adminGuard` : `applyChatterLink` est admin-seul et IGNORE SILENCIEUSEMENT un non-admin
- * (cf. lib/chatter-link.ts) — sans cette garde, un manager verrait « Membre relié » sans que
- * rien ne soit écrit. La garde est ici le seul rempart : `profiles.chatter_id` est écrit par
- * client SERVICE-ROLE (`auth.admin` est requis ailleurs dans le même helper), donc la RLS ne
- * tranche pas. L'UI ne monte le bouton que pour `canConfigure`, ce qui reste optimiste.
+ * `requireAdminProfile` : `applyChatterLink` est admin-seul et IGNORE SILENCIEUSEMENT un
+ * non-admin (cf. lib/chatter-link.ts) — sans ce contrôle, un manager verrait « Membre relié »
+ * sans que rien ne soit écrit. Ce contrôle est ici le seul rempart : `profiles.chatter_id`
+ * est écrit par client SERVICE-ROLE (`auth.admin` est requis ailleurs dans le même helper),
+ * donc la RLS ne tranche pas. L'UI ne monte le bouton que pour `canConfigure` (optimiste).
  *
  * La garde d'unicité et la traduction du `23505` viennent du helper partagé avec Membres —
  * une seule implémentation.
@@ -95,10 +96,9 @@ export async function linkChatter(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: chatterLinkInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const caller = await getProfile()
-      if (!caller) throw new Error('Session expirée')
+      const caller = await requireAdminProfile()
       await applyChatterLink(createAdminClient(), caller, v.memberId, v.chatterId)
       revalidatePath('/chatter/compta')
       // Le lien est la MÊME colonne que celle affichée par Membres (badge « à relier »,

@@ -1,7 +1,9 @@
 'use server'
 
-// Les deux gestes de PAIEMENT de la Compta — `adminGuard` + RLS `compta_payments_admin_write`
-// (0085) : les virements sont le fait de l'admin seul, un manager ne fait que saisir (spec §6).
+// Les deux gestes de PAIEMENT de la Compta — `requireAdminProfile` (contrôle en tête de
+// handler, patron §4 : le handler a besoin du profil pour `paid_by`) + RLS
+// `compta_payments_admin_write` (0085) : les virements sont le fait de l'admin seul, un
+// manager ne fait que saisir (spec §6).
 //
 // FICHIER SÉPARÉ D'`actions.ts`, qui garde les saisies, les réglages, la prime et le lien
 // MyPuls : celui-ci atteignait déjà 342 lignes (plafond de 300, CLAUDE.md) et le paiement groupé
@@ -17,9 +19,8 @@ import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
 import { daysIn, recentPeriods, round2, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
 import { eur2 } from '@/lib/format'
-import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, requireAdminProfile, BusinessError, type ActionResult } from '@/lib/actions'
 import { loadComptaRows } from './services/compta-rows'
 import { recordPayment } from './services/record-payment'
 import { payInput, payAllInput } from './schema'
@@ -36,10 +37,9 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: payInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       const supabase = await createClient()
 
       // On ne fige que des jours RÉVOLUS. Payer une période en cours gèlerait un CA encore
@@ -171,8 +171,9 @@ const PAY_CONCURRENCY = 5
  * PAIEMENT GROUPÉ d'une période : toutes les fiches payables, en un geste. Sur une centaine de
  * membres, régler chatteur par chatteur depuis sa fiche dépliée n'est pas tenable.
  *
- * MÊME CHEMIN que le paiement unitaire, et c'est le point : même garde (`adminGuard`), même
- * calcul (`loadComptaRows`), même écriture (`recordPayment`), donc même instantané et même
+ * MÊME CHEMIN que le paiement unitaire, et c'est le point : même contrôle
+ * (`requireAdminProfile`), même calcul (`loadComptaRows`), même écriture (`recordPayment`),
+ * donc même instantané et même
  * traitement des conflits. Rien du navigateur n'entre dans ce qui est écrit — contrairement au
  * paiement unitaire, ce payload ne porte AUCUN montant d'instantané (cf. `payAllInput`).
  *
@@ -185,10 +186,9 @@ export async function payAllForPeriod(raw: unknown): Promise<ActionResult<PayAll
   return runAction({
     schema: payAllInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       const supabase = await createClient()
 
       // Une seule lecture d'horloge pour tout le lot — sinon deux fiches du même lot pourraient

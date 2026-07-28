@@ -24,6 +24,8 @@ export const eur = (n: number) => `${NF_2.format(n)} €`
 export const eur2 = eur
 /** € avec jusqu'à 2 décimales (aucune si entier) — ex. montants de malus. */
 export const eur2max = (n: number) => `${NF_2MAX.format(n)} €`
+/** 2 décimales SANS € — ex. delta monétaire entre parenthèses, le € étant déjà porté à côté. */
+export const dec2 = (n: number) => NF_2.format(n)
 export const pct = (n: number) => `${NF_1.format(n)} %`
 export const num = (n: number) => NF.format(n)
 export const int = (n: number) => NF_INT.format(Math.round(n))

@@ -1,8 +1,9 @@
 'use server'
 
 // Les gestes ADMIN des deux nouveaux onglets : le BARÈME setter (Classement) et les SOLDES DES
-// PARTANTS (Suivi). Tous sous `adminGuard` + RLS admin (`compta_setter_scale_admin_write` 0090,
-// `compta_debts_admin_all` 0084) — spec §6, où ces deux tables sont « admin : tout, manager : — ».
+// PARTANTS (Suivi). Tous admin-seul (`adminGuard`, ou `requireAdminProfile` en tête de handler
+// quand celui-ci a besoin du profil — patron §4) + RLS admin (`compta_setter_scale_admin_write`
+// 0090, `compta_debts_admin_all` 0084) — spec §6 (« admin : tout, manager : — »).
 //
 // TROISIÈME fichier d'actions de la feature, et la frontière suit celle des schémas : `actions.ts`
 // = ce qui se SAISIT sur une période, `actions-pay.ts` = ce qui se VERSE, celui-ci = ce qui ne
@@ -13,8 +14,7 @@
 import { revalidatePath } from 'next/cache'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, noGuard, requireAdminProfile, BusinessError, type ActionResult } from '@/lib/actions'
 import { setterScaleInput, debtInput, debtSettleInput, debtDeleteInput } from './schema-config'
 
 /**
@@ -30,10 +30,9 @@ export async function saveSetterScale(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: setterScaleInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       const supabase = await createClient()
       const { error } = await supabase.from('compta_setter_scale').upsert(
         {
@@ -111,10 +110,9 @@ export async function setDebtSettled(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: debtSettleInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requireAdminProfile()
       const supabase = await createClient()
       const { error, count } = await supabase
         .from('compta_debts')

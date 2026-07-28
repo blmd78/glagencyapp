@@ -1,4 +1,5 @@
 import { computePayslip, round2, type PayPeriod, type SetterScaleRow } from '@glagency/core'
+import { ERROR_LABEL } from '@/lib/types/police-errors'
 import { buildCoverage, type Coverage } from './coverage'
 import { loadComptaSources } from './compta-sources'
 import { segmentsOf } from './rate-segments'
@@ -18,22 +19,6 @@ import type { ComptaRow, ComptaSanction, SetterRankingRow } from '../types'
  * divergerait un jour et bloquerait des paiements corrects, ou en laisserait passer de faux.
  * Les lectures vivent dans `compta-sources.ts`.
  */
-
-/** Motifs de sanction — copie locale : `features/police` est une AUTRE feature, import interdit
- *  (ESLint `import-x/no-restricted-paths`). Garder aligné sur `features/police/types.ts`. */
-const ERROR_LABEL: Record<string, string> = {
-  media_argent: 'Parle de média/argent directement',
-  reactivite: 'Réponse > 45 s par sub',
-  media_rapide: 'Envoi de média trop rapide',
-  fautes: "Fautes d'orthographe",
-  setter_lent: 'Ne récupère pas vite les nouveaux (setter)',
-  hors_script: "Ne suit pas l'histoire du script",
-  sexu_faible: 'Sexualisation faible (ne fait pas baver)',
-  promesse: 'Promesse non tenue (setter)',
-  temps_media: "N'attend pas le temps du média",
-  infos_non_transmises: 'Ne transmet pas les infos',
-  infos_non_notees: 'Ne note pas les infos',
-}
 
 export interface ComptaRowsResult {
   rows: ComptaRow[]

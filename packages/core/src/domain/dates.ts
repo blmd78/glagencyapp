@@ -127,7 +127,8 @@ export function addMonths(day: string, n: number): string {
  * calendrier de paie ; `setUTCMonth` seul, lui, déborderait sur le mois suivant.
  */
 export function addMonthsSameDay(day: string, n: number): string {
-  const [y, m, d] = day.slice(0, 10).split('-').map(Number)
+  // Cast tuple : une date ISO `YYYY-MM-DD` a toujours 3 segments (contrat d'entrée du module).
+  const [y, m, d] = day.slice(0, 10).split('-').map(Number) as [number, number, number]
   // Jour 0 du mois M+1 = dernier jour du mois M — la borne à ne pas dépasser.
   const lastDay = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate()
   return isoDate(new Date(Date.UTC(y, m - 1 + n, Math.min(d, lastDay))))

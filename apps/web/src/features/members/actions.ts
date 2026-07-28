@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
-import { getProfile } from '@/lib/auth'
-import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { applyChatterLink } from '@/lib/chatter-link'
 import { readStateCookie } from '@/lib/impersonation/session'
 import {
@@ -19,23 +18,20 @@ import {
 import { memberInput, memberUpdateInput } from './schema'
 
 /**
- * Mutations de la page Membres. Toutes : zod → garde applicative → client SERVICE-ROLE
+ * Mutations de la page Membres. Toutes : zod → autorisation applicative → client SERVICE-ROLE
  * (auth.admin.* exige la clé secrète). Admin (superadmin compris) : tout. Manager :
  * uniquement SES chatters — création rattachée à lui (manager_id), édition/suppression
  * bornées par requireEditableTarget, rôle user forcé, modèles de son périmètre.
  * Autorisation fine (gardes fail-closed, démotion/detach, compensation deleteUser) :
- * `./authz.ts` — DÉPLACEMENT PUR des helpers gelés (mêmes noms, mêmes corps, mêmes
- * messages, cf. self-review de la task), ce fichier ne garde QUE les Server Actions.
+ * `./authz.ts` — helpers GELÉS (mêmes noms, mêmes corps, mêmes messages, cf. self-review de
+ * la task standard), ce fichier ne garde QUE les Server Actions.
  *
- * ⚠️ Patron guard+handler HÉRITÉ, à reprendre : l'autorisation fine vit dans `guard` puis
- * est re-dérivée dans `handler`, dans l'idée que le `cache()` de React évite la seconde
- * requête. Il ne l'évite pas (il ne mémoïse que dans le rendu d'un Server Component), donc
- * chaque mutation paie ses lectures deux fois. Les guidelines §4 prescrivent désormais une
- * vérification unique en tête de handler — appliquée dans features/todos et features/planning,
- * pas encore ici (frontière de privilèges + client service-role : reprise à faire avec un
- * test manuel admin ET manager). Erreur technique de mutation (Supabase) = throw → message
- * générique (jamais un `error.message` brut à l'UI) ; le doublon d'email, lui, est un refus
- * MÉTIER (BusinessError + fieldErrors). La compensation deleteUser reste identique.
+ * Patron §4 des guidelines : l'autorisation est vérifiée UNE SEULE FOIS, en tête de handler
+ * (`noGuard` satisfait `runAction`) — un refus lève `BusinessError` avec le message des
+ * helpers gelés, dans le même ordre qu'avant la migration (dette guard+handler soldée
+ * 2026-07). Erreur technique de mutation (Supabase) = throw → message générique (jamais un
+ * `error.message` brut à l'UI) ; le doublon d'email, lui, est un refus MÉTIER
+ * (BusinessError + fieldErrors). La compensation deleteUser reste identique.
  */
 
 const revalidateMembers = () => {
@@ -48,51 +44,30 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: memberInput,
     input: raw,
-    guard: async () => {
-      const caller = await requireCaller()
-      if (!caller) return { ok: false, error: 'Accès refusé' }
-      // Parse défensif de `raw` (capturé par fermeture) : si invalide, laissé au safeParse
-      // de runAction — pattern planning/scripts (docs/guidelines-standard-feature.md §4).
-      const parsed = memberInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      const { scope, pages, creatorIds, managerId: requestedManagerId } = parsed.data
-
-      const auth = await authorizeRoleAndScope(caller, scope, parsed.data.role, pages, creatorIds)
-      if ('error' in auth) return { ok: false, error: auth.error }
-
-      // Manager : rattachement FORCÉ à lui ; admin : la cible choisie (validée ci-dessous).
-      const managerId = caller.role !== 'admin' ? caller.id : requestedManagerId
-      if (auth.role !== 'admin' && scope === 'chatter' && managerId && caller.role === 'admin') {
-        const admin = createAdminClient()
-        const mErr = await requireManagerTarget(admin, managerId)
-        if (mErr) return { ok: false, error: mErr }
-      }
-      return { ok: true }
-    },
+    guard: noGuard,
     handler: async (values) => {
-      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
-      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
-      const caller = await getProfile()
-      if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      // Autorisation UNE SEULE FOIS (patron §4) — mêmes helpers gelés, mêmes messages et
+      // même ordre de refus que l'ancien guard ; un refus = BusinessError (affiché tel quel).
+      const caller = await requireCaller()
+      if (!caller) throw new BusinessError('Accès refusé')
       const { scope, email, displayName, pages, creatorIds, workLink, closingRole, closingTeam, chatterId } =
         values
 
-      // Re-dérive role/ownScope (mêmes fonctions gelées, mêmes messages) : le guard a déjà
-      // validé — les branches 'error' ci-dessous sont une course résiduelle impossible en
-      // pratique (cf. modèle saveBlock/moveScriptItem, guidelines §4).
       const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
-      if ('error' in auth) throw new Error(auth.error) // impossible si le guard a laissé passer
+      if ('error' in auth) throw new BusinessError(auth.error)
       const { role, ownScope } = auth
+      // Manager : rattachement FORCÉ à lui ; admin : la cible choisie (validée ci-dessous).
       const managerId = caller.role !== 'admin' ? caller.id : values.managerId
 
       const admin = createAdminClient()
       // Rattachement choisi par un admin : la cible doit être un manager (un appelant
-      // manager est déjà forcé sur lui-même, garanti manager par la garde). Inutile pour un
-      // rôle admin (managerIdPatch le nullifie de toute façon).
+      // manager est déjà forcé sur lui-même, garanti manager par requireCaller). Inutile
+      // pour un rôle admin (managerIdPatch le nullifie de toute façon).
       if (role !== 'admin' && scope === 'chatter' && managerId && caller.role === 'admin') {
         const mErr = await requireManagerTarget(admin, managerId)
-        if (mErr) throw new Error(mErr) // impossible si le guard a laissé passer
+        if (mErr) throw new BusinessError(mErr)
       }
+      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
       const { data: created, error } = await admin.auth.admin.createUser({
         email,
         email_confirm: true,
@@ -164,44 +139,28 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: memberUpdateInput,
     input: raw,
-    guard: async () => {
-      const caller = await requireCaller()
-      if (!caller) return { ok: false, error: 'Accès refusé' }
-      const parsed = memberUpdateInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      const { scope, id, pages, creatorIds, managerId } = parsed.data
-
-      const auth = await authorizeRoleAndScope(caller, scope, parsed.data.role, pages, creatorIds)
-      if ('error' in auth) return { ok: false, error: auth.error }
-
-      const admin = createAdminClient()
-      const target = await requireEditableTarget(admin, id, caller)
-      if ('error' in target) return { ok: false, error: target.error }
-      // Cf. createMember : on ne valide pas un rattachement qui sera nullifié (rôle admin).
-      if (auth.role !== 'admin' && scope === 'chatter' && managerId && caller.role === 'admin') {
-        const mErr = await requireManagerTarget(admin, managerId)
-        if (mErr) return { ok: false, error: mErr }
-      }
-      return { ok: true }
-    },
+    guard: noGuard,
     handler: async (values) => {
-      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
-      const caller = await getProfile()
-      if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
+      // Même patron §4 que createMember : autorisation unique en tête de handler, mêmes
+      // helpers gelés, même ordre de refus. `target.role` resservira pour la démotion.
+      const caller = await requireCaller()
+      if (!caller) throw new BusinessError('Accès refusé')
       const { scope, id, displayName, pages, creatorIds, workLink, managerId, closingRole, closingTeam, chatterId } =
         values
 
       const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
-      if ('error' in auth) throw new Error(auth.error) // impossible si le guard a laissé passer
+      if ('error' in auth) throw new BusinessError(auth.error)
       const { role, ownScope } = auth
 
       const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
-      if ('error' in target) throw new Error(target.error) // impossible si le guard a laissé passer
+      if ('error' in target) throw new BusinessError(target.error)
+      // Cf. createMember : on ne valide pas un rattachement qui sera nullifié (rôle admin).
       if (role !== 'admin' && scope === 'chatter' && managerId && caller.role === 'admin') {
         const mErr = await requireManagerTarget(admin, managerId)
-        if (mErr) throw new Error(mErr) // impossible si le guard a laissé passer
+        if (mErr) throw new BusinessError(mErr)
       }
+      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
 
       // requireEditableTarget garantit que la cible est éditable par CET appelant (jamais
       // superadmin ; admin seulement pour un propriétaire) → poser `role` est sûr.
@@ -250,24 +209,16 @@ export async function deleteMember(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: deleteMemberInput,
     input: raw,
-    guard: async () => {
+    guard: noGuard,
+    handler: async (id) => {
+      // Même patron §4 : autorisation unique en tête de handler.
       const caller = await requireCaller()
-      if (!caller) return { ok: false, error: 'Accès refusé' }
-      const parsed = deleteMemberInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
+      if (!caller) throw new BusinessError('Accès refusé')
       const admin = createAdminClient()
       // Manager : requireEditableTarget borne la suppression à SES chatters (rôle user).
-      const target = await requireEditableTarget(admin, parsed.data, caller)
-      if ('error' in target) return { ok: false, error: target.error }
-      return { ok: true }
-    },
-    handler: async (id) => {
-      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
-      const caller = await getProfile()
-      if (!caller) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
-      if ('error' in target) throw new Error(target.error) // impossible si le guard a laissé passer
+      if ('error' in target) throw new BusinessError(target.error)
+      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
       // Supprime le compte auth → profiles/profile_creators suivent par cascade FK.
       const { error } = await admin.auth.admin.deleteUser(id)
       if (error) throw new Error(error.message)

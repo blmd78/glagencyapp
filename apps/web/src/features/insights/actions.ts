@@ -5,9 +5,15 @@ import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { getChatters } from '@/lib/services/get-chatters'
-import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import {
+  runAction,
+  adminGuard,
+  noGuard,
+  requireWriteProfile,
+  BusinessError,
+  type ActionResult,
+} from '@/lib/actions'
 import { setInsightStateInput } from './schema'
 
 /**
@@ -15,53 +21,38 @@ import { setInsightStateInput } from './schema'
  * modèle, migration 0015) est la garde réelle — les verrous ci-dessous (admin exempté :
  * sortir d'« Ignoré », toucher une carte prise en charge par quelqu'un d'autre) sont une
  * défense en profondeur applicative, pas exprimables en RLS (ils dépendent de l'état
- * PRÉCÉDENT de la ligne, lu ici).
+ * PRÉCÉDENT de la ligne, lu ici). Tout le contrôle vit en tête de handler, UNE SEULE FOIS
+ * (patron §4 des guidelines — `noGuard` satisfait `runAction`).
  */
 export async function setInsightState(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: setInsightStateInput,
     input: raw,
-    guard: async () => {
-      const profile = await getProfile()
-      if (!hasWriteAccess(profile, 'insights')) return { ok: false, error: 'Accès refusé' }
-      if (profile.role === 'admin') return { ok: true }
-
-      // Verrous : nécessitent une lecture DB (l'état PRÉCÉDENT de la carte) → faits ici,
-      // avant le safeParse officiel de runAction. Parse défensif de `raw` (capturé par
-      // fermeture, cf. paramètre de `setInsightState`) : si invalide, on laisse passer — le
-      // safeParse qui suit ce guard rapportera l'erreur réelle (pas de duplication de message).
-      const parsed = setInsightStateInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      const { key, status } = parsed.data
-
-      const supabase = await createClient()
-      const { data: existing, error } = await supabase
-        .from('insight_states')
-        .select('status, updated_by')
-        .eq('insight_key', key)
-        .maybeSingle()
-      if (error) throw new Error(error.message) // erreur technique → runAction (Sentry + message générique)
-
-      if (existing?.status === 'ignored' && status !== 'ignored') {
-        return { ok: false, error: 'Seul un admin peut retirer le statut Ignoré' }
-      }
-      if (
-        existing?.status === 'in_progress' &&
-        existing.updated_by != null &&
-        existing.updated_by !== profile.id
-      ) {
-        return { ok: false, error: 'Carte prise en charge par quelqu’un d’autre' }
-      }
-      return { ok: true }
-    },
+    guard: noGuard,
     handler: async (values) => {
-      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
-      const profile = await getProfile()
-      // Message métier (français, écrit par nous) → BusinessError (guidelines §3) : remonte tel
-      // quel dans l'ActionResult au lieu d'être avalé en « Erreur inattendue » + bruit Sentry.
-      if (!profile) throw new BusinessError('Session expirée') // impossible si le guard a laissé passer
-
+      const profile = await requireWriteProfile('insights')
       const supabase = await createClient()
+
+      if (profile.role !== 'admin') {
+        // Verrous : nécessitent une lecture DB (l'état PRÉCÉDENT de la carte).
+        const { data: existing, error } = await supabase
+          .from('insight_states')
+          .select('status, updated_by')
+          .eq('insight_key', values.key)
+          .maybeSingle()
+        if (error) throw new Error(error.message) // technique → runAction (Sentry + message générique)
+
+        if (existing?.status === 'ignored' && values.status !== 'ignored') {
+          throw new BusinessError('Seul un admin peut retirer le statut Ignoré')
+        }
+        if (
+          existing?.status === 'in_progress' &&
+          existing.updated_by != null &&
+          existing.updated_by !== profile.id
+        ) {
+          throw new BusinessError('Carte prise en charge par quelqu’un d’autre')
+        }
+      }
       const { error } = await supabase.from('insight_states').upsert(
         {
           insight_key: values.key,

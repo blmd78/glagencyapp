@@ -1,11 +1,8 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useTransition } from 'react'
-import type { Route } from 'next'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
-import { Combobox } from '@/components/ui/combobox'
 import { eur2 } from '@/lib/format'
+import { ComptaPeriodPicker, usePeriodSelect } from './compta-period-picker'
 import { ComptaTable } from './compta-table'
 import { ComptaPayAllDialog } from './compta-pay-all-dialog'
 import type { ComptaData } from '../types'
@@ -31,15 +28,7 @@ export function ComptaView({
   canPay: boolean
   canConfigure: boolean
 }) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [pending, startTransition] = useTransition()
-
-  const select = (debut: string) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('debut', debut)
-    startTransition(() => router.replace(`/chatter/compta?${params.toString()}` as Route, { scroll: false }))
-  }
+  const { pending, select } = usePeriodSelect()
 
   const due = data.rows.filter((r) => !r.paid)
   const kpis: Kpi[] = [
@@ -69,11 +58,9 @@ export function ComptaView({
       {/* Le PAIEMENT GROUPÉ vit ici, en tête de page à côté du sélecteur — pas dans une fiche
           dépliée : il règle toute la période d'un coup. Monté sous `canPay` uniquement (admin) ;
           il dit lui-même pourquoi il n'y a pas de bouton quand il n'y en a pas.
-          `Combobox` et non `UrlSelect` : ce dernier est typé `param: 'day' | 'month'`, et
-          `debut` n'en fait pas partie. La valeur EST le lundi de départ — une période n'a plus
-          d'autre identifiant depuis 0088.
-          `w-72` et non `w-56` : le libellé dit « du 22 juin au 5 juillet 2026 » quand la période
-          chevauche deux mois, ce que 14 rem tronquerait. */}
+          Sélecteur partagé avec l'onglet Classement : `ComptaPeriodPicker` (`Combobox` et non
+          `UrlSelect` — ce dernier est typé `param: 'day' | 'month'`, et `debut` n'en fait pas
+          partie). */}
       <div className="flex flex-wrap items-center gap-3">
         {canPay && (
           <ComptaPayAllDialog
@@ -82,17 +69,13 @@ export function ComptaView({
             periodElapsed={data.periodElapsed}
           />
         )}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Période :</span>
-          <Combobox
-            value={data.period.start}
-            onChange={select}
-            disabled={pending}
-            className="w-72"
-            searchPlaceholder="Rechercher une période…"
-            options={data.choices.map((p) => ({ value: p.start, label: p.label }))}
-          />
-        </div>
+        <ComptaPeriodPicker
+          period={data.period}
+          choices={data.choices}
+          pending={pending}
+          onSelect={select}
+          className="ml-auto"
+        />
       </div>
 
       <KpiGrid

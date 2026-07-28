@@ -1,11 +1,9 @@
 'use client'
 
-import { useTransition, type ReactNode } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import type { Route } from 'next'
+import type { ReactNode } from 'react'
 import type { PayPeriod, SetterScaleRow } from '@glagency/core'
-import { Combobox } from '@/components/ui/combobox'
 import { eur2 } from '@/lib/format'
+import { ComptaPeriodPicker, usePeriodSelect } from './compta-period-picker'
 import { ComptaScaleForm } from './compta-scale-form'
 import { SECTION_HEAD, COL_HEAD } from './styles'
 import type { SetterRankingRow } from '../types'
@@ -40,8 +38,8 @@ import type { SetterRankingRow } from '../types'
  * feuille et les handoffs de la compta divergent (Godgive : 86 contre 111 en juin). On classe
  * sur les handoffs SAISIS DANS L'APP, et l'écran le dit plutôt que de le masquer.
  *
- * Le sélecteur de période est le MÊME contrat que celui de l'onglet Période (`?debut=`,
- * `router.replace` sans `scroll`) : les deux onglets décrivent la même quinzaine, et `ComptaTabs`
+ * Le sélecteur de période est le MÊME composant que celui de l'onglet Période
+ * (`ComptaPeriodPicker`) : les deux onglets décrivent la même quinzaine, et `ComptaTabs`
  * préserve le paramètre en basculant.
  */
 export function ComptaRankingView({
@@ -66,15 +64,7 @@ export function ComptaRankingView({
    *  ainsi de l'opacité de transition : changer de période change aussi le mois affiché. */
   mois: ReactNode
 }) {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [pending, startTransition] = useTransition()
-
-  const select = (debut: string) => {
-    const params = new URLSearchParams(searchParams)
-    params.set('debut', debut)
-    startTransition(() => router.replace(`/chatter/compta?${params.toString()}` as Route, { scroll: false }))
-  }
+  const { pending, select } = usePeriodSelect()
 
   const total = ranking.reduce((s, r) => s + r.amount, 0)
 
@@ -83,17 +73,13 @@ export function ComptaRankingView({
       {/* Le sélecteur commande les DEUX sections : la période pour le classement, et le mois de
           son lundi de départ pour le récap. Il reste donc seul en tête, sans phrase à côté — la
           phrase d'explication du classement est descendue dans sa propre section. */}
-      <div className="flex items-center gap-2 self-end">
-        <span className="text-sm text-muted-foreground">Période :</span>
-        <Combobox
-          value={period.start}
-          onChange={select}
-          disabled={pending}
-          className="w-72"
-          searchPlaceholder="Rechercher une période…"
-          options={choices.map((p) => ({ value: p.start, label: p.label }))}
-        />
-      </div>
+      <ComptaPeriodPicker
+        period={period}
+        choices={choices}
+        pending={pending}
+        onSelect={select}
+        className="self-end"
+      />
 
       {mois}
 

@@ -1,13 +1,13 @@
 'use server'
 
-// Server Actions des scripts de chat — écriture ADMIN uniquement (garde en retour
-// d'erreur, pas de redirect), lecture cloisonnée par le RLS (migration 0040).
+// Server Actions des scripts de chat — écriture ADMIN uniquement (contrôle en tête de
+// handler, patron §4 des guidelines : vérification UNE SEULE FOIS, refus = BusinessError,
+// jamais de redirect), lecture cloisonnée par le RLS (migration 0040).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, noGuard, requireAdminProfile, BusinessError, type ActionResult } from '@/lib/actions'
 import { itemInput } from './schema'
 
 /** Crée (id null → en fin de script) ou modifie un item du script d'un modèle. */
@@ -15,33 +15,24 @@ export async function saveScriptItem(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: itemInput,
     input: raw,
-    guard: async () => {
-      const admin = await adminGuard()
-      if (!admin.ok) return admin
-      // Parse défensif de `raw` (capturé par fermeture) : si invalide, laissé au safeParse
-      // de runAction — pas de duplication de message (pattern insights/actions.ts).
-      const parsed = itemInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      const d = parsed.data
+    guard: noGuard,
+    handler: async (d) => {
+      const admin = await requireAdminProfile()
+      const supabase = await createClient()
+
       // Édition : un id d'item d'un AUTRE modèle (creatorId incohérent) est un cas métier
-      // atteignable en usage normal (item réassigné entre-temps) → message précis ici.
+      // atteignable en usage normal (item réassigné entre-temps) → message précis, vérifié
+      // une seule fois ici. L'erreur du SELECT de pré-check est thrown (technique, §4).
       if (d.id) {
-        const supabase = await createClient()
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('script_items')
           .select('id')
           .eq('id', d.id)
           .eq('creator_id', d.creatorId)
           .maybeSingle()
-        if (!data) return { ok: false, error: 'Item introuvable' }
+        if (error) throw new Error(error.message)
+        if (!data) throw new BusinessError('Item introuvable')
       }
-      return { ok: true }
-    },
-    handler: async (d) => {
-      // Dette guard+handler : getProfile refait la requête ici (cache() inopérant hors RSC) — cf. docs/guidelines-standard-feature.md §4
-      const admin = await getProfile()
-      if (!admin) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const supabase = await createClient()
 
       const row = {
         kind: d.kind,
@@ -52,7 +43,7 @@ export async function saveScriptItem(raw: unknown): Promise<ActionResult> {
       }
       if (d.id) {
         // .eq creator_id : un couple (creatorId, id d'item d'un AUTRE modèle) incohérent ne
-        // re-parente/écrase rien. Le cas métier courant est déjà rejeté par le guard — un
+        // re-parente/écrase rien. Le cas métier courant est déjà rejeté par le pré-check — un
         // 0-row ICI n'est qu'une race ultra-serrée résiduelle → throw (technique, générique).
         const { data, error } = await supabase
           .from('script_items')
@@ -105,48 +96,25 @@ export async function moveScriptItem(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: moveInput,
     input: raw,
-    guard: async () => {
-      const admin = await adminGuard()
-      if (!admin.ok) return admin
-      const parsed = moveInput.safeParse(raw)
-      if (!parsed.success) return { ok: true }
-      const { id, direction } = parsed.data
+    guard: noGuard,
+    handler: async ({ id, direction }) => {
+      const admin = await requireAdminProfile()
       const supabase = await createClient()
 
-      const { data: cur } = await supabase
+      // Vérifications métier UNE SEULE FOIS (patron §4) : l'item doit exister, et avoir un
+      // voisin dans le sens demandé. Erreur de SELECT thrown (technique) ; refus = BusinessError
+      // (une `Error` nue serait avalée en « Erreur inattendue » et polluerait Sentry pour un
+      // cas normal — course avec un autre déplacement, item déjà en bout de script).
+      const { data: cur, error: curError } = await supabase
         .from('script_items')
         .select('id, creator_id, position')
         .eq('id', id)
         .maybeSingle()
-      if (!cur) return { ok: false, error: 'Item introuvable' }
+      if (curError) throw new Error(curError.message)
+      if (!cur) throw new BusinessError('Item introuvable')
 
       // Voisin immédiat dans le sens demandé (positions espacées mais pas forcément régulières).
-      const { data: neighbor } = await supabase
-        .from('script_items')
-        .select('id')
-        .eq('creator_id', cur.creator_id)
-        .filter('position', direction === 'up' ? 'lt' : 'gt', cur.position)
-        .order('position', { ascending: direction === 'down' })
-        .limit(1)
-        .maybeSingle()
-      if (!neighbor) return { ok: false, error: 'Déjà en bout de script' }
-      return { ok: true }
-    },
-    handler: async ({ id, direction }) => {
-      const admin = await getProfile()
-      if (!admin) throw new Error('Session expirée') // impossible si le guard a laissé passer
-      const supabase = await createClient()
-
-      // Relu (le guard a déjà validé l'existence — un échec ici n'est qu'une race
-      // ultra-serrée résiduelle → throw générique, même raisonnement que saveScriptItem).
-      const { data: cur } = await supabase
-        .from('script_items')
-        .select('id, creator_id, position')
-        .eq('id', id)
-        .maybeSingle()
-      if (!cur) throw new Error('Item introuvable')
-
-      const { data: neighbor } = await supabase
+      const { data: neighbor, error: neighborError } = await supabase
         .from('script_items')
         .select('id, position')
         .eq('creator_id', cur.creator_id)
@@ -154,9 +122,7 @@ export async function moveScriptItem(raw: unknown): Promise<ActionResult> {
         .order('position', { ascending: direction === 'down' })
         .limit(1)
         .maybeSingle()
-      // Refus MÉTIER (message français écrit par nous, guidelines §3) : `BusinessError` remonte
-      // tel quel dans l'ActionResult — une `Error` nue serait avalée en « Erreur inattendue »
-      // et polluerait Sentry pour un cas normal (course avec un autre déplacement).
+      if (neighborError) throw new Error(neighborError.message)
       if (!neighbor) throw new BusinessError('Déjà en bout de script')
 
       // Échange des positions (2 updates — un échec au milieu laisse au pire un doublon de

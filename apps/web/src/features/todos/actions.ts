@@ -11,14 +11,14 @@
 // lit ni n'alimente jamais le cache). Un `guard` qui vérifiait le droit puis un handler qui le
 // revérifiait payaient donc deux fois la requête Supabase — et le refus du `guard` court-
 // circuitait `runAction` AVANT le `schema.safeParse` officiel, donc avec son propre parsing
-// dupliqué. `runAction` exige quand même un `guard` : `noGuard` ci-dessous le satisfait sans
-// rien vérifier, tout le contrôle vit dans le handler (`BusinessError` = message métier affiché
-// tel quel, jamais l'« Erreur inattendue » d'un throw générique).
+// dupliqué. `runAction` exige quand même un `guard` : `noGuard` (lib/actions) le satisfait
+// sans rien vérifier, tout le contrôle vit dans le handler (`BusinessError` = message métier
+// affiché tel quel, jamais l'« Erreur inattendue » d'un throw générique).
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, type Profile } from '@/lib/auth'
-import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { todoCreateInput, todoDeleteInput, todoLoadInput, todoStatusInput, todoUpdateInput } from './schema'
 import { getTodos } from './services/get-todos'
 import type { Todo } from './types'
@@ -62,9 +62,6 @@ const requireCanWriteTodo = async (targetId: string): Promise<{ profile: Profile
   }
   return { error: 'Accès réservé' }
 }
-
-/** `runAction` exige un `guard` ; le contrôle réel vit dans le handler (voir en tête de fichier). */
-const noGuard = async () => ({ ok: true as const })
 
 const revalidateTodos = () => revalidatePath('/chatter/planning')
 

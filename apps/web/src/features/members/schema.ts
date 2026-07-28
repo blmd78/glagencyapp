@@ -21,58 +21,52 @@ const workLink = z
   .max(300, 'Lien trop long')
   .refine((v) => v === '' || /^https?:\/\/\S+$/i.test(v), 'Lien invalide (http/https)')
 
+// Champs COMMUNS création/édition — UNE seule définition (la shape était dupliquée champ à
+// champ entre les deux schémas). La création ajoute `email` ; l'édition ajoute `id` (email
+// verrouillé). Mêmes règles, mêmes messages. `scope` est déclaré à part : il se place AVANT
+// email/id dans chaque schéma (ordre des clés = ordre de validation Zod, inchangé).
+const scope = z.enum(['chatter', 'marketing'])
+const memberFields = {
+  displayName: z.string().trim().min(1, 'Nom requis').max(60),
+  // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
+  // piloté par l'allowlist (trigger handle_new_user), jamais posé ici. `police` = rôle
+  // fonctionnel non hiérarchique (tracker « Police »), pas d'encadrement.
+  role: z.enum(['chatteur', 'police', 'sous-manager', 'manager', 'admin']),
+  pages: z.array(z.string()),
+  creatorIds: z.array(z.uuid()).max(50),
+  // Rattachement à un manager ('' = aucun) — forcé au créateur si l'appelant est manager.
+  managerId: z.uuid().or(z.literal('')),
+  workLink,
+  closingRole,
+  closingTeam,
+  // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
+  chatterId: z.uuid().or(z.literal('')),
+}
+
+// Refines partagés (mêmes prédicats, mêmes messages, même path pour les deux schémas).
+const pagesOfScope = (d: { scope: 'chatter' | 'marketing'; pages: string[] }) =>
+  d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x))
+// min 1 page SAUF pour un admin (accès à tout) : un compte chatteur/manager sans page
+// serait inutilisable (atterrit sur /no-access).
+const atLeastOnePage = (d: { role: string; pages: string[] }) =>
+  d.role === 'admin' || d.pages.length > 0
+
 export const memberInput = z
   .object({
-    scope: z.enum(['chatter', 'marketing']),
+    scope,
     email: z.email('Email invalide'),
-    displayName: z.string().trim().min(1, 'Nom requis').max(60),
-    // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
-    // piloté par l'allowlist (trigger handle_new_user), jamais posé ici. `police` = rôle
-    // fonctionnel non hiérarchique (tracker « Police »), pas d'encadrement.
-    role: z.enum(['chatteur', 'police', 'sous-manager', 'manager', 'admin']),
-    pages: z.array(z.string()),
-    creatorIds: z.array(z.uuid()).max(50),
-    // Rattachement à un manager ('' = aucun) — forcé au créateur si l'appelant est manager.
-    managerId: z.uuid().or(z.literal('')),
-    workLink,
-    closingRole,
-    closingTeam,
-    // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
-    chatterId: z.uuid().or(z.literal('')),
+    ...memberFields,
   })
-  .refine(
-    (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),
-    { message: 'Page inconnue', path: ['pages'] },
-  )
-  // min 1 page SAUF pour un admin (accès à tout) : un compte chatteur/manager sans page
-  // serait inutilisable (atterrit sur /no-access).
-  .refine((d) => d.role === 'admin' || d.pages.length > 0, {
-    message: 'Coche au moins une page',
-    path: ['pages'],
-  })
+  .refine(pagesOfScope, { message: 'Page inconnue', path: ['pages'] })
+  .refine(atLeastOnePage, { message: 'Coche au moins une page', path: ['pages'] })
 export type MemberForm = z.infer<typeof memberInput>
 
 /** Édition : mêmes règles sans l'email (verrouillé), + l'id. */
 export const memberUpdateInput = z
   .object({
-    scope: z.enum(['chatter', 'marketing']),
+    scope,
     id: z.uuid(),
-    displayName: z.string().trim().min(1, 'Nom requis').max(60),
-    role: z.enum(['chatteur', 'police', 'sous-manager', 'manager', 'admin']),
-    pages: z.array(z.string()),
-    creatorIds: z.array(z.uuid()).max(50),
-    managerId: z.uuid().or(z.literal('')),
-    workLink,
-    closingRole,
-    closingTeam,
-    // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
-    chatterId: z.uuid().or(z.literal('')),
+    ...memberFields,
   })
-  .refine(
-    (d) => d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x)),
-    { message: 'Page inconnue', path: ['pages'] },
-  )
-  .refine((d) => d.role === 'admin' || d.pages.length > 0, {
-    message: 'Coche au moins une page',
-    path: ['pages'],
-  })
+  .refine(pagesOfScope, { message: 'Page inconnue', path: ['pages'] })
+  .refine(atLeastOnePage, { message: 'Coche au moins une page', path: ['pages'] })

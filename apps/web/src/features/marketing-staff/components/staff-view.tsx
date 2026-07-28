@@ -172,8 +172,9 @@ export function StaffView({ data, isAdmin }: { data: MktStaffData; isAdmin: bool
                   {s.pay.total > 0 ? (s.remaining > 0 ? eur(s.remaining) : 'Payé ✓') : '—'}
                 </TableCell>
                 <TableCell className="text-center">
-                  {/* La fiche s'édite sur la page VA. Payer = admin (l'action est gardée par
-                      requireAdminGuard — sans ce garde un manager cliquait vers une erreur). */}
+                  {/* La fiche s'édite sur la page VA. Payer = admin (contrôle admin strict en
+                      tête du handler de recordStaffPayment — sans lui un manager cliquait
+                      vers une erreur). */}
                   {isAdmin && s.remaining > 0 && s.active && (
                     <Button
                       variant="outline"

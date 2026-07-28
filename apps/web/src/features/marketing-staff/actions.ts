@@ -1,17 +1,25 @@
 'use server'
 
 // Server Actions du pôle marketing — écritures via supabase-js (RLS : has_page('marketing'),
-// un admin passe toujours). Standard runAction (docs/guidelines-standard-feature.md §4) : la
-// garde d'entrée vit dans `guard` — jamais `requireAdmin` (son redirect serait avalé par le
-// try/catch de runAction, cf. self-review batch 3) ; `handler` re-dérive le même résultat à
-// partir des `values` déjà validées (les branches ci-dessous marquées « impossible » sont une
-// course résiduelle, même raisonnement que members/actions.ts).
+// un admin passe toujours). Standard runAction (docs/guidelines-standard-feature.md §4) :
+// jamais `requireAdmin` (son redirect serait avalé par le try/catch de runAction, cf.
+// self-review batch 3). Quand le handler a besoin du profil ou d'un pré-check métier, tout le
+// contrôle vit en tête de handler, une seule fois (`noGuard`) ; sinon la garde générique
+// suffit (`adminGuard`, `managerPageGuard`).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasWriteAccess } from '@/lib/auth'
-import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { getProfile } from '@/lib/auth'
+import {
+  runAction,
+  adminGuard,
+  managerPageGuard,
+  noGuard,
+  requireWriteProfile,
+  BusinessError,
+  type ActionResult,
+} from '@/lib/actions'
 import { staffFields } from './schema'
 
 // Champs de fiche partagés avec le dialog (schema.ts) + méta serveur.
@@ -23,48 +31,26 @@ const staffInput = staffFields.extend({
   active: z.boolean(),
 })
 
-/**
- * Garde des fiches VA : admin, ou manager ayant la page mkt-staff. Le cloisonnement
- * fin (un manager ne touche que SES fiches) est porté par le RLS de mkt_staff
- * (owner_id = auth.uid(), migration 0027) — les requêtes passent par le client user.
- */
-async function requireMktStaffMgr() {
-  const profile = await getProfile()
-  return hasWriteAccess(profile, 'mkt-staff') ? profile : null
-}
-
-/** Garde ADMIN stricte (paiement — cf. NE TOUCHE PAS wagon compta) — retour d'erreur,
- *  jamais de redirect (éviterait d'éjecter un manager mkt-staff/mkt-compta vers une URL
- *  chatteur inexistante). Sur `deleteStaff`, remplacée par `adminGuard` (lib/actions) —
- *  gardée ici pour `recordStaffPayment`, seul appelant restant. */
-async function requireAdminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
-  const profile = await getProfile()
-  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès réservé à l’admin' }
-}
+// Droit des fiches VA : admin, ou manager ayant la page mkt-staff (`requireWriteProfile`).
+// Le cloisonnement fin (un manager ne touche que SES fiches) est porté par le RLS de
+// mkt_staff (owner_id = auth.uid(), migration 0027) — les requêtes passent par le client user.
 
 export async function saveStaff(raw: unknown): Promise<ActionResult<{ id: string }>> {
   return runAction({
     schema: staffInput,
     input: raw,
-    guard: async () => {
-      const profile = await requireMktStaffMgr()
-      if (!profile) return { ok: false, error: 'Accès refusé' }
-      const parsed = staffInput.safeParse(raw)
-      if (!parsed.success) return { ok: true } // saisie invalide : laissée au safeParse de runAction
-      if (parsed.data.id) {
-        // Édition : la fiche doit être visible du caller (RLS owner_id) — sinon message
-        // précis ici plutôt qu'un 0-row silencieux au update.
-        const supabase = await createClient()
-        const { data, error } = await supabase.from('mkt_staff').select('id').eq('id', parsed.data.id).maybeSingle()
-        if (error) throw new Error(error.message)
-        if (!data) return { ok: false, error: 'Fiche introuvable ou non autorisée' }
-      }
-      return { ok: true }
-    },
+    guard: noGuard,
     handler: async (d) => {
-      const profile = await requireMktStaffMgr()
-      if (!profile) throw new Error('Session expirée') // impossible : le guard vient de le vérifier
+      // Contrôle UNE SEULE FOIS en tête de handler (patron §4) : droit d'écriture, puis
+      // pré-check métier — la fiche éditée doit être visible du caller (RLS owner_id),
+      // sinon message précis plutôt qu'un 0-row silencieux au update.
+      const profile = await requireWriteProfile('mkt-staff')
       const supabase = await createClient()
+      if (d.id) {
+        const { data, error } = await supabase.from('mkt_staff').select('id').eq('id', d.id).maybeSingle()
+        if (error) throw new Error(error.message)
+        if (!data) throw new BusinessError('Fiche introuvable ou non autorisée')
+      }
       const row = {
         name: d.name,
         role: d.role,
@@ -83,8 +69,8 @@ export async function saveStaff(raw: unknown): Promise<ActionResult<{ id: string
         ? await supabase.from('mkt_staff').update(row).eq('id', d.id).select('id').maybeSingle()
         : await supabase.from('mkt_staff').insert({ ...row, owner_id: profile.id }).select('id').single()
       if (error) throw new Error(error.message)
-      // maybeSingle : 0 ligne = course résiduelle (fiche supprimée entre le guard et l'update) —
-      // impossible en pratique, le guard vient de vérifier la visibilité.
+      // maybeSingle : 0 ligne = course résiduelle (fiche supprimée entre le pré-check et
+      // l'update) — technique, le pré-check ci-dessus vient de vérifier la visibilité.
       if (!data) throw new Error('Fiche introuvable ou non autorisée')
       revalidatePath('/marketing/staff')
       revalidatePath('/marketing/compta')
@@ -110,10 +96,9 @@ export async function saveStaffAssignments(raw: unknown): Promise<ActionResult> 
   return runAction({
     schema: assignInput,
     input: raw,
-    guard: async () => {
-      const profile = await requireMktStaffMgr()
-      return profile ? { ok: true } : { ok: false, error: 'Accès refusé' }
-    },
+    // Le handler n'a pas besoin du profil → garde générique (même prédicat et même message
+    // que l'ex-requireMktStaffMgr : hasWriteAccess('mkt-staff')).
+    guard: managerPageGuard('mkt-staff'),
     handler: async ({ staffId, linkIds, igAccountIds, twAccountIds }) => {
       const supabase = await createClient()
       // Anti-vol (lien/compte déjà pris par le VA d'un autre manager) : cas ATTEIGNABLE en
@@ -177,10 +162,13 @@ export async function recordStaffPayment(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: paymentInput,
     input: raw,
-    guard: requireAdminGuard,
+    guard: noGuard,
     handler: async (d) => {
+      // Contrôle ADMIN strict en tête de handler (patron §4 — le profil sert à `created_by`).
+      // Message HISTORIQUE distinct d'`adminGuard` (« Accès réservé à l'admin ») : conservé —
+      // il dit à un manager mkt-staff/mkt-compta POURQUOI le paiement lui est fermé.
       const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée') // impossible : le guard vient de le vérifier
+      if (profile?.role !== 'admin') throw new BusinessError('Accès réservé à l’admin')
       const supabase = await createClient()
       const { error } = await supabase.from('mkt_staff_payments').insert({
         staff_id: d.staffId,

@@ -10,8 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile } from '@/lib/auth'
-import { runAction, pageGuard, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, pageGuard, requirePageProfile, type ActionResult } from '@/lib/actions'
 import { getReports } from './services/get-reports'
 import { upsertReportInput } from './schema'
 import type { Report } from './types'
@@ -40,10 +39,10 @@ export async function upsertReport(input: unknown): Promise<ActionResult> {
   return runAction({
     schema: upsertReportInput,
     input,
-    guard: pageGuard('dashboard'),
+    // Contrôle en tête de handler (patron §4) : le profil sert aussi à cibler SA ligne.
+    guard: noGuard,
     handler: async ({ content }) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
+      const profile = await requirePageProfile('dashboard')
       // day = jour courant serveur : les jours passés ne passent jamais par ici.
       const { error } = await supabaseUpsert(profile.id, todayParis(), content)
       if (error) throw new Error(error.message)

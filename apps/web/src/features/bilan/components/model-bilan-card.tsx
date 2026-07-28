@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { num, eur } from '@/lib/format'
+import { num, eur, int, dec2 } from '@/lib/format'
 import type { ModelBilan } from '../types'
 
 /** Cellule de référence : le VRAI montant de la période (S-1/M-1), suivi de
@@ -52,11 +52,9 @@ const HEAD = 'text-right text-[10px] font-medium uppercase tracking-wide text-mu
  * période avec l'écart signé entre parenthèses — ex. « 20 936,45 € (+3 623,12) ».
  */
 export function ModelBilanCard({ m }: { m: ModelBilan }) {
-
-  const int = (v: number) => Math.round(v).toLocaleString('fr-FR')
-  // Deltas MONÉTAIRES en 2 décimales sans le glyphe € (il est déjà sur le montant principal,
-  // le répéter dans la parenthèse doublerait le bruit) — règle « centimes partout » de Benoit.
-  const dec2 = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // Deltas MONÉTAIRES en `dec2` (2 décimales sans le glyphe €, déjà porté par le montant
+  // principal — le répéter dans la parenthèse doublerait le bruit) ; formateurs partagés
+  // de lib/format, jamais de `toLocaleString` par appel (formateur reconstruit à chaque fois).
   const rows = [
     { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int, zeroOk: false },
     // Union du merge 2026-07-28 : la branche compta apporte eur/dec2 (centimes partout) sur

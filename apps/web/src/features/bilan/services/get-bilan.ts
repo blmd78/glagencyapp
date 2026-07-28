@@ -65,6 +65,11 @@ interface BilanReport {
 export async function getBilan(week?: string | null): Promise<BilanData> {
   const supabase = await createClient()
   const today = todayParis()
+  // `creators` (RLS-scopé) est indépendant de la chaîne première-donnée→semaine ci-dessous —
+  // lancé tout de suite, awaité au Promise.all plus bas. `Promise.resolve` déclenche le fetch
+  // immédiatement : un builder postgrest-js est PromiseLike mais PARESSEUX (même patron que
+  // get-insights.ts).
+  const creatorsPromise = Promise.resolve(supabase.from('creators').select('id, name, excluded'))
   // Première donnée disponible (RLS-scopée) → borne du sélecteur.
   const { data: first, error: firstErr } = await supabase
     .from('creator_daily')
@@ -97,7 +102,7 @@ export async function getBilan(week?: string | null): Promise<BilanData> {
       p_lm_start: lm.start,
       p_lm_end: lm.end,
     }),
-    supabase.from('creators').select('id, name, excluded'),
+    creatorsPromise, // lancée en tête de fonction (kickoff anticipé)
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)
   if (creatorsErr) throw new Error(creatorsErr.message)

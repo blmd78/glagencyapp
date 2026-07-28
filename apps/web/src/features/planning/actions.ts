@@ -10,14 +10,14 @@
 // hors composant, la fonction s'exécute mais ne lit ni n'alimente jamais le cache). Un `guard`
 // qui vérifiait le droit (+ pré-vérif d'existence) puis un handler qui revérifiait le droit
 // payaient donc deux fois la requête Supabase. `runAction` exige quand même un `guard` :
-// `noGuard` ci-dessous le satisfait sans rien vérifier, tout le contrôle (droit + existence)
-// vit dans le handler (`BusinessError` = message métier affiché tel quel).
+// `noGuard` (lib/actions) le satisfait sans rien vérifier, tout le contrôle (droit +
+// existence) vit dans le handler (`BusinessError` = message métier affiché tel quel).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, type Profile } from '@/lib/auth'
-import { runAction, BusinessError, managerPageGuard, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, managerPageGuard, type ActionResult } from '@/lib/actions'
 import { getPlanning } from './services/get-planning'
 import { blockInput } from './schema'
 import type { PlanningData } from './types'
@@ -82,9 +82,6 @@ const requireCanEdit = async (targetProfileId: string): Promise<{ profile: Profi
   return { error: 'Accès réservé' }
 }
 
-/** `runAction` exige un `guard` ; le contrôle réel vit dans le handler (voir en tête de fichier). */
-const noGuard = async () => ({ ok: true as const })
-
 /**
  * Renvoie l'id du planning du membre, créé à la volée s'il n'existe pas encore.
  * Upsert (profile_id UNIQUE) : deux admins qui créent en même temps ne provoquent
@@ -120,20 +117,18 @@ export async function saveBlock(raw: unknown): Promise<ActionResult> {
       // supprimé est un cas MÉTIER atteignable en usage normal (2 admins sur le même bloc),
       // pas juste une race technique → BusinessError, message précis.
       if (d.id) {
+        // Les deux SELECT sont indépendants (bloc par id, planning par profileId) → parallèles.
         // `.single()` erre AUSSI sur 0 ligne (PGRST116) : ce cas-là est MÉTIER
         // (« Bloc introuvable ») — seuls les autres échecs sont techniques (thrown).
-        const { data: blk, error: blkError } = await supabase
-          .from('planning_blocks')
-          .select('planning_id')
-          .eq('id', d.id)
-          .single()
+        const [
+          { data: blk, error: blkError },
+          { data: pl, error: plError },
+        ] = await Promise.all([
+          supabase.from('planning_blocks').select('planning_id').eq('id', d.id).single(),
+          supabase.from('plannings').select('id').eq('profile_id', d.profileId).single(),
+        ])
         if (blkError && blkError.code !== 'PGRST116') throw new Error(blkError.message)
         if (!blk) throw new BusinessError('Bloc introuvable')
-        const { data: pl, error: plError } = await supabase
-          .from('plannings')
-          .select('id')
-          .eq('profile_id', d.profileId)
-          .single()
         if (plError && plError.code !== 'PGRST116') throw new Error(plError.message)
         if (!pl || pl.id !== blk.planning_id) throw new BusinessError('Bloc introuvable')
       }

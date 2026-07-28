@@ -10,11 +10,8 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { recentDays, recentMonths } from '@/lib/periods'
 import { fetchAll } from '@/lib/supabase/fetch-all'
-import { POLICE_ERRORS, type PoliceData, type PoliceEntry } from '../types'
-
-const ERROR_LABEL: Record<string, string> = Object.fromEntries(
-  POLICE_ERRORS.map((e) => [e.key, e.label]),
-)
+import { ERROR_LABEL } from '@/lib/types/police-errors'
+import type { PoliceData, PoliceEntry } from '../types'
 
 /**
  * Journal « Police » d'une PÉRIODE — jour (défaut) ou mois — piloté par `vue`.
