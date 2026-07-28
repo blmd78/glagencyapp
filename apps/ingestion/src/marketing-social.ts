@@ -1,4 +1,4 @@
-import { createAdminClient } from '@glagency/db'
+import { createAdminClient, fetchAll } from '@glagency/db'
 
 /**
  * Pipeline MARKETING-SOCIAL : comptes Instagram → mkt_social_daily, via Apify
@@ -80,13 +80,22 @@ export async function runMarketingSocial(): Promise<SocialRunSummary> {
   if (!accounts?.length) return { status: 'ok', accounts: 0, scraped: 0, missing: [], updatedDaily: 0, warnings }
 
   // Dernier relevé antérieur (delta followers + delta vues) — 1 requête, réduite en mémoire.
-  const { data: prevRows, error: pErr } = await db
-    .from('mkt_social_daily')
-    .select('account_id, date, followers, views_total')
-    .in('account_id', accounts.map((a) => a.id))
-    .lt('date', date)
-    .order('date', { ascending: false })
-    .limit(2000)
+  // fetchAll (CASSÉ sans ça) : le `.limit(2000)` d'origine ne fait RIEN — PostgREST plafonne
+  // chaque réponse à 1000 lignes côté serveur, silencieusement, quel que soit le `.limit()`
+  // client demandé. `.order('date', desc)` garde la sémantique « premier vu par compte = son
+  // relevé le plus récent » exploitée par la réduction ci-dessous ; `.order('account_id')` en
+  // tiebreaker rend l'ordre total déterministe (grain de la PK = account_id, date, migration
+  // 0018) sans changer quelle ligne est retenue par compte.
+  const { data: prevRows, error: pErr } = await fetchAll((f, t) =>
+    db
+      .from('mkt_social_daily')
+      .select('account_id, date, followers, views_total')
+      .in('account_id', accounts.map((a) => a.id))
+      .lt('date', date)
+      .order('date', { ascending: false })
+      .order('account_id')
+      .range(f, t),
+  )
   if (pErr) throw new Error(`mkt_social_daily lecture : ${pErr.message}`)
   const prev = new Map<string, { followers: number | null; viewsTotal: number | null }>()
   for (const r of prevRows ?? []) {
