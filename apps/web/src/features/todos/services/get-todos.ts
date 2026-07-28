@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import type { Todo, TodoPriority, TodoStatus, TodoType } from '../types'
 
 /**
- * To-do d'UNE personne (la cible du sélecteur). Le cloisonnement est porté par la RLS
+ * To-do d'UNE personne : celle isolée par le filtre `?membre=` (rendu à plat), ou celle dont on
+ * vient d'ouvrir le panneau dans la pile (via `loadTodos`). Le cloisonnement est porté par la RLS
  * (`todos_select` → `can_write_todo_of`, 0067) : la lecture n'aboutit que si l'on a le droit
  * d'écrire chez cette personne (lecture = écriture, spec §1). Volume : quelques dizaines de
  * lignes → pas de RPC/fetchAll (largement sous 1000).

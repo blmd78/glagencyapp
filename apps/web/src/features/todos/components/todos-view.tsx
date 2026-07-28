@@ -29,24 +29,41 @@ import { TodosList } from './todos-list'
 /**
  * Porte l'état de la to-do : état optimiste, dialog, `move()`, `remove()`, `releases`, filtre
  * par release. Seule la vue LISTE est rendue — le kanban et sa bascule sont en pause depuis le
- * 2026-07-20 (blocs commentés ci-dessous, composants et dépendance intacts). Remonté par
- * `key={profileId}` côté
- * `TodosTemplate.tsx` : changer de personne réinitialise tout cet état d'un coup (filtre,
- * dialog, saisie de l'ajout rapide) plutôt que de laisser des morceaux de l'ancienne personne
- * s'appliquer par erreur à la nouvelle liste.
+ * 2026-07-20 (blocs commentés ci-dessous, composants et dépendance intacts). En rendu à plat,
+ * remonté par `key={e.id}` côté `TodosTemplate.tsx` — l'id du PORTEUR de la liste, c'est-à-dire
+ * la prop `profileId` ci-dessous (attention : dans `TodosTemplate`, `profileId` désigne au
+ * contraire le SPECTATEUR, qui ne sert qu'à composer le libellé). Changer de personne via le
+ * filtre réinitialise ainsi tout cet état d'un coup (filtre, dialog, saisie de l'ajout rapide)
+ * plutôt que de laisser des morceaux de l'ancienne personne s'appliquer par erreur à la nouvelle
+ * liste. En mode pile, aucune clé n'est nécessaire : Radix démonte le panneau fermé.
  */
 export function TodosView({
   todos,
   profileId,
   targetHasAccess,
   label,
+  onChanged,
 }: {
   todos: Todo[]
-  /** Porteur de la liste (cible du sélecteur) — jamais le spectateur. */
+  /** Porteur de la liste — jamais le spectateur. */
   profileId: string
   targetHasAccess: boolean
-  /** Libellé de la ligne d'en-tête (« Ma to-do » / « To-do de X ») — composé par TodosTemplate. */
-  label: string
+  /**
+   * Ligne d'en-tête (« Ma to-do » / « To-do de X »). ABSENT en mode pile : la ligne qui ouvre
+   * le panneau porte déjà le nom, le répéter serait du bruit.
+   */
+  label?: string
+  /**
+   * Mode pile : recharge le panneau après chaque mutation. `revalidatePath` ne repatche que
+   * l'arbre serveur, or le panneau vient d'une Server Action — sans ça il resterait sur
+   * l'instantané d'avant (le défaut trouvé sur le Dashboard, audit 2026-07-27).
+   *
+   * TOUJOURS ATTENDU (`await`) là où il suit une mutation optimiste : la promesse tient la
+   * transition ouverte jusqu'à l'arrivée des données fraîches. Sans ça `useOptimistic` retombe
+   * sur `todos`, encore périmé, et la ligne saute dans son ancienne section le temps d'un
+   * aller-retour.
+   */
+  onChanged?: () => void | Promise<void>
 }) {
   const router = useRouter()
   // État optimiste : la carte/ligne change AVANT la réponse serveur. Un échec rejoue
@@ -115,6 +132,9 @@ export function TodosView({
         // sa colonne d'origine.
         router.refresh()
       }
+      // `await` DANS la transition : elle ne se clôt qu'une fois le panneau rechargé, donc
+      // l'état optimiste tient jusque-là (cf. doc de `onChanged`).
+      await onChanged?.()
     })
   }
 
@@ -131,12 +151,16 @@ export function TodosView({
     // Pas de toast de succès : la spec design de la feature réserve le toast à l'ÉCHEC — une
     // suppression réussie se voit déjà à l'écran (la ligne/carte disparaît), un toast à chaque
     // geste réussi est du bruit.
-    if (res.success) return
+    if (res.success) {
+      await onChanged?.()
+      return
+    }
     // Échec métier (ex. tâche déjà supprimée par quelqu'un d'autre) : l'action lève avant le
     // `revalidatePath`, donc `todos` reste périmé. `router.refresh()` resynchronise la liste
     // avec le serveur (même pattern que relance-checklist.tsx) pendant que le ConfirmDialog
     // affiche l'erreur.
     router.refresh()
+    await onChanged?.()
     return res.error // string → le ConfirmDialog reste ouvert et affiche l'erreur
   }
   // Ajout rapide : défauts priorité moyenne, sans type ni release — ces champs restent dans le
@@ -144,12 +168,17 @@ export function TodosView({
   // TodosList a son propre « + Créer ») — pas de défaut caché ici, sinon une tâche créée depuis
   // « En cours » naîtrait « À faire ». Pas d'état optimiste dédié : `createTodo` revalide le
   // path au succès, la nouvelle ligne arrive avec le prochain rendu serveur.
-  const quickAdd = (title: string, status: TodoStatus) =>
-    createTodo({ profileId, title, description: null, type: null, priority: 2, release: null, status })
+  const quickAdd = async (title: string, status: TodoStatus) => {
+    const res = await createTodo({
+      profileId, title, description: null, type: null, priority: 2, release: null, status,
+    })
+    if (res.success) await onChanged?.()
+    return res
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
+      {label && <p className="text-sm text-muted-foreground">{label}</p>}
       {!targetHasAccess && (
         <p role="status" className="rounded-md border p-3 text-sm text-muted-foreground">
           Cette personne n’a pas accès à la page Planning : elle ne verra pas cette liste tant
@@ -218,6 +247,7 @@ export function TodosView({
         todo={editing}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        onSaved={onChanged}
       />
     </div>
   )

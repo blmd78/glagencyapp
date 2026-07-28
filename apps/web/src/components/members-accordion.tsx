@@ -9,8 +9,10 @@ import type { SelectableMember } from '@/lib/types/member'
 
 /**
  * Pile de noms, un par ligne, dépliables sur un panneau propre à chaque personne (maquette du
- * propriétaire, 2026-07-26). Sert le Planning et le Dashboard ; le markup repliable lui-même
- * vient de `CollapsibleSection`, partagé avec la To-do.
+ * propriétaire, 2026-07-26). Sert le Planning, le Dashboard et la To-do — les trois s'y branchent
+ * de la même façon (`*-members.tsx`). Le markup repliable lui-même vient de
+ * `CollapsibleSection`, brique générique réutilisée bien au-delà des piles de noms (insights,
+ * infos modèles, sections de la to-do).
  *
  * UN SEUL panneau ouvert à la fois (choix produit) : ouvrir un nom referme le précédent, la page
  * reste courte. Corollaire technique : Radix DÉMONTE le panneau fermé, donc l'état interne d'un
