@@ -6,7 +6,7 @@ import { frDayShort } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
-import { eur2, eur2max } from '@/lib/format'
+import { eur2 } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { ComptaLinkDialog } from './compta-link-dialog'
@@ -109,7 +109,7 @@ function PrimeCell({ row }: { row: ComptaRow }) {
       className="text-xs text-muted-foreground"
       title="Prime enregistrée — non comptée dans le net de cette période."
     >
-      {eur2max(row.prime.amount)} {PRIME_STATUS[row.prime.status] ?? row.prime.status}
+      {eur2(row.prime.amount)} {PRIME_STATUS[row.prime.status] ?? row.prime.status}
     </span>
   )
 }
@@ -185,7 +185,7 @@ export function makeComptaColumns({
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {row.original.rate} %
-          {row.original.fixedAmount > 0 && ` · fixe ${eur2max(row.original.fixedAmount)}`}
+          {row.original.fixedAmount > 0 && ` · fixe ${eur2(row.original.fixedAmount)}`}
         </span>
       ),
     },

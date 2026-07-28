@@ -4,7 +4,7 @@ import { daysIn, type PayPeriod } from '@glagency/core'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
-import { eur } from '@/lib/format'
+import { eur2 } from '@/lib/format'
 import { payPeriod } from '../actions-pay'
 import type { ComptaRow } from '../types'
 
@@ -17,7 +17,7 @@ export function ComptaPayDialog({ row, period }: { row: ComptaRow; period: PayPe
   const p = row.payslip
   return (
     <ConfirmDialog
-      title={`Payer ${row.name} — ${eur(p.net)} ?`}
+      title={`Payer ${row.name} — ${eur2(p.net)} ?`}
       description={
         p.net < 0
           ? 'Le net est NÉGATIF : malus et sanctions dépassent les gains. Enregistrer ce paiement acte un solde dû, il ne déclenche aucun virement.'
