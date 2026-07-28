@@ -29,7 +29,13 @@ export function useMemberPanel<T>(
     // recharger après mutation pendant qu'un chargement vole encore) ne doivent pas laisser
     // gagner le plus ancien. Seule la dernière requête émise a le droit d'écrire.
     const token = ++reqRef.current
-    setPanel({ id, loading: true })
+    setPanel((p) => ({
+      id,
+      loading: true,
+      // Rechargement de la même personne (mutation, réouverture) : on garde l'affichage,
+      // le squelette est réservé à l'ouverture d'une NOUVELLE ligne.
+      data: p?.id === id ? p.data : undefined,
+    }))
     const settle = (next: MemberPanel<T>) =>
       setPanel((p) => (token !== reqRef.current ? p : next))
 

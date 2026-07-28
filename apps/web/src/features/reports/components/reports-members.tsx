@@ -31,7 +31,7 @@ export function ReportsMembers({ entries, today }: { entries: ReportEntry[]; tod
     >
       {(e) => {
         const p = panel?.id === e.id ? panel : null
-        if (!p || p.loading)
+        if (!p || (p.loading && !p.data))
           return (
             <div role="status" className="flex flex-col gap-3">
               <span className="sr-only">Chargement…</span>
