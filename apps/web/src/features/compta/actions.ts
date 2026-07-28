@@ -111,6 +111,17 @@ export async function saveComptaSettings(raw: unknown): Promise<ActionResult> {
  * `paid_at`, qui sont la trace du virement. La réécrire en `'due'` ne provoquerait aucun double
  * versement — `coverage.primePaid` fait foi sur l'instantané figé `compta_payments.prime_amount`
  * (cf. `coverage.ts`) — mais effacerait cette trace. Le formulaire ne la propose pas non plus.
+ * CETTE GARDE EST INDISPENSABLE DEPUIS LA TÂCHE 20 : le payload ne porte plus que le montant,
+ * et l'upsert ci-dessous écrit `status: 'due'` en dur — sans elle, un simple enregistrement de
+ * montant rétrograderait une prime versée.
+ *
+ * `status: 'due'` POSÉ PAR LE SERVEUR, et non plus choisi à l'écran (tâche 20 : le montant seul
+ * gouverne, 0 € = pas de prime). Deux effets voulus :
+ *  - une ligne NEUVE naît `'due'`, comme le défaut de la colonne (migration 0084) ;
+ *  - une ligne héritée `'skipped'` est NORMALISÉE en `'due'` au premier enregistrement. C'est
+ *    l'alternative à « omettre la colonne », qui aurait laissé la prime hors du calcul pendant
+ *    que l'écran affichait un montant enregistré sans rien dire — un no-op silencieux sur de
+ *    l'argent. Ici, l'admin qui ne veut rien verser met 0.
  */
 export async function savePrime(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -137,7 +148,7 @@ export async function savePrime(raw: unknown): Promise<ActionResult> {
         {
           chatter_id: v.chatterId,
           amount: v.amount,
-          status: v.status,
+          status: 'due',
           updated_at: new Date().toISOString(),
           updated_by: profile.id,
         },

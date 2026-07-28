@@ -1,18 +1,11 @@
 'use client'
 
-import { Controller, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { frDateNumeric } from '@glagency/core'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { ActionButton } from '@/components/action-button'
 import { eur2 } from '@/lib/format'
 import { saveComptaSettings, savePrime } from '../actions'
@@ -30,7 +23,14 @@ import type { ComptaRow } from '../types'
  *  - le FIXE de la période, qui S'AJOUTE à la commission dès qu'il est non nul — il ne la
  *    remplace pas. Le choix `% du CA` / `Fixe hebdo` a disparu (migration 0089) : il décrivait
  *    un mode que la feuille du propriétaire ne pratique nulle part ;
- *  - la PRIME nouveau chatteur.
+ *  - la PRIME nouveau chatteur, un MONTANT et rien d'autre.
+ *
+ * Le statut de la prime (« à verser » / « renoncée ») a quitté cet écran le 2026-07-28
+ * (tâche 20). L'onglet « SUIVI PRIMES NVX CHATTEURS » du propriétaire ne connaît que deux
+ * états — payée ou en attente : sur ses 71 lignes, 30 payées et 41 en attente, AUCUNE renoncée.
+ * « Renoncée » ne décrivait donc aucune pratique. Le montant seul gouverne : **0 € = pas de
+ * prime**. `'paid'` reste posé par `payPeriod` au moment du virement, et `savePrime` refuse
+ * toujours de réécrire une prime déjà versée.
  *
  * La case « Setter » a disparu du même geste. Le statut de setter vit dans **Membres**
  * (`profiles.closing_role`) et ne commande RIEN ici : conditionner le versement du fixe à ce
@@ -51,13 +51,12 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
   'use no memo'
 
   // Une prime déjà VERSÉE est figée : `status`/`paid_at` sont la trace du virement posée par
-  // `payPeriod`, et `savePrime` refuse de la réécrire côté serveur. Ses deux champs cèdent la
-  // place à la trace, et le submit ne l'envoie pas.
+  // `payPeriod`, et `savePrime` refuse de la réécrire côté serveur. Son champ cède la place à
+  // la trace, et le submit ne l'envoie pas.
   const primeFrozen = row.prime?.status === 'paid'
 
   const {
     register,
-    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
@@ -70,7 +69,6 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
       // 100 € = le défaut de la colonne `compta_primes.amount`, repris ici pour que le montant
       // usuel n'ait pas à être ressaisi à chaque création.
       primeAmount: row.prime?.amount ?? 100,
-      primeStatus: row.prime?.status === 'skipped' ? 'skipped' : 'due',
     },
   })
 
@@ -84,7 +82,7 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
     // renoncer à la seconde parce que la première a échoué ferait perdre une saisie valide.
     const prime = primeFrozen
       ? null
-      : await savePrime({ chatterId: v.chatterId, amount: v.primeAmount, status: v.primeStatus })
+      : await savePrime({ chatterId: v.chatterId, amount: v.primeAmount })
 
     const settingsError = settings.success ? null : settings.error
     const primeError = prime == null || prime.success ? null : prime.error
@@ -127,12 +125,13 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
           )}
         </div>
       </div>
-      {/* Ce que le fixe fait, dit là où on le saisit : il s'ajoute, il vaut pour la période
-          entière, et une saisie hebdo peut le remplacer. Sans cette phrase, « Fixe par
-          période » se lit encore comme l'ancien « fixe au lieu du pourcentage ». */}
+      {/* Ce que le fixe fait, dit là où on le saisit : il s'ajoute, et il vaut pour la période
+          entière. Sans cette phrase, « Fixe par période » se lit encore comme l'ancien « fixe
+          au lieu du pourcentage ». La mention d'une saisie hebdo qui le remplaçait a été
+          retirée avec le champ lui-même : il était affiché DEUX fois (un par semaine) et les
+          deux étaient additionnés — 75 € sur chaque ligne versaient 150 €. */}
       <p className="text-xs text-muted-foreground">
-        Le fixe s&apos;ajoute à la commission et vaut pour la période entière (14 jours). Une
-        saisie « Fixe setter » dans la fiche le remplace pour cette période-là.
+        Le fixe s&apos;ajoute à la commission et vaut pour la période entière (14 jours).
       </p>
 
       <div className="flex flex-col gap-3">
@@ -146,6 +145,9 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
             plus modifiable.
           </p>
         ) : (
+          // La grille à 2 colonnes est CONSERVÉE avec un seul champ : le montant garde la
+          // largeur des deux champs du dessus. Un champ pleine largeur ici serait un style
+          // nouveau pour rien.
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor={`prime-amount-${row.id}`}>Montant €</Label>
@@ -161,32 +163,11 @@ export function ComptaSettingsForm({ row }: { row: ComptaRow }) {
                 </p>
               )}
             </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor={`prime-status-${row.id}`}>Statut</Label>
-              {/* Un Select Radix dans RHF passe par Controller, jamais register
-                  (docs/guidelines-standard-feature.md §5, « Pièges »). */}
-              <Controller
-                control={control}
-                name="primeStatus"
-                render={({ field }) => (
-                  <Select
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    disabled={isSubmitting}
-                  >
-                    <SelectTrigger id={`prime-status-${row.id}`} aria-label="Statut de la prime">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="due">À verser</SelectItem>
-                      <SelectItem value="skipped">Renoncée</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
           </div>
         )}
+        {/* Comment dire « pas de prime » maintenant que « Renoncée » a disparu. Sans cette
+            phrase, l'admin qui ne veut rien verser n'a plus aucun geste à sa disposition. */}
+        {!primeFrozen && <p className="text-xs text-muted-foreground">0 € = pas de prime.</p>}
       </div>
 
       {errors.root?.serverError && (

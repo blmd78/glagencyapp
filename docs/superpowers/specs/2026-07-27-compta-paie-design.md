@@ -370,11 +370,26 @@ enregistre `covered_days`.
 
 **Réglages (admin seul).** Derrière l'**engrenage** de la ligne, un dialog à **trois champs et un
 seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le **fixe par période** en €
-(il s'ajoute à la commission), et la **prime** nouveau chatteur (montant, à verser ou renoncée).
+(il s'ajoute à la commission), et le **montant** de la **prime** nouveau chatteur.
 Sans cet écran, `compta_settings` et `compta_primes` resteraient aux défauts de leurs colonnes
 pour tout le monde, modifiables en SQL seulement, et la prime « manuelle » de la §2 ne pourrait
 pas être créée. Une prime déjà versée s'affiche en lecture seule : son statut est la trace du
 virement.
+
+> **Correction du 2026-07-28 (tâche 20) — le statut de la prime quitte l'écran.** Le dialog
+> proposait un statut « à verser » / « renoncée » à côté du montant. L'onglet « SUIVI PRIMES NVX
+> CHATTEURS » du propriétaire ne connaît que deux états, payée ou en attente : sur ses 71 lignes,
+> **30 payées, 41 en attente, aucune renoncée**. « Renoncée » ne décrivait aucune pratique.
+>
+> Désormais **le montant seul gouverne : 0 € = pas de prime.** `status` sort aussi du contrat de
+> `savePrime`, qui le pose à `'due'` côté serveur — une ligne héritée `'skipped'` est donc
+> normalisée en `'due'` au premier enregistrement (sinon l'écran afficherait un montant
+> enregistré qui ne compte pas, sans le dire). `'paid'` continue d'être posé par `payPeriod`
+> seul, et `savePrime` refuse toujours de réécrire une prime versée.
+>
+> **Aucune migration** : `compta_primes.status` garde son `check ('due','paid','skipped')`
+> (0084), pour pouvoir revenir en arrière à peu de frais. La colonne « Prime » de la pile sait
+> toujours lire `renoncée` sur une ligne héritée — elle n'est simplement plus productible.
 
 Deux tables derrière un seul bouton, donc deux Server Actions : l'écran **nomme** celle qui a
 échoué (« Taux et fixe enregistrés, mais PAS la prime : … »). Un « Erreur » global laisserait

@@ -200,7 +200,6 @@ export type SettingsInput = z.infer<typeof settingsInput>
  */
 export const settingsFormInput = settingsInput.extend({
   primeAmount: money,
-  primeStatus: z.enum(['due', 'skipped']),
 })
 export type SettingsFormInput = z.infer<typeof settingsFormInput>
 export type SettingsFormValues = z.input<typeof settingsFormInput>
@@ -209,18 +208,29 @@ export type SettingsFormValues = z.input<typeof settingsFormInput>
  * Prime « nouveau chatteur » (`compta_primes`, PK `chatter_id`) — ADMIN seul, décidée à la main
  * (spec §2 : « manuelle, l'admin décide »).
  *
- * `'paid'` est ACCEPTÉ PAR LA COLONNE (check `due | paid | skipped`) mais absent d'ici : il
- * n'est posé que par `payPeriod`, au moment où la prime part réellement. L'offrir dans un
- * formulaire laisserait marquer « versée » une prime que rien n'a versée.
+ * UN SEUL MONTANT depuis le 2026-07-28 (tâche 20). `status` a quitté ce contrat, et pas
+ * seulement le formulaire : l'onglet « SUIVI PRIMES NVX CHATTEURS » du propriétaire ne connaît
+ * que payée ou en attente (71 lignes : 30 payées, 41 en attente, 0 renoncée) — « renoncée » ne
+ * décrivait aucune pratique. **0 € = pas de prime**, c'est le montant qui gouverne.
+ *
+ * MÊME RAISONNEMENT QUE `fixeSetter` À LA TÂCHE 19 : un champ que l'écran ne peut plus produire
+ * mais que l'action accepterait encore est une porte ouverte sur de l'argent — un payload
+ * fabriqué à la main y écrirait un statut invisible depuis l'interface. Le retirer d'ici la
+ * ferme. La différence avec `fixeSetter` : `compta_primes.status` n'est PAS laissé à lui-même,
+ * `savePrime` le pose à `'due'` (voir l'action, qui explique pourquoi).
+ *
+ * `'paid'` n'a jamais figuré ici et ne le pourra plus : il est ACCEPTÉ PAR LA COLONNE (check
+ * `due | paid | skipped`, migration 0084 — inchangée, aucune migration à la tâche 20) mais n'est
+ * posé que par `payPeriod`, au moment où la prime part réellement. `savePrime` refuse par
+ * ailleurs de réécrire une prime déjà `'paid'`.
  *
  * CONTRAT DE L'ACTION, plus d'un formulaire : la prime se saisit dans l'écran unique de
- * l'engrenage (`settingsFormInput`), qui mappe ses deux champs sur ce schéma. `savePrime` le
- * revalide côté serveur — c'est lui qui fait foi.
+ * l'engrenage (`settingsFormInput`), qui mappe son champ de montant sur ce schéma. `savePrime`
+ * le revalide côté serveur — c'est lui qui fait foi.
  */
 export const primeInput = z.object({
   chatterId: z.uuid(),
   amount: money,
-  status: z.enum(['due', 'skipped']),
 })
 export type PrimeInput = z.infer<typeof primeInput>
 

@@ -26,8 +26,11 @@ export interface ComptaRow {
   fixedAmount: number
   /** Prime « nouveau chatteur » enregistrée pour ce membre (`compta_primes`), null si aucune.
    *  `status` : `'due'` (à verser) | `'paid'` (versée, figée par `payPeriod`) | `'skipped'`
-   *  (renoncée). Portée pour le formulaire de réglages : le CALCUL, lui, ne retient que `'due'`
-   *  et passe par `payslip.prime`. */
+   *  (renoncée) — ce dernier est de l'HÉRITAGE depuis la tâche 20 : plus rien ne le produit
+   *  (l'écran ne propose qu'un montant, `savePrime` écrit `'due'`), mais la contrainte de la
+   *  colonne l'accepte toujours et d'anciennes lignes peuvent le porter. Porté ici pour le
+   *  formulaire de réglages et la colonne « Prime » : le CALCUL, lui, ne retient que `'due'` et
+   *  passe par `payslip.prime`. */
   prime: { amount: number; status: string; paidAt: string | null } | null
   handoffs: number
   /** CA par modèle (nom du modèle → €), pour la ventilation de la fiche. */

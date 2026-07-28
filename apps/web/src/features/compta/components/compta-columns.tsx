@@ -76,7 +76,13 @@ function ModelCaCell({ modelCa }: { modelCa: Record<string, number> }) {
   )
 }
 
-/** Statuts de prime, MÊMES mots que le formulaire (`compta-settings-form.tsx`). */
+/**
+ * Statuts de prime. `renoncée` n'est plus SAISISSABLE depuis la tâche 20 (le formulaire n'a
+ * gardé que le montant, 0 € = pas de prime) mais reste LISIBLE : la contrainte de colonne
+ * l'accepte toujours et d'anciennes lignes peuvent le porter. Le retirer d'ici afficherait
+ * `skipped` en clair via le `??` plus bas — un mot anglais brut dans une colonne d'argent.
+ * `à verser` / `versée` sont la distinction que cette cellule doit continuer de faire.
+ */
 const PRIME_STATUS: Record<string, string> = {
   due: 'à verser',
   paid: 'versée',
