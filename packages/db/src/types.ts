@@ -2392,6 +2392,14 @@ export type Database = {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
         Returns: undefined
       }
+      mkt_social_prev_snapshot: {
+        Args: { account_ids: string[]; before_date: string }
+        Returns: {
+          account_id: string
+          followers: number | null
+          views_total: number | null
+        }[]
+      }
       models_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       overview_report: {
         Args: {

@@ -1,4 +1,4 @@
-import { createAdminClient, fetchAll } from '@glagency/db'
+import { createAdminClient } from '@glagency/db'
 
 /**
  * Pipeline MARKETING-SOCIAL : comptes Instagram → mkt_social_daily, via Apify
@@ -79,28 +79,21 @@ export async function runMarketingSocial(): Promise<SocialRunSummary> {
   if (aErr) throw new Error(`mkt_social_accounts : ${aErr.message}`)
   if (!accounts?.length) return { status: 'ok', accounts: 0, scraped: 0, missing: [], updatedDaily: 0, warnings }
 
-  // Dernier relevé antérieur (delta followers + delta vues) — 1 requête, réduite en mémoire.
-  // fetchAll (CASSÉ sans ça) : le `.limit(2000)` d'origine ne fait RIEN — PostgREST plafonne
-  // chaque réponse à 1000 lignes côté serveur, silencieusement, quel que soit le `.limit()`
-  // client demandé. `.order('date', desc)` garde la sémantique « premier vu par compte = son
-  // relevé le plus récent » exploitée par la réduction ci-dessous ; `.order('account_id')` en
-  // tiebreaker rend l'ordre total déterministe (grain de la PK = account_id, date, migration
-  // 0018) sans changer quelle ligne est retenue par compte.
-  const { data: prevRows, error: pErr } = await fetchAll((f, t) =>
-    db
-      .from('mkt_social_daily')
-      .select('account_id, date, followers, views_total')
-      .in('account_id', accounts.map((a) => a.id))
-      .lt('date', date)
-      .order('date', { ascending: false })
-      .order('account_id')
-      .range(f, t),
-  )
+  // Dernier relevé antérieur (delta followers + delta vues) — RPC `distinct on` (migration
+  // 0089), 1 seule sous-requête. Remplace le fetchAll du fix anti-troncature : celui-ci
+  // rapatriait TOUT l'historique par pages de 1000 lignes pour n'en garder qu'une par
+  // compte (« premier vu = plus récent ») — inutile ici, une ligne par compte ne demande
+  // pas l'historique complet. Sur le Worker Cloudflare Free (50 sous-requêtes/invocation,
+  // le poll de l'actor en consomme déjà ~40), ceil(N/1000) aurait fini par mordre.
+  const { data: prevRows, error: pErr } = await db.rpc('mkt_social_prev_snapshot', {
+    account_ids: accounts.map((a) => a.id),
+    before_date: date,
+  })
   if (pErr) throw new Error(`mkt_social_daily lecture : ${pErr.message}`)
+  // Le RPC renvoie déjà une ligne par compte (distinct on account_id) : plus besoin de la
+  // réduction « premier vu » en mémoire, un set direct suffit.
   const prev = new Map<string, { followers: number | null; viewsTotal: number | null }>()
-  for (const r of prevRows ?? []) {
-    if (!prev.has(r.account_id)) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
-  }
+  for (const r of prevRows ?? []) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
 
   const profiles = await runActor(token, accounts.map((a) => a.handle), warnings)
   const byHandle = new Map(profiles.filter((p) => p.username).map((p) => [String(p.username).toLowerCase(), p]))
