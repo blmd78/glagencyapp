@@ -6,7 +6,7 @@ import { frDayShort } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
-import { eur } from '@/lib/format'
+import { eur2, eur2max } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { ComptaLinkDialog } from './compta-link-dialog'
@@ -31,7 +31,7 @@ import type { ComptaRow } from '../types'
  */
 function Money({ value, negative }: { value: number; negative?: boolean }) {
   if (value === 0) return <span className="tabular-nums text-muted-foreground">—</span>
-  return <span className="tabular-nums">{eur(negative ? -value : value)}</span>
+  return <span className="tabular-nums">{eur2(negative ? -value : value)}</span>
 }
 
 /** Modèles montrés en clair dans la colonne « CA modèle » ; au-delà, un « +N ». */
@@ -60,11 +60,11 @@ function ModelCaCell({ modelCa }: { modelCa: Record<string, number> }) {
   return (
     <div
       className="flex items-center gap-1"
-      title={sorted.map(([name, ca]) => `${name} · ${eur(ca)}`).join(' · ')}
+      title={sorted.map(([name, ca]) => `${name} · ${eur2(ca)}`).join(' · ')}
     >
       {shown.map(([name, ca]) => (
         <Badge key={name} className={modelColor(name)}>
-          {name} · {eur(ca)}
+          {name} · {eur2(ca)}
         </Badge>
       ))}
       {extra > 0 && (
@@ -103,7 +103,7 @@ function PrimeCell({ row }: { row: ComptaRow }) {
       className="text-xs text-muted-foreground"
       title="Prime enregistrée — non comptée dans le net de cette période."
     >
-      {eur(row.prime.amount)} {PRIME_STATUS[row.prime.status] ?? row.prime.status}
+      {eur2max(row.prime.amount)} {PRIME_STATUS[row.prime.status] ?? row.prime.status}
     </span>
   )
 }
@@ -179,7 +179,7 @@ export function makeComptaColumns({
       cell: ({ row }) => (
         <span className="text-xs text-muted-foreground">
           {row.original.rate} %
-          {row.original.fixedAmount > 0 && ` · fixe ${eur(row.original.fixedAmount)}`}
+          {row.original.fixedAmount > 0 && ` · fixe ${eur2max(row.original.fixedAmount)}`}
         </span>
       ),
     },
@@ -227,7 +227,7 @@ export function makeComptaColumns({
       // Le net s'affiche même à zéro, en gras : c'est LA colonne de décision, un `—` y
       // laisserait croire à une donnée manquante alors que zéro est un résultat.
       cell: ({ row }) => (
-        <span className="tabular-nums font-semibold">{eur(row.original.payslip.net)}</span>
+        <span className="tabular-nums font-semibold">{eur2(row.original.payslip.net)}</span>
       ),
       meta: { align: 'right' },
     },
@@ -258,10 +258,10 @@ export function makeComptaColumns({
         }
         return r.paid ? (
           <span className="text-xs text-muted-foreground">
-            payé le {r.paidOn ? frDayShort(r.paidOn) : '—'} — {eur(r.paidAmount ?? 0)}
+            payé le {r.paidOn ? frDayShort(r.paidOn) : '—'} — {eur2(r.paidAmount ?? 0)}
           </span>
         ) : (
-          <span className="text-xs">{eur(r.payslip.net)} à payer</span>
+          <span className="text-xs">{eur2(r.payslip.net)} à payer</span>
         )
       },
       meta: { align: 'right' },

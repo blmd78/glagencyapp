@@ -3,7 +3,7 @@
 import { Fragment } from 'react'
 import { addDays, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
-import { eur, eur2, round2 } from '@/lib/format'
+import { eur2, eur2max, round2 } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ComptaPayDialog } from './compta-pay-dialog'
 import type { ComptaRow } from '../types'
@@ -32,7 +32,7 @@ function Line({ label, amount, red }: { label: string; amount: number; red?: boo
     <div className="flex justify-between gap-4 text-sm">
       <span>{label}</span>
       <span className={red ? 'tabular-nums text-red-700 dark:text-red-400' : 'tabular-nums'}>
-        {eur(amount)}
+        {eur2(amount)}
       </span>
     </div>
   )
@@ -104,7 +104,7 @@ function ModelBreakdown({ models, row }: { models: [string, number][]; row: Comp
  */
 function fixeLabel(row: ComptaRow): string {
   if (!row.payslip.setterAdjusted) return 'Fixe setter'
-  if (row.fixedAmount > 0) return `Fixe setter — ajusté (réglage : ${eur(row.fixedAmount)})`
+  if (row.fixedAmount > 0) return `Fixe setter — ajusté (réglage : ${eur2max(row.fixedAmount)})`
   return 'Fixe setter — saisi sur la période'
 }
 
@@ -127,7 +127,7 @@ function SanctionLines({ sanctions, amount }: { sanctions: ComptaRow['sanctions'
               {frDayShort(s.day)} — {s.label ?? 'Malus'}
             </span>
             <span className="tabular-nums">
-              {s.kind === 'warning' ? 'avertissement' : eur(-s.amount)}
+              {s.kind === 'warning' ? 'avertissement' : eur2(-s.amount)}
             </span>
           </div>
         ))}
@@ -175,7 +175,7 @@ export function ComptaPayslipCalc({
         // Sans aucun modèle la ventilation ne rend rien : la base sortirait de l'écran.
         // C'est le SEUL cas où l'ancienne ligne « Commission — X € × Y % » survit.
         <div className="flex flex-col gap-1">
-          <Line label={`Commission — ${eur(p.ca)} × ${row.rate} %`} amount={p.base} />
+          <Line label={`Commission — ${eur2(p.ca)} × ${row.rate} %`} amount={p.base} />
           <p className="text-xs text-muted-foreground">
             Aucun CA sur la période — rien à ventiler par modèle.
           </p>
@@ -202,7 +202,7 @@ export function ComptaPayslipCalc({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-base font-semibold">Net à payer</span>
           <div className="flex items-center gap-4">
-            <span className="text-base font-semibold tabular-nums">{eur(p.net)}</span>
+            <span className="text-base font-semibold tabular-nums">{eur2(p.net)}</span>
             {canPay && periodElapsed && !row.paid && (
               <ComptaPayDialog row={row} period={period} />
             )}
@@ -222,7 +222,7 @@ export function ComptaPayslipCalc({
         )}
         {row.paid && (
           <p className="mt-1.5 text-xs text-muted-foreground">
-            Payé le {row.paidOn ? frDateNumeric(row.paidOn) : '—'} — {eur(row.paidAmount ?? 0)}
+            Payé le {row.paidOn ? frDateNumeric(row.paidOn) : '—'} — {eur2(row.paidAmount ?? 0)}
             {/* Écart possible avec le « Net à payer » ci-dessus : celui-ci est recalculé
                 aujourd'hui, celui-là est l'instantané figé au virement. C'est l'instantané
                 qui fait foi. */}

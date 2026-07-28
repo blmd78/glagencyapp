@@ -1,7 +1,8 @@
 'use client'
 
 import { frDayShort, type PayPeriod } from '@glagency/core'
-import { ComptaEntryForm, ComptaEntryHeader } from './compta-entry-form'
+import { ComptaEntryForm } from './compta-entry-form'
+import { ComptaEntryHeader } from './compta-entry-grid'
 import { ComptaPayslipCalc, SECTION_HEAD } from './compta-payslip-calc'
 import type { ComptaRow } from '../types'
 
