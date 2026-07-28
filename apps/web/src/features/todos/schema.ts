@@ -51,3 +51,6 @@ export const todoUpdateInput = z.object({ ...base, id: z.uuid() })
 export const todoStatusInput = z.object({ id: z.uuid(), profileId: z.uuid(), status })
 
 export const todoDeleteInput = z.object({ id: z.uuid(), profileId: z.uuid() })
+
+/** Entrée de `loadTodos` — chargement du panneau d'une personne dans la pile. */
+export const todoLoadInput = z.object({ profileId: z.uuid() })
