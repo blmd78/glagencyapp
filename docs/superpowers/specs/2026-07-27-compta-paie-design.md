@@ -70,8 +70,8 @@ automatique). On la conserve — `0056` la durcit et `get-chatters.ts` la mentio
 > 59 d'entre eux touchent EN PLUS un fixe (37,50 / 40 / 75 €), rempli une seule fois par période
 > de paie. Carl = 4,379 € de commission + 75 € de fixe + 19,20 € de handoffs = 98,579 €.
 >
-> Donc : `compta_settings.mode` et `compta_settings.is_setter` sont **supprimés** (migration
-> `0089`), avec l'instantané `compta_payments.mode_applied` devenu sans objet. Le fixe s'applique
+> Donc : `compta_settings.mode` et `compta_settings.is_setter` sont **supprimés** (§5.5),
+> avec l'instantané `compta_payments.mode_applied` devenu sans objet. Le fixe s'applique
 > **dès qu'il est renseigné** (`fixed_amount > 0`), sans drapeau.
 >
 > **`profiles.closing_role` ne commande PAS le versement**, contrairement à ce qu'un plan
@@ -100,7 +100,7 @@ relevés (20/07 et 22/06) sont à 14 jours d'intervalle, ce qui fixe l'alignemen
 
 **Une période ne se rattache à aucun mois** : celle du 20/07/2026 finit le 02/08, celle du
 21/12/2026 finit le 03/01/2027. C'est pourquoi le couple `(month, period 1|2)` a disparu de
-`compta_payments` (§5, migration `0088`) — trois périodes peuvent démarrer dans le même mois, et
+`compta_payments` (§5.4) — trois périodes peuvent démarrer dans le même mois, et
 `period in (1,2)` serait faux.
 
 Les montants **hebdomadaires** (`compta_week_entries` : bonus, malus, handoffs — plus
@@ -174,7 +174,7 @@ RETIRÉS de la formule le 2026-07-28** — décision de Benoit, voir « Ce que c
 dans le plan. Le report n'a jamais été élucidé (« ça existera pas, à part si on me le
 demande ») ; la prime du mois était un montant MENSUEL saisi sur un écran de PÉRIODE de 14
 jours, ce qui n'avait pas de sens à ses yeux. Leur table de saisie (`compta_period_entries`) et
-leurs colonnes d'instantané sont droppées par la migration `0095` (§5.11).
+leurs colonnes d'instantané sont sorties de la base (§5.11).
 
 Le **mois d'une période est celui de son LUNDI DE DÉPART** (`monthOfPeriod`). C'est la règle déjà
 en place un cran plus bas (« une semaine est rattachée à la période de son lundi, et n'est jamais
@@ -190,8 +190,8 @@ choisie.
 **La prime setter date de la tâche 22 (2026-07-28)** — le lot qui remplace le tableur. Elle est
 dans `computePayslip` et exposée séparément dans `Payslip` : la fiche doit montrer chaque ligne,
 comme la feuille. **Sa source est branchée depuis la tâche 23** : le classement `rankSetters` sur
-les handoffs de la période. Elle est figée au paiement par la colonne d'instantané de la
-migration `0091` (§5.7).
+les handoffs de la période. Elle est figée au paiement par la colonne d'instantané
+`setter_prime_amount` (§5.7).
 
 **Classement setter — `rankSetters(handoffsByMember, scale)`**, fonction pure
 (`packages/core/src/compta/setter-rank.ts`). Le classement porte sur les handoffs **saisis dans
@@ -236,7 +236,7 @@ commission. Les deux venaient de la branche WIP, pas d'une pratique. La feuille 
 tranche : le fixe n'est rempli qu'une fois par période de paie (bloc S2, 59 personnes, montants
 37,50 / 40 / 75 €), jamais dans chaque bloc hebdomadaire, et il s'additionne à une commission
 versée à tout le monde (Carl = 4,379 + 75 + 19,20 = 98,579 €). `compta_settings.mode` et
-`is_setter` sont donc supprimés (§5, migration `0089`), et `weekCount` disparaît de la formule.
+`is_setter` sont donc supprimés (§5.5), et `weekCount` disparaît de la formule.
 
 **UNE SEULE SOURCE DU FIXE — les réglages (tâche 19, 2026-07-28).** Le montant vient de
 `compta_settings.fixed_amount`, saisi dans l'onglet Compta du dialog de Membres (tâche 25 ; il
@@ -307,23 +307,38 @@ cumulatif.
 
 ---
 
-## 5. Modèle de données — migrations `0085` … `0095`
+## 5. Modèle de données — migration unique `0085_compta_paie.sql`
 
-`0085` porte l'essentiel (les tables étant vides) ; `0086` ouvre la lecture cloisonnée des
-sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
-`compta_payments` sur le découpage en 14 jours, `0089` supprime le mode de rémunération et le
-statut de setter (§5.5), `0090` pose le socle du lot final (§5.6), `0091` étend l'instantané de
-paiement aux trois lignes de ce lot (§5.7), `0092` interdit de saisir deux fois la prime du mois
-dans le même mois civil (§5.9), `0093` **date le taux de commission** (§5.10), `0094` recentre la
-contrainte de son instantané (§5.10), `0095` **retire le report et la prime du mois** (§5.11) —
-décision de Benoit du 2026-07-28.
+**Un seul fichier.** La construction de la feature avait produit onze migrations
+(`0085`→`0095`), appliquées sur l'UAT seulement, avec leurs allers-retours : un `mode` de
+rémunération ajouté puis supprimé, `month` devenu `period_start`, une table
+`compta_period_entries` créée puis droppée avec ses concepts, le taux déplacé de
+`compta_settings.rate` vers `compta_rates`. La prod étant restée à `0084`, elle n'a pas à
+rejouer cette histoire : le 2026-07-28 les onze fichiers ont été **fusionnés** en
+`0085_compta_paie.sql`, qui amène une base à l'état `0084` directement à l'état final.
 
-**5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
-étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
-`compta_day_entries`, `compta_week_entries`, `compta_payments`. La colonne garde son nom
-`chatter_id` : c'est déjà la convention de `police_entries`, qui désigne un membre.
+Méthode — celle de `0084` : DDL extrait des catalogues de l'UAT (qui EST l'état final), puis
+vérifié par **rejeu complet** `0001`→`0084`→`0085` sur un Postgres 17 jetable, diff des
+catalogues contre l'UAT **à vide** sur tout le périmètre (colonnes, contraintes, index,
+policies `qual`/`with_check`, fonctions, triggers, contenu du barème). Sur l'UAT, `0086`→`0095`
+sont marquées « reverted » (`supabase migration repair`) et `0085` reste enregistrée — le
+numéro fait foi. Les numéros `0086`…`0095` cités dans ce document renvoient donc à l'histoire
+de construction (lisible dans git), plus à des fichiers du dépôt.
 
-`compta_debts` n'a aucune clé étrangère et reste inchangée (voir §9).
+Le fichier conserve les **traitements de données** que la prod attend, pas seulement le DDL :
+purge des lignes de test (§5.1), conversions text→numeric (§5.2, §5.6), reprise du taux à la
+date plancher (§5.10), amorce du barème (§5.6).
+
+**5.1 Re-cléage sur `profiles`.** Suppression des lignes de test (relevé prod du 2026-07-27 :
+2 primes, 1 saisie hebdo, réglages aux valeurs par défaut — clées sur `chatters`, donc
+invalides après re-cléage), puis bascule des clés étrangères de `chatters(id)` vers
+`profiles(id)` sur `compta_settings`, `compta_primes`, `compta_day_entries`,
+`compta_week_entries`, `compta_payments`. Pourquoi : 338 chatteurs MyPuls actifs, 72 comptes
+app — on paie les MEMBRES. La colonne garde son nom `chatter_id` : c'est déjà la convention de
+`police_entries`, qui désigne un membre.
+
+`compta_debts` n'a aucune clé étrangère et n'est PAS purgée : ses lignes sont réelles, elles
+sont converties (§5.6).
 
 **5.2 `compta_primes.amount` : `text` → `numeric(10,2)`.** Le défaut `'100 €'` devient `100`.
 Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui attend son jour.
@@ -333,7 +348,7 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | Colonne | Type | Rôle |
 |---|---|---|
 | `ca_reference` | `numeric(10,2)` | CA ayant servi de base |
-| ~~`rate_applied`~~ → `rates_applied` | ~~`numeric(5,2)`~~ → `jsonb` | segments de taux appliqués (§5.10) |
+| `rates_applied` | `jsonb` | segments de taux appliqués (§5.10) |
 | `base_amount` | `numeric(10,2)` | base calculée |
 | `setter_amount` | `numeric(10,2)` | fixe de la période (réglage ou saisie hebdo) |
 | `bonus_amount` | `numeric(10,2)` | bonus cumulés |
@@ -341,14 +356,13 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | `handoffs_amount` | `numeric(10,2)` | handoffs × 0,60 |
 | `prime_amount` | `numeric(10,2)` | prime éventuelle |
 | `sanctions_amount` | `numeric(10,2)` | sanctions police |
+| `setter_prime_amount` | `numeric(10,2)` | prime du classement setter, FIGÉE (§5.7) |
 
-`0091` en a ajouté trois autres (§5.7), dont `0095` a retiré deux (§5.11) — reste
-`setter_prime_amount`. `amount` reste le **net versé**. Invariant, HUIT composantes :
+`amount` reste le **net versé**. Invariant, HUIT composantes :
 `amount = base + setter + bonus − malus + handoffs + prime − sanctions + setterPrime`.
-
-`mode_applied` figurait ici jusqu'à la tâche 16 (`text check (mode_applied in
-('percent','fixed'))`, mode au moment du paiement) : `0089` la supprime avec le mode lui-même —
-une colonne `not null` qu'aucun code ne peut plus remplir.
+(La construction avait aussi connu `mode_applied`, `rate_applied`, `carryover_amount` et
+`monthly_prime_amount` — partis avec leurs concepts, §5.5, §5.10, §5.11 ; le fichier fusionné
+ne les crée jamais.)
 
 **Aucune de ces colonnes n'a de valeur par défaut** (arbitré le 2026-07-27). Un `default 0` les
 rendrait optionnelles dans le type `Insert` généré : un paiement omettant `sanctions_amount`
@@ -362,79 +376,57 @@ requête plutôt que d'un parcours applicatif.
 à la volée verrait un montant déjà versé changer rétroactivement après correction d'un jour
 passé. L'instantané rend l'historique opposable.
 
-**5.4 `period_start` remplace `month` + `period` — migration `0088`.** `0085` avait ajouté
-`period smallint check (period in (1,2))` à côté de `month date`. Avec des périodes de 14 jours,
-les deux deviennent faux : **trois périodes peuvent démarrer dans le même mois** (la contrainte
-rejetterait un paiement légitime), et une période ne se rattache à aucun mois (celle du 20/07/2026
-finit le 02/08) — stocker un lundi dans une colonne nommée `month` serait un mensonge permanent.
+**5.4 `period_start` : des périodes de 14 jours calées sur les lundis.** La feuille du
+propriétaire paie des blocs de deux semaines pleines (S1 = 06→12/07, S2 = 13→19/07), pas des
+quinzaines calendaires 1–15 / 16–fin. Une colonne `month` serait donc un mensonge — **trois
+périodes peuvent démarrer dans le même mois**, et une période ne se rattache à aucun mois
+(celle du 20/07/2026 finit le 02/08). Le fichier renomme `month` → `period_start` (l'index
+suit) et **ajoute** `check (mod(period_start − date '2026-07-06', 14) = 0)` : l'alignement du
+découpage devient une contrainte de données, pas seulement une convention applicative. Sans
+lui, un paiement posé à la main sur une date décalée créerait des périodes qui se chevauchent,
+et `covered_days` deviendrait incohérent en silence.
 
-`0088` supprime donc `period` et sa contrainte, renomme `month` → `period_start`, renomme l'index
-qui suivait la colonne, et **ajoute** `check (mod(period_start − date '2026-07-06', 14) = 0)` :
-l'alignement du découpage devient une contrainte de données, pas seulement une convention
-applicative. Sans lui, un paiement posé à la main sur une date décalée créerait des périodes qui
-se chevauchent, et `covered_days` deviendrait incohérent en silence.
+`compta_day_entries` (clée par date) et `compta_week_entries` (clée par lundi) sont déjà
+indépendantes du découpage : seul leur regroupement change.
 
-Sans risque : `compta_payments` est vide (0 ligne mesurée sur l'UAT le 2026-07-27) et `0085`
-comme `0087` ne sont pas en production.
+**Le trigger de non-chevauchement `compta_payment_no_overlap`** garde l'invariant « un jour ne
+peut être payé qu'une fois par chatteur ». C'est le non-chevauchement des `covered_days` qui
+est gardé, PAS l'unicité de la période : les paiements partiels sont un cas nominal (§3, §10).
+Le `pg_advisory_xact_lock` par chatteur est ce qui rend la garde réellement **atomique** — un
+simple `exists` en READ COMMITTED ne verrouille rien, deux insertions concurrentes le
+passeraient toutes les deux. `security definer` : la fonction doit voir TOUS les paiements du
+chatteur visé ; si l'écriture s'ouvrait un jour à l'encadrement, une vérification soumise à la
+RLS deviendrait silencieusement partielle et un jour serait payé deux fois sans erreur. Elle ne
+fait que lire et lever (`23505`, que `payFortnight` traduit en message métier) : rien à
+détourner.
 
-`compta_day_entries` (clée par date) et `compta_week_entries` (clée par lundi) **ne bougent pas** :
-elles sont déjà indépendantes du découpage, seul leur regroupement change. Le trigger de
-non-chevauchement `compta_payment_no_overlap` (`0087`) ne bouge pas non plus — il raisonne sur
-`covered_days` et `chatter_id`, jamais sur la période (vérifié : c'est la seule fonction de
-`public` qui mentionne `compta_payments`, et aucune vue n'en dépend). Même chose pour le garde
-« on ne fige que des jours révolus » de `payPeriod`, qui compare des jours à `todayParis()`.
-
-**5.5 Un seul mode de rémunération — migration `0089`.** Trois colonnes disparaissent :
-`compta_settings.mode` (et son `check`), `compta_settings.is_setter`, et l'instantané
-`compta_payments.mode_applied`. Le raisonnement et les mesures sont en §2 et §4.
+**5.5 Un seul mode de rémunération.** `compta_settings` se réduit au fixe : `mode` (et son
+`check`) et `is_setter` sont supprimés. Le raisonnement et les mesures sont en §2 et §4.
 
 `compta_settings.fixed_amount` **change de sens sans changer de type** : montant hebdomadaire du
 mode fixe → fixe de la PÉRIODE, qui s'ajoute à la commission et s'applique dès qu'il est `> 0`.
 Le sens vit dans un `comment on column`, pas dans un renommage : la colonne est vide, mais
 renommer casserait les requêtes ad hoc écrites jusqu'ici sans rien apprendre de plus.
 
-Sans risque : `compta_settings` et `compta_payments` sont **vides** (0 ligne chacune, mesuré sur
-l'UAT le 2026-07-27 juste avant d'appliquer), et `0085`/`0087`/`0088` ne sont pas en production.
-La prod n'a pas été ouverte pour cette tâche — `compta_settings` y sera revérifiée avant de
-pousser.
-
-**5.6 Le socle du lot final — migration `0090`** (2026-07-28, appliquée sur l'UAT seulement).
-Les lignes de la feuille que l'app ne savait pas porter.
+**5.6 Le socle du lot final.** Les lignes de la feuille que l'app ne savait pas porter.
 
 | Objet | Forme | Pourquoi |
 |---|---|---|
-| ~~`compta_period_entries`~~ | `primary key (chatter_id, period_start)`, `carryover` **signé**, `top3_prime` | Portait le report et la prime du mois — **droppée par `0095`** avec les deux concepts (§5.11) |
-| `compta_setter_scale` | `rank smallint primary key`, `amount numeric(10,2)`, amorce = le barème de juin (200 → 80, Σ 1 796 €) | Barème réglable : une constante TypeScript aurait demandé un déploiement pour changer un chiffre |
-| `compta_debts.amount` | `text` → `numeric(10,2)`, plus `settled_by` | Même raison que `compta_primes` en 0085 : on ne calcule pas de l'argent en parsant une chaîne |
+| `compta_setter_scale` | `rank smallint primary key`, `amount numeric(10,2)`, amorce = le barème de juin (200 → 80, Σ 1 796 €), `on conflict do nothing` | Barème réglable : une constante TypeScript aurait demandé un déploiement pour changer un chiffre |
+| `compta_debts.amount` | `text` → `numeric(10,2)`, plus `settled_by` | Même raison que `compta_primes` (§5.2) : on ne calcule pas de l'argent en parsant une chaîne |
 | `profiles.closing_role` | `check` élargi à `('setter','closer','nouveau','hybride')` | La légende de la feuille connaît quatre états (L96-98) |
 
-Mesuré sur l'UAT le 2026-07-28 avant d'appliquer : `compta_debts` = 0 ligne, et son `amount`
-n'avait **aucun** défaut (le `'100 €'` mentionné au plan est celui de `compta_primes`). La prod
-n'a pas été ouverte. La conversion s'appuie sur le `not null` de la colonne comme garde : une
-valeur que l'expression ne sait pas réduire à un nombre donne `null`, donc la migration **échoue**
-au lieu de convertir de travers.
+La conversion de `compta_debts.amount` (valeurs prod : `'10$'`, `'43$'`) s'appuie sur le
+`not null` de la colonne comme garde : une valeur que l'expression ne sait pas réduire à un
+nombre donne `null`, donc la migration **échoue** au lieu de convertir de travers. La virgule
+décimale est traduite avant le filtrage (sinon `'43,50 €'` deviendrait `4350`).
 
-Les deux pièges que `0090` laissait ouverts ont été **traités à la tâche 23** :
-
-- `compta_payments` n'avait aucune colonne d'instantané pour les trois nouveaux montants →
-  migration `0091` (§5.7) ;
-- `profiles.closing_role` acceptait quatre valeurs que Membres ne savait ni produire ni afficher
-  → `CRM_ROLES` passe à quatre (§5.8).
-
-**5.7 L'instantané rattrape le lot final — migration `0091`** (2026-07-28, UAT seulement).
-`compta_payments` gagnait `carryover_amount` (**signé**), `setter_prime_amount` et
-`monthly_prime_amount`, `numeric(10,2) not null`, **sans défaut** — la doctrine de `0085` reprise
-mot pour mot. **Seule `setter_prime_amount` subsiste** : les deux autres sont droppées par `0095`
-avec leurs concepts (§5.11). `compta_payments` mesurée à 0 ligne sur l'UAT juste avant
-d'appliquer : un `not null` sans défaut aurait échoué sur une table peuplée, et c'est le
-comportement voulu (mieux vaut un push en échec qu'un instantané rétroactif rempli de zéros
-inventés).
-
-Sans cette colonne, brancher la prime setter aurait fait **échouer tout paiement** d'une fiche
-qui en porte une : `payslip.net` l'incluait, tandis que le `superRefine` de `payInput` et les
-contrôles de dérive de `payPeriod` ne la connaissaient pas. Elle est donc ajoutée au
-contrat (`payInput`), au recalcul serveur (`actions-pay.ts`) et à l'écriture
-(`record-payment.ts`).
+**5.7 La prime setter est FIGÉE au paiement** — `compta_payments.setter_prime_amount`,
+`numeric(10,2) not null` **sans défaut** (doctrine du §5.3). Sans cette colonne, brancher la
+prime setter aurait fait **échouer tout paiement** d'une fiche qui en porte une : `payslip.net`
+l'incluait, tandis que le `superRefine` de `payInput` et les contrôles de dérive de `payPeriod`
+ne la connaissaient pas. Elle est donc dans le contrat (`payInput`), le recalcul serveur
+(`actions-pay.ts`) et l'écriture (`record-payment.ts`).
 
 **Pourquoi figer la prime setter en particulier** : elle n'est stockée nulle part et se recalcule
 à chaque rendu depuis le barème et les handoffs. Un handoff corrigé la semaine suivante, ou une
@@ -446,13 +438,11 @@ Aucune contrainte de somme en base : l'invariant reste vérifié côté applicat
 l'exprimant refuserait les paiements légitimes dès qu'un centime d'arrondi flottant s'y glisse —
 la tolérance de 0,01 € vit dans le code.
 
-**5.9 Une prime du mois par mois — migration `0092`** (2026-07-28, UAT seulement). Index unique
-partiel `compta_period_entries_one_top3_per_month`, qui interdisait de saisir la prime du mois
-sur deux périodes du même mois civil. **Parti avec sa table** : le `drop table` de `0095` (§5.11)
-l'emporte. Le détail de sa conception vit dans l'historique git et le fichier de migration.
+**5.9 (retiré).** Un index unique partiel interdisait de saisir la prime du mois sur deux
+périodes du même mois civil. Parti avec sa table et son concept (§5.11) — le fichier fusionné
+ne le crée jamais ; sa conception vit dans l'historique git.
 
-**5.10 Le taux de commission devient DATÉ — migrations `0093` et `0094`** (2026-07-28, UAT
-seulement). Le raisonnement métier est en §4 ; voici la forme.
+**5.10 Le taux de commission est DATÉ.** Le raisonnement métier est en §4 ; voici la forme.
 
 ```sql
 create table public.compta_rates (
@@ -479,12 +469,12 @@ disparaître.
 **REPRISE DES RÉGLAGES EXISTANTS, à une date PLANCHER (`1970-01-01`)** — puis
 `compta_settings.rate` est **supprimée**. Deux points, et les deux comptent :
 
-- Sans reprise, tout taux déjà posé disparaîtrait et chaque membre retomberait à 10 %. Mesuré
-  avant d'appliquer : `compta_settings` = **1 ligne** sur l'UAT (11 %), reprise et vérifiée
-  après coup.
+- Sans reprise, tout taux déjà posé disparaîtrait et chaque membre retomberait à 10 %. Dans le
+  fichier fusionné la reprise vient APRÈS la purge (§5.1), donc n'apporte rien en prod — elle
+  est gardée parce que c'est le geste qui rend le `drop column` sûr quel que soit l'état de la
+  table au moment du push.
 - La date est un **plancher**, pas la date du jour : le taux actuel s'appliquait déjà à toutes
-  les périodes passées, et le dater d'aujourd'hui ferait recalculer l'historique à 10 %. **Cette
-  migration doit être un no-op sur tout net déjà calculé**, et elle l'est.
+  les périodes passées, et le dater d'aujourd'hui ferait recalculer l'historique à 10 %.
 - `compta_settings.rate` part parce que **deux sources d'un même nombre finissent par diverger** :
   c'est le défaut d'argent de la tâche 19 (`fixe_setter`) répété sur le taux.
 
@@ -494,28 +484,26 @@ lecture admin + encadrant sur ses rattachés, **écriture admin seule**. Mesuré
 lignes, 0 hors périmètre** ; Chérif **15** ; un chatteur **0** — exactement comme
 `compta_settings`. Une écriture tentée par Marco : `new row violates row-level security policy`.
 
-**L'INSTANTANÉ DE PAIEMENT.** `compta_payments.rate_applied numeric(5,2)` ne pouvait porter
-qu'un taux : sur une période à deux taux, quel que soit celui qu'on y range, la moitié de la
-fiche est fausse. Il est remplacé par `rates_applied jsonb not null` — la segmentation
-réellement appliquée, `[{from, to, rate, fallback}, …]`. Les paiements déjà enregistrés sont
-repris : leur taux unique devient un segment unique couvrant leurs jours couverts.
+**L'INSTANTANÉ DE PAIEMENT.** Un unique `rate_applied numeric(5,2)` ne pouvait porter qu'un
+taux : sur une période à deux taux, quel que soit celui qu'on y range, la moitié de la fiche
+est fausse. L'instantané est `rates_applied jsonb not null` — la segmentation réellement
+appliquée, `[{from, to, rate, fallback}, …]`.
 
 **Pourquoi du `jsonb` et non une table fille** : `recordPayment` écrit le paiement en UN insert.
 Une table fille imposerait une seconde écriture, sans transaction possible depuis supabase-js —
 le même trou que la trace `compta_primes` — et un paiement pourrait exister sans sa trace de
 taux. Ici l'instantané reste **atomique** avec le paiement.
 
-**Aucun `default`**, règle de `0085` : un défaut rendrait la colonne optionnelle dans le type
+**Aucun `default`**, règle du §5.3 : un défaut rendrait la colonne optionnelle dans le type
 `Insert` et un paiement l'omettant écrirait un instantané sans taux, en silence.
 
-`0094` **recentre la contrainte**, et c'est une correction trouvée en branchant le paiement.
-`0093` exigeait `jsonb_array_length >= 1`, ce qui **bloque un paiement légitime** : un membre
-sans aucun CA mais qui touche une prime, un bonus ou un fixe (§10 — « les bonus/primes restent
-dus »). `computePayslip` ne produit alors aucun segment : `[]` est la réponse exacte. La
-contrainte devient `jsonb_typeof = 'array' and (base_amount = 0 or jsonb_array_length >= 1)` —
-ce qu'elle doit vraiment interdire, c'est une **commission versée sans trace du taux qui l'a
-produite**. `0093` n'a pas été retouchée : elle était déjà enregistrée dans `schema_migrations`,
-et modifier un fichier appliqué désaligne l'historique (le piège du nettoyage `36ae438`).
+**La contrainte tolère `[]` quand il n'y a pas de CA** — correction trouvée en branchant le
+paiement : exiger `jsonb_array_length >= 1` partout **bloquait un paiement légitime**, celui
+d'un membre sans aucun CA mais qui touche une prime, un bonus ou un fixe (§10 — « les
+bonus/primes restent dus »). `computePayslip` ne produit alors aucun segment : `[]` est la
+réponse exacte. La contrainte est `jsonb_typeof = 'array' and (base_amount = 0 or
+jsonb_array_length >= 1)` — ce qu'elle doit vraiment interdire, c'est une **commission versée
+sans trace du taux qui l'a produite**.
 
 Vérifié en transaction annulée sur l'UAT : deux lignes de taux à dates distinctes → acceptées ;
 même date ré-enregistrée → 2 lignes, taux écrasé ; taux au 12/07 = 10, au 13/07 = 12 (date
@@ -525,7 +513,7 @@ compta_payments_rates_applied_check` ; prime seule (base 0) avec `'[]'` → acce
 été ouverte.
 
 **5.8 `CRM_ROLES` passe à quatre valeurs** (2026-07-28, aucune migration). `closer`, `setter`,
-`hybride`, `nouveau` — la liste TypeScript rattrape le `check` élargi par `0090`. Trois points
+`hybride`, `nouveau` — la liste TypeScript rattrape le `check` élargi en base (§5.6). Trois points
 étaient à corriger, et le troisième était le plus grave :
 
 | Fichier | Avant | Après |
@@ -545,17 +533,13 @@ ses deux filtres de rôle restent ceux-là — un `'nouveau'` apparaît sous « 
 son badge, et n'entre dans aucun des deux compteurs. C'est le comportement voulu : ces KPI
 comptent des setters et des closers.
 
-**5.11 Le report et la prime du mois sortent de la base — migration `0095`** (2026-07-28, UAT
-seulement). Décision de Benoit, prise le jour même : le report (« RESTE SEMAINE PASSEE ») « ça
-existera pas, à part si on me le demande », et la prime du mois n'a « pas de sens » saisie sur
-une période de deux semaines. La migration droppe `compta_period_entries` (sa policy, ses index
-et l'index unique `0092` partent avec la table) et les colonnes
-`compta_payments.carryover_amount` / `monthly_prime_amount`. La prime setter reste intégralement
-(`compta_setter_scale`, `setter_prime_amount`).
-
-Mesuré sur l'UAT juste avant d'appliquer : `compta_period_entries` = 0 ligne, `compta_payments`
-= 0 ligne — aucune donnée réelle détruite. La prod n'a pas été ouverte ; elle n'a reçu aucune
-des migrations `0085`…`0094`, donc aucun de ces objets n'y existe.
+**5.11 Le report et la prime du mois sont HORS de la base** — décision de Benoit du
+2026-07-28 : le report (« RESTE SEMAINE PASSEE ») « ça existera pas, à part si on me le
+demande », et la prime du mois n'a « pas de sens » saisie sur une période de deux semaines.
+Leur table de saisie (`compta_period_entries`), l'index unique du §5.9 et les colonnes
+d'instantané `carryover_amount` / `monthly_prime_amount` ont existé pendant la construction
+(UAT) et ont été retirés le jour même — le fichier fusionné ne les crée jamais. La prime
+setter reste intégralement (`compta_setter_scale`, `setter_prime_amount`).
 
 ---
 
@@ -578,7 +562,7 @@ couvre les deux, aucune policy distincte.
 tranches, elle ne désigne personne, donc la jambe `manages(chatter_id)` n'a rien à restreindre et
 sa lecture est ouverte à tout l'encadrement. Elle DOIT l'être : la prime setter est une composante
 du net, et un manager qui ne verrait pas le barème verrait cette prime à 0 € **sans aucune
-erreur** — exactement le défaut que `0086` a corrigé sur les sanctions Police (ci-dessous).
+erreur** — exactement le défaut corrigé sur les sanctions Police (ci-dessous).
 
 Les policies actuelles (`has_page('compta')` sans cloisonnement) donnent la lecture de **toute**
 la compta à quiconque a la page. Elles sont remplacées par
@@ -601,7 +585,8 @@ qu'avec le droit de page `police` (0078), lequel donne accès à **toutes** les 
 cloisonnées. Or 5 sous-managers portent `compta` sans `police` : leur fiche affichait 0 € de
 sanctions **sans erreur**, donc un net surestimé.
 
-Corrigé par une policy ADDITIONNELLE et CLOISONNÉE (`0086`) : un porteur de `compta` lit les
+Corrigé par une policy ADDITIONNELLE et CLOISONNÉE (`police_read_compta`, §5/0085) : un
+porteur de `compta` lit les
 sanctions de **ses rattachés directs uniquement** (`manages(chatter_id)`). La policy `police_read`
 existante n'est pas touchée — la page Police garde son comportement. Personne ne reçoit le droit
 `police`, et personne ne gagne d'accès global : la compta ne récupère que la valeur qui concerne
@@ -700,7 +685,7 @@ exactement à partir de ce qui est affiché.
 
 > Les deux autres lignes du lot final — « Report période précédente » et « Prime du mois
 > (top 3) » — et la ligne de saisie **« Période entière »** qui les alimentait ont été RETIRÉES
-> le 2026-07-28 (décision de Benoit, migration `0095`, §5.11). La saisie de la fiche redevient
+> le 2026-07-28 (décision de Benoit, §5.11). La saisie de la fiche redevient
 > purement hebdomadaire : Bonus, Malus, Handoffs.
 
 **LA VENTILATION PAR MODÈLE DEVIENT UNE VENTILATION PAR TAUX, PUIS PAR MODÈLE (tâche 27).** La
@@ -765,7 +750,7 @@ est la trace du virement.
 >
 > **En création**, l'onglet affiche une phrase au lieu des champs : le membre n'a pas encore
 > d'`id`, et `compta_settings.chatter_id` comme `compta_rates.chatter_id` sont des FK vers
-> `profiles.id` (0085, 0093). En attendant, ce sont les défauts qui s'appliquent — 10 %, aucun
+> `profiles.id` (0085). En attendant, ce sont les défauts qui s'appliquent — 10 %, aucun
 > fixe, aucune prime décidée.
 
 > **Correction du 2026-07-28 (tâche 20) — le statut de la prime quitte l'écran.** Le dialog
@@ -1003,7 +988,7 @@ recouvrement.
 **`payslip.ts`** — la commission modèle par modèle et son arrondi par ligne ; le **fixe**, qui
 concentre les régressions d'argent de la feature : il s'ajoute à la commission (il ne la remplace
 pas), et il vaut `compta_settings.fixed_amount` **tel quel** — ni retenu par un drapeau
-(`is_setter`, 0089), ni multiplié par le nombre de semaines, ni remplacé par une saisie hebdo
+(`is_setter`, retiré — §5.5), ni multiplié par le nombre de semaines, ni remplacé par une saisie hebdo
 (`fixeSetter`, tâche 19) ; plus une ligne de la feuille rejouée de bout en bout (commission +
 fixe + handoffs). Puis handoffs à 0,60, prime due, cumul malus manuel + sanction police, période
 entièrement vide, et l'invariant

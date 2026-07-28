@@ -35,7 +35,7 @@
 | `packages/core/src/compta/payslip.ts` | La formule de paie. Pur. |
 | `packages/core/src/compta/payslip.test.ts` | Tests de la formule. |
 | `packages/core/src/index.ts` | Ajout des exports compta. |
-| `packages/db/supabase/migrations/0085_compta_profiles.sql` | Re-cléage sur `profiles`, prime en numeric, colonnes d'instantané, RLS cloisonnée. |
+| `packages/db/supabase/migrations/0085_compta_paie.sql` | **Migration unique de la feature** (fusion 0085→0095 du 2026-07-28, prod restée à 0084) : re-cléage sur `profiles`, périodes de 14 jours, taux daté (`compta_rates`), instantané de paiement, barème setter, RLS cloisonnée — spec §5. |
 | `apps/web/src/features/compta/types.ts` | Contrat de domaine local. |
 | `apps/web/src/features/compta/schema.ts` | Schémas Zod partagés RHF ↔ actions. |
 | `apps/web/src/features/compta/services/get-compta.ts` | Lecture d'une quinzaine. |
