@@ -59,13 +59,15 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
   const dec2 = (v: number) => v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const rows = [
     { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int, zeroOk: false },
+    // Union du merge 2026-07-28 : la branche compta apporte eur/dec2 (centimes partout) sur
+    // CA net et LTV ; develop (f9250a8) apporte les écarts S1/Hors S1 en % — les deux tiennent.
     { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: dec2, zeroOk: false },
     { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur, fmtDelta: dec2, zeroOk: false },
-    // % du CA par sous-ensemble de scripts (écarts en points) — « — » tant que pas de
+    // % du CA par sous-ensemble de scripts (valeurs ET écarts en %) — « — » tant que pas de
     // mesure. zeroOk : 0 % est une vraie mesure (ex. mono-script → tout vient du N°1,
     // « Hors S1 » = 0 ; et réciproquement). S1 + Hors S1 ≤ 100, le reste = hors scripts.
-    { label: 'S1', cur: m.s1, prev: m.s1Prev, lm: m.s1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt`, zeroOk: true },
-    { label: 'Hors S1', cur: m.horsS1, prev: m.horsS1Prev, lm: m.horsS1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} pt`, zeroOk: true },
+    { label: 'S1', cur: m.s1, prev: m.s1Prev, lm: m.s1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} %`, zeroOk: true },
+    { label: 'Hors S1', cur: m.horsS1, prev: m.horsS1Prev, lm: m.horsS1Lm, fmt: (v: number) => `${Math.round(v)} %`, fmtDelta: (v: number) => `${Math.round(v)} %`, zeroOk: true },
   ] as const
 
   return (
