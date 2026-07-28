@@ -17,8 +17,13 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/auth'
 import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
-import { paySettingsInput, payPrimeInput } from '@/lib/pay-settings'
-import { writePaySettings, writePrime } from '@/lib/pay-settings-write'
+import {
+  paySettingsInput,
+  payPrimeInput,
+  payRateInput,
+  payRateDeleteInput,
+} from '@/lib/pay-settings'
+import { writePaySettings, writePrime, writeRate, deleteRate } from '@/lib/pay-settings-write'
 
 /**
  * Revalide les DEUX écrans concernés. La Compta n'écrit plus ces réglages mais elle les
@@ -32,7 +37,7 @@ const revalidatePay = () => {
   revalidatePath('/chatter/compta')
 }
 
-/** Taux de commission + fixe par période (`compta_settings`). */
+/** Fixe par période (`compta_settings`). Le TAUX n'est plus ici : il est daté (`saveMemberRate`). */
 export async function saveMemberPaySettings(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: paySettingsInput,
@@ -42,6 +47,43 @@ export async function saveMemberPaySettings(raw: unknown): Promise<ActionResult>
       const profile = await getProfile()
       if (!profile) throw new Error('Session expirée')
       await writePaySettings(await createClient(), profile.id, v)
+      revalidatePay()
+    },
+  })
+}
+
+/**
+ * Taux de commission À PARTIR D'UNE DATE (`compta_rates`, 0093).
+ *
+ * Renvoie `true` si une ligne d'historique a été posée, `false` si le taux demandé était DÉJÀ
+ * celui en vigueur à cette date — `writeRate` refuse alors d'écrire (cf. son commentaire), et
+ * l'écran doit pouvoir dire lequel des deux s'est produit plutôt que d'annoncer une
+ * augmentation qui n'a pas eu lieu.
+ */
+export async function saveMemberRate(raw: unknown): Promise<ActionResult<boolean>> {
+  return runAction({
+    schema: payRateInput,
+    input: raw,
+    guard: adminGuard,
+    handler: async (v) => {
+      const profile = await getProfile()
+      if (!profile) throw new Error('Session expirée')
+      const written = await writeRate(await createClient(), profile.id, v)
+      revalidatePay()
+      return written
+    },
+  })
+}
+
+/** Supprime une décision de taux mal datée (`compta_rates`). Ne touche à aucun paiement déjà
+ *  enregistré : ceux-là portent leur propre instantané (`compta_payments.rates_applied`). */
+export async function deleteMemberRate(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: payRateDeleteInput,
+    input: raw,
+    guard: adminGuard,
+    handler: async (v) => {
+      await deleteRate(await createClient(), v)
       revalidatePay()
     },
   })

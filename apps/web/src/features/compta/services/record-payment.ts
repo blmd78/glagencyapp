@@ -59,7 +59,20 @@ export async function recordPayment({
     covered_days: coveredDays,
     amount: p.net,
     ca_reference: p.ca,
-    rate_applied: row.rate,
+    // ── LE TAUX, DATÉ (0093) ────────────────────────────────────────────────────────────────
+    // `rate_applied numeric(5,2)` ne pouvait porter qu'UN taux : sur une période où le taux
+    // change (12 chatteurs mesurés sur la feuille de juillet), il décrivait une moitié de fiche
+    // et mentait sur l'autre. On fige la SEGMENTATION appliquée — quels jours, à quel taux —
+    // c'est-à-dire ce qu'il faut pour refaire le calcul plus tard.
+    //
+    // Tableau VIDE quand aucun CA n'était à commissionner : il n'y a alors aucun taux appliqué,
+    // et la contrainte 0094 l'autorise tant que `base_amount` vaut 0.
+    rates_applied: p.segments.map((s) => ({
+      from: s.from,
+      to: s.to,
+      rate: s.rate,
+      fallback: s.fallback,
+    })),
     base_amount: p.base,
     setter_amount: p.setter,
     bonus_amount: p.bonus,

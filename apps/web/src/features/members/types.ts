@@ -1,15 +1,25 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
+import type { RateChange } from '@glagency/core'
 import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 
 /**
- * Réglages de paie d'un membre (`compta_settings` + `compta_primes`) — onglet « Compta » du
- * dialog. Les valeurs sont celles de la base, avec les DÉFAUTS DE COLONNE quand aucune ligne
+ * Réglages de paie d'un membre (`compta_settings` + `compta_rates` + `compta_primes`) — onglet
+ * « Compta » du dialog. Les valeurs sont celles de la base, avec les DÉFAUTS quand aucune ligne
  * n'existe encore (10 %, fixe 0) : c'est exactement ce que la Compta applique de son côté
  * (`loadComptaRows`), donc l'écran ne peut pas annoncer un taux que le calcul n'utilise pas.
  */
 export interface MemberPay {
-  rate: number
+  /** Le taux EN VIGUEUR AUJOURD'HUI. `fallback` = aucune ligne d'historique ne le couvre, c'est
+   *  le défaut de 10 % qui s'applique — l'écran le dit, parce qu'un taux de paie que personne
+   *  n'a choisi est un piège. */
+  currentRate: { rate: number; fallback: boolean }
+  /** Toutes les décisions de taux prises pour ce membre (`compta_rates`, 0093), par date d'effet
+   *  croissante. Une augmentation passée est une information de paie : elle reste consultable. */
+  rateHistory: RateChange[]
+  /** Date d'effet PROPOSÉE par le formulaire — le lundi de la semaine en cours, calculé côté
+   *  serveur (cf. `get-members.ts`). Proposition, jamais contrainte. */
+  defaultEffectiveFrom: string
   fixedAmount: number
   /** `null` = aucune ligne `compta_primes` : le montant n'a JAMAIS été décidé. Distinct d'un
    *  montant volontairement mis à 0 (= pas de prime) — c'est la distinction que l'onglet Suivi

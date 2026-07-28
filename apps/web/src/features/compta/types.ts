@@ -1,4 +1,11 @@
-import { round2, type PayMonth, type PayPeriod, type Payslip, type SetterScaleRow } from '@glagency/core'
+import {
+  round2,
+  type PayMonth,
+  type PayPeriod,
+  type Payslip,
+  type RateChange,
+  type SetterScaleRow,
+} from '@glagency/core'
 
 /** Une sanction Police rattachée à la période — affichée avec son motif. */
 export interface ComptaSanction {
@@ -18,7 +25,16 @@ export interface ComptaRow {
   role: string
   /** `profiles.chatter_id` — null = non relié à MyPuls, donc aucun CA calculable. */
   chatterId: string | null
-  rate: number
+  /**
+   * HISTORIQUE du taux de commission de ce membre (`compta_rates`, 0093), trié par date d'effet.
+   * Remplace le `rate: number` unique : le taux CHANGE à une date, et 12 chatteurs de la feuille
+   * de juillet en changent au milieu d'une même période de paie.
+   *
+   * Le taux RÉELLEMENT appliqué à chaque jour de la période est dans `payslip.segments` — c'est
+   * lui qui fait l'argent. Cet historique-ci sert à l'affichage : dire depuis quand le taux
+   * courant s'applique, sans redemander la base. VIDE = jamais réglé (défaut 10 %).
+   */
+  rateHistory: RateChange[]
   /** Fixe de la PÉRIODE (`compta_settings.fixed_amount`) — il S'AJOUTE à la commission et
    *  s'applique dès qu'il est non nul. SEULE source du montant depuis la tâche 19 : il vaut
    *  donc `payslip.setter` (au centime près, la fiche arrondit). Gardé sur la ligne pour le

@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import { frDayShort } from '@glagency/core'
@@ -8,8 +7,8 @@ import { Badge } from '@/components/ui/badge'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { eur2 } from '@/lib/format'
-import { modelColor } from '@/lib/model-color'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
+import { Money, ModelCaCell, RemunerationCell } from './compta-cells'
 import { ComptaLinkDialog } from './compta-link-dialog'
 import type { ComptaRow } from '../types'
 
@@ -19,62 +18,6 @@ import type { ComptaRow } from '../types'
  * lignes — même découpe que `chatters-columns.tsx` / `chatters-table.tsx`
  * (docs/guidelines-standard-feature.md).
  */
-
-/**
- * Montant de colonne. Un zéro reste DISCRET (`—` en muted) plutôt que d'aligner des « 0 € »
- * sur sept colonnes : c'est la transposition en tableau de ce que fait déjà la fiche, qui ne
- * monte pas la ligne du tout quand la composante est nulle (`compta-payslip.tsx`).
- *
- * `negative` inverse le signe à l'affichage — malus et sanctions sont stockés POSITIFS
- * (ce sont des composantes, `computePayslip` les soustrait), et la fiche les affiche déjà
- * précédés du signe moins.
- */
-function Money({ value, negative }: { value: number; negative?: boolean }) {
-  if (value === 0) return <span className="tabular-nums text-muted-foreground">—</span>
-  return <span className="tabular-nums">{eur2(negative ? -value : value)}</span>
-}
-
-/** Modèles montrés en clair dans la colonne « CA modèle » ; au-delà, un « +N ». */
-const MODEL_BADGES = 2
-
-/**
- * Ventilation du CA par modèle, en colonne. MÊME présentation que la fiche dépliée (badges
- * `modelColor`, `nom · montant`, tri par CA décroissant) — c'est déjà le vocabulaire visuel de
- * la feature, aucun style nouveau.
- *
- * BORNÉE À `MODEL_BADGES` badges + un « +N » : un chatteur peut travailler sur six modèles, et
- * une cellule qui s'étire au gré du plus bavard casse la lisibilité de toute la table — or
- * c'est pour la lisibilité que la pile de noms est devenue une table. Le compte complet reste
- * accessible sans clic (`title` de la cellule) et en entier dans la fiche dépliée, qui affiche
- * déjà tous les modèles. Le repli « +N » est le patron de `members-table.tsx` (`BadgeList`),
- * recopié ici parce qu'il vit dans une AUTRE feature (import interdit).
- *
- * `flex` sans `flex-wrap` : la ligne doit rester d'une seule hauteur, la table déborde
- * horizontalement dans le conteneur `overflow-x-auto` de `<Table>` plutôt que verticalement.
- */
-function ModelCaCell({ modelCa }: { modelCa: Record<string, number> }) {
-  const sorted = Object.entries(modelCa).sort(([, a], [, b]) => b - a)
-  if (sorted.length === 0) return <span className="text-muted-foreground">—</span>
-  const shown = sorted.slice(0, MODEL_BADGES)
-  const extra = sorted.length - shown.length
-  return (
-    <div
-      className="flex items-center gap-1"
-      title={sorted.map(([name, ca]) => `${name} · ${eur2(ca)}`).join(' · ')}
-    >
-      {shown.map(([name, ca]) => (
-        <Badge key={name} className={modelColor(name)}>
-          {name} · {eur2(ca)}
-        </Badge>
-      ))}
-      {extra > 0 && (
-        <Badge variant="outline" className="font-normal text-muted-foreground">
-          +{extra}
-        </Badge>
-      )}
-    </div>
-  )
-}
 
 /**
  * Statuts de prime. `renoncée` n'est plus SAISISSABLE depuis la tâche 20 (le formulaire n'a
@@ -179,30 +122,14 @@ export function makeComptaColumns({
       // fixe s'y AJOUTE dès qu'il est renseigné. La colonne disait « Commission » et affichait
       // `10 %` ou `Fixe 75 €` selon un mode qui n'existe plus.
       //
-      // C'est le fixe du RÉGLAGE qui est montré ici, pas celui de la période : une saisie hebdo
-      // peut le remplacer (37,50 € au lieu de 75 €), et c'est la fiche dépliée qui le dit —
-      // cette cellule décrit la configuration du membre, pas le résultat d'une période.
-      //
-      // CLIQUABLE depuis le 2026-07-28, en remplacement de l'engrenage : ces trois réglages se
+      // CLIQUABLE depuis le 2026-07-28, en remplacement de l'engrenage : ces réglages se
       // saisissent dans l'onglet « Compta » du dialog de Membres. Le lien mène à la PAGE
       // Membres et pas à la fiche : aucune route n'ouvre un membre précis (`/chatter/members`
       // est une liste, son filtre est un état client) — voir le rapport de tâche pour la
       // proposition de `?membre=<id>`.
       //
-      // `stopPropagation` : même motif que la colonne « Statut » — sans lui, le clic bubble
-      // jusqu'au `onClick` d'expansion de la ligne (`data-table.tsx`) et déplie la fiche en
-      // partant.
-      cell: ({ row }) => (
-        <Link
-          href="/chatter/members"
-          onClick={(e) => e.stopPropagation()}
-          title="Se règle dans Membres — onglet Compta de la fiche"
-          className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-        >
-          {row.original.rate} %
-          {row.original.fixedAmount > 0 && ` · fixe ${eur2(row.original.fixedAmount)}`}
-        </Link>
-      ),
+      // Le détail (taux daté, `stopPropagation`) est dans `RemunerationCell`.
+      cell: ({ row }) => <RemunerationCell row={row.original} />,
     },
     {
       id: 'base',

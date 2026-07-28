@@ -2,6 +2,7 @@ import { daysIn, mondaysIn, monthOfPeriod, periodsOfMonth, type PayPeriod } from
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { loadPeriodCa } from './compta-ca'
 
 /**
  * LECTURES de la compta d'une période de paie — rien d'autre. Séparé de `compta-rows.ts` (qui
@@ -12,13 +13,6 @@ import { fetchAll } from '@/lib/supabase/fetch-all'
  * rattachés directs. SAUF le CA, la date d'entrée et les noms de modèles, lus par client
  * ADMIN et cadrés côté application — voir le commentaire de l'ancre plus bas.
  */
-
-interface CcdRow {
-  chatter_id: string
-  creator_id: string
-  date: string
-  ca: number | null
-}
 
 /**
  * `memberId` restreint la population à UN membre (recalcul serveur d'un paiement). Les autres
@@ -33,6 +27,8 @@ export async function loadComptaSources({
   memberId?: string
 }) {
   const supabase = await createClient()
+  // Client ADMIN — pour la SEULE `chatter_first_seen()` ci-dessous (le motif est à son appel).
+  // Le CA, l'autre lecture hors RLS, a son propre client dans `compta-ca.ts`.
   const admin = createAdminClient()
   const mondays = mondaysIn(period)
   const from = period.start
@@ -62,6 +58,7 @@ export async function loadComptaSources({
   const [
     { data: members, error: membersErr },
     { data: settings, error: settingsErr },
+    { data: rates, error: ratesErr },
     { data: primes, error: primesErr },
     { data: dayEntries, error: dayErr },
     { data: weekEntries, error: weekErr },
@@ -71,8 +68,29 @@ export async function loadComptaSources({
     { data: periodEntries, error: periodErr },
   ] = await Promise.all([
     memberId ? membersQuery.eq('id', memberId) : membersQuery,
-    // Une ligne par membre au plus (PK `chatter_id`) → sous le plafond.
+    // Une ligne par membre au plus (PK `chatter_id`) → sous le plafond. Ne porte plus que le
+    // FIXE depuis 0093 : le taux est daté et vit dans `compta_rates`, juste en dessous.
     supabase.from('compta_settings').select('*'),
+    // ── L'HISTORIQUE DES TAUX (0093) ────────────────────────────────────────────────────────
+    // TOUT l'historique, sans filtre de date, et c'est nécessaire : le taux en vigueur le
+    // PREMIER jour de la période est porté par une ligne qui peut dater d'il y a un an. Filtrer
+    // sur la période ne renverrait que les changements survenus PENDANT, et ferait retomber les
+    // jours d'avant sur le défaut de 10 % — une baisse silencieuse de la paie de tout le monde.
+    //
+    // `fetchAll` : une ligne PAR CHANGEMENT de taux, donc la table grossit sans borne (~96
+    // membres × quelques augmentations par an). Le plafond PostgREST de 1000 lignes est
+    // atteignable en un peu plus d'un an, et une troncature SILENCIEUSE y ferait disparaître
+    // les augmentations les plus récentes — la paie repartirait à l'ancien taux sans une seule
+    // erreur. `.order('chatter_id').order('effective_from')` = la PK complète → pagination
+    // déterministe.
+    fetchAll((f, t) =>
+      supabase
+        .from('compta_rates')
+        .select('chatter_id, effective_from, rate')
+        .order('chatter_id')
+        .order('effective_from')
+        .range(f, t),
+    ),
     // TOUS les statuts, et non les seules primes `'due'` : le formulaire de réglages (admin) a
     // besoin de l'état RÉEL pour ne pas proposer de recréer une prime déjà versée ou renoncée.
     // Le filtre `'due'` n'a pas disparu, il s'applique au CALCUL dans `compta-rows.ts`.
@@ -145,6 +163,7 @@ export async function loadComptaSources({
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (settingsErr) throw new Error(settingsErr.message)
+  if (ratesErr) throw new Error(ratesErr.message)
   if (primesErr) throw new Error(primesErr.message)
   if (dayErr) throw new Error(dayErr.message)
   if (weekErr) throw new Error(weekErr.message)
@@ -153,73 +172,33 @@ export async function loadComptaSources({
   if (firstSeenErr) throw new Error(firstSeenErr.message)
   if (periodErr) throw new Error(periodErr.message)
 
-  // CA par (chatteur MyPuls, modèle) sur la période.
+  // LE CA DE LA PÉRIODE — hors RLS, cadré applicativement par `linked` (cf. `compta-ca.ts`).
   //
-  // ── CLIENT ADMIN, CADRAGE APPLICATIF ────────────────────────────────────────────────────
-  // POURQUOI PAS SOUS RLS : `chatter_creator_daily_scoped_read` cloisonne PAR MODÈLE
-  // (`profile_creators`), pas par chatteur. Un encadrant qui suit un chatteur sans être assigné
-  // à TOUS les modèles sur lesquels celui-ci travaille y lit un CA AMPUTÉ — la requête ne lève
-  // pas, elle renvoie moins de lignes. Mesuré sur l'UAT, plage 01–15/07/2026 : Giovani
-  // 1 527,27 € réels → 97,54 € vus par Chérif (6 %) ; Benj2p 7 320,80 € → 4 728,22 € vus par
-  // Marco. La base valant CA × taux, la fiche de paie affichée était fausse.
-  //
-  // POURQUOI PAS UNE POLICY ADDITIONNELLE (le remède retenu en 0086 pour les sanctions) : une
-  // policy est par TABLE, pas par page. Elle aurait aussi élargi les quatre RPC `security
-  // invoker` qui lisent cette même table (`chatters_report` 0017, `health_report` 0049,
-  // `models_report` 0050, `overview_report` 0052) — arbitré le 2026-07-27 : la compta récupère
-  // la valeur du chatteur, et RIEN d'autre ne bouge.
-  //
-  // ⚠️ CE QUI REMPLACE LA RLS ICI, C'EST `linked`. Le client admin ignore toute policy : le
-  // `.in('chatter_id', linked)` est la SEULE barrière. `linked` ne contient que les
-  // `profiles.chatter_id` déjà renvoyés par la lecture RLS de `profiles` ci-dessus — donc, pour
-  // un encadrant, ses rattachés directs et personne d'autre. NE JAMAIS lire au-delà de cette
-  // liste, ni la construire depuis une autre source. Même motif que `chatter_first_seen()` et
-  // que les noms de `creators` plus bas.
-  //
-  // `fetchAll` : table de faits journaliers, troncature SILENCIEUSE à 1000 lignes sinon
-  // (1 426 lignes mesurées sur la seule plage 01–15/07/2026, UAT).
+  // ⚠️ `linked` EST LA BARRIÈRE. Il ne contient que les `profiles.chatter_id` déjà renvoyés par
+  // la lecture RLS de `profiles` ci-dessus — donc, pour un encadrant, ses rattachés directs et
+  // personne d'autre. NE JAMAIS le construire depuis une autre source.
   const linked = (members ?? []).map((m) => m.chatter_id).filter((v): v is string => v != null)
-  const { data: ccd, error: ccdErr } = linked.length
-    ? await fetchAll<CcdRow>((f, t) =>
-        admin
-          .from('chatter_creator_daily')
-          .select('chatter_id, creator_id, date, ca')
-          .in('chatter_id', linked)
-          .gte('date', from)
-          .lte('date', to)
-          .order('chatter_id')
-          .order('creator_id')
-          .order('date')
-          .range(f, t),
-      )
-    : { data: [], error: null }
-  if (ccdErr) throw new Error(ccdErr.message)
+  const caByChatter = await loadPeriodCa({ linked, from, to })
 
-  // Noms des modèles, par client ADMIN et non RLS — même motif et même cadrage que le CA
-  // ci-dessus. `creators` est cloisonnée PAR MODÈLE (`creators_scoped_read`), alors que le CA
-  // qu'on vient de lire couvre TOUS les modèles des rattachés : sous RLS, les modèles non
-  // assignés perdaient leur nom et se fondaient tous dans une seule ligne « — » de la
-  // ventilation de la fiche (3 modèles pour Chérif, 6 pour Marco — mesuré sur l'UAT).
-  // Restreint aux `creator_id` DÉJÀ présents dans `ccd`, lui-même cadré sur `linked` : aucun
-  // modèle supplémentaire n'en ressort.
-  const creatorIds = [...new Set(ccd.map((r) => r.creator_id))]
-  const { data: creators, error: creatorsErr } = creatorIds.length
-    ? await admin.from('creators').select('id, name').in('id', creatorIds)
-    : { data: [], error: null }
-  if (creatorsErr) throw new Error(creatorsErr.message)
-
-  const creatorName = new Map((creators ?? []).map((c) => [c.id, c.name]))
-  const caByChatter = new Map<string, Record<string, number>>()
-  for (const r of ccd) {
-    const m = caByChatter.get(r.chatter_id) ?? {}
-    const name = creatorName.get(r.creator_id) ?? '—'
-    m[name] = (m[name] ?? 0) + (r.ca ?? 0)
-    caByChatter.set(r.chatter_id, m)
+  // Historique des taux par membre, TRIÉ par date d'effet. `rateSpans` retrie de son côté (il ne
+  // fait confiance à personne sur l'ordre), mais le tri ici garde l'affichage de la fiche de
+  // membre chronologique sans le refaire trois fois.
+  const ratesById = new Map<string, { effectiveFrom: string; rate: number }[]>()
+  for (const r of rates) {
+    const line = { effectiveFrom: r.effective_from, rate: Number(r.rate) }
+    const arr = ratesById.get(r.chatter_id)
+    if (arr) arr.push(line)
+    else ratesById.set(r.chatter_id, [line])
   }
+  for (const arr of ratesById.values()) arr.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom))
 
   return {
     members: members ?? [],
     settingsById: new Map((settings ?? []).map((s) => [s.chatter_id, s])),
+    /** Historique du taux de commission par membre (`compta_rates`, 0093), trié. Une liste VIDE
+     *  — ou un membre absent — signifie « jamais réglé » : `rateSpans` applique alors
+     *  `DEFAULT_RATE` et marque le segment `fallback`. */
+    ratesById,
     primeById: new Map(
       (primes ?? []).map((p) => [
         p.chatter_id,
@@ -257,7 +236,8 @@ export async function loadComptaSources({
           },
         ]),
     ),
-    /** CA de la période par chatteur MyPuls, ventilé par NOM de modèle. */
+    /** CA de la période par chatteur MyPuls — une ligne par (JOUR, nom de modèle). Le jour est
+     *  ce qui permet de ventiler par segment de taux (0093). */
     caByChatter,
     /** Les 2 lundis de la période — ils bornent la lecture de `compta_week_entries`. Ils
      *  n'entrent dans AUCUN montant depuis la tâche 16 : le fixe est versé par période. */

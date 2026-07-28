@@ -61,5 +61,20 @@ export {
   mondaysOfMonth,
   type PayMonth,
 } from './compta/months'
-export { computePayslip, HANDOFF_EUR, type Payslip, type PayslipInput } from './compta/payslip'
+export {
+  computePayslip,
+  HANDOFF_EUR,
+  type Payslip,
+  type PayslipInput,
+  type PayslipModelLine,
+  type PayslipSegment,
+  type RateSegmentInput,
+} from './compta/payslip'
+export {
+  rateSpans,
+  rateOn,
+  DEFAULT_RATE,
+  type RateChange,
+  type RateSpan,
+} from './compta/rates'
 export { rankSetters, type SetterRank, type SetterScaleRow } from './compta/setter-rank'

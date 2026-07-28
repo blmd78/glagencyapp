@@ -4,24 +4,27 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { z } from 'zod'
-import { frDateNumeric } from '@glagency/core'
+import { DEFAULT_RATE, frDateNumeric } from '@glagency/core'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ActionButton } from '@/components/action-button'
 import { eur2 } from '@/lib/format'
-import { paySettingsInput, payMoney } from '@/lib/pay-settings'
-import { saveMemberPaySettings, saveMemberPrime } from '../actions-pay'
+import { paySettingsInput, payRateInput, payMoney } from '@/lib/pay-settings'
+import { saveMemberPaySettings, saveMemberPrime, saveMemberRate } from '../actions-pay'
+import { MemberRateHistory } from './member-rate-history'
 import type { MemberPay } from '../types'
 
 /**
- * Ce que l'onglet édite : les réglages ET la prime, dans un seul formulaire à UN SEUL bouton
- * « Enregistrer ». Deux tables et deux Server Actions côté serveur (`compta_settings` /
- * `compta_primes`), un seul geste à l'écran.
+ * Ce que l'onglet édite : le taux daté, le fixe ET la prime, dans un seul formulaire à UN SEUL
+ * bouton « Enregistrer ». Trois tables et trois Server Actions côté serveur (`compta_rates` /
+ * `compta_settings` / `compta_primes`), un seul geste à l'écran.
  *
- * `paySettingsInput.extend(...)` et non un objet réécrit : les contraintes du taux et du fixe
- * ne peuvent pas diverger de ce que l'action valide.
+ * Les deux `.extend(...)` et non un objet réécrit : les contraintes du taux, de sa date d'effet
+ * et du fixe ne peuvent pas diverger de ce que les actions valident.
  */
-const payFormInput = paySettingsInput.extend({ primeAmount: payMoney })
+const payFormInput = paySettingsInput
+  .extend(payRateInput.omit({ chatterId: true }).shape)
+  .extend({ primeAmount: payMoney })
 type PayFormInput = z.infer<typeof payFormInput>
 type PayFormValues = z.input<typeof payFormInput>
 
@@ -33,7 +36,7 @@ type PayFormValues = z.input<typeof payFormInput>
  * dans deux écrans était la même erreur que le fixe qui vivait en double (tâche 19).
  *
  * TROIS RÉGLAGES, UN SEUL BOUTON (demande du propriétaire, 2026-07-27) :
- *  - le TAUX de commission, toujours appliqué ;
+ *  - le TAUX de commission, toujours appliqué, et DATÉ depuis la tâche 27 (« à partir du ») ;
  *  - le FIXE de la période, qui S'AJOUTE à la commission dès qu'il est non nul — il ne la
  *    remplace pas (le choix `% du CA` / `Fixe hebdo` a disparu, migration 0089) ;
  *  - la PRIME nouveau chatteur, un MONTANT et rien d'autre — **0 € = pas de prime**.
@@ -47,10 +50,17 @@ type PayFormValues = z.input<typeof payFormInput>
  *     (l'onglet Suivi de la Compta la lit comme « le montant n'a jamais été décidé »).
  * Un seul bouton est visible à la fois — chaque onglet a le sien.
  *
- * DEUX TABLES, DEUX SERVER ACTIONS, mais UN SEUL geste à l'écran : `saveMemberPaySettings`
- * écrit `compta_settings`, `saveMemberPrime` écrit `compta_primes`. Le sous-titrage de l'échec
- * est donc OBLIGATOIRE — une erreur sur l'une ne doit jamais laisser croire que l'autre est
- * passée (`submit` ci-dessous nomme ce qui a été enregistré et ce qui ne l'a pas été).
+ * TROIS TABLES, TROIS SERVER ACTIONS, mais UN SEUL geste à l'écran : `saveMemberRate` écrit
+ * `compta_rates`, `saveMemberPaySettings` écrit `compta_settings`, `saveMemberPrime` écrit
+ * `compta_primes`. Le sous-titrage de l'échec est donc OBLIGATOIRE — une erreur sur l'une ne
+ * doit jamais laisser croire que les autres sont passées (`submit` ci-dessous nomme ce qui a
+ * été enregistré et ce qui ne l'a pas été).
+ *
+ * ⚠️ LE TAUX N'EST ÉCRIT QUE S'IL CHANGE. Le champ est pré-rempli avec le taux courant et la
+ * date avec le lundi de la semaine ; sans garde, corriger le fixe déposerait une ligne
+ * d'historique de plus à chaque enregistrement. Le garde est CÔTÉ SERVEUR (`writeRate` compare
+ * au taux en vigueur à cette date) et non ici : un test côté client sur des nombres saisis à la
+ * main serait le genre de contrôle qu'on croit avoir.
  *
  * Patron habituel : `'use no memo'` (le React Compiler casse `formState`), `zodResolver`, et le
  * triple générique `useForm<Input, unknown, Output>` — les champs `z.coerce.number()` ont un
@@ -73,7 +83,10 @@ export function MemberPayForm({ memberId, pay }: { memberId: string; pay: Member
     resolver: zodResolver(payFormInput),
     defaultValues: {
       chatterId: memberId,
-      rate: pay.rate,
+      rate: pay.currentRate.rate,
+      // Le lundi de la semaine en cours, calculé côté SERVEUR (cf. `get-members.ts`) — pas
+      // `new Date()` ici, qui dépendrait de l'horloge du poste sur une date qui décide de la paie.
+      effectiveFrom: pay.defaultEffectiveFrom,
       fixedAmount: pay.fixedAmount,
       // 100 € = le défaut de la colonne `compta_primes.amount`, repris ici pour que le montant
       // usuel n'ait pas à être ressaisi à chaque création.
@@ -82,35 +95,55 @@ export function MemberPayForm({ memberId, pay }: { memberId: string; pay: Member
   })
 
   const submit = handleSubmit(async (v) => {
+    // LES TROIS ÉCRITURES SONT INDÉPENDANTES et partent toutes, même si l'une échoue : renoncer
+    // aux suivantes parce que la première a échoué ferait perdre des saisies valides.
+    const rate = await saveMemberRate({
+      chatterId: v.chatterId,
+      effectiveFrom: v.effectiveFrom,
+      rate: v.rate,
+    })
     const settings = await saveMemberPaySettings({
       chatterId: v.chatterId,
-      rate: v.rate,
       fixedAmount: v.fixedAmount,
     })
-    // La prime part MÊME SI les réglages ont échoué : les deux écritures sont indépendantes, et
-    // renoncer à la seconde parce que la première a échoué ferait perdre une saisie valide.
     const prime = primeFrozen
       ? null
       : await saveMemberPrime({ chatterId: v.chatterId, amount: v.primeAmount })
 
+    const rateError = rate.success ? null : rate.error
     const settingsError = settings.success ? null : settings.error
     const primeError = prime == null || prime.success ? null : prime.error
 
-    if (!settingsError && !primeError) {
-      toast.success('Réglages enregistrés')
+    if (!rateError && !settingsError && !primeError) {
+      // Le message DIT si le taux a bougé. `saveMemberRate` renvoie `false` quand le taux
+      // demandé était déjà celui en vigueur à cette date : annoncer « nouveau taux enregistré »
+      // dans ce cas ferait croire à une augmentation qui n'a pas eu lieu.
+      toast.success(
+        rate.success && rate.data
+          ? `Taux de ${v.rate} % enregistré à partir du ${frDateNumeric(v.effectiveFrom)}.`
+          : 'Réglages enregistrés',
+      )
       return
     }
 
-    // Message qui NOMME ce qui est passé et ce qui ne l'est pas. Un seul bouton à l'écran, deux
+    // Message qui NOMME ce qui est passé et ce qui ne l'est pas. Un seul bouton à l'écran, trois
     // écritures derrière : « Erreur » tout court laisserait l'admin croire que rien n'a été
-    // enregistré alors que la moitié l'a peut-être été — sur des règles de paie, c'est le genre
+    // enregistré alors qu'une partie l'a peut-être été — sur des règles de paie, c'est le genre
     // de malentendu qui se paie deux semaines plus tard.
+    const echecs = [
+      rateError && `Taux : ${rateError}`,
+      settingsError && `Fixe : ${settingsError}`,
+      primeError && `Prime : ${primeError}`,
+    ].filter((x): x is string => Boolean(x))
+    const passes = [
+      !rateError && 'le taux',
+      !settingsError && 'le fixe',
+      prime != null && !primeError && 'la prime',
+    ].filter((x): x is string => Boolean(x))
     const message =
-      settingsError && primeError
-        ? `Rien n'a été enregistré. Taux et fixe : ${settingsError} Prime : ${primeError}`
-        : settingsError
-          ? `Taux et fixe NON enregistrés : ${settingsError}${prime == null ? '' : ' — la prime, elle, a bien été enregistrée.'}`
-          : `Taux et fixe enregistrés, mais PAS la prime : ${primeError}`
+      passes.length === 0
+        ? `Rien n'a été enregistré. ${echecs.join(' ')}`
+        : `${echecs.join(' ')} En revanche, ${passes.join(' et ')} ${passes.length > 1 ? 'ont' : 'a'} bien été enregistré(e).`
 
     setError('root.serverError', { message })
     toast.error(message)
@@ -121,6 +154,9 @@ export function MemberPayForm({ memberId, pay }: { memberId: string; pay: Member
     // les deux dans deux `<TabsContent>` distincts. Un `<form>` imbriqué dans un `<form>` est
     // invalide en HTML et le navigateur en soumettrait un pour l'autre.
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {/* LE TAUX ET SA DATE D'EFFET, CÔTE À CÔTE — c'est un seul réglage en deux champs, et les
+          séparer inviterait à changer l'un sans regarder l'autre. Grille à 2 colonnes déjà en
+          place ici, aucun style nouveau. */}
       <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor={`rate-${memberId}`}>Commission %</Label>
@@ -135,6 +171,36 @@ export function MemberPayForm({ memberId, pay }: { memberId: string; pay: Member
             <p className="text-xs text-red-600 dark:text-red-400">{errors.rate.message}</p>
           )}
         </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor={`from-${memberId}`}>À partir du</Label>
+          <Input
+            id={`from-${memberId}`}
+            type="date"
+            disabled={isSubmitting}
+            {...register('effectiveFrom')}
+          />
+          {errors.effectiveFrom && (
+            <p className="text-xs text-red-600 dark:text-red-400">{errors.effectiveFrom.message}</p>
+          )}
+        </div>
+      </div>
+      {/* CE QUE LA DATE FAIT, dit là où on la saisit. Sans cette phrase, « À partir du » se lit
+          comme une date de saisie et non comme une date d'EFFET : l'admin croirait que changer
+          le taux repaie toute la période, ce qui était vrai avant la tâche 27 et ne l'est plus. */}
+      <p className="text-xs text-muted-foreground">
+        {pay.currentRate.fallback
+          ? `Aucun taux n'a jamais été réglé : ${DEFAULT_RATE} % s'appliquent par défaut, y compris aux jours d'avant cette date.`
+          : `En vigueur aujourd'hui : ${pay.currentRate.rate} %. Les jours d'avant cette date restent payés au taux précédent.`}
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Historique du taux
+        </p>
+        <MemberRateHistory memberId={memberId} history={pay.rateHistory} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <div className="grid gap-1.5">
           <Label htmlFor={`fixed-${memberId}`}>Fixe par période €</Label>
           <Input
@@ -153,7 +219,8 @@ export function MemberPayForm({ memberId, pay }: { memberId: string; pay: Member
           entière. Sans cette phrase, « Fixe par période » se lit encore comme l'ancien « fixe
           au lieu du pourcentage ». */}
       <p className="text-xs text-muted-foreground">
-        Le fixe s&apos;ajoute à la commission et vaut pour la période entière (14 jours).
+        Le fixe s&apos;ajoute à la commission et vaut pour la période entière (14 jours). Il
+        n&apos;est PAS daté : le changer vaut pour toutes les périodes.
       </p>
 
       <div className="flex flex-col gap-3">
@@ -213,7 +280,7 @@ export function MemberPayPlaceholder() {
   return (
     <p className="text-sm text-muted-foreground">
       Les réglages de paie s&apos;enregistrent une fois le membre créé. En attendant, il compte
-      pour 10 % de commission, aucun fixe, et aucune prime décidée.
+      pour {DEFAULT_RATE} % de commission, aucun fixe, et aucune prime décidée.
     </p>
   )
 }

@@ -1,6 +1,7 @@
-import { computePayslip, monthOfPeriod, type PayPeriod, type SetterScaleRow } from '@glagency/core'
+import { computePayslip, monthOfPeriod, round2, type PayPeriod, type SetterScaleRow } from '@glagency/core'
 import { buildCoverage, type Coverage } from './coverage'
 import { loadComptaSources } from './compta-sources'
+import { segmentsOf } from './rate-segments'
 import { loadSetterRanking } from './setter-ranking'
 import type { ComptaRow, ComptaSanction, SetterRankingRow } from '../types'
 
@@ -136,7 +137,12 @@ export async function loadComptaRows({
     // rentre pas dans le calcul.
     const primeDue = primeApplies && prime?.status === 'due' ? prime.amount : 0
 
-    const modelCa = m.chatter_id ? (src.caByChatter.get(m.chatter_id) ?? {}) : {}
+    // ── LE CA, DÉCOUPÉ PAR TAUX (0093) ──────────────────────────────────────────────────────
+    // `rateHistory` VIDE = le membre n'a jamais été réglé : `rateSpans` applique alors
+    // `DEFAULT_RATE` (10 %) et marque le segment `fallback`, que la fiche AFFICHE. C'est le même
+    // taux qu'avant l'historisation — ce qui change, c'est qu'il ne se subit plus en silence.
+    const rateHistory = src.ratesById.get(m.id) ?? []
+    const segments = segmentsOf(src.days, rateHistory, m.chatter_id ? (src.caByChatter.get(m.chatter_id) ?? []) : [])
 
     // ── LES TROIS LIGNES DU LOT FINAL, BRANCHÉES (tâche 23) ─────────────────────────────────
     // Le report et la prime du mois sont une SAISIE de la période (`compta_period_entries`,
@@ -167,10 +173,9 @@ export async function loadComptaRows({
     const monthlyPrime = monthlyPrimePaid ? 0 : (entry?.top3Prime ?? 0)
 
     const payslip = computePayslip({
-      rate: Number(s?.rate ?? 10),
-      // Défauts de la colonne quand le membre n'a jamais été réglé : 10 % et aucun fixe.
+      segments,
+      // Défaut de la colonne quand le membre n'a jamais été réglé : aucun fixe.
       fixedAmount: Number(s?.fixed_amount ?? 0),
-      modelCa,
       bonus,
       malus,
       handoffs,
@@ -200,7 +205,9 @@ export async function loadComptaRows({
       name: m.display_name ?? m.email ?? '—',
       role: m.role,
       chatterId: m.chatter_id,
-      rate: Number(s?.rate ?? 10),
+      // L'historique du membre, tel quel — la fiche de paie s'en sert pour dire depuis quand le
+      // taux courant s'applique, et la colonne « Rémunération » pour résumer la période.
+      rateHistory,
       fixedAmount: Number(s?.fixed_amount ?? 0),
       prime,
       handoffs,
@@ -216,7 +223,14 @@ export async function loadComptaRows({
       // Le rang, pour que la fiche puisse écrire « Prime setter — rang 6 » plutôt qu'un montant
       // sans provenance. `null` = pas classé (aucun handoff sur la période).
       setterRank: setterRank ? { rank: setterRank.rank, handoffs: setterRank.handoffs } : null,
-      modelCa,
+      // CA par modèle sur la période ENTIÈRE — la colonne « CA / modèle » de la table, qui ne
+      // parle pas de taux. Recomposé à partir des segments (et non gardé à part) : deux
+      // agrégations du même CA finiraient par diverger, et celle-ci doit rester la somme exacte
+      // de ce que la fiche dépliée détaille.
+      modelCa: payslip.segments.reduce<Record<string, number>>((acc, sg) => {
+        for (const mo of sg.models) acc[mo.name] = round2((acc[mo.name] ?? 0) + mo.ca)
+        return acc
+      }, {}),
       sanctions: sancRows,
       weekEntries: Object.fromEntries(
         we.map((w) => [

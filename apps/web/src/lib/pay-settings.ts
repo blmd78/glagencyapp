@@ -25,35 +25,68 @@ export const payMoney = z.coerce
   .max(99999, 'Montant trop élevé')
 
 /**
- * Un TAUX de commission en %, et PAS un montant : les colonnes `compta_settings.rate` et
- * `compta_payments.rate_applied` sont des `numeric(5,2)` — plafonnées à 999,99. Avec la borne
- * des montants (99 999), un taux aberrant passait Zod puis explosait en `numeric field
- * overflow` Postgres brut, au lieu d'une erreur de validation lisible.
+ * Un TAUX de commission en %, et PAS un montant : `compta_rates.rate` est un `numeric(5,2)` —
+ * plafonné à 999,99. Avec la borne des montants (99 999), un taux aberrant passait Zod puis
+ * explosait en `numeric field overflow` Postgres brut, au lieu d'une erreur de validation
+ * lisible. (`compta_settings.rate` et `compta_payments.rate_applied`, les deux colonnes
+ * historiquement visées ici, ont disparu avec la migration 0093 : le taux est daté.)
  */
 export const payRate = z.coerce
   .number()
   .min(0, 'Taux positif attendu')
   .max(999.99, 'Taux hors bornes')
 
+/** Une date ISO `AAAA-MM-JJ` — la date d'effet d'un taux. */
+const isoDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ')
+
 /**
  * Réglages de rémunération d'un membre (`compta_settings`, PK `chatter_id` → `profiles.id`
  * depuis 0085) — ADMIN seul (spec §6). Sans écran, tout le monde reste au défaut de la
- * colonne : 10 % et aucun fixe.
+ * colonne : aucun fixe (et 10 % de commission, cf. `payRateInput`).
  *
- * DEUX CHAMPS, plus un mode ni un statut de setter (migration 0089, tâche 16) : la
- * rémunération est TOUJOURS `commission + fixe éventuel`. Le choix `percent | fixed` faisait
- * remplacer l'une par l'autre, ce que la feuille du propriétaire ne pratique nulle part ;
- * `is_setter` dupliquait `profiles.closing_role`, réglé depuis Membres.
+ * UN SEUL CHAMP depuis la migration 0093 : le TAUX en est parti. Il est DATÉ — il vit dans
+ * `compta_rates` avec sa date d'effet et se saisit par `payRateInput` ci-dessous. Le fixe, lui,
+ * n'est pas daté : c'est un montant par période, changé rarement, sans historique de paie à
+ * reconstituer. Un grain de variation par table.
+ *
+ * Le mode et le statut de setter avaient déjà disparu (migration 0089, tâche 16) : la
+ * rémunération est TOUJOURS `commission + fixe éventuel`.
  */
 export const paySettingsInput = z.object({
   chatterId: z.uuid(),
-  rate: payRate,
   /** Fixe de la PÉRIODE de paie (spec §4) — s'ajoute à la commission, multiplié par rien. Il
    *  s'applique dès qu'il est non nul : aucun drapeau ne le commande. SEUL endroit où il se
    *  saisit depuis la tâche 19 (la saisie hebdo qui le remplaçait a été retirée). */
   fixedAmount: payMoney,
 })
 export type PaySettingsInput = z.infer<typeof paySettingsInput>
+
+/**
+ * TAUX DE COMMISSION DATÉ (`compta_rates`, PK `(chatter_id, effective_from)`, migration 0093) —
+ * ADMIN seul.
+ *
+ * Une augmentation n'est pas une correction : elle prend effet un JOUR, et les jours d'avant
+ * restent payés à l'ancien taux. Mesuré sur la feuille de juillet du propriétaire : 12 des 95
+ * chatteurs changent de taux au milieu d'une même période de paie.
+ *
+ * `effectiveFrom` est le PREMIER jour au nouveau taux, inclus. Ré-enregistrer la même date
+ * CORRIGE la ligne (upsert sur la PK) au lieu d'empiler deux vérités pour le même jour.
+ */
+export const payRateInput = z.object({
+  chatterId: z.uuid(),
+  effectiveFrom: isoDay,
+  rate: payRate,
+})
+export type PayRateInput = z.infer<typeof payRateInput>
+
+/** Suppression d'une ligne d'historique de taux — ADMIN seul. Le remède à une date saisie de
+ *  travers : sans lui, un taux mal daté serait définitif et impossible à corriger depuis
+ *  l'écran, puisque ré-enregistrer ne fait qu'écraser la ligne DE CETTE DATE. */
+export const payRateDeleteInput = z.object({
+  chatterId: z.uuid(),
+  effectiveFrom: isoDay,
+})
+export type PayRateDeleteInput = z.infer<typeof payRateDeleteInput>
 
 /**
  * Prime « nouveau chatteur » (`compta_primes`, PK `chatter_id`) — ADMIN seul, décidée à la

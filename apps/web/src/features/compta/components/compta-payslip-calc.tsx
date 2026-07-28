@@ -1,10 +1,8 @@
 'use client'
 
-import { Fragment } from 'react'
-import { addDays, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
-import { Badge } from '@/components/ui/badge'
-import { eur2, round2 } from '@/lib/format'
-import { modelColor } from '@/lib/model-color'
+import { addDays, DEFAULT_RATE, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
+import { eur2 } from '@/lib/format'
+import { ComptaModelBreakdown } from './compta-model-breakdown'
 import { ComptaPayDialog } from './compta-pay-dialog'
 import type { ComptaRow } from '../types'
 
@@ -34,61 +32,6 @@ function Line({ label, amount, red }: { label: string; amount: number; red?: boo
       <span className={red ? 'tabular-nums text-red-700 dark:text-red-400' : 'tabular-nums'}>
         {eur2(amount)}
       </span>
-    </div>
-  )
-}
-
-/**
- * Ventilation du CA par modèle — UNE LIGNE PAR MODÈLE, avec la commission prise sur ce modèle
- * (demande du propriétaire, 2026-07-27, en remplacement de la rangée de badges « Modèle · CA »).
- *
- * Elle n'invente aucun calcul : `computePayslip` applique DÉJÀ le taux modèle par modèle
- * (`packages/core/src/compta/payslip.ts`) — cet écran ne fait qu'exposer ce qui se calculait
- * sans être montré.
- *
- * ⚠️ LES LIGNES DOIVENT FAIRE LE TOTAL. C'est ce qui a fait passer `computePayslip` à un
- * arrondi PAR MODÈLE (`Σ round2(ca × taux)` et non `round2(Σ ca × taux)`) le 2026-07-27 : sinon
- * les commissions affichées s'écartaient du total d'un ou deux centimes. Corollaire : le total
- * affiché ici est `payslip.base` LUI-MÊME, jamais une somme refaite côté client — deux calculs
- * finiraient par diverger.
- *
- * Le total de CA est `payslip.ca` pour la même raison. `chatter_creator_daily.ca` est un
- * `numeric(12,2)` (vérifié sur information_schema, UAT, 0 ligne à plus de 2 décimales), donc les
- * CA par modèle sont exacts au centime et leurs lignes somment exactement au total.
- *
- * Cette grille EST la base de la fiche : sa colonne « Commission » totalise `payslip.base`.
- * C'est pour ça que la ligne « Commission — X € × Y % » a disparu le 2026-07-27 — elle
- * affichait les deux mêmes nombres (`payslip.ca`, `payslip.base`) à un deuxième endroit, deux
- * blocs plus loin.
- *
- * Plus de variante « mode fixe » depuis la tâche 16 : la commission est TOUJOURS la base, le
- * fixe éventuel s'y ajoute en ligne d'ajustement. La branche qui masquait cette colonne
- * décrivait un mode que personne ne pratiquait.
- */
-function ModelBreakdown({ models, row }: { models: [string, number][]; row: ComptaRow }) {
-  const total = 'border-t pt-1.5 font-medium'
-
-  return (
-    <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-4 gap-y-1.5 text-sm">
-      <span className={COL_HEAD}>Modèle</span>
-      <span className={`${COL_HEAD} text-right`}>CA</span>
-      <span className={`${COL_HEAD} text-right`}>Commission ({row.rate} %)</span>
-
-      {models.map(([name, ca]) => (
-        <Fragment key={name}>
-          <span className="min-w-0">
-            {/* Badge coloré conservé : c'est l'identification visuelle des modèles partout
-                ailleurs dans l'app (`modelColor`), aucun style nouveau introduit ici. */}
-            <Badge className={modelColor(name)}>{name}</Badge>
-          </span>
-          <span className="text-right tabular-nums">{eur2(ca)}</span>
-          <span className="text-right tabular-nums">{eur2(round2((ca * row.rate) / 100))}</span>
-        </Fragment>
-      ))}
-
-      <span className={total}>Total</span>
-      <span className={`${total} text-right tabular-nums`}>{eur2(row.payslip.ca)}</span>
-      <span className={`${total} text-right tabular-nums`}>{eur2(row.payslip.base)}</span>
     </div>
   )
 }
@@ -140,7 +83,9 @@ export function ComptaPayslipCalc({
   periodElapsed: boolean
 }) {
   const p = row.payslip
-  const models = Object.entries(row.modelCa).sort(([, a], [, b]) => b - a)
+  // Le taux QUI S'APPLIQUE quand il n'y a aucun CA à ventiler — le dernier de l'historique, ou
+  // le défaut. Sert uniquement à la ligne de repli juste en dessous.
+  const rateSansCa = row.rateHistory.at(-1)?.rate ?? DEFAULT_RATE
 
   // Une composante nulle ne fait PAS de ligne (règle déjà en place avant la refonte) : le titre
   // « Ajustements » ne doit donc apparaître que si au moins une ligne le suit.
@@ -157,13 +102,15 @@ export function ComptaPayslipCalc({
 
   return (
     <div className="flex flex-col gap-4">
-      {models.length > 0 ? (
-        <ModelBreakdown models={models} row={row} />
+      {p.segments.length > 0 ? (
+        <ComptaModelBreakdown payslip={p} />
       ) : (
         // Sans aucun modèle la ventilation ne rend rien : la base sortirait de l'écran.
-        // C'est le SEUL cas où l'ancienne ligne « Commission — X € × Y % » survit.
+        // C'est le SEUL cas où l'ancienne ligne « Commission — X € × Y % » survit. Le taux
+        // affiché est le DERNIER de l'historique : sans CA il n'y a aucun segment, donc aucun
+        // taux « appliqué » — et 0 € × n'importe quel taux vaut 0 €.
         <div className="flex flex-col gap-1">
-          <Line label={`Commission — ${eur2(p.ca)} × ${row.rate} %`} amount={p.base} />
+          <Line label={`Commission — ${eur2(p.ca)} × ${rateSansCa} %`} amount={p.base} />
           <p className="text-xs text-muted-foreground">
             Aucun CA sur la période — rien à ventiler par modèle.
           </p>

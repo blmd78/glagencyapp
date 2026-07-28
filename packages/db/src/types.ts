@@ -374,7 +374,7 @@ export type Database = {
           paid_by: string | null
           period_start: string
           prime_amount: number
-          rate_applied: number
+          rates_applied: Json
           sanctions_amount: number
           setter_amount: number
           setter_prime_amount: number
@@ -397,7 +397,7 @@ export type Database = {
           paid_by?: string | null
           period_start: string
           prime_amount: number
-          rate_applied: number
+          rates_applied: Json
           sanctions_amount: number
           setter_amount: number
           setter_prime_amount: number
@@ -420,7 +420,7 @@ export type Database = {
           paid_by?: string | null
           period_start?: string
           prime_amount?: number
-          rate_applied?: number
+          rates_applied?: Json
           sanctions_amount?: number
           setter_amount?: number
           setter_prime_amount?: number
@@ -529,6 +529,45 @@ export type Database = {
           },
         ]
       }
+      compta_rates: {
+        Row: {
+          chatter_id: string
+          effective_from: string
+          rate: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          chatter_id: string
+          effective_from: string
+          rate: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chatter_id?: string
+          effective_from?: string
+          rate?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compta_rates_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compta_rates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       compta_setter_scale: {
         Row: {
           amount: number
@@ -562,21 +601,18 @@ export type Database = {
         Row: {
           chatter_id: string
           fixed_amount: number
-          rate: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           chatter_id: string
           fixed_amount?: number
-          rate?: number
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           chatter_id?: string
           fixed_amount?: number
-          rate?: number
           updated_at?: string
           updated_by?: string | null
         }

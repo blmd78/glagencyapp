@@ -29,10 +29,36 @@ export const money = payMoney
  */
 const signedMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
 
-/** Un TAUX de commission en % (`numeric(5,2)`, plafonné à 999,99) — même réexport que `money` :
- *  il ne sert plus ici qu'à `rateApplied` de l'instantané de paiement, mais c'est la MÊME borne
- *  que celle du réglage saisi dans Membres. Le pourquoi est dans `lib/pay-settings.ts`. */
-const rate = payRate
+/**
+ * LES SEGMENTS DE TAUX RÉELLEMENT APPLIQUÉS à la période payée — l'instantané du taux depuis la
+ * migration 0093 (`compta_payments.rates_applied jsonb`).
+ *
+ * `rateApplied: numeric(5,2)` UNIQUE ne pouvait plus rien dire de vrai : 12 chatteurs de la
+ * feuille de juillet changent de taux au milieu d'une période. Un seul nombre y aurait décrit
+ * une moitié de fiche et menti sur l'autre.
+ *
+ * PEUT ÊTRE VIDE, et c'est voulu : un membre sans aucun CA sur la période n'a rien à
+ * commissionner, donc aucun taux appliqué (spec §10 — ses bonus et primes lui restent dus).
+ * Ce qui est interdit, c'est une COMMISSION sans trace du taux : la contrainte
+ * `compta_payments_rates_applied_check` (0094) l'exprime côté base (`base_amount = 0 or
+ * jsonb_array_length >= 1`), et le `superRefine` ci-dessous la reprend en français.
+ *
+ * `max(14)` : une période fait 14 jours, donc au plus 14 segments d'un jour. C'est une borne de
+ * payload, pas une règle métier.
+ *
+ * La borne du taux lui-même est `payRate` — la MÊME que celle du réglage saisi dans Membres
+ * (`lib/pay-settings.ts`) : deux définitions finiraient par diverger, et c'est de l'argent.
+ */
+const rateSegments = z
+  .array(
+    z.object({
+      from: iso,
+      to: iso,
+      rate: payRate,
+      fallback: z.boolean(),
+    }),
+  )
+  .max(14, 'Trop de segments de taux')
 
 /** Saisie d'un JOUR (bonus/malus/handoffs). */
 export const dayEntryInput = z.object({
@@ -117,8 +143,9 @@ export const payInput = z
     caReference: money,
     // `modeApplied` a disparu avec `compta_settings.mode` (migration 0089) : il n'existe plus
     // qu'un seul mode de rémunération — commission + fixe éventuel.
-    // `rate` et non `money` : c'est un TAUX (cf. sa définition en haut de fichier).
-    rateApplied: rate,
+    // `ratesApplied` a remplacé `rateApplied` (migration 0093) : le taux est DATÉ, une période
+    // peut en porter plusieurs, et l'instantané doit dire lequel a couvert quels jours.
+    ratesApplied: rateSegments,
     baseAmount: money,
     setterAmount: money,
     bonusAmount: money,
@@ -163,6 +190,19 @@ export const payInput = z
    * leur somme en flottant peut dériver d'un centime.
    */
   .superRefine((v, ctx) => {
+    // UNE COMMISSION SANS TAUX EST INTRAÇABLE (0094). L'instantané existe pour qu'on puisse
+    // refaire le calcul dix-huit mois plus tard : une base non nulle sans segment de taux ne
+    // le permet plus. Le cas inverse — 0 € de base et aucun segment — est légitime (aucun CA
+    // à commissionner, spec §10) et passe.
+    if (v.baseAmount !== 0 && v.ratesApplied.length === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        message:
+          "Cette fiche verse une commission sans indiquer à quel taux. Recharge la page ; si l'erreur persiste, préviens l'admin technique.",
+        path: ['ratesApplied'],
+      })
+    }
+
     const expected =
       v.baseAmount +
       v.setterAmount +

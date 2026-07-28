@@ -41,7 +41,15 @@ export function ComptaPayDialog({ row, period }: { row: ComptaRow; period: PayPe
           coveredDays: daysIn(period),
           amount: p.net,
           caReference: p.ca,
-          rateApplied: row.rate,
+          // Les segments de taux TELS QU'APPLIQUÉS (0093), et non un taux unique : c'est
+          // l'instantané du « à quel taux chaque jour a été payé ». Sans les dates, une période
+          // à deux taux serait intracable après coup.
+          ratesApplied: p.segments.map((s) => ({
+            from: s.from,
+            to: s.to,
+            rate: s.rate,
+            fallback: s.fallback,
+          })),
           baseAmount: p.base,
           setterAmount: p.setter,
           bonusAmount: p.bonus,

@@ -134,9 +134,14 @@ groupés et les paiements partiels sans logique supplémentaire.
 Pour un chatteur et une période :
 
 ```
-  Base            Σ sur les modèles ( Σ chatter_creator_daily.ca
-                  des 14 jours de la période ) × rate / 100
+  Base            Σ sur les SEGMENTS DE TAUX de la période
+                    ( Σ sur les modèles
+                        ( Σ chatter_creator_daily.ca des jours du segment ) × taux du segment / 100 )
                   -- TOUJOURS. Il n'existe plus de mode où le CA n'est pas commissionné.
+                  -- Le TAUX EST DATÉ (tâche 27) : chaque jour est payé au taux en
+                     vigueur ce jour-là (compta_rates, §5.10). Un segment = des jours
+                     consécutifs au même taux. Taux inchangé = UN segment, et la
+                     formule redevient terme pour terme celle d'avant.
 
 + Fixe            compta_settings.fixed_amount
                   -- SEULE source du montant (tâche 19) : il se règle dans
@@ -278,6 +283,38 @@ l'était derrière l'engrenage de la ligne jusque-là), et de nulle part ailleur
 un composant. Les entrées `kind = 'warning'` de la Police valent 0 € : elles sont listées avec
 leur motif mais n'entrent pas dans le calcul.
 
+**LE TAUX DE COMMISSION EST DATÉ (tâche 27, 2026-07-28).** `compta_settings.rate` portait UN
+taux, appliqué aux 14 jours de la période. La feuille de juillet le contredit : sur les **95
+chatteurs portant du CA en semaine 1** de la période 06 → 19/07, **12 changent de taux entre les
+deux semaines**, toujours à la hausse — Josaphat, JC, Ethane, Salemmontin 10 → 11 % ; kwasi,
+Alain, Juliot 10,5 → 11 % ; Anja, Matisse, Ange, Big Jo, Patrick 10 → 10,5 %. (Les taux ne sont
+pas écrits dans la feuille : ils sont déduits de `net_semaine / CA_semaine`, et les 95 colonnes
+rendent toutes une valeur ronde — 10 / 10,5 / 11 %, jamais autre chose.)
+
+Un taux unique ne peut pas être juste sur ces 12 fiches : appliquer l'ancien aux 14 jours
+**sous-paie de 190,12 €**, appliquer le nouveau **sur-paie de 133,58 €**, sur 5 172,22 € dus.
+
+**Le taux en vigueur un jour J = la ligne `compta_rates` la plus récente dont `effective_from
+<= J`** (`rateSpans`, `packages/core/src/compta/rates.ts`). La date d'effet est **inclusive**.
+
+**Avant la première ligne d'historique : `DEFAULT_RATE = 10 %`, et la fiche le DIT.** Ce n'est pas
+un nombre neuf — c'est le défaut de la colonne `compta_settings.rate` (`0084`) que la compta
+appliquait déjà à tout membre jamais réglé, et que l'onglet Compta annonce en toutes lettres. Ce
+qui change, c'est qu'il ne se subit plus en silence : `RateSpan.fallback` marque chaque segment
+qui en dépend, et la fiche de paie affiche « Taux jamais réglé pour ce membre — le défaut de
+10 % s'applique ». **L'alternative écartée** — faire remonter la première ligne d'historique à
+l'infini passé — supprimerait le repli mais rendrait sa date d'effet mensongère : l'admin qui
+saisit « 11 % à partir du 13/07 » verrait juin repayé à 11 %. Un défaut affiché vaut mieux qu'une
+date qui ne dit pas la vérité.
+
+**La découpe préserve la règle d'arrondi, elle ne la change pas.** Le pourcentage est appliqué
+(segment × modèle), arrondi là, puis sommé : un niveau de regroupement de plus, le même terme
+élémentaire `round2(ca × taux / 100)`, le même total. Conséquence VÉRIFIÉE et non déduite : sur
+les **83 fiches à taux constant**, le net calculé avec découpage est **identique au bit près** à
+celui calculé sans — zéro régression. Et les 12 autres retombent sur la feuille avec le même
+écart maximal que les 83 (**0,01 €**, dû au fait que la feuille ne borne pas ses décimales).
+Total des 95 : feuille 18 801,68 €, app 18 801,66 €.
+
 **Arrondi — chaque composante d'abord, le net ensuite** (arbitré le 2026-07-27). Chaque ligne de
 la fiche est arrondie à 2 décimales, puis le net est la SOMME de ces lignes arrondies. Une fiche
 de paie doit s'additionner exactement à l'écran : un chatteur doit pouvoir refaire le calcul de
@@ -291,14 +328,15 @@ cumulatif.
 
 ---
 
-## 5. Modèle de données — migrations `0085` … `0091`
+## 5. Modèle de données — migrations `0085` … `0094`
 
 `0085` porte l'essentiel (les tables étant vides) ; `0086` ouvre la lecture cloisonnée des
 sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
 `compta_payments` sur le découpage en 14 jours, `0089` supprime le mode de rémunération et le
 statut de setter (§5.5), `0090` pose le socle du lot final (§5.6), `0091` étend l'instantané de
 paiement aux trois lignes de ce lot (§5.7), `0092` interdit de saisir deux fois la prime du mois
-dans le même mois civil (§5.9).
+dans le même mois civil (§5.9), `0093` **date le taux de commission** (§5.10), `0094` recentre la
+contrainte de son instantané (§5.10).
 
 **5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
 étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
@@ -315,7 +353,7 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | Colonne | Type | Rôle |
 |---|---|---|
 | `ca_reference` | `numeric(10,2)` | CA ayant servi de base |
-| `rate_applied` | `numeric(5,2)` | taux au moment du paiement |
+| ~~`rate_applied`~~ → `rates_applied` | ~~`numeric(5,2)`~~ → `jsonb` | segments de taux appliqués (§5.10) |
 | `base_amount` | `numeric(10,2)` | base calculée |
 | `setter_amount` | `numeric(10,2)` | fixe de la période (réglage ou saisie hebdo) |
 | `bonus_amount` | `numeric(10,2)` | bonus cumulés |
@@ -465,6 +503,79 @@ juillet) puis 08-03 (mois d'août) → accepté ; deux membres différents sur l
 Et le trou que l'index NE ferme PAS — payer, remettre à 0, ressaisir sur l'autre période — a été
 reproduit en base pour prouver que la garde applicative n'est pas redondante.
 
+**5.10 Le taux de commission devient DATÉ — migrations `0093` et `0094`** (2026-07-28, UAT
+seulement). Le raisonnement métier est en §4 ; voici la forme.
+
+```sql
+create table public.compta_rates (
+  chatter_id     uuid not null references public.profiles(id) on delete cascade,
+  effective_from date not null,                 -- PREMIER jour au nouveau taux, INCLUSIF
+  rate           numeric(5,2) not null check (rate >= 0),
+  updated_at     timestamptz not null default now(),
+  updated_by     uuid references public.profiles(id) on delete set null,
+  primary key (chatter_id, effective_from)
+);
+```
+
+**Une TABLE DÉDIÉE, et non une colonne `effective_from` sur `compta_settings`.** Cette dernière
+porte aussi `fixed_amount`, qui n'est **pas** daté : c'est un montant par période, changé
+rarement, sans historique de paie à reconstituer. Dater la ligne entière obligerait à recopier le
+fixe à chaque changement de taux et rendrait ambigu « quel fixe s'applique ». Un grain de
+variation par table.
+
+**La PK est `(chatter_id, effective_from)`** : ré-enregistrer la même date **corrige** le taux de
+ce jour-là au lieu d'empiler deux vérités. Une date saisie de travers se **supprime** depuis
+l'écran (§7.1) — un upsert ne peut que réécrire la ligne de cette date, jamais la faire
+disparaître.
+
+**REPRISE DES RÉGLAGES EXISTANTS, à une date PLANCHER (`1970-01-01`)** — puis
+`compta_settings.rate` est **supprimée**. Deux points, et les deux comptent :
+
+- Sans reprise, tout taux déjà posé disparaîtrait et chaque membre retomberait à 10 %. Mesuré
+  avant d'appliquer : `compta_settings` = **1 ligne** sur l'UAT (11 %), reprise et vérifiée
+  après coup.
+- La date est un **plancher**, pas la date du jour : le taux actuel s'appliquait déjà à toutes
+  les périodes passées, et le dater d'aujourd'hui ferait recalculer l'historique à 10 %. **Cette
+  migration doit être un no-op sur tout net déjà calculé**, et elle l'est.
+- `compta_settings.rate` part parce que **deux sources d'un même nombre finissent par diverger** :
+  c'est le défaut d'argent de la tâche 19 (`fixe_setter`) répété sur le taux.
+
+**RLS — même régime que `compta_settings`**, recopié de `0085` après relecture de `pg_policy` :
+lecture admin + encadrant sur ses rattachés, **écriture admin seule**. Mesuré sous RLS sur l'UAT
+(transaction annulée, une ligne par chatteur) : Marco (sous-manager, 35 rattachés) voit **36
+lignes, 0 hors périmètre** ; Chérif **15** ; un chatteur **0** — exactement comme
+`compta_settings`. Une écriture tentée par Marco : `new row violates row-level security policy`.
+
+**L'INSTANTANÉ DE PAIEMENT.** `compta_payments.rate_applied numeric(5,2)` ne pouvait porter
+qu'un taux : sur une période à deux taux, quel que soit celui qu'on y range, la moitié de la
+fiche est fausse. Il est remplacé par `rates_applied jsonb not null` — la segmentation
+réellement appliquée, `[{from, to, rate, fallback}, …]`. Les paiements déjà enregistrés sont
+repris : leur taux unique devient un segment unique couvrant leurs jours couverts.
+
+**Pourquoi du `jsonb` et non une table fille** : `recordPayment` écrit le paiement en UN insert.
+Une table fille imposerait une seconde écriture, sans transaction possible depuis supabase-js —
+le même trou que la trace `compta_primes` — et un paiement pourrait exister sans sa trace de
+taux. Ici l'instantané reste **atomique** avec le paiement.
+
+**Aucun `default`**, règle de `0085` : un défaut rendrait la colonne optionnelle dans le type
+`Insert` et un paiement l'omettant écrirait un instantané sans taux, en silence.
+
+`0094` **recentre la contrainte**, et c'est une correction trouvée en branchant le paiement.
+`0093` exigeait `jsonb_array_length >= 1`, ce qui **bloque un paiement légitime** : un membre
+sans aucun CA mais qui touche une prime, un bonus ou un fixe (§10 — « les bonus/primes restent
+dus »). `computePayslip` ne produit alors aucun segment : `[]` est la réponse exacte. La
+contrainte devient `jsonb_typeof = 'array' and (base_amount = 0 or jsonb_array_length >= 1)` —
+ce qu'elle doit vraiment interdire, c'est une **commission versée sans trace du taux qui l'a
+produite**. `0093` n'a pas été retouchée : elle était déjà enregistrée dans `schema_migrations`,
+et modifier un fichier appliqué désaligne l'historique (le piège du nettoyage `36ae438`).
+
+Vérifié en transaction annulée sur l'UAT : deux lignes de taux à dates distinctes → acceptées ;
+même date ré-enregistrée → 2 lignes, taux écrasé ; taux au 12/07 = 10, au 13/07 = 12 (date
+d'effet inclusive) ; commission 100 € avec `rates_applied = '[]'` → `violates check constraint
+compta_payments_rates_applied_check` ; prime seule (base 0) avec `'[]'` → acceptée ; instantané à
+2 segments → accepté. `compta_payments` = 0 ligne sur l'UAT avant d'appliquer. La prod n'a pas
+été ouverte.
+
 **5.8 `CRM_ROLES` passe à quatre valeurs** (2026-07-28, aucune migration). `closer`, `setter`,
 `hybride`, `nouveau` — la liste TypeScript rattrape le `check` élargi par `0090`. Trois points
 étaient à corriger, et le troisième était le plus grave :
@@ -494,6 +605,7 @@ comptent des setters et des closers.
 |---|---|---|---|
 | `compta_day_entries`, `compta_week_entries`, `compta_period_entries` | tout | lecture + écriture **sur ses rattachés** | — |
 | `compta_settings` | tout | lecture sur ses rattachés | — |
+| `compta_rates` | tout, **seul à écrire** | lecture sur ses rattachés | — |
 | `compta_primes` | tout | lecture sur ses rattachés | — |
 | `compta_payments` | tout, **seul à écrire** | lecture sur ses rattachés | — |
 | `compta_setter_scale` | tout, **seul à écrire** | lecture (barème global) | — |
@@ -638,10 +750,42 @@ sommé — 75 € retapés sur chaque ligne versaient 150 €). Le report est le
 saisie : la ligne d'aide le dit là où on le tape, sinon personne ne devine qu'un trop-perçu
 s'écrit en négatif.
 
+**LA VENTILATION PAR MODÈLE DEVIENT UNE VENTILATION PAR TAUX, PUIS PAR MODÈLE (tâche 27).** La
+colonne « Commission (10 %) » devient **fausse** dès que la période porte deux taux. Deux formes,
+et une seule grille :
+
+- **Un seul taux** (le cas courant, 83 fiches sur 95) : rendu **strictement inchangé** —
+  en-tête « Commission (10 %) », les lignes-modèle, le total. Cet écran ne bouge pas.
+- **Plusieurs taux** : un bloc par segment, dans l'ordre, chacun titré par ses dates et son taux
+  (« du 6 au 12 juillet — 10 % ») avec son **sous-total**, puis le total général. L'en-tête de
+  colonne redevient « Commission » tout court. **C'est la forme du document du propriétaire**,
+  qui aligne S1 à 10 % et S2 à 11 % : le grain est celui qu'il lit déjà, et le détail somme au
+  total à chaque niveau (ligne → sous-total → total), par construction (§4).
+
+```
+Modèle              CA        Commission
+du 6 au 12 juillet — 10 %
+  [Lana]        600,00 €          60,00 €
+  [Mia]         400,00 €          40,00 €
+  Sous-total  1 000,00 €         100,00 €
+du 13 au 19 juillet — 11 %
+  [Lana]      1 000,00 €         110,00 €
+  Sous-total  1 000,00 €         110,00 €
+Total         2 000,00 €         210,00 €
+```
+
+Un segment au **taux par défaut** porte la mention « (taux par défaut, jamais réglé) » dans son
+titre ; sur une fiche à taux unique, la même information est une ligne d'avertissement sous le
+total. Un taux de paie que personne n'a choisi ne doit pas être invisible.
+
+**La colonne « Rémunération » de la table** rend `10 → 11 %` quand la période porte deux taux
+(les dates complètes sont dans son `title`). Elle lit `payslip.segments`, donc ce qui a
+**réellement** été appliqué au CA de cette période, jamais l'historique brut.
+
 **Réglages (admin seul) — ILS ONT QUITTÉ CETTE PAGE le 2026-07-28 (tâche 25).** Un dialog à
-**trois champs et un seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le
-**fixe par période** en € (il s'ajoute à la commission), et le **montant** de la **prime**
-nouveau chatteur. Sans cet écran, `compta_settings` et `compta_primes` resteraient aux défauts
+**quatre champs et un seul bouton « Enregistrer »** : la **commission** en % et sa **date
+d'effet** (« À partir du »), le **fixe par période** en € (il s'ajoute à la commission), et le
+**montant** de la **prime** nouveau chatteur. Sans cet écran, `compta_settings` et `compta_primes` resteraient aux défauts
 de leurs colonnes pour tout le monde, modifiables en SQL seulement, et la prime « manuelle » de
 la §2 ne pourrait pas être créée. Une prime déjà versée s'affiche en lecture seule : son statut
 est la trace du virement.
@@ -667,8 +811,9 @@ est la trace du virement.
 > (l'onglet Suivi la lit comme « le montant n'a jamais été décidé »).
 >
 > **En création**, l'onglet affiche une phrase au lieu des champs : le membre n'a pas encore
-> d'`id`, et `compta_settings.chatter_id` est une FK vers `profiles.id` (0085). En attendant, ce
-> sont les défauts de colonne qui s'appliquent — 10 %, aucun fixe, aucune prime décidée.
+> d'`id`, et `compta_settings.chatter_id` comme `compta_rates.chatter_id` sont des FK vers
+> `profiles.id` (0085, 0093). En attendant, ce sont les défauts qui s'appliquent — 10 %, aucun
+> fixe, aucune prime décidée.
 
 > **Correction du 2026-07-28 (tâche 20) — le statut de la prime quitte l'écran.** Le dialog
 > proposait un statut « à verser » / « renoncée » à côté du montant. L'onglet « SUIVI PRIMES NVX
@@ -685,9 +830,42 @@ est la trace du virement.
 > (0084), pour pouvoir revenir en arrière à peu de frais. La colonne « Prime » de la pile sait
 > toujours lire `renoncée` sur une ligne héritée — elle n'est simplement plus productible.
 
-Deux tables derrière un seul bouton, donc deux Server Actions : l'écran **nomme** celle qui a
-échoué (« Taux et fixe enregistrés, mais PAS la prime : … »). Un « Erreur » global laisserait
-croire que rien n'a été écrit alors que la moitié l'a été.
+TROIS tables derrière un seul bouton depuis la tâche 27 (`compta_rates`, `compta_settings`,
+`compta_primes`), donc trois Server Actions : l'écran **nomme** celle qui a échoué (« Taux : …
+En revanche, le fixe et la prime ont bien été enregistrés. »). Un « Erreur » global laisserait
+croire que rien n'a été écrit alors qu'une partie l'a été.
+
+> **Le taux daté, dans cet onglet (tâche 27).** Le champ « Commission % » gagne un voisin,
+> **« À partir du »**, et une phrase qui dit ce que la date fait : « Les jours d'avant cette date
+> restent payés au taux précédent. Aujourd'hui : 10 %. » Sans elle, « À partir du » se lit comme
+> une date de saisie et non comme une date d'**effet** — l'admin croirait que changer le taux
+> repaie toute la période, ce qui était vrai avant cette tâche et ne l'est plus.
+>
+> **La date proposée par défaut est le LUNDI DE LA SEMAINE EN COURS**, et non celui de la
+> période. C'est mesuré : sur la feuille de juillet (période 06 → 19/07), les 12 changements de
+> taux prennent tous effet au **13/07**, c'est-à-dire au **second** lundi de la période. Le lundi
+> de période aurait proposé le 06/07 et repayé la première semaine au nouveau taux — exactement
+> le sur-paiement que cette tâche corrige, réintroduit par le défaut de l'écran. C'est aussi la
+> plus petite rétroactivité qui garde les segments calés sur les semaines, le grain du document.
+> Le champ reste libre : c'est une proposition, pas une contrainte. Elle est calculée **côté
+> serveur** (`todayParis`) — un `new Date()` dans le composant dépendrait de l'horloge du poste,
+> sur une date qui décide de la paie.
+>
+> **UN SEUL BOUTON conservé** (demande du propriétaire) : le taux n'est écrit **que s'il change
+> réellement quelque chose**. Le garde est côté serveur (`writeRate` compare au taux en vigueur
+> à cette date, `rateOn`), pas côté client. Sans lui, l'admin venu corriger le fixe déposerait
+> une ligne d'historique de plus à chaque enregistrement — un journal de non-événements qui
+> rendrait l'historique illisible en trois semaines. Le message de succès le dit : « Taux de
+> 11 % enregistré à partir du 13/07/2026 » quand une ligne a été posée, « Réglages enregistrés »
+> sinon.
+>
+> **L'historique est consultable dans l'onglet**, le plus récent en tête (« 11 % à partir du
+> 13/07/2026 — en vigueur »), chaque ligne supprimable. Une augmentation passée est une
+> **information de paie** : sans elle, l'admin qui rouvre la fiche voit « 11 % » sans savoir
+> depuis quand, donc ne peut ni vérifier une fiche payée à deux taux, ni répondre à un chatteur
+> qui la conteste. La suppression est le **remède à une date saisie de travers** — un upsert ne
+> peut que réécrire la ligne de cette date, jamais la faire disparaître. Elle ne touche à aucun
+> paiement déjà enregistré (ceux-là portent leur propre instantané, §5.10), et l'écran le dit.
 
 **Chatteur non relié à MyPuls.** `profiles.chatter_id` est nullable : 30 profils chatteurs sur
 102 ne sont pas reliés en prod. Sans lien, aucun CA n'est calculable. La ligne affiche un

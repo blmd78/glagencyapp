@@ -101,7 +101,6 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
         ['handoffs', v.handoffsAmount, p.handoffsAmount],
         ['prime', v.primeAmount, p.prime],
         ['sanctions', v.sanctionsAmount, p.sanctions],
-        ['taux', v.rateApplied, row.rate],
         // Les trois lignes du lot final (0091). La PRIME SETTER est la plus volatile des dix :
         // elle ne vient d'aucune saisie propre au membre mais de son RANG dans le classement de
         // toute l'agence — un handoff saisi chez QUELQU'UN D'AUTRE pendant que l'onglet est
@@ -117,6 +116,16 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
       const drifted = checks
         .filter(([, sent, computed]) => Math.abs(sent - computed) > 0.01)
         .map(([label]) => label)
+      // ── LE TAUX, COMPARÉ COMME UNE SÉQUENCE (0093) ────────────────────────────────────────
+      // Il n'y a plus « un » taux à comparer, mais une SEGMENTATION : des bornes de dates et un
+      // taux pour chacune. Comparer les seuls taux laisserait passer un découpage décalé — même
+      // 10 % puis 11 %, mais avec la bascule au 14/07 au lieu du 13/07, ce qui change le net.
+      // On compare donc la séquence entière, sérialisée, à l'identique (aucune tolérance : ce ne
+      // sont pas des montants, il n'y a pas d'arrondi à absorber).
+      const shape = (s: { from: string; to: string; rate: number }) => `${s.from}..${s.to}@${s.rate}`
+      if (v.ratesApplied.map(shape).join('|') !== p.segments.map(shape).join('|')) {
+        drifted.push('taux appliqué')
+      }
       if (drifted.length > 0) {
         throw new BusinessError(
           `La fiche de ${row.name} a changé depuis l'ouverture de la page (${drifted.join(', ')}). ` +
