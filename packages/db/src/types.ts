@@ -2256,6 +2256,7 @@ export type Database = {
           priority: number
           profile_id: string
           release: string | null
+          started_at: string | null
           status: string
           title: string
           type: string | null
@@ -2272,6 +2273,7 @@ export type Database = {
           priority?: number
           profile_id: string
           release?: string | null
+          started_at?: string | null
           status?: string
           title: string
           type?: string | null
@@ -2288,6 +2290,7 @@ export type Database = {
           priority?: number
           profile_id?: string
           release?: string | null
+          started_at?: string | null
           status?: string
           title?: string
           type?: string | null

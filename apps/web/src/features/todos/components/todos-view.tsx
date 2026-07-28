@@ -80,6 +80,12 @@ export function TodosView({
               // décroissant — un doneAt absent partirait en queue, donc la carte déposée dans
               // « Terminé » atterrirait en bas puis sauterait en tête au rafraîchissement serveur.
               doneAt: move.status === 'done' ? new Date().toISOString() : null,
+              // Miroir du trigger 0086 : posé à la première entrée en « En cours »,
+              // monotone ensuite — jamais effacé (le retour en « À faire » n'existe plus).
+              startedAt:
+                move.status === 'in_progress' && !t.startedAt
+                  ? new Date().toISOString()
+                  : t.startedAt,
             }
           : t,
       ),
@@ -164,13 +170,13 @@ export function TodosView({
     return res.error // string → le ConfirmDialog reste ouvert et affiche l'erreur
   }
   // Ajout rapide : défauts priorité moyenne, sans type ni release — ces champs restent dans le
-  // dialog complet. Le STATUT vient de la section où le champ a été rempli (chaque panneau de
-  // TodosList a son propre « + Créer ») — pas de défaut caché ici, sinon une tâche créée depuis
-  // « En cours » naîtrait « À faire ». Pas d'état optimiste dédié : `createTodo` revalide le
-  // path au succès, la nouvelle ligne arrive avec le prochain rendu serveur.
-  const quickAdd = async (title: string, status: TodoStatus) => {
+  // dialog complet. Le statut n'est plus porté par la section (une seule section a un
+  // « + Créer », cf. TodosList) : une tâche créée par ajout rapide naît toujours « À faire ».
+  // Pas d'état optimiste dédié : `createTodo` revalide le path au succès, la nouvelle ligne
+  // arrive avec le prochain rendu serveur.
+  const quickAdd = async (title: string) => {
     const res = await createTodo({
-      profileId, title, description: null, type: null, priority: 2, release: null, status,
+      profileId, title, description: null, type: null, priority: 2, release: null, status: 'todo',
     })
     if (res.success) await onChanged?.()
     return res
@@ -217,6 +223,9 @@ export function TodosView({
             (ToggleGroup, List/Columns3, TodosBoard) en tête de fichier. Rien d'autre à
             reconstruire : `todos-board.tsx`, `todo-card.tsx`, `todo-column.tsx`, la dépendance
             dnd-kit, le cookie `todos_affichage` et `setAffichage` sont intacts.
+
+            ⚠️ À la réactivation : filtrer les cibles de drag selon la matrice de transitions
+            (spec 2026-07-28-todos-dates) — plus de retour en « À faire ».
 
         <ToggleGroup
           className="ml-auto"

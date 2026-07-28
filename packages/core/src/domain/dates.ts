@@ -91,6 +91,28 @@ export const frDateTimeParis = (iso: string): string =>
     timeZone: 'Europe/Paris',
   })
 
+/** « 12/07 » — jour/mois courts fr d'un timestamptz, fuseau Europe/Paris (même piège de TZ
+ *  serveur que `frDateTimeParis` : jamais la TZ de Vercel). */
+export const frDayMonthParis = (iso: string): string =>
+  new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    timeZone: 'Europe/Paris',
+  })
+
+/**
+ * Jours CALENDAIRES Europe/Paris entre deux instants — 0 = même jour Paris, négatif si `to`
+ * précède `from`. PAS des blocs de 24 h : à minuit Paris le compteur avance, quel que soit
+ * l'écart en heures. Réutilise `todayParis` (en-CA → YYYY-MM-DD) pour projeter chaque
+ * instant sur son jour Paris.
+ */
+export function daysBetweenParis(fromIso: string, toIso: string): number {
+  const day = (iso: string): string => todayParis(new Date(iso))
+  return Math.round(
+    (Date.parse(`${day(toIso)}T00:00:00Z`) - Date.parse(`${day(fromIso)}T00:00:00Z`)) / 86_400_000,
+  )
+}
+
 /** « 16:05 » — heure courte fr, fuseau LOCAL (affichage client d'un timestamptz). */
 export const frTimeShort = (iso: string): string =>
   new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })

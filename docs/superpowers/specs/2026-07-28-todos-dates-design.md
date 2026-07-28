@@ -71,13 +71,34 @@ réactivation, le drag devra filtrer les cibles selon la même matrice.
 - Le client ne peut **jamais** écrire ces dates : le trigger recalcule tout, comme aujourd'hui.
 - Aucune RLS à toucher. `packages/db/src/types.ts` à mettre à jour (colonne ajoutée).
 
+**Durcissement `0087_todos_dates_hardening.sql`** (revue de branche finale, deux failles trouvées
+dans la formule ci-dessus) :
+- `started_at` — la règle devient GATÉE sur l'entrée réelle en « En cours », pas sur toute
+  écriture d'une ligne déjà `in_progress` (sinon corriger le TITRE d'une tâche héritée
+  d'avant 0086, encore en cours et sans `started_at`, lui fabriquait un chrono ancré sur
+  l'édition) :
+  ```sql
+  new.started_at := coalesce(
+    case when tg_op = 'UPDATE' then old.started_at end,
+    case
+      when new.status = 'in_progress'
+       and (tg_op = 'INSERT' or old.status <> 'in_progress')
+      then now()
+    end
+  );
+  ```
+- `done_at` — `0087` retire `new.done_at` du coalesce (`old.done_at` est toujours null à
+  l'entrée en « done », donc le `new.done_at` fourni par le client passait systématiquement :
+  un `done_at` antidaté via PostgREST direct restait possible). Après `0087`, le client ne peut
+  plus écrire AUCUNE des dates de vie de la tâche — le trigger les recalcule toutes.
+
 ## 5. Affichage — zone méta de `todo-row`, avant l'auteur
 
 | Section | Affiché | Donnée absente (tâches d'avant la migration) |
 |---|---|---|
 | À faire | `ajouté le 12/07` | — (`created_at` existe toujours) |
 | En cours | `depuis 3 j` · à J0 : `depuis aujourd'hui` | rien (pas de `started_at`) |
-| Terminé | `12/07 → 15/07 · 3 j` (début → fin · jours en cours) | sans `started_at` : `fini le 15/07` ; sans `done_at` (impossible en pratique, le trigger le pose) : rien |
+| Terminé | `12/07 → 15/07 · 3 j` (début → fin · jours en cours) ; même jour Paris : durée en **heures** (`fini le 12/07 · 3 h`, arrondies ; sous l'heure : `moins d'1 h` — décision Benoit à la livraison) | sans `started_at` : `fini le 15/07` ; sans `done_at` (impossible en pratique, le trigger le pose) : rien |
 
 - Les « 3 j » comptent **uniquement le temps passé en « En cours »** (`started_at → done_at`) —
   jamais l'attente en « À faire ».

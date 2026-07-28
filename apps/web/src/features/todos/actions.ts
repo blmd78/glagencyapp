@@ -138,7 +138,25 @@ export async function setTodoStatus(raw: unknown): Promise<ActionResult> {
       const res = await requireCanWriteTodo(values.profileId)
       if ('error' in res) throw new BusinessError(res.error)
       const supabase = await createClient()
-      // done_at et updated_at sont posés par le trigger todos_touch (0067).
+      // done_at, started_at et updated_at sont posés par le trigger todos_touch (0067/0086).
+      // Sens unique (spec 2026-07-28-todos-dates) : une tâche sortie de « À faire » n'y
+      // revient jamais — revenir remettrait le chrono à zéro. Lecture préalable pour un
+      // message métier propre ; la fenêtre lecture→écriture est couverte par le trigger
+      // 0086, qui lève sur la même transition (enforcement réel — ici on ne fait que
+      // choisir le message).
+      if (values.status === 'todo') {
+        const { data: current, error: readError } = await supabase
+          .from('todos')
+          .select('status')
+          .eq('id', values.id)
+          .eq('profile_id', values.profileId)
+          .maybeSingle()
+        if (readError) throw new Error(readError.message)
+        if (!current) throw new BusinessError('Cette tâche n’existe plus ou n’a pas pu être modifiée.')
+        if (current.status !== 'todo') {
+          throw new BusinessError('Une tâche commencée ne revient pas dans « À faire ».')
+        }
+      }
       // Même raisonnement que updateTodo : 0-row = cas métier (tâche déjà supprimée / carte
       // périmée), pas une race technique → BusinessError.
       const { data, error } = await supabase
