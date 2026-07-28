@@ -93,6 +93,8 @@ export function ComptaPayslip({
             periodStart={period.start}
             periodLabel={period.label}
             initial={row.periodEntry}
+            monthlyPrimePaid={row.monthlyPrimePaid}
+            monthlyPrimeElsewhere={row.monthlyPrimeElsewhere}
           />
         </div>
       )}

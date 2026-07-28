@@ -1,4 +1,4 @@
-import { daysIn, mondaysIn, type PayPeriod } from '@glagency/core'
+import { daysIn, mondaysIn, monthOfPeriod, periodsOfMonth, type PayPeriod } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -21,43 +21,6 @@ interface CcdRow {
 }
 
 /**
- * Options du dialog « Relier à MyPuls » : les chatteurs MyPuls ENCORE LIBRES, c'est-à-dire
- * qu'aucun `profiles.chatter_id` ne réclame déjà. Proposer les autres n'offrirait que des
- * refus — `applyChatterLink` (lib/chatter-link.ts) rejette un chatteur déjà pris.
- *
- * ⚠️ APPELÉE UNIQUEMENT POUR UN ADMIN (cf. `get-compta.ts`), même motif que
- * `get-members.ts` : c'est une liste AGENCE-WIDE lue par client admin, hors de tout
- * périmètre RLS, et poser le lien est admin-seul (`applyChatterLink` + `adminGuard`). Un
- * manager ne doit pas la recevoir dans son payload.
- *
- * `fetchAll` sur les deux lectures : PostgREST tronque à 1000 lignes EN SILENCE (CLAUDE.md,
- * guidelines-data-loading §2). 318 chatteurs mesurés sur l'UAT le 2026-07-27 — sous le
- * plafond aujourd'hui, mais la table grossit à chaque nouveau chatteur MyPuls, et tronquée
- * elle ferait DISPARAÎTRE des options sans une seule erreur. `.order('id')` = la PK →
- * pagination déterministe (l'ordre d'affichage est refait par nom plus bas).
- */
-export async function loadLinkableChatters(): Promise<{ id: string; name: string }[]> {
-  const admin = createAdminClient()
-  const [{ data: chatters, error: chattersErr }, { data: linked, error: linkedErr }] =
-    await Promise.all([
-      fetchAll<{ id: string; display_name: string | null }>((f, t) =>
-        admin.from('chatters').select('id, display_name').order('id').range(f, t),
-      ),
-      fetchAll<{ chatter_id: string | null }>((f, t) =>
-        admin.from('profiles').select('chatter_id').not('chatter_id', 'is', null).order('id').range(f, t),
-      ),
-    ])
-  if (chattersErr) throw new Error(chattersErr.message)
-  if (linkedErr) throw new Error(linkedErr.message)
-
-  const taken = new Set((linked ?? []).map((p) => p.chatter_id))
-  return (chatters ?? [])
-    .filter((c) => c.display_name && !taken.has(c.id))
-    .map((c) => ({ id: c.id, name: c.display_name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
-}
-
-/**
  * `memberId` restreint la population à UN membre (recalcul serveur d'un paiement). Les autres
  * lectures ne sont PAS restreintes : la couverture et la prime raisonnent sur l'historique
  * complet des paiements, et le filtrage par membre se fait de toute façon ligne par ligne.
@@ -74,6 +37,12 @@ export async function loadComptaSources({
   const mondays = mondaysIn(period)
   const from = period.start
   const to = period.end
+  // Le MOIS de la période affichée (celui de son lundi de départ) et les 2 ou 3 périodes qui lui
+  // sont rattachées. Ils ne servent qu'à UNE chose ici : savoir si la prime du mois a déjà été
+  // saisie sur une AUTRE période du même mois, pour le dire dans la fiche AVANT que l'utilisateur
+  // la retape (0092 la refuserait, mais un refus vaut moins qu'un avertissement).
+  const monthPeriods = periodsOfMonth(monthOfPeriod(period))
+  const monthPeriodStarts = monthPeriods.map((p) => p.start)
 
   // La population vient de `profiles` (rôle chatteur), pas de `chatters` : c'est le MEMBRE
   // qu'on paie (0085). 96 lignes sur l'UAT — loin du plafond PostgREST.
@@ -161,12 +130,18 @@ export async function loadComptaSources({
     // la prime du mois (`PRIME TOP3 MOIS`). Sous RLS, comme ses deux sœurs de saisie : admin →
     // tout, encadrement → ses rattachés.
     //
+    // TOUTES LES PÉRIODES DU MOIS, et non la seule période affichée (2026-07-28) : la prime du
+    // mois est un montant MENSUEL saisi sur une période, et l'app doit pouvoir dire « elle est
+    // déjà sur l'autre période de juillet » plutôt que de laisser l'utilisateur la retaper et se
+    // faire refuser par l'index unique 0092. Le CALCUL, lui, ne retient que la période affichée
+    // (`periodEntryById` ci-dessous) — le report et la prime n'entrent dans le net que là où ils
+    // sont saisis.
+    //
     // Pas de `fetchAll`, et c'est borné par la CLÉ : la PK est `(chatter_id, period_start)`, donc
-    // au plus UNE ligne par membre sur la période filtrée — 96 lignes mesurées comme population
-    // sur l'UAT, très loin du plafond de 1000. Même raisonnement que `compta_settings`
-    // ci-dessus, qui est clée par membre. Le plafond ne serait atteint qu'au-delà de 1000
-    // chatteurs, où c'est toute la page qu'il faudrait paginer.
-    supabase.from('compta_period_entries').select('*').eq('period_start', period.start),
+    // au plus UNE ligne par membre et par période — 3 × 96 = 288 lignes au pire (un mois civil
+    // contient au plus 3 périodes, `periodsOfMonth`), loin du plafond de 1000. Le plafond ne
+    // serait atteint qu'au-delà de 333 chatteurs, où c'est toute la page qu'il faudrait paginer.
+    supabase.from('compta_period_entries').select('*').in('period_start', monthPeriodStarts),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (settingsErr) throw new Error(settingsErr.message)
@@ -260,10 +235,27 @@ export async function loadComptaSources({
      *  rend les `numeric` en nombre, mais la conversion est explicite partout ailleurs dans ce
      *  fichier — un `numeric` sérialisé en chaîne concaténerait au lieu d'additionner. */
     periodEntryById: new Map(
-      (periodEntries ?? []).map((p) => [
-        p.chatter_id,
-        { carryover: Number(p.carryover), top3Prime: Number(p.top3_prime) },
-      ]),
+      (periodEntries ?? [])
+        .filter((p) => p.period_start === period.start)
+        .map((p) => [
+          p.chatter_id,
+          { carryover: Number(p.carryover), top3Prime: Number(p.top3_prime) },
+        ]),
+    ),
+    /** Prime du mois saisie sur une AUTRE période du même mois, par membre — l'avertissement de
+     *  la fiche. Au plus une (index unique 0092), d'où le `Map` et non une liste. */
+    monthlyPrimeElsewhereById: new Map(
+      (periodEntries ?? [])
+        .filter((p) => p.period_start !== period.start && Number(p.top3_prime) > 0)
+        .map((p) => [
+          p.chatter_id,
+          {
+            periodStart: p.period_start,
+            periodLabel:
+              monthPeriods.find((x) => x.start === p.period_start)?.label ?? p.period_start,
+            amount: Number(p.top3_prime),
+          },
+        ]),
     ),
     /** CA de la période par chatteur MyPuls, ventilé par NOM de modèle. */
     caByChatter,

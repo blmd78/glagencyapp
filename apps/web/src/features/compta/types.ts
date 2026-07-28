@@ -1,4 +1,4 @@
-import { round2, type PayPeriod, type Payslip, type SetterScaleRow } from '@glagency/core'
+import { round2, type PayMonth, type PayPeriod, type Payslip, type SetterScaleRow } from '@glagency/core'
 
 /** Une sanction Police rattachée à la période — affichée avec son motif. */
 export interface ComptaSanction {
@@ -37,6 +37,14 @@ export interface ComptaRow {
    *  la fiche. `carryover` est SIGNÉ (un trop-perçu se reporte en négatif), `top3Prime` non.
    *  Jamais `null` : une ligne absente vaut les défauts de ses colonnes, c'est-à-dire 0 et 0. */
   periodEntry: { carryover: number; top3Prime: number }
+  /** Une prime DU MOIS a déjà été VERSÉE à ce membre pour le mois de la période affichée
+   *  (instantané `compta_payments.monthly_prime_amount`, cf. `coverage.monthlyPrimePaid`). Le
+   *  net l'exclut alors, même si `periodEntry.top3Prime` est renseignée : c'est le garde contre
+   *  le double versement, et la fiche doit dire pourquoi la ligne a disparu. */
+  monthlyPrimePaid: boolean
+  /** Prime du mois saisie sur une AUTRE période du MÊME mois — au plus une (index unique 0092).
+   *  Sert à prévenir AVANT la saisie plutôt qu'à refuser après. `null` = rien ailleurs. */
+  monthlyPrimeElsewhere: { periodStart: string; periodLabel: string; amount: number } | null
   /** Rang du membre au classement setter de la période, ou `null` s'il n'a aucun handoff (donc
    *  aucune prime). Le MONTANT, lui, est dans `payslip.setterPrime` : il entre dans le net comme
    *  les autres composantes, et c'est lui qui est figé au paiement. */
@@ -103,6 +111,48 @@ export interface ComptaData {
   /** Le barème du TOP15 (`compta_setter_scale`) — affiché sous le classement, éditable par
    *  l'admin seul (`canConfigure`). */
   setterScale: SetterScaleRow[]
+}
+
+/**
+ * Une ligne du RÉCAP MENSUEL — le bloc de fin de mois de la feuille (`Total Mois`,
+ * `Nbre de handoff-🤝 / Mois`, `PRIME TOP15 SETTER`, `PRIME TOP3 MOIS`).
+ *
+ * ⚠️ DEUX GRAINS COHABITENT ICI, et les confondre fausserait les chiffres :
+ *  - `ca` et `handoffs` sont des agrégats du MOIS CIVIL (1er → dernier jour) — c'est la seule
+ *    définition possible d'un total qu'on appelle « du mois » ;
+ *  - `setterPrime` et `monthlyPrime` sont des montants de PÉRIODE, sommés sur les 2 ou 3
+ *    périodes RATTACHÉES au mois (celles dont le lundi de départ y tombe).
+ * Les deux ne couvrent donc pas exactement les mêmes jours, et l'écran le dit.
+ */
+export interface MoisRow {
+  /** `profiles.id`. */
+  id: string
+  name: string
+  /** CA du mois civil (`chatter_creator_daily`). `null` = membre non relié à MyPuls : aucun CA
+   *  n'est calculable, et un 0 € le ferait passer pour non rémunérable (spec §7). */
+  ca: number | null
+  /** Handoffs du mois : saisies JOUR par leur date + saisies SEMAINE par le mois de leur LUNDI
+   *  (une semaine n'est jamais découpée, cf. `mondaysOfMonth`). */
+  handoffs: number
+  /** Σ des primes du classement setter sur les périodes rattachées au mois. */
+  setterPrime: number
+  /** Prime du mois saisie (`top3_prime`) — au plus une par mois depuis l'index 0092. */
+  monthlyPrime: number
+  /** Libellé de la période qui la porte, `null` si aucune. Affiché avec le montant : sans lui,
+   *  une prime mensuelle vue dans un tableau mensuel n'a pas de point de saisie identifiable. */
+  monthlyPrimePeriod: string | null
+}
+
+export interface MoisData {
+  /** Mois affiché — déduit de la période choisie (mois de son lundi de départ). */
+  month: PayMonth
+  /** Les 2 ou 3 périodes de paie rattachées à ce mois. */
+  periods: PayPeriod[]
+  /** Membres ayant une activité sur le mois (CA, handoff ou prime), CA décroissant. */
+  rows: MoisRow[]
+  /** Membres visibles SANS aucune activité sur le mois — comptés et annoncés plutôt que
+   *  silencieusement absents (96 lignes de zéros ne se lisent pas). */
+  idleCount: number
 }
 
 /** Une prime d'embauche ÉCHUE et NON VERSÉE — onglet Suivi (« SUIVI PRIMES NVX CHATTEURS »). */

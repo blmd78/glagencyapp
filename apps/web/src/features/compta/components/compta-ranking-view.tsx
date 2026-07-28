@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useTransition, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import type { PayPeriod, SetterScaleRow } from '@glagency/core'
@@ -11,8 +11,20 @@ import { SECTION_HEAD, COL_HEAD } from './compta-payslip-calc'
 import type { SetterRankingRow } from '../types'
 
 /**
- * Onglet CLASSEMENT — le TOP setter de la période (`CLASSEMENT SETTER` de la feuille) : rang,
- * nom, handoffs, prime. Plus le BARÈME, éditable par l'admin seul.
+ * Onglet CLASSEMENT — TROIS SECTIONS sous un seul sélecteur : le RÉCAP DU MOIS (reçu en prop,
+ * rendu côté serveur par `ComptaMonthView`), le TOP setter de la PÉRIODE (`CLASSEMENT SETTER` de
+ * la feuille : rang, nom, handoffs, prime), et le BARÈME, éditable par l'admin seul.
+ *
+ * ── UN SEUL SÉLECTEUR POUR DEUX GRAINS ───────────────────────────────────────────────────────
+ * Le mois affiché par le récap se DÉDUIT de la période choisie (mois de son lundi de départ,
+ * `monthOfPeriod`) — il n'a pas son propre sélecteur. Deux sélecteurs auraient créé deux notions
+ * de « quel mois ? », dont l'une pourrait contredire celle qui garde l'argent (l'index unique
+ * 0092 et `coverage.monthlyPrimePaid` raisonnent tous deux sur le mois du lundi de départ). Le
+ * sélecteur reste donc au-dessus des trois sections, seul en tête.
+ *
+ * ORDRE VOULU : le mois d'abord, parce que le classement et son barème forment une PAIRE — l'un
+ * se lit avec l'autre — et que s'intercaler entre eux les séparerait, tandis que se poser après
+ * le barème mettrait de la donnée sous un bloc de réglages.
  *
  * ── CE QUE LE RANG SIGNIFIE, ET POURQUOI IL PEUT SAUTER ──────────────────────────────────────
  * Le classement est calculé sur TOUTE L'AGENCE (`services/setter-ranking.ts`) — c'est le sens
@@ -39,6 +51,7 @@ export function ComptaRankingView({
   period,
   choices,
   canConfigure,
+  mois,
 }: {
   ranking: SetterRankingRow[]
   scale: SetterScaleRow[]
@@ -48,6 +61,11 @@ export function ComptaRankingView({
    *  Ne monte que l'édition du barème ; la RLS `compta_setter_scale_admin_write` (0090) et
    *  `adminGuard` restent le verrou réel. */
   canConfigure: boolean
+  /** Le RÉCAP DU MOIS (`ComptaMonthView`), rendu côté serveur et passé en prop — il n'a besoin
+   *  d'aucune interactivité, seulement d'être SOUS le sélecteur de période, dont il dérive son
+   *  mois. Même patron que `ComptaTabs`, qui reçoit ses trois onglets en `ReactNode`. Il hérite
+   *  ainsi de l'opacité de transition : changer de période change aussi le mois affiché. */
+  mois: ReactNode
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -62,49 +80,55 @@ export function ComptaRankingView({
   const total = ranking.reduce((s, r) => s + r.amount, 0)
 
   return (
-    <div className={pending ? 'flex flex-col gap-6 opacity-60' : 'flex flex-col gap-6'}>
-      <div className="flex flex-wrap items-center gap-3">
+    <div className={pending ? 'flex flex-col gap-8 opacity-60' : 'flex flex-col gap-8'}>
+      {/* Le sélecteur commande les DEUX sections : la période pour le classement, et le mois de
+          son lundi de départ pour le récap. Il reste donc seul en tête, sans phrase à côté — la
+          phrase d'explication du classement est descendue dans sa propre section. */}
+      <div className="flex items-center gap-2 self-end">
+        <span className="text-sm text-muted-foreground">Période :</span>
+        <Combobox
+          value={period.start}
+          onChange={select}
+          disabled={pending}
+          className="w-72"
+          searchPlaceholder="Rechercher une période…"
+          options={choices.map((p) => ({ value: p.start, label: p.label }))}
+        />
+      </div>
+
+      {mois}
+
+      <div className="flex flex-col gap-2">
+        <span className={SECTION_HEAD}>Classement setter — {period.label}</span>
         <p className="text-sm text-muted-foreground">
           Classement sur les handoffs saisis dans l&apos;app, toute l&apos;agence — le rang peut
           sauter des numéros si tu ne vois qu&apos;une partie des chatters.
         </p>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Période :</span>
-          <Combobox
-            value={period.start}
-            onChange={select}
-            disabled={pending}
-            className="w-72"
-            searchPlaceholder="Rechercher une période…"
-            options={choices.map((p) => ({ value: p.start, label: p.label }))}
-          />
-        </div>
+        {ranking.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Aucun handoff saisi sur cette période — personne n&apos;est classé, et aucune prime
+            setter n&apos;entre dans les fiches.
+          </p>
+        ) : (
+          <div className="grid grid-cols-[3rem_1fr_auto_auto] items-center gap-x-6 gap-y-1.5 text-sm">
+            <span className={COL_HEAD}>Rang</span>
+            <span className={COL_HEAD}>Chatteur</span>
+            <span className={`${COL_HEAD} text-right`}>Handoffs</span>
+            <span className={`${COL_HEAD} text-right`}>Prime</span>
+
+            {ranking.map((r) => (
+              <RankingLine key={r.id} row={r} />
+            ))}
+
+            <span className="border-t pt-1.5 font-medium" />
+            <span className="border-t pt-1.5 font-medium">Total</span>
+            <span className="border-t pt-1.5 text-right font-medium tabular-nums">
+              {ranking.reduce((s, r) => s + r.handoffs, 0)}
+            </span>
+            <span className="border-t pt-1.5 text-right font-medium tabular-nums">{eur2(total)}</span>
+          </div>
+        )}
       </div>
-
-      {ranking.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Aucun handoff saisi sur cette période — personne n&apos;est classé, et aucune prime
-          setter n&apos;entre dans les fiches.
-        </p>
-      ) : (
-        <div className="grid grid-cols-[3rem_1fr_auto_auto] items-center gap-x-6 gap-y-1.5 text-sm">
-          <span className={COL_HEAD}>Rang</span>
-          <span className={COL_HEAD}>Chatteur</span>
-          <span className={`${COL_HEAD} text-right`}>Handoffs</span>
-          <span className={`${COL_HEAD} text-right`}>Prime</span>
-
-          {ranking.map((r) => (
-            <RankingLine key={r.id} row={r} />
-          ))}
-
-          <span className="border-t pt-1.5 font-medium" />
-          <span className="border-t pt-1.5 font-medium">Total</span>
-          <span className="border-t pt-1.5 text-right font-medium tabular-nums">
-            {ranking.reduce((s, r) => s + r.handoffs, 0)}
-          </span>
-          <span className="border-t pt-1.5 text-right font-medium tabular-nums">{eur2(total)}</span>
-        </div>
-      )}
 
       <div className="flex flex-col gap-2">
         <span className={SECTION_HEAD}>Barème du TOP setter</span>

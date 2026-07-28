@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { requireAccess, hasWriteAccess } from '@/lib/auth'
 import { getCompta } from '@/features/compta/services/get-compta'
+import { getMois } from '@/features/compta/services/get-mois'
 import { getSuivi } from '@/features/compta/services/get-suivi'
 import { ComptaTemplate } from '@/features/compta/ComptaTemplate'
 import { ComptaClassementTemplate } from '@/features/compta/ComptaClassementTemplate'
@@ -8,7 +9,7 @@ import { ComptaSuiviTemplate } from '@/features/compta/ComptaSuiviTemplate'
 import { ComptaSkeleton } from '@/features/compta/components/compta-skeleton'
 import { ComptaTabs, type ComptaVue } from '@/features/compta/components/compta-tabs'
 import { RowsSkeleton } from '@/components/skeletons/rows-skeleton'
-import type { ComptaData, SuiviData } from '@/features/compta/types'
+import type { ComptaData, MoisData, SuiviData } from '@/features/compta/types'
 
 /**
  * Compta = paie des chatteurs, par PÉRIODE DE 14 JOURS calée sur les lundis (26 par an).
@@ -53,6 +54,10 @@ export default async function ComptaPage({
   // Kickoff SANS await : le h1 et la barre d'onglets s'affichent immédiatement, le contenu
   // streame dans son boundary quand la lecture répond (guidelines-standard-feature §2.2).
   const data = vue === 'suivi' ? null : getCompta({ debut })
+  // Le RÉCAP MENSUEL n'est chargé que pour l'onglet qui l'affiche. Le fondre dans `getCompta`
+  // l'aurait fait payer à l'onglet Période — et surtout au RECALCUL SERVEUR de chaque paiement,
+  // qui rejoue `loadComptaRows` fiche par fiche (`actions-pay.ts`).
+  const mois = vue === 'classement' ? getMois({ debut }) : null
   const suivi = vue === 'suivi' ? getSuivi() : null
 
   return (
@@ -73,9 +78,9 @@ export default async function ComptaPage({
           ) : null
         }
         classement={
-          data && vue === 'classement' ? (
+          data && mois ? (
             <Suspense fallback={<RowsSkeleton count={8} />}>
-              <ClassementTab data={data} canConfigure={canConfigure} />
+              <ClassementTab data={data} mois={mois} canConfigure={canConfigure} />
             </Suspense>
           ) : null
         }
@@ -114,12 +119,17 @@ async function PeriodeTab({
 
 async function ClassementTab({
   data,
+  mois,
   canConfigure,
 }: {
   data: Promise<ComptaData>
+  mois: Promise<MoisData>
   canConfigure: boolean
 }) {
-  return <ComptaClassementTemplate data={await data} canConfigure={canConfigure} />
+  // `Promise.all` et non deux `await` en série : les deux lectures sont indépendantes, et les
+  // enchaîner doublerait le temps d'ouverture de l'onglet.
+  const [d, m] = await Promise.all([data, mois])
+  return <ComptaClassementTemplate data={d} mois={m} canConfigure={canConfigure} />
 }
 
 async function SuiviTab({

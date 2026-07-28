@@ -2,6 +2,7 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { eur2 } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { ENTRY_GRID_COLS, EntryField, EntryStatus } from './compta-entry-grid'
 import { COL_HEAD } from './compta-payslip-calc'
@@ -36,6 +37,8 @@ export function ComptaPeriodForm({
   periodStart,
   periodLabel,
   initial,
+  monthlyPrimePaid,
+  monthlyPrimeElsewhere,
 }: {
   chatterId: string
   periodStart: string
@@ -43,6 +46,10 @@ export function ComptaPeriodForm({
    *  d'écran, jamais recalculé ici. */
   periodLabel: string
   initial: { carryover: number; top3Prime: number }
+  /** La prime du mois a DÉJÀ été versée à ce chatteur pour le mois de cette période. */
+  monthlyPrimePaid: boolean
+  /** Elle est saisie sur une AUTRE période du même mois. */
+  monthlyPrimeElsewhere: { periodLabel: string; amount: number } | null
 }) {
   'use no memo'
 
@@ -107,10 +114,32 @@ export function ComptaPeriodForm({
 
       {/* Le report est le SEUL montant signé de la saisie : le dire là où on le tape, sinon
           personne ne devine qu'un trop-perçu s'écrit en négatif (la colonne, elle, l'accepte —
-          migration 0090). */}
+          migration 0090). La prime du mois, elle, est le seul montant MENSUEL de la saisie : le
+          dire aussi, sinon rien ne distingue à l'œil un champ « par période » d'un champ « par
+          mois » côte à côte — et c'est exactement l'erreur qui la ferait verser deux fois. */}
       <p className="text-xs text-muted-foreground">
         Report : reliquat de la période précédente — négatif pour un trop-perçu à récupérer.
+        Prime du mois : montant MENSUEL, à saisir sur une seule des périodes du mois.
       </p>
+
+      {/* Les deux cas où une prime du mois SAISIE ici n'entrerait pas dans le net, dits AVANT la
+          frappe. Sans eux, le champ se remplirait et la ligne « Prime du mois » n'apparaîtrait
+          pas dans le calcul juste en dessous, sans un mot — ou l'enregistrement partirait pour
+          revenir en `23505`. Ambre et non rouge : rien n'est cassé, c'est une information. */}
+      {monthlyPrimePaid ? (
+        <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+          Prime du mois déjà VERSÉE à ce chatteur pour ce mois — un montant saisi ici n&apos;entrera
+          pas dans le net, et la saisie sera refusée.
+        </p>
+      ) : (
+        monthlyPrimeElsewhere && (
+          <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+            Prime du mois déjà saisie sur la période {monthlyPrimeElsewhere.periodLabel} (
+            {eur2(monthlyPrimeElsewhere.amount)}) — c&apos;est un montant mensuel. Remets-la à 0
+            là-bas avant de la déplacer ici.
+          </p>
+        )
+      )}
     </>
   )
 }

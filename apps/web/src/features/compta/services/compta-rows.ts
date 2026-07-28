@@ -1,4 +1,4 @@
-import { computePayslip, type PayPeriod, type SetterScaleRow } from '@glagency/core'
+import { computePayslip, monthOfPeriod, type PayPeriod, type SetterScaleRow } from '@glagency/core'
 import { buildCoverage, type Coverage } from './coverage'
 import { loadComptaSources } from './compta-sources'
 import { loadSetterRanking } from './setter-ranking'
@@ -65,6 +65,9 @@ export async function loadComptaRows({
     loadSetterRanking(period),
   ])
   const daySet = new Set(src.days)
+  // Mois de la période affichée (celui de son lundi de départ) — la clé du garde anti-double
+  // versement de la prime DU MOIS, ci-dessous.
+  const monthKey = monthOfPeriod(period).key
 
   // Jours couverts par membre, primes déjà versées, et « cette période le concerne-t-elle ? » —
   // un seul regroupement sur `payments` (au lieu de le refiltrer pour chaque ligne). Le détail
@@ -144,6 +147,25 @@ export async function loadComptaRows({
     const entry = src.periodEntryById.get(m.id)
     const setterRank = ranking.byMember.get(m.id) ?? null
 
+    // ── LA PRIME DU MOIS NE SE VERSE QU'UNE FOIS PAR MOIS ───────────────────────────────────
+    // Un mois civil contient 2 OU 3 périodes de 14 jours (`periodsOfMonth`), et `top3_prime` se
+    // saisit PAR PÉRIODE : sans garde, la même prime mensuelle peut partir deux fois.
+    //
+    // DEUX VERROUS, et il en faut deux :
+    //  1. l'index unique 0092 interdit de la SAISIR sur deux périodes du même mois ;
+    //  2. celui-ci interdit de la VERSER une seconde fois — ce que l'index ne peut pas voir :
+    //     rien n'empêche de payer la période 1, de remettre sa saisie à 0, puis de saisir la
+    //     prime sur la période 2 du même mois. La saisie a bougé, le PAIEMENT non.
+    //
+    // Source de vérité : l'instantané figé `compta_payments.monthly_prime_amount`, jamais la
+    // saisie — exactement le raisonnement de `coverage.primePaid` pour la prime d'embauche
+    // (cf. `coverage.ts`). Conséquence assumée, identique à celle de la prime d'embauche : sur
+    // une période DÉJÀ payée, le net recalculé n'affiche plus cette prime, alors que
+    // l'instantané, lui, l'a bien versée — c'est l'instantané qui fait foi, et la fiche le dit
+    // déjà (« Payé le … — X € »).
+    const monthlyPrimePaid = coverage.monthlyPrimePaid.get(m.id)?.has(monthKey) ?? false
+    const monthlyPrime = monthlyPrimePaid ? 0 : (entry?.top3Prime ?? 0)
+
     const payslip = computePayslip({
       rate: Number(s?.rate ?? 10),
       // Défauts de la colonne quand le membre n'a jamais été réglé : 10 % et aucun fixe.
@@ -156,7 +178,7 @@ export async function loadComptaRows({
       sanctions: sancRows.reduce((t, x) => t + x.amount, 0),
       carryover: entry?.carryover ?? 0,
       setterPrime: setterRank?.amount ?? 0,
-      monthlyPrime: entry?.top3Prime ?? 0,
+      monthlyPrime,
     })
 
     // Couverture : la période est payée si CHACUN de ses jours figure dans un `covered_days`.
@@ -186,6 +208,11 @@ export async function loadComptaRows({
       // = deux zéros, jamais `null` : le formulaire a besoin d'un nombre, et 0 est exactement ce
       // que la ligne vaut tant qu'elle n'existe pas (défauts de colonne, 0090).
       periodEntry: entry ?? { carryover: 0, top3Prime: 0 },
+      // Les deux raisons pour lesquelles une prime du mois SAISIE peut ne pas entrer dans ce net
+      // — la fiche les affiche, sans quoi le champ rempli et la ligne absente se contrediraient
+      // en silence.
+      monthlyPrimePaid,
+      monthlyPrimeElsewhere: src.monthlyPrimeElsewhereById.get(m.id) ?? null,
       // Le rang, pour que la fiche puisse écrire « Prime setter — rang 6 » plutôt qu'un montant
       // sans provenance. `null` = pas classé (aucun handoff sur la période).
       setterRank: setterRank ? { rank: setterRank.rank, handoffs: setterRank.handoffs } : null,

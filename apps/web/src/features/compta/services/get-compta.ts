@@ -1,7 +1,7 @@
 import { recentPeriods, todayParis, type PayPeriod } from '@glagency/core'
 import { getProfile } from '@/lib/auth'
 import { loadComptaRows } from './compta-rows'
-import { loadLinkableChatters } from './compta-sources'
+import { loadLinkableChatters } from './linkable-chatters'
 import { overduePeriods } from './coverage'
 import type { ComptaData } from '../types'
 

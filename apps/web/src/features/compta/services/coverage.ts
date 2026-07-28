@@ -1,4 +1,4 @@
-import { daysIn, type PayPeriod } from '@glagency/core'
+import { daysIn, monthOf, type PayPeriod } from '@glagency/core'
 
 /**
  * Couverture des périodes : qui a été payé de quoi, qui était déjà arrivé, et quelles périodes
@@ -12,6 +12,10 @@ interface PaymentLike {
   chatter_id: string
   covered_days: string[] | null
   prime_amount: number
+  /** Lundi de départ de la période payée (0088) — il donne le MOIS du paiement. */
+  period_start: string
+  /** Prime du mois FIGÉE au virement (0091). */
+  monthly_prime_amount: number
 }
 
 /** Sous-ensemble de `profiles` : l'id du membre et son lien MyPuls. */
@@ -25,6 +29,19 @@ export interface Coverage {
   daysByMember: Map<string, Set<string>>
   /** Membres dont une prime est DÉJÀ partie. */
   primePaid: Set<string>
+  /**
+   * Mois (clé « 2026-07 ») pour lesquels une PRIME DU MOIS a déjà été versée, par membre.
+   *
+   * MÊME RÔLE ET MÊME SOURCE DE VÉRITÉ QUE `primePaid` : l'instantané figé au virement
+   * (`compta_payments.monthly_prime_amount`), jamais la saisie. C'est le garde qui ferme le trou
+   * que l'index unique de 0092 ne peut pas fermer — payer la période 1 de juillet, remettre sa
+   * saisie à 0, puis saisir la prime sur la période 2 du même mois. La saisie a bougé, le
+   * paiement non : lui existe ou n'existe pas.
+   *
+   * Le mois d'un paiement est celui de sa `period_start` (règle `monthOfPeriod`), donc le même
+   * que celui sous lequel la prime a été saisie — les deux bords ne peuvent pas diverger.
+   */
+  monthlyPrimePaid: Map<string, Set<string>>
   /** La période concerne-t-elle ce membre ? (cf. `buildCoverage`) */
   concerns: (memberId: string, p: PayPeriod) => boolean
 }
@@ -78,6 +95,17 @@ export function buildCoverage({
     payments.filter((p) => Number(p.prime_amount) > 0).map((p) => p.chatter_id),
   )
 
+  // Un SET DE MOIS par membre, et non un simple `Set<memberId>` comme `primePaid` : la prime
+  // d'embauche est versée UNE FOIS DANS UNE VIE, la prime du mois une fois PAR MOIS. La confondre
+  // avec la première interdirait toute prime du mois après la première versée.
+  const monthlyPrimePaid = new Map<string, Set<string>>()
+  for (const p of payments) {
+    if (Number(p.monthly_prime_amount) <= 0) continue
+    const months = monthlyPrimePaid.get(p.chatter_id) ?? new Set<string>()
+    months.add(monthOf(p.period_start).key)
+    monthlyPrimePaid.set(p.chatter_id, months)
+  }
+
   const byChatter = new Map(firstSeen.map((r) => [r.chatter_id, r.first_seen]))
   const byMember = new Map<string, string>()
   for (const m of members) {
@@ -90,7 +118,7 @@ export function buildCoverage({
     return fs != null && p.end >= fs
   }
 
-  return { daysByMember, primePaid, concerns }
+  return { daysByMember, primePaid, monthlyPrimePaid, concerns }
 }
 
 /**

@@ -172,6 +172,36 @@ Pour un chatteur et une période :
 = Net à payer
 ```
 
+**La prime du mois est un montant MENSUEL logé dans une saisie de PÉRIODE (tâche 26,
+2026-07-28).** `compta_period_entries.top3_prime` se saisit par période de 14 jours, or un mois
+civil en contient **2 ou 3** : rien n'empêchait de la saisir sur deux périodes du même mois et de
+la verser deux fois. C'est le défaut d'argent de la tâche 19 (`fixe_setter`) répété un cran plus
+haut. Deux verrous le ferment, et il en faut deux :
+
+1. **La SAISIE** — index unique partiel `compta_period_entries_one_top3_per_month` (§5.9,
+   migration `0092`) : au plus une période par `(chatteur, mois)` peut porter une prime non nulle.
+   Partiel (`where top3_prime > 0`) parce que la même ligne porte aussi le **report**, qui se
+   saisit légitimement sur chaque période — une unicité pleine aurait cassé une saisie pour en
+   garder une autre.
+2. **Le VERSEMENT** — `coverage.monthlyPrimePaid`, qui lit l'instantané figé
+   `compta_payments.monthly_prime_amount` sur les périodes du mois. L'index ne peut pas voir ce
+   trou-là : payer la période 1, remettre sa saisie à 0, puis saisir la prime sur la période 2 du
+   même mois **passe l'index**. Vérifié en base (transaction annulée, UAT). C'est la source de
+   vérité de `primePaid` reprise mot pour mot : le paiement existe ou n'existe pas.
+
+Le **mois d'une période est celui de son LUNDI DE DÉPART** (`monthOfPeriod`). C'est la règle déjà
+en place un cran plus bas (« une semaine est rattachée à la période de son lundi, et n'est jamais
+découpée », §3) appliquée aux périodes. Sa propriété essentielle est d'être une **partition** :
+chaque période appartient à exactement un mois. Une période à cheval (20/07 → 02/08) est donc
+entièrement de juillet et la suivante (03/08) entièrement d'août — aucune prime ne tombe entre
+deux mois ni n'est réclamée par les deux. Un rattachement « au mois majoritaire en jours » n'aurait
+pas cette propriété (31/08 → 13/09 basculerait en septembre alors que la période du 17/08 reste en
+août) ; il est explicitement testé comme régression dans `months.test.ts`.
+
+Conséquence assumée, identique à celle de la prime d'embauche : sur une période **déjà payée**, le
+net recalculé n'affiche plus cette prime alors que l'instantané l'a bien versée. C'est l'instantané
+qui fait foi, et la fiche le dit déjà (« Payé le … — X € »).
+
 **Les trois dernières lignes datent de la tâche 22 (2026-07-28)** — le lot qui remplace le
 tableur. Elles sont dans `computePayslip` et exposées séparément dans `Payslip` : la fiche doit
 montrer chaque ligne, comme la feuille. **Leurs sources sont branchées depuis la tâche 23** : le
@@ -267,7 +297,8 @@ cumulatif.
 sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
 `compta_payments` sur le découpage en 14 jours, `0089` supprime le mode de rémunération et le
 statut de setter (§5.5), `0090` pose le socle du lot final (§5.6), `0091` étend l'instantané de
-paiement aux trois lignes de ce lot (§5.7).
+paiement aux trois lignes de ce lot (§5.7), `0092` interdit de saisir deux fois la prime du mois
+dans le même mois civil (§5.9).
 
 **5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
 étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
@@ -404,6 +435,35 @@ ré-ingestion MyPuls.
 Aucune contrainte de somme en base : l'invariant reste vérifié côté application. Un `check` SQL
 l'exprimant refuserait les paiements légitimes dès qu'un centime d'arrondi flottant s'y glisse —
 la tolérance de 0,01 € vit dans le code.
+
+**5.9 Une prime du mois par mois — migration `0092`** (2026-07-28, UAT seulement).
+
+```sql
+create unique index compta_period_entries_one_top3_per_month
+  on public.compta_period_entries (chatter_id, (date_trunc('month', period_start::timestamp)))
+  where top3_prime > 0;
+```
+
+Le raisonnement est en §4. Trois points de forme :
+
+- **`period_start::timestamp` est nécessaire** : `date_trunc(text, timestamptz)` est `stable`
+  (elle dépend de `TimeZone`) et Postgres refuse une fonction non immuable dans un index ;
+  `date_trunc(text, timestamp)` est immuable.
+- **Index PARTIEL**, pas contrainte pleine : la ligne porte aussi le report, qui se saisit sur
+  chaque période. Vérifié — avec l'index, `(20/07, carryover = −12,50, top3 = 0)` s'enregistre à
+  côté de `(06/07, top3 = 200)`.
+- **Aucun changement de type généré** : un index n'ajoute pas de colonne. `packages/db/src/types.ts`
+  a été régénéré depuis l'UAT et le diff est **vide** — c'est le résultat attendu, pas un oubli.
+
+Mesuré sur l'UAT juste avant d'appliquer : `compta_period_entries` = 0 ligne, `compta_payments` =
+0 ligne. Sur une table peuplée l'échec de création serait le comportement **voulu** (mieux vaut un
+push refusé qu'une double prime laissée en place). La prod n'a pas été ouverte.
+
+Quatre comportements vérifiés en transaction annulée : deux périodes du même mois avec
+`top3 > 0` → `23505` ; report seul sur la seconde → accepté ; période à cheval (07-20, mois de
+juillet) puis 08-03 (mois d'août) → accepté ; deux membres différents sur le même mois → accepté.
+Et le trou que l'index NE ferme PAS — payer, remettre à 0, ressaisir sur l'autre période — a été
+reproduit en base pour prouver que la garde applicative n'est pas redondante.
 
 **5.8 `CRM_ROLES` passe à quatre valeurs** (2026-07-28, aucune migration). `closer`, `setter`,
 `hybride`, `nouveau` — la liste TypeScript rattrape le `check` élargi par `0090`. Trois points
@@ -637,11 +697,53 @@ passer un chatteur pour non rémunérable.
 **Retard.** Le bandeau des périodes incomplètes se déduit de `covered_days` : toute période
 échue dont un jour n'est couvert par aucun paiement remonte, quelle que soit la date.
 
-### 7.2 Onglet Classement
+Depuis la tâche 26, la ligne « Période entière » porte aussi **la phrase qui distingue les deux
+grains** — le report vaut pour la période, la prime du mois pour le MOIS — et, le cas échéant, un
+avertissement ambre : « prime déjà saisie sur la période du 6 au 19 juillet (200 €) » ou « prime
+déjà VERSÉE pour ce mois ». Dire les deux cas AVANT la frappe vaut mieux qu'un refus après : sans
+eux, le champ se remplirait et la ligne « Prime du mois » n'apparaîtrait pas dans le calcul juste
+en dessous, sans un mot. Le second de ces avertissements est **répété dans la zone de lecture** de
+la fiche, parce qu'un encadrant sans droit de saisie ne voit pas le formulaire du tout.
 
-Le TOP setter de la période — rang, chatteur, handoffs, prime — plus une ligne de total (Σ des
-handoffs, Σ des primes : le barème est un budget dépensé une fois). Même sélecteur de période que
-l'onglet Période.
+### 7.2 Onglet Classement — LE MOIS, puis la période
+
+**TROIS SECTIONS sous un seul sélecteur** (tâche 26). Le sélecteur de période est celui de
+l'onglet Période, et il commande les deux grains.
+
+**1. Récap du mois — `juillet 2026`.** Le bloc de fin de mois de la feuille : une ligne par
+chatteur, **Chatteur · Total mois · Handoffs · Prime setter · Prime du mois**, plus une ligne de
+total. C'est ce qui manquait à l'app.
+
+- **Le mois est le mois CIVIL** — un agrégat qui s'appelle « Total Mois » et se compare d'un mois
+  sur l'autre n'a pas d'autre définition. Toute autre borne (« les deux dernières périodes »,
+  « 28 jours glissants ») afficherait sous l'étiquette « juillet » un total qui n'est pas celui de
+  juillet, sans que rien ne le dise.
+- **Il se DÉDUIT de la période choisie** (mois de son lundi de départ) — pas de second sélecteur.
+  Deux sélecteurs auraient créé deux notions de « quel mois ? », dont l'une pourrait contredire
+  celle qui garde l'argent (§4). Une seule règle, trois usages : l'affichage, l'agrégation, la
+  garde.
+- **CA** : `chatter_creator_daily` sur le mois civil, lu **par client admin cadré sur `linked`** —
+  la RLS de cette table cloisonne par MODÈLE et amputerait le CA d'un manager en silence (§6).
+- **Handoffs** : saisies au JOUR par leur date, saisies à la SEMAINE par le mois de leur **lundi**.
+  Une semaine à cheval (29/06 → 05/07) compte donc pour JUIN **en entier** — la découper au
+  prorata inventerait des handoffs par cinquièmes que personne n'a saisis, et ferait diverger ce
+  total de celui des fiches.
+- **Prime setter** : Σ des primes des **2 ou 3 périodes rattachées au mois**, pas un classement
+  recalculé sur 30 jours — la prime setter EST une composante du net d'une période, et c'est elle
+  qui est figée au paiement. Un classement mensuel produirait un chiffre que personne n'a versé.
+- **Écart assumé et AFFICHÉ** : les deux premières colonnes couvrent le mois civil, les deux
+  primes couvrent les périodes du mois. Les jours ne coïncident donc pas exactement (la période du
+  31/08 est d'août, mais 13 de ses jours sont en septembre). L'écran **nomme les périodes
+  retenues** plutôt que de laisser deviner ; taire cet écart ferait passer un chiffre exact pour
+  une erreur de calcul.
+- Un membre sans lien MyPuls affiche **« non relié »** et jamais un 0 € (§7). Les membres sans
+  aucune activité sont **comptés en une ligne** au lieu d'être listés à zéro — ni 96 lignes de
+  zéros, ni une liste amputée en silence.
+- La cinquième colonne du bloc de la feuille, **`PRIME D'EMBAUCHE`, reste dans Suivi** : elle ne
+  dépend d'aucun mois. Une phrase l'y renvoie.
+
+**2. Le classement setter de la période** — rang, chatteur, handoffs, prime — plus une ligne de
+total (Σ des handoffs, Σ des primes : le barème est un budget dépensé une fois).
 
 Un membre à **0 handoff n'y figure pas** : `rankSetters` ne le classe pas. Une prime à **0 €**
 (au-delà de la dernière tranche) reste affichée, en gris — être classé sans rien toucher est un
@@ -652,12 +754,22 @@ une phrase, plutôt que de renuméroter de 1 à N — une numérotation par pér
 correspondrait à aucune prime. Il rappelle aussi que le classement porte sur les **handoffs
 saisis dans l'app**, le comptage qui fait foi n'étant pas tranché (§4).
 
-**Le barème** est affiché dessous, pour TOUT l'encadrement — un manager qui ne le verrait pas
+**3. Le barème** est affiché dessous, pour TOUT l'encadrement — un manager qui ne le verrait pas
 lirait la prime setter comme 0 € sans erreur (§6). **Éditable par l'admin seul** : quinze
 tranches en trois colonnes, une tranche = un `<form>` = une écriture (la clé primaire est le
 rang), enregistrement automatique. La phrase sous la grille dit ce qu'une modification fait :
 elle s'applique aux périodes **non encore payées**, jamais à celles déjà réglées, dont le montant
 est figé (`setter_prime_amount`, §5.7).
+
+**L'ORDRE DES TROIS SECTIONS EST STRUCTUREL, pas décoratif.** Le classement et son barème forment
+une paire — l'un se lit avec l'autre : s'intercaler entre eux les séparerait, et se poser après le
+barème mettrait de la donnée sous un bloc de réglages. Le récap va donc en tête. **Pas de
+quatrième onglet** : deux des quatre colonnes du récap sont déjà le sujet de cet onglet, il n'y a
+rien de plus à choisir que la période déjà sélectionnée, et le propriétaire en a demandé trois.
+
+Côté chargement, le récap est un appel SÉPARÉ (`getMois`), monté **seulement** quand cet onglet
+est demandé. Le fondre dans `getCompta` l'aurait fait payer à l'onglet Période — et surtout au
+recalcul serveur de CHAQUE paiement, qui rejoue `loadComptaRows` fiche par fiche.
 
 ### 7.3 Onglet Suivi
 
@@ -739,6 +851,9 @@ totaux au-delà d'un mois. Toute erreur Supabase est destructurée et thrown.
 | Paiement partiel d'une période | `covered_days` ne couvre qu'une partie → la période reste « incomplète » |
 | Ré-ingestion du CA après paiement | l'instantané ne bouge pas ; l'écart est visible en comparant `ca_reference` au CA courant |
 | Prime déjà `paid` | ignorée dans les périodes suivantes |
+| Prime du mois saisie sur 2 périodes du même mois | refusée à la SAISIE (index 0092), message français nommant la période fautive |
+| Prime du mois déjà versée, puis ressaisie ailleurs dans le mois | sortie du net (`coverage.monthlyPrimePaid`) ET refusée par `savePeriodEntry` ; la fiche dit pourquoi |
+| Période à cheval sur deux mois | rattachée au mois de son lundi de départ, entièrement — jamais partagée |
 | Sanction saisie après le paiement | non rattrapée automatiquement — elle apparaîtra sur la période de son `occurred_on`, qui sera signalée comme incomplète si non couverte |
 | Deux profils pour un même chatteur MyPuls | impossible en prod (vérifié : maximum 1), pas de garde applicative |
 
@@ -747,6 +862,15 @@ totaux au-delà d'un mois. Toute erreur Supabase est destructurée et thrown.
 ## 11. Tests
 
 Dans `packages/core`, sous Vitest :
+
+**`months.ts`** (tâche 26) — les bornes du mois civil (février bissextile, décembre) ; le
+rattachement d'une période **à cheval** sur deux mois puis sur deux années au mois de son lundi ;
+`periodsOfMonth` sur juillet 2026 (2 périodes, celle qui contient le 1er ayant démarré en juin) et
+août 2026 (3) ; `mondaysOfMonth` (4 ou 5, aucun d'un autre mois) et la démonstration qu'il n'est
+**pas** l'union des lundis des périodes du mois. Et surtout **le test qui garde l'argent** : sur
+24 mois, chaque période appartient à **exactement un** mois, aucune n'est revendiquée par deux,
+aucun trou entre les débuts collectés. C'est cette partition qui rend la garde anti-double
+versement possible ; sans elle, une prime serait payable deux fois ou invisible.
 
 **`periods.ts`** — l'ancre 06/07/2026 et ses voisins à 14 jours, un jour AVANT l'ancre (l'écart
 négatif ne doit pas décaler d'une période), le balayage « toute période démarre un lundi », une
@@ -770,9 +894,9 @@ barème, un barème incomplet (rang manquant, plus court, vide), le membre à 0 
 l'indifférence à l'ordre des entrées.
 
 Ces tests sont **vérifiés discriminants** : chaque régression a été réintroduite une par une
-dans `computePayslip` puis dans `rankSetters`, et le test correspondant est tombé (détail dans les
-rapports de tâche 16, 19 et 21-22 — 16 régressions couvrant chacun des tests des deux fichiers).
-Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
+dans `computePayslip`, dans `rankSetters` puis dans `months.ts`, et le test correspondant est tombé
+(détail dans les rapports de tâche 16, 19, 21-22 et 26 — 19 régressions couvrant chacun des tests
+des trois fichiers). Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
 
 **Les tests qui survivent à ce qu'ils gardaient sont SUPPRIMÉS, pas conservés.** La tâche 19 a
 retiré `fixeSetter` de `PayslipInput` : les quatre tests qui décrivaient son arbitrage sont

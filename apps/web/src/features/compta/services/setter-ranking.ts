@@ -1,4 +1,11 @@
-import { mondaysIn, rankSetters, type PayPeriod, type SetterRank, type SetterScaleRow } from '@glagency/core'
+import {
+  daysIn,
+  mondaysIn,
+  rankSetters,
+  type PayPeriod,
+  type SetterRank,
+  type SetterScaleRow,
+} from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -51,6 +58,11 @@ export interface SetterRanking {
 interface HandoffRow {
   chatter_id: string
   handoffs: number
+}
+
+/** La même, mais datée : le récap mensuel doit rattacher chaque ligne à SA période. */
+interface DatedHandoffRow extends HandoffRow {
+  date: string
 }
 
 export async function loadSetterRanking(period: PayPeriod): Promise<SetterRanking> {
@@ -106,4 +118,89 @@ export async function loadSetterRanking(period: PayPeriod): Promise<SetterRankin
     scale: (scale ?? []).map((s) => ({ rank: s.rank, amount: Number(s.amount) })),
     byMember: new Map(rows.map((r) => [r.id, r])),
   }
+}
+
+/**
+ * PRIME SETTER D'UN MOIS = Σ des primes de CHAQUE période rattachée au mois — la colonne
+ * `PRIME TOP15 SETTER` du bloc de fin de mois de la feuille.
+ *
+ * ── POURQUOI UNE SOMME DE PÉRIODES, ET NON UN CLASSEMENT SUR LE MOIS ─────────────────────────
+ * La prime setter EST une composante du net d'une PÉRIODE : c'est elle qui est figée au paiement
+ * (`compta_payments.setter_prime_amount`, 0091). Un classement recalculé sur 30 jours donnerait un
+ * chiffre que personne n'a versé et que le paiement contredirait — c'est le même écueil que le
+ * rang cloisonné qui aurait annoncé 200 € là où l'agence en verse 84.
+ *
+ * Conséquence assumée : les jours couverts ne sont pas ceux du mois civil. La dernière période
+ * d'août (31/08 → 13/09) est rattachée à août, donc sa prime compte pour août bien que 13 de ses
+ * jours soient en septembre. L'écran nomme les périodes retenues plutôt que de laisser deviner.
+ *
+ * ── TROIS REQUÊTES POUR 2 OU 3 PÉRIODES, ET NON TROIS PAR PÉRIODE ───────────────────────────
+ * Les périodes d'un mois sont CONTIGUËS : une seule lecture sur leur plage complète suffit, et
+ * chaque ligne est ensuite rangée dans sa période EN MÉMOIRE. Appeler `loadSetterRanking` en
+ * boucle aurait fait 6 à 9 allers-retours, dont 3 relectures du même barème.
+ *
+ * Le régime de lecture est celui de `loadSetterRanking` ci-dessus, sans exception : les handoffs
+ * par CLIENT ADMIN (un classement est agence-wide, le cloisonner fausserait les rangs donc les
+ * primes), le barème SOUS RLS. Ce qui en sort est cadré par l'appelant, qui ne lit cette Map que
+ * pour les membres déjà renvoyés par la RLS `profiles`.
+ */
+export async function loadMonthSetterPrimes(periods: PayPeriod[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (periods.length === 0) return out
+
+  const supabase = await createClient()
+  const admin = createAdminClient()
+  const from = periods[0].start
+  const to = periods[periods.length - 1].end
+  const mondays = periods.flatMap(mondaysIn)
+
+  const [{ data: scale, error: scaleErr }, { data: dayRows, error: dayErr }, weekRes] =
+    await Promise.all([
+      supabase.from('compta_setter_scale').select('rank, amount').order('rank'),
+      // `fetchAll` : jusqu'à 3 périodes = 42 jours × ~96 membres = 4 032 lignes possibles, bien
+      // au-delà du plafond de 1000 que PostgREST applique EN SILENCE. Tronqué, le classement
+      // perdrait des handoffs et redistribuerait les tranches sans une seule erreur.
+      fetchAll<DatedHandoffRow>((f, t) =>
+        admin
+          .from('compta_day_entries')
+          .select('chatter_id, handoffs, date')
+          .gte('date', from)
+          .lte('date', to)
+          .order('chatter_id')
+          .order('date')
+          .range(f, t),
+      ),
+      // Au plus 6 lundis (3 périodes × 2) × ~96 membres = 576 lignes — sous le plafond, qui ne
+      // serait atteint qu'au-delà de 166 membres. Même mesure que dans `loadSetterRanking`.
+      admin
+        .from('compta_week_entries')
+        .select('chatter_id, handoffs, week_start')
+        .in('week_start', mondays.length ? mondays : ['1970-01-01']),
+    ])
+  if (scaleErr) throw new Error(scaleErr.message)
+  if (dayErr) throw new Error(dayErr.message)
+  if (weekRes.error) throw new Error(weekRes.error.message)
+
+  const scaleRows = (scale ?? []).map((s) => ({ rank: s.rank, amount: Number(s.amount) }))
+  const weekRows = weekRes.data ?? []
+
+  for (const p of periods) {
+    const days = new Set(daysIn(p))
+    const weeks = new Set(mondaysIn(p))
+    const handoffsByMember: Record<string, number> = {}
+    for (const r of dayRows) {
+      if (!days.has(r.date)) continue
+      handoffsByMember[r.chatter_id] = (handoffsByMember[r.chatter_id] ?? 0) + r.handoffs
+    }
+    for (const r of weekRows) {
+      if (!weeks.has(r.week_start)) continue
+      handoffsByMember[r.chatter_id] = (handoffsByMember[r.chatter_id] ?? 0) + r.handoffs
+    }
+    // Le classement est refait PÉRIODE PAR PÉRIODE, avec la même fonction pure que la fiche —
+    // c'est ce qui garantit que la somme affichée ici vaut bien la somme des primes payées.
+    for (const r of rankSetters(handoffsByMember, scaleRows)) {
+      out.set(r.id, (out.get(r.id) ?? 0) + r.amount)
+    }
+  }
+  return out
 }
