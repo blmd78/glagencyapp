@@ -40,10 +40,23 @@ export async function getSuivi(): Promise<SuiviData> {
 
   // `getProfile` est `cache()` : la page a déjà appelé `requireAccess('compta')` dans le même
   // rendu. Même patron que `getCompta` pour `loadLinkableChatters`.
-  const isAdmin = (await getProfile())?.role === 'admin'
+  const profile = await getProfile()
+  // Inatteignable derrière `requireAccess('compta')` — même garde que `compta-sources.ts`.
+  if (!profile) throw new Error('Session expirée')
+  const isAdmin = profile.role === 'admin'
 
-  // ⚠️ ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` : c'est CETTE lecture, sous RLS, qui
-  // définit la population. Les lectures par client admin plus bas se cadrent toutes dessus.
+  // ⚠️ ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` : c'est CETTE lecture qui définit la
+  // population, et les lectures par client admin plus bas se cadrent toutes dessus. Le
+  // `.eq('manager_id', …)` RE-BORNE aux rattachés DIRECTS ce que la RLS `profiles` rend
+  // transitif depuis 0087 (sous-arbre entier) — motif complet dans `compta-sources.ts`. Ici
+  // l'enjeu est la liste des primes échues : sans lui, un manager se verrait réclamer les
+  // primes des chatteurs de ses sous-managers, qu'il ne peut ni régler ni faire verser.
+  const membersQuery = supabase
+    .from('profiles')
+    .select('id, display_name, email, chatter_id')
+    .eq('role', 'chatteur')
+    .order('display_name')
+
   const [
     { data: members, error: membersErr },
     { data: primes, error: primesErr },
@@ -51,11 +64,7 @@ export async function getSuivi(): Promise<SuiviData> {
     { data: debts, error: debtsErr },
     { data: firstSeen, error: fsErr },
   ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('id, display_name, email, chatter_id')
-      .eq('role', 'chatteur')
-      .order('display_name'),
+    isAdmin ? membersQuery : membersQuery.eq('manager_id', profile.id),
     // `status` AUSSI : une prime `'skipped'` (renoncée) n'a rien à faire dans une liste
     // d'argent dû — elle est exclue plus bas, pas étiquetée.
     supabase.from('compta_primes').select('chatter_id, amount, status'),
