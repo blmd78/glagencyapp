@@ -1,5 +1,6 @@
 'use client'
 
+import { CountDot } from '@/components/count-dot'
 import { MembersAccordion } from '@/components/members-accordion'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMemberPanel } from '@/hooks/use-member-panel'
@@ -9,8 +10,11 @@ import type { Todo, TodoEntry } from '../types'
 
 /**
  * Branchement de la to-do sur la pile de noms partagée (`components/members-accordion.tsx`),
- * comme le Planning et le Dashboard. Le repère répond SANS déplier à « qui a de la charge » ;
- * « Rien » couvre autant la liste vide que la liste entièrement terminée.
+ * comme le Planning et le Dashboard. Le repère répond SANS déplier à « qui a de la charge » :
+ * point ambre + « N à traiter », même langage visuel que les en-têtes de modèle d'Insights
+ * (`CountDot`, `components/count-dot.tsx`). À 0 — liste vide comme liste entièrement
+ * terminée — pas de repère du tout, comme Insights masque son compteur : l'absence du point
+ * EST l'information.
  *
  * « à traiter » et non « en cours » : « En cours » est déjà le libellé du statut
  * `in_progress` et une section de la liste — le même mot ne doit pas désigner deux ensembles.
@@ -25,7 +29,16 @@ export function TodosMembers({ entries }: { entries: TodoEntry[] }) {
     <MembersAccordion
       items={entries}
       onOpen={(e) => open(e.id)}
-      hint={(e) => (e.openCount > 0 ? `${e.openCount} à traiter` : 'Rien')}
+      hint={(e) =>
+        // `inline-flex` (pas `flex`) : le wrapper hint de l'accordéon est un span inline,
+        // pas un item flex comme chez Insights — même rendu, sans casser son alignement.
+        e.openCount > 0 ? (
+          <span className="inline-flex items-center gap-1 tabular-nums">
+            <CountDot tone="a-traiter" />
+            {e.openCount} à traiter
+          </span>
+        ) : null
+      }
     >
       {(e) => {
         const p = panel?.id === e.id ? panel : null

@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { CollapsibleSection } from '@/components/collapsible-section'
-import { InsightDot, isATraiter } from './insight-dot'
+import { CountDot } from '@/components/count-dot'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
@@ -18,10 +18,10 @@ import { PlanSections } from './insight-plan-sections'
 import { InsightStatusBlock, STATUS_LABELS, STATUS_STYLE } from './insight-status-block'
 import { InsightWeekColumn } from './insight-week-column'
 import { frWeekdayShort } from '@glagency/core'
-import type { InsightBilan, InsightRow, InsightStatus } from '../types'
+import { isATraiter, type InsightBilan, type InsightRow, type InsightStatus } from '../types'
 
 // Plus de `border-l-*` ici : la carte porte le cadre commun (`CollapsibleSection`) et la
-// sévérité est signalée par le point de couleur du trigger (`insight-dot.tsx`).
+// sévérité est signalée par le point de couleur du trigger (`CountDot`).
 const SEVERITY = {
   critical: { label: 'Critique', className: STATUS_COLORS.danger },
   warning: { label: 'Moyen', className: STATUS_COLORS.warning },
@@ -144,9 +144,9 @@ export function InsightCard({
               cadre commun ne porte pas. Rouge prime sur ambre : une carte critique ET à
               traiter est d'abord critique. */}
           {insight.severity === 'critical' ? (
-            <InsightDot tone="critique" title="Critique" />
+            <CountDot tone="critique" title="Critique" />
           ) : isATraiter(status) ? (
-            <InsightDot tone="a-traiter" title="À traiter" />
+            <CountDot tone="a-traiter" title="À traiter" />
           ) : null}
           <Badge className={cn('shrink-0 text-xs uppercase', sev.className)}>{sev.label}</Badge>
           <span className="min-w-0 flex-1 truncate font-medium">{insight.title}</span>

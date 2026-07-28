@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { mondaysIn, type PayPeriod } from '@glagency/core'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,40 @@ import { DataTable } from '@/components/data-table/data-table'
 import { makeComptaColumns } from './compta-columns'
 import { ComptaPayslip } from './compta-payslip'
 import type { ComptaRow } from '../types'
+
+/**
+ * Vues de la table — filtre de statut EXCLUSIF. Exclusif et pas combinable, et c'est un
+ * choix : « à payer », « payés » et « non reliés » PARTITIONNENT la table (un non-relié n'a
+ * pas de net calculable, il n'est donc ni à payer ni payé) — croiser « payés » ET « non
+ * reliés » ne produirait que des ensembles vides. Un seul sélecteur de vue est aussi ce qui
+ * se lit le plus vite dans le toolbar. Re-cliquer le filtre actif revient à « Tous ».
+ */
+type StatusFilter = 'all' | 'to-pay' | 'paid' | 'unlinked'
+
+/** Bouton-filtre du toolbar — même forme que l'ancien bouton « N non reliés » (Button
+ *  outline/secondary), l'état actif est annoncé via `aria-pressed`. */
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <Button
+      type="button"
+      variant={active ? 'secondary' : 'outline'}
+      size="sm"
+      aria-pressed={active}
+      onClick={onClick}
+      className="gap-1.5"
+    >
+      {children}
+    </Button>
+  )
+}
 
 /**
  * La pile de noms devient une DATA TABLE (demande du propriétaire, 2026-07-27 : « je pense
@@ -44,15 +78,30 @@ export function ComptaTable({
   canPay: boolean
   canConfigure: boolean
 }) {
-  // Filtre « à relier ». Les non-reliés ont un CA et un net à 0 € : quel que soit le tri, ils
-  // se retrouvent dispersés sur toutes les pages (34 sur 105 en prod, 8 sur 96 mesurés sur
-  // l'UAT le 2026-07-27) alors que ce sont EUX qui appellent une action. Le badge
-  // « ⚠ non relié » sur la ligne ne suffit pas s'il faut paginer pour le trouver.
+  // Filtres de statut (demande du propriétaire, 2026-07-28 : « rajouter un filtre payé et
+  // reste à payer ») — Tous / À payer / Payés, plus le filtre « non reliés » historique :
+  // les non-reliés ont un CA et un net à 0 € et se dispersent sur toutes les pages (34 sur
+  // 105 en prod) alors que ce sont EUX qui appellent une action.
   // Filtrage sur `data` AVANT la table (le `toolbar` n'a pas accès à l'instance TanStack) —
-  // même patron que le sélecteur de modèle de `chatters-table.tsx`.
-  const [onlyUnlinked, setOnlyUnlinked] = useState(false)
+  // même patron que le sélecteur de modèle de `chatters-table.tsx`. La recherche par nom
+  // (filtre TanStack) s'applique PAR-DESSUS : les deux composent.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const unlinked = rows.filter((r) => r.chatterId == null).length
-  const data = onlyUnlinked ? rows.filter((r) => r.chatterId == null) : rows
+  const paidCount = rows.filter((r) => r.chatterId != null && r.paid).length
+  const toPayCount = rows.length - unlinked - paidCount
+  // Si le dernier non-relié vient d'être relié (revalidation serveur), son bouton disparaît :
+  // sans ce repli la table resterait bloquée sur une vue vide qu'aucun bouton ne désactive.
+  const filter = statusFilter === 'unlinked' && unlinked === 0 ? 'all' : statusFilter
+  const data =
+    filter === 'unlinked'
+      ? rows.filter((r) => r.chatterId == null)
+      : filter === 'paid'
+        ? rows.filter((r) => r.chatterId != null && r.paid)
+        : filter === 'to-pay'
+          ? rows.filter((r) => r.chatterId != null && !r.paid)
+          : rows
+  // Re-cliquer le filtre actif revient à « Tous ».
+  const toggle = (f: StatusFilter) => setStatusFilter((cur) => (cur === f ? 'all' : f))
 
   const columns = makeComptaColumns({ canConfigure, linkableChatters })
   const mondays = mondaysIn(period)
@@ -91,19 +140,23 @@ export function ComptaTable({
       )}
       countLabel={(n) => `${n} chatter${n > 1 ? 's' : ''}`}
       toolbar={
-        unlinked > 0 && (
-          <Button
-            type="button"
-            variant={onlyUnlinked ? 'secondary' : 'outline'}
-            size="sm"
-            aria-pressed={onlyUnlinked}
-            onClick={() => setOnlyUnlinked((v) => !v)}
-            className="gap-1.5"
-          >
-            <AlertTriangle className="size-3.5 text-amber-500" />
-            {unlinked} non relié{unlinked > 1 ? 's' : ''}
-          </Button>
-        )
+        <>
+          <FilterButton active={filter === 'all'} onClick={() => setStatusFilter('all')}>
+            Tous
+          </FilterButton>
+          <FilterButton active={filter === 'to-pay'} onClick={() => toggle('to-pay')}>
+            À payer ({toPayCount})
+          </FilterButton>
+          <FilterButton active={filter === 'paid'} onClick={() => toggle('paid')}>
+            Payés ({paidCount})
+          </FilterButton>
+          {unlinked > 0 && (
+            <FilterButton active={filter === 'unlinked'} onClick={() => toggle('unlinked')}>
+              <AlertTriangle className="size-3.5 text-amber-500" />
+              {unlinked} non relié{unlinked > 1 ? 's' : ''}
+            </FilterButton>
+          )}
+        </>
       }
     />
   )

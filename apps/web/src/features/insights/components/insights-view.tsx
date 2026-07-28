@@ -16,10 +16,16 @@ import { Combobox } from '@/components/ui/combobox'
 import { Badge } from '@/components/ui/badge'
 import { modelColor } from '@/lib/model-color'
 import { CollapsibleSection } from '@/components/collapsible-section'
+import { CountDot } from '@/components/count-dot'
 import { InsightCard } from './insight-card'
-import { InsightDot, isATraiter } from './insight-dot'
 import { RankingTable, type RankMetric } from './ranking-table'
-import type { InsightRow, InsightsData, InsightStatus, RankingData } from '../types'
+import {
+  isATraiter,
+  type InsightRow,
+  type InsightsData,
+  type InsightStatus,
+  type RankingData,
+} from '../types'
 
 type StatusFilter = 'open' | InsightStatus | 'all'
 
@@ -224,8 +230,8 @@ export function InsightsView({
         <div className="flex flex-col gap-2">
           {sections.map(([model, items]) => {
             const crit = items.filter((i) => i.severity === 'critical').length
-            // Même prédicat que le point posé sur chaque carte (`insight-dot.tsx`) : le
-            // compteur et les points doivent toujours tomber d'accord.
+            // Même prédicat que le point posé sur chaque carte (`isATraiter`, `../types`) :
+            // le compteur et les points doivent toujours tomber d'accord.
             const toDo = items.filter((i) => isATraiter(i.status)).length
             return (
               // Même accordéon que partout ailleurs (`CollapsibleSection`) : cadre, chevron,
@@ -249,18 +255,18 @@ export function InsightsView({
                         déplier. */}
                     <span className="ml-auto flex items-center gap-2 text-xs font-normal tabular-nums text-muted-foreground">
                       <span className="flex items-center gap-1">
-                        <InsightDot tone="total" />
+                        <CountDot tone="total" />
                         {items.length} carte{items.length > 1 ? 's' : ''}
                       </span>
                       {crit > 0 && (
                         <span className="flex items-center gap-1">
-                          <InsightDot tone="critique" />
+                          <CountDot tone="critique" />
                           {crit} critique{crit > 1 ? 's' : ''}
                         </span>
                       )}
                       {toDo > 0 && (
                         <span className="flex items-center gap-1">
-                          <InsightDot tone="a-traiter" />
+                          <CountDot tone="a-traiter" />
                           {toDo} à traiter
                         </span>
                       )}

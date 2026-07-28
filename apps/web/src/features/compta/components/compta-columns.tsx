@@ -8,6 +8,7 @@ import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { eur2 } from '@/lib/format'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
+import { STATUS_COLORS } from '@/lib/status-color'
 import { Money, ModelCaCell, RemunerationCell } from './compta-cells'
 import { ComptaLinkDialog } from './compta-link-dialog'
 import type { ComptaRow } from '../types'
@@ -204,9 +205,19 @@ export function makeComptaColumns({
             </div>
           )
         }
+        // Badge « Payé » (demande du propriétaire, 2026-07-28 : « un badge payé quand je
+        // clique sur payé pour qu'on le voie bien ») — vert sémantique de l'app
+        // (`STATUS_COLORS.positive`, même forme que le badge de rôle ci-dessus). La date et
+        // le montant RESTENT à côté : c'est de l'information de paie, le badge ne fait que
+        // la rendre repérable d'un coup d'œil. L'ensemble se lit « Payé le 18/07 — 123,45 € ».
         return r.paid ? (
-          <span className="text-xs text-muted-foreground">
-            payé le {r.paidOn ? frDayShort(r.paidOn) : '—'} — {eur2(r.paidAmount ?? 0)}
+          <span className="flex items-center justify-end gap-2">
+            <Badge className={cn('shrink-0 text-xs font-normal', STATUS_COLORS.positive)}>
+              Payé
+            </Badge>
+            <span className="text-xs text-muted-foreground">
+              le {r.paidOn ? frDayShort(r.paidOn) : '—'} — {eur2(r.paidAmount ?? 0)}
+            </span>
           </span>
         ) : (
           <span className="text-xs">{eur2(r.payslip.net)} à payer</span>

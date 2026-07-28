@@ -39,7 +39,7 @@ export interface TodoEntry {
   name: string
   /** Rôle brut, pour le badge — '' = soi-même (pas de badge). */
   role: string
-  /** Tâches non terminées (`todo` + `in_progress`) — repère « N à traiter » / « Rien ». */
+  /** Tâches non terminées (`todo` + `in_progress`) — repère « N à traiter » (rien à 0). */
   openCount: number
   /**
    * La personne peut-elle ouvrir la page Planning ? Sinon elle ne verra jamais la liste qu'on

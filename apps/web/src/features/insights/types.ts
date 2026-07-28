@@ -5,6 +5,17 @@ export type { InsightKpi, InsightModelSplit, WeekTracking }
 
 export type InsightStatus = 'new' | 'in_progress' | 'resolved' | 'ignored'
 
+/**
+ * « À traiter » — une carte l'est tant qu'elle n'est ni résolue ni ignorée. Partagée par le
+ * compteur de l'en-tête de modèle et par le point posé sur chaque carte (`CountDot`,
+ * `components/count-dot.tsx`) : sans ça, « 2 à traiter » pourrait afficher trois points.
+ *
+ * ATTENTION, ce n'est PAS encore la seule expression du prédicat : le filtre `statusFilter ===
+ * 'open'` (`insights-view.tsx`) et le service `get-insights.ts` l'inlinent toujours. Les
+ * brancher ici est un chantier à part — ils ne portent pas exactement la même question.
+ */
+export const isATraiter = (status: InsightStatus) => status === 'new' || status === 'in_progress'
+
 /** Bilan structuré de résolution (modal repris du CRM legacy). */
 export interface InsightBilan {
   date: string

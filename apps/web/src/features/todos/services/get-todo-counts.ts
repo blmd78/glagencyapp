@@ -8,7 +8,7 @@ interface CountRow {
 
 /**
  * Nombre de tâches NON TERMINÉES par personne, sans le contenu — c'est tout ce dont la ligne
- * repliée a besoin. Une entrée par id demandé, même à 0 (le repère affiche alors « Rien »).
+ * repliée a besoin. Une entrée par id demandé, même à 0 (la ligne n'affiche alors aucun repère).
  *
  * `fetchAll` : N personnes × leurs tâches peut dépasser la limite PostgREST de 1000 lignes,
  * qui tronque EN SILENCE (cf. docs/guidelines-data-loading.md). L'ordre porte sur
@@ -18,7 +18,7 @@ interface CountRow {
  * to-do n'est pas lisible ne remonte aucune ligne et ressort à 0. Dégradation silencieuse
  * ASSUMÉE — le roster du planning est inclus dans le périmètre écrivable de la to-do pour
  * chaque rôle (cf. spec §6), donc le cas ne se produit pas. Si les deux périmètres divergent
- * un jour, le symptôme sera « tout le monde à Rien », pas une erreur.
+ * un jour, le symptôme sera « plus aucun repère sur personne », pas une erreur.
  */
 export async function getTodoCounts(profileIds: string[]): Promise<Map<string, number>> {
   const byProfile = new Map<string, number>(profileIds.map((id) => [id, 0]))
