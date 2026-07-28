@@ -119,30 +119,30 @@ describe('semaines de référence', () => {
 
 
 describe('frDayMonthParis', () => {
-  it("affiche jour/mois du jour PARIS, pas UTC (été : 22:30Z le 11/07 = 12/07 à Paris)", () => {
+  it('affiche jour/mois du jour PARIS, pas UTC (été : 22:30Z le 11/07 = 12/07 à Paris)', () => {
     expect(frDayMonthParis('2026-07-11T22:30:00Z')).toBe('12/07')
   })
-  it("reste sur le même jour quand minuit Paris n'est pas franchi", () => {
+  it('reste sur le même jour quand minuit Paris n’est pas franchi', () => {
     expect(frDayMonthParis('2026-07-11T14:00:00Z')).toBe('11/07')
   })
 })
 
 describe('daysBetweenParis', () => {
-  it("0 le même jour Paris, quel que soit l'écart en heures", () => {
+  it('0 le même jour Paris, quel que soit l’écart en heures', () => {
     expect(daysBetweenParis('2026-07-15T06:00:00Z', '2026-07-15T20:00:00Z')).toBe(0)
   })
-  it("1 dès que minuit Paris est franchi, même à 90 minutes d'écart", () => {
+  it('1 dès que minuit Paris est franchi, même à 90 minutes d’écart', () => {
     // 21:00Z = 23:00 Paris ; 22:30Z = 00:30 Paris le lendemain (été, UTC+2)
     expect(daysBetweenParis('2026-07-11T21:00:00Z', '2026-07-11T22:30:00Z')).toBe(1)
   })
-  it("compte des jours CALENDAIRES, pas des blocs de 24 h", () => {
+  it('compte des jours CALENDAIRES, pas des blocs de 24 h', () => {
     // 13/07 01:00 Paris → 15/07 07:00 Paris = 2 jours calendaires (54 h)
     expect(daysBetweenParis('2026-07-12T23:00:00Z', '2026-07-15T05:00:00Z')).toBe(2)
   })
-  it("traverse le passage à l'heure d'été sans dériver (29/03/2026)", () => {
+  it('traverse le passage à l’heure d’été sans dériver (29/03/2026)', () => {
     expect(daysBetweenParis('2026-03-28T12:00:00Z', '2026-03-30T12:00:00Z')).toBe(2)
   })
-  it("négatif si l'ordre est inversé", () => {
+  it('négatif si l’ordre est inversé', () => {
     expect(daysBetweenParis('2026-07-15T06:00:00Z', '2026-07-14T06:00:00Z')).toBe(-1)
   })
 })
