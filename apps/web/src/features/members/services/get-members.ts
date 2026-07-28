@@ -14,7 +14,9 @@ const DEFAULT_FIXED = 0
 
 /**
  * Liste des membres + modèles assignables (page admin OU manager). La RLS filtre par
- * appelant (0054) : admin = tout, manager = lui-même + son équipe (manager_id) ;
+ * appelant (0054, élargie en 0087) : admin = tout, manager = lui-même + TOUT son sous-arbre
+ * (ses sous-managers ET les chatteurs de ceux-ci) — mais VOIR n'est pas ÉDITER : l'écriture
+ * reste bornée à ses rattachés DIRECTS (`authz.ts`, inchangée) ;
  * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
  * `chatters` (options du lien MyPuls, client admin agence-wide) n'est chargé QUE pour un
  * admin : le champ lien est admin-only (UI + serveur) et un manager ne doit pas recevoir
