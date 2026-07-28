@@ -42,7 +42,7 @@ export function BilanTemplate({ data }: { data: BilanData }) {
     {
       key: 'ltv',
       label: 'LTV moyenne',
-      value: data.avgLtv != null ? `${data.avgLtv.toLocaleString('fr-FR')} €/sub` : '—',
+      value: data.avgLtv != null ? `${eur(data.avgLtv)}/sub` : '—',
       deltaPct: null,
       trendLabel: '',
       hint: 'hors comptes privés',
