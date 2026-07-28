@@ -1,4 +1,4 @@
-import { createAdminClient } from '@glagency/db'
+import { createAdminClient, fetchAll } from '@glagency/db'
 
 /**
  * Pipeline MARKETING-TELEGRAM : canaux Telegram → mkt_social_daily, via les pages
@@ -82,13 +82,21 @@ export async function runMarketingTelegram(): Promise<TelegramRunSummary> {
     return { status: 'ok', channels: 0, scraped: 0, missing: [], updatedDaily: 0, warnings }
   }
 
-  const { data: prevRows } = await db
-    .from('mkt_social_daily')
-    .select('account_id, date, followers, views_total')
-    .in('account_id', channels.map((c) => c.id))
-    .lt('date', date)
-    .order('date', { ascending: false })
-    .limit(1000)
+  // fetchAll (remplace le `.limit(1000)`, qui collait pile le plafond serveur PostgREST —
+  // silencieux au-delà) : `.order('date', desc)` garde la sémantique « premier vu par
+  // compte = son relevé le plus récent » exploitée par la réduction ci-dessous ;
+  // `.order('account_id')` en tiebreaker rend l'ordre total déterministe (grain de la PK =
+  // account_id, date, migration 0018) sans changer quelle ligne est retenue par compte.
+  const { data: prevRows } = await fetchAll((f, t) =>
+    db
+      .from('mkt_social_daily')
+      .select('account_id, date, followers, views_total')
+      .in('account_id', channels.map((c) => c.id))
+      .lt('date', date)
+      .order('date', { ascending: false })
+      .order('account_id')
+      .range(f, t),
+  )
   const prev = new Map<string, { followers: number | null; viewsTotal: number | null }>()
   for (const r of prevRows ?? []) {
     if (!prev.has(r.account_id)) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })

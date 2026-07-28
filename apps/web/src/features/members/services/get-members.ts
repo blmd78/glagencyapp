@@ -1,6 +1,7 @@
 import { mondayOf, rateOn, todayParis, type RateChange } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getProfile } from '@/lib/auth'
 import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 import type { Member, MembersData } from '../types'
@@ -45,12 +46,30 @@ export async function getMembers(): Promise<MembersData> {
         'id, email, display_name, role, pages, work_link, manager_id, closing_role, closing_team, chatter_id, created_at',
       )
       .order('created_at'),
-    supabase.from('profile_creators').select('profile_id, creator_id'),
+    // fetchAll : cap PostgREST silencieux — `profile_creators` grossit avec les membres et leurs
+    // modèles assignés. `.order('profile_id').order('creator_id')` = la PK complète (0001).
+    fetchAll((f, t) =>
+      supabase
+        .from('profile_creators')
+        .select('profile_id, creator_id')
+        .order('profile_id')
+        .order('creator_id')
+        .range(f, t),
+    ),
     // TOUS les comptes (privés inclus) : `excluded` ne concerne que les calculs (LTV,
     // quotas), pas le droit d'accès — on doit pouvoir assigner « Carla (privé) ».
     supabase.from('creators').select('id, name').order('name'),
+    // fetchAll : cap PostgREST silencieux — `chatters` (MyPuls) grossit sans purge. Tri
+    // d'affichage `display_name` conservé en tête, `id` (PK) en tiebreaker déterministe.
     isAdmin
-      ? admin.from('chatters').select('id, display_name').order('display_name')
+      ? fetchAll((f, t) =>
+          admin
+            .from('chatters')
+            .select('id, display_name')
+            .order('display_name')
+            .order('id')
+            .range(f, t),
+        )
       : Promise.resolve({ data: [] as { id: string; display_name: string | null }[], error: null }),
     // Pas de `fetchAll`, et c'est borné par la CLÉ : `chatter_id` est la PK des deux tables
     // (→ au plus une ligne par membre, ~105 en prod), très loin du plafond PostgREST de 1000.

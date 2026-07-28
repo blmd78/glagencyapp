@@ -1,5 +1,5 @@
 import { login, BASE_URL, UA } from '@glagency/mypuls'
-import { createAdminClient } from '@glagency/db'
+import { createAdminClient, fetchAll } from '@glagency/db'
 
 /**
  * Pipeline MARKETING : liens de tracking MyPuls → mkt_links / mkt_link_daily.
@@ -73,7 +73,9 @@ export async function runMarketing(opts: { backfillFrom?: string } = {}): Promis
 
   const [{ data: creators, error: cErr }, { data: links, error: lErr }] = await Promise.all([
     db.from('creators').select('id, name, mypuls_creator_id').not('mypuls_creator_id', 'is', null),
-    db.from('mkt_links').select('id, name, mypuls_creator_id'),
+    // fetchAll : select nu sans filtre sur toute la table — grossit à chaque nouveau lien de
+    // tracking détecté (cf. plus bas), aucune borne native contre le plafond PostgREST.
+    fetchAll((f, t) => db.from('mkt_links').select('id, name, mypuls_creator_id').order('id').range(f, t)),
   ])
   if (cErr || lErr) throw new Error(`marketing : lecture DB impossible (${cErr?.message ?? lErr?.message})`)
   const keyOf = (mp: string | null, name: string) => `${mp ?? ''}::${name}`
@@ -128,7 +130,10 @@ export async function runMarketing(opts: { backfillFrom?: string } = {}): Promis
   if (newRows.length) {
     const { error } = await db.from('mkt_links').upsert(newRows, { onConflict: 'mypuls_creator_id,name' })
     if (error) throw new Error(`mkt_links insert : ${error.message}`)
-    const { data: refreshed, error: rErr } = await db.from('mkt_links').select('id, name, mypuls_creator_id')
+    // fetchAll : même table, même piège de plafond que la lecture initiale ci-dessus.
+    const { data: refreshed, error: rErr } = await fetchAll((f, t) =>
+      db.from('mkt_links').select('id, name, mypuls_creator_id').order('id').range(f, t),
+    )
     if (rErr || !refreshed) throw new Error(`mkt_links relecture : ${rErr?.message}`)
     linkIdByKey.clear()
     for (const l of refreshed) linkIdByKey.set(keyOf(l.mypuls_creator_id, l.name), l.id)

@@ -40,7 +40,8 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     supabase.from('rest_planning_weeks').select('sent_telegram').eq('week_start', weekStart).maybeSingle(),
     // `chatters` (MyPuls) : uniquement pour résoudre les noms des cellules LEGACY (ids d'avant la
     // bascule vers les membres) — plus la source des options. Noms seuls (pas `active`).
-    admin.from('chatters').select('id, display_name'),
+    // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
+    fetchAll((f, t) => admin.from('chatters').select('id, display_name').order('id').range(f, t)),
     // Profils utiles au planning en UNE requête paginée (fetchAll — anti-troncature) : encadrants
     // (manager/sous-manager/police, pour les colonnes managers/policiers + la résolution des noms)
     // ET membres role chatteur (OPTIONS des cellules chatteur, Repos non filtré). Les sous-ensembles

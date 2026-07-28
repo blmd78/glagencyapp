@@ -1,5 +1,6 @@
 import { currentWeekStart, daysBetween, endOfMonth, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import { round1, round2, eur, num, ltvOf } from '@/lib/format'
 import type { HealthChatter, HealthData, Kpi, LtvStatus, ModelHealth } from '../types'
@@ -59,7 +60,8 @@ export async function getHealth(
     rpcRes,
   ] = await Promise.all([
     supabase.from('creators').select('id, name, is_private, excluded'),
-    supabase.from('chatters').select('id, display_name'),
+    // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
+    fetchAll((f, t) => supabase.from('chatters').select('id, display_name').order('id').range(f, t)),
     // Agrégation EN BASE (migration 0049 health_report, SECURITY INVOKER = RLS appliquée) :
     // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
     // milliers de lignes journalières ni de reduce JS. RPC typé (nom + args) — pas de

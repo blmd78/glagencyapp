@@ -34,7 +34,8 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
         .order('date')
         .range(f, t),
     ),
-    admin.from('chatters').select('id, display_name'),
+    // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
+    fetchAll((f, t) => admin.from('chatters').select('id, display_name').order('id').range(f, t)),
   ])
   if (dailyErr) throw new Error(dailyErr.message)
   if (chattersErr) throw new Error(chattersErr.message)
