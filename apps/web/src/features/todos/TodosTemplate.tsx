@@ -1,41 +1,41 @@
+import { TodosMembers } from './components/todos-members'
 import { TodosView } from './components/todos-view'
-import type { Todo } from './types'
+import type { Todo, TodoEntry } from './types'
 
 /**
- * To-do personnelle — Server Component, aucun fetch (données en props). Toute l'interactivité
- * (état optimiste, dialog, bascule liste/kanban) vit dans `TodosView` (seul porteur de l'état
- * partagé entre les deux vues) : ce composant se contente de composer le libellé de la ligne
- * d'en-tête.
+ * To-do personnelle — Server Component, aucun fetch (données en props). TOUS les noms
+ * consultables sont posés sur la page, un par ligne, dépliables sur leur liste. Le sélecteur
+ * `?membre=` reste au-dessus des onglets pour se restreindre à UNE personne : dans ce cas la
+ * page ne passe qu'une entrée, avec sa liste DÉJÀ chargée (`todos`), affichée à plat sans
+ * accordéon ni aller-retour. En pile, le contenu part à l'ouverture.
  *
- * `key={profileId}` sur `TodosView` : remonte tout son état (filtre par release, dialog
- * ouvert/en édition, saisie de l'ajout rapide) quand on change de personne via le sélecteur.
- * Sans ça, React réconcilie le même arbre client à travers un changement de personne — un
- * filtre resté positionné sur une release qui n'existe pas chez la nouvelle personne viderait
- * la liste sans qu'aucun contrôle visible ne permette de comprendre pourquoi ni de revenir en
- * arrière (le sélecteur de release ne se rend que s'il existe au moins une release).
+ * Droits INCHANGÉS : chacun gère sa liste, la hiérarchie peut y déposer une tâche. La RLS
+ * `can_write_todo_of` (0067) reste l'enforcement réel.
  */
 export function TodosTemplate({
+  entries,
   todos,
   profileId,
-  targetName,
-  isSelf,
-  targetHasAccess,
 }: {
-  todos: Todo[]
-  /** Porteur de la liste (cible du sélecteur) — jamais le spectateur. */
+  entries: TodoEntry[]
+  /** Liste de la personne affichée à plat — `null` en mode pile (chargée à l'ouverture). */
+  todos: Todo[] | null
+  /** Le SPECTATEUR — sert à distinguer « Ma to-do » de « To-do de X ». */
   profileId: string
-  targetName: string
-  isSelf: boolean
-  /** La cible peut-elle ouvrir la page Planning ? Sinon elle ne verra jamais cette liste. */
-  targetHasAccess: boolean
 }) {
-  return (
-    <TodosView
-      key={profileId}
-      todos={todos}
-      profileId={profileId}
-      targetHasAccess={targetHasAccess}
-      label={isSelf ? 'Ma to-do' : `To-do de ${targetName}`}
-    />
-  )
+  // Une seule personne (filtre `?membre=`, ou sous-manager qui n'a personne à consulter) :
+  // pas d'accordéon à une seule ligne, sa liste directement.
+  if (entries.length === 1 && todos) {
+    const e = entries[0]
+    return (
+      <TodosView
+        key={e.id}
+        todos={todos}
+        profileId={e.id}
+        targetHasAccess={e.hasPlanningPage}
+        label={e.id === profileId ? 'Ma to-do' : `To-do de ${e.name}`}
+      />
+    )
+  }
+  return <TodosMembers entries={entries} />
 }
