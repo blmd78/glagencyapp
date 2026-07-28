@@ -67,12 +67,15 @@ export function TodoDialog({
   todo,
   open,
   onOpenChange,
+  onSaved,
 }: {
   profileId: string
   /** null = création. */
   todo: Todo | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Mode pile : le panneau vient d'une Server Action, `revalidatePath` ne le rafraîchit pas. */
+  onSaved?: () => void
 }) {
   'use no memo'
   // Triple générique (Input, Context, Output) : `todoCreateInput` a des champs `.default()`,
@@ -106,6 +109,7 @@ export function TodoDialog({
       // Pas de toast de succès : même règle que la suppression — le dialog se ferme et la
       // carte/ligne apparaît à l'écran, ça suffit à confirmer le geste sans bruit
       // supplémentaire.
+      onSaved?.()
       onOpenChange(false)
       return
     }
