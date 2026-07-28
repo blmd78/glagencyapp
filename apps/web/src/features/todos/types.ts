@@ -153,6 +153,13 @@ export function todoDateMeta(t: Todo): string | null {
       if (!t.doneAt) return null
       if (!t.startedAt) return `fini le ${frDayMonthParis(t.doneAt)}`
       const days = daysBetweenParis(t.startedAt, t.doneAt)
+      if (days <= 0) {
+        // Même jour Paris : « 0 j » ne dit rien — la durée passe en HEURES (décision Benoit,
+        // 2026-07-28). Durée ABSOLUE entre les deux instants : aucun fuseau ici, contrairement
+        // aux jours calendaires. « moins d'1 h » sous l'heure (couvre aussi un écart dégénéré).
+        const hours = Math.round((Date.parse(t.doneAt) - Date.parse(t.startedAt)) / 3_600_000)
+        return `fini le ${frDayMonthParis(t.doneAt)} · ${hours < 1 ? 'moins d’1 h' : `${hours} h`}`
+      }
       return `${frDayMonthParis(t.startedAt)} → ${frDayMonthParis(t.doneAt)} · ${days} j`
     }
   }

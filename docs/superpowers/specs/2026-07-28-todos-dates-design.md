@@ -98,7 +98,7 @@ dans la formule ci-dessus) :
 |---|---|---|
 | À faire | `ajouté le 12/07` | — (`created_at` existe toujours) |
 | En cours | `depuis 3 j` · à J0 : `depuis aujourd'hui` | rien (pas de `started_at`) |
-| Terminé | `12/07 → 15/07 · 3 j` (début → fin · jours en cours) | sans `started_at` : `fini le 15/07` ; sans `done_at` (impossible en pratique, le trigger le pose) : rien |
+| Terminé | `12/07 → 15/07 · 3 j` (début → fin · jours en cours) ; même jour Paris : durée en **heures** (`fini le 12/07 · 3 h`, arrondies ; sous l'heure : `moins d'1 h` — décision Benoit à la livraison) | sans `started_at` : `fini le 15/07` ; sans `done_at` (impossible en pratique, le trigger le pose) : rien |
 
 - Les « 3 j » comptent **uniquement le temps passé en « En cours »** (`started_at → done_at`) —
   jamais l'attente en « À faire ».
