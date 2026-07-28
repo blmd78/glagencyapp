@@ -117,7 +117,6 @@ describe('semaines de référence', () => {
   })
 })
 
-
 describe('frDayMonthParis', () => {
   it('affiche jour/mois du jour PARIS, pas UTC (été : 22:30Z le 11/07 = 12/07 à Paris)', () => {
     expect(frDayMonthParis('2026-07-11T22:30:00Z')).toBe('12/07')
