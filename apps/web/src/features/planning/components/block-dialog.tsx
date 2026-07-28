@@ -73,12 +73,15 @@ export function BlockDialog({
   block,
   open,
   onClose,
+  onSaved,
 }: {
   profileId: string
   /** null = création. */
   block: PlanningBlock | null
   open: boolean
   onClose: () => void
+  /** Enregistrement réussi — permet au parent de recharger un planning détenu en état client. */
+  onSaved?: () => void
 }) {
   'use no memo'
   const {
@@ -138,6 +141,7 @@ export function BlockDialog({
       return
     }
     toast.success(block ? 'Bloc modifié' : 'Bloc ajouté')
+    onSaved?.()
     onClose()
   })
 

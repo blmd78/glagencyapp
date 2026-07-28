@@ -1,4 +1,4 @@
-import { addDays, frDayShort, mondayOf, todayParis } from '@glagency/core'
+import { addDays, currentWeekStart, frDayShort, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -24,7 +24,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   // par requireAccess('repos') en amont ; les DONNÉES du planning restent, elles, sur le client RLS.
   const admin = createAdminClient()
 
-  const currentMonday = mondayOf(todayParis())
+  const currentMonday = currentWeekStart(todayParis())
   const weekStart = week && /^\d{4}-\d{2}-\d{2}$/.test(week) ? week : currentMonday
 
   const [

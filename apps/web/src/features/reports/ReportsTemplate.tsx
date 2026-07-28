@@ -1,42 +1,59 @@
-import { addDays, todayParis } from '@glagency/core'
-import { ReportsView } from './components/reports-view'
-import { REPORT_WINDOW_DAYS, type Report, type ReportMember } from './types'
+import { todayParis } from '@glagency/core'
+import { MemberSelect } from '@/components/member-select'
+import { ReportPanel } from './components/report-panel'
+import { ReportsMembers } from './components/reports-members'
+import type { Report, ReportEntry, ReportMember } from './types'
 
 /**
- * Comptes rendus journaliers (« Dashboard ») — Server Component, aucun fetch (données en props).
- * Toute l'interactivité (sélecteur personne + sélecteur date + édition) vit dans ReportsView.
- * Rédaction possible seulement sur le jour courant, par son auteur ; le reste = consultation.
+ * Comptes rendus journaliers (« Dashboard ») — Server Component, aucun fetch (données en
+ * props). Depuis 2026-07-26 : TOUS les noms consultables sont posés sur la page, un par ligne,
+ * dépliables sur leurs comptes rendus (maquette du propriétaire). Le sélecteur `?membre=`
+ * reste disponible pour se restreindre à UNE personne — la page ne passe alors qu'une entrée,
+ * affichée à plat avec ses comptes rendus déjà chargés (`reports`), sans aller-retour. Les
+ * chatteurs ne figurent pas dans la liste (filtre de `getReportMembers`). Rédaction possible
+ * seulement sur le jour courant, par son auteur ; le reste = consultation.
  */
 export function ReportsTemplate({
+  entries,
   reports,
-  targetName,
-  members,
-  target,
-  canWrite,
-  isSelf,
+  selectableMembers,
+  filterId,
 }: {
+  /** Les personnes AFFICHÉES : toutes, ou la seule retenue par le filtre. */
+  entries: ReportEntry[]
+  /** Comptes rendus de la personne affichée à plat — vide en mode pile (chargés à l'ouverture). */
   reports: Report[]
-  /** Nom de la personne consultée (en-tête « Comptes rendus de … »). */
-  targetName: string
-  /** Personnes consultables (soi + autres). Vide = pas de sélecteur de personne. */
-  members: ReportMember[]
-  target: string
-  /** L'auteur peut rédiger SON CR du jour (vue « moi », hors superadmin). */
-  canWrite: boolean
-  /** La cible consultée est soi-même. */
-  isSelf: boolean
+  /** Toutes les personnes consultables — alimente le sélecteur, jamais filtré. */
+  selectableMembers: ReportMember[]
+  /** `?membre=` validé (`null` = pas de filtre). */
+  filterId: string | null
 }) {
   const today = todayParis()
+
   return (
-    <ReportsView
-      reports={reports}
-      members={members}
-      target={target}
-      today={today}
-      minDay={addDays(today, -REPORT_WINDOW_DAYS)}
-      canWrite={canWrite}
-      isSelf={isSelf}
-      targetName={targetName}
-    />
+    <div className="flex flex-col gap-6">
+      {/* Pas de sélecteur quand on est seul à consulter (rédacteur sans encadré).
+          « Consulter : » — sans lui, le combobox n'annonce pas ce qu'il pilote (il affiche
+          « Tous les membres » ou un nom, sans plus). Il n'y en a pas sur le Planning : là-bas
+          le sélecteur est partagé par deux onglets et change de sens de l'un à l'autre, aucun
+          libellé unique ne serait juste. */}
+      {selectableMembers.length > 1 && (
+        <div className="flex items-center justify-end gap-2">
+          <span className="text-sm text-muted-foreground">Consulter :</span>
+          <MemberSelect members={selectableMembers} value={filterId} allowAll />
+        </div>
+      )}
+      {entries.length === 1 ? (
+        // Une seule personne (filtre, ou rédacteur seul) : pas d'accordéon à une seule ligne.
+        <ReportPanel
+          reports={reports}
+          today={today}
+          canWrite={entries[0].canWrite}
+          idSuffix={entries[0].id}
+        />
+      ) : (
+        <ReportsMembers entries={entries} today={today} />
+      )}
+    </div>
   )
 }

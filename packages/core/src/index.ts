@@ -38,6 +38,9 @@ export {
   frMonthLong,
   daysBetween,
   weekLabel,
+  currentWeekStart,
+  lastWeekStart,
+  lastFullWeekStartFrom,
   round1,
   round2,
 } from './domain/dates'

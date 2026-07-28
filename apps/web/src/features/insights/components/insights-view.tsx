@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChevronRight, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
+import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -13,13 +14,10 @@ import {
 } from '@/components/ui/select'
 import { Combobox } from '@/components/ui/combobox'
 import { Badge } from '@/components/ui/badge'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import { modelColor } from '@/lib/model-color'
+import { CollapsibleSection } from '@/components/collapsible-section'
 import { InsightCard } from './insight-card'
+import { InsightDot, isATraiter } from './insight-dot'
 import { RankingTable, type RankMetric } from './ranking-table'
 import type { InsightRow, InsightsData, InsightStatus, RankingData } from '../types'
 
@@ -76,8 +74,69 @@ export function InsightsView({
     )
   })()
 
+  // KPIs de la SEMAINE, pas de la sélection : ils décrivent ce qu'il y a à traiter, et ne
+  // doivent pas sauter à chaque frappe dans la recherche (les filtres, eux, agissent sur la
+  // liste dessous). `deltaPct: null` partout — aucune comparaison avec la semaine précédente
+  // n'est chargée ici, et inventer une tendance serait pire que ne pas en montrer.
+  const all = data.insights
+  const nCrit = all.filter((i) => i.severity === 'critical').length
+  const nToDo = all.filter((i) => isATraiter(i.status)).length
+  const nDone = all.filter((i) => i.status === 'resolved').length
+  const nModels = new Set(all.flatMap((i) => i.models.map((m) => m.name))).size
+  const share = (n: number) => (all.length ? `${Math.round((n / all.length) * 100)} % des cartes` : '—')
+  const kpis: Kpi[] = [
+    {
+      key: 'total',
+      label: 'Cartes',
+      value: String(all.length),
+      deltaPct: null,
+      trendLabel: 'Analyses de la semaine',
+      // Pas la date : elle est déjà en toutes lettres dans le sous-titre juste au-dessus.
+      // Le nombre de modèles couverts, lui, ne se lit nulle part ailleurs.
+      hint: `${nModels} modèle${nModels > 1 ? 's' : ''} couvert${nModels > 1 ? 's' : ''}`,
+    },
+    {
+      key: 'critical',
+      label: 'Critiques',
+      value: String(nCrit),
+      deltaPct: null,
+      trendLabel: 'Sévérité critique',
+      hint: share(nCrit),
+    },
+    {
+      key: 'todo',
+      label: 'À traiter',
+      value: String(nToDo),
+      deltaPct: null,
+      trendLabel: 'Ni résolu ni ignoré',
+      hint: share(nToDo),
+    },
+    {
+      key: 'resolved',
+      label: 'Résolues',
+      value: String(nDone),
+      deltaPct: null,
+      trendLabel: 'Clôturées avec bilan',
+      hint: share(nDone),
+    },
+  ]
+
   return (
     <>
+      {all.length > 0 && (
+        // Liserés alignés sur le code couleur des points : vert = total, rouge = critique,
+        // ambre = à traiter ; bleu pour « résolues » (information, pas alerte).
+        <KpiGrid
+          kpis={kpis}
+          accents={[
+            'border-t-green-500',
+            'border-t-red-500',
+            'border-t-amber-500',
+            'border-t-blue-500',
+          ]}
+        />
+      )}
+
       {(data.insights.length > 0 || needle) && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -159,41 +218,66 @@ export function InsightsView({
             : 'Rien avec ces filtres.'}
         </p>
       ) : (
-        <div className="flex flex-col gap-6">
+        // `gap-2` : même respiration entre accordéons que la pile de noms du Dashboard et du
+        // Planning (`members-accordion.tsx`). C'était `gap-6`, hérité de l'époque où l'en-tête
+        // était un intertitre nu sans cadre — avec un cadre, l'écart devient un trou.
+        <div className="flex flex-col gap-2">
           {sections.map(([model, items]) => {
             const crit = items.filter((i) => i.severity === 'critical').length
-            const toDo = items.filter((i) => i.status === 'new' || i.status === 'in_progress').length
+            // Même prédicat que le point posé sur chaque carte (`insight-dot.tsx`) : le
+            // compteur et les points doivent toujours tomber d'accord.
+            const toDo = items.filter((i) => isATraiter(i.status)).length
             return (
-              // Fermé par défaut — la ligne d'en-tête résume (cartes, critiques, à traiter).
-              // key inclut le filtre : filtrer sur un modèle rouvre sa section.
-              <Collapsible key={`${model}:${modelFilter}`} defaultOpen={modelFilter !== 'all'} asChild>
-                <section className="flex flex-col gap-2">
-                  <CollapsibleTrigger className="group flex w-full items-center gap-2 text-left">
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+              // Même accordéon que partout ailleurs (`CollapsibleSection`) : cadre, chevron,
+              // filet. Fermé par défaut — la ligne d'en-tête résume à elle seule. La `key`
+              // inclut le filtre : filtrer sur un modèle rouvre sa section.
+              <CollapsibleSection
+                key={`${model}:${modelFilter}`}
+                defaultOpen={modelFilter !== 'all'}
+                contentClassName="flex flex-col gap-2 p-3"
+                trigger={
+                  <>
+                    {/* Pas de `h2` ici : `CollapsibleSection` en pose déjà un autour du
+                        trigger — en imbriquer un second serait invalide. */}
                     {model === 'Autres' ? (
-                      <h2 className="text-sm font-medium text-muted-foreground">Autres</h2>
+                      <span className="text-muted-foreground">Autres</span>
                     ) : (
                       <Badge className={modelColor(model)}>{model}</Badge>
                     )}
-                    <span className="text-xs tabular-nums text-muted-foreground">
-                      {items.length} carte{items.length > 1 ? 's' : ''}
-                      {crit > 0 ? ` · ${crit} critique${crit > 1 ? 's' : ''}` : ''}
-                      {toDo > 0 ? ` · ${toDo} à traiter` : ''}
+                    {/* Compteurs alignés à DROITE, même code couleur que les points des
+                        cartes : on lit d'un coup d'œil ce que la section contient sans la
+                        déplier. */}
+                    <span className="ml-auto flex items-center gap-2 text-xs font-normal tabular-nums text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <InsightDot tone="total" />
+                        {items.length} carte{items.length > 1 ? 's' : ''}
+                      </span>
+                      {crit > 0 && (
+                        <span className="flex items-center gap-1">
+                          <InsightDot tone="critique" />
+                          {crit} critique{crit > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {toDo > 0 && (
+                        <span className="flex items-center gap-1">
+                          <InsightDot tone="a-traiter" />
+                          {toDo} à traiter
+                        </span>
+                      )}
                     </span>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="flex flex-col gap-2">
-                    {items.map((i) => (
-                      <InsightCard
-                        key={`${model}:${i.key}`}
-                        insight={i}
-                        isAdmin={isAdmin}
-                        canWrite={canWrite}
-                        currentUserId={currentUserId}
-                      />
-                    ))}
-                  </CollapsibleContent>
-                </section>
-              </Collapsible>
+                  </>
+                }
+              >
+                {items.map((i) => (
+                  <InsightCard
+                    key={`${model}:${i.key}`}
+                    insight={i}
+                    isAdmin={isAdmin}
+                    canWrite={canWrite}
+                    currentUserId={currentUserId}
+                  />
+                ))}
+              </CollapsibleSection>
             )
           })}
         </div>

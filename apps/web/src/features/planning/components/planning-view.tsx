@@ -20,10 +20,22 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 export function PlanningView({
   data,
   canEdit,
+  nested = false,
+  onChanged,
 }: {
   data: PlanningData
   /** Édition de la cible (on ne modifie pas SON propre planning, sauf superadmin). */
   canEdit: boolean
+  /** Rendu dans un accordéon : le nom est déjà sur la ligne qui ouvre, l'en-tête ne le répète
+   *  pas et descend d'un niveau de titre (même patron que `report-panel.tsx`). */
+  nested?: boolean
+  /**
+   * Un bloc vient d'être ajouté, modifié ou supprimé. Indispensable quand `data` vit en ÉTAT
+   * CLIENT (pile d'accordéons, chargée à la demande) : `revalidatePath` ne repatche que l'arbre
+   * serveur, le planning affiché resterait sur l'instantané d'avant la mutation. Inutile en vue
+   * filtrée, où `data` vient des props serveur.
+   */
+  onChanged?: () => void
 }) {
   const [editingBlock, setEditingBlock] = useState<PlanningBlock | 'new' | null>(null)
   const [day, setDay] = useState<PlanningDay>('lundi')
@@ -48,6 +60,7 @@ export function PlanningView({
       <PlanningHeader
         data={data}
         canEdit={canEdit}
+        nested={nested}
         totalMin={totalMin}
         shiftsCount={bySection.length}
         onAddBlock={() => setEditingBlock('new')}
@@ -76,6 +89,7 @@ export function PlanningView({
         bySection={bySection}
         canEdit={canEdit}
         onEdit={(b) => setEditingBlock(b)}
+        onDeleted={onChanged}
       />
 
       {canEdit && (
@@ -84,6 +98,7 @@ export function PlanningView({
           block={editingBlock !== 'new' ? editingBlock : null}
           open={editingBlock !== null}
           onClose={() => setEditingBlock(null)}
+          onSaved={onChanged}
         />
       )}
     </div>

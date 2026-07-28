@@ -15,6 +15,7 @@ import type { PlanningData } from '../types'
 export function PlanningHeader({
   data,
   canEdit,
+  nested = false,
   totalMin,
   shiftsCount,
   onAddBlock,
@@ -22,20 +23,31 @@ export function PlanningHeader({
   data: PlanningData
   /** Cible éditable par le spectateur (on consulte SON propre planning en lecture seule). */
   canEdit: boolean
+  /** Rendu dans un accordéon : le nom est déjà sur la ligne qui ouvre le panneau — le répéter
+   *  ici l'afficherait deux fois — et le titre passe en `h3` sous le `h2` de cette ligne. */
+  nested?: boolean
   totalMin: number
   shiftsCount: number
   onAddBlock: () => void
 }) {
+  const Title = nested ? 'h3' : 'h2'
+  const duration = totalMin > 0 && (
+    <>
+      {fmtDuration(totalMin)} de travail effectif · {shiftsCount} shift
+      {shiftsCount > 1 ? 's' : ''}
+    </>
+  )
   return (
     <div className="flex flex-wrap items-start gap-3">
       <div>
-        <h2 className="text-lg font-medium">Planning journalier</h2>
+        <Title className="text-lg font-medium">Planning journalier</Title>
         <p className="text-sm text-muted-foreground">
-          {data.profileName}
-          {totalMin > 0 && (
+          {nested ? (
+            duration
+          ) : (
             <>
-              {' '}· {fmtDuration(totalMin)} de travail effectif · {shiftsCount} shift
-              {shiftsCount > 1 ? 's' : ''}
+              {data.profileName}
+              {duration && <> · {duration}</>}
             </>
           )}
         </p>

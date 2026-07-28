@@ -2,11 +2,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 /**
  * Silhouette NEUTRE : un `loading.tsx` ne reçoit pas `searchParams`, donc on ne sait pas quel
- * onglet va s'afficher — pas de squelette de contenu ici. Elle reprend la 1re ligne réelle de
- * `page.tsx` (le `h1` seul, sans sous-titre ni sélecteur à côté), puis sélecteur + barre
- * d'onglets. Mêmes dimensions que le fallback du `<Suspense>` de `page.tsx` (titre en plus,
- * lui hors boundary) : les deux silhouettes s'enchaînent sans saut visible, le contenu
- * spécifique à l'onglet prenant ensuite le relais dans ce fallback-là.
+ * onglet va s'afficher — pas de squelette de CONTENU ici (parier sur le planning ferait sauter
+ * la silhouette dès qu'on arrive sur `?vue=todo`). Elle reprend la 1re ligne réelle de
+ * `page.tsx` (le `h1` seul, sans sous-titre), puis sélecteur et barre d'onglets. Mêmes
+ * dimensions que le fallback du `<Suspense>` de `page.tsx` (titre en plus, lui hors boundary) :
+ * les deux silhouettes s'enchaînent sans saut visible, le contenu spécifique à l'onglet prenant
+ * ensuite le relais dans ce fallback-là, qui lui connaît `?vue=`.
  */
 export default function Loading() {
   return (

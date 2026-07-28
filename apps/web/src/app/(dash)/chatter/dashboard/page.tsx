@@ -1,13 +1,23 @@
 import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
-import { getReports, getReportMembers } from '@/features/reports/services/get-reports'
+import { applyFilter, resolveFilter, selfLabel } from '@/lib/roster'
+import {
+  getReportDays,
+  getReportMembers,
+  getReports,
+  isPiled,
+} from '@/features/reports/services/get-reports'
 import { ReportsTemplate } from '@/features/reports/ReportsTemplate'
 import { ReportsSkeleton } from '@/features/reports/components/reports-skeleton'
-import type { ReportMember } from '@/features/reports/types'
+import type { ReportEntry, ReportMember } from '@/features/reports/types'
 
 /**
- * Dashboard = comptes rendus journaliers. Chacun rédige LE SIEN ; consultation hiérarchique
- * via `?membre=` (manager → ses rattachés directs ; admin/superadmin → tout). RLS = verrou réel.
+ * Dashboard = comptes rendus journaliers. Chacun rédige LE SIEN ; la consultation hiérarchique
+ * (manager → ses rattachés directs ; admin/superadmin → tout) empile les noms de
+ * l'ENCADREMENT en accordéons, un par ligne — les chatteurs, trop nombreux pour une pile,
+ * restent joignables par le sélecteur. Celui-ci est un FILTRE optionnel :
+ * absent = tout le monde empilé, présent = cette personne seule, affichée à plat. La liste ne
+ * contient que l'encadrement (chatteurs écartés, cf. `getReportMembers`). RLS = verrou réel.
  */
 export default async function DashboardPage({
   searchParams,
@@ -48,27 +58,50 @@ async function DashboardContent({
   membre?: string
   membersPromise: Promise<ReportMember[]>
 }) {
-  // Personnes consultables hors soi (la RLS de `profiles` a déjà scopé par rôle). S'il y en a,
-  // on préfixe SOI (« (moi) ») pour le sélecteur ; sinon pas de sélecteur.
+  // Personnes consultables hors soi (la RLS de `profiles` a déjà scopé par hiérarchie). SOI en
+  // tête ; le « (moi) » ne sert qu'à se distinguer des autres : inutile quand on est seul.
   const others = (await membersPromise).filter((m) => m.id !== profileId)
-  const members: ReportMember[] = others.length
-    ? [{ id: profileId, name: `${selfName} (moi)`, role: '' }, ...others]
-    : []
-  const target = membre && members.some((m) => m.id === membre) ? membre : profileId
-  const isSelf = target === profileId
-  // On ne rédige que LE SIEN ; le superadmin ne rédige pas (v1).
-  const canWrite = isSelf && !superadmin
-  const targetName = isSelf ? selfName : (others.find((m) => m.id === target)?.name ?? '—')
-  const reports = await getReports(target)
+  const roster: ReportMember[] = [
+    { id: profileId, name: selfLabel(selfName, others), role: '' },
+    ...others,
+  ]
+
+  // DEUX périmètres distincts, et c'est volontaire :
+  // — le SÉLECTEUR liste `roster`, tout le monde, chatteurs compris : on doit pouvoir aller
+  //   lire le compte rendu d'un chatteur en le choisissant ;
+  // — la PILE d'accordéons ne montre que l'encadrement (`isPiled`), sinon la page déroulerait
+  //   cent noms de chatteurs.
+  // `?membre=` validé sur le roster COMPLET : filtrer sur un chatteur reste donc possible, et
+  // l'affiche à plat.
+  const filterId = resolveFilter(roster, membre)
+  const shown = filterId
+    ? applyFilter(roster, filterId)
+    : roster.filter((m) => isPiled(m, profileId))
+
+  // Une seule personne à afficher → rendu à plat : on charge SON contenu tout de suite, il n'y
+  // a pas d'accordéon à déplier. Sinon on ne charge que les JOURS d'écriture (repère de la
+  // ligne repliée) ; le texte part à l'ouverture (`loadReports`). `getReportDays` pré-remplit
+  // une entrée par id — le `?? []` n'est là que pour TypeScript.
+  const single = shown.length === 1
+  const [reports, days] = await Promise.all([
+    single ? getReports(shown[0].id) : Promise.resolve([]),
+    single ? Promise.resolve(new Map<string, string[]>()) : getReportDays(shown.map((m) => m.id)),
+  ])
+  const entries: ReportEntry[] = shown.map((m) => ({
+    id: m.id,
+    name: m.name,
+    role: m.role,
+    days: days.get(m.id) ?? [],
+    // On ne rédige que LE SIEN ; le superadmin ne rédige pas (v1).
+    canWrite: m.id === profileId && !superadmin,
+  }))
 
   return (
     <ReportsTemplate
+      entries={entries}
       reports={reports}
-      targetName={targetName}
-      members={members}
-      target={target}
-      canWrite={canWrite}
-      isSelf={isSelf}
+      selectableMembers={roster}
+      filterId={filterId}
     />
   )
 }

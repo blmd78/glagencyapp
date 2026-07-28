@@ -132,6 +132,38 @@ export const daysBetween = (from: string, to: string): number =>
 export const weekLabel = (start: string): string =>
   `sem. ${frDayShort(start)}–${frDayShort(addDays(start, 6))}`
 
+// ── Semaines de référence ────────────────────────────────────────────────────────────────
+// L'app manipule TROIS semaines distinctes. Elles étaient re-dérivées à la main dans chaque
+// service (repos, health, bilan, générateur d'insights) : les formules ne divergeaient pas,
+// mais rien ne NOMMAIT la différence — d'où la question récurrente « pourquoi la S-1 des
+// insights n'est pas celle du bilan ? ». Les nommer ici rend l'écart explicite et testable.
+
+/** Lundi de la semaine EN COURS. Repos (planning à remplir), Health (KPIs du moment). */
+export const currentWeekStart = (today: string): string => mondayOf(today)
+
+/**
+ * Lundi de la S-1 selon l'HORLOGE : la semaine complète qui précède celle d'aujourd'hui.
+ * Ne dépend PAS de l'ingestion — le Bilan reste consultable même si la donnée a du retard
+ * (la période affichée est alors simplement incomplète, ce qui est lisible et voulu).
+ */
+export const lastWeekStart = (today: string): string => mondayOf(addDays(today, -7))
+
+/**
+ * Lundi de la dernière semaine COMPLÈTEMENT ingérée, déduite du dernier jour de données.
+ * Utilisé par le générateur d'insights : analyser une semaine à moitié remplie produirait
+ * des « quotas manqués » faux. Ancré sur la donnée et NON sur l'horloge, parce que le run de
+ * 23h05 UTC tourne avant minuit — l'horloge basculerait avec un jour de retard.
+ *
+ * Conséquence assumée : si l'ingestion prend du retard, cette semaine recule alors que
+ * `lastWeekStart` avance. Les deux ont raison pour leur usage ; c'est la raison pour laquelle
+ * la page Insights peut afficher une semaine antérieure à celle du Bilan.
+ */
+export const lastFullWeekStartFrom = (maxIngestedDay: string): string => {
+  const monday = mondayOf(maxIngestedDay)
+  // Le dimanche de cette semaine est-il ingéré ? Sinon, la semaine complète est la précédente.
+  return maxIngestedDay >= addDays(monday, 6) ? monday : addDays(monday, -7)
+}
+
 export const round1 = (n: number): number => Math.round(n * 10) / 10
 export const round2 = (n: number): number => Math.round(n * 100) / 100
 

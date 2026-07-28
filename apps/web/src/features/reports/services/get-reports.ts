@@ -1,36 +1,84 @@
 import { addDays, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { REPORT_WINDOW_DAYS, type Report, type ReportMember } from '../types'
 
+/** Borne basse de la fenêtre glissante affichée (jour métier Paris, jamais UTC — §6). */
+const windowStart = () => addDays(todayParis(), -REPORT_WINDOW_DAYS)
+
 /**
- * Comptes rendus d'UNE personne (la cible du sélecteur), fenêtre glissante 30 jours,
- * antéchrono. Le cloisonnement est porté par la RLS (`daily_reports_read`, 0053/0064) : la
- * lecture n'aboutit que si la cible est soi, un rattaché direct, ou si on est admin/superadmin.
- * Volume : ≤ ~30 lignes (1 profil × 30 j) → pas de RPC/fetchAll (largement sous 1000).
+ * Comptes rendus d'UNE personne, fenêtre 30 jours, antéchrono. Le cloisonnement est porté par
+ * la RLS (`daily_reports_read`, 0053/0064). Chargé À LA DEMANDE quand on déplie son nom
+ * (`loadReports`, actions.ts) — sinon le premier rendu embarquerait le texte intégral de 30
+ * jours × tous les encadrants, alors que la pile s'affiche repliée.
+ * Volume : ≤ 31 lignes → pas de `fetchAll` nécessaire.
  */
-export async function getReports(targetId: string): Promise<Report[]> {
+export async function getReports(profileId: string): Promise<Report[]> {
   const supabase = await createClient()
-  const from = addDays(todayParis(), -REPORT_WINDOW_DAYS)
   const { data, error } = await supabase
     .from('daily_reports')
-    .select('id, day, content, updated_at')
-    .eq('profile_id', targetId)
-    .gte('day', from)
+    .select('day, content')
+    .eq('profile_id', profileId)
+    .gte('day', windowStart())
     .order('day', { ascending: false })
   if (error) throw new Error(error.message)
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    day: r.day,
-    content: r.content,
-    updatedAt: r.updated_at,
-  }))
+  return (data ?? []).map((r) => ({ day: r.day, content: r.content }))
+}
+
+/** Ligne réduite au strict nécessaire du repère « a écrit / n'a rien écrit ». */
+interface DayRow {
+  profile_id: string
+  day: string
 }
 
 /**
- * Personnes consultables via le sélecteur — la RLS de `profiles` (0054) fait TOUT le scoping :
- * admin/superadmin → tout le monde ; manager/sous-manager → soi + rattachés directs
- * (`manager_id`) ; chatteur → soi seul. Superadmin exclu de la liste (il ne rédige pas).
- * (Même patron que `getPlanningMembers` : on s'appuie sur la RLS, pas de branche de sécurité TS.)
+ * Les JOURS où chaque personne a écrit, sans le contenu — c'est tout ce dont la pile repliée a
+ * besoin (« Compte rendu du jour » / « Rien aujourd'hui »). Une entrée par id demandé, même vide.
+ */
+export async function getReportDays(profileIds: string[]): Promise<Map<string, string[]>> {
+  const byProfile = new Map<string, string[]>(profileIds.map((id) => [id, []]))
+  if (!profileIds.length) return byProfile
+
+  const supabase = await createClient()
+  // `fetchAll` : N personnes × 30 jours peut dépasser la limite PostgREST de 1000 lignes,
+  // qui tronque EN SILENCE (cf. docs/guidelines-data-loading.md).
+  const { data, error } = await fetchAll<DayRow>((f, t) =>
+    supabase
+      .from('daily_reports')
+      .select('profile_id, day')
+      .in('profile_id', profileIds)
+      .gte('day', windowStart())
+      // `.order()` sur la PK COMPLÈTE (guidelines §2) : `unique (profile_id, day)` (0053)
+      // suffirait à rendre l'ordre total, `id` ferme le cas à la lettre.
+      .order('profile_id')
+      .order('day', { ascending: false })
+      .order('id')
+      .range(f, t),
+  )
+  if (error) throw new Error(error.message)
+
+  for (const r of data) byProfile.get(r.profile_id)?.push(r.day)
+  return byProfile
+}
+
+/**
+ * Rôles EMPILÉS en accordéons : l'encadrement (demande du propriétaire, 2026-07-26 — « pas
+ * mettre les chatteurs »). Ce n'est PAS un filtre de lecture : un chatteur reste joignable par
+ * le SÉLECTEUR, qui liste tout le monde — on ne veut simplement pas dérouler 100 chatteurs sur
+ * la page. Le superadmin, lui, ne rédige pas (v1) et reste hors des deux.
+ */
+const PILED_ROLES = ['admin', 'manager', 'sous-manager', 'police']
+
+/** Cette personne a-t-elle sa ligne dans la pile ? Soi toujours (`role: ''`). */
+export const isPiled = (member: ReportMember, selfId: string): boolean =>
+  member.id === selfId || PILED_ROLES.includes(member.role)
+
+/**
+ * Personnes consultables sur le Dashboard — TOUT LE MONDE sauf le superadmin, chatteurs
+ * compris : c'est ce qui alimente le sélecteur. La RLS de `profiles` (0054) fait le scoping
+ * hiérarchique : admin/superadmin → tout le monde ; manager/sous-manager → soi + rattachés
+ * directs (`manager_id`) ; chatteur → soi seul. Le tri de la PILE se fait ensuite côté page
+ * (`isPiled`), pas ici — sinon le sélecteur perdrait les chatteurs avec elle.
  */
 export async function getReportMembers(): Promise<ReportMember[]> {
   const supabase = await createClient()

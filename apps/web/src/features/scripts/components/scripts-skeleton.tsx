@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
  * sélecteur vivent sur la MÊME zone, donc pas de h1 « immédiat » séparable dans `page.tsx`
  * sans casser la mise en page (docs/guidelines-data-loading.md §3, « widget d'en-tête
  * couplé à un hook »). Le bouton « Ajouter un item » (admin uniquement) est OMIS — même
- * choix que `planning-skeleton.tsx` : le rôle n'est pas connu de `loading.tsx`, et ce
+ * choix que `police-skeleton.tsx` : le rôle n'est pas connu de `loading.tsx`, et ce
  * composant est la source UNIQUE partagée avec le fallback `<Suspense>` de `page.tsx`
  * (docs/guidelines-standard-feature.md §2).
  */

@@ -14,8 +14,8 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { STATUS_COLORS } from '@/lib/status-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
+import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { deleteMember } from '../actions'
 import { ImpersonateButton } from './impersonate-button'
 import { MemberDialog } from './member-dialog'
@@ -209,27 +209,30 @@ export function MembersTable({
       accessorKey: 'role',
       header: ({ column }) => <Sortable column={column} label="Rôle" />,
       cell: ({ getValue, row }) =>
-        (getValue() as string) === 'superadmin' ? (
-          <Badge className={cn('gap-1 text-xs', STATUS_COLORS.info)}>
-            <ShieldCheck className="size-3" /> Superadmin
-          </Badge>
-        ) : (getValue() as string) === 'admin' ? (
-          <Badge className={cn('gap-1 text-xs', STATUS_COLORS.info)}>
-            <ShieldCheck className="size-3" /> Admin
-          </Badge>
-        ) : (getValue() as string) === 'manager' ? (
-          <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Manager</Badge>
-        ) : (getValue() as string) === 'sous-manager' ? (
-          <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Sous-manager</Badge>
-        ) : (getValue() as string) === 'police' ? (
-          <Badge className={cn('text-xs', STATUS_COLORS.warning)}>Police</Badge>
-        ) : (
-          <div className="flex flex-wrap items-center gap-1">
-            <Badge className={cn('text-xs', STATUS_COLORS.neutral)}>Chatter</Badge>
-            <RoleBadge role={row.original.closingRole} />
-            <TeamBadge team={row.original.closingTeam} />
-          </div>
-        ),
+        // Libellés ET teintes depuis `lib/roles.ts` (source unique, partagée avec la pile de
+        // noms du Dashboard/Planning). Seul l'icône « bouclier » de la direction reste ici.
+        (() => {
+          const role = getValue() as string
+          const badge = (
+            // Repli sur la teinte « chatter » : un rôle hors table (le `'user'` transitoire de
+            // 0059, ou une valeur inconnue) doit garder un badge gris, pas le style plein par
+            // défaut du composant — c'est ce que faisait la cascade de ternaires d'avant.
+            <Badge className={cn('gap-1 text-xs', ROLE_TONE[role] ?? ROLE_TONE.chatteur)}>
+              {(role === 'superadmin' || role === 'admin') && <ShieldCheck className="size-3" />}
+              {ROLE_NAME[role] ?? ROLE_NAME.chatteur}
+            </Badge>
+          )
+          // Un chatter porte en plus ses étiquettes closing (setter/closer, équipe).
+          return role === 'chatteur' || !ROLE_NAME[role] ? (
+            <div className="flex flex-wrap items-center gap-1">
+              {badge}
+              <RoleBadge role={row.original.closingRole} />
+              <TeamBadge team={row.original.closingTeam} />
+            </div>
+          ) : (
+            badge
+          )
+        })(),
     },
     {
       id: 'pages',

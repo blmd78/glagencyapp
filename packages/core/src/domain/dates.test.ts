@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { addMonths, frDateTimeParis, frMonthLong, frTimeShort, todayParis } from './dates'
+import {
+  addMonths,
+  currentWeekStart,
+  frDateTimeParis,
+  frMonthLong,
+  frTimeShort,
+  lastFullWeekStartFrom,
+  lastWeekStart,
+  todayParis,
+} from './dates'
 
 describe('frDateTimeParis', () => {
   it('affiche l’heure Paris (été, CEST = UTC+2)', () => {
@@ -50,5 +59,37 @@ describe('frMonthLong', () => {
 describe('frTimeShort', () => {
   it('affiche « HH:MM » (heure locale → on teste le FORMAT, pas la valeur, le fuseau CI variant)', () => {
     expect(frTimeShort('2026-07-16T14:05:00Z')).toMatch(/^\d{2}:\d{2}$/)
+  })
+})
+
+describe('semaines de référence', () => {
+  it('currentWeekStart = lundi de la semaine du jour', () => {
+    expect(currentWeekStart('2026-07-27')).toBe('2026-07-27') // un lundi
+    expect(currentWeekStart('2026-07-26')).toBe('2026-07-20') // un dimanche
+  })
+
+  it('lastWeekStart = S-1 selon l’horloge (ce que montre le Bilan)', () => {
+    expect(lastWeekStart('2026-07-27')).toBe('2026-07-20')
+    expect(lastWeekStart('2026-07-31')).toBe('2026-07-20') // stable toute la semaine
+  })
+
+  it('lastFullWeekStartFrom garde la semaine du dernier jour SI son dimanche est ingéré', () => {
+    expect(lastFullWeekStartFrom('2026-07-26')).toBe('2026-07-20') // dimanche ingéré
+  })
+
+  it('lastFullWeekStartFrom recule d’une semaine si la semaine est incomplète', () => {
+    expect(lastFullWeekStartFrom('2026-07-21')).toBe('2026-07-13') // mardi → S-1 des données
+    expect(lastFullWeekStartFrom('2026-07-20')).toBe('2026-07-13') // lundi seul
+  })
+
+  it('les deux S-1 COÏNCIDENT quand l’ingestion est à jour — cas de la prod', () => {
+    // Lundi 27/07, données jusqu'au dimanche 26/07 : Bilan et Insights disent 2026-07-20.
+    expect(lastFullWeekStartFrom('2026-07-26')).toBe(lastWeekStart('2026-07-27'))
+  })
+
+  it('les deux S-1 DIVERGENT quand l’ingestion a du retard — cas constaté sur l’UAT', () => {
+    // Lundi 27/07, données arrêtées au mardi 21/07 : Insights 13/07, Bilan 20/07.
+    expect(lastFullWeekStartFrom('2026-07-21')).toBe('2026-07-13')
+    expect(lastWeekStart('2026-07-27')).toBe('2026-07-20')
   })
 })

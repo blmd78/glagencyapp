@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { ROLE_NAME } from '@/lib/roles'
 import type { MemberForm } from '../schema'
 
 /**
@@ -47,13 +48,14 @@ export function MemberAccessFields({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="chatteur">Chatter</SelectItem>
+                {/* Libellés depuis `lib/roles.ts` (source unique). */}
+                <SelectItem value="chatteur">{ROLE_NAME.chatteur}</SelectItem>
                 {/* Rôle fonctionnel, pas hiérarchique — pas d'équipe, pas de to-do/planning. */}
-                <SelectItem value="police">Police</SelectItem>
-                <SelectItem value="sous-manager">Sous-manager</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="police">{ROLE_NAME.police}</SelectItem>
+                <SelectItem value="sous-manager">{ROLE_NAME['sous-manager']}</SelectItem>
+                <SelectItem value="manager">{ROLE_NAME.manager}</SelectItem>
                 {/* Nommer un admin = propriétaires uniquement (garde serveur en plus). */}
-                {superadmin && <SelectItem value="admin">Admin</SelectItem>}
+                {superadmin && <SelectItem value="admin">{ROLE_NAME.admin}</SelectItem>}
               </SelectContent>
             </Select>
           </div>

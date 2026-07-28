@@ -17,8 +17,31 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, type Profile } from '@/lib/auth'
-import { runAction, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, BusinessError, managerPageGuard, type ActionResult } from '@/lib/actions'
+import { getPlanning } from './services/get-planning'
 import { blockInput } from './schema'
+import type { PlanningData } from './types'
+
+/**
+ * LECTURE à la demande — même dérogation assumée que `features/reports/actions.ts` : la pile de
+ * noms s'affiche repliée, charger d'emblée les blocs de tout le monde gonflerait le premier
+ * rendu pour du contenu que personne ne regarde. Déplier est une action CLIENT, donc il faut un
+ * aller-retour.
+ *
+ * `managerPageGuard` et NON `pageGuard` : la page elle-même redirige les chatteurs
+ * (`page.tsx`, `baseRole === 'chatteur'` → /no-access) ; la garde de l'action doit dire la même
+ * chose, sinon un chatteur pourrait lire par l'action ce que l'UI lui refuse. La RLS
+ * (0043/0061/0062) reste le vrai cloisonnement — cette garde n'est que le miroir applicatif.
+ * Schéma inline : mono-usage, serveur uniquement, aucun resolver client à partager (§5).
+ */
+export async function loadPlanning(input: unknown): Promise<ActionResult<PlanningData>> {
+  return runAction({
+    schema: z.object({ profileId: z.uuid() }),
+    input,
+    guard: managerPageGuard('planning'),
+    handler: ({ profileId }) => getPlanning(profileId),
+  })
+}
 
 /** Rôle + rattachement de la cible (client session, RLS appliquée). Erreur TECHNIQUE thrown
  *  (Sentry via runAction) ; 0-row (PGRST116 = cible inexistante) → null (métier). */
