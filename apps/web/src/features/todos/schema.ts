@@ -39,11 +39,11 @@ const base = {
   release: optionalText(20, 'Release trop longue (20 max)'),
 }
 
-// Statut facultatif — SEULE la création en a besoin (l'édition ne touche jamais le statut,
-// c'est le rôle de `todoStatusInput`/`setTodoStatus` ci-dessous, en valeur absolue). Absent →
-// `todo` : c'est ce que « + Créer » envoie pour la section « À faire », et le comportement
-// historique du dialog complet (qui ne propose pas ce champ).
-export const todoCreateInput = z.object({ ...base, status: status.default('todo') })
+// Statut à la création — TOUJOURS « À faire » (spec 2026-07-28-todos-dates) : une tâche ne
+// naît jamais ailleurs, le chrono ne démarre qu'au passage explicite en « En cours »
+// (`setTodoStatus`). Littéral plutôt que l'enum complet : cette contrainte a désormais une
+// couche serveur, pas seulement l'absence de champ statut côté dialog/ajout rapide.
+export const todoCreateInput = z.object({ ...base, status: z.literal('todo').default('todo') })
 export type TodoCreateInput = z.infer<typeof todoCreateInput>
 
 export const todoUpdateInput = z.object({ ...base, id: z.uuid() })

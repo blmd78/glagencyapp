@@ -19,6 +19,7 @@ import {
   STATUS_CLASS,
   STATUSES,
   statusLabel,
+  todoDateMeta,
   typeLabel,
   TYPE_CLASS,
   TYPE_ICON,
@@ -52,6 +53,7 @@ export function TodoRow({
 }) {
   const Icon = todo.type ? TYPE_ICON[todo.type] : null
   const PriorityIcon = PRIORITY_ICON[todo.priority]
+  const dateMeta = todoDateMeta(todo)
   return (
     <div className="group flex items-center gap-2 px-3 py-2 hover:bg-muted/50">
       {/* COLONNE titre à largeur FIXE (w-72, plafonnée à 50 % sur écran étroit) quand une
@@ -105,7 +107,10 @@ export function TodoRow({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuRadioGroup value={todo.status} onValueChange={(v) => onMove(v as TodoStatus)}>
-              {STATUSES.map((s) => (
+              {/* Sens unique (0086) : sortie de « À faire » définitive — l'option disparaît
+                  du menu. L'action et le trigger refusent de toute façon ; ceci n'est que
+                  l'optimiste UI. */}
+              {STATUSES.filter((s) => s.value !== 'todo' || todo.status === 'todo').map((s) => (
                 <DropdownMenuRadioItem key={s.value} value={s.value}>
                   {s.label}
                 </DropdownMenuRadioItem>
@@ -113,6 +118,9 @@ export function TodoRow({
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Vie de la tâche selon sa section — « ajouté le », « depuis N j », « début → fin ».
+            Jours calendaires PARIS (core), jamais des blocs de 24 h. */}
+        {dateMeta && <span className="whitespace-nowrap">{dateMeta}</span>}
         {todo.createdByName && <span>{todo.createdByName}</span>}
       </div>
       {/* Toujours visibles : qui voit une to-do peut l'écrire (`todos_select` et les policies

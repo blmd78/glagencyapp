@@ -5,23 +5,17 @@ import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import type { ActionResult } from '@/lib/actions'
-import { statusLabel, type TodoStatus } from '../types'
 
 /**
- * Ajout rapide en bas de CHAQUE section (À faire / En cours / Terminé) : un champ, un titre,
- * Entrée, la tâche est créée avec les défauts (priorité moyenne, sans type ni release — ces
- * champs restent dans le dialog complet) et le STATUT `status` de la section qui porte ce
- * champ (une tâche créée depuis « En cours » ne doit pas atterrir dans « À faire »).
- * `onQuickAdd` appelle `createTodo` côté `TodosView` : ce composant n'appelle lui-même aucune
- * Server Action, juste ce callback.
+ * Ajout rapide — dans la SEULE section « À faire » depuis la spec 2026-07-28-todos-dates :
+ * une tâche naît toujours en « À faire » (le chrono ne démarre qu'au passage en « En cours »,
+ * et une création directe ailleurs le fausserait). Un champ, un titre, Entrée. `onQuickAdd`
+ * appelle `createTodo` côté `TodosView` : ce composant n'appelle lui-même aucune Server Action.
  */
 export function TodoQuickAdd({
-  status,
   onQuickAdd,
 }: {
-  /** Statut ciblé par CE champ — celui de la section qui le contient. */
-  status: TodoStatus
-  onQuickAdd: (title: string, status: TodoStatus) => Promise<ActionResult>
+  onQuickAdd: (title: string) => Promise<ActionResult>
 }) {
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -34,7 +28,7 @@ export function TodoQuickAdd({
     setValue('')
     inputRef.current?.focus()
     startTransition(async () => {
-      const res = await onQuickAdd(title, status)
+      const res = await onQuickAdd(title)
       if (res.success) return
       toast.error(res.error)
       // Restaure la saisie perdue : sans ça, un échec (ex. titre trop long) vide le champ ET
@@ -59,9 +53,9 @@ export function TodoQuickAdd({
           submit()
         }}
         placeholder="Créer…"
-        // Libellé distinct par section : 3 champs « Ajouter une tâche » identiques sur la même
-        // page seraient indiscernables au lecteur d'écran (navigation par nom de champ).
-        aria-label={`Créer une tâche — ${statusLabel(status)}`}
+        // Un seul champ sur la page (SEULE section « À faire ») : le libellé reste explicite
+        // plutôt qu'un générique « Créer une tâche ».
+        aria-label="Créer une tâche — À faire"
         className="h-8 text-sm"
       />
     </div>
