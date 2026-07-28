@@ -173,7 +173,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1 : Écrire la migration**
 
-`0086_todos_started_at.sql` — remplace intégralement `todos_touch` (le corps existant vient de `0067`, seules les parties commentées « NOUVEAU » changent) :
+`0086_todos_started_at.sql` — remplace intégralement `todos_touch`. **Le corps en place vient de `0069`** (0067 modifiée par 0068 — épinglage propriétaire/auteur — puis 0069 — `updated_by`) ; seules les parties commentées « NOUVEAU » changent, tout le reste est conservé à l'identique — vérifié contre `pg_get_functiondef` sur l'UAT :
 
 ```sql
 -- 0086 — To-do : date de début (started_at) + transitions à sens unique.
@@ -200,9 +200,14 @@ set search_path = public
 as $$
 begin
   new.updated_at := now();
+  new.updated_by := auth.uid();
   if tg_op = 'UPDATE' then
-    -- created_at épinglé : jamais réécrivable, y compris par un admin (0067).
+    -- Épinglés : jamais réécrivables, y compris par un admin/manager que la RLS autorise à
+    -- éditer la tâche (le droit d'ÉDITER le contenu n'est pas le droit de reparenter/réattribuer).
     new.created_at := old.created_at;
+    new.profile_id := old.profile_id;
+    new.created_by := old.created_by;
+    new.created_by_name := old.created_by_name;
     -- NOUVEAU — sens unique : sortie de « À faire » définitive (0086).
     if old.status <> 'todo' and new.status = 'todo' then
       raise exception 'Une tâche commencée ne revient pas dans « À faire ».';
