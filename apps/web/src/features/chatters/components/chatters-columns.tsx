@@ -175,7 +175,7 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
  * n'apparaît que pour un compte en écriture (`canWrite` = admin ou manager/sous-manager) — un
  * chatteur est en lecture seule (aligné sur la policy `chatters_crm_update` / `hasWriteAccess`).
  * La colonne reste toujours présente (cellule vide pour un chatteur) pour préserver
- * l'alignement des sous-lignes (`chatters-sub-rows.tsx`, 13 cellules).
+ * l'alignement des sous-lignes (`chatters-sub-rows.tsx`, 12 cellules).
  */
 export function makeChattersColumns({ canWrite }: { canWrite: boolean }): ColumnDef<ChatterRow>[] {
   return [

@@ -45,7 +45,7 @@ export function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-right italic tabular-nums text-amber-600">
             {eur(row.original.caUnattributed)}
           </TableCell>
-          <TableCell colSpan={9} className="text-muted-foreground">—</TableCell>
+          <TableCell colSpan={8} className="text-muted-foreground">—</TableCell>
         </TableRow>
       )}
     </>
