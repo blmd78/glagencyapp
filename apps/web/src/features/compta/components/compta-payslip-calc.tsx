@@ -3,7 +3,7 @@
 import { Fragment } from 'react'
 import { addDays, frDateNumeric, frDayShort, type PayPeriod } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
-import { eur2, eur2max, round2 } from '@/lib/format'
+import { eur2, round2 } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ComptaPayDialog } from './compta-pay-dialog'
 import type { ComptaRow } from '../types'
@@ -94,21 +94,6 @@ function ModelBreakdown({ models, row }: { models: [string, number][]; row: Comp
 }
 
 /**
- * Libellé de la ligne du FIXE. Il doit dire LEQUEL des deux montants s'applique : celui du
- * réglage, ou celui d'une saisie hebdomadaire qui l'a remplacé pour cette période (le demi-fixe
- * à 37,50 € de la feuille). Sans ça, un admin qui lit 37,50 € alors que le réglage dit 75 €
- * n'a aucun moyen de savoir si c'est voulu ou si le calcul s'est trompé.
- *
- * `payslip.setterAdjusted` vient de `computePayslip` : l'arbitrage entre les deux montants est
- * une règle de la formule, jamais une comparaison refaite ici.
- */
-function fixeLabel(row: ComptaRow): string {
-  if (!row.payslip.setterAdjusted) return 'Fixe setter'
-  if (row.fixedAmount > 0) return `Fixe setter — ajusté (réglage : ${eur2max(row.fixedAmount)})`
-  return 'Fixe setter — saisi sur la période'
-}
-
-/**
  * Sanctions Police — le TOTAL sur une ligne d'ajustement comme les autres, puis chaque entrée
  * avec son motif, en retrait.
  *
@@ -185,7 +170,10 @@ export function ComptaPayslipCalc({
       {hasAdjustments && (
         <div className="flex flex-col gap-1.5">
           <span className={SECTION_HEAD}>Ajustements</span>
-          {p.setter !== 0 && <Line label={fixeLabel(row)} amount={p.setter} />}
+          {/* Libellé NU depuis la tâche 19. Il disait auparavant lequel des deux montants
+              s'appliquait (« ajusté (réglage : 75 €) ») — il n'y en a plus qu'un, celui de
+              l'engrenage, et la colonne « Rémunération » de la table l'affiche déjà. */}
+          {p.setter !== 0 && <Line label="Fixe setter" amount={p.setter} />}
           {p.bonus !== 0 && <Line label="Bonus" amount={p.bonus} />}
           {p.malus !== 0 && <Line label="Malus saisis" amount={-p.malus} red />}
           {row.handoffs > 0 && (

@@ -20,9 +20,9 @@ export interface ComptaRow {
   chatterId: string | null
   rate: number
   /** Fixe de la PÉRIODE (`compta_settings.fixed_amount`) — il S'AJOUTE à la commission et
-   *  s'applique dès qu'il est non nul. Le montant réellement versé est `payslip.setter` : une
-   *  saisie hebdo le remplace pour cette période (`payslip.setterAdjusted`). Gardé sur la ligne
-   *  pour le formulaire de réglages et pour dire, sur la fiche, quel montant a été remplacé. */
+   *  s'applique dès qu'il est non nul. SEULE source du montant depuis la tâche 19 : il vaut
+   *  donc `payslip.setter` (au centime près, la fiche arrondit). Gardé sur la ligne pour le
+   *  formulaire de réglages et la colonne « Rémunération » de la table. */
   fixedAmount: number
   /** Prime « nouveau chatteur » enregistrée pour ce membre (`compta_primes`), null si aucune.
    *  `status` : `'due'` (à verser) | `'paid'` (versée, figée par `payPeriod`) | `'skipped'`
@@ -33,10 +33,12 @@ export interface ComptaRow {
   /** CA par modèle (nom du modèle → €), pour la ventilation de la fiche. */
   modelCa: Record<string, number>
   sanctions: ComptaSanction[]
-  /** Saisies hebdo existantes, indexées par lundi — alimente le formulaire de saisie. */
+  /** Saisies hebdo existantes, indexées par lundi — alimente le formulaire de saisie.
+   *  `fixe_setter` n'y figure plus (tâche 19) : la colonne survit en base mais n'est ni lue,
+   *  ni écrite, ni affichée. */
   weekEntries: Record<
     string,
-    { bonus: number; malus: number; handoffs: number; fixeSetter: number; note: string | null }
+    { bonus: number; malus: number; handoffs: number; note: string | null }
   >
   payslip: Payslip
   /** Tous les jours de la période sont couverts par un paiement. */

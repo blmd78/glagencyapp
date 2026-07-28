@@ -9,20 +9,24 @@ import { ENTRY_GRID_COLS, EntryField, EntryStatus, type SaveStatus } from './com
 import { saveWeekEntry } from '../actions'
 import { weekEntryInput, type WeekEntryInput, type WeekEntryFormValues } from '../schema'
 
-/** Les 4 champs SAISIS. `chatterId`/`weekStart` identifient la ligne, `note` n'a pas d'input. */
-const AMOUNT_FIELDS = ['bonus', 'malus', 'handoffs', 'fixeSetter'] as const
+/** Les 3 champs SAISIS. `chatterId`/`weekStart` identifient la ligne, `note` n'a pas d'input. */
+const AMOUNT_FIELDS = ['bonus', 'malus', 'handoffs'] as const
 type AmountField = (typeof AMOUNT_FIELDS)[number]
 
 /**
- * Saisie hebdomadaire (bonus, malus, handoffs, fixe setter). Une semaine appartient
- * entièrement à la période de son lundi — elle n'est jamais découpée.
+ * Saisie hebdomadaire (bonus, malus, handoffs). Une semaine appartient entièrement à la période
+ * de son lundi — elle n'est jamais découpée.
  *
- * « Fixe setter » y est un AJUSTEMENT de la période : renseigné, il REMPLACE le fixe des
- * réglages pour cette paie (le demi-fixe à 37,50 € de la feuille), il ne s'y ajoute jamais —
- * ce serait un double versement. Laissé à 0, c'est le réglage qui s'applique (`computePayslip`).
+ * ── POURQUOI PLUS DE « FIXE SETTER » ICI (2026-07-28, tâche 19) ─────────────────────────────
+ * Le champ existait, en quatrième position, et REMPLAÇAIT pour la période le fixe des réglages.
+ * Il était faux par construction : le fixe est un montant PAR PÉRIODE (il n'est rempli qu'une
+ * fois par paie sur la feuille du propriétaire), alors que cette ligne est HEBDOMADAIRE — le
+ * champ s'affichait donc DEUX FOIS par période, et `compta-rows.ts` SOMMAIT les deux. Saisir
+ * 75 € sur les deux lignes, ce que deux champs identiques invitent à faire, versait 150 €.
+ * Le fixe se règle maintenant à un seul endroit : l'engrenage de la ligne (`compta_settings`).
  *
  * UNE LIGNE par semaine depuis le 2026-07-27 (« simplifie l'affichage ») : c'était un encadré
- * titré par semaine, soit 2 cartes empilées répétant les mêmes quatre champs.
+ * titré par semaine, soit 2 cartes empilées répétant les mêmes champs.
  *
  * ── ENREGISTREMENT AUTOMATIQUE (2026-07-28) ────────────────────────────────────────────────
  * Le bouton « Enregistrer » a disparu : 2 semaines × ~100 chatteurs faisaient 200 boutons pour
@@ -36,9 +40,9 @@ type AmountField = (typeof AMOUNT_FIELDS)[number]
  *     dans une table de paie, et un « 15 » définitif si la frappe s'interrompt là. Un debounce
  *     ne fait que raccourcir la fenêtre — il n'empêche pas d'écrire une valeur intermédiaire.
  *  2. PAS à chaque champ, mais à chaque LIGNE. `saveWeekEntry` fait un upsert de la ligne
- *     ENTIÈRE (`chatter_id,week_start` → bonus + malus + handoffs + fixe_setter + note) :
- *     l'unité d'écriture EST la semaine. Écrire 4 fois pour la remplir n'apporte rien et
- *     multiplierait par 4 le `revalidatePath('/chatter/compta')` de l'action — qui rejoue tout
+ *     ENTIÈRE (`chatter_id,week_start` → bonus + malus + handoffs + note) :
+ *     l'unité d'écriture EST la semaine. Écrire 3 fois pour la remplir n'apporte rien et
+ *     multiplierait par 3 le `revalidatePath('/chatter/compta')` de l'action — qui rejoue tout
  *     `getCompta` (une dizaine de requêtes, dont plusieurs `fetchAll` sur des milliers de
  *     lignes). Passer d'un champ à l'autre DANS la même semaine n'écrit donc rien : le coût
  *     serveur reste exactement celui de l'ancien bouton — une écriture et un rechargement par
@@ -73,7 +77,7 @@ export function ComptaEntryForm({
   chatterId: string
   weekStart: string
   weekLabel: string
-  initial: { bonus: number; malus: number; handoffs: number; fixeSetter: number; note: string | null }
+  initial: { bonus: number; malus: number; handoffs: number; note: string | null }
   onSaved?: () => void
 }) {
   'use no memo'
@@ -105,7 +109,6 @@ export function ComptaEntryForm({
     bonus: initial.bonus,
     malus: initial.malus,
     handoffs: initial.handoffs,
-    fixeSetter: initial.fixeSetter,
   })
 
   /** File d'attente de la ligne — cf. « ÉCRITURES CONCURRENTES » ci-dessus. */
@@ -147,7 +150,6 @@ export function ComptaEntryForm({
           bonus: values.bonus,
           malus: values.malus,
           handoffs: values.handoffs,
-          fixeSetter: values.fixeSetter,
         }
         // `changed()` de nouveau : si l'utilisateur a retapé pendant l'envoi, la ligne est encore
         // en attente — annoncer « Enregistré » serait faux. Le prochain `commit()` l'écrira.
@@ -213,7 +215,7 @@ export function ComptaEntryForm({
   /**
    * `Entrée` = valider la ligne sans la quitter. Ce n'est PAS le comportement natif : la
    * soumission implicite d'un formulaire sans bouton de submit est abandonnée dès qu'il contient
-   * plus d'un champ « bloquant » (spec HTML), et `number` en fait partie — nos 4 champs la
+   * plus d'un champ « bloquant » (spec HTML), et `number` en fait partie — nos 3 champs la
    * neutralisent. Sans ce raccourci, taper une valeur puis appuyer sur Entrée ne ferait rien,
    * ce qui est exactement le genre de silence qu'on cherche à éviter.
    */
@@ -260,13 +262,6 @@ export function ComptaEntryForm({
         label="Handoffs"
         error={err('handoffs')}
         registration={register('handoffs')}
-      />
-      <EntryField
-        id={`fixe-${weekStart}`}
-        label="Fixe setter €"
-        step="0.01"
-        error={err('fixeSetter')}
-        registration={register('fixeSetter')}
       />
 
       <EntryStatus status={status} weekLabel={weekLabel} />

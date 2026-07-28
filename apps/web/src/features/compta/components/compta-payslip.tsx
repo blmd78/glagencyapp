@@ -79,9 +79,7 @@ export function ComptaPayslip({
               chatterId={row.id}
               weekStart={m}
               weekLabel={frDayShort(m)}
-              initial={
-                row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, fixeSetter: 0, note: null }
-              }
+              initial={row.weekEntries[m] ?? { bonus: 0, malus: 0, handoffs: 0, note: null }}
             />
           ))}
         </div>

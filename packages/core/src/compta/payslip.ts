@@ -20,14 +20,14 @@ export interface PayslipInput {
    * le premier faisait REMPLACER la commission par le fixe (ce que personne ne pratique — les
    * 95 chatteurs de la feuille sont tous à `CA × taux`), le second dupliquait
    * `profiles.closing_role`, réglé depuis Membres.
+   *
+   * SEULE SOURCE DU FIXE depuis le 2026-07-28 (tâche 19). Un second champ `fixeSetter` — la
+   * Σ des `compta_week_entries.fixe_setter` — pouvait le REMPLACER pour une période. Il est
+   * retiré : sa saisie était HEBDOMADAIRE, donc affichée deux fois par période et SOMMÉE
+   * (`compta-rows.ts`), quand le montant, lui, est par PÉRIODE. Deux champs identiques
+   * invitaient à retaper 75 € sur chaque ligne — ce qui versait 150 €.
    */
   fixedAmount: number
-  /**
-   * Σ des `fixe_setter` des semaines rattachées — un AJUSTEMENT de la période : non nul, il
-   * REMPLACE `fixedAmount` (cas du demi-fixe à 37,50 € relevé sur la feuille). Il ne s'y ajoute
-   * pas : ce serait un double versement.
-   */
-  fixeSetter: number
   /** CA du chatteur par modèle sur la période (creatorId → €). */
   modelCa: Record<string, number>
   /** Σ bonus jour + semaine. */
@@ -46,14 +46,10 @@ export interface Payslip {
   /** CA total, tous modèles. */
   ca: number
   base: number
+  /** Le fixe versé sur la période — c'est `fixedAmount` arrondi, et rien d'autre : il n'existe
+   *  plus qu'UNE source (les réglages). `setterAdjusted`, qui disait lequel de deux montants
+   *  s'appliquait, a disparu avec le second (tâche 19). */
   setter: number
-  /**
-   * Le `setter` versé vient d'une SAISIE HEBDO (ajustement) et non du réglage. Calculé ICI et
-   * non par l'écran : l'arbitrage entre les deux montants est une règle de la formule, la
-   * refaire côté composant en ferait une seconde implémentation, qui divergerait. La fiche s'en
-   * sert pour dire LEQUEL s'applique.
-   */
-  setterAdjusted: boolean
   bonus: number
   malus: number
   handoffsAmount: number
@@ -81,12 +77,11 @@ export function computePayslip(i: PayslipInput): Payslip {
   // arbitré par le propriétaire.
   const rawBase = Object.values(i.modelCa).reduce((s, v) => s + round2((v * i.rate) / 100), 0)
 
-  // `> 0` et non `!= null` : `compta_week_entries.fixe_setter` est `numeric not null default 0`
-  // (migration 0084) et le formulaire le borne à `min(0)` — « pas de saisie » et « saisie à
-  // zéro » sont donc le MÊME état en base, indistinguables. Conséquence assumée : on ne peut pas
-  // annuler le fixe d'une seule période par une saisie à 0, il faut passer par le réglage.
-  const setterAdjusted = i.fixeSetter > 0
-  const rawSetter = setterAdjusted ? i.fixeSetter : i.fixedAmount
+  // AUCUN arbitrage : le fixe de la période EST celui des réglages. La règle « une saisie hebdo
+  // non nulle le remplace » a été retirée le 2026-07-28 avec le champ qui l'alimentait — cf.
+  // `fixedAmount` ci-dessus. La colonne `compta_week_entries.fixe_setter` survit en base (elle
+  // porte de l'historique) mais n'entre plus dans le calcul.
+  const rawSetter = i.fixedAmount
   const rawHandoffsAmount = i.handoffs * HANDOFF_EUR
 
   // Arrondi composante par composante AVANT le net : `net` doit s'additionner exactement
@@ -104,7 +99,6 @@ export function computePayslip(i: PayslipInput): Payslip {
     ca: round2(ca),
     base,
     setter,
-    setterAdjusted,
     bonus,
     malus,
     handoffsAmount,

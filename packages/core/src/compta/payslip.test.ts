@@ -3,7 +3,7 @@ import { computePayslip, HANDOFF_EUR, type PayslipInput } from './payslip'
 
 const base: PayslipInput = {
   rate: 10, fixedAmount: 0,
-  modelCa: {}, fixeSetter: 0, bonus: 0, malus: 0, handoffs: 0, primeDue: 0, sanctions: 0,
+  modelCa: {}, bonus: 0, malus: 0, handoffs: 0, primeDue: 0, sanctions: 0,
 }
 
 describe('computePayslip — base', () => {
@@ -37,37 +37,24 @@ describe('computePayslip — le fixe', () => {
     expect(r.net).toBe(175)
   })
 
-  it("est un montant PAR PERIODE : il n est multiplie par rien", () => {
-    // L ancienne formule versait `fixedAmount * weekCount` (2 semaines) = 150. La feuille du
-    // proprietaire ne remplit le fixe QU UNE fois par periode de paie, jamais par semaine.
-    expect(computePayslip({ ...base, fixedAmount: 75 }).setter).toBe(75)
-  })
-
-  it("s applique des qu il est renseigne — aucun drapeau ne le commande", () => {
-    // `compta_settings.is_setter` a disparu (0089) : il valait faux par defaut et aurait retenu
-    // le fixe de 59 personnes. Un fixe a 0 ne fait simplement pas de ligne.
+  it('est le montant des REGLAGES tel quel : ni drapeau, ni multiplication, ni ajustement', () => {
+    // UN SEUL test la ou il y en avait quatre, parce qu il n y a plus qu UNE source du fixe
+    // (`compta_settings.fixed_amount`) : les trois autres re-affirmaient `setter === fixedAmount`
+    // sous des angles que le TYPE d entree rend desormais inexprimables — c est exactement le
+    // genre de test qui devient tautologique en survivant a ce qu il gardait.
+    //
+    // TROIS regressions distinctes, toutes survenues sur cette feature, tombent encore ici :
+    //  - `is_setter` (migration 0089) retenait le fixe derriere un drapeau faux par defaut,
+    //    donc 59 personnes a 0 ;
+    //  - `fixedAmount * weekCount` le versait DOUBLE — c est un montant par PERIODE ;
+    //  - `fixeSetter` (retire tache 19) pouvait le REMPLACER : saisi par semaine, donc affiche
+    //    2 fois par periode et SOMME par `compta-rows.ts`, il versait 150 pour 75 saisis.
+    //
+    // Trois valeurs : un fixe ignore (0 partout), double (80 / 150) ou fige sur une constante
+    // echoue sur au moins une des trois.
     expect(computePayslip({ ...base, fixedAmount: 40 }).setter).toBe(40)
+    expect(computePayslip({ ...base, fixedAmount: 75 }).setter).toBe(75)
     expect(computePayslip({ ...base, fixedAmount: 0 }).setter).toBe(0)
-  })
-
-  it('une saisie hebdo REMPLACE le fixe du reglage pour cette periode', () => {
-    // Le demi-fixe a 37,50 EUR releve sur la feuille. 112,50 (addition) et 75 (reglage seul)
-    // sont les deux erreurs possibles : ni l un ni l autre n est 37,50.
-    const r = computePayslip({ ...base, fixedAmount: 75, fixeSetter: 37.5 })
-    expect(r.setter).toBe(37.5)
-    expect(r.setterAdjusted).toBe(true)
-  })
-
-  it('une saisie hebdo seule vaut fixe de la periode, sans reglage', () => {
-    const r = computePayslip({ ...base, fixedAmount: 0, fixeSetter: 40 })
-    expect(r.setter).toBe(40)
-    expect(r.setterAdjusted).toBe(true)
-  })
-
-  it("sans saisie hebdo, c est le reglage qui s applique — et la fiche doit pouvoir le dire", () => {
-    const r = computePayslip({ ...base, fixedAmount: 75, fixeSetter: 0 })
-    expect(r.setter).toBe(75)
-    expect(r.setterAdjusted).toBe(false)
   })
 
   it('reproduit une ligne de la feuille : commission + fixe + handoffs', () => {
@@ -104,8 +91,11 @@ describe('computePayslip — composantes', () => {
 
   it('une periode entierement vide donne 0 partout', () => {
     const r = computePayslip(base)
+    // `toEqual` et non des assertions champ par champ : il compare la FORME complete de la
+    // sortie. C est lui qui garde la disparition de `setterAdjusted` (tache 19) — le rendre
+    // de nouveau ferait echouer ce test sur une cle en trop, sans que personne ait a y penser.
     expect(r).toEqual({
-      ca: 0, base: 0, setter: 0, setterAdjusted: false, bonus: 0, malus: 0,
+      ca: 0, base: 0, setter: 0, bonus: 0, malus: 0,
       handoffsAmount: 0, prime: 0, sanctions: 0, net: 0,
     })
   })
@@ -114,8 +104,8 @@ describe('computePayslip — composantes', () => {
 describe('computePayslip — invariant', () => {
   it('net = base + setter + bonus - malus + handoffs + prime - sanctions', () => {
     const r = computePayslip({
-      rate: 12.5, fixedAmount: 0,
-      modelCa: { a: 3333.33, b: 1111.11 }, fixeSetter: 150, bonus: 50, malus: 20,
+      rate: 12.5, fixedAmount: 150,
+      modelCa: { a: 3333.33, b: 1111.11 }, bonus: 50, malus: 20,
       handoffs: 7, primeDue: 100, sanctions: 45,
     })
     // Valeurs calculees a la main (pas a partir du resultat de `r`) : le taux 12,5 % sur

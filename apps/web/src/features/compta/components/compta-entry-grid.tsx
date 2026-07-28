@@ -23,16 +23,17 @@ import { COL_HEAD } from './compta-payslip-calc'
  * l'en-tête, un mot dans les lignes) et décalerait toutes les colonnes.
  *
  * Littéral et non construit : Tailwind ne voit que les classes présentes en clair dans le
- * source. Une seule variante depuis la tâche 16 — les 4 champs sont montés pour tout le monde,
- * `compta_settings.is_setter` ne commande plus la colonne « Fixe setter » (elle n'existe plus).
+ * source. Une seule variante depuis la tâche 16, et TROIS champs depuis la tâche 19 : la
+ * colonne « Fixe setter » est partie avec sa saisie — le fixe est un montant par PÉRIODE, il se
+ * règle dans l'engrenage, pas deux fois par période dans une ligne hebdomadaire.
  */
 export const ENTRY_GRID_COLS =
-  'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(4,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
+  'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(3,minmax(4.5rem,1fr))_7.5rem] sm:items-center'
 
 /**
  * En-tête de colonnes des saisies : les libellés sont écrits UNE fois pour les 2 semaines
- * de la période, là où chaque formulaire portait les siens (jusqu'à 8 étiquettes pour
- * 4 champs). Masqué sous `sm`, où chaque ligne repasse en pile de deux colonnes avec ses
+ * de la période, là où chaque formulaire portait les siens (jusqu'à 6 étiquettes pour
+ * 3 champs). Masqué sous `sm`, où chaque ligne repasse en pile de deux colonnes avec ses
  * propres étiquettes visibles.
  *
  * `aria-hidden` : les `<label>` des champs restent en place (`sm:sr-only`) et suffisent aux
@@ -46,7 +47,6 @@ export function ComptaEntryHeader() {
       <span className={COL_HEAD}>Bonus €</span>
       <span className={COL_HEAD}>Malus €</span>
       <span className={COL_HEAD}>Handoffs</span>
-      <span className={COL_HEAD}>Fixe setter €</span>
       <span />
     </div>
   )

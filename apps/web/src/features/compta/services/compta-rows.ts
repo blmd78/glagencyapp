@@ -73,7 +73,11 @@ export async function loadComptaRows({
     const bonus = de.reduce((t, d) => t + Number(d.bonus), 0) + we.reduce((t, w) => t + Number(w.bonus), 0)
     const malus = de.reduce((t, d) => t + Number(d.malus), 0) + we.reduce((t, w) => t + Number(w.malus), 0)
     const handoffs = de.reduce((t, d) => t + d.handoffs, 0) + we.reduce((t, w) => t + w.handoffs, 0)
-    const fixeSetter = we.reduce((t, w) => t + Number(w.fixe_setter), 0)
+    // `compta_week_entries.fixe_setter` N'EST PLUS LU (2026-07-28, tâche 19). Il l'était par
+    // une somme sur les 2 semaines de la période — alors que le fixe est un montant PAR
+    // PÉRIODE : le champ de saisie, hebdomadaire, s'affichait donc deux fois et retaper le
+    // même 75 € sur chaque ligne versait 150 €. Le fixe vient désormais des seuls réglages
+    // (`compta_settings.fixed_amount`, ci-dessous). La colonne reste en base — historique.
 
     const sancRows: ComptaSanction[] = mine(src.sanctions).map((e) => ({
       day: e.occurred_on,
@@ -121,7 +125,6 @@ export async function loadComptaRows({
       // Défauts de la colonne quand le membre n'a jamais été réglé : 10 % et aucun fixe.
       fixedAmount: Number(s?.fixed_amount ?? 0),
       modelCa,
-      fixeSetter,
       bonus,
       malus,
       handoffs,
@@ -161,7 +164,6 @@ export async function loadComptaRows({
             bonus: Number(w.bonus),
             malus: Number(w.malus),
             handoffs: w.handoffs,
-            fixeSetter: Number(w.fixe_setter),
             note: w.note,
           },
         ]),

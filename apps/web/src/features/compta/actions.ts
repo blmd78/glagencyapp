@@ -23,9 +23,15 @@ import {
 import { weekEntryInput, settingsInput, primeInput, chatterLinkInput } from './schema'
 
 /**
- * Crée ou met à jour la saisie HEBDOMADAIRE d'un chatteur (bonus, malus, handoffs, fixe
- * setter). Upsert sur la clé métier `(chatter_id, week_start)`. La RLS refuse la ligne si la
- * cible n'est pas un rattaché direct — la garde applicative n'est que la défense en profondeur.
+ * Crée ou met à jour la saisie HEBDOMADAIRE d'un chatteur (bonus, malus, handoffs). Upsert sur
+ * la clé métier `(chatter_id, week_start)`. La RLS refuse la ligne si la cible n'est pas un
+ * rattaché direct — la garde applicative n'est que la défense en profondeur.
+ *
+ * `fixe_setter` N'EST PLUS ÉCRIT (2026-07-28, tâche 19) et c'est délibéré : la colonne existe
+ * toujours et porte de l'historique, mais l'omettre du payload la laisse INTACTE sur une ligne
+ * existante — là où l'écrire à 0 l'aurait effacée à la première ré-écriture. Sur une ligne
+ * neuve, elle prend son défaut (`0`, migration 0084). Le fixe se règle désormais dans
+ * `compta_settings.fixed_amount` (engrenage), seule source du montant.
  */
 export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -43,7 +49,6 @@ export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
           bonus: v.bonus,
           malus: v.malus,
           handoffs: v.handoffs,
-          fixe_setter: v.fixeSetter,
           note: v.note,
           updated_at: new Date().toISOString(),
           updated_by: profile.id,

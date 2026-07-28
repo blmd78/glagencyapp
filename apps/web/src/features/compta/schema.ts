@@ -36,14 +36,26 @@ export const dayEntryInput = z.object({
 })
 export type DayEntryInput = z.infer<typeof dayEntryInput>
 
-/** Saisie d'une SEMAINE (idem + fixe setter). */
+/**
+ * Saisie d'une SEMAINE — les MÊMES trois montants que le jour.
+ *
+ * `fixeSetter` a quitté ce contrat le 2026-07-28 (tâche 19), et pas seulement le formulaire :
+ * un champ que l'écran ne peut plus produire mais que l'action accepte encore reste une porte
+ * ouverte sur de l'argent — un payload fabriqué à la main y écrirait un fixe que personne ne
+ * peut voir ni corriger depuis l'interface. Le retirer d'ici le ferme.
+ *
+ * L'autre option — le garder en l'écrivant à 0 — a été écartée : la colonne
+ * `compta_week_entries.fixe_setter` porte de l'HISTORIQUE (elle n'est pas supprimée), et un 0
+ * systématique l'effacerait à la première ré-écriture de la ligne. Absent du payload, l'upsert
+ * ne touche pas la colonne : elle garde sa valeur sur une ligne existante et prend son défaut
+ * (`0`, migration 0084) sur une ligne neuve.
+ */
 export const weekEntryInput = z.object({
   chatterId: z.uuid(),
   weekStart: iso,
   bonus: money,
   malus: money,
   handoffs: z.coerce.number().int().min(0).max(999),
-  fixeSetter: money,
   note: z.string().trim().max(500, '500 caractères max').nullable(),
 })
 export type WeekEntryInput = z.infer<typeof weekEntryInput>
@@ -172,7 +184,8 @@ export const settingsInput = z.object({
   chatterId: z.uuid(),
   rate,
   /** Fixe de la PÉRIODE de paie (spec §4) — s'ajoute à la commission, multiplié par rien. Il
-   *  s'applique dès qu'il est non nul : aucun drapeau ne le commande. */
+   *  s'applique dès qu'il est non nul : aucun drapeau ne le commande. SEUL endroit où il se
+   *  saisit depuis la tâche 19 (la saisie hebdo qui le remplaçait a été retirée). */
   fixedAmount: money,
 })
 export type SettingsInput = z.infer<typeof settingsInput>

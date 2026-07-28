@@ -103,8 +103,9 @@ relevés (20/07 et 22/06) sont à 14 jours d'intervalle, ce qui fixe l'alignemen
 `compta_payments` (§5, migration `0088`) — trois périodes peuvent démarrer dans le même mois, et
 `period in (1,2)` serait faux.
 
-Les montants **hebdomadaires** (`compta_week_entries` : bonus, malus, handoffs, fixe_setter)
-sont rattachés à la période où tombe le **lundi** de leur semaine. Une semaine n'est jamais
+Les montants **hebdomadaires** (`compta_week_entries` : bonus, malus, handoffs — plus
+`fixe_setter`, colonne conservée mais hors calcul depuis la tâche 19, cf. §4) sont rattachés à
+la période où tombe le **lundi** de leur semaine. Une semaine n'est jamais
 découpée — et depuis ce découpage elle ne peut plus l'être : une période contient **exactement
 2 lundis** (`mondaysIn`) et **exactement 14 jours** (`daysIn`), contre 2 ou 3 lundis et 15 ou
 16 jours avec les quinzaines calendaires. Ces deux lundis ne servent plus qu'à BORNER les
@@ -137,12 +138,11 @@ Pour un chatteur et une période :
                   des 14 jours de la période ) × rate / 100
                   -- TOUJOURS. Il n'existe plus de mode où le CA n'est pas commissionné.
 
-+ Fixe            Σ compta_week_entries.fixe_setter des 2 semaines rattachées
-                  si cette somme est > 0 ; SINON compta_settings.fixed_amount
++ Fixe            compta_settings.fixed_amount
+                  -- SEULE source du montant (tâche 19) : il se règle dans
+                     l'engrenage de la ligne, nulle part ailleurs
                   -- montant PAR PÉRIODE, multiplié par rien
                   -- versé dès qu'il est renseigné : aucun drapeau ne le commande
-                  -- la saisie hebdo est un AJUSTEMENT : elle REMPLACE le réglage,
-                     elle ne s'y ajoute jamais (ce serait un double versement)
 
 + Bonus           Σ compta_day_entries.bonus (jours de la période)
                 + Σ compta_week_entries.bonus (semaines rattachées)
@@ -177,12 +177,25 @@ tranche : le fixe n'est rempli qu'une fois par période de paie (bloc S2, 59 per
 versée à tout le monde (Carl = 4,379 + 75 + 19,20 = 98,579 €). `compta_settings.mode` et
 `is_setter` sont donc supprimés (§5, migration `0089`), et `weekCount` disparaît de la formule.
 
-Le montant par défaut vient des **réglages** (`compta_settings.fixed_amount`), pour ne pas avoir
-à le retaper pour 59 personnes toutes les deux semaines ; une **saisie hebdo** `fixe_setter` non
-nulle le **remplace** pour cette période (le 37,50 € observé = un demi-fixe). Conséquence
-assumée : « pas de saisie » et « saisie à 0 » sont le même état en base (`numeric not null
-default 0`), donc on n'annule pas le fixe d'une seule période par une saisie — on passe par le
-réglage. La fiche dit lequel des deux montants s'applique (`payslip.setterAdjusted`).
+**UNE SEULE SOURCE DU FIXE — les réglages (tâche 19, 2026-07-28).** Le montant vient de
+`compta_settings.fixed_amount`, saisi derrière l'engrenage de la ligne, et de nulle part
+ailleurs. La fiche l'affiche en ligne d'ajustement sous le libellé nu « Fixe setter ».
+
+> Cette section décrivait jusqu'ici un second point de saisie : une **saisie hebdo**
+> `fixe_setter` non nulle qui **remplaçait** le réglage pour la période (le 37,50 € observé sur
+> la feuille = un demi-fixe), la fiche disant lequel s'appliquait (`payslip.setterAdjusted`).
+> **C'était un défaut d'argent, pas un raffinement.** Le fixe est un montant PAR PÉRIODE, mais
+> cette saisie était HEBDOMADAIRE : le champ apparaissait donc **deux fois** par période (une
+> par ligne-semaine) et `compta-rows.ts` **sommait** les deux. Deux champs identiques invitent à
+> retaper le même montant dans chacun — 75 € saisis deux fois versaient **150 €**. Le champ, la
+> colonne d'en-tête, `PayslipInput.fixeSetter` et `Payslip.setterAdjusted` sont retirés ; la
+> saisie hebdomadaire garde **Bonus, Malus, Handoffs**.
+>
+> La colonne `compta_week_entries.fixe_setter` **reste en base** (elle porte de l'historique) :
+> aucune migration. Elle n'est plus ni lue, ni écrite, ni affichée — `saveWeekEntry` l'omet du
+> payload d'upsert, ce qui la laisse intacte sur une ligne existante plutôt que de l'écraser à
+> 0. Une valeur historique non nulle **cesse donc d'être comptée** dans le net (aucune sur
+> l'UAT au 2026-07-28 : 4 lignes, toutes à 0,00).
 
 `HANDOFF_EUR = 0.60` est une constante documentée de `packages/core`, pas un nombre en dur dans
 un composant. Les entrées `kind = 'warning'` de la Police valent 0 € : elles sont listées avec
@@ -350,8 +363,10 @@ Le repère de droite répond sans déplier : combien, et payé ou non.
 
 **Panneau déplié = la fiche de paie.** Le détail de la formule ligne à ligne, les motifs de
 sanction en clair (`05/07 — Réponse > 45 s : 15 €`), la ventilation du CA par modèle, et le
-compte de handoffs. Sous la fiche : la saisie des bonus/malus/handoffs, et pour un admin le
-bouton **Marquer payé** qui fige l'instantané et enregistre `covered_days`.
+compte de handoffs. Sous la fiche : la saisie hebdomadaire — **bonus, malus, handoffs**, une
+ligne par semaine, et rien d'autre : le fixe est un montant par période, il n'a pas de champ ici
+(tâche 19, cf. §4) — et pour un admin le bouton **Marquer payé** qui fige l'instantané et
+enregistre `covered_days`.
 
 **Réglages (admin seul).** Derrière l'**engrenage** de la ligne, un dialog à **trois champs et un
 seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le **fixe par période** en €
@@ -443,15 +458,23 @@ période à cheval sur deux mois puis sur deux années, `mondaysIn` toujours à 
 recouvrement.
 
 **`payslip.ts`** — la commission modèle par modèle et son arrondi par ligne ; le **fixe**, qui
-concentre les régressions de la tâche 16 : il s'ajoute à la commission (il ne la remplace pas),
-il n'est multiplié par rien, il s'applique sans drapeau, une saisie hebdo le remplace (jamais ne
-s'y ajoute), et la fiche sait lequel des deux montants s'applique ; plus une ligne de la feuille
-rejouée de bout en bout (commission + fixe + handoffs). Puis handoffs à 0,60, prime due, cumul
-malus manuel + sanction police, période entièrement vide, et l'invariant
+concentre les régressions d'argent de la feature : il s'ajoute à la commission (il ne la remplace
+pas), et il vaut `compta_settings.fixed_amount` **tel quel** — ni retenu par un drapeau
+(`is_setter`, 0089), ni multiplié par le nombre de semaines, ni remplacé par une saisie hebdo
+(`fixeSetter`, tâche 19) ; plus une ligne de la feuille rejouée de bout en bout (commission +
+fixe + handoffs). Puis handoffs à 0,60, prime due, cumul malus manuel + sanction police, période
+entièrement vide, et l'invariant
 `net = base + setter + bonus − malus + handoffs + prime − sanctions`.
 
 Ces tests sont **vérifiés discriminants** : chaque régression a été réintroduite une par une
-dans `computePayslip`, et le test correspondant est tombé (détail dans le rapport de tâche 16).
-Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
+dans `computePayslip`, et le test correspondant est tombé (détail dans les rapports de tâche 16
+et 19). Un test qui ne tombe sur aucune régression est un test qui ne protège rien.
+
+**Les tests qui survivent à ce qu'ils gardaient sont SUPPRIMÉS, pas conservés.** La tâche 19 a
+retiré `fixeSetter` de `PayslipInput` : les quatre tests qui décrivaient son arbitrage sont
+devenus soit impossibles à écrire (le champ n'existe plus), soit de simples redites de
+`setter === fixedAmount`. Ils sont fondus en un seul, qui énumère les trois régressions
+historiques. La forme de sortie, elle, est gardée par le `toEqual` complet du test « période
+entièrement vide » : réintroduire `setterAdjusted` le fait tomber sur une clé en trop.
 
 Pas de test côté `apps/web` : le harnais n'existe pas et le monter dépasse ce périmètre.
