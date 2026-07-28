@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type {
   ChatterModel,
@@ -72,7 +73,8 @@ export async function getChatters(
   // MEMBRE : lus via le helper partagé `getClosingByChatter` (source unique, cf. 0077/0079).
   const [rpcRes, crmRes, closingByChatter] = await Promise.all([
     supabase.rpc('chatters_report', { p_from: period.from, p_to: period.to }),
-    supabase.from('chatters').select('id, shift'),
+    // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
+    fetchAll((f, t) => supabase.from('chatters').select('id, shift').order('id').range(f, t)),
     getClosingByChatter(),
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)

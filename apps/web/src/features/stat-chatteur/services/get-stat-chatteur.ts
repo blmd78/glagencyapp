@@ -1,5 +1,6 @@
 import { createAdminClient } from '@glagency/db'
 import { getChatters } from '@/lib/services/get-chatters'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { CrmRole } from '@/lib/types/chatters'
 import type { StatChatteurData } from '../types'
@@ -36,11 +37,21 @@ export async function getStatChatteur(
   opts: { restricted?: boolean } = {},
 ): Promise<StatChatteurData> {
   // Le SELECT profiles (mode admin) est indépendant du RPC de getChatters — lancé tout de
-  // suite, awaité après. `Promise.resolve` déclenche le fetch immédiatement : un builder
-  // postgrest-js est PromiseLike mais PARESSEUX (même patron que get-insights.ts).
+  // suite, awaité après. `fetchAll` (async) exécute son corps jusqu'au premier `await` dès
+  // l'appel — même effet de déclenchement immédiat que `Promise.resolve` sur un builder
+  // PromiseLike mais PARESSEUX (même patron que get-insights.ts), en plus de contourner le
+  // cap PostgREST silencieux à 1000 lignes : `profiles` est agence-wide et grossit avec
+  // l'équipe. `.order('id')` = la PK (colonne non sélectionnée, PostgREST l'accepte — même
+  // patron que `compta-sources.ts`).
   const membersPromise = opts.restricted
     ? null
-    : Promise.resolve(createAdminClient().from('profiles').select('closing_role, closing_team'))
+    : fetchAll<{ closing_role: string | null; closing_team: string | null }>((f, t) =>
+        createAdminClient()
+          .from('profiles')
+          .select('closing_role, closing_team')
+          .order('id')
+          .range(f, t),
+      )
   const chattersData = await getChatters(period, opts)
 
   const rows = chattersData.chatters

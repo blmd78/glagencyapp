@@ -31,7 +31,14 @@ export async function getLinkRows(
 ): Promise<MktLinkRow[]> {
   const supabase = await createClient()
   const [linksRes, creatorsRes, staffLinksRes, staffRes, dailyRes] = await Promise.all([
-    supabase.from('mkt_links').select('id, name, type, url, creator_id, active'),
+    // fetchAll : cap PostgREST silencieux — `mkt_links` grossit sans purge. `.order('id')` = la PK.
+    fetchAll((f, t) =>
+      supabase
+        .from('mkt_links')
+        .select('id, name, type, url, creator_id, active')
+        .order('id')
+        .range(f, t),
+    ),
     supabase.from('creators').select('id, name'),
     // Assignations VA : le RLS (owner_id, migration 0027) fait qu'un manager ne récupère
     // que SES fiches → il ne voit les étiquettes VA que sur ses propres liens.

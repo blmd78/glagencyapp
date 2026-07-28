@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { ModelChatter, ModelRow, ModelsData } from '../types'
 
@@ -53,8 +54,19 @@ export async function getModels(period: Period): Promise<ModelsData> {
       p_from: period.from,
       p_to: period.to,
     }),
-    supabase.from('chatter_creators').select('creator_id, chatter_id').eq('active', true),
-    supabase.from('chatters').select('id, display_name'),
+    // fetchAll : cap PostgREST silencieux à 1000 lignes (même lecture chatter_creators
+    // qu'`overview/services/get-overview.ts`, PK (chatter_id, creator_id)).
+    fetchAll((f, t) =>
+      supabase
+        .from('chatter_creators')
+        .select('creator_id, chatter_id')
+        .eq('active', true)
+        .order('chatter_id')
+        .order('creator_id')
+        .range(f, t),
+    ),
+    // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
+    fetchAll((f, t) => supabase.from('chatters').select('id, display_name').order('id').range(f, t)),
   ])
   if (creatorsErr) throw new Error(creatorsErr.message)
   if (ccErr) throw new Error(ccErr.message)
