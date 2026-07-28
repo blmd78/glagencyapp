@@ -101,14 +101,11 @@ export async function payPeriod(raw: unknown): Promise<ActionResult> {
         ['handoffs', v.handoffsAmount, p.handoffsAmount],
         ['prime', v.primeAmount, p.prime],
         ['sanctions', v.sanctionsAmount, p.sanctions],
-        // Les trois lignes du lot final (0091). La PRIME SETTER est la plus volatile des dix :
-        // elle ne vient d'aucune saisie propre au membre mais de son RANG dans le classement de
-        // toute l'agence — un handoff saisi chez QUELQU'UN D'AUTRE pendant que l'onglet est
-        // ouvert la fait bouger. Sans cette ligne, l'admin figerait une prime que l'écran ne
-        // montrait déjà plus.
-        ['report', v.carryoverAmount, p.carryover],
+        // La PRIME SETTER (0091) est la plus volatile des huit : elle ne vient d'aucune saisie
+        // propre au membre mais de son RANG dans le classement de toute l'agence — un handoff
+        // saisi chez QUELQU'UN D'AUTRE pendant que l'onglet est ouvert la fait bouger. Sans
+        // cette ligne, l'admin figerait une prime que l'écran ne montrait déjà plus.
         ['prime setter', v.setterPrimeAmount, p.setterPrime],
-        ['prime du mois', v.monthlyPrimeAmount, p.monthlyPrime],
       ]
       // Plus de contrôle sur le mode de rémunération : il n'y en a plus qu'un (0089). Le fixe,
       // lui, EST vérifié — il arrive dans la ligne « fixe setter » ci-dessus, qu'il vienne du

@@ -71,25 +71,16 @@ export interface PayslipInput {
   /** Σ `police_entries.amount_eur` (kind = 'malus') sur la période. */
   sanctions: number
   /**
-   * `RESTE SEMAINE PASSEE` de la feuille — reliquat reporté de la période précédente
-   * (`compta_period_entries.carryover`).
-   *
-   * SIGNÉ, seule entrée de la formule à l'être : un trop-perçu se reporte en négatif. Les malus
-   * et les sanctions, eux, arrivent POSITIFS et sont soustraits ici — ce n'est pas la même chose,
-   * et la fiche ne les affiche pas au même endroit.
-   */
-  carryover: number
-  /**
    * `PRIME TOP15 SETTER` — la prime du classement des setters sur la période, calculée par
    * `rankSetters` (`./setter-rank`). Une entrée comme les autres : la formule ne connaît ni le
    * rang, ni le barème, seulement le montant dû à CE membre.
+   *
+   * Ses deux voisines du « lot final » (tâche 22) ont été RETIRÉES le 2026-07-28, décision de
+   * Benoit : `carryover` (« RESTE SEMAINE PASSEE » — jamais élucidé, « ça existera pas ») et
+   * `monthlyPrime` (« PRIME TOP3 MOIS » — un montant mensuel saisi sur un écran de période
+   * n'avait pas de sens à ses yeux). Celle-ci reste parce qu'elle est CALCULÉE, pas saisie.
    */
   setterPrime: number
-  /**
-   * `PRIME TOP3 MOIS` — prime mensuelle SAISIE À LA MAIN (`compta_period_entries.top3_prime`).
-   * Sa règle d'attribution n'est pas connue : c'est l'admin qui décide, l'app n'invente rien.
-   */
-  monthlyPrime: number
 }
 
 /** Une ligne « modèle » de la ventilation, à l'intérieur d'un segment de taux. */
@@ -141,12 +132,8 @@ export interface Payslip {
   handoffsAmount: number
   prime: number
   sanctions: number
-  /** Report de la période précédente — SIGNÉ (cf. `PayslipInput.carryover`). */
-  carryover: number
   /** Prime du classement setter (TOP15). */
   setterPrime: number
-  /** Prime du mois (TOP3), saisie. */
-  monthlyPrime: number
   net: number
 }
 
@@ -216,22 +203,12 @@ export function computePayslip(i: PayslipInput): Payslip {
   const handoffsAmount = round2(rawHandoffsAmount)
   const prime = round2(i.primeDue)
   const sanctions = round2(i.sanctions)
-  // Les trois lignes du lot final (tâche 22) : elles S'AJOUTENT au net, chacune sur sa propre
-  // ligne de fiche. `carryover` porte son signe ; les deux primes sont positives.
-  const carryover = round2(i.carryover)
+  // La prime setter S'AJOUTE au net, sur sa propre ligne de fiche. Le report (`carryover`) et la
+  // prime du mois (`monthlyPrime`), qui l'accompagnaient depuis la tâche 22, ont été retirés le
+  // 2026-07-28 (décision de Benoit — cf. `PayslipInput.setterPrime`).
   const setterPrime = round2(i.setterPrime)
-  const monthlyPrime = round2(i.monthlyPrime)
   const net = round2(
-    base +
-      setter +
-      bonus -
-      malus +
-      handoffsAmount +
-      prime -
-      sanctions +
-      carryover +
-      setterPrime +
-      monthlyPrime,
+    base + setter + bonus - malus + handoffsAmount + prime - sanctions + setterPrime,
   )
 
   return {
@@ -244,9 +221,7 @@ export function computePayslip(i: PayslipInput): Payslip {
     handoffsAmount,
     prime,
     sanctions,
-    carryover,
     setterPrime,
-    monthlyPrime,
     net,
   }
 }

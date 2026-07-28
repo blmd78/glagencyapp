@@ -49,18 +49,6 @@ export interface ComptaRow {
    *  passe par `payslip.prime`. */
   prime: { amount: number; status: string; paidAt: string | null } | null
   handoffs: number
-  /** Saisie de la PÉRIODE (`compta_period_entries`, 0090) — valeurs de départ du formulaire de
-   *  la fiche. `carryover` est SIGNÉ (un trop-perçu se reporte en négatif), `top3Prime` non.
-   *  Jamais `null` : une ligne absente vaut les défauts de ses colonnes, c'est-à-dire 0 et 0. */
-  periodEntry: { carryover: number; top3Prime: number }
-  /** Une prime DU MOIS a déjà été VERSÉE à ce membre pour le mois de la période affichée
-   *  (instantané `compta_payments.monthly_prime_amount`, cf. `coverage.monthlyPrimePaid`). Le
-   *  net l'exclut alors, même si `periodEntry.top3Prime` est renseignée : c'est le garde contre
-   *  le double versement, et la fiche doit dire pourquoi la ligne a disparu. */
-  monthlyPrimePaid: boolean
-  /** Prime du mois saisie sur une AUTRE période du MÊME mois — au plus une (index unique 0092).
-   *  Sert à prévenir AVANT la saisie plutôt qu'à refuser après. `null` = rien ailleurs. */
-  monthlyPrimeElsewhere: { periodStart: string; periodLabel: string; amount: number } | null
   /** Rang du membre au classement setter de la période, ou `null` s'il n'a aucun handoff (donc
    *  aucune prime). Le MONTANT, lui, est dans `payslip.setterPrime` : il entre dans le net comme
    *  les autres composantes, et c'est lui qui est figé au paiement. */
@@ -131,13 +119,14 @@ export interface ComptaData {
 
 /**
  * Une ligne du RÉCAP MENSUEL — le bloc de fin de mois de la feuille (`Total Mois`,
- * `Nbre de handoff-🤝 / Mois`, `PRIME TOP15 SETTER`, `PRIME TOP3 MOIS`).
+ * `Nbre de handoff-🤝 / Mois`, `PRIME TOP15 SETTER`). La colonne `PRIME TOP3 MOIS` a été
+ * RETIRÉE le 2026-07-28 avec le concept lui-même (décision de Benoit).
  *
  * ⚠️ DEUX GRAINS COHABITENT ICI, et les confondre fausserait les chiffres :
  *  - `ca` et `handoffs` sont des agrégats du MOIS CIVIL (1er → dernier jour) — c'est la seule
  *    définition possible d'un total qu'on appelle « du mois » ;
- *  - `setterPrime` et `monthlyPrime` sont des montants de PÉRIODE, sommés sur les 2 ou 3
- *    périodes RATTACHÉES au mois (celles dont le lundi de départ y tombe).
+ *  - `setterPrime` est un montant de PÉRIODE, sommé sur les 2 ou 3 périodes RATTACHÉES au mois
+ *    (celles dont le lundi de départ y tombe).
  * Les deux ne couvrent donc pas exactement les mêmes jours, et l'écran le dit.
  */
 export interface MoisRow {
@@ -152,11 +141,6 @@ export interface MoisRow {
   handoffs: number
   /** Σ des primes du classement setter sur les périodes rattachées au mois. */
   setterPrime: number
-  /** Prime du mois saisie (`top3_prime`) — au plus une par mois depuis l'index 0092. */
-  monthlyPrime: number
-  /** Libellé de la période qui la porte, `null` si aucune. Affiché avec le montant : sans lui,
-   *  une prime mensuelle vue dans un tableau mensuel n'a pas de point de saisie identifiable. */
-  monthlyPrimePeriod: string | null
 }
 
 export interface MoisData {

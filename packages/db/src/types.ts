@@ -361,14 +361,12 @@ export type Database = {
           base_amount: number
           bonus_amount: number
           ca_reference: number
-          carryover_amount: number
           chatter_id: string
           covered_days: string[] | null
           created_at: string
           handoffs_amount: number
           id: string
           malus_amount: number
-          monthly_prime_amount: number
           note: string | null
           paid_at: string
           paid_by: string | null
@@ -384,14 +382,12 @@ export type Database = {
           base_amount: number
           bonus_amount: number
           ca_reference: number
-          carryover_amount: number
           chatter_id: string
           covered_days?: string[] | null
           created_at?: string
           handoffs_amount: number
           id?: string
           malus_amount: number
-          monthly_prime_amount: number
           note?: string | null
           paid_at?: string
           paid_by?: string | null
@@ -407,14 +403,12 @@ export type Database = {
           base_amount?: number
           bonus_amount?: number
           ca_reference?: number
-          carryover_amount?: number
           chatter_id?: string
           covered_days?: string[] | null
           created_at?: string
           handoffs_amount?: number
           id?: string
           malus_amount?: number
-          monthly_prime_amount?: number
           note?: string | null
           paid_at?: string
           paid_by?: string | null
@@ -436,48 +430,6 @@ export type Database = {
           {
             foreignKeyName: "compta_payments_paid_by_fkey"
             columns: ["paid_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      compta_period_entries: {
-        Row: {
-          carryover: number
-          chatter_id: string
-          period_start: string
-          top3_prime: number
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          carryover?: number
-          chatter_id: string
-          period_start: string
-          top3_prime?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          carryover?: number
-          chatter_id?: string
-          period_start?: string
-          top3_prime?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "compta_period_entries_chatter_id_fkey"
-            columns: ["chatter_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "compta_period_entries_updated_by_fkey"
-            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

@@ -163,56 +163,35 @@ Pour un chatteur et une période :
 − Sanctions       Σ police_entries.amount_eur où kind = 'malus'
                   et occurred_on dans la période
 
-+ Report          compta_period_entries.carryover — « RESTE SEMAINE PASSEE »
-                  -- SIGNÉ, seule entrée de la formule à l'être : un trop-perçu
-                     se reporte en négatif
-
 + Prime setter    la tranche de compta_setter_scale au rang du chatteur dans le
                   classement des HANDOFFS de la période — « PRIME TOP15 SETTER »
-
-+ Prime du mois   compta_period_entries.top3_prime — « PRIME TOP3 MOIS », saisie
-                  à la main : sa règle d'attribution n'est pas connue, l'admin
-                  décide et l'app n'invente rien
 
 = Net à payer
 ```
 
-**La prime du mois est un montant MENSUEL logé dans une saisie de PÉRIODE (tâche 26,
-2026-07-28).** `compta_period_entries.top3_prime` se saisit par période de 14 jours, or un mois
-civil en contient **2 ou 3** : rien n'empêchait de la saisir sur deux périodes du même mois et de
-la verser deux fois. C'est le défaut d'argent de la tâche 19 (`fixe_setter`) répété un cran plus
-haut. Deux verrous le ferment, et il en faut deux :
-
-1. **La SAISIE** — index unique partiel `compta_period_entries_one_top3_per_month` (§5.9,
-   migration `0092`) : au plus une période par `(chatteur, mois)` peut porter une prime non nulle.
-   Partiel (`where top3_prime > 0`) parce que la même ligne porte aussi le **report**, qui se
-   saisit légitimement sur chaque période — une unicité pleine aurait cassé une saisie pour en
-   garder une autre.
-2. **Le VERSEMENT** — `coverage.monthlyPrimePaid`, qui lit l'instantané figé
-   `compta_payments.monthly_prime_amount` sur les périodes du mois. L'index ne peut pas voir ce
-   trou-là : payer la période 1, remettre sa saisie à 0, puis saisir la prime sur la période 2 du
-   même mois **passe l'index**. Vérifié en base (transaction annulée, UAT). C'est la source de
-   vérité de `primePaid` reprise mot pour mot : le paiement existe ou n'existe pas.
+**Le REPORT (« RESTE SEMAINE PASSEE ») et la PRIME DU MOIS (« PRIME TOP3 MOIS ») ont été
+RETIRÉS de la formule le 2026-07-28** — décision de Benoit, voir « Ce que ce plan ne fait pas »
+dans le plan. Le report n'a jamais été élucidé (« ça existera pas, à part si on me le
+demande ») ; la prime du mois était un montant MENSUEL saisi sur un écran de PÉRIODE de 14
+jours, ce qui n'avait pas de sens à ses yeux. Leur table de saisie (`compta_period_entries`) et
+leurs colonnes d'instantané sont droppées par la migration `0095` (§5.11).
 
 Le **mois d'une période est celui de son LUNDI DE DÉPART** (`monthOfPeriod`). C'est la règle déjà
 en place un cran plus bas (« une semaine est rattachée à la période de son lundi, et n'est jamais
 découpée », §3) appliquée aux périodes. Sa propriété essentielle est d'être une **partition** :
 chaque période appartient à exactement un mois. Une période à cheval (20/07 → 02/08) est donc
-entièrement de juillet et la suivante (03/08) entièrement d'août — aucune prime ne tombe entre
-deux mois ni n'est réclamée par les deux. Un rattachement « au mois majoritaire en jours » n'aurait
-pas cette propriété (31/08 → 13/09 basculerait en septembre alors que la période du 17/08 reste en
-août) ; il est explicitement testé comme régression dans `months.test.ts`.
+entièrement de juillet et la suivante (03/08) entièrement d'août. Un rattachement « au mois
+majoritaire en jours » n'aurait pas cette propriété (31/08 → 13/09 basculerait en septembre alors
+que la période du 17/08 reste en août) ; il est explicitement testé comme régression dans
+`months.test.ts`. Depuis le retrait de la prime du mois, cette règle ne garde plus d'argent :
+elle sert le récap mensuel de l'onglet Classement (§7.2), qui déduit son mois de la période
+choisie.
 
-Conséquence assumée, identique à celle de la prime d'embauche : sur une période **déjà payée**, le
-net recalculé n'affiche plus cette prime alors que l'instantané l'a bien versée. C'est l'instantané
-qui fait foi, et la fiche le dit déjà (« Payé le … — X € »).
-
-**Les trois dernières lignes datent de la tâche 22 (2026-07-28)** — le lot qui remplace le
-tableur. Elles sont dans `computePayslip` et exposées séparément dans `Payslip` : la fiche doit
-montrer chaque ligne, comme la feuille. **Leurs sources sont branchées depuis la tâche 23** : le
-report et la prime du mois viennent de `compta_period_entries` (saisis dans la fiche), la prime
-setter du classement `rankSetters` sur les handoffs de la période. Les trois sont figées au
-paiement par les colonnes d'instantané de la migration `0091` (§5.7).
+**La prime setter date de la tâche 22 (2026-07-28)** — le lot qui remplace le tableur. Elle est
+dans `computePayslip` et exposée séparément dans `Payslip` : la fiche doit montrer chaque ligne,
+comme la feuille. **Sa source est branchée depuis la tâche 23** : le classement `rankSetters` sur
+les handoffs de la période. Elle est figée au paiement par la colonne d'instantané de la
+migration `0091` (§5.7).
 
 **Classement setter — `rankSetters(handoffsByMember, scale)`**, fonction pure
 (`packages/core/src/compta/setter-rank.ts`). Le classement porte sur les handoffs **saisis dans
@@ -328,7 +307,7 @@ cumulatif.
 
 ---
 
-## 5. Modèle de données — migrations `0085` … `0094`
+## 5. Modèle de données — migrations `0085` … `0095`
 
 `0085` porte l'essentiel (les tables étant vides) ; `0086` ouvre la lecture cloisonnée des
 sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bascule
@@ -336,7 +315,8 @@ sanctions (§6), `0087` interdit le chevauchement des jours couverts, `0088` bas
 statut de setter (§5.5), `0090` pose le socle du lot final (§5.6), `0091` étend l'instantané de
 paiement aux trois lignes de ce lot (§5.7), `0092` interdit de saisir deux fois la prime du mois
 dans le même mois civil (§5.9), `0093` **date le taux de commission** (§5.10), `0094` recentre la
-contrainte de son instantané (§5.10).
+contrainte de son instantané (§5.10), `0095` **retire le report et la prime du mois** (§5.11) —
+décision de Benoit du 2026-07-28.
 
 **5.1 Re-cléage sur `profiles`.** Suppression des 5 lignes de test, puis bascule des clés
 étrangères de `chatters(id)` vers `profiles(id)` sur `compta_settings`, `compta_primes`,
@@ -362,9 +342,9 @@ Calculer de l'argent en parsant une chaîne est une erreur silencieuse qui atten
 | `prime_amount` | `numeric(10,2)` | prime éventuelle |
 | `sanctions_amount` | `numeric(10,2)` | sanctions police |
 
-`0091` en ajoute trois autres (§5.7). `amount` reste le **net versé**. Invariant, DIX composantes :
-`amount = base + setter + bonus − malus + handoffs + prime − sanctions + carryover + setterPrime
-+ monthlyPrime`.
+`0091` en a ajouté trois autres (§5.7), dont `0095` a retiré deux (§5.11) — reste
+`setter_prime_amount`. `amount` reste le **net versé**. Invariant, HUIT composantes :
+`amount = base + setter + bonus − malus + handoffs + prime − sanctions + setterPrime`.
 
 `mode_applied` figurait ici jusqu'à la tâche 16 (`text check (mode_applied in
 ('percent','fixed'))`, mode au moment du paiement) : `0089` la supprime avec le mode lui-même —
@@ -423,20 +403,10 @@ Les lignes de la feuille que l'app ne savait pas porter.
 
 | Objet | Forme | Pourquoi |
 |---|---|---|
-| `compta_period_entries` | `primary key (chatter_id, period_start)`, `carryover numeric(10,2)` **signé**, `top3_prime numeric(10,2) check (>= 0)` | Les deux montants valent pour la PÉRIODE entière — ni un jour, ni une semaine. Une table de plus, clée comme ses sœurs (`(chatter_id, date)`, `(chatter_id, week_start)`) |
+| ~~`compta_period_entries`~~ | `primary key (chatter_id, period_start)`, `carryover` **signé**, `top3_prime` | Portait le report et la prime du mois — **droppée par `0095`** avec les deux concepts (§5.11) |
 | `compta_setter_scale` | `rank smallint primary key`, `amount numeric(10,2)`, amorce = le barème de juin (200 → 80, Σ 1 796 €) | Barème réglable : une constante TypeScript aurait demandé un déploiement pour changer un chiffre |
 | `compta_debts.amount` | `text` → `numeric(10,2)`, plus `settled_by` | Même raison que `compta_primes` en 0085 : on ne calcule pas de l'argent en parsant une chaîne |
 | `profiles.closing_role` | `check` élargi à `('setter','closer','nouveau','hybride')` | La légende de la feuille connaît quatre états (L96-98) |
-
-`compta_period_entries` **reprend la contrainte d'alignement de `compta_payments`**
-(`check (mod(period_start − date '2026-07-06', 14) = 0)`) et pour la même raison : une ligne posée
-sur un lundi décalé porterait un report qu'aucune période affichée ne ramasserait — invisible, et
-jamais versé.
-
-`carryover` est la seule colonne de montant **signée** de la compta : un trop-perçu se reporte en
-négatif, et l'imposer positif obligerait à le contourner par un malus, qui ne dit pas la même
-chose sur la fiche. `top3_prime`, elle, refuse le négatif — la ligne signée d'à côté est là pour
-les corrections.
 
 Mesuré sur l'UAT le 2026-07-28 avant d'appliquer : `compta_debts` = 0 ligne, et son `amount`
 n'avait **aucun** défaut (le `'100 €'` mentionné au plan est celui de `compta_primes`). La prod
@@ -452,17 +422,19 @@ Les deux pièges que `0090` laissait ouverts ont été **traités à la tâche 2
   → `CRM_ROLES` passe à quatre (§5.8).
 
 **5.7 L'instantané rattrape le lot final — migration `0091`** (2026-07-28, UAT seulement).
-`compta_payments` gagne `carryover_amount` (**signé**), `setter_prime_amount` et
+`compta_payments` gagnait `carryover_amount` (**signé**), `setter_prime_amount` et
 `monthly_prime_amount`, `numeric(10,2) not null`, **sans défaut** — la doctrine de `0085` reprise
-mot pour mot. `compta_payments` mesurée à 0 ligne sur l'UAT juste avant d'appliquer : un
-`not null` sans défaut aurait échoué sur une table peuplée, et c'est le comportement voulu (mieux
-vaut un push en échec qu'un instantané rétroactif rempli de zéros inventés).
+mot pour mot. **Seule `setter_prime_amount` subsiste** : les deux autres sont droppées par `0095`
+avec leurs concepts (§5.11). `compta_payments` mesurée à 0 ligne sur l'UAT juste avant
+d'appliquer : un `not null` sans défaut aurait échoué sur une table peuplée, et c'est le
+comportement voulu (mieux vaut un push en échec qu'un instantané rétroactif rempli de zéros
+inventés).
 
-Sans ces colonnes, brancher les trois sources aurait fait **échouer tout paiement** d'une fiche
-qui en porte une : `payslip.net` les incluait, tandis que le `superRefine` de `payInput` et les
-contrôles de dérive de `payPeriod` n'en connaissaient que sept. Les trois sont donc ajoutées au
-contrat (`payInput`), au recalcul serveur (`actions-pay.ts`, treize valeurs comparées) et à
-l'écriture (`record-payment.ts`).
+Sans cette colonne, brancher la prime setter aurait fait **échouer tout paiement** d'une fiche
+qui en porte une : `payslip.net` l'incluait, tandis que le `superRefine` de `payInput` et les
+contrôles de dérive de `payPeriod` ne la connaissaient pas. Elle est donc ajoutée au
+contrat (`payInput`), au recalcul serveur (`actions-pay.ts`) et à l'écriture
+(`record-payment.ts`).
 
 **Pourquoi figer la prime setter en particulier** : elle n'est stockée nulle part et se recalcule
 à chaque rendu depuis le barème et les handoffs. Un handoff corrigé la semaine suivante, ou une
@@ -474,34 +446,10 @@ Aucune contrainte de somme en base : l'invariant reste vérifié côté applicat
 l'exprimant refuserait les paiements légitimes dès qu'un centime d'arrondi flottant s'y glisse —
 la tolérance de 0,01 € vit dans le code.
 
-**5.9 Une prime du mois par mois — migration `0092`** (2026-07-28, UAT seulement).
-
-```sql
-create unique index compta_period_entries_one_top3_per_month
-  on public.compta_period_entries (chatter_id, (date_trunc('month', period_start::timestamp)))
-  where top3_prime > 0;
-```
-
-Le raisonnement est en §4. Trois points de forme :
-
-- **`period_start::timestamp` est nécessaire** : `date_trunc(text, timestamptz)` est `stable`
-  (elle dépend de `TimeZone`) et Postgres refuse une fonction non immuable dans un index ;
-  `date_trunc(text, timestamp)` est immuable.
-- **Index PARTIEL**, pas contrainte pleine : la ligne porte aussi le report, qui se saisit sur
-  chaque période. Vérifié — avec l'index, `(20/07, carryover = −12,50, top3 = 0)` s'enregistre à
-  côté de `(06/07, top3 = 200)`.
-- **Aucun changement de type généré** : un index n'ajoute pas de colonne. `packages/db/src/types.ts`
-  a été régénéré depuis l'UAT et le diff est **vide** — c'est le résultat attendu, pas un oubli.
-
-Mesuré sur l'UAT juste avant d'appliquer : `compta_period_entries` = 0 ligne, `compta_payments` =
-0 ligne. Sur une table peuplée l'échec de création serait le comportement **voulu** (mieux vaut un
-push refusé qu'une double prime laissée en place). La prod n'a pas été ouverte.
-
-Quatre comportements vérifiés en transaction annulée : deux périodes du même mois avec
-`top3 > 0` → `23505` ; report seul sur la seconde → accepté ; période à cheval (07-20, mois de
-juillet) puis 08-03 (mois d'août) → accepté ; deux membres différents sur le même mois → accepté.
-Et le trou que l'index NE ferme PAS — payer, remettre à 0, ressaisir sur l'autre période — a été
-reproduit en base pour prouver que la garde applicative n'est pas redondante.
+**5.9 Une prime du mois par mois — migration `0092`** (2026-07-28, UAT seulement). Index unique
+partiel `compta_period_entries_one_top3_per_month`, qui interdisait de saisir la prime du mois
+sur deux périodes du même mois civil. **Parti avec sa table** : le `drop table` de `0095` (§5.11)
+l'emporte. Le détail de sa conception vit dans l'historique git et le fichier de migration.
 
 **5.10 Le taux de commission devient DATÉ — migrations `0093` et `0094`** (2026-07-28, UAT
 seulement). Le raisonnement métier est en §4 ; voici la forme.
@@ -597,13 +545,25 @@ ses deux filtres de rôle restent ceux-là — un `'nouveau'` apparaît sous « 
 son badge, et n'entre dans aucun des deux compteurs. C'est le comportement voulu : ces KPI
 comptent des setters et des closers.
 
+**5.11 Le report et la prime du mois sortent de la base — migration `0095`** (2026-07-28, UAT
+seulement). Décision de Benoit, prise le jour même : le report (« RESTE SEMAINE PASSEE ») « ça
+existera pas, à part si on me le demande », et la prime du mois n'a « pas de sens » saisie sur
+une période de deux semaines. La migration droppe `compta_period_entries` (sa policy, ses index
+et l'index unique `0092` partent avec la table) et les colonnes
+`compta_payments.carryover_amount` / `monthly_prime_amount`. La prime setter reste intégralement
+(`compta_setter_scale`, `setter_prime_amount`).
+
+Mesuré sur l'UAT juste avant d'appliquer : `compta_period_entries` = 0 ligne, `compta_payments`
+= 0 ligne — aucune donnée réelle détruite. La prod n'a pas été ouverte ; elle n'a reçu aucune
+des migrations `0085`…`0094`, donc aucun de ces objets n'y existe.
+
 ---
 
 ## 6. Droits et cloisonnement
 
 | Table | Admin | Manager / sous-manager | Chatteur |
 |---|---|---|---|
-| `compta_day_entries`, `compta_week_entries`, `compta_period_entries` | tout | lecture + écriture **sur ses rattachés** | — |
+| `compta_day_entries`, `compta_week_entries` | tout | lecture + écriture **sur ses rattachés** | — |
 | `compta_settings` | tout | lecture sur ses rattachés | — |
 | `compta_rates` | tout, **seul à écrire** | lecture sur ses rattachés | — |
 | `compta_primes` | tout | lecture sur ses rattachés | — |
@@ -733,22 +693,15 @@ semaine, et rien d'autre : le fixe est un montant par période, il n'a pas de ch
 (tâche 19, cf. §4) — et pour un admin le bouton **Marquer payé** qui fige l'instantané et
 enregistre `covered_days`.
 
-**Depuis la tâche 24, la fiche porte les trois lignes du lot final et DEUX champs de plus.**
+**Depuis la tâche 24, la fiche porte la ligne « Prime setter — rang 6 (71 handoffs) »** — **le
+rang est dans le libellé** : sans lui c'est un montant sans provenance, et c'est ce que le
+chatteur voudra vérifier. Sur SA ligne, comme les autres composantes : le net doit s'additionner
+exactement à partir de ce qui est affiché.
 
-Côté lecture, trois lignes d'ajustement : « Report période précédente » (en rouge s'il est
-négatif — c'est une retenue), « Prime setter — rang 6 (71 handoffs) » (**le rang est dans le
-libellé** : sans lui c'est un montant sans provenance, et c'est ce que le chatteur voudra
-vérifier), « Prime du mois (top 3) ». Chacune sur SA ligne, comme les autres composantes : le net
-doit s'additionner exactement à partir de ce qui est affiché.
-
-Côté saisie, une ligne **« Période entière »** sous les deux lignes-semaines, avec son propre
-en-tête (`Report €`, `Prime du mois €`) et **la même grille** que les semaines — la troisième
-piste reste vide pour que les colonnes s'alignent d'un bloc à l'autre. Elle est SÉPARÉE des
-semaines, et pas deux champs de plus sur chacune : c'est le défaut d'argent corrigé à la tâche 19
-(`fixe_setter`, montant par période logé dans une saisie hebdomadaire, affiché deux fois et
-sommé — 75 € retapés sur chaque ligne versaient 150 €). Le report est le seul montant signé de la
-saisie : la ligne d'aide le dit là où on le tape, sinon personne ne devine qu'un trop-perçu
-s'écrit en négatif.
+> Les deux autres lignes du lot final — « Report période précédente » et « Prime du mois
+> (top 3) » — et la ligne de saisie **« Période entière »** qui les alimentait ont été RETIRÉES
+> le 2026-07-28 (décision de Benoit, migration `0095`, §5.11). La saisie de la fiche redevient
+> purement hebdomadaire : Bonus, Malus, Handoffs.
 
 **LA VENTILATION PAR MODÈLE DEVIENT UNE VENTILATION PAR TAUX, PUIS PAR MODÈLE (tâche 27).** La
 colonne « Commission (10 %) » devient **fausse** dès que la période porte deux taux. Deux formes,
@@ -875,31 +828,23 @@ passer un chatteur pour non rémunérable.
 **Retard.** Le bandeau des périodes incomplètes se déduit de `covered_days` : toute période
 échue dont un jour n'est couvert par aucun paiement remonte, quelle que soit la date.
 
-Depuis la tâche 26, la ligne « Période entière » porte aussi **la phrase qui distingue les deux
-grains** — le report vaut pour la période, la prime du mois pour le MOIS — et, le cas échéant, un
-avertissement ambre : « prime déjà saisie sur la période du 6 au 19 juillet (200 €) » ou « prime
-déjà VERSÉE pour ce mois ». Dire les deux cas AVANT la frappe vaut mieux qu'un refus après : sans
-eux, le champ se remplirait et la ligne « Prime du mois » n'apparaîtrait pas dans le calcul juste
-en dessous, sans un mot. Le second de ces avertissements est **répété dans la zone de lecture** de
-la fiche, parce qu'un encadrant sans droit de saisie ne voit pas le formulaire du tout.
-
 ### 7.2 Onglet Classement — LE MOIS, puis la période
 
 **TROIS SECTIONS sous un seul sélecteur** (tâche 26). Le sélecteur de période est celui de
 l'onglet Période, et il commande les deux grains.
 
 **1. Récap du mois — `juillet 2026`.** Le bloc de fin de mois de la feuille : une ligne par
-chatteur, **Chatteur · Total mois · Handoffs · Prime setter · Prime du mois**, plus une ligne de
-total. C'est ce qui manquait à l'app.
+chatteur, **Chatteur · Total mois · Handoffs · Prime setter**, plus une ligne de total. C'est ce
+qui manquait à l'app. (La colonne « Prime du mois » a été retirée le 2026-07-28 avec le concept —
+décision de Benoit, §5.11.)
 
 - **Le mois est le mois CIVIL** — un agrégat qui s'appelle « Total Mois » et se compare d'un mois
   sur l'autre n'a pas d'autre définition. Toute autre borne (« les deux dernières périodes »,
   « 28 jours glissants ») afficherait sous l'étiquette « juillet » un total qui n'est pas celui de
   juillet, sans que rien ne le dise.
 - **Il se DÉDUIT de la période choisie** (mois de son lundi de départ) — pas de second sélecteur.
-  Deux sélecteurs auraient créé deux notions de « quel mois ? », dont l'une pourrait contredire
-  celle qui garde l'argent (§4). Une seule règle, trois usages : l'affichage, l'agrégation, la
-  garde.
+  Deux sélecteurs auraient créé deux notions de « quel mois ? » pouvant se contredire. Une seule
+  règle, deux usages : l'affichage et l'agrégation.
 - **CA** : `chatter_creator_daily` sur le mois civil, lu **par client admin cadré sur `linked`** —
   la RLS de cette table cloisonne par MODÈLE et amputerait le CA d'un manager en silence (§6).
 - **Handoffs** : saisies au JOUR par leur date, saisies à la SEMAINE par le mois de leur **lundi**.
@@ -909,8 +854,8 @@ total. C'est ce qui manquait à l'app.
 - **Prime setter** : Σ des primes des **2 ou 3 périodes rattachées au mois**, pas un classement
   recalculé sur 30 jours — la prime setter EST une composante du net d'une période, et c'est elle
   qui est figée au paiement. Un classement mensuel produirait un chiffre que personne n'a versé.
-- **Écart assumé et AFFICHÉ** : les deux premières colonnes couvrent le mois civil, les deux
-  primes couvrent les périodes du mois. Les jours ne coïncident donc pas exactement (la période du
+- **Écart assumé et AFFICHÉ** : les deux premières colonnes couvrent le mois civil, la prime
+  setter couvre les périodes du mois. Les jours ne coïncident donc pas exactement (la période du
   31/08 est d'août, mais 13 de ses jours sont en septembre). L'écran **nomme les périodes
   retenues** plutôt que de laisser deviner ; taire cet écart ferait passer un chiffre exact pour
   une erreur de calcul.
@@ -942,7 +887,7 @@ est figé (`setter_prime_amount`, §5.7).
 **L'ORDRE DES TROIS SECTIONS EST STRUCTUREL, pas décoratif.** Le classement et son barème forment
 une paire — l'un se lit avec l'autre : s'intercaler entre eux les séparerait, et se poser après le
 barème mettrait de la donnée sous un bloc de réglages. Le récap va donc en tête. **Pas de
-quatrième onglet** : deux des quatre colonnes du récap sont déjà le sujet de cet onglet, il n'y a
+quatrième onglet** : deux des trois colonnes du récap sont déjà le sujet de cet onglet, il n'y a
 rien de plus à choisir que la période déjà sélectionnée, et le propriétaire en a demandé trois.
 
 Côté chargement, le récap est un appel SÉPARÉ (`getMois`), monté **seulement** quand cet onglet
@@ -1029,8 +974,6 @@ totaux au-delà d'un mois. Toute erreur Supabase est destructurée et thrown.
 | Paiement partiel d'une période | `covered_days` ne couvre qu'une partie → la période reste « incomplète » |
 | Ré-ingestion du CA après paiement | l'instantané ne bouge pas ; l'écart est visible en comparant `ca_reference` au CA courant |
 | Prime déjà `paid` | ignorée dans les périodes suivantes |
-| Prime du mois saisie sur 2 périodes du même mois | refusée à la SAISIE (index 0092), message français nommant la période fautive |
-| Prime du mois déjà versée, puis ressaisie ailleurs dans le mois | sortie du net (`coverage.monthlyPrimePaid`) ET refusée par `savePeriodEntry` ; la fiche dit pourquoi |
 | Période à cheval sur deux mois | rattachée au mois de son lundi de départ, entièrement — jamais partagée |
 | Sanction saisie après le paiement | non rattrapée automatiquement — elle apparaîtra sur la période de son `occurred_on`, qui sera signalée comme incomplète si non couverte |
 | Deux profils pour un même chatteur MyPuls | impossible en prod (vérifié : maximum 1), pas de garde applicative |
@@ -1045,10 +988,11 @@ Dans `packages/core`, sous Vitest :
 rattachement d'une période **à cheval** sur deux mois puis sur deux années au mois de son lundi ;
 `periodsOfMonth` sur juillet 2026 (2 périodes, celle qui contient le 1er ayant démarré en juin) et
 août 2026 (3) ; `mondaysOfMonth` (4 ou 5, aucun d'un autre mois) et la démonstration qu'il n'est
-**pas** l'union des lundis des périodes du mois. Et surtout **le test qui garde l'argent** : sur
+**pas** l'union des lundis des périodes du mois. Et **le test de partition** : sur
 24 mois, chaque période appartient à **exactement un** mois, aucune n'est revendiquée par deux,
-aucun trou entre les débuts collectés. C'est cette partition qui rend la garde anti-double
-versement possible ; sans elle, une prime serait payable deux fois ou invisible.
+aucun trou entre les débuts collectés. Cette partition gardait la garde anti-double versement de
+la prime du mois ; depuis le retrait de celle-ci (§5.11), elle garde la cohérence du récap
+mensuel (§7.2), qui déduit son mois de la période choisie.
 
 **`periods.ts`** — l'ancre 06/07/2026 et ses voisins à 14 jours, un jour AVANT l'ancre (l'écart
 négatif ne doit pas décaler d'une période), le balayage « toute période démarre un lundi », une

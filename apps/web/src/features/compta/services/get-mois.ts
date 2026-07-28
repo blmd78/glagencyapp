@@ -15,8 +15,9 @@ import type { MoisData, MoisRow } from '../types'
 
 /**
  * RÉCAP MENSUEL — le bloc de fin de mois de la feuille du propriétaire, que l'app ne savait pas
- * produire : `Total Mois` (le CA du chatteur sur le mois), `Nbre de handoff-🤝 / Mois`,
- * `PRIME TOP15 SETTER` et `PRIME TOP3 MOIS`. La cinquième colonne du bloc, `PRIME D'EMBAUCHE`,
+ * produire : `Total Mois` (le CA du chatteur sur le mois), `Nbre de handoff-🤝 / Mois` et
+ * `PRIME TOP15 SETTER`. La colonne `PRIME TOP3 MOIS` a été RETIRÉE le 2026-07-28 avec le
+ * concept (décision de Benoit). La cinquième colonne du bloc, `PRIME D'EMBAUCHE`,
  * reste dans l'onglet Suivi : elle ne dépend d'aucun mois — une prime échue le reste jusqu'à ce
  * qu'elle soit versée.
  *
@@ -27,8 +28,8 @@ import type { MoisData, MoisRow } from '../types'
  * mois. Toute autre borne (« les deux dernières périodes », « 28 jours glissants ») afficherait
  * sous l'étiquette « juillet » un total qui n'est pas celui de juillet, sans que rien ne le dise.
  *
- * `ca` et `handoffs` sont donc des agrégats du MOIS CIVIL. Les deux primes, elles, sont des
- * montants de PÉRIODE : elles sont sommées sur les 2 ou 3 périodes RATTACHÉES au mois (celles
+ * `ca` et `handoffs` sont donc des agrégats du MOIS CIVIL. La prime setter, elle, est un
+ * montant de PÉRIODE : elle est sommée sur les 2 ou 3 périodes RATTACHÉES au mois (celles
  * dont le lundi de départ y tombe, `periodsOfMonth`). Les deux grains ne couvrent pas exactement
  * les mêmes jours, et c'est irréductible : une prime versée l'a été pour une période, pas pour un
  * mois. L'écran nomme les périodes retenues plutôt que de laisser deviner.
@@ -44,9 +45,9 @@ import type { MoisData, MoisRow } from '../types'
  *
  * ── LE MOIS SE DÉDUIT DE LA PÉRIODE CHOISIE ──────────────────────────────────────────────────
  * `?debut=` reste le SEUL paramètre : le mois est celui du lundi de départ de la période affichée
- * (`monthOfPeriod`). Un second sélecteur aurait créé une deuxième notion de « mois d'une période »
- * pouvant contredire celle qui garde l'argent (index 0092, `coverage.monthlyPrimePaid`). Une seule
- * règle, trois usages : l'affichage, l'agrégation et la garde.
+ * (`monthOfPeriod`). Un second sélecteur aurait créé une deuxième notion de « mois d'une
+ * période » pouvant contredire celle-là. Une seule règle, deux usages : l'affichage et
+ * l'agrégation.
  */
 export async function getMois({ debut }: { debut?: string }): Promise<MoisData> {
   const today = todayParis()
@@ -65,7 +66,6 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
     { data: members, error: membersErr },
     { data: dayEntries, error: dayErr },
     { data: weekEntries, error: weekErr },
-    { data: periodEntries, error: periodErr },
     setterPrimes,
   ] = await Promise.all([
     // ⚠️ ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` et `get-suivi.ts` : c'est CETTE
@@ -98,17 +98,11 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
       .from('compta_week_entries')
       .select('chatter_id, handoffs')
       .in('week_start', mondays.length ? mondays : ['1970-01-01']),
-    // La prime du mois, sur les 2 ou 3 périodes rattachées. Au plus 3 × 96 = 288 lignes.
-    supabase
-      .from('compta_period_entries')
-      .select('chatter_id, period_start, top3_prime')
-      .in('period_start', periods.map((p) => p.start)),
     loadMonthSetterPrimes(periods),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (dayErr) throw new Error(dayErr.message)
   if (weekErr) throw new Error(weekErr.message)
-  if (periodErr) throw new Error(periodErr.message)
 
   // ── LE CA DU MOIS : CLIENT ADMIN, CADRÉ SUR `linked` ────────────────────────────────────────
   // MÊME MOTIF ET MÊME BARRIÈRE que dans `compta-sources.ts` : `chatter_creator_daily` est
@@ -145,42 +139,21 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
     handoffsByMember.set(r.chatter_id, (handoffsByMember.get(r.chatter_id) ?? 0) + r.handoffs)
   }
 
-  // Au plus UNE prime du mois par membre depuis l'index 0092 — mais on SOMME quand même, pour ne
-  // pas afficher un total faux sur une donnée héritée qui en porterait deux. `periodLabel` : le
-  // libellé de la période qui la porte, pour que le montant ait un point de saisie identifiable.
-  const monthlyPrime = new Map<string, { amount: number; label: string | null }>()
-  for (const e of periodEntries ?? []) {
-    const amount = Number(e.top3_prime)
-    if (amount <= 0) continue
-    const prev = monthlyPrime.get(e.chatter_id)
-    monthlyPrime.set(e.chatter_id, {
-      amount: (prev?.amount ?? 0) + amount,
-      label: prev?.label ?? periods.find((p) => p.start === e.period_start)?.label ?? null,
-    })
-  }
-
-  const all: MoisRow[] = (members ?? []).map((m) => {
-    const prime = monthlyPrime.get(m.id)
-    return {
-      id: m.id,
-      name: m.display_name ?? m.email ?? '—',
-      // `null` et non 0 pour un membre non relié : sans lien MyPuls aucun CA n'est calculable, et
-      // un 0 € le ferait passer pour non rémunérable (spec §7, même règle que la fiche).
-      ca: m.chatter_id ? round2(caByChatter.get(m.chatter_id) ?? 0) : null,
-      handoffs: handoffsByMember.get(m.id) ?? 0,
-      setterPrime: round2(setterPrimes.get(m.id) ?? 0),
-      monthlyPrime: prime?.amount ?? 0,
-      monthlyPrimePeriod: prime?.label ?? null,
-    }
-  })
+  const all: MoisRow[] = (members ?? []).map((m) => ({
+    id: m.id,
+    name: m.display_name ?? m.email ?? '—',
+    // `null` et non 0 pour un membre non relié : sans lien MyPuls aucun CA n'est calculable, et
+    // un 0 € le ferait passer pour non rémunérable (spec §7, même règle que la fiche).
+    ca: m.chatter_id ? round2(caByChatter.get(m.chatter_id) ?? 0) : null,
+    handoffs: handoffsByMember.get(m.id) ?? 0,
+    setterPrime: round2(setterPrimes.get(m.id) ?? 0),
+  }))
 
   // On n'affiche que les membres qui ont VÉCU le mois, et on COMPTE les autres au lieu de les
   // faire disparaître : ~96 lignes de zéros ne se lisent pas, mais une liste amputée en silence
   // se lirait « il n'y a que ça ». Un membre non relié (ca `null`) reste affiché s'il a des
   // handoffs ou une prime — c'est justement le cas où il faut aller poser son lien.
-  const rows = all.filter(
-    (r) => (r.ca ?? 0) > 0 || r.handoffs > 0 || r.setterPrime > 0 || r.monthlyPrime > 0,
-  )
+  const rows = all.filter((r) => (r.ca ?? 0) > 0 || r.handoffs > 0 || r.setterPrime > 0)
   // CA décroissant : `Total Mois` est le chiffre de tête du bloc de la feuille.
   rows.sort((a, b) => (b.ca ?? 0) - (a.ca ?? 0) || a.name.localeCompare(b.name, 'fr'))
 

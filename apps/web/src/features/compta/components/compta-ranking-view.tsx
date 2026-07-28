@@ -18,9 +18,8 @@ import type { SetterRankingRow } from '../types'
  * ── UN SEUL SÉLECTEUR POUR DEUX GRAINS ───────────────────────────────────────────────────────
  * Le mois affiché par le récap se DÉDUIT de la période choisie (mois de son lundi de départ,
  * `monthOfPeriod`) — il n'a pas son propre sélecteur. Deux sélecteurs auraient créé deux notions
- * de « quel mois ? », dont l'une pourrait contredire celle qui garde l'argent (l'index unique
- * 0092 et `coverage.monthlyPrimePaid` raisonnent tous deux sur le mois du lundi de départ). Le
- * sélecteur reste donc au-dessus des trois sections, seul en tête.
+ * de « quel mois ? » pouvant se contredire. Le sélecteur reste donc au-dessus des trois
+ * sections, seul en tête.
  *
  * ORDRE VOULU : le mois d'abord, parce que le classement et son barème forment une PAIRE — l'un
  * se lit avec l'autre — et que s'intercaler entre eux les séparerait, tandis que se poser après

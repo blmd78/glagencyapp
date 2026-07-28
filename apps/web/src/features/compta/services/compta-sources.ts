@@ -1,4 +1,4 @@
-import { daysIn, mondaysIn, monthOfPeriod, periodsOfMonth, type PayPeriod } from '@glagency/core'
+import { daysIn, mondaysIn, type PayPeriod } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -33,12 +33,6 @@ export async function loadComptaSources({
   const mondays = mondaysIn(period)
   const from = period.start
   const to = period.end
-  // Le MOIS de la période affichée (celui de son lundi de départ) et les 2 ou 3 périodes qui lui
-  // sont rattachées. Ils ne servent qu'à UNE chose ici : savoir si la prime du mois a déjà été
-  // saisie sur une AUTRE période du même mois, pour le dire dans la fiche AVANT que l'utilisateur
-  // la retape (0092 la refuserait, mais un refus vaut moins qu'un avertissement).
-  const monthPeriods = periodsOfMonth(monthOfPeriod(period))
-  const monthPeriodStarts = monthPeriods.map((p) => p.start)
 
   // La population vient de `profiles` (rôle chatteur), pas de `chatters` : c'est le MEMBRE
   // qu'on paie (0085). 96 lignes sur l'UAT — loin du plafond PostgREST.
@@ -65,7 +59,6 @@ export async function loadComptaSources({
     { data: payments, error: payErr },
     { data: sanctions, error: sancErr },
     { data: firstSeen, error: firstSeenErr },
-    { data: periodEntries, error: periodErr },
   ] = await Promise.all([
     memberId ? membersQuery.eq('id', memberId) : membersQuery,
     // Une ligne par membre au plus (PK `chatter_id`) → sous le plafond. Ne porte plus que le
@@ -144,22 +137,6 @@ export async function loadComptaSources({
     // seule erreur. Aucune donnée brute n'en ressort : seules les dates des membres déjà
     // renvoyés par la RLS `profiles` sont lues.
     admin.rpc('chatter_first_seen'),
-    // Saisie PAR PÉRIODE (`compta_period_entries`, 0090) : le report (`RESTE SEMAINE PASSEE`) et
-    // la prime du mois (`PRIME TOP3 MOIS`). Sous RLS, comme ses deux sœurs de saisie : admin →
-    // tout, encadrement → ses rattachés.
-    //
-    // TOUTES LES PÉRIODES DU MOIS, et non la seule période affichée (2026-07-28) : la prime du
-    // mois est un montant MENSUEL saisi sur une période, et l'app doit pouvoir dire « elle est
-    // déjà sur l'autre période de juillet » plutôt que de laisser l'utilisateur la retaper et se
-    // faire refuser par l'index unique 0092. Le CALCUL, lui, ne retient que la période affichée
-    // (`periodEntryById` ci-dessous) — le report et la prime n'entrent dans le net que là où ils
-    // sont saisis.
-    //
-    // Pas de `fetchAll`, et c'est borné par la CLÉ : la PK est `(chatter_id, period_start)`, donc
-    // au plus UNE ligne par membre et par période — 3 × 96 = 288 lignes au pire (un mois civil
-    // contient au plus 3 périodes, `periodsOfMonth`), loin du plafond de 1000. Le plafond ne
-    // serait atteint qu'au-delà de 333 chatteurs, où c'est toute la page qu'il faudrait paginer.
-    supabase.from('compta_period_entries').select('*').in('period_start', monthPeriodStarts),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (settingsErr) throw new Error(settingsErr.message)
@@ -170,7 +147,6 @@ export async function loadComptaSources({
   if (payErr) throw new Error(payErr.message)
   if (sancErr) throw new Error(sancErr.message)
   if (firstSeenErr) throw new Error(firstSeenErr.message)
-  if (periodErr) throw new Error(periodErr.message)
 
   // LE CA DE LA PÉRIODE — hors RLS, cadré applicativement par `linked` (cf. `compta-ca.ts`).
   //
@@ -210,32 +186,6 @@ export async function loadComptaSources({
     payments,
     sanctions,
     firstSeen: firstSeen ?? [],
-    /** Report et prime du mois de LA période affichée, par membre. `Number(...)` : PostgREST
-     *  rend les `numeric` en nombre, mais la conversion est explicite partout ailleurs dans ce
-     *  fichier — un `numeric` sérialisé en chaîne concaténerait au lieu d'additionner. */
-    periodEntryById: new Map(
-      (periodEntries ?? [])
-        .filter((p) => p.period_start === period.start)
-        .map((p) => [
-          p.chatter_id,
-          { carryover: Number(p.carryover), top3Prime: Number(p.top3_prime) },
-        ]),
-    ),
-    /** Prime du mois saisie sur une AUTRE période du même mois, par membre — l'avertissement de
-     *  la fiche. Au plus une (index unique 0092), d'où le `Map` et non une liste. */
-    monthlyPrimeElsewhereById: new Map(
-      (periodEntries ?? [])
-        .filter((p) => p.period_start !== period.start && Number(p.top3_prime) > 0)
-        .map((p) => [
-          p.chatter_id,
-          {
-            periodStart: p.period_start,
-            periodLabel:
-              monthPeriods.find((x) => x.start === p.period_start)?.label ?? p.period_start,
-            amount: Number(p.top3_prime),
-          },
-        ]),
-    ),
     /** CA de la période par chatteur MyPuls — une ligne par (JOUR, nom de modèle). Le jour est
      *  ce qui permet de ventiler par segment de taux (0093). */
     caByChatter,

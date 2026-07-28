@@ -15,16 +15,12 @@ const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ')
 export const money = payMoney
 
 /**
- * Montant SIGNÉ. DEUX emplois dans toute la feature, et deux seulement :
+ * Montant SIGNÉ. UN SEUL emploi dans toute la feature depuis le retrait du report (2026-07-28) :
+ * le NET d'une période — malus et sanctions Police peuvent dépasser les gains
+ * (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le traitement du
+ * solde dû relève de `compta_debts` (spec §9, onglet Suivi).
  *
- *  - le NET d'une période : malus et sanctions Police peuvent dépasser les gains
- *    (`computePayslip`). Enregistrer un net négatif est un constat fidèle — le traitement du
- *    solde dû relève de `compta_debts` (spec §9, onglet Suivi).
- *  - le REPORT (`compta_period_entries.carryover`, migration 0090) : un trop-perçu se reporte en
- *    négatif. L'imposer positif obligerait à le contourner par un malus, qui ne dit pas la même
- *    chose sur la fiche.
- *
- * Toutes les autres lignes (`base`, `bonus`, `sanctions`, les deux primes…) restent des `money`
+ * Toutes les autres lignes (`base`, `bonus`, `sanctions`, les primes…) restent des `money`
  * positifs : ce sont des composantes, c'est leur combinaison qui porte le signe.
  */
 const signedMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
@@ -99,31 +95,9 @@ export type WeekEntryInput = z.infer<typeof weekEntryInput>
 // `ReportFormValues` dans police-reports/schema.ts.
 export type WeekEntryFormValues = z.input<typeof weekEntryInput>
 
-/**
- * Saisie de la PÉRIODE (`compta_period_entries`, PK `(chatter_id, period_start)`, migration
- * 0090) — les deux montants de la feuille qui ne sont ni journaliers ni hebdomadaires.
- *
- * POURQUOI UN CONTRAT À PART de `weekEntryInput`, alors que les deux sont des saisies cadrées
- * `managerPageGuard('compta')` : le GRAIN diffère. Un montant par période saisi dans une ligne
- * hebdomadaire est exactement le défaut d'argent corrigé à la tâche 19 (`fixe_setter` : champ
- * affiché deux fois par période, valeurs SOMMÉES — 75 € saisis sur chaque ligne versaient 150 €).
- * La clé du contrat porte donc `periodStart`, jamais `weekStart`.
- *
- * `carryover` est SIGNÉ (cf. `signedMoney`), `top3Prime` ne l'est pas : une prime négative ne veut
- * rien dire, et la colonne le refuse déjà (`check (top3_prime >= 0)`, 0090) — le schéma dit ici la
- * même chose que la base, pour un message français plutôt qu'un `23514` brut. `periodStart` : le
- * format ISO n'est qu'un pré-filtre, l'APPARTENANCE à la fenêtre proposée (donc l'alignement du
- * découpage) est vérifiée par `savePeriodEntry`, même patron que `payPeriod` — un lundi décalé
- * porterait un report qu'aucune période affichée ne ramasserait, invisible et jamais versé.
- */
-export const periodEntryInput = z.object({
-  chatterId: z.uuid(),
-  periodStart: iso,
-  carryover: signedMoney,
-  top3Prime: money,
-})
-export type PeriodEntryInput = z.infer<typeof periodEntryInput>
-export type PeriodEntryFormValues = z.input<typeof periodEntryInput>
+// La saisie de la PÉRIODE (`periodEntryInput` — report et prime du mois, table
+// `compta_period_entries`) a été RETIRÉE le 2026-07-28 avec les deux concepts qu'elle portait
+// (décision de Benoit ; table droppée par la migration 0095).
 
 /**
  * Paiement d'une période — porte l'INSTANTANÉ figé (spec §5.3).
@@ -153,23 +127,21 @@ export const payInput = z
     handoffsAmount: money,
     primeAmount: money,
     sanctionsAmount: money,
-    // ── LES TROIS LIGNES DU LOT FINAL (migration 0091) ──────────────────────────────────────
-    // Elles entrent dans l'instantané au même titre que les sept ci-dessus. Les omettre tout en
-    // les comptant dans le net était le piège laissé par la tâche 22 : tout paiement d'une fiche
-    // qui en porte une aurait été refusé pour « le net n'est pas la somme des lignes ».
-    // `carryoverAmount` est le SEUL montant signé de l'instantané (cf. `signedMoney`).
-    carryoverAmount: signedMoney,
+    // La PRIME SETTER entre dans l'instantané au même titre que les sept ci-dessus. L'omettre
+    // tout en la comptant dans le net était le piège laissé par la tâche 22 : tout paiement
+    // d'une fiche qui en porte une aurait été refusé pour « le net n'est pas la somme des
+    // lignes ». Ses deux voisines du lot final (`carryoverAmount`, `monthlyPrimeAmount`) ont
+    // été retirées le 2026-07-28 avec leurs concepts (décision de Benoit, migration 0095).
     setterPrimeAmount: money,
-    monthlyPrimeAmount: money,
     note: z.string().trim().max(500, '500 caractères max').nullable(),
   })
   /**
    * L'invariant de la spec §5.3 (`amount = base + setter + bonus − malus + handoffs + prime −
-   * sanctions + carryover + setterPrime + monthlyPrime`) VÉRIFIÉ, et non plus seulement
-   * documenté — DIX composantes depuis 0091. La spec le disait « structurel » du
-   * fait de colonnes sans valeur par défaut : c'est inexact — l'absence de défaut force à
-   * FOURNIR les dix composantes, elle ne contrôle pas leur SOMME, et la base ne les arbitre
-   * pas non plus.
+   * sanctions + setterPrime`) VÉRIFIÉ, et non plus seulement documenté — HUIT composantes
+   * depuis le retrait du report et de la prime du mois (2026-07-28, migration 0095). La spec le
+   * disait « structurel » du fait de colonnes sans valeur par défaut : c'est inexact —
+   * l'absence de défaut force à FOURNIR les huit composantes, elle ne contrôle pas leur SOMME,
+   * et la base ne les arbitre pas non plus.
    *
    * CE QUE CE REFINE ATTRAPE, ET RIEN D'AUTRE : une incohérence INTERNE au payload —
    * falsification à la main d'un des montants, ou divergence entre la formule du client et
@@ -211,9 +183,7 @@ export const payInput = z
       v.handoffsAmount +
       v.primeAmount -
       v.sanctionsAmount +
-      v.carryoverAmount +
-      v.setterPrimeAmount +
-      v.monthlyPrimeAmount
+      v.setterPrimeAmount
     if (Math.abs(v.amount - expected) <= 0.01) return
 
     // Message calé sur ce que le refine détecte VRAIMENT : le net envoyé ne s'additionne pas à

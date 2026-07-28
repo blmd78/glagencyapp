@@ -96,9 +96,7 @@ export function ComptaPayslipCalc({
     row.handoffs > 0 ||
     p.prime !== 0 ||
     row.sanctions.length > 0 ||
-    p.carryover !== 0 ||
-    p.setterPrime !== 0 ||
-    p.monthlyPrime !== 0
+    p.setterPrime !== 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,21 +128,14 @@ export function ComptaPayslipCalc({
             <Line label={`Handoffs — ${row.handoffs} × 0,60 €`} amount={p.handoffsAmount} />
           )}
           {p.prime !== 0 && <Line label="Prime nouveau chatteur" amount={p.prime} />}
-          {/* ── LES TROIS LIGNES DU LOT FINAL ────────────────────────────────────────────
-              Chacune sur SA ligne, comme les autres composantes : la fiche doit se relire
-              comme la feuille, ligne à ligne, et le net s'additionner exactement à partir de
-              ce qui est affiché (`computePayslip` arrondit chaque composante avant la somme).
-              Le REPORT est le seul montant signé de la fiche — en rouge quand il est négatif,
-              comme les malus, parce que c'est bien une retenue sur ce qui sera versé. La PRIME
-              SETTER porte son RANG dans le libellé : sans lui, c'est un montant sans
-              provenance, et le rang est précisément ce que le chatteur voudra vérifier. */}
-          {p.carryover !== 0 && (
-            <Line
-              label="Report période précédente"
-              amount={p.carryover}
-              red={p.carryover < 0}
-            />
-          )}
+          {/* La PRIME SETTER, sur SA ligne comme les autres composantes : la fiche doit se
+              relire comme la feuille, ligne à ligne, et le net s'additionner exactement à
+              partir de ce qui est affiché (`computePayslip` arrondit chaque composante avant
+              la somme). Elle porte son RANG dans le libellé : sans lui, c'est un montant sans
+              provenance, et le rang est précisément ce que le chatteur voudra vérifier. Les
+              lignes « Report période précédente » et « Prime du mois (top 3) » qui
+              l'encadraient ont été retirées le 2026-07-28 avec leurs concepts (décision de
+              Benoit). */}
           {p.setterPrime !== 0 && (
             <Line
               label={
@@ -155,26 +146,10 @@ export function ComptaPayslipCalc({
               amount={p.setterPrime}
             />
           )}
-          {p.monthlyPrime !== 0 && <Line label="Prime du mois (top 3)" amount={p.monthlyPrime} />}
           {row.sanctions.length > 0 && (
             <SanctionLines sanctions={row.sanctions} amount={p.sanctions} />
           )}
         </div>
-      )}
-
-      {/* UNE PRIME DU MOIS SAISIE QUI N'ENTRE PAS DANS CE NET — le seul écart possible entre le
-          champ rempli juste au-dessus et le calcul, et il porte de l'argent. La prime du mois est
-          MENSUELLE : versée une fois, elle ne se re-verse pas sur une autre période du même mois
-          (`coverage.monthlyPrimePaid`, garde jumelle de celle de la prime d'embauche). Le taire
-          ferait apparaître un montant saisi et une ligne absente, sans un mot.
-          Affiché ici, dans la ZONE DE LECTURE, et pas seulement sous la saisie : un encadrant
-          sans droit de saisie (`canEnter` faux) ne voit pas le formulaire du tout. */}
-      {row.periodEntry.top3Prime > 0 && p.monthlyPrime === 0 && (
-        <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
-          Prime du mois saisie ({eur2(row.periodEntry.top3Prime)}) mais déjà versée à ce chatteur
-          pour ce mois-ci — elle n&apos;entre pas dans ce net, elle ne se verse qu&apos;une fois par
-          mois.
-        </p>
       )}
 
       <div className="border-t pt-3">

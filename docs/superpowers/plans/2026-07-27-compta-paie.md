@@ -1998,6 +1998,12 @@ git commit --allow-empty -m "chore(compta): vérification de bout en bout"
 
 ## Ce que ce plan ne fait pas
 
+- **Le report (« RESTE SEMAINE PASSEE ») et la prime du mois (« PRIME TOP3 MOIS ») ont été
+  RETIRÉS à la demande de Benoit le 2026-07-28** (construits aux tâches 21-24, retirés à la
+  tâche 28, migration `0095`) : la prime du mois est un montant MENSUEL qui n'a pas de sens sur
+  un écran de période de 2 semaines, et le « reste semaine passée » n'a jamais été élucidé
+  (« ça existera pas, à part si on me le demande »). La prime setter (TOP15), calculée et non
+  saisie, reste.
 - `/marketing/compta` (paie du staff) reste un placeholder.
 - `compta_debts` n'est pas exploité — registre indépendant de la paie (spec §9).
 - Aucun taux par modèle : la base est calculée modèle par modèle pour le permettre plus tard,
