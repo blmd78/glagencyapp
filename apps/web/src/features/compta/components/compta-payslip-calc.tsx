@@ -175,7 +175,7 @@ export function ComptaPayslipCalc({
           <span className={SECTION_HEAD}>Ajustements</span>
           {/* Libellé NU depuis la tâche 19. Il disait auparavant lequel des deux montants
               s'appliquait (« ajusté (réglage : 75 €) ») — il n'y en a plus qu'un, celui de
-              l'engrenage, et la colonne « Rémunération » de la table l'affiche déjà. */}
+              du réglage de Membres, et la colonne « Rémunération » de la table l'affiche déjà. */}
           {p.setter !== 0 && <Line label="Fixe setter" amount={p.setter} />}
           {p.bonus !== 0 && <Line label="Bonus" amount={p.bonus} />}
           {p.malus !== 0 && <Line label="Malus saisis" amount={-p.malus} red />}

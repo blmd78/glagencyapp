@@ -26,10 +26,11 @@ import type { ComptaRow } from '../types'
  * conclusion visuelle du panneau, en bas — c'est aussi là que se trouve le bouton de paiement.
  *
  * CE QU'ON CONFIGURE a QUITTÉ ce panneau le même jour (« je pense qu'on peut mettre un
- * engrenage pour gérer les paramètres de chaque chatter pour simplifier l'affichage ») : taux,
- * fixe et prime vivent derrière l'engrenage de la ligne (`compta-settings-dialog.tsx`),
- * joignable SANS déplier. Ce composant ne prend donc plus `canConfigure` — c'est
- * `makeComptaColumns` qui le porte désormais.
+ * engrenage pour gérer les paramètres de chaque chatter pour simplifier l'affichage »), puis a
+ * quitté la Compta tout court le 2026-07-28 (« je pense que tout va dans membre, tu mets un tab
+ * dans le dialog direct ») : taux, fixe et prime vivent dans l'onglet Compta du dialog de
+ * MEMBRES, où la colonne « Rémunération » renvoie. Ce composant ne prend donc plus
+ * `canConfigure`.
  *
  * Rien n'est perdu à l'écran fermé : la colonne « Rémunération » de la table dit le taux et le
  * fixe, la colonne « Prime » dit son montant et son état.

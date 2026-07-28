@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
-import { Input } from '@/components/ui/input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
 import { memberInput, type MemberForm } from '../schema'
@@ -23,6 +23,8 @@ import type { Member } from '../types'
 import { MemberAccessFields } from './member-access-fields'
 import { MemberChatterLinkField } from './member-chatter-link-field'
 import { MemberClosingFields } from './member-closing-fields'
+import { MemberIdentityFields } from './member-identity-fields'
+import { MemberPayForm, MemberPayPlaceholder } from './member-pay-form'
 import { MemberPermissionFields } from './member-permission-fields'
 
 /** Champs affichant un message d'erreur juste sous eux (les autres — role/managerId/
@@ -37,6 +39,27 @@ const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[num
  * en édition), nom, pages accessibles et modèles assignés. Aucun mot de passe (connexion OTP).
  * Champs rôle/rattachement et pages/modèles extraits dans member-access-fields.tsx et
  * member-permission-fields.tsx (split > 300 l., docs/guidelines-standard-feature.md).
+ *
+ * DEUX ONGLETS depuis le 2026-07-28 — « Général » et « Compta » (demande du propriétaire : « je
+ * pense que tout va dans membre, tu mets un tab dans le dialog direct »). L'onglet Compta porte
+ * les réglages de paie sortis de la table Compta : taux, fixe et prime sont des attributs de la
+ * personne, pas de la période.
+ *
+ * IL N'APPARAÎT QUE POUR UN ADMIN, et c'est la contrainte structurante : ce dialog est aussi
+ * utilisable par un MANAGER dans son périmètre (`actions.ts`, `requireCaller` +
+ * `authorizeRoleAndScope`), alors que `compta_settings` et `compta_primes` sont admin-seul en
+ * écriture (RLS `compta_settings_admin_write` / `compta_primes_admin_write`, migration 0085).
+ * Monter l'onglet pour un manager lui montrerait des champs dont l'enregistrement serait refusé
+ * par la base — tard, et mal. Le gate est en deux temps : le serveur ne lui envoie même pas les
+ * valeurs (`Member.pay` est `undefined` hors admin, cf. `get-members.ts`).
+ *
+ * Restreint aussi au rôle CHATTEUR, comme le lien MyPuls et la désignation closing : la Compta
+ * ne paie que `profiles.role = 'chatteur'` (`compta-sources.ts`), régler un taux sur un manager
+ * n'aurait aucun effet visible nulle part.
+ *
+ * DEUX `<form>` FRÈRES, un par onglet, chacun avec son bouton — jamais imbriqués (invalide en
+ * HTML). C'est aussi ce qui garantit qu'une prime ne s'écrit pas « en passant » : elle ne part
+ * que si on a ouvert l'onglet et cliqué son bouton (cf. member-pay-form.tsx).
  */
 export function MemberDialog({
   member,
@@ -150,6 +173,72 @@ export function MemberDialog({
     setOpen(false)
   })
 
+  // Onglet Compta : admin + membre chatteur. `member.pay` est fourni par `get-members.ts` pour
+  // TOUS les membres dès que l'appelant est admin — un membre existant sans `pay` n'est donc pas
+  // atteignable ici, le repli sur le placeholder ne sert qu'à la création.
+  const showPayTab = viewer === 'admin' && roleValue === 'chatteur'
+
+  const generalForm = (
+    <form onSubmit={submit} className="flex flex-col gap-4">
+      <MemberIdentityFields
+        register={register}
+        errors={errors}
+        emailLocked={!!member}
+        isSubmitting={isSubmitting}
+      />
+
+      {viewer === 'admin' && (
+        <MemberAccessFields
+          control={control}
+          scope={scope}
+          roleValue={roleValue}
+          superadmin={superadmin}
+          attachables={attachables}
+          isSubmitting={isSubmitting}
+        />
+      )}
+
+      {/* Désignation closing (setter/closer + équipe) — chatteur uniquement (masqué sinon).
+          Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
+      <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
+
+      {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
+          ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de
+          « consommer » l'unicité d'un chatteur sur un membre non-chatteur). */}
+      {viewer === 'admin' && roleValue === 'chatteur' && (
+        <MemberChatterLinkField control={control} chatters={chatters} isSubmitting={isSubmitting} />
+      )}
+
+      <MemberPermissionFields
+        control={control}
+        scope={scope}
+        roleValue={roleValue}
+        choices={choices}
+        creators={creators}
+        pagesError={errors.pages?.message as string | undefined}
+        isSubmitting={isSubmitting}
+      />
+
+      {errors.root && (
+        <p className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
+      )}
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setOpen(false)}
+          disabled={isSubmitting}
+        >
+          Annuler
+        </Button>
+        <ActionButton type="submit" pending={isSubmitting} className="w-full sm:w-auto">
+          {member ? 'Enregistrer' : 'Créer le membre'}
+        </ActionButton>
+      </DialogFooter>
+    </form>
+  )
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
@@ -163,98 +252,27 @@ export function MemberDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <div className="grid gap-1.5">
-            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Email
-            </label>
-            <Input
-              type="email"
-              placeholder="prenom@exemple.fr"
-              disabled={!!member || isSubmitting}
-              {...register('email')}
-            />
-            {errors.email && (
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>
-            )}
-          </div>
-          <div className="grid gap-1.5">
-            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Nom affiché
-            </label>
-            <Input placeholder="Marco" disabled={isSubmitting} {...register('displayName')} />
-            {errors.displayName && (
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.displayName.message}</p>
-            )}
-          </div>
-          <div className="grid gap-1.5">
-            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Lien outil de travail (optionnel)
-            </label>
-            <Input
-              type="url"
-              placeholder="https://notion.so/…"
-              disabled={isSubmitting}
-              {...register('workLink')}
-            />
-            <p className="text-xs text-muted-foreground">
-              Le membre le retrouve dans son menu utilisateur, en bas de la sidebar.
-            </p>
-            {errors.workLink && (
-              <p className="text-xs text-red-600 dark:text-red-400">{errors.workLink.message}</p>
-            )}
-          </div>
-
-          {viewer === 'admin' && (
-            <MemberAccessFields
-              control={control}
-              scope={scope}
-              roleValue={roleValue}
-              superadmin={superadmin}
-              attachables={attachables}
-              isSubmitting={isSubmitting}
-            />
-          )}
-
-          {/* Désignation closing (setter/closer + équipe) — chatteur uniquement (masqué sinon).
-              Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
-          <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
-
-          {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
-              ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de
-              « consommer » l'unicité d'un chatteur sur un membre non-chatteur). */}
-          {viewer === 'admin' && roleValue === 'chatteur' && (
-            <MemberChatterLinkField control={control} chatters={chatters} isSubmitting={isSubmitting} />
-          )}
-
-          <MemberPermissionFields
-            control={control}
-            scope={scope}
-            roleValue={roleValue}
-            choices={choices}
-            creators={creators}
-            pagesError={errors.pages?.message as string | undefined}
-            isSubmitting={isSubmitting}
-          />
-
-          {errors.root && (
-            <p className="text-sm text-red-600 dark:text-red-400">{errors.root.message}</p>
-          )}
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-              disabled={isSubmitting}
-            >
-              Annuler
-            </Button>
-            <ActionButton type="submit" pending={isSubmitting} className="w-full sm:w-auto">
-              {member ? 'Enregistrer' : 'Créer le membre'}
-            </ActionButton>
-          </DialogFooter>
-        </form>
+        {/* Pas d'onglets quand il n'y en aurait qu'un : un `TabsList` à une seule entrée serait
+            du bruit pour un manager (ou pour un membre non chatteur), qui ne verra jamais rien
+            d'autre que le formulaire. */}
+        {showPayTab ? (
+          <Tabs defaultValue="general">
+            <TabsList>
+              <TabsTrigger value="general">Général</TabsTrigger>
+              <TabsTrigger value="compta">Compta</TabsTrigger>
+            </TabsList>
+            <TabsContent value="general">{generalForm}</TabsContent>
+            <TabsContent value="compta">
+              {member?.pay ? (
+                <MemberPayForm memberId={member.id} pay={member.pay} />
+              ) : (
+                <MemberPayPlaceholder />
+              )}
+            </TabsContent>
+          </Tabs>
+        ) : (
+          generalForm
+        )}
       </DialogContent>
     </Dialog>
   )

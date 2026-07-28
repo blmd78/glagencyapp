@@ -50,7 +50,7 @@ export function ComptaSuiviView({
  * LA COLONNE MONTANT EST LA RAISON D'ÊTRE DE CETTE LISTE. Une prime n'entre dans le net que si
  * une ligne `compta_primes` existe avec un montant : un membre échu SANS montant ne recevra
  * RIEN, en silence. On l'affiche donc en toutes lettres au lieu d'un « 0,00 € » qui ressemble à
- * une décision. Le montant se règle derrière l'engrenage de sa ligne, onglet Période.
+ * une décision. Le montant se règle dans Membres, onglet Compta de la fiche du chatteur.
  */
 function PrimeList({ primes }: { primes: SuiviPrime[] }) {
   if (primes.length === 0) {

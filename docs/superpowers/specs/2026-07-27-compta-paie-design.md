@@ -140,7 +140,7 @@ Pour un chatteur et une période :
 
 + Fixe            compta_settings.fixed_amount
                   -- SEULE source du montant (tâche 19) : il se règle dans
-                     l'engrenage de la ligne, nulle part ailleurs
+                     Membres (onglet Compta de la fiche), nulle part ailleurs
                   -- montant PAR PÉRIODE, multiplié par rien
                   -- versé dès qu'il est renseigné : aucun drapeau ne le commande
 
@@ -225,8 +225,8 @@ versée à tout le monde (Carl = 4,379 + 75 + 19,20 = 98,579 €). `compta_setti
 `is_setter` sont donc supprimés (§5, migration `0089`), et `weekCount` disparaît de la formule.
 
 **UNE SEULE SOURCE DU FIXE — les réglages (tâche 19, 2026-07-28).** Le montant vient de
-`compta_settings.fixed_amount`, saisi derrière l'engrenage de la ligne, et de nulle part
-ailleurs. La fiche l'affiche en ligne d'ajustement sous le libellé nu « Fixe setter ».
+`compta_settings.fixed_amount`, saisi dans l'onglet Compta du dialog de Membres (tâche 25 ; il
+l'était derrière l'engrenage de la ligne jusque-là), et de nulle part ailleurs. La fiche l'affiche en ligne d'ajustement sous le libellé nu « Fixe setter ».
 
 > Cette section décrivait jusqu'ici un second point de saisie : une **saisie hebdo**
 > `fixe_setter` non nulle qui **remplaçait** le réglage pour la période (le 37,50 € observé sur
@@ -480,6 +480,29 @@ La triade du repo s'applique (`guidelines-standard-feature.md` §4) : **RLS** = 
 paiement ; **UI** un `canPay` threadé `page → Template → composants` pour masquer le bouton de
 virement aux managers.
 
+> **Correction du 2026-07-28 (tâche 25) — les réglages de paie s'écrivent depuis MEMBRES.**
+> `compta_settings` et `compta_primes` ne sont plus écrites depuis `/chatter/compta` mais depuis
+> l'onglet « Compta » du dialog de Membres (décision du propriétaire : « je pense que tout va
+> dans membre, tu mets un tab dans le dialog direct »). **Le tableau des droits ci-dessus ne
+> change pas** : les policies `compta_settings_admin_write` / `compta_primes_admin_write` (0085)
+> restent `using (is_admin()) with check (is_admin())`, et **aucune migration n'a été nécessaire**.
+>
+> Ce qui change, c'est **où** le droit se lit à l'écran, et ça compte : le dialog de Membres est
+> ouvert aussi par un **manager** dans son périmètre (`features/members/actions.ts`,
+> `requireCaller` + `authorizeRoleAndScope`), alors que la paie est admin-seule. L'onglet n'est
+> donc **monté que pour un admin**, et le serveur ne lui envoie même pas les valeurs
+> (`Member.pay` est `undefined` hors admin, `get-members.ts`) — sinon un manager verrait des
+> champs dont l'enregistrement serait refusé par la RLS, tard et mal.
+>
+> Serveur : `saveMemberPaySettings` / `saveMemberPrime`
+> (`features/members/actions-pay.ts`), `adminGuard` inchangé. Le cœur des deux écritures — dont
+> **le refus de réécrire une prime déjà versée** — vit dans `lib/pay-settings-write.ts` ; les
+> contrats zod et les bornes dans `lib/pay-settings.ts`, d'où `features/compta/schema.ts` les
+> réimporte (les imports inter-features sont interdits, même patron que `lib/chatter-link.ts`).
+>
+> `canConfigure` **reste** : il commande toujours le bouton « Relier à MyPuls », le barème du
+> Classement et l'onglet Suivi. Seul l'engrenage a disparu.
+
 ---
 
 ## 7. Écrans
@@ -555,13 +578,37 @@ sommé — 75 € retapés sur chaque ligne versaient 150 €). Le report est le
 saisie : la ligne d'aide le dit là où on le tape, sinon personne ne devine qu'un trop-perçu
 s'écrit en négatif.
 
-**Réglages (admin seul).** Derrière l'**engrenage** de la ligne, un dialog à **trois champs et un
-seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le **fixe par période** en €
-(il s'ajoute à la commission), et le **montant** de la **prime** nouveau chatteur.
-Sans cet écran, `compta_settings` et `compta_primes` resteraient aux défauts de leurs colonnes
-pour tout le monde, modifiables en SQL seulement, et la prime « manuelle » de la §2 ne pourrait
-pas être créée. Une prime déjà versée s'affiche en lecture seule : son statut est la trace du
-virement.
+**Réglages (admin seul) — ILS ONT QUITTÉ CETTE PAGE le 2026-07-28 (tâche 25).** Un dialog à
+**trois champs et un seul bouton « Enregistrer »** (tâche 16) : la **commission** en %, le
+**fixe par période** en € (il s'ajoute à la commission), et le **montant** de la **prime**
+nouveau chatteur. Sans cet écran, `compta_settings` et `compta_primes` resteraient aux défauts
+de leurs colonnes pour tout le monde, modifiables en SQL seulement, et la prime « manuelle » de
+la §2 ne pourrait pas être créée. Une prime déjà versée s'affiche en lecture seule : son statut
+est la trace du virement.
+
+> **Où il vit désormais : l'onglet « Compta » du dialog de MEMBRES.** Décision du propriétaire :
+> « je pense que tout va dans membre, tu mets un tab dans le dialog direct ». Le taux, le fixe et
+> la prime sont des attributs de la **personne**, pas de la période — les tenir dans deux écrans
+> était la même erreur que le fixe qui vivait en double (tâche 19). Champs, libellés, bornes et
+> phrases d'aide sont repris **à l'identique**, y compris le sous-titrage de l'échec qui nomme
+> laquelle des deux écritures a échoué.
+>
+> Côté Compta : **l'engrenage et sa colonne d'action ont disparu**, et la colonne
+> « Rémunération » (`10 % · fixe 75,00 €`) devient **cliquable** — elle renvoie vers Membres.
+> Elle mène à la **page** et non à la fiche : aucune route n'ouvre un membre précis
+> (`/chatter/members` est une liste dont le filtre est un état client). Un `?membre=<id>` qui
+> pré-ouvrirait le dialog est la suite naturelle ; il n'a pas été inventé ici.
+>
+> L'onglet n'est monté **que pour un admin et un membre de rôle chatteur** (la Compta ne paie que
+> `profiles.role = 'chatteur'`). Il porte son **propre** bouton « Enregistrer », frère de celui du
+> membre et jamais imbriqué dedans : c'est aussi ce qui empêche une prime de partir « en passant »
+> — fondue dans le bouton du membre, elle créerait une ligne `compta_primes` à 100 € « à verser »
+> pour tout membre dont on édite les pages, alors que l'**absence** de ligne est une information
+> (l'onglet Suivi la lit comme « le montant n'a jamais été décidé »).
+>
+> **En création**, l'onglet affiche une phrase au lieu des champs : le membre n'a pas encore
+> d'`id`, et `compta_settings.chatter_id` est une FK vers `profiles.id` (0085). En attendant, ce
+> sont les défauts de colonne qui s'appliquent — 10 %, aucun fixe, aucune prime décidée.
 
 > **Correction du 2026-07-28 (tâche 20) — le statut de la prime quitte l'écran.** Le dialog
 > proposait un statut « à verser » / « renoncée » à côté du montant. L'onglet « SUIVI PRIMES NVX
@@ -627,8 +674,8 @@ retard.
 **La colonne Montant est la raison d'être de cette liste.** Une prime n'entre dans le net que si
 une ligne `compta_primes` existe avec un montant : un membre échu sans montant ne recevra **rien,
 en silence**. L'écran écrit donc « aucun montant » (ambre) ou « 0 € — rien à verser » au lieu
-d'un « 0,00 € » qui ressemble à une décision. Le montant se règle derrière l'engrenage de sa
-ligne, onglet Période.
+d'un « 0,00 € » qui ressemble à une décision. Le montant se règle dans **Membres**, onglet
+Compta de la fiche du chatteur (tâche 25).
 
 **Soldes des partants** (`compta_debts`) — **ADMIN seul**. Nom, modèle, montant, état, plus un
 bouton **Soldé** (et **Rouvrir**) et une corbeille sous confirmation. Le nom est du texte libre :

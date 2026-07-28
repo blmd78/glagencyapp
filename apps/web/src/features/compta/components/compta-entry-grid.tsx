@@ -25,7 +25,7 @@ import { COL_HEAD } from './compta-payslip-calc'
  * Littéral et non construit : Tailwind ne voit que les classes présentes en clair dans le
  * source. Une seule variante depuis la tâche 16, et TROIS champs depuis la tâche 19 : la
  * colonne « Fixe setter » est partie avec sa saisie — le fixe est un montant par PÉRIODE, il se
- * règle dans l'engrenage, pas deux fois par période dans une ligne hebdomadaire.
+ * règle dans Membres (onglet Compta), pas deux fois par période dans une ligne hebdomadaire.
  */
 export const ENTRY_GRID_COLS =
   'grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-[9rem_repeat(3,minmax(4.5rem,1fr))_7.5rem] sm:items-center'

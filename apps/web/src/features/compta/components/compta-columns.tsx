@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import { frDayShort } from '@glagency/core'
@@ -10,7 +11,6 @@ import { eur2 } from '@/lib/format'
 import { modelColor } from '@/lib/model-color'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { ComptaLinkDialog } from './compta-link-dialog'
-import { ComptaSettingsDialog } from './compta-settings-dialog'
 import type { ComptaRow } from '../types'
 
 /*
@@ -182,11 +182,26 @@ export function makeComptaColumns({
       // C'est le fixe du RÉGLAGE qui est montré ici, pas celui de la période : une saisie hebdo
       // peut le remplacer (37,50 € au lieu de 75 €), et c'est la fiche dépliée qui le dit —
       // cette cellule décrit la configuration du membre, pas le résultat d'une période.
+      //
+      // CLIQUABLE depuis le 2026-07-28, en remplacement de l'engrenage : ces trois réglages se
+      // saisissent dans l'onglet « Compta » du dialog de Membres. Le lien mène à la PAGE
+      // Membres et pas à la fiche : aucune route n'ouvre un membre précis (`/chatter/members`
+      // est une liste, son filtre est un état client) — voir le rapport de tâche pour la
+      // proposition de `?membre=<id>`.
+      //
+      // `stopPropagation` : même motif que la colonne « Statut » — sans lui, le clic bubble
+      // jusqu'au `onClick` d'expansion de la ligne (`data-table.tsx`) et déplie la fiche en
+      // partant.
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">
+        <Link
+          href="/chatter/members"
+          onClick={(e) => e.stopPropagation()}
+          title="Se règle dans Membres — onglet Compta de la fiche"
+          className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+        >
           {row.original.rate} %
           {row.original.fixedAmount > 0 && ` · fixe ${eur2(row.original.fixedAmount)}`}
-        </span>
+        </Link>
       ),
     },
     {
@@ -272,28 +287,13 @@ export function makeComptaColumns({
       },
       meta: { align: 'right' },
     },
-    // Engrenage des réglages de paie — ADMIN seul (`canConfigure`, distinct de `canPay` et de
-    // `canEnter` : régler un taux, verser, et saisir un bonus sont trois droits différents).
-    // Colonne d'actions plutôt qu'un bouton dans le panneau déplié : régler un chatteur ne
-    // demande plus de déplier sa ligne, ce qui est exactement le gain demandé. Colonne DÉCLARÉE
-    // même sans le droit (avec une cellule vide) serait du bruit : on ne la pousse pas du tout.
-    ...(canConfigure
-      ? [
-          {
-            id: 'settings',
-            header: '',
-            cell: ({ row }) => (
-              // stopPropagation : même motif que la colonne « Statut » ci-dessus — le dialog est
-              // portalé dans <body> côté DOM mais enfant de cette cellule côté React, sans ça
-              // chaque clic dedans replierait/déplierait la ligne (data-table.tsx).
-              <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-                <ComptaSettingsDialog row={row.original} />
-              </div>
-            ),
-            meta: { align: 'right' },
-          } satisfies ColumnDef<ComptaRow>,
-        ]
-      : []),
+    // L'ENGRENAGE DES RÉGLAGES DE PAIE A DISPARU D'ICI le 2026-07-28 (demande du propriétaire :
+    // « je pense que tout va dans membre, tu mets un tab dans le dialog direct »). Taux, fixe et
+    // prime sont des attributs de la PERSONNE, pas de la période : les tenir dans deux écrans
+    // était la même erreur que le fixe qui vivait en double (tâche 19). Ils se saisissent dans
+    // l'onglet « Compta » du dialog de Membres, où la colonne « Rémunération » ci-dessus renvoie.
+    // `canConfigure` reste utilisé — par le bouton « Relier » de la colonne « Statut », le barème
+    // du Classement et l'onglet Suivi.
   ]
 }
 

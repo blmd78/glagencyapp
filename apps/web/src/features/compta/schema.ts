@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { payMoney, payRate } from '@/lib/pay-settings'
 
 /**
  * Compta — schémas PARTAGÉS entre les formulaires (RHF + zodResolver) et les Server Actions,
@@ -7,9 +8,11 @@ import { z } from 'zod'
 
 const iso = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date au format AAAA-MM-JJ')
 
-/** Un montant POSITIF de la compta. EXPORTÉ pour `schema-config.ts` (barème et dettes) : deux
- *  définitions des mêmes bornes finiraient par diverger, et c'est de l'argent. */
-export const money = z.coerce.number().min(0, 'Montant positif attendu').max(99999, 'Montant trop élevé')
+/** Un montant POSITIF de la compta. RÉEXPORTÉ depuis `lib/pay-settings.ts` (où il a suivi les
+ *  réglages de paie partis dans Membres) pour `schema-config.ts` (barème et dettes) et pour
+ *  tout ce fichier : deux définitions des mêmes bornes finiraient par diverger, et c'est de
+ *  l'argent. */
+export const money = payMoney
 
 /**
  * Montant SIGNÉ. DEUX emplois dans toute la feature, et deux seulement :
@@ -26,13 +29,10 @@ export const money = z.coerce.number().min(0, 'Montant positif attendu').max(999
  */
 const signedMoney = z.coerce.number().min(-99999, 'Montant hors bornes').max(99999, 'Montant trop élevé')
 
-/**
- * Un TAUX de commission en %, et PAS un montant : les colonnes `compta_settings.rate` et
- * `compta_payments.rate_applied` sont des `numeric(5,2)` — plafonnées à 999,99. Avec la borne
- * des montants (99 999), un taux aberrant passait Zod puis explosait en `numeric field
- * overflow` Postgres brut, au lieu d'une erreur de validation lisible.
- */
-const rate = z.coerce.number().min(0, 'Taux positif attendu').max(999.99, 'Taux hors bornes')
+/** Un TAUX de commission en % (`numeric(5,2)`, plafonné à 999,99) — même réexport que `money` :
+ *  il ne sert plus ici qu'à `rateApplied` de l'instantané de paiement, mais c'est la MÊME borne
+ *  que celle du réglage saisi dans Membres. Le pourquoi est dans `lib/pay-settings.ts`. */
+const rate = payRate
 
 /** Saisie d'un JOUR (bonus/malus/handoffs). */
 export const dayEntryInput = z.object({
@@ -218,68 +218,10 @@ export const payAllInput = z.object({
 })
 export type PayAllInput = z.infer<typeof payAllInput>
 
-/**
- * Réglages de rémunération d'un membre (`compta_settings`, PK `chatter_id`) — ADMIN seul
- * (spec §6). Sans cet écran, tout le monde reste au défaut de la colonne : 10 % et aucun fixe.
- *
- * DEUX CHAMPS, plus un mode ni un statut de setter (migration 0089, tâche 16) : la rémunération
- * est TOUJOURS `commission + fixe éventuel`. Le choix `percent | fixed` faisait remplacer l'une
- * par l'autre, ce que la feuille du propriétaire ne pratique nulle part ; `is_setter`
- * dupliquait `profiles.closing_role`, réglé depuis Membres.
- */
-export const settingsInput = z.object({
-  chatterId: z.uuid(),
-  rate,
-  /** Fixe de la PÉRIODE de paie (spec §4) — s'ajoute à la commission, multiplié par rien. Il
-   *  s'applique dès qu'il est non nul : aucun drapeau ne le commande. SEUL endroit où il se
-   *  saisit depuis la tâche 19 (la saisie hebdo qui le remplaçait a été retirée). */
-  fixedAmount: money,
-})
-export type SettingsInput = z.infer<typeof settingsInput>
-
-/**
- * Ce que l'ENGRENAGE édite : les réglages ci-dessus ET la prime, dans un seul formulaire à
- * UN SEUL bouton « Enregistrer » (demande du propriétaire, 2026-07-27). Deux tables et deux
- * Server Actions côté serveur (`compta_settings` / `compta_primes`), un seul geste à l'écran.
- *
- * `settingsInput.extend(...)` et non un objet réécrit : les contraintes du taux et du fixe ne
- * peuvent pas diverger de ce que l'action valide.
- */
-export const settingsFormInput = settingsInput.extend({
-  primeAmount: money,
-})
-export type SettingsFormInput = z.infer<typeof settingsFormInput>
-export type SettingsFormValues = z.input<typeof settingsFormInput>
-
-/**
- * Prime « nouveau chatteur » (`compta_primes`, PK `chatter_id`) — ADMIN seul, décidée à la main
- * (spec §2 : « manuelle, l'admin décide »).
- *
- * UN SEUL MONTANT depuis le 2026-07-28 (tâche 20). `status` a quitté ce contrat, et pas
- * seulement le formulaire : l'onglet « SUIVI PRIMES NVX CHATTEURS » du propriétaire ne connaît
- * que payée ou en attente (71 lignes : 30 payées, 41 en attente, 0 renoncée) — « renoncée » ne
- * décrivait aucune pratique. **0 € = pas de prime**, c'est le montant qui gouverne.
- *
- * MÊME RAISONNEMENT QUE `fixeSetter` À LA TÂCHE 19 : un champ que l'écran ne peut plus produire
- * mais que l'action accepterait encore est une porte ouverte sur de l'argent — un payload
- * fabriqué à la main y écrirait un statut invisible depuis l'interface. Le retirer d'ici la
- * ferme. La différence avec `fixeSetter` : `compta_primes.status` n'est PAS laissé à lui-même,
- * `savePrime` le pose à `'due'` (voir l'action, qui explique pourquoi).
- *
- * `'paid'` n'a jamais figuré ici et ne le pourra plus : il est ACCEPTÉ PAR LA COLONNE (check
- * `due | paid | skipped`, migration 0084 — inchangée, aucune migration à la tâche 20) mais n'est
- * posé que par `payPeriod`, au moment où la prime part réellement. `savePrime` refuse par
- * ailleurs de réécrire une prime déjà `'paid'`.
- *
- * CONTRAT DE L'ACTION, plus d'un formulaire : la prime se saisit dans l'écran unique de
- * l'engrenage (`settingsFormInput`), qui mappe son champ de montant sur ce schéma. `savePrime`
- * le revalide côté serveur — c'est lui qui fait foi.
- */
-export const primeInput = z.object({
-  chatterId: z.uuid(),
-  amount: money,
-})
-export type PrimeInput = z.infer<typeof primeInput>
+// Les RÉGLAGES DE PAIE (taux, fixe, prime) ONT QUITTÉ CE FICHIER le 2026-07-28 : ce sont des
+// attributs de la personne, pas de la période, et ils se saisissent maintenant dans l'onglet
+// « Compta » du dialog de Membres. Contrats et écritures : `lib/pay-settings.ts`
+// (`paySettingsInput`, `payPrimeInput`) — la Compta les LIT toujours, elle ne les écrit plus.
 
 /**
  * Lien `profiles.chatter_id` posé DEPUIS la compta — ADMIN seul. Sans lien, aucun CA n'est

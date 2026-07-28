@@ -18,9 +18,9 @@ import type { ComptaRow } from '../types'
  *
  * Le panneau déplié reste la fiche de paie EXISTANTE (`ComptaPayslip`, montée telle quelle
  * dans `renderSubRows`) : détail du calcul, saisies hebdo et bouton de paiement. Les RÉGLAGES
- * (mode, taux, setter, prime) en sont sortis le 2026-07-27 : ils sont derrière l'engrenage de
- * la colonne d'actions (`compta-columns.tsx` → `ComptaSettingsDialog`), donc atteignables sans
- * déplier la ligne. `canConfigure` ne descend plus qu'aux colonnes.
+ * (taux, fixe, prime) ont quitté la Compta le 2026-07-28 : ils vivent dans l'onglet « Compta »
+ * du dialog de Membres — la colonne « Rémunération » y renvoie. `canConfigure` ne descend plus
+ * aux colonnes que pour le bouton « Relier » de la colonne « Statut ».
  *
  * Mode PAGINÉ et non long scroll virtualisé : `paginated={false}` force chaque ligne à une
  * hauteur fixe pour que l'estimation du virtualizer colle au rendu (`data-table.tsx`), ce

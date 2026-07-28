@@ -1,8 +1,8 @@
 'use server'
 
-// Server Actions de SAISIE de la Compta : saisies hebdo = manager/sous-manager sur SES rattachés
-// (`managerPageGuard` + RLS 0085) ; réglages, prime et lien MyPuls = admin seul (`adminGuard` +
-// RLS `compta_settings_admin_write` / `compta_primes_admin_write`).
+// Server Actions de SAISIE de la Compta : saisies hebdo/période = manager/sous-manager sur SES
+// rattachés (`managerPageGuard` + RLS 0085) ; le lien MyPuls = admin seul (`adminGuard`). Les
+// réglages de paie ont déménagé dans Membres (cf. plus bas).
 //
 // LES DEUX GESTES DE PAIEMENT VIVENT DANS `actions-pay.ts` — ce fichier avait atteint 342 lignes
 // (plafond de 300, CLAUDE.md) et le paiement groupé en ajoutait autant. Frontière : ici ce qui
@@ -21,13 +21,7 @@ import {
   BusinessError,
   type ActionResult,
 } from '@/lib/actions'
-import {
-  weekEntryInput,
-  periodEntryInput,
-  settingsInput,
-  primeInput,
-  chatterLinkInput,
-} from './schema'
+import { weekEntryInput, periodEntryInput, chatterLinkInput } from './schema'
 
 /**
  * Crée ou met à jour la saisie HEBDOMADAIRE d'un chatteur (bonus, malus, handoffs). Upsert sur
@@ -38,7 +32,7 @@ import {
  * toujours et porte de l'historique, mais l'omettre du payload la laisse INTACTE sur une ligne
  * existante — là où l'écrire à 0 l'aurait effacée à la première ré-écriture. Sur une ligne
  * neuve, elle prend son défaut (`0`, migration 0084). Le fixe se règle désormais dans
- * `compta_settings.fixed_amount` (engrenage), seule source du montant.
+ * `compta_settings.fixed_amount` (onglet Compta du dialog de Membres), seule source du montant.
  */
 export async function saveWeekEntry(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -114,105 +108,14 @@ export async function savePeriodEntry(raw: unknown): Promise<ActionResult> {
   })
 }
 
-/**
- * Réglages de rémunération d'un membre : le TAUX de commission et le FIXE de la période.
- * `adminGuard` et non `managerPageGuard` : la spec §6 réserve `compta_settings` à l'admin en
- * écriture, et la RLS `compta_settings_admin_write` (`for all` sous `is_admin()` en `using` ET
- * `with check`) est le verrou réel — la garde n'est que la défense en profondeur.
- *
- * Upsert sur `chatter_id`, PK de la table : un membre n'a qu'une ligne de réglages, créée à sa
- * première configuration. Tant qu'elle n'existe pas, `loadComptaRows` applique les défauts de
- * la colonne (10 %, fixe 0).
- */
-export async function saveComptaSettings(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: settingsInput,
-    input: raw,
-    guard: adminGuard,
-    handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
-      const supabase = await createClient()
-      const { error } = await supabase.from('compta_settings').upsert(
-        {
-          chatter_id: v.chatterId,
-          rate: v.rate,
-          fixed_amount: v.fixedAmount,
-          // Posé à la main : aucun trigger ne rafraîchit `updated_at` sur ces tables (même
-          // constat que `saveWeekEntry`), et le défaut `now()` ne joue qu'à l'INSERT.
-          updated_at: new Date().toISOString(),
-          updated_by: profile.id,
-        },
-        { onConflict: 'chatter_id' },
-      )
-      if (error?.code === '42501') {
-        throw new BusinessError("Vous n'avez pas le droit de modifier les réglages de paie.")
-      }
-      if (error) throw new Error(error.message)
-      revalidatePath('/chatter/compta')
-    },
-  })
-}
-
-/**
- * Prime « nouveau chatteur » — créée ou modifiée À LA MAIN par l'admin (spec §2). Upsert sur
- * `chatter_id`, PK de la table : un membre n'a qu'une prime.
- *
- * Une prime déjà VERSÉE est refusée à l'écriture : `payPeriod` a posé `status = 'paid'` et
- * `paid_at`, qui sont la trace du virement. La réécrire en `'due'` ne provoquerait aucun double
- * versement — `coverage.primePaid` fait foi sur l'instantané figé `compta_payments.prime_amount`
- * (cf. `coverage.ts`) — mais effacerait cette trace. Le formulaire ne la propose pas non plus.
- * CETTE GARDE EST INDISPENSABLE DEPUIS LA TÂCHE 20 : le payload ne porte plus que le montant,
- * et l'upsert ci-dessous écrit `status: 'due'` en dur — sans elle, un simple enregistrement de
- * montant rétrograderait une prime versée.
- *
- * `status: 'due'` POSÉ PAR LE SERVEUR, et non plus choisi à l'écran (tâche 20 : le montant seul
- * gouverne, 0 € = pas de prime). Deux effets voulus :
- *  - une ligne NEUVE naît `'due'`, comme le défaut de la colonne (migration 0084) ;
- *  - une ligne héritée `'skipped'` est NORMALISÉE en `'due'` au premier enregistrement. C'est
- *    l'alternative à « omettre la colonne », qui aurait laissé la prime hors du calcul pendant
- *    que l'écran affichait un montant enregistré sans rien dire — un no-op silencieux sur de
- *    l'argent. Ici, l'admin qui ne veut rien verser met 0.
- */
-export async function savePrime(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: primeInput,
-    input: raw,
-    guard: adminGuard,
-    handler: async (v) => {
-      const profile = await getProfile()
-      if (!profile) throw new Error('Session expirée')
-      const supabase = await createClient()
-
-      // `maybeSingle` : la ligne n'existe pas tant que la prime n'a jamais été créée.
-      const { data: existing, error: readErr } = await supabase
-        .from('compta_primes')
-        .select('status')
-        .eq('chatter_id', v.chatterId)
-        .maybeSingle()
-      if (readErr) throw new Error(readErr.message)
-      if (existing?.status === 'paid') {
-        throw new BusinessError('La prime de ce chatteur a déjà été versée — elle ne peut plus être modifiée.')
-      }
-
-      const { error } = await supabase.from('compta_primes').upsert(
-        {
-          chatter_id: v.chatterId,
-          amount: v.amount,
-          status: 'due',
-          updated_at: new Date().toISOString(),
-          updated_by: profile.id,
-        },
-        { onConflict: 'chatter_id' },
-      )
-      if (error?.code === '42501') {
-        throw new BusinessError("Vous n'avez pas le droit de modifier la prime de ce chatteur.")
-      }
-      if (error) throw new Error(error.message)
-      revalidatePath('/chatter/compta')
-    },
-  })
-}
+// LES RÉGLAGES DE PAIE NE S'ÉCRIVENT PLUS D'ICI (2026-07-28). `saveComptaSettings` et
+// `savePrime` sont devenues `saveMemberPaySettings` / `saveMemberPrime` dans
+// `features/members/actions-pay.ts` : le taux, le fixe et la prime sont des attributs de la
+// PERSONNE, pas de la période, et les avoir dans deux écrans était la même erreur que le fixe
+// qui vivait en double (tâche 19). Le cœur des deux écritures — upsert, traduction du 42501 et
+// le refus de réécrire une prime DÉJÀ VERSÉE — est partagé dans `lib/pay-settings.ts` (les
+// imports inter-features sont interdits, cf. `lib/chatter-link.ts`). La Compta continue de les
+// LIRE, et Membres revalide `/chatter/compta` à chaque écriture.
 
 /**
  * Relie un membre à son chatteur MyPuls SANS quitter la compta (`profiles.chatter_id`). Sans

@@ -21,7 +21,8 @@ const AMOUNT_FIELDS = ['bonus', 'malus', 'handoffs'] as const
  * fois par paie sur la feuille du propriétaire), alors que cette ligne est HEBDOMADAIRE — le
  * champ s'affichait donc DEUX FOIS par période, et `compta-rows.ts` SOMMAIT les deux. Saisir
  * 75 € sur les deux lignes, ce que deux champs identiques invitent à faire, versait 150 €.
- * Le fixe se règle maintenant à un seul endroit : l'engrenage de la ligne (`compta_settings`).
+ * Le fixe se règle maintenant à un seul endroit : l'onglet Compta du dialog de Membres
+ * (`compta_settings`).
  *
  * UNE LIGNE par semaine depuis le 2026-07-27 (« simplifie l'affichage ») : c'était un encadré
  * titré par semaine, soit 2 cartes empilées répétant les mêmes champs.
