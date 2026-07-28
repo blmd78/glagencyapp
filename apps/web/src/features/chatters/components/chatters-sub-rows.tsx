@@ -19,9 +19,6 @@ export function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-muted-foreground">—</TableCell>
           <TableCell />
           <TableCell className="text-right tabular-nums">{eur(m.ca)}</TableCell>
-          <TableCell className="text-right tabular-nums text-muted-foreground">
-            {m.com === null ? '—' : eur(m.com)}
-          </TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.ppv)}</TableCell>
           <TableCell className="text-right tabular-nums">{eur(m.tips)}</TableCell>
           {/* « Proposé » n'existe pas au grain chatteur × modèle (non ventilé par MyPuls) :

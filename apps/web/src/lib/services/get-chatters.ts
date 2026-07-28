@@ -11,7 +11,6 @@ import type {
 import { conv, round1, round2 } from '@/lib/format'
 
 /** Barème de commission par défaut (10 % du CA) — à remplacer par la vraie config plus tard. */
-const COM_RATE = 0.1
 
 /** Forme brute renvoyée par le RPC `chatters_report` — sommes déjà agrégées EN BASE. */
 interface Report {
@@ -60,7 +59,7 @@ interface Report {
  *
  * Cloisonnement : le RPC est SECURITY INVOKER → la RLS s'applique. En restreint (rôle `user`),
  * `totals` est vide (chatter_daily admin-only) → l'agrégat chatteur se reconstruit depuis
- * `by_creator` (limité à SES modèles) ; com/proposé/présence/réactivité/scope/ranking n'existent
+ * `by_creator` (limité à SES modèles) ; proposé/présence/réactivité/scope/ranking n'existent
  * pas à ce grain → masqués à null ici.
  */
 export async function getChatters(
@@ -159,7 +158,6 @@ export async function getChatters(
           ca: x.ca,
           ppv: x.ppv,
           tips: x.tips,
-          com: restricted ? null : round2(x.ca * COM_RATE),
           propose: x.propose,
           vendu: x.vendu,
           tauxConv: conv(x.vendu, x.propose),
@@ -178,7 +176,6 @@ export async function getChatters(
         ca: a.ca,
         ppv: a.ppv,
         tips: a.tips,
-        com: restricted ? null : round2(a.ca * COM_RATE),
         propose: restricted ? null : a.propose,
         vendu: a.vendu,
         tauxConv: restricted ? null : conv(a.vendu, a.propose),

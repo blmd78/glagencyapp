@@ -92,15 +92,6 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
     meta: { align: 'right' },
   },
   {
-    accessorKey: 'com',
-    header: 'Com.',
-    cell: ({ getValue }) => {
-      const v = getValue() as number | null
-      return <span className="tabular-nums text-muted-foreground">{v === null ? '—' : eur(v)}</span>
-    },
-    meta: { align: 'right' },
-  },
-  {
     accessorKey: 'ppv',
     header: ({ column }) => <Sortable column={column} label="PPV" className="justify-end" />,
     cell: ({ getValue }) => <span className="tabular-nums">{eur(getValue() as number)}</span>,

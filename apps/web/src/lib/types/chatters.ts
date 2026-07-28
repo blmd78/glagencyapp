@@ -33,8 +33,6 @@ export interface ChatterModel {
   ca: number
   ppv: number
   tips: number
-  /** Commission sur ce modèle (ca × barème) — null en mode restreint. */
-  com: number | null
   propose: number
   vendu: number
   /** Recalculé Σvendu/Σpropose (jamais la moyenne des %). */
@@ -60,8 +58,6 @@ export interface ChatterRow {
   ca: number
   ppv: number
   tips: number
-  /** null en mode restreint (com globale non calculable sur un périmètre partiel). */
-  com: number | null
   /** null en mode restreint (« proposé » n'existe qu'au grain tous-modèles). */
   propose: number | null
   vendu: number
