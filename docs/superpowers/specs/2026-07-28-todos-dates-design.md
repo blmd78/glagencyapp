@@ -57,7 +57,7 @@ Aucune date n'est affichée sur les lignes ; seul l'œil (popover `todo-peek`) m
 Le kanban en pause n'est pas modifié ; une note dans ses blocs commentés rappelle qu'à la
 réactivation, le drag devra filtrer les cibles selon la même matrice.
 
-## 4. Modèle de données — migration `0086_todos_started_at.sql`
+## 4. Modèle de données — migration `0086_todos_dates.sql` (unique pour tout le chantier)
 
 - `alter table todos add column started_at timestamptz;` — pas de backfill : les tâches
   déjà en cours ou terminées n'ont pas d'historique, on n'invente pas de dates.
@@ -71,8 +71,9 @@ réactivation, le drag devra filtrer les cibles selon la même matrice.
 - Le client ne peut **jamais** écrire ces dates : le trigger recalcule tout, comme aujourd'hui.
 - Aucune RLS à toucher. `packages/db/src/types.ts` à mettre à jour (colonne ajoutée).
 
-**Durcissement `0087_todos_dates_hardening.sql`** (revue de branche finale, deux failles trouvées
-dans la formule ci-dessus) :
+**Durcissement issu de la revue de branche finale** (deux failles trouvées dans la formule
+ci-dessus — corrigées puis **fusionnées dans `0086` avant toute application en prod**, une seule
+migration par chantier, même pratique que `0085_compta_paie`) :
 - `started_at` — la règle devient GATÉE sur l'entrée réelle en « En cours », pas sur toute
   écriture d'une ligne déjà `in_progress` (sinon corriger le TITRE d'une tâche héritée
   d'avant 0086, encore en cours et sans `started_at`, lui fabriquait un chrono ancré sur
@@ -87,10 +88,10 @@ dans la formule ci-dessus) :
     end
   );
   ```
-- `done_at` — `0087` retire `new.done_at` du coalesce (`old.done_at` est toujours null à
+- `done_at` — le coalesce perd `new.done_at` (`old.done_at` est toujours null à
   l'entrée en « done », donc le `new.done_at` fourni par le client passait systématiquement :
-  un `done_at` antidaté via PostgREST direct restait possible). Après `0087`, le client ne peut
-  plus écrire AUCUNE des dates de vie de la tâche — le trigger les recalcule toutes.
+  un `done_at` antidaté via PostgREST direct restait possible). Après ce durcissement, le client
+  ne peut plus écrire AUCUNE des dates de vie de la tâche — le trigger les recalcule toutes.
 
 ## 5. Affichage — zone méta de `todo-row`, avant l'auteur
 
