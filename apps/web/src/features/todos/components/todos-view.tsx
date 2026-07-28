@@ -29,11 +29,13 @@ import { TodosList } from './todos-list'
 /**
  * Porte l'état de la to-do : état optimiste, dialog, `move()`, `remove()`, `releases`, filtre
  * par release. Seule la vue LISTE est rendue — le kanban et sa bascule sont en pause depuis le
- * 2026-07-20 (blocs commentés ci-dessous, composants et dépendance intacts). Remonté par
- * `key={profileId}` côté
- * `TodosTemplate.tsx` : changer de personne réinitialise tout cet état d'un coup (filtre,
- * dialog, saisie de l'ajout rapide) plutôt que de laisser des morceaux de l'ancienne personne
- * s'appliquer par erreur à la nouvelle liste.
+ * 2026-07-20 (blocs commentés ci-dessous, composants et dépendance intacts). En rendu à plat,
+ * remonté par `key={e.id}` côté `TodosTemplate.tsx` — l'id du PORTEUR de la liste, c'est-à-dire
+ * la prop `profileId` ci-dessous (attention : dans `TodosTemplate`, `profileId` désigne au
+ * contraire le SPECTATEUR, qui ne sert qu'à composer le libellé). Changer de personne via le
+ * filtre réinitialise ainsi tout cet état d'un coup (filtre, dialog, saisie de l'ajout rapide)
+ * plutôt que de laisser des morceaux de l'ancienne personne s'appliquer par erreur à la nouvelle
+ * liste. En mode pile, aucune clé n'est nécessaire : Radix démonte le panneau fermé.
  */
 export function TodosView({
   todos,
@@ -55,8 +57,13 @@ export function TodosView({
    * Mode pile : recharge le panneau après chaque mutation. `revalidatePath` ne repatche que
    * l'arbre serveur, or le panneau vient d'une Server Action — sans ça il resterait sur
    * l'instantané d'avant (le défaut trouvé sur le Dashboard, audit 2026-07-27).
+   *
+   * TOUJOURS ATTENDU (`await`) là où il suit une mutation optimiste : la promesse tient la
+   * transition ouverte jusqu'à l'arrivée des données fraîches. Sans ça `useOptimistic` retombe
+   * sur `todos`, encore périmé, et la ligne saute dans son ancienne section le temps d'un
+   * aller-retour.
    */
-  onChanged?: () => void
+  onChanged?: () => void | Promise<void>
 }) {
   const router = useRouter()
   // État optimiste : la carte/ligne change AVANT la réponse serveur. Un échec rejoue
@@ -125,7 +132,9 @@ export function TodosView({
         // sa colonne d'origine.
         router.refresh()
       }
-      onChanged?.()
+      // `await` DANS la transition : elle ne se clôt qu'une fois le panneau rechargé, donc
+      // l'état optimiste tient jusque-là (cf. doc de `onChanged`).
+      await onChanged?.()
     })
   }
 
@@ -143,7 +152,7 @@ export function TodosView({
     // suppression réussie se voit déjà à l'écran (la ligne/carte disparaît), un toast à chaque
     // geste réussi est du bruit.
     if (res.success) {
-      onChanged?.()
+      await onChanged?.()
       return
     }
     // Échec métier (ex. tâche déjà supprimée par quelqu'un d'autre) : l'action lève avant le
@@ -151,7 +160,7 @@ export function TodosView({
     // avec le serveur (même pattern que relance-checklist.tsx) pendant que le ConfirmDialog
     // affiche l'erreur.
     router.refresh()
-    onChanged?.()
+    await onChanged?.()
     return res.error // string → le ConfirmDialog reste ouvert et affiche l'erreur
   }
   // Ajout rapide : défauts priorité moyenne, sans type ni release — ces champs restent dans le
@@ -163,7 +172,7 @@ export function TodosView({
     const res = await createTodo({
       profileId, title, description: null, type: null, priority: 2, release: null, status,
     })
-    if (res.success) onChanged?.()
+    if (res.success) await onChanged?.()
     return res
   }
 

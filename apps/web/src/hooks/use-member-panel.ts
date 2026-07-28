@@ -16,7 +16,12 @@ export interface MemberPanel<T> {
  * périmées à l'écran.
  *
  * `open(id)` sert à l'OUVERTURE comme au RECHARGEMENT (après une mutation dans le panneau) :
- * c'est le même geste, relancer la requête pour cette personne.
+ * c'est le même geste, relancer la requête pour cette personne. Il RETOURNE sa promesse, résolue
+ * au settle — c'est ce qui permet à l'appelant de l'attendre, et donc à un `startTransition`
+ * porteur d'un `useOptimistic` de rester pendant tout le rechargement. Sans cette attente, la
+ * transition se clôt avant l'arrivée des données fraîches et l'état optimiste retombe sur sa base
+ * PÉRIMÉE (celle conservée ci-dessous) : la ligne mutée saute en arrière le temps d'un
+ * aller-retour. `open()` ne rejette jamais (le `catch` ci-dessous rend l'échec en `error`).
  */
 export function useMemberPanel<T>(
   load: (input: { profileId: string }) => Promise<ActionResult<T>>,
@@ -24,7 +29,7 @@ export function useMemberPanel<T>(
   const [panel, setPanel] = useState<MemberPanel<T> | null>(null)
   const reqRef = useRef(0)
 
-  const open = (id: string) => {
+  const open = (id: string): Promise<void> => {
     // Jeton par REQUÊTE, pas par personne : deux appels sur la MÊME personne (rouvrir vite, ou
     // recharger après mutation pendant qu'un chargement vole encore) ne doivent pas laisser
     // gagner le plus ancien. Seule la dernière requête émise a le droit d'écrire.
@@ -39,7 +44,7 @@ export function useMemberPanel<T>(
     const settle = (next: MemberPanel<T>) =>
       setPanel((p) => (token !== reqRef.current ? p : next))
 
-    void (async () => {
+    return (async () => {
       try {
         const res = await load({ profileId: id })
         settle(

@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 // Schémas PARTAGÉS client (RHF) ↔ serveur (runAction). `profileId` est le PORTEUR de la
-// liste (la cible du sélecteur) : il fait partie de l'entrée validée, la garde applicative
+// liste — la personne dont le panneau est ouvert dans la pile, ou celle isolée par le filtre
+// `?membre=`, jamais le spectateur : il fait partie de l'entrée validée, la garde applicative
 // et la RLS tranchent ensuite le droit d'y écrire.
 
 const statusInvalidMsg = 'Statut invalide (à faire, en cours ou terminé attendu)'

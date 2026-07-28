@@ -48,7 +48,7 @@ export function PlanningMembers({ entries }: { entries: PlanningEntry[] }) {
           )
         if (!p.data) return null
         return (
-          <PlanningView data={p.data} canEdit={e.canEdit} nested onChanged={() => open(e.id)} />
+          <PlanningView data={p.data} canEdit={e.canEdit} nested onChanged={() => void open(e.id)} />
         )
       }}
     </MembersAccordion>

@@ -52,7 +52,7 @@ export function ReportsMembers({ entries, today }: { entries: ReportEntry[]; tod
             canWrite={e.canWrite}
             idSuffix={e.id}
             nested
-            onSaved={() => open(e.id)}
+            onSaved={() => void open(e.id)}
           />
         )
       }}
