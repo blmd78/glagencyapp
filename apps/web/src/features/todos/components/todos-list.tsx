@@ -31,7 +31,7 @@ export function TodosList({
   /** Renvoie un message d'erreur pour garder le dialog ouvert, rien en cas de succès. */
   onDelete: (todo: Todo) => Promise<string | void>
   onMove: (todo: Todo, status: TodoStatus) => void
-  onQuickAdd: (title: string, status: TodoStatus) => Promise<ActionResult>
+  onQuickAdd: (title: string) => Promise<ActionResult>
 }) {
   // Pas de `useMemo` : le React Compiler (reactCompiler: true, next.config.ts) mémoïse déjà
   // ce calcul dérivé, une mémoïsation manuelle n'apporte plus rien.
@@ -78,11 +78,17 @@ export function TodosList({
                 onMove={(status) => onMove(t, status)}
               />
             ))}
-            {/* « + Créer » dans CHAQUE section (pas seulement « À faire », point 5 de la
-                spec) : une tâche créée depuis « En cours » doit naître EN COURS — un bouton
-                qui la déposerait dans « À faire » mentirait sur son statut. Fait aussi office
-                d'état vide : plus de « Rien ici », cette ligne est toujours là. */}
-            <TodoQuickAdd status={s.value} onQuickAdd={onQuickAdd} />
+            {/* « + Créer » dans la SEULE section « À faire » (spec 2026-07-28-todos-dates,
+                remplace le « point 5 » de la spec 2026-07-20) : une tâche naît toujours en
+                « À faire », le chrono ne démarre qu'au passage en « En cours ». Les autres
+                sections gardent un état vide explicite — le quick-add en tenait lieu. */}
+            {s.value === 'todo' ? (
+              <TodoQuickAdd onQuickAdd={onQuickAdd} />
+            ) : (
+              columns[s.value].length === 0 && (
+                <p className="px-3 py-2 text-sm text-muted-foreground">Rien ici</p>
+              )
+            )}
           </div>
         </CollapsibleSection>
       ))}

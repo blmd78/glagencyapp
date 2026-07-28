@@ -15,7 +15,9 @@ export async function getTodos(targetId: string): Promise<Todo[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('todos')
-    .select('id, title, description, status, type, priority, release, created_by, created_by_name, created_at, done_at')
+    .select(
+      'id, title, description, status, type, priority, release, started_at, created_by, created_by_name, created_at, done_at',
+    )
     .eq('profile_id', targetId)
     .order('priority', { ascending: true })
     .order('created_at', { ascending: true })
@@ -33,6 +35,7 @@ export async function getTodos(targetId: string): Promise<Todo[]> {
     // renverrait null à un manager pour un auteur admin. Sans auteur = écrit par Claude.
     createdByName: t.created_by_name ?? (t.created_by ? null : 'Claude'),
     createdAt: t.created_at,
+    startedAt: t.started_at,
     doneAt: t.done_at,
   }))
 }

@@ -1,4 +1,5 @@
 import { Bookmark, Bug, ChevronDown, ChevronUp, Minus, Wrench, type LucideIcon } from 'lucide-react'
+import { daysBetweenParis, frDayMonthParis } from '@glagency/core'
 
 /** Une tâche de la to-do personnelle (spec 2026-07-20). */
 export type TodoStatus = 'todo' | 'in_progress' | 'done'
@@ -27,6 +28,8 @@ export interface Todo {
   createdByName: string | null
   createdAt: string
   doneAt: string | null
+  /** Première entrée en « En cours » — posé par le trigger (0086), monotone. */
+  startedAt: string | null
 }
 
 /**
@@ -129,4 +132,28 @@ export function groupByStatus(todos: Todo[]): Record<TodoStatus, Todo[]> {
   const doneAtMs = (t: Todo) => (t.doneAt ? new Date(t.doneAt).getTime() : 0)
   out.done.sort((a, b) => doneAtMs(b) - doneAtMs(a))
   return out
+}
+
+/**
+ * Méta de date d'une ligne, selon sa section (spec 2026-07-28-todos-dates). Le chrono compte
+ * UNIQUEMENT le temps en « En cours » (jours calendaires Paris) — l'attente en « À faire »
+ * n'entre jamais dans le compte. `null` = rien à afficher (tâches d'avant la migration 0086,
+ * ou finies sans être passées par « En cours » : elles n'ont jamais eu de chrono).
+ */
+export function todoDateMeta(t: Todo): string | null {
+  switch (t.status) {
+    case 'todo':
+      return `ajouté le ${frDayMonthParis(t.createdAt)}`
+    case 'in_progress': {
+      if (!t.startedAt) return null
+      const days = daysBetweenParis(t.startedAt, new Date().toISOString())
+      return days <= 0 ? 'depuis aujourd’hui' : `depuis ${days} j`
+    }
+    case 'done': {
+      if (!t.doneAt) return null
+      if (!t.startedAt) return `fini le ${frDayMonthParis(t.doneAt)}`
+      const days = daysBetweenParis(t.startedAt, t.doneAt)
+      return `${frDayMonthParis(t.startedAt)} → ${frDayMonthParis(t.doneAt)} · ${days} j`
+    }
+  }
 }
