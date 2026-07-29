@@ -17,7 +17,7 @@ import {
 import { cn } from '@/lib/utils'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
 import { deleteOrgRow, moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
-import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
+import type { OrgChatter, OrganisationData } from '../types'
 
 // MÊME DA QUE LE PLANNING REPOS (chips + popovers, pas de selects de formulaire).
 // Code couleur demandé par Benoit : encadrement (manager/sous-manager) en VERT, modèle en
