@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { TeamBadge } from '@/components/team-badge'
 import { Combobox } from '@/components/ui/combobox'
 import { Toggle } from '@/components/ui/toggle'
@@ -70,22 +71,28 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
         <span className="truncate font-medium">{row.original.username}</span>
-        {/* Icône À CÔTÉ du pseudo (choix Benoit — pas le pseudo lui-même en lien) → ouvre la
-            conversation MyPuls (switch-creator + focus, format de l'ancien gla-workflow) :
-            évite le copier-coller à chaque relance. Présente sur les deux vues (liste et
-            tracker), la colonne est commune. Sans id MyPuls (modèle hors assignation RLS,
-            ou non mappé) : pas d'icône. */}
+        {/* Bouton « Conv » à côté du pseudo (choix Benoit, plus intuitif qu'une icône seule)
+            → ouvre la conversation MyPuls (switch-creator + focus, format de l'ancien
+            gla-workflow) : évite le copier-coller à chaque relance. Présent sur les deux
+            vues (liste et tracker), la colonne est commune. Sans id MyPuls (modèle hors
+            assignation RLS, ou non mappé) : pas de bouton. */}
         {row.original.mypulsCreatorId && (
-          <a
-            href={`https://mypuls.app/switch-creator/${row.original.mypulsCreatorId}?fc=${row.original.fanId}`}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            title="Ouvrir la conversation MyPuls"
-            aria-label={`Ouvrir la conversation MyPuls de ${row.original.username}`}
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-6 shrink-0 gap-1 px-2 text-[11px] font-medium"
           >
-            <ExternalLink className="size-3.5" />
-          </a>
+            <a
+              href={`https://mypuls.app/switch-creator/${row.original.mypulsCreatorId}?fc=${row.original.fanId}`}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label={`Ouvrir la conversation MyPuls de ${row.original.username}`}
+            >
+              <ExternalLink className="size-3" />
+              Conv
+            </a>
+          </Button>
         )}
         {row.original.hasUnread && (
           <span className="size-2 shrink-0 rounded-full bg-blue-500" title="Message non lu" />
