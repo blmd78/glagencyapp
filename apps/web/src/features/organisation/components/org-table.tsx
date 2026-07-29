@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { cn } from '@/lib/utils'
@@ -8,47 +9,18 @@ import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
 import { saveOrgCell } from '../actions'
 import type { OrgChatter, OrganisationData } from '../types'
 
-// REPRODUCTION DU FICHIER D'ORIGINE (capture Benoit 2026-07-29) : en-tête NOIR texte blanc,
-// manager répété en gras sur chaque ligne, sous-manager en PASTILLE colorée, cases de shift
-// teintées — matin #F4CCCC (rose), après-midi #D9EAD3 (vert), soir #C9DAF8 (bleu), texte
-// sombre forcé (teintes fixes quel que soit le thème).
-const SHIFT_COLS: Record<CrmShift, { label: string; bg: string }> = {
-  matin: { label: 'SHIFT MATIN (Chatteurs)', bg: 'bg-[#F4CCCC]' },
-  aprem: { label: 'SHIFT APRÈS-MIDI (Chatteurs)', bg: 'bg-[#D9EAD3]' },
-  soir: { label: 'SHIFT SOIR (Chatteurs)', bg: 'bg-[#C9DAF8]' },
-}
+// MÊME DA QUE LE PLANNING REPOS (demande Benoit) : chips vertes pour les personnes, violettes
+// pour les modèles, cases pointillées « + Ajouter », en-têtes bg-muted. Classes identiques à
+// planning-grid-utils (recopiées : les features ne s'importent pas entre elles).
+const CHIP_GREEN = 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
+const CHIP_VIOLET = 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
 
-// Couleurs des pastilles sous-managers, relevées sur le fichier ; les nouveaux venus piochent
-// dans la même palette (stable par nom).
-const SM_KNOWN: Record<string, string> = {
-  MARCO: '#b10202',
-  CHERIF: '#38761d',
-  AKARI: '#7f6000',
-  GAEL: '#3d3d3d',
-  RYCH: '#1155cc',
-}
-const SM_PALETTE = ['#a64d79', '#e69138', '#674ea7', '#134f5c', '#990000', '#0b5394']
-const norm = (name: string) =>
-  name
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toUpperCase()
-    .trim()
-const smColor = (name: string) => {
-  const n = norm(name)
-  if (SM_KNOWN[n]) return SM_KNOWN[n]
-  let h = 0
-  for (const c of n) h = (h * 31 + c.charCodeAt(0)) % 997
-  return SM_PALETTE[h % SM_PALETTE.length]
-}
-
-/** Noms d'une case, séparés par « - » comme dans le fichier. */
-const joinNames = (names: string[]) => names.join(' - ')
+const SHIFT_LABELS: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
 
 /**
- * Le board d'orga IDENTIQUE au fichier. Cases éditables comme le planning repos
- * (ComboboxMultiple, sauvegarde à chaque clic) — WRITE-THROUGH sur les vraies données
- * (cf. actions.ts) : Membres/Chatters se mettent à jour en même temps, et inversement.
+ * Le board d'orga — manager → sous-manager → modèle → chatters par shift, éditable comme le
+ * planning repos (ComboboxMultiple, sauvegarde à chaque clic) en WRITE-THROUGH sur les vraies
+ * données (cf. actions.ts) : Membres/Chatters se mettent à jour en même temps, et inversement.
  * Overrides optimistes locaux par case, revert sur refus (même patron que planning-grid).
  */
 export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: boolean }) {
@@ -77,54 +49,53 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
     })
   }
 
+  const chips = (ids: string[]) =>
+    ids.map((id) => (
+      <span key={id} className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_GREEN)}>
+        {nameById.get(id) ?? '?'}
+      </span>
+    ))
+
   return (
     <div className="overflow-x-auto rounded-xl border">
-      <table className="w-full min-w-[72rem] border-collapse text-sm">
+      <table className="w-full min-w-[64rem] border-collapse text-sm">
         <thead>
-          <tr className="bg-neutral-950 text-left text-xs font-bold uppercase tracking-wide text-white">
-            <th className="px-3 py-2.5 text-center">Manager</th>
-            <th className="px-3 py-2.5">Manager</th>
-            <th className="px-3 py-2.5">Modèle</th>
+          <tr className="bg-muted/50 text-left text-xs font-medium text-muted-foreground">
+            <th className="px-3 py-2">Manager</th>
+            <th className="px-3 py-2">Sous-manager</th>
+            <th className="px-3 py-2">Modèle</th>
             {CRM_SHIFTS.map((s) => (
-              <th key={s} className="px-3 py-2.5">
-                {SHIFT_COLS[s].label}
+              <th key={s} className="px-3 py-2">
+                {SHIFT_LABELS[s]}
               </th>
             ))}
-            <th className="px-3 py-2.5 text-right">Total chatteurs</th>
+            <th className="px-3 py-2 text-right">Total</th>
           </tr>
         </thead>
-        <tbody className="bg-white text-neutral-900">
-          {data.sections.map((section) => (
+        <tbody>
+          {data.sections.map((section, si) => (
             <Fragment key={section.managerName}>
               {section.rows.map((r, i) => (
                 <tr
                   key={r.creatorId}
-                  // Bloc d'équipe encadré comme le fichier : trait appuyé au changement de manager.
-                  className={cn('align-top', i === 0 ? 'border-t-2 border-neutral-800' : 'border-t border-neutral-200')}
+                  className={cn('border-t align-top', si > 0 && i === 0 && 'border-t-2')}
                 >
-                  <td className="px-3 py-2.5 text-center font-bold uppercase">{section.managerName}</td>
-                  <td className="px-3 py-2.5">
-                    {r.sousManagerName ? (
-                      <span
-                        className="inline-block rounded-full px-3 py-0.5 text-xs font-bold uppercase text-white"
-                        style={{ backgroundColor: smColor(r.sousManagerName) }}
-                      >
-                        {r.sousManagerName}
-                      </span>
-                    ) : (
-                      <span className="text-xs italic text-neutral-400">direct</span>
+                  <td className="px-3 py-2 font-medium">{i === 0 ? section.managerName : ''}</td>
+                  <td className="px-3 py-2">
+                    {r.sousManagerName ?? (
+                      <span className="text-xs italic text-muted-foreground">direct</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5">
-                    <span className="inline-block rounded border border-neutral-300 px-2 py-0.5 text-xs font-semibold uppercase">
+                  <td className="px-3 py-2">
+                    <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_VIOLET)}>
                       {r.modelName}
                     </span>
                     {r.sansShift.length > 0 && (
                       <div
-                        className="mt-1 text-xs text-neutral-400"
+                        className="mt-1 text-xs text-muted-foreground"
                         title="Membres du modèle sans shift (non liés à un chatteur MyPuls ou shift vide) — les ajouter à une case de shift les place ; le lien se règle dans Membres."
                       >
-                        à placer : {joinNames(r.sansShift.map((c) => c.name))}
+                        à placer : {r.sansShift.map((c) => c.name).join(', ')}
                       </div>
                     )}
                   </td>
@@ -132,44 +103,61 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                     const server = r.byShift[shift]
                     const ids = cellIds(r.creatorId, shift, server)
                     const previous = server.map((c) => c.id)
-                    const names = joinNames(ids.map((id) => nameById.get(id) ?? '?'))
                     if (!isAdmin)
                       return (
-                        <td key={shift} className={cn('px-3 py-2.5 text-neutral-900', SHIFT_COLS[shift].bg)}>
-                          {names || <span className="text-neutral-900/40">—</span>}
+                        <td key={shift} className="px-3 py-2">
+                          {ids.length ? (
+                            <div className="flex flex-wrap gap-1">{chips(ids)}</div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/40">—</span>
+                          )}
                         </td>
                       )
                     return (
-                      <td key={shift} className={cn('p-0 align-top', SHIFT_COLS[shift].bg)}>
+                      <td key={shift} className="p-1 align-top">
                         <ComboboxMultiple
                           trigger={
                             <button
                               type="button"
                               title="Cliquer pour choisir les chatters de ce shift"
                               className={cn(
-                                'flex min-h-10 w-full items-start px-3 py-2.5 text-left text-neutral-900 transition-[filter]',
-                                'hover:brightness-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                                'group flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-left transition-colors',
+                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                                ids.length
+                                  ? 'border-transparent hover:bg-muted/50'
+                                  : 'border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/40',
                               )}
                             >
-                              {names || <span className="text-neutral-900/40">Ajouter</span>}
+                              {ids.length ? (
+                                <>
+                                  {chips(ids)}
+                                  <Plus className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
+                                </>
+                              ) : (
+                                <span className="flex items-center gap-1 text-xs text-muted-foreground/60">
+                                  <Plus className="size-3" />
+                                  Ajouter
+                                </span>
+                              )}
                             </button>
                           }
                           options={data.chatterOptions.map((o) => ({ value: o.id, label: o.name }))}
                           value={ids}
                           labelById={Object.fromEntries(nameById)}
                           onChange={(next) => commitCell(r.creatorId, shift, next, previous)}
+                          chipClassName={CHIP_GREEN}
                           placeholder="Rechercher un chatter…"
                         />
                       </td>
                     )
                   })}
-                  <td className="px-3 py-2.5 text-right font-semibold tabular-nums">{r.total}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{r.total}</td>
                 </tr>
               ))}
               {section.rows.length === 0 && (
-                <tr className="border-t-2 border-neutral-800">
-                  <td className="px-3 py-2.5 text-center font-bold uppercase">{section.managerName}</td>
-                  <td colSpan={6} className="px-3 py-2.5 text-sm text-neutral-400">
+                <tr className={cn('border-t', si > 0 && 'border-t-2')}>
+                  <td className="px-3 py-2 font-medium">{section.managerName}</td>
+                  <td colSpan={6} className="px-3 py-2 text-sm text-muted-foreground">
                     Aucun modèle assigné à cette équipe — à régler dans Membres.
                   </td>
                 </tr>
