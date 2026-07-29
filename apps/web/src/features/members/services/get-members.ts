@@ -83,17 +83,18 @@ export async function getMembers(): Promise<MembersData> {
       : Promise.resolve({ data: [] as { chatter_id: string; fixed_amount: number }[], error: null }),
     // L'HISTORIQUE DES TAUX (`compta_rates`, 0093). Contrairement à ses deux voisines, cette
     // table n'est PAS bornée par sa clé à une ligne par membre : elle en gagne une par
-    // augmentation. `.order(...)` sur la PK complète pour un rendu stable, et une borne explicite
-    // de 5 000 lignes — le plafond PostgREST par défaut est 1 000 et il tronque EN SILENCE, ce
-    // qui ferait disparaître les augmentations les plus récentes de l'écran de réglage (jamais
-    // du calcul : la Compta, elle, pagine avec `fetchAll`).
+    // augmentation → `fetchAll` (le plafond PostgREST de 1 000 est appliqué CÔTÉ SERVEUR et
+    // tronque EN SILENCE quelle que soit la plage demandée — un `.range(0, 4999)` seul ne
+    // protège de rien), tri sur la PK complète, comme la Compta sur la même table.
     isAdmin
-      ? supabase
-          .from('compta_rates')
-          .select('chatter_id, effective_from, rate')
-          .order('chatter_id')
-          .order('effective_from')
-          .range(0, 4999)
+      ? fetchAll((f, t) =>
+          supabase
+            .from('compta_rates')
+            .select('chatter_id, effective_from, rate')
+            .order('chatter_id')
+            .order('effective_from')
+            .range(f, t),
+        )
       : Promise.resolve({
           data: [] as { chatter_id: string; effective_from: string; rate: number }[],
           error: null,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -101,6 +101,7 @@ export function MemberDialog({
     control,
     handleSubmit,
     setError,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
@@ -132,6 +133,42 @@ export function MemberDialog({
       chatterId: member?.chatterId ?? '',
     },
   })
+  // Réinitialise à chaque ouverture (même règle que todo-dialog, qui cite ce bug) : le
+  // useForm n'est semé qu'au montage — sans reset, le dialog garde l'état de sa précédente
+  // ouverture, et peut même servir les valeurs d'un AUTRE membre (avant `getRowId`, une
+  // suppression décalait les lignes keyées par index) : enregistrer écraserait sa fiche.
+  useEffect(() => {
+    if (!open) return
+    const slugs = new Set(
+      (scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES).map((c) => c.slug as string),
+    )
+    const cSet = new Set(creators.map((c) => c.id))
+    reset({
+      scope,
+      email: member?.email ?? '',
+      displayName: member?.displayName ?? '',
+      role:
+        viewer === 'manager'
+          ? 'chatteur'
+          : member?.role === 'admin'
+            ? 'admin'
+            : member?.role === 'manager'
+              ? 'manager'
+              : member?.role === 'sous-manager'
+                ? 'sous-manager'
+                : member?.role === 'police'
+                  ? 'police'
+                  : 'chatteur',
+      pages: (member?.pages ?? []).filter((p) => slugs.has(p)),
+      creatorIds: (member?.creatorIds ?? []).filter((id) => cSet.has(id)),
+      managerId: member?.managerId ?? '',
+      workLink: member?.workLink ?? '',
+      closingRole: member?.closingRole ?? null,
+      closingTeam: member?.closingTeam ?? null,
+      chatterId: member?.chatterId ?? '',
+    })
+  }, [open, member, scope, viewer, creators, reset])
+
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })
 

@@ -24,6 +24,11 @@ import { ImpersonateButton } from './impersonate-button'
 import { MemberDialog } from './member-dialog'
 import type { Member } from '../types'
 
+// « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
+// spenders-table) : created_at est un timestamptz — sans timeZone, le SSR (UTC) et un
+// navigateur parisien peuvent rendre un jour différent → mismatch d'hydratation.
+const FR_DATE_PARIS = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' })
+
 const initials = (name: string) =>
   name
     .split(/\s+/)
@@ -275,7 +280,7 @@ export function buildMembersColumns({
       header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
       cell: ({ getValue }) => (
         <span className="tabular-nums text-muted-foreground">
-          {new Date(getValue() as string).toLocaleDateString('fr-FR')}
+          {FR_DATE_PARIS.format(new Date(getValue() as string))}
         </span>
       ),
       meta: { align: 'right' },
