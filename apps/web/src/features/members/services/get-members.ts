@@ -3,7 +3,7 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getProfile } from '@/lib/auth'
-import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
+import { CRM_SHIFTS, type CrmRole, type CrmShift, type CrmTeam } from '@/lib/types/chatters'
 import type { Member, MembersData } from '../types'
 
 /** Défaut de la colonne `compta_settings.fixed_amount` (migration 0084), repris tel quel : tant
@@ -74,12 +74,12 @@ export async function getMembers(): Promise<MembersData> {
       ? fetchAll((f, t) =>
           admin
             .from('chatters')
-            .select('id, display_name')
+            .select('id, display_name, shift')
             .order('display_name')
             .order('id')
             .range(f, t),
         )
-      : Promise.resolve({ data: [] as { id: string; display_name: string | null }[], error: null }),
+      : Promise.resolve({ data: [] as { id: string; display_name: string | null; shift: string | null }[], error: null }),
     // Pas de `fetchAll`, et c'est borné par la CLÉ : `chatter_id` est la PK des deux tables
     // (→ au plus une ligne par membre, ~105 en prod), très loin du plafond PostgREST de 1000.
     // Même raisonnement que `compta-sources.ts`, qui lit les deux mêmes tables sans pagination.
@@ -153,6 +153,14 @@ export async function getMembers(): Promise<MembersData> {
     if (arr) arr.push(l.creator_id)
     else byProfile.set(l.profile_id, [l.creator_id])
   }
+  // Shift par fiche chatteur liée (chatters.shift = LA source, éditable ici ET sur la
+  // page Chatters / le board Organisation — même donnée partout).
+  const isShift = (v: string | null): v is CrmShift =>
+    !!v && (CRM_SHIFTS as readonly string[]).includes(v)
+  const shiftByChatter = new Map(
+    (chattersData ?? []).map((c) => [c.id, isShift(c.shift) ? c.shift : null]),
+  )
+
   // Résolution « Créé par » : le créateur est un profil de la même liste (0097 : un
   // encadrant voit tout le monde) — créateur supprimé ou colonne pré-0098 → null → « — ».
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.display_name ?? p.email ?? '—']))
@@ -182,6 +190,7 @@ export async function getMembers(): Promise<MembersData> {
       closingRole: (p.closing_role ?? null) as CrmRole | null,
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
       chatterId: p.chatter_id ?? '',
+      shift: p.chatter_id ? (shiftByChatter.get(p.chatter_id) ?? null) : null,
       createdAt: p.created_at,
       createdByName: p.created_by ? (nameById.get(p.created_by) ?? '—') : null,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────

@@ -130,6 +130,7 @@ export function MemberDialog({
       workLink: member?.workLink ?? '',
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
+      shift: member?.shift ?? null,
       chatterId: member?.chatterId ?? '',
     },
   })
@@ -170,6 +171,7 @@ export function MemberDialog({
       workLink: member?.workLink ?? '',
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
+      shift: member?.shift ?? null,
       chatterId: member?.chatterId ?? '',
     })
   }, [open, member, scope, viewer, creators, reset])
@@ -190,6 +192,7 @@ export function MemberDialog({
           workLink: values.workLink,
           closingRole: values.closingRole,
           closingTeam: values.closingTeam,
+          shift: values.shift,
           chatterId: values.chatterId,
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
@@ -242,7 +245,7 @@ export function MemberDialog({
 
       {/* Désignation closing (setter/closer + équipe) — chatteur uniquement (masqué sinon).
           Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
-      <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
+      <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} linked={!!member?.chatterId} />
 
       {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
           ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de

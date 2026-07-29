@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CRM_ROLES, CRM_TEAMS, type CrmRole, type CrmTeam } from '@/lib/types/chatters'
+import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS, type CrmRole, type CrmShift, type CrmTeam } from '@/lib/types/chatters'
 import type { MemberForm } from '../schema'
 
 // QUATRE entrées depuis le 2026-07-28 : `profiles.closing_role` accepte `hybride` et `nouveau`
@@ -23,6 +23,7 @@ const ROLE_LABEL: Record<CrmRole, string> = {
   nouveau: 'Nouveau',
 }
 const TEAM_LABEL: Record<CrmTeam, string> = { rouge: 'Rouge', bleue: 'Bleue' }
+const SHIFT_LABEL: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
 
 /**
  * Désignation « closing » d'un chatteur : rôle (setter/closer/hybride/nouveau) + équipe
@@ -34,10 +35,13 @@ export function MemberClosingFields({
   control,
   roleValue,
   isSubmitting,
+  linked,
 }: {
   control: Control<MemberForm>
   roleValue: MemberForm['role']
   isSubmitting: boolean
+  /** Lien MyPuls présent : le shift s'écrit sur la fiche liée — sans lien, il ne peut pas être conservé. */
+  linked: boolean
 }) {
   'use no memo'
   if (roleValue !== 'chatteur') return null
@@ -96,6 +100,39 @@ export function MemberClosingFields({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        )}
+      />
+      <Controller
+        name="shift"
+        control={control}
+        render={({ field }) => (
+          <div className="grid gap-1.5">
+            <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Shift
+            </label>
+            <Select
+              value={field.value ?? 'none'}
+              onValueChange={(v) => field.onChange(v === 'none' ? null : (v as CrmShift))}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucun</SelectItem>
+                {CRM_SHIFTS.map((sh) => (
+                  <SelectItem key={sh} value={sh}>
+                    {SHIFT_LABEL[sh]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!linked && (
+              <p className="text-xs text-muted-foreground">
+                Nécessite le lien MyPuls (le shift vit sur la fiche chatteur).
+              </p>
+            )}
           </div>
         )}
       />

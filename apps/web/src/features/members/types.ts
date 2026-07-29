@@ -1,7 +1,7 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
 import type { RateChange } from '@glagency/core'
-import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
+import type { CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 /**
  * Réglages de paie d'un membre (`compta_settings` + `compta_rates` + `compta_primes`) — onglet
@@ -43,6 +43,8 @@ export interface Member {
   /** Désignation « closing » du membre (chatteur) — null = pas dans le dispositif. */
   closingRole: CrmRole | null
   closingTeam: CrmTeam | null
+  /** Shift de la fiche chatteur LIÉE (chatters.shift) — null : non lié ou non renseigné. */
+  shift: CrmShift | null
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string
