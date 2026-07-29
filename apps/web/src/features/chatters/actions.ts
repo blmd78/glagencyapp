@@ -23,6 +23,10 @@ export async function updateChatterCrm(raw: unknown): Promise<ActionResult> {
       // Erreur technique → throw : runAction capture (Sentry) + message générique.
       if (error) throw new Error(error.message)
       revalidatePath('/chatter/chatters')
+      // `chatters.shift` est LA source partagée : Membres (champ Shift) et le board
+      // Organisation (cases) l'affichent aussi — même fraîcheur pour les trois écrans.
+      revalidatePath('/chatter/members')
+      revalidatePath('/chatter/organisation')
     },
   })
 }
