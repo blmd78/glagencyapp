@@ -27,7 +27,7 @@ import { MemberIdentityFields } from './member-identity-fields'
 import { MemberPayForm, MemberPayPlaceholder } from './member-pay-form'
 import { MemberPermissionFields } from './member-permission-fields'
 
-/** Champs affichant un message d'erreur juste sous eux (les autres — role/managerId/
+/** Champs affichant un message d'erreur juste sous eux (les autres — role/managerIds/
  *  creatorIds — n'ont pas de zone dédiée) : un `fieldErrors` server-side dessus est remonté
  *  au message global plutôt qu'avalé silencieusement (cf. remap dans `submit`). */
 const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages'] as const satisfies readonly (keyof MemberForm)[]
@@ -126,7 +126,7 @@ export function MemberDialog({
       creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
       // Le serveur force le rattachement au créateur pour un appelant manager,
       // et l'ignore sur ses éditions (il ne peut pas déplacer un chatter).
-      managerId: member?.managerId ?? '',
+      managerIds: member?.managerIds ?? [],
       workLink: member?.workLink ?? '',
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
@@ -166,7 +166,7 @@ export function MemberDialog({
                   : 'chatteur',
       pages: (member?.pages ?? []).filter((p) => slugs.has(p)),
       creatorIds: (member?.creatorIds ?? []).filter((id) => cSet.has(id)),
-      managerId: member?.managerId ?? '',
+      managerIds: member?.managerIds ?? [],
       workLink: member?.workLink ?? '',
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
@@ -186,7 +186,7 @@ export function MemberDialog({
           role: values.role,
           pages: values.pages,
           creatorIds: values.creatorIds,
-          managerId: values.managerId,
+          managerIds: values.managerIds,
           workLink: values.workLink,
           closingRole: values.closingRole,
           closingTeam: values.closingTeam,

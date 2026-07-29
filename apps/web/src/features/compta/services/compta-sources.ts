@@ -13,7 +13,7 @@ import { loadPeriodCa } from './compta-ca'
  * Le cloisonnement est porté par la RLS (0085) : admin → tout, manager/sous-manager → ses
  * rattachés directs. SAUF le CA, la date d'entrée et les noms de modèles, lus par client
  * ADMIN et cadrés côté application — et SAUF la population elle-même, dont la RLS est
- * transitive depuis 0087 et que le filtre `manager_id` de l'ancre re-borne aux directs. Les
+ * transitive depuis 0087 et que le filtre `manager_ids` de l'ancre re-borne aux directs. Les
  * deux exceptions sont détaillées au commentaire de l'ancre, plus bas.
  */
 
@@ -58,7 +58,8 @@ export async function loadComptaSources({
   // select managed_subtree())))` — un manager y lit donc TOUT son sous-arbre, les chatteurs de
   // ses sous-managers compris, là où elle rendait ses seuls rattachés directs avant 0087.
   //
-  // Le `.eq('manager_id', …)` ci-dessous RE-BORNE la compta aux rattachés DIRECTS, À DESSEIN :
+  // Le `.contains('manager_ids', …)` ci-dessous RE-BORNE la compta aux rattachés DIRECTS, À
+  // DESSEIN (0092 : rattachement MULTIPLE — « direct » = l'appelant figure dans manager_ids) :
   // le périmètre de PAIE reste direct (décision de la spec compta — un manager gère SES
   // chatteurs). La transitivité de 0087 ne vaut que pour VOIR (dashboard, membres, comptes
   // rendus). Toutes les AUTRES lectures de ce fichier — `compta_settings`, `compta_rates`,
@@ -74,7 +75,7 @@ export async function loadComptaSources({
     .select('id, display_name, email, role, chatter_id')
     .eq('role', 'chatteur')
     .order('display_name')
-  if (!isAdmin) membersQuery = membersQuery.eq('manager_id', profile.id)
+  if (!isAdmin) membersQuery = membersQuery.contains('manager_ids', [profile.id])
 
   const [
     { data: members, error: membersErr },
@@ -191,7 +192,7 @@ export async function loadComptaSources({
   // LE CA DE LA PÉRIODE — hors RLS, cadré applicativement par `linked` (cf. `compta-ca.ts`).
   //
   // ⚠️ `linked` EST LA BARRIÈRE. Il ne contient que les `profiles.chatter_id` déjà renvoyés par
-  // l'ancre ci-dessus (RLS + filtre `manager_id`) — donc, pour un encadrant, ses rattachés
+  // l'ancre ci-dessus (RLS + filtre `manager_ids`) — donc, pour un encadrant, ses rattachés
   // directs et personne d'autre. NE JAMAIS le construire depuis une autre source.
   const linked = (members ?? []).map((m) => m.chatter_id).filter((v): v is string => v != null)
   const caByChatter = await loadPeriodCa({ linked, from, to })

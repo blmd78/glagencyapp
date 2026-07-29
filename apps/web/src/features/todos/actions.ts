@@ -29,7 +29,7 @@ const loadTargetProfile = async (id: string) => {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('profiles')
-    .select('role, manager_id')
+    .select('role, manager_ids')
     .eq('id', id)
     .single()
   if (error && error.code !== 'PGRST116') throw new Error(error.message)
@@ -57,7 +57,7 @@ const requireCanWriteTodo = async (targetId: string): Promise<{ profile: Profile
     }
     return { profile }
   }
-  if (profile.baseRole === 'manager' && target.role === 'sous-manager' && target.manager_id === profile.id) {
+  if (profile.baseRole === 'manager' && target.role === 'sous-manager' && (target.manager_ids ?? []).includes(profile.id)) {
     return { profile }
   }
   return { error: 'Accès réservé' }

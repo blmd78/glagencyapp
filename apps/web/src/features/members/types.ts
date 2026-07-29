@@ -37,7 +37,7 @@ export interface Member {
   /** Modèles assignés (profile_creators). */
   creatorIds: string[]
   /** Manager de rattachement ('' = aucun) — filtre la vue Membres d'un manager. */
-  managerId: string
+  managerIds: string[]
   /** Lien « outil de travail » ('' = aucun) — affiché dans le menu utilisateur du membre. */
   workLink: string
   /** Désignation « closing » du membre (chatteur) — null = pas dans le dispositif. */

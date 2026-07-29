@@ -49,7 +49,7 @@ const loadTargetProfile = async (id: string) => {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('profiles')
-    .select('role, manager_id')
+    .select('role, manager_ids')
     .eq('id', id)
     .single()
   if (error && error.code !== 'PGRST116') throw new Error(error.message)
@@ -76,7 +76,7 @@ const requireCanEdit = async (targetProfileId: string): Promise<{ profile: Profi
   }
   // manager : édite le planning de SES sous-managers directs (miroir RLS
   // can_manage_planning_of, 0061). Un sous-manager n'édite personne.
-  if (profile.baseRole === 'manager' && target?.role === 'sous-manager' && target.manager_id === profile.id) {
+  if (profile.baseRole === 'manager' && target?.role === 'sous-manager' && (target.manager_ids ?? []).includes(profile.id)) {
     return { profile }
   }
   return { error: 'Accès réservé' }

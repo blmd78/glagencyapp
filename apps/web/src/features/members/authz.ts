@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
  * Autorisation de la page Membres — déplacement PUR des helpers gelés hors de `actions.ts`
  * (mêmes noms, mêmes corps, mêmes messages — cf. self-review de la task standard). Admin
  * (superadmin compris) : tout. Manager : uniquement SES chatters — création rattachée à
- * lui (manager_id), édition/suppression bornées par requireEditableTarget, rôle chatteur
+ * lui (manager_ids), édition/suppression bornées par requireEditableTarget, rôle chatteur
  * forcé, modèles de son périmètre.
  */
 
@@ -104,31 +104,36 @@ async function requireOwnCreators(
 /**
  * Cible éditable : jamais un superadmin (les propriétaires ne se gèrent pas ici) ; une
  * cible admin n'est éditable QUE par un superadmin ; pour un appelant manager,
- * uniquement un compte chatteur de SON équipe (manager_id = lui).
+ * uniquement un compte chatteur de SON équipe (caller.id ∈ manager_ids, 0092).
  */
 export async function requireEditableTarget(
   admin: Admin,
   id: string,
   caller: Profile,
 ): Promise<{ error: string } | { role: string }> {
-  const { data: target } = await admin.from('profiles').select('role, manager_id').eq('id', id).single()
+  const { data: target } = await admin.from('profiles').select('role, manager_ids').eq('id', id).single()
   if (!target) return { error: 'Profil introuvable' }
   if (target.role === 'superadmin') return { error: 'Un propriétaire ne se gère pas depuis cette page' }
   if (target.role === 'admin' && !caller.superadmin) {
     return { error: 'Seul un propriétaire gère les admins' }
   }
-  if (caller.role !== 'admin' && (target.role !== 'chatteur' || target.manager_id !== caller.id)) {
+  if (
+    caller.role !== 'admin' &&
+    (target.role !== 'chatteur' || !(target.manager_ids ?? []).includes(caller.id))
+  ) {
     return { error: "Ce membre n'est pas dans ton équipe" }
   }
   return { role: target.role }
 }
 
-/** Rattachement valide = profil existant de rôle manager (vérif côté admin uniquement). */
-export async function requireManagerTarget(admin: Admin, managerId: string): Promise<string | null> {
-  const { data: mgr } = await admin.from('profiles').select('role').eq('id', managerId).single()
-  return mgr?.role === 'manager' || mgr?.role === 'sous-manager'
-    ? null
-    : 'Rattachement invalide (pas un manager)'
+/** Rattachements valides = CHAQUE id est un profil existant de rôle manager/sous-manager. */
+export async function requireManagerTargets(admin: Admin, managerIds: string[]): Promise<string | null> {
+  if (!managerIds.length) return null
+  const { data: mgrs } = await admin.from('profiles').select('id, role').in('id', managerIds)
+  const ok = new Set(
+    (mgrs ?? []).filter((m) => m.role === 'manager' || m.role === 'sous-manager').map((m) => m.id),
+  )
+  return managerIds.every((id) => ok.has(id)) ? null : 'Rattachement invalide (pas un manager)'
 }
 
 export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
@@ -168,15 +173,15 @@ export async function authorizeRoleAndScope(
 }
 
 /**
- * Valeur de `manager_id` à patcher (null = détaché), ou `undefined` pour ne PAS toucher la
+ * Valeur de `manager_ids` à patcher ('{}' = détaché), ou objet vide pour ne PAS toucher la
  * colonne. Un rôle admin ne porte jamais de rattachement (il voit tout) — nettoyé quelle
- * que soit la face, sinon la fiche promue resterait visible dans la vue équipe de son
- * ex-manager (la policy 0054 ne regarde pas le rôle de la ligne). Sinon le rattachement
+ * que soit la face, sinon la fiche promue resterait visible dans la vue équipe de ses
+ * ex-managers (la policy 0054 ne regarde pas le rôle de la ligne). Sinon le rattachement
  * est un concept de la face chatteurs ; `apply` = false pour un appelant manager en
  * édition (il ne déplace pas un rattachement — la colonne reste préservée).
  */
-export function managerIdPatch(role: Role, scope: 'chatter' | 'marketing', managerId: string, apply: boolean) {
-  if (role === 'admin') return { manager_id: null }
-  if (scope === 'chatter' && apply) return { manager_id: managerId || null }
+export function managerIdsPatch(role: Role, scope: 'chatter' | 'marketing', managerIds: string[], apply: boolean) {
+  if (role === 'admin') return { manager_ids: [] as string[] }
+  if (scope === 'chatter' && apply) return { manager_ids: managerIds }
   return {}
 }

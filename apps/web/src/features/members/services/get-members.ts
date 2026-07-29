@@ -50,7 +50,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_id, closing_role, closing_team, chatter_id, created_at',
+          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, chatter_id, created_at',
         )
         .order('created_at')
         .order('id')
@@ -175,7 +175,7 @@ export async function getMembers(): Promise<MembersData> {
                   : 'chatteur',
       pages: p.pages ?? [],
       creatorIds: byProfile.get(p.id) ?? [],
-      managerId: p.manager_id ?? '',
+      managerIds: p.manager_ids ?? [],
       workLink: p.work_link ?? '',
       closingRole: (p.closing_role ?? null) as CrmRole | null,
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
@@ -183,8 +183,8 @@ export async function getMembers(): Promise<MembersData> {
       createdAt: p.created_at,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────
       // La règle est celle de `requireEditableTarget` (`authz.ts`), recopiée telle quelle :
-      // `caller.role !== 'admin' && (target.role !== 'chatteur' || target.manager_id !==
-      // caller.id)` → refus. Donc admin (superadmin compris, `getProfile` les mappe tous deux
+      // `caller.role !== 'admin' && (target.role !== 'chatteur' || caller.id ∉
+      // target.manager_ids)` → refus. Donc admin (superadmin compris, `getProfile` les mappe tous deux
       // sur `'admin'` — la MÊME valeur que lit `authz.ts`) : tout ; manager/sous-manager :
       // uniquement un `chatteur` qu'il encadre DIRECTEMENT.
       //
@@ -197,7 +197,8 @@ export async function getMembers(): Promise<MembersData> {
       // et la RLS côté base. Aucune décision de sécurité ne repose sur ce booléen.
       // Les deux autres refus de `requireEditableTarget` (cible superadmin, cible admin vue
       // par un non-propriétaire) restent où ils sont déjà traités — `RowActions`.
-      editable: isAdmin || (p.role === 'chatteur' && p.manager_id === caller?.id),
+      editable:
+        isAdmin || (p.role === 'chatteur' && !!caller && (p.manager_ids ?? []).includes(caller.id)),
       // `undefined` (et pas un objet aux défauts) pour un non-admin : c'est ce qui fait que
       // l'onglet n'est pas monté. Les `Number(...)` : PostgREST rend le `numeric` en chaîne.
       pay: isAdmin
