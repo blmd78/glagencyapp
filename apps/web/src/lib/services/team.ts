@@ -11,8 +11,8 @@ export interface VisibleProfile {
 
 /**
  * LA source « qui est dans mon périmètre » — profils visibles par l'utilisateur courant
- * sous RLS (0095) : admin → tout le monde ; manager/sous-manager → TOUS les chatteurs + ses
- * sous-managers + soi (plus d'assignation de chatteurs) ; chatteur → soi.
+ * sous RLS (0097) : admin ET tout encadrant (manager/sous-manager) → TOUT LE MONDE ;
+ * chatteur → soi seul.
  *
  * Tout sélecteur de personnes (options d'un picker) doit partir d'ici, PAS du client admin :
  * la profondeur hiérarchique est définie UNE fois en SQL et héritée partout. Le client admin
