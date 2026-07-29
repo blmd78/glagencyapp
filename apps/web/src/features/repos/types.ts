@@ -1,18 +1,35 @@
 // Types / forme des props de la feature « repos » (planning des jours de repos).
 
-/** Colonnes du planning — reprend les regroupements de la Google Sheet de l'agence. */
-export const REPOS_COLUMNS = [
-  { key: 'g1', label: 'Carla + Alice + Julie', encadrement: false },
-  { key: 'g2', label: 'Lena + Jade', encadrement: false },
-  { key: 'g3', label: 'Sarah + Emma + Claire', encadrement: false },
-  { key: 'g4', label: 'Lucie', encadrement: false },
-  { key: 'g5', label: 'Lola + Mathilde', encadrement: false },
-  { key: 'g6', label: 'Manon + Maeva', encadrement: false },
-  { key: 'managers', label: 'Managers', encadrement: true },
-  { key: 'policiers', label: 'Policiers', encadrement: true },
+/**
+ * Clés possibles des colonnes MODÈLES — DYNAMIQUES depuis 0096 : une colonne n'est rendue que
+ * si sa compo est non vide pour la semaine OU si ses cases de la semaine ont du contenu.
+ * Vider la compo d'une colonne sans repos posés la fait donc disparaître ; « Ajouter une
+ * colonne » (admin, grille) reprend la première clé libre. 12 emplacements — large marge
+ * (miroir de la whitelist SQL de save_repos_cell).
+ */
+export const MODEL_COL_KEYS = [
+  'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12',
 ] as const
 
-export type ReposColKey = (typeof REPOS_COLUMNS)[number]['key']
+/** Libellés legacy de la Google Sheet — fallback des colonnes historiques SANS compo datée
+ *  (les semaines d'avant rest_planning_column_members doivent garder leur en-tête). */
+export const LEGACY_COL_LABELS: Record<string, string> = {
+  g1: 'Carla + Alice + Julie',
+  g2: 'Lena + Jade',
+  g3: 'Sarah + Emma + Claire',
+  g4: 'Lucie',
+  g5: 'Lola + Mathilde',
+  g6: 'Manon + Maeva',
+}
+
+/** Colonnes ENCADREMENT — toujours rendues, écriture admin-only (RPC). */
+export const ENCADREMENT_COLUMNS = [
+  { key: 'managers', label: 'Managers' },
+  { key: 'sous-managers', label: 'Sous-managers' },
+  { key: 'policiers', label: 'Policiers' },
+] as const
+
+export type ReposColKey = (typeof MODEL_COL_KEYS)[number] | (typeof ENCADREMENT_COLUMNS)[number]['key']
 
 export const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const
 
@@ -65,6 +82,8 @@ export interface ReposData {
   chatterOptions: EntityOption[]
   /** Profils rôle manager (uniquement) — options de la colonne « Managers ». */
   managerOptions: EntityOption[]
+  /** Profils rôle sous-manager (uniquement) — options de la colonne « Sous-managers ». */
+  sousManagerOptions: EntityOption[]
   /** Profils rôle police (uniquement) — options de la colonne « Policiers ». */
   policierOptions: EntityOption[]
   sentTelegram: boolean

@@ -9,6 +9,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
+import { MODEL_COL_KEYS } from './types'
 import {
   BusinessError,
   runAction,
@@ -68,7 +69,7 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
 
 // Édition de la compo (MODÈLES) d'une colonne — réservée admin (garde back + policy RLS is_admin).
 const colMembersInput = z.object({
-  col: z.enum(['g1', 'g2', 'g3', 'g4', 'g5', 'g6']), // colonnes modèles uniquement
+  col: z.enum(MODEL_COL_KEYS), // colonnes modèles uniquement (g1..g12, miroir SQL 0096)
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   creatorIds: z.array(z.uuid()).max(50),
 })
