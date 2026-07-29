@@ -46,6 +46,8 @@ export interface Member {
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string
+  /** Nom du profil qui a créé le membre (0098) — null : compte trigger/antérieur → « — ». */
+  createdByName: string | null
   /** L'appelant peut-il MODIFIER/SUPPRIMER cette ligne ? Calqué sur `requireEditableTarget`
    *  (`authz.ts`), calculé côté serveur dans `get-members.ts` : admin → tout ; manager →
    *  n'importe quel compte `chatteur` (0095, plus d'assignation).

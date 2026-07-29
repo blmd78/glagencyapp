@@ -49,7 +49,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, chatter_id, created_at',
+          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, chatter_id, created_at, created_by',
         )
         .order('created_at')
         .order('id')
@@ -153,6 +153,9 @@ export async function getMembers(): Promise<MembersData> {
     if (arr) arr.push(l.creator_id)
     else byProfile.set(l.profile_id, [l.creator_id])
   }
+  // Résolution « Créé par » : le créateur est un profil de la même liste (0097 : un
+  // encadrant voit tout le monde) — créateur supprimé ou colonne pré-0098 → null → « — ».
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.display_name ?? p.email ?? '—']))
   const members: Member[] = (profiles ?? []).map((p) => {
     const s = settingsById.get(p.id)
     const prime = primeById.get(p.id)
@@ -180,6 +183,7 @@ export async function getMembers(): Promise<MembersData> {
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
       chatterId: p.chatter_id ?? '',
       createdAt: p.created_at,
+      createdByName: p.created_by ? (nameById.get(p.created_by) ?? '—') : null,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────
       // La règle est celle de `requireEditableTarget` (`authz.ts`), recopiée telle quelle :
       // admin (superadmin compris) → tout ; manager/sous-manager → n'importe quel CHATTEUR

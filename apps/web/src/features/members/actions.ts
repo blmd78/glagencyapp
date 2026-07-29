@@ -105,6 +105,8 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // n'est pas setter/closer). Cf. 0077 — attribut porté par le membre, indépendant de chatters.
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
+          // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
+          created_by: caller.id,
           ...managerIdsPatch(role, scope, managerIds, true),
         })
         .eq('id', uid)

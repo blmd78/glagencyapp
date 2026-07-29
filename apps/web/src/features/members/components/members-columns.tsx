@@ -274,6 +274,14 @@ export function buildMembersColumns({
     },
     ...modelsColumn,
     {
+      id: 'createdBy',
+      accessorFn: (m) => m.createdByName ?? '',
+      header: ({ column }) => <Sortable column={column} label="Créé par" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.createdByName ?? '—'}</span>
+      ),
+    },
+    {
       accessorKey: 'createdAt',
       header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
       cell: ({ getValue }) => (
