@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { ROLE_NAME } from '@/lib/roles'
 import type { MemberForm } from '../schema'
+import { ATTACHABLE_ROLES, canBeAttached } from '../types'
 
 /**
  * Rôle + rattachement manager — réservés à un appelant admin (le manager a son rôle/
@@ -65,25 +66,21 @@ export function MemberAccessFields({
         )}
       />
 
-      {/* Un rôle MANAGER ne porte jamais de rattachement (haut de la hiérarchie) — même
-          règle qu'admin, vidé côté serveur (managerIdsPatch). */}
-      {scope === 'chatter' && roleValue !== 'admin' && roleValue !== 'manager' && (
+      {/* Champ affiché seulement pour un rôle rattachable — la règle (qui, à qui) vit dans
+          ATTACHABLE_ROLES (types.ts, source unique), miroir exact de la validation serveur. */}
+      {scope === 'chatter' && canBeAttached(roleValue) && (
         <Controller
           name="managerIds"
           control={control}
           render={({ field }) => {
-            const options =
-              roleValue === 'sous-manager'
-                ? attachables.filter((m) => m.role === 'manager')
-                : attachables
+            const options = attachables.filter((m) => ATTACHABLE_ROLES[roleValue].includes(m.role))
             return (
             <div className="grid gap-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Managers (rattachement)
               </label>
-              {/* MULTIPLE (0092) : un membre peut dépendre de plusieurs encadrants.
-                  Un SOUS-MANAGER ne se rattache qu'à des MANAGERS (pas de chaîne de
-                  sous-managers) ; un chatteur/police, aux deux. */}
+              {/* MULTIPLE (0092) : un membre peut dépendre de plusieurs encadrants —
+                  options filtrées par ATTACHABLE_ROLES selon le rôle choisi. */}
               <ComboboxMultiple
                 trigger={
                   <Button

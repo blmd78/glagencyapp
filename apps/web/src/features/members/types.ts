@@ -67,3 +67,23 @@ export interface MembersData {
   /** Chatteurs MyPuls sélectionnables pour le lien (admin/superadmin). */
   chatters: { id: string; name: string }[]
 }
+
+/** Rôle posable via le dialog Membres (miroir du schéma Zod — `superadmin` jamais posé ici). */
+export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
+
+/**
+ * SOURCE UNIQUE « qui est rattachable à qui » (0092) — la règle ne se définit qu'ici, les
+ * trois couches ne font que la LIRE : le sélecteur du dialog (affichage du champ + options),
+ * la validation serveur (`requireManagerTargets`) et le patch d'écriture (`managerIdsPatch`).
+ * Tableau vide = ce rôle ne porte JAMAIS de rattachement (haut de hiérarchie).
+ */
+export const ATTACHABLE_ROLES: Record<Role, readonly string[]> = {
+  chatteur: ['manager', 'sous-manager'],
+  police: ['manager', 'sous-manager'],
+  'sous-manager': ['manager'],
+  manager: [],
+  admin: [],
+}
+
+/** Ce rôle peut-il porter un rattachement ? (dérivé de la source unique ci-dessus) */
+export const canBeAttached = (role: Role) => ATTACHABLE_ROLES[role].length > 0

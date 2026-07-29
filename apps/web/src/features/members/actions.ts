@@ -16,6 +16,7 @@ import {
   syncAssignments,
 } from './authz'
 import { memberInput, memberUpdateInput } from './schema'
+import { canBeAttached } from './types'
 
 /**
  * Mutations de la page Membres. Toutes : zod → autorisation applicative → client SERVICE-ROLE
@@ -62,8 +63,8 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       const admin = createAdminClient()
       // Rattachements choisis par un admin : chaque cible doit être valide pour le rôle (un
       // appelant manager est déjà forcé sur lui-même, garanti manager par requireCaller).
-      // Inutile pour un rôle admin/manager (managerIdsPatch le vide de toute façon).
-      if (role !== 'admin' && role !== 'manager' && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
+      // Inutile pour un rôle non rattachable (managerIdsPatch le vide de toute façon).
+      if (canBeAttached(role) && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
         const mErr = await requireManagerTargets(admin, managerIds, role)
         if (mErr) throw new BusinessError(mErr)
       }
@@ -155,8 +156,8 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
       if ('error' in target) throw new BusinessError(target.error)
-      // Cf. createMember : on ne valide pas un rattachement qui sera vidé (rôle admin/manager).
-      if (role !== 'admin' && role !== 'manager' && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
+      // Cf. createMember : on ne valide pas un rattachement qui sera vidé (rôle non rattachable).
+      if (canBeAttached(role) && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
         const mErr = await requireManagerTargets(admin, managerIds, role)
         if (mErr) throw new BusinessError(mErr)
       }
