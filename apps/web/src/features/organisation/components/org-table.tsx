@@ -116,8 +116,6 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
   const [pending, startTransition] = useTransition()
   // Overrides optimistes par case `${creatorId}:${shift}` → ids affichés (cases seulement).
   const [overrides, setOverrides] = useState<Record<string, string[]>>({})
-  // Brouillon « Ajouter une ligne » par manager : owner ('direct' | smId) posé, puis modèle.
-  const [drafts, setDrafts] = useState<Record<string, { owner: string }>>({})
   const nameById = new Map(data.chatterOptions.map((o) => [o.id, o.name]))
 
   const cellIds = (creatorId: string, shift: CrmShift, server: OrgChatter[]) =>
@@ -153,8 +151,10 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
       </span>
     ))
 
-  const rowCount = 7
+  const rowCount = 8
   const DIRECT = { id: 'direct', name: 'direct (manager)' }
+  // Brouillon global « Ajouter une ligne » (un seul bouton, en pied de tableau).
+  const [draft, setDraft] = useState<{ manager: string; owner: string } | null>(null)
 
   return (
     <div className="overflow-x-auto rounded-xl border">
@@ -170,6 +170,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
               </th>
             ))}
             <th className="px-3 py-2 text-right">Total</th>
+            <th className="w-8 px-1 py-2" />
           </tr>
         </thead>
         <tbody>
@@ -232,39 +233,24 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                     />
                   </td>
                   <td className="p-1 px-2 align-top">
-                    <div className="flex items-start gap-1">
-                      <ChipSelect
-                        value={r.creatorId}
-                        label={r.modelName}
-                        options={data.modelOptions}
-                        chipClass={CHIP_VIOLET}
-                        editable={isAdmin}
-                        disabled={pending}
-                        onSelect={(v) =>
-                          run(() =>
-                            saveOrgRow({
-                              ownerId: r.ownerId,
-                              creatorId: v,
-                              prevOwnerId: r.ownerId,
-                              prevCreatorId: r.creatorId,
-                            }),
-                          )
-                        }
-                      />
-                      {isAdmin && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6 shrink-0 text-muted-foreground hover:text-red-600"
-                          aria-label={`Retirer la ligne ${r.modelName}`}
-                          title="Retirer la ligne (l’encadrant perd le modèle — les chatters ne bougent pas)"
-                          disabled={pending}
-                          onClick={() => run(() => deleteOrgRow({ ownerId: r.ownerId, creatorId: r.creatorId }))}
-                        >
-                          <X className="size-3.5" />
-                        </Button>
-                      )}
-                    </div>
+                    <ChipSelect
+                      value={r.creatorId}
+                      label={r.modelName}
+                      options={data.modelOptions}
+                      chipClass={CHIP_VIOLET}
+                      editable={isAdmin}
+                      disabled={pending}
+                      onSelect={(v) =>
+                        run(() =>
+                          saveOrgRow({
+                            ownerId: r.ownerId,
+                            creatorId: v,
+                            prevOwnerId: r.ownerId,
+                            prevCreatorId: r.creatorId,
+                          }),
+                        )
+                      }
+                    />
                     {r.sansShift.length > 0 && (
                       <div
                         className="mt-1 text-xs text-muted-foreground"
@@ -327,6 +313,21 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                     )
                   })}
                   <td className="px-3 py-2 text-right tabular-nums">{r.total}</td>
+                  <td className="px-1 py-2 text-right align-top">
+                    {isAdmin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground/50 hover:text-red-600"
+                        aria-label={`Retirer la ligne ${r.modelName}`}
+                        title="Retirer la ligne (l’encadrant perd le modèle — les chatters ne bougent pas)"
+                        disabled={pending}
+                        onClick={() => run(() => deleteOrgRow({ ownerId: r.ownerId, creatorId: r.creatorId }))}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {section.rows.length === 0 && (
@@ -341,83 +342,81 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                   </td>
                 </tr>
               )}
-              {isAdmin && (
-                <tr className="border-t">
-                  <td colSpan={rowCount} className="p-1">
-                    {drafts[section.managerId] ? (
-                      <div className="flex items-center gap-2 px-2 py-1">
-                        <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_GREEN)}>
-                          {section.managerName}
-                        </span>
-                        <ChipSelect
-                          value={drafts[section.managerId].owner}
-                          label={
-                            drafts[section.managerId].owner === 'direct'
-                              ? 'direct'
-                              : (data.sousManagerOptions.find((o) => o.id === drafts[section.managerId].owner)?.name ?? null)
-                          }
-                          options={[DIRECT, ...data.sousManagerOptions]}
-                          chipClass={drafts[section.managerId].owner === 'direct' ? 'bg-muted text-muted-foreground' : CHIP_GREEN}
-                          editable
-                          onSelect={(v) => setDrafts((d) => ({ ...d, [section.managerId]: { owner: v } }))}
-                        />
-                        <ChipSelect
-                          value={null}
-                          label={null}
-                          options={data.modelOptions}
-                          chipClass={CHIP_VIOLET}
-                          editable
-                          placeholder="Rechercher un modèle…"
-                          onSelect={(creator) => {
-                            const owner = drafts[section.managerId].owner
-                            setDrafts((d) => {
-                              const c = { ...d }
-                              delete c[section.managerId]
-                              return c
-                            })
-                            run(() =>
-                              saveOrgRow({
-                                ownerId: owner === 'direct' ? section.managerId : owner,
-                                creatorId: creator,
-                                prevOwnerId: null,
-                                prevCreatorId: null,
-                              }),
-                            )
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-6"
-                          aria-label="Annuler l’ajout"
-                          onClick={() =>
-                            setDrafts((d) => {
-                              const c = { ...d }
-                              delete c[section.managerId]
-                              return c
-                            })
-                          }
-                        >
-                          <X className="size-3.5" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1.5 text-muted-foreground"
-                        disabled={pending}
-                        onClick={() => setDrafts((d) => ({ ...d, [section.managerId]: { owner: 'direct' } }))}
-                      >
-                        <Plus className="size-3.5" />
-                        Ajouter une ligne
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              )}
             </Fragment>
           ))}
+          {isAdmin && (
+            <tr className="border-t-2">
+              <td colSpan={rowCount} className="p-1">
+                {draft ? (
+                  <div className="flex flex-wrap items-center gap-2 px-2 py-1">
+                    <ChipSelect
+                      value={draft.manager || null}
+                      label={data.managerOptions.find((m) => m.id === draft.manager)?.name ?? null}
+                      options={data.managerOptions}
+                      chipClass={CHIP_GREEN}
+                      editable
+                      placeholder="Rechercher un manager…"
+                      onSelect={(m) => setDraft({ manager: m, owner: draft.owner })}
+                    />
+                    <ChipSelect
+                      value={draft.owner}
+                      label={
+                        draft.owner === 'direct'
+                          ? 'direct'
+                          : (data.sousManagerOptions.find((o) => o.id === draft.owner)?.name ?? null)
+                      }
+                      options={[DIRECT, ...data.sousManagerOptions]}
+                      chipClass={draft.owner === 'direct' ? 'bg-muted text-muted-foreground' : CHIP_GREEN}
+                      editable
+                      placeholder="Rechercher un sous-manager…"
+                      onSelect={(v) => setDraft({ manager: draft.manager, owner: v })}
+                    />
+                    <ChipSelect
+                      value={null}
+                      label={null}
+                      options={data.modelOptions}
+                      chipClass={CHIP_VIOLET}
+                      editable
+                      disabled={!draft.manager}
+                      placeholder="Rechercher un modèle…"
+                      onSelect={(creator) => {
+                        const d = draft
+                        setDraft(null)
+                        run(() =>
+                          saveOrgRow({
+                            ownerId: d.owner === 'direct' ? d.manager : d.owner,
+                            creatorId: creator,
+                            prevOwnerId: null,
+                            prevCreatorId: null,
+                          }),
+                        )
+                      }}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6"
+                      aria-label="Annuler l’ajout"
+                      onClick={() => setDraft(null)}
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground"
+                    disabled={pending}
+                    onClick={() => setDraft({ manager: data.sections[0]?.managerId ?? '', owner: 'direct' })}
+                  >
+                    <Plus className="size-3.5" />
+                    Ajouter une ligne
+                  </Button>
+                )}
+              </td>
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
