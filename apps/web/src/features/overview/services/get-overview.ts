@@ -75,14 +75,17 @@ export async function getOverview(
             if (error) throw new Error(error.message)
             return new Set((data ?? []).map((r) => r.chatter_id).filter(Boolean))
           })
-        : supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('role', 'chatteur')
-            .then(({ count, error }) => {
-              if (error) throw new Error(error.message)
-              return count ?? 0
-            }),
+        : fetchAll((f, t) =>
+            supabase
+              .from('profiles')
+              .select('id, chatter_id')
+              .eq('role', 'chatteur')
+              .order('id')
+              .range(f, t),
+          ).then(({ data, error }) => {
+            if (error) throw new Error(error.message)
+            return (data ?? []).map((m) => m.chatter_id)
+          }),
     ])
 
   if (creatorsErr) throw new Error(creatorsErr.message)
@@ -133,19 +136,39 @@ export async function getOverview(
 
   // Chatteurs : actifs, CA moyen et commission. Com = 10 % du CA en dur (cf. spec design —
   // à remplacer par la config de barème quand elle existera).
+  //
+  // TOUS les KPIs « personnes » se calculent sur les MEMBRES rôle chatteur (demande Benoit
+  // 2026-07-29 : « des vraies données ») : le CA d'un membre se lit via son lien MyPuls
+  // (profiles.chatter_id → by_chatter) ; membre non lié ou sans donnée = 0 € (donc actif non,
+  // et sous les 200 € de com — c'est la vérité). En restricted (chatteur, profiles self-only
+  // sous RLS), on garde l'ancien calcul par comptes MyPuls scopés à ses modèles.
   const COM_RATE = 0.1
   const COM_FLOOR = 200
   const caByChatter = new Map<string, number>()
   for (const r of rep.by_chatter) caByChatter.set(r.chatter_id, Number(r.ca) || 0)
-  const activeCas = [...caByChatter.values()].filter((v) => v > 0)
-  const active = activeCas.length
-  const avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
-  const lowCom = [...caByChatter.values()].filter((v) => v * COM_RATE < COM_FLOOR).length
-  // Y du KPI « Chatteurs actifs X / Y » : admin/encadrant = MEMBRES rôle chatteur (effectif
-  // réel) ; restricted = liaisons actives ∪ chatteurs avec CA sur la période — X ≤ Y garanti.
-  const withCa = [...caByChatter.entries()].filter(([, v]) => v > 0).map(([id]) => id)
-  const totalChatters =
-    typeof denomBase === 'number' ? denomBase : new Set([...denomBase, ...withCa]).size
+  let active: number
+  let avgCa: number
+  let totalChatters: number
+  let lowCom: number
+  let lowComDen: number
+  if (denomBase instanceof Set) {
+    // Restricted : ids MyPuls des liaisons actives ∪ chatteurs avec CA (X ≤ Y garanti).
+    const activeCas = [...caByChatter.values()].filter((v) => v > 0)
+    active = activeCas.length
+    avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
+    const withCa = [...caByChatter.entries()].filter(([, v]) => v > 0).map(([id]) => id)
+    totalChatters = new Set([...denomBase, ...withCa]).size
+    lowCom = [...caByChatter.values()].filter((v) => v * COM_RATE < COM_FLOOR).length
+    lowComDen = caByChatter.size
+  } else {
+    const cas = denomBase.map((chatterId) => (chatterId ? (caByChatter.get(chatterId) ?? 0) : 0))
+    const actives = cas.filter((v) => v > 0)
+    active = actives.length
+    avgCa = active ? actives.reduce((s, v) => s + v, 0) / active : 0
+    totalChatters = cas.length
+    lowCom = cas.filter((v) => v * COM_RATE < COM_FLOOR).length
+    lowComDen = cas.length
+  }
 
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
@@ -155,7 +178,7 @@ export async function getOverview(
     // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
     ...(restricted
       ? []
-      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(caByChatter.size)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'chatters sous le seuil' } satisfies Kpi]),
+      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(lowComDen)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'membres rôle chatter sous le seuil' } satisfies Kpi]),
   ]
 
   // Insights : vides tant que le moteur de règles @glagency/core n'est pas branché.
