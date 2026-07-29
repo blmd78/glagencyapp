@@ -1,10 +1,10 @@
 import { createAdminClient } from '@glagency/db'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
-import { ORG_STATUSES, type OrgChatter, type OrgRow, type OrgSection, type OrgStatus, type OrganisationData } from '../types'
+import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
 
 /**
- * Le board d'orga, DÉRIVÉ des données existantes (une seule saisie propre : le statut) :
+ * Le board d'orga, DÉRIVÉ des données existantes (AUCUNE saisie propre) :
  *   manager → ses sous-managers (rattachement `manager_ids`) → leurs modèles
  *   (`profile_creators`) → les chatters assignés à chaque modèle, groupés par shift
  *   (fiche chatteur MyPuls via le lien `profiles.chatter_id`).
@@ -19,7 +19,7 @@ import { ORG_STATUSES, type OrgChatter, type OrgRow, type OrgSection, type OrgSt
 export async function getOrganisation(): Promise<OrganisationData> {
   const admin = createAdminClient()
 
-  const [profilesRes, creatorsRes, assignRes, chattersRes, statusRes] = await Promise.all([
+  const [profilesRes, creatorsRes, assignRes, chattersRes] = await Promise.all([
     // fetchAll partout : tables sans purge, cap PostgREST silencieux (guidelines §2).
     fetchAll((f, t) =>
       admin
@@ -39,13 +39,11 @@ export async function getOrganisation(): Promise<OrganisationData> {
         .range(f, t),
     ),
     fetchAll((f, t) => admin.from('chatters').select('id, shift').order('id').range(f, t)),
-    admin.from('org_model_status').select('creator_id, status'),
   ])
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)
   if (assignRes.error) throw new Error(assignRes.error.message)
   if (chattersRes.error) throw new Error(chattersRes.error.message)
-  if (statusRes.error) throw new Error(statusRes.error.message)
 
   const profiles = profilesRes.data
   const creators = creatorsRes.data ?? []
@@ -56,11 +54,6 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const shiftByMypuls = new Map(chattersRes.data.map((c) => [c.id, c.shift]))
   const isShift = (v: string | null | undefined): v is CrmShift =>
     !!v && (CRM_SHIFTS as readonly string[]).includes(v)
-  const isStatus = (v: string | null): v is OrgStatus =>
-    !!v && (ORG_STATUSES as readonly string[]).includes(v)
-  const statusByModel = new Map(
-    (statusRes.data ?? []).map((r) => [r.creator_id, isStatus(r.status) ? r.status : null]),
-  )
 
   // Modèles par profil et chatters (membres) par modèle.
   const modelsByProfile = new Map<string, string[]>()
@@ -103,7 +96,6 @@ export async function getOrganisation(): Promise<OrganisationData> {
       byShift,
       sansShift,
       total: all.length,
-      status: statusByModel.get(creatorId) ?? null,
     }
   }
 

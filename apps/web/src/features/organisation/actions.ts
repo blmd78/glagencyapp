@@ -11,7 +11,6 @@ import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { CRM_SHIFTS } from '@/lib/types/chatters'
 import { runAction, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
-import { ORG_STATUSES } from './types'
 
 const cellInput = z.object({
   creatorId: z.uuid(),
@@ -86,32 +85,6 @@ export async function saveOrgCell(raw: unknown): Promise<ActionResult> {
 
       revalidatePath('/chatter/organisation')
       revalidatePath('/chatter/members')
-    },
-  })
-}
-
-const statusInput = z.object({
-  creatorId: z.uuid(),
-  status: z.enum(ORG_STATUSES).nullable(),
-})
-
-/** Statut de la ligne modèle (✅/⭐/⚠️ ou aucun) — seule donnée propre au board (0099). */
-export async function saveOrgStatus(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: statusInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (values) => {
-      const profile = await requireAdminProfile()
-      const admin = createAdminClient()
-      const { error } = await admin.from('org_model_status').upsert({
-        creator_id: values.creatorId,
-        status: values.status,
-        updated_at: new Date().toISOString(),
-        updated_by: profile.id,
-      })
-      if (error) throw new Error(error.message)
-      revalidatePath('/chatter/organisation')
     },
   })
 }

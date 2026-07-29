@@ -1,14 +1,12 @@
 // Types de la feature « Organisation » (catégorie Équipe) — le board d'orga de l'agence,
-// IDENTIQUE à la Google Sheet : Manager | Sous-manager | Modèle | Shift matin | Après-midi |
-// Soir | Total | Statut. Éditable comme le planning repos (cases ComboboxMultiple), en
+// IDENTIQUE à la Google Sheet : Manager | Manager 2 | Modèle | Shift matin | Après-midi |
+// Soir | Total chatteurs. Éditable comme le planning repos (cases ComboboxMultiple), en
 // WRITE-THROUGH : les cases écrivent les VRAIES données (profile_creators + chatters.shift),
 // jamais une copie — Membres/Chatters et ce board restent une seule et même vérité.
+// Colonnes et COULEURS identiques au fichier d'origine (matin #F4CCCC, après-midi #D9EAD3,
+// soir #C9DAF8), sans la colonne Statut (retirée à la demande de Benoit).
 
 import type { CrmShift } from '@/lib/types/chatters'
-
-/** Statut d'une ligne modèle (sheet : ✅ validé / ⭐ / ⚠️) — seule donnée propre au board. */
-export const ORG_STATUSES = ['valide', 'star', 'attention'] as const
-export type OrgStatus = (typeof ORG_STATUSES)[number]
 
 /** Un chatteur affiché dans une case : shift résolu via son lien MyPuls. */
 export interface OrgChatter {
@@ -30,7 +28,6 @@ export interface OrgRow {
   /** Chatters du modèle sans shift (non liés ou shift vide) — « à placer ». */
   sansShift: OrgChatter[]
   total: number
-  status: OrgStatus | null
 }
 
 /** Un groupe = un manager (cellule fusionnée sur ses lignes, comme la sheet). */

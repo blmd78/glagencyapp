@@ -1552,42 +1552,6 @@ export type Database = {
           },
         ]
       }
-      org_model_status: {
-        Row: {
-          creator_id: string
-          status: string | null
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          creator_id: string
-          status?: string | null
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          creator_id?: string
-          status?: string | null
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "org_model_status_creator_id_fkey"
-            columns: ["creator_id"]
-            isOneToOne: true
-            referencedRelation: "creators"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "org_model_status_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       police_entries: {
         Row: {
           amount_eur: number
