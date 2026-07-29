@@ -2,6 +2,9 @@
 
 import { useEffect, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
+import { Copy } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -10,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { createClient } from '@/lib/supabase/client'
+import { copyReposWeek } from '../actions'
 import { PlanningGrid } from './planning-grid'
 import type { ReposData } from '../types'
 
@@ -71,6 +75,21 @@ export function ReposView({
     startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
 
+  // « Copier la semaine précédente » (0093) : admin, et seulement quand la semaine AFFICHÉE
+  // est sans contenu — le RPC refuse de toute façon d'écraser (garde serveur, ce test n'est
+  // que de l'affichage). Cases vestigielles vides ignorées, comme côté SQL.
+  const weekIsEmpty = Object.values(data.cells).every((byCol) =>
+    Object.values(byCol).every((c) => c.chatterIds.length === 0 && c.names === ''),
+  )
+  const copyPreviousWeek = () => {
+    startTransition(async () => {
+      const res = await copyReposWeek({ weekStart: data.weekStart })
+      if (!res.success) toast.error(res.error)
+      else if (res.data === 0) toast.info('La semaine précédente est vide — rien à copier')
+      else toast.success(`${res.data} case(s) copiée(s) depuis la semaine précédente`)
+    })
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -80,7 +99,13 @@ export function ReposView({
             Jours de repos des chatters par équipe · {data.weekLabel}
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {isAdmin && weekIsEmpty && (
+            <Button variant="outline" size="sm" onClick={copyPreviousWeek} disabled={pending} className="gap-1.5">
+              <Copy className="size-3.5" />
+              Copier la semaine précédente
+            </Button>
+          )}
           <Select value={data.weekStart} onValueChange={selectWeek} disabled={pending}>
             <SelectTrigger className="h-9 w-64 text-sm tabular-nums">
               <SelectValue />

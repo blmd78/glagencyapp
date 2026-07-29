@@ -2381,6 +2381,7 @@ export type Database = {
           username: string
         }[]
       }
+      copy_repos_week: { Args: { p_to: string }; Returns: number }
       crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
       has_page: { Args: { slug: string }; Returns: boolean }
       health_report: {
