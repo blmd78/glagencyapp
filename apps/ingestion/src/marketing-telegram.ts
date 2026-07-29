@@ -1,4 +1,4 @@
-import { createAdminClient, fetchAll } from '@glagency/db'
+import { createAdminClient } from '@glagency/db'
 
 /**
  * Pipeline MARKETING-TELEGRAM : canaux Telegram → mkt_social_daily, via les pages
@@ -82,25 +82,19 @@ export async function runMarketingTelegram(): Promise<TelegramRunSummary> {
     return { status: 'ok', channels: 0, scraped: 0, missing: [], updatedDaily: 0, warnings }
   }
 
-  // fetchAll (remplace le `.limit(1000)`, qui collait pile le plafond serveur PostgREST —
-  // silencieux au-delà) : `.order('date', desc)` garde la sémantique « premier vu par
-  // compte = son relevé le plus récent » exploitée par la réduction ci-dessous ;
-  // `.order('account_id')` en tiebreaker rend l'ordre total déterministe (grain de la PK =
-  // account_id, date, migration 0018) sans changer quelle ligne est retenue par compte.
-  const { data: prevRows } = await fetchAll((f, t) =>
-    db
-      .from('mkt_social_daily')
-      .select('account_id, date, followers, views_total')
-      .in('account_id', channels.map((c) => c.id))
-      .lt('date', date)
-      .order('date', { ascending: false })
-      .order('account_id')
-      .range(f, t),
-  )
+  // RPC `distinct on` (0089) : le dernier relevé antérieur PAR compte en 1 sous-requête —
+  // même bascule que marketing-social.ts (5c3b948). Le fetchAll rapatriait TOUT l'historique
+  // (ceil(N/1000) sous-requêtes, croissant sans borne) pour n'en garder qu'une ligne par
+  // compte, ET avalait son erreur (pagination interrompue = deltas calculés sur un instantané
+  // partiel, en silence). Ce pipeline tourne sur le Worker Cloudflare (cron, budget 50
+  // sous-requêtes/invocation) : la dérive aurait fini par mordre.
+  const { data: prevRows, error: pErr } = await db.rpc('mkt_social_prev_snapshot', {
+    account_ids: channels.map((c) => c.id),
+    before_date: date,
+  })
+  if (pErr) throw new Error(`mkt_social_daily lecture : ${pErr.message}`)
   const prev = new Map<string, { followers: number | null; viewsTotal: number | null }>()
-  for (const r of prevRows ?? []) {
-    if (!prev.has(r.account_id)) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
-  }
+  for (const r of prevRows ?? []) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
 
   const rows: {
     account_id: string
