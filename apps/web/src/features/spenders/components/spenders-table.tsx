@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { TeamBadge } from '@/components/team-badge'
@@ -68,21 +69,23 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
     ),
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        {/* Pseudo cliquable → conversation MyPuls (switch-creator + focus conversation, format
-            de l'ancien gla-workflow) : évite le copier-coller du pseudo à chaque relance.
-            Sans id MyPuls (modèle hors assignation RLS, ou non mappé) : pseudo à plat. */}
-        {row.original.mypulsCreatorId ? (
+        <span className="truncate font-medium">{row.original.username}</span>
+        {/* Icône À CÔTÉ du pseudo (choix Benoit — pas le pseudo lui-même en lien) → ouvre la
+            conversation MyPuls (switch-creator + focus, format de l'ancien gla-workflow) :
+            évite le copier-coller à chaque relance. Présente sur les deux vues (liste et
+            tracker), la colonne est commune. Sans id MyPuls (modèle hors assignation RLS,
+            ou non mappé) : pas d'icône. */}
+        {row.original.mypulsCreatorId && (
           <a
             href={`https://mypuls.app/switch-creator/${row.original.mypulsCreatorId}?fc=${row.original.fanId}`}
             target="_blank"
             rel="noreferrer noopener"
-            className="truncate font-medium underline-offset-2 hover:underline"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
             title="Ouvrir la conversation MyPuls"
+            aria-label={`Ouvrir la conversation MyPuls de ${row.original.username}`}
           >
-            {row.original.username}
+            <ExternalLink className="size-3.5" />
           </a>
-        ) : (
-          <span className="truncate font-medium">{row.original.username}</span>
         )}
         {row.original.hasUnread && (
           <span className="size-2 shrink-0 rounded-full bg-blue-500" title="Message non lu" />
