@@ -10,11 +10,10 @@ import { loadPeriodCa } from './compta-ca'
  * assemble les fiches) pour tenir les deux fichiers sous 300 lignes (CLAUDE.md) et parce que
  * c'est une frontière nette : ici les requêtes et le POURQUOI de chacune, là le calcul.
  *
- * Le cloisonnement est porté par la RLS (0085) : admin → tout, manager/sous-manager → ses
- * rattachés directs. SAUF le CA, la date d'entrée et les noms de modèles, lus par client
- * ADMIN et cadrés côté application — et SAUF la population elle-même, dont la RLS est
- * transitive depuis 0087 et que le filtre `manager_ids` de l'ancre re-borne aux directs. Les
- * deux exceptions sont détaillées au commentaire de l'ancre, plus bas.
+ * Le cloisonnement est porté par la RLS : admin → tout ; manager/sous-manager → TOUS les
+ * chatteurs (0095, plus d'assignation — la page compta est le droit d'accès). SAUF le CA,
+ * la date d'entrée et les noms de modèles, lus par client ADMIN et cadrés côté application
+ * sur ce que l'ancre (population) a renvoyé.
  */
 
 /**
@@ -47,35 +46,21 @@ export async function loadComptaSources({
   // et derrière `requireAdminProfile` côté paiement : on préfère lever plutôt que construire une
   // requête dont le filtre de périmètre serait vide.
   if (!profile) throw new Error('Session expirée')
-  const isAdmin = profile.role === 'admin'
 
   // La population vient de `profiles` (rôle chatteur), pas de `chatters` : c'est le MEMBRE
   // qu'on paie (0085). 96 lignes sur l'UAT — loin du plafond PostgREST.
   //
-  // ⚠️ CETTE LECTURE EST L'ANCRE DE SÉCURITÉ DE TOUT LE FICHIER, et depuis 0087 elle ne peut
-  // plus s'en remettre à la seule RLS. La policy `profiles_self_admin_or_team_read` est
-  // désormais TRANSITIVE : `id = auth.uid() or is_admin() or (is_manager() and id = any(array(
-  // select managed_subtree())))` — un manager y lit donc TOUT son sous-arbre, les chatteurs de
-  // ses sous-managers compris, là où elle rendait ses seuls rattachés directs avant 0087.
-  //
-  // Le `.contains('manager_ids', …)` ci-dessous RE-BORNE la compta aux rattachés DIRECTS, À
-  // DESSEIN (0092 : rattachement MULTIPLE — « direct » = l'appelant figure dans manager_ids) :
-  // le périmètre de PAIE reste direct (décision de la spec compta — un manager gère SES
-  // chatteurs). La transitivité de 0087 ne vaut que pour VOIR (dashboard, membres, comptes
-  // rendus). Toutes les AUTRES lectures de ce fichier — `compta_settings`, `compta_rates`,
-  // `compta_primes`, `compta_payments`, `compta_day_entries`, `compta_week_entries` — sont
-  // restées sur `manages()`, direct-only (0085, intouchée par 0087). Sans ce filtre, un manager
-  // verrait donc les chatteurs de ses sous-managers avec un net FAUX et SILENCIEUX : taux
-  // retombé sur le fallback 10 %, fixe 0, périodes réglées affichées « non payé ».
-  //
-  // Les lectures par client ADMIN plus bas se cadrent TOUTES sur ce que cette requête a
-  // renvoyé — ne jamais les élargir au-delà.
-  let membersQuery = supabase
+  // CETTE LECTURE EST L'ANCRE DE SÉCURITÉ DE TOUT LE FICHIER : les lectures par client ADMIN
+  // plus bas se cadrent TOUTES sur ce qu'elle a renvoyé — ne jamais les élargir au-delà.
+  // Depuis 0095 (« plus d'assignation de chatteurs »), la population d'un encadrant porteur
+  // de la page compta = TOUS les chatteurs (RLS profiles : chatteurs ouverts à is_manager(),
+  // et `manages()` — les écritures compta — alignée pareil). Le droit d'accès à la surface
+  // reste la PAGE (`requireAccess('compta')` / can_write_page).
+  const membersQuery = supabase
     .from('profiles')
     .select('id, display_name, email, role, chatter_id')
     .eq('role', 'chatteur')
     .order('display_name')
-  if (!isAdmin) membersQuery = membersQuery.contains('manager_ids', [profile.id])
 
   const [
     { data: members, error: membersErr },

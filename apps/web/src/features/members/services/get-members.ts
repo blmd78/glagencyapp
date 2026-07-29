@@ -14,9 +14,8 @@ const DEFAULT_FIXED = 0
 
 /**
  * Liste des membres + modèles assignables (page admin OU manager). La RLS filtre par
- * appelant (0054, élargie en 0087) : admin = tout, manager = lui-même + TOUT son sous-arbre
- * (ses sous-managers ET les chatteurs de ceux-ci) — mais VOIR n'est pas ÉDITER : l'écriture
- * reste bornée à ses rattachés DIRECTS (`authz.ts`, inchangée) ;
+ * appelant (0095) : admin = tout, manager/sous-manager = TOUS les chatteurs + ses
+ * sous-managers + soi (plus d'assignation de chatteurs — l'édition suit, `authz.ts`) ;
  * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
  * `chatters` (options du lien MyPuls, client admin agence-wide) n'est chargé QUE pour un
  * admin : le champ lien est admin-only (UI + serveur) et un manager ne doit pas recevoir
@@ -183,22 +182,14 @@ export async function getMembers(): Promise<MembersData> {
       createdAt: p.created_at,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────
       // La règle est celle de `requireEditableTarget` (`authz.ts`), recopiée telle quelle :
-      // `caller.role !== 'admin' && (target.role !== 'chatteur' || caller.id ∉
-      // target.manager_ids)` → refus. Donc admin (superadmin compris, `getProfile` les mappe tous deux
-      // sur `'admin'` — la MÊME valeur que lit `authz.ts`) : tout ; manager/sous-manager :
-      // uniquement un `chatteur` qu'il encadre DIRECTEMENT.
-      //
-      // Depuis 0087 la RLS `profiles` rend à un manager TOUT son sous-arbre, alors que
-      // `authz.ts` est resté direct (à raison : voir ≠ éditer). Sans ce drapeau, la table
-      // afficherait Modifier/Supprimer sur les chatteurs de ses sous-managers — des boutons
-      // qui échouent à tous les coups sur « Ce membre n'est pas dans ton équipe ».
+      // admin (superadmin compris) → tout ; manager/sous-manager → n'importe quel CHATTEUR
+      // (0095 : plus d'assignation, tout encadrant gère tous les chatteurs).
       //
       // C'est de l'OPTIMISTE UI, rien d'autre : la garde réelle reste `authz.ts` côté action
       // et la RLS côté base. Aucune décision de sécurité ne repose sur ce booléen.
       // Les deux autres refus de `requireEditableTarget` (cible superadmin, cible admin vue
       // par un non-propriétaire) restent où ils sont déjà traités — `RowActions`.
-      editable:
-        isAdmin || (p.role === 'chatteur' && !!caller && (p.manager_ids ?? []).includes(caller.id)),
+      editable: isAdmin || p.role === 'chatteur',
       // `undefined` (et pas un objet aux défauts) pour un non-admin : c'est ce qui fait que
       // l'onglet n'est pas monté. Les `Number(...)` : PostgREST rend le `numeric` en chaîne.
       pay: isAdmin

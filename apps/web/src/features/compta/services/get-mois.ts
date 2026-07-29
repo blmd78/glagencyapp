@@ -68,7 +68,6 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
   const profile = await getProfile()
   // Inatteignable derrière `requireAccess('compta')` — même garde que `compta-sources.ts`.
   if (!profile) throw new Error('Session expirée')
-  const isAdmin = profile.role === 'admin'
 
   const membersQuery = supabase
     .from('profiles')
@@ -82,14 +81,11 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
     { data: weekEntries, error: weekErr },
     setterPrimes,
   ] = await Promise.all([
-    // ⚠️ ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` et `get-suivi.ts` : c'est CETTE
+    // ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` et `get-suivi.ts` : c'est CETTE
     // lecture qui définit la population, et la lecture par client admin plus bas se cadre dessus
-    // sans jamais l'élargir. Le `.contains('manager_ids', …)` RE-BORNE aux rattachés DIRECTS ce que la
-    // RLS `profiles` rend transitif depuis 0087 (tout le sous-arbre) — motif complet dans
-    // `compta-sources.ts` : le périmètre de PAIE reste direct, et les handoffs lus juste en
-    // dessous (`compta_day/week_entries`) sont eux restés sur `manages()` direct-only, donc un
-    // chatteur de sous-manager s'afficherait avec 0 handoff et une prime setter nulle.
-    isAdmin ? membersQuery : membersQuery.contains('manager_ids', [profile.id]),
+    // sans jamais l'élargir. Depuis 0095, un encadrant porteur de la page = TOUS les chatteurs
+    // (plus d'assignation ; `manages()` est alignée pareil, donc les handoffs/primes suivent).
+    membersQuery,
     // Handoffs saisis au JOUR, sous RLS : la population affichée est exactement celle que la RLS
     // laisse passer, donc aucune raison de passer par le client admin ici (contrairement au
     // classement, dont les RANGS dépendent de toute l'agence). `fetchAll` : jusqu'à 31 jours ×

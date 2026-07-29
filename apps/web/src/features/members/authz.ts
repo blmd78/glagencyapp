@@ -104,25 +104,23 @@ async function requireOwnCreators(
 
 /**
  * Cible éditable : jamais un superadmin (les propriétaires ne se gèrent pas ici) ; une
- * cible admin n'est éditable QUE par un superadmin ; pour un appelant manager,
- * uniquement un compte chatteur de SON équipe (caller.id ∈ manager_ids, 0092).
+ * cible admin n'est éditable QUE par un superadmin ; pour un appelant manager, n'importe
+ * quel compte CHATTEUR (0095 : plus d'assignation — tout encadrant gère tous les chatteurs,
+ * miroir de la nouvelle `manages()`).
  */
 export async function requireEditableTarget(
   admin: Admin,
   id: string,
   caller: Profile,
 ): Promise<{ error: string } | { role: string }> {
-  const { data: target } = await admin.from('profiles').select('role, manager_ids').eq('id', id).single()
+  const { data: target } = await admin.from('profiles').select('role').eq('id', id).single()
   if (!target) return { error: 'Profil introuvable' }
   if (target.role === 'superadmin') return { error: 'Un propriétaire ne se gère pas depuis cette page' }
   if (target.role === 'admin' && !caller.superadmin) {
     return { error: 'Seul un propriétaire gère les admins' }
   }
-  if (
-    caller.role !== 'admin' &&
-    (target.role !== 'chatteur' || !(target.manager_ids ?? []).includes(caller.id))
-  ) {
-    return { error: "Ce membre n'est pas dans ton équipe" }
+  if (caller.role !== 'admin' && target.role !== 'chatteur') {
+    return { error: 'Un manager ne gère que des comptes chatteurs' }
   }
   return { role: target.role }
 }

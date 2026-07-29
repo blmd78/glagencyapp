@@ -48,9 +48,7 @@ export interface Member {
   createdAt: string
   /** L'appelant peut-il MODIFIER/SUPPRIMER cette ligne ? Calqué sur `requireEditableTarget`
    *  (`authz.ts`), calculé côté serveur dans `get-members.ts` : admin → tout ; manager →
-   *  uniquement un compte `chatteur` dont il est le manager DIRECT. Nécessaire depuis 0087 :
-   *  la RLS `profiles` lui laisse VOIR tout son sous-arbre alors que l'écriture est restée
-   *  directe — sans ce drapeau, l'écran offrirait des boutons qu'`authz.ts` refuse toujours.
+   *  n'importe quel compte `chatteur` (0095, plus d'assignation).
    *  **Optimiste UI seulement** : la garde réelle reste `authz.ts` + la RLS. */
   editable: boolean
   /** Réglages de paie — **`undefined` pour un non-admin**, et c'est délibéré : la RLS
@@ -75,11 +73,15 @@ export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
  * SOURCE UNIQUE « qui est rattachable à qui » (0092) — la règle ne se définit qu'ici, les
  * trois couches ne font que la LIRE : le sélecteur du dialog (affichage du champ + options),
  * la validation serveur (`requireManagerTargets`) et le patch d'écriture (`managerIdsPatch`).
- * Tableau vide = ce rôle ne porte JAMAIS de rattachement (haut de hiérarchie).
+ * Tableau vide = ce rôle ne porte JAMAIS de rattachement.
+ *
+ * Depuis 0095 (décision Benoit 2026-07-29) : les CHATTEURS/police ne s'assignent plus à
+ * personne — tout encadrant a accès à tous les chatteurs, selon ses pages. Seul reste le
+ * rattachement sous-manager → managers (planning journalier + to-do).
  */
 export const ATTACHABLE_ROLES: Record<Role, readonly string[]> = {
-  chatteur: ['manager', 'sous-manager'],
-  police: ['manager', 'sous-manager'],
+  chatteur: [],
+  police: [],
   'sous-manager': ['manager'],
   manager: [],
   admin: [],

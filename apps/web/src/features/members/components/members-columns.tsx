@@ -43,11 +43,9 @@ const initials = (name: string) =>
  * éditables ici ; un manager n'agit que sur les comptes user, et jamais sur sa propre
  * ligne (rôle manager).
  *
- * `member.editable` porte le dernier filtre, celui que la vue ne suffit plus à donner : depuis
- * 0087 la RLS montre à un manager TOUT son sous-arbre, tandis que `authz.ts` n'autorise
- * l'écriture que sur ses rattachés DIRECTS. Sans lui, les deux boutons s'afficheraient sur les
- * chatteurs de ses sous-managers pour échouer à chaque clic. Garde d'AFFICHAGE seule — la vraie
- * barrière reste `authz.ts` (`requireEditableTarget`) côté serveur, doublée par la RLS.
+ * `member.editable` porte le dernier filtre (admin → tout ; manager → les chatteurs, 0095).
+ * Garde d'AFFICHAGE seule — la vraie barrière reste `authz.ts` (`requireEditableTarget`)
+ * côté serveur, doublée par la RLS.
  */
 function RowActions({
   member,

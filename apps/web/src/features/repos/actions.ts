@@ -30,12 +30,11 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: cellInput,
     input: raw,
-    // Cases CHATTEURS (colonnes modèles) : admin OU manager/sous-manager porteur de la page.
-    // Cases ENCADREMENT (managers/policiers) : admin uniquement. L'ÉCRITURE passe par le RPC
-    // `save_repos_cell` (0090, SECURITY DEFINER) qui porte TOUT le contrôle en SQL — droit
-    // (can_write_page), colonne, et périmètre : les ids ajoutés/retirés doivent appartenir au
-    // sous-arbre de l'appelant (managed_subtree, 0087), delta calculé sous verrou FOR UPDATE.
-    // Les policies d'écriture directes de rest_planning_cells restent admin-only (0076) : un
+    // Cases CHATTEURS (colonnes modèles) : admin OU manager/sous-manager porteur de la page,
+    // pour N'IMPORTE quel chatteur (0095 : plus d'assignation). Cases ENCADREMENT
+    // (managers/policiers) : admin uniquement. L'ÉCRITURE passe par le RPC `save_repos_cell`
+    // (0090, réécrit en 0095, SECURITY DEFINER) — droit (can_write_page) + colonnes en SQL ;
+    // les policies d'écriture directes de rest_planning_cells restent admin-only (0076) : un
     // non-admin ne PEUT écrire que via ce RPC. La garde app ci-dessous n'est qu'un miroir
     // (message propre sans aller-retour) ; l'enforcement réel est en base.
     guard: noGuard,

@@ -57,9 +57,8 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
         .order('id')
         .range(f, t),
     ),
-    // Périmètre RLS de l'appelant (0087, lib/services/team) : admin → tous ; manager → son
-    // sous-arbre (sous-managers + leurs chatteurs) ; sous-manager → ses chatteurs directs.
-    // → OPTIONS des cellules chatteur : chacun ne peut AJOUTER que les chatters de son équipe.
+    // Périmètre RLS de l'appelant (0095, lib/services/team) : tout encadrant voit TOUS les
+    // chatteurs → OPTIONS complètes des cellules chatteur pour tout porteur de la page.
     getVisibleProfiles(),
     admin.from('creators').select('id, name, active'),
     supabase
@@ -105,9 +104,9 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
   for (const m of profileRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
-  // Options des cellules chatteur = membres role chatteur DU PÉRIMÈTRE RLS de l'appelant
-  // (admin → tous, manager → son sous-arbre — cf. getVisibleProfiles). La résolution des
-  // noms déjà posés (chatterById, admin) reste complète : on voit tout, on n'ajoute que chez soi.
+  // Options des cellules chatteur = membres role chatteur visibles sous RLS (0095 : tous,
+  // pour tout encadrant — cf. getVisibleProfiles). La résolution des noms déjà posés
+  // (chatterById, admin) couvre aussi les ids legacy.
   const chatterOptions = visibleProfiles
     .filter((m) => m.role === 'chatteur' && m.displayName)
     .map((m) => ({ id: m.id, name: m.displayName as string }))
