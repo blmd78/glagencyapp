@@ -231,22 +231,16 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
           {data.sections.map((section) => (
             <Fragment key={section.managerId || 'sans-manager'}>
               {section.rows.map((r, i) => {
-                // Le sous-manager n'est écrit que sur SA première ligne (groupe visuel) —
-                // fini les pastilles répétées à l'identique sur chacun de ses modèles.
-                const prev = section.rows[i - 1]
-                const firstOfTeam =
-                  !prev || (prev.sousManagerId ?? 'direct') !== (r.sousManagerId ?? 'direct')
                 return (
                   <tr
                     key={`${r.ownerId}:${r.creatorId}`}
                     className={cn('border-t align-top', i === 0 && 'border-t-2')}
                   >
-                    {/* MANAGER — écrit une fois par équipe (aligné sur le sous-manager) : le
-                        changer déplace cette équipe. L'effectif de la section n'est rappelé
-                        que sur sa première ligne. */}
+                    {/* MANAGER — écrit sur CHAQUE ligne (comme la feuille d'origine) : un
+                        tableau dont les cellules d'en-tête se vident ligne après ligne se lit
+                        mal. Le changer déplace cette équipe (ou le modèle si ligne directe). */}
                     <td className="px-3 py-2">
-                      {firstOfTeam && (
-                        <div className="flex flex-col items-start gap-0.5">
+                      <div className="flex flex-col items-start gap-0.5">
                           <ChipSelect
                             value={section.managerId || null}
                             label={section.managerName}
@@ -279,16 +273,9 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                               )
                             }
                           />
-                          {i === 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              {section.total} chatter{section.total > 1 ? 's' : ''}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      </div>
                     </td>
                     <td className="px-3 py-2">
-                      {firstOfTeam && (
                         <div className="flex flex-col items-start gap-0.5">
                           <ChipSelect
                             value={r.sousManagerId ?? 'direct'}
@@ -313,7 +300,6 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                             }
                           />
                         </div>
-                      )}
                     </td>
                     <td className="px-3 py-2">
                       <ChipSelect
