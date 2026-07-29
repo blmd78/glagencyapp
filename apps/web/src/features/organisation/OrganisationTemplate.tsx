@@ -41,6 +41,15 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       hint: 'assignés via Membres',
       accent: 'border-t-violet-500',
     },
+    {
+      key: 'aPlacer',
+      label: 'À placer',
+      value: String(counts.aPlacer),
+      deltaPct: null,
+      trendLabel: 'sans shift renseigné',
+      hint: 'lien MyPuls ou shift à régler',
+      accent: counts.aPlacer ? 'border-t-amber-500' : 'border-t-blue-500',
+    },
   ]
 
   return (
@@ -50,7 +59,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
         en permanence — éditer une case met à jour les assignations et le shift.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {kpis.map(({ accent, ...k }) => (
           <KpiCard key={k.key} kpi={k} accent={accent} />
         ))}
