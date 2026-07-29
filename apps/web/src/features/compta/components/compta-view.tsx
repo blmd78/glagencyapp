@@ -46,7 +46,9 @@ export function ComptaView({
       // L'INSTANTANÉ (`paidAmount`), pas `payslip.net` : ce dernier est le recalcul du jour, et
       // une ré-ingestion du CA le ferait diverger des virements réellement passés — c'est
       // précisément ce que l'instantané existe pour éviter (spec §5.3).
-      key: 'paid', label: 'Déjà payé', value: eur2(data.rows.reduce((s, r) => s + (r.paidAmount ?? 0), 0)),
+      // Même population que le hint (reliés) : un membre payé PUIS délié garderait un
+      // paidAmount — le sommer gonflerait un total que « N réglés » ne couvre pas.
+      key: 'paid', label: 'Déjà payé', value: eur2(data.rows.reduce((s, r) => s + (r.chatterId != null ? (r.paidAmount ?? 0) : 0), 0)),
       deltaPct: null, trendLabel: 'Période couverte', hint: `${paidCount} réglé${paidCount > 1 ? 's' : ''}`,
     },
     {
