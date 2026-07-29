@@ -68,7 +68,22 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
     ),
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        <span className="truncate font-medium">{row.original.username}</span>
+        {/* Pseudo cliquable → conversation MyPuls (switch-creator + focus conversation, format
+            de l'ancien gla-workflow) : évite le copier-coller du pseudo à chaque relance.
+            Sans id MyPuls (modèle hors assignation RLS, ou non mappé) : pseudo à plat. */}
+        {row.original.mypulsCreatorId ? (
+          <a
+            href={`https://mypuls.app/switch-creator/${row.original.mypulsCreatorId}?fc=${row.original.fanId}`}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="truncate font-medium underline-offset-2 hover:underline"
+            title="Ouvrir la conversation MyPuls"
+          >
+            {row.original.username}
+          </a>
+        ) : (
+          <span className="truncate font-medium">{row.original.username}</span>
+        )}
         {row.original.hasUnread && (
           <span className="size-2 shrink-0 rounded-full bg-blue-500" title="Message non lu" />
         )}

@@ -20,7 +20,7 @@ export async function getSpenders(): Promise<SpendersData> {
 
   // Équipe closing lue DEPUIS le membre lié — helper partagé `getClosingByChatter` (source unique
   // avec la page Chatteurs, cf. 0077/0079). On n'en utilise ici que l'équipe.
-  const [{ data: rows, error }, { data: freshRow, error: freshErr }, closingByChatter] =
+  const [{ data: rows, error }, { data: freshRow, error: freshErr }, closingByChatter, { data: creatorRows, error: creatorsErr }] =
     await Promise.all([
       fetchAll((from, to) =>
         supabase
@@ -36,15 +36,25 @@ export async function getSpenders(): Promise<SpendersData> {
         .limit(1)
         .maybeSingle(),
       getClosingByChatter(),
+      // Mapping id → id MyPuls pour le lien « ouvrir la conversation » (cf. SpenderRow.
+      // mypulsCreatorId). Table bornée (16 modèles) : pas de fetchAll. Sous RLS
+      // (creators_scoped_read) : un chatteur ne lit que SES modèles assignés — exactement
+      // ceux de ses spenders ; un modèle non lisible → lien absent, pseudo à plat.
+      supabase.from('creators').select('id, mypuls_creator_id'),
     ])
   if (error) throw new Error(error.message)
   if (freshErr) throw new Error(freshErr.message)
+  if (creatorsErr) throw new Error(creatorsErr.message)
+  const mypulsByCreator = new Map(
+    (creatorRows ?? []).map((c) => [c.id, c.mypuls_creator_id]),
+  )
 
   const spenders: SpenderRow[] = rows
     .map((r) => ({
       fanId: r.fan_id,
       username: r.username,
       creatorId: r.creator_id,
+      mypulsCreatorId: mypulsByCreator.get(r.creator_id) ?? null,
       model: r.model ?? '—',
       ca: r.ca_total,
       status: r.status,
