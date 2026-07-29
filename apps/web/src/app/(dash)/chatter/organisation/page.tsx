@@ -10,9 +10,12 @@ import type { OrganisationData } from '@/features/organisation/types'
 // Vue DÉRIVÉE de Membres/Chatters (aucune saisie ici) : manager → sous-managers → modèles →
 // chatters par shift, miroir de la Google Sheet d'orga.
 export default async function OrganisationPage() {
-  await requireAccess('organisation')
+  const profile = await requireAccess('organisation')
   // Kickoff SANS await : le h1 s'affiche immédiatement, l'orga streame dans son boundary.
   const data = getOrganisation()
+  // Édition (cases + statut) : ADMIN uniquement (v1) — réassigner un modèle change le
+  // périmètre RLS d'un chatteur, même pouvoir que le dialog Membres admin.
+  const isAdmin = profile.role === 'admin'
 
   return (
     <div className="flex flex-col gap-6">
@@ -24,12 +27,12 @@ export default async function OrganisationPage() {
           </SectionFallback>
         }
       >
-        <OrganisationContent data={data} />
+        <OrganisationContent data={data} isAdmin={isAdmin} />
       </Suspense>
     </div>
   )
 }
 
-async function OrganisationContent({ data }: { data: Promise<OrganisationData> }) {
-  return <OrganisationTemplate data={await data} />
+async function OrganisationContent({ data, isAdmin }: { data: Promise<OrganisationData>; isAdmin: boolean }) {
+  return <OrganisationTemplate data={await data} isAdmin={isAdmin} />
 }

@@ -1,29 +1,39 @@
-// Types de la feature « Organisation » (catégorie Équipe) — la vue d'orga de l'agence :
-// manager → sous-managers → modèles → chatters par shift (miroir de la Google Sheet
-// « organisation », demande Benoit 2026-07-29).
+// Types de la feature « Organisation » (catégorie Équipe) — le board d'orga de l'agence,
+// IDENTIQUE à la Google Sheet : Manager | Sous-manager | Modèle | Shift matin | Après-midi |
+// Soir | Total | Statut. Éditable comme le planning repos (cases ComboboxMultiple), en
+// WRITE-THROUGH : les cases écrivent les VRAIES données (profile_creators + chatters.shift),
+// jamais une copie — Membres/Chatters et ce board restent une seule et même vérité.
 
 import type { CrmShift } from '@/lib/types/chatters'
 
-/** Un chatteur affiché dans une case : nom + shift résolu via son lien MyPuls. */
+/** Statut d'une ligne modèle (sheet : ✅ validé / ⭐ / ⚠️) — seule donnée propre au board. */
+export const ORG_STATUSES = ['valide', 'star', 'attention'] as const
+export type OrgStatus = (typeof ORG_STATUSES)[number]
+
+/** Un chatteur affiché dans une case : shift résolu via son lien MyPuls. */
 export interface OrgChatter {
   id: string
   name: string
-  /** null = membre non lié à un chatteur MyPuls, ou chatteur sans shift renseigné. */
+  /** null = membre non lié à un chatteur MyPuls, ou shift non renseigné → « à placer ». */
   shift: CrmShift | null
+  /** Sans lien MyPuls, le shift n'est pas modifiable depuis le board. */
+  linked: boolean
 }
 
-/** Une ligne de l'orga = (sous-manager, modèle) : les chatters du modèle groupés par shift. */
+/** Une ligne du board = (sous-manager, modèle) : les chatters du modèle groupés par shift. */
 export interface OrgRow {
-  /** null = modèle porté par le manager sans sous-manager dédié. */
+  /** null = modèle porté par le manager sans sous-manager dédié (« direct »). */
   sousManagerName: string | null
+  creatorId: string
   modelName: string
   byShift: Record<CrmShift, OrgChatter[]>
-  /** Chatters du modèle sans shift (non liés ou shift vide). */
+  /** Chatters du modèle sans shift (non liés ou shift vide) — « à placer ». */
   sansShift: OrgChatter[]
   total: number
+  status: OrgStatus | null
 }
 
-/** Une section = un manager et ses lignes (sous-managers × modèles). */
+/** Un groupe = un manager (cellule fusionnée sur ses lignes, comme la sheet). */
 export interface OrgSection {
   managerName: string
   rows: OrgRow[]
@@ -32,6 +42,8 @@ export interface OrgSection {
 
 export interface OrganisationData {
   sections: OrgSection[]
+  /** Options des cases : tous les membres rôle chatteur. */
+  chatterOptions: { id: string; name: string; linked: boolean }[]
   /** Modèles actifs qu'aucune section ne couvre (trous d'assignation, à corriger dans Membres). */
   orphanModels: string[]
   /** Effectifs réels (membres par rôle). */

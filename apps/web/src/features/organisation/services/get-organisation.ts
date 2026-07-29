@@ -1,17 +1,17 @@
 import { createAdminClient } from '@glagency/db'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
-import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
+import { ORG_STATUSES, type OrgChatter, type OrgRow, type OrgSection, type OrgStatus, type OrganisationData } from '../types'
 
 /**
- * L'orga de l'agence, DÉRIVÉE ENTIÈREMENT des données existantes (aucune saisie propre) :
+ * Le board d'orga, DÉRIVÉ des données existantes (une seule saisie propre : le statut) :
  *   manager → ses sous-managers (rattachement `manager_ids`) → leurs modèles
  *   (`profile_creators`) → les chatters assignés à chaque modèle, groupés par shift
  *   (fiche chatteur MyPuls via le lien `profiles.chatter_id`).
  *
- * Conséquence voulue : tout changement fait dans MEMBRES (assignation de modèles,
- * rattachement d'un sous-manager, lien MyPuls) ou sur la fiche CHATTERS (shift) se
- * reflète ici AUTOMATIQUEMENT — la page est une lecture, pas une seconde source.
+ * Conséquence voulue : tout changement fait dans MEMBRES (assignations, rattachements, lien
+ * MyPuls) ou sur la fiche CHATTERS (shift) se reflète ici automatiquement — et inversement,
+ * l'édition des cases du board (actions.ts) écrit CES données-là, pas une copie.
  *
  * Client ADMIN : page opérationnelle agence-wide (l'orga n'a de sens que complète), accès
  * gardé en amont par requireAccess('organisation') — même patron que get-repos.
@@ -19,7 +19,7 @@ import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
 export async function getOrganisation(): Promise<OrganisationData> {
   const admin = createAdminClient()
 
-  const [profilesRes, creatorsRes, assignRes, chattersRes] = await Promise.all([
+  const [profilesRes, creatorsRes, assignRes, chattersRes, statusRes] = await Promise.all([
     // fetchAll partout : tables sans purge, cap PostgREST silencieux (guidelines §2).
     fetchAll((f, t) =>
       admin
@@ -39,11 +39,13 @@ export async function getOrganisation(): Promise<OrganisationData> {
         .range(f, t),
     ),
     fetchAll((f, t) => admin.from('chatters').select('id, shift').order('id').range(f, t)),
+    admin.from('org_model_status').select('creator_id, status'),
   ])
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)
   if (assignRes.error) throw new Error(assignRes.error.message)
   if (chattersRes.error) throw new Error(chattersRes.error.message)
+  if (statusRes.error) throw new Error(statusRes.error.message)
 
   const profiles = profilesRes.data
   const creators = creatorsRes.data ?? []
@@ -54,6 +56,11 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const shiftByMypuls = new Map(chattersRes.data.map((c) => [c.id, c.shift]))
   const isShift = (v: string | null | undefined): v is CrmShift =>
     !!v && (CRM_SHIFTS as readonly string[]).includes(v)
+  const isStatus = (v: string | null): v is OrgStatus =>
+    !!v && (ORG_STATUSES as readonly string[]).includes(v)
+  const statusByModel = new Map(
+    (statusRes.data ?? []).map((r) => [r.creator_id, isStatus(r.status) ? r.status : null]),
+  )
 
   // Modèles par profil et chatters (membres) par modèle.
   const modelsByProfile = new Map<string, string[]>()
@@ -67,7 +74,12 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const chattersByModel = new Map<string, OrgChatter[]>()
   for (const m of chatterMembers) {
     const raw = m.chatter_id ? shiftByMypuls.get(m.chatter_id) : null
-    const entry: OrgChatter = { id: m.id, name: nameOf(m), shift: isShift(raw) ? raw : null }
+    const entry: OrgChatter = {
+      id: m.id,
+      name: nameOf(m),
+      shift: isShift(raw) ? raw : null,
+      linked: !!m.chatter_id,
+    }
     for (const creatorId of modelsByProfile.get(m.id) ?? []) {
       const arr = chattersByModel.get(creatorId)
       if (arr) arr.push(entry)
@@ -86,14 +98,16 @@ export async function getOrganisation(): Promise<OrganisationData> {
     for (const c of all) (c.shift ? byShift[c.shift] : sansShift).push(c)
     return {
       sousManagerName,
+      creatorId,
       modelName: creatorName.get(creatorId) ?? '?',
       byShift,
       sansShift,
       total: all.length,
+      status: statusByModel.get(creatorId) ?? null,
     }
   }
 
-  // Sections : un manager, ses sous-managers (rattachés), une ligne par modèle de chacun ;
+  // Groupes : un manager, ses sous-managers (rattachés), une ligne par modèle de chacun ;
   // puis les modèles portés par le manager lui-même et non couverts par ses sous-managers.
   const managers = profiles
     .filter((p) => p.role === 'manager')
@@ -122,7 +136,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
       coveredModels.add(creatorId)
       rows.push(rowFor(null, creatorId))
     }
-    // Managers sans équipe ni modèle (ex. face marketing) : pas de section vide.
+    // Managers sans équipe ni modèle (ex. face marketing) : pas de groupe vide.
     if (rows.length === 0 && team.length === 0) continue
     sections.push({
       managerName: nameOf(mgr),
@@ -137,8 +151,13 @@ export async function getOrganisation(): Promise<OrganisationData> {
     .map((c) => c.name)
     .sort((a, b) => a.localeCompare(b))
 
+  const chatterOptions = chatterMembers
+    .map((m) => ({ id: m.id, name: nameOf(m), linked: !!m.chatter_id }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
   return {
     sections,
+    chatterOptions,
     orphanModels,
     counts: {
       managers: sections.length,
