@@ -42,6 +42,13 @@ export interface SpenderRow {
   fanId: number
   username: string
   creatorId: string
+  /**
+   * Id MyPuls du modèle (`creators.mypuls_creator_id`) — sert le lien direct vers la
+   * conversation : `https://mypuls.app/switch-creator/<id>?fc=<fanId>` (format repris de
+   * l'ancien outil gla-workflow, MesRelances.jsx). `null` = modèle non lisible sous RLS
+   * (hors assignation du viewer) ou non mappé → le pseudo s'affiche sans lien.
+   */
+  mypulsCreatorId: string | null
   model: string
   /** CA net vie entière connu de MyPuls (scrapé — jamais saisi). LE total du spender. */
   ca: number

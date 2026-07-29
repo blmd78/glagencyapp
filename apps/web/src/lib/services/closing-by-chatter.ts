@@ -1,4 +1,5 @@
 import { createAdminClient } from '@glagency/db'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 
 /**
@@ -12,10 +13,17 @@ export async function getClosingByChatter(): Promise<
   Map<string, { role: CrmRole | null; team: CrmTeam | null }>
 > {
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('profiles')
-    .select('chatter_id, closing_role, closing_team')
-    .not('chatter_id', 'is', null)
+  // fetchAll : `profiles` grossit avec l'équipe (cap PostgREST 1000 silencieux, s'applique
+  // aussi au service role) — même requête que linkable-chatters, déjà paginée. `.order('id')`
+  // = la PK, tri déterministe.
+  const { data, error } = await fetchAll((f, t) =>
+    admin
+      .from('profiles')
+      .select('chatter_id, closing_role, closing_team')
+      .not('chatter_id', 'is', null)
+      .order('id')
+      .range(f, t),
+  )
   if (error) throw new Error(error.message)
   const map = new Map<string, { role: CrmRole | null; team: CrmTeam | null }>()
   for (const m of data ?? [])

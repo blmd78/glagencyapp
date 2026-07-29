@@ -2378,6 +2378,7 @@ export type Database = {
           username: string
         }[]
       }
+      crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
       has_page: { Args: { slug: string }; Returns: boolean }
       health_report: {
         Args: { p_from: string; p_to: string; p_week_from: string }
@@ -2387,10 +2388,19 @@ export type Database = {
       is_manager: { Args: never; Returns: boolean }
       is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
+      managed_subtree: { Args: never; Returns: string[] }
       manages: { Args: { target: string }; Returns: boolean }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
         Returns: undefined
+      }
+      mkt_social_prev_snapshot: {
+        Args: { account_ids: string[]; before_date: string }
+        Returns: {
+          account_id: string
+          followers: number
+          views_total: number
+        }[]
       }
       models_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       overview_report: {
@@ -2402,6 +2412,17 @@ export type Database = {
           p_restricted: boolean
         }
         Returns: Json
+      }
+      repos_data_weeks: { Args: never; Returns: Json }
+      save_repos_cell: {
+        Args: {
+          p_chatter_ids: string[]
+          p_col: string
+          p_day: number
+          p_names: string
+          p_week_start: string
+        }
+        Returns: undefined
       }
       upsert_police_report: {
         Args: {
@@ -2415,6 +2436,7 @@ export type Database = {
         }
         Returns: string
       }
+      writable_todo_targets: { Args: never; Returns: string[] }
     }
     Enums: {
       [_ in never]: never

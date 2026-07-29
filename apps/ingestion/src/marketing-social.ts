@@ -79,19 +79,21 @@ export async function runMarketingSocial(): Promise<SocialRunSummary> {
   if (aErr) throw new Error(`mkt_social_accounts : ${aErr.message}`)
   if (!accounts?.length) return { status: 'ok', accounts: 0, scraped: 0, missing: [], updatedDaily: 0, warnings }
 
-  // Dernier relevé antérieur (delta followers + delta vues) — 1 requête, réduite en mémoire.
-  const { data: prevRows, error: pErr } = await db
-    .from('mkt_social_daily')
-    .select('account_id, date, followers, views_total')
-    .in('account_id', accounts.map((a) => a.id))
-    .lt('date', date)
-    .order('date', { ascending: false })
-    .limit(2000)
+  // Dernier relevé antérieur (delta followers + delta vues) — RPC `distinct on` (migration
+  // 0089), 1 seule sous-requête. Remplace le fetchAll du fix anti-troncature : celui-ci
+  // rapatriait TOUT l'historique par pages de 1000 lignes pour n'en garder qu'une par
+  // compte (« premier vu = plus récent ») — inutile ici, une ligne par compte ne demande
+  // pas l'historique complet. Sur le Worker Cloudflare Free (50 sous-requêtes/invocation,
+  // le poll de l'actor en consomme déjà ~40), ceil(N/1000) aurait fini par mordre.
+  const { data: prevRows, error: pErr } = await db.rpc('mkt_social_prev_snapshot', {
+    account_ids: accounts.map((a) => a.id),
+    before_date: date,
+  })
   if (pErr) throw new Error(`mkt_social_daily lecture : ${pErr.message}`)
+  // Le RPC renvoie déjà une ligne par compte (distinct on account_id) : plus besoin de la
+  // réduction « premier vu » en mémoire, un set direct suffit.
   const prev = new Map<string, { followers: number | null; viewsTotal: number | null }>()
-  for (const r of prevRows ?? []) {
-    if (!prev.has(r.account_id)) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
-  }
+  for (const r of prevRows ?? []) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
 
   const profiles = await runActor(token, accounts.map((a) => a.handle), warnings)
   const byHandle = new Map(profiles.filter((p) => p.username).map((p) => [String(p.username).toLowerCase(), p]))

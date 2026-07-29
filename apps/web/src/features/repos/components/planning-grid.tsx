@@ -121,7 +121,22 @@ export function PlanningGrid({
       })
       // Succès silencieux (sauvegarde immédiate à chaque ajout/retrait dans le combobox — un
       // toast par clic serait bruyant) ; l'échec, lui, était avalé avant ce refacto → surfacé.
-      if (!res.success) toast.error(res.error)
+      // REVERT sur refus : sans lui, l'override resterait prioritaire sur l'état serveur
+      // (cellule affichée fausse, inéditable — chaque resoumission repartirait de l'override
+      // refusé — et l'image Telegram exporterait cet état). Cas NORMAL depuis la garde de
+      // périmètre 0090 : retirer le chip d'un chatter hors sous-arbre est refusé.
+      // GARDE D'IDENTITÉ : on ne revert que si l'override en place est ENCORE `nextCell` —
+      // si une 2e édition est partie pendant la requête, c'est son résultat qui tranchera
+      // (sinon l'échec de la 1re effacerait l'optimiste de la 2e, audit 2026-07-29).
+      if (!res.success) {
+        setOverrides((prev) => {
+          if (prev[`${day}:${col}`] !== nextCell) return prev
+          const next = { ...prev }
+          delete next[`${day}:${col}`]
+          return next
+        })
+        toast.error(res.error)
+      }
     })
   }
 
@@ -129,7 +144,16 @@ export function PlanningGrid({
     setColumnOverrides((prev) => ({ ...prev, [col]: ids }))
     startTransition(async () => {
       const res = await saveReposColumnMembers({ col, effectiveFrom: data.weekStart, creatorIds: ids })
-      if (!res.success) toast.error(res.error)
+      // Même règle que commitCell : un refus revert l'override (s'il est encore le nôtre).
+      if (!res.success) {
+        setColumnOverrides((prev) => {
+          if (prev[col] !== ids) return prev
+          const next = { ...prev }
+          delete next[col]
+          return next
+        })
+        toast.error(res.error)
+      }
     })
   }
 
@@ -181,9 +205,11 @@ export function PlanningGrid({
           <PlanningGridRows
             columns={columns}
             data={data}
-            // Édition des cases = ADMIN uniquement (le prop `canWrite` de la ligne reçoit
-            // désormais `isAdmin`) : un manager voit tout le tableau en lecture seule.
-            canWrite={isAdmin}
+            // Cases CHATTEURS éditables par admin + manager/sous-manager (`canWrite`, miroir
+            // RLS can_write_page) ; cases ENCADREMENT (Managers/Policiers) admin-only —
+            // le distinguo par colonne vit dans PlanningGridRows (`isAdmin`).
+            canWrite={canWrite}
+            isAdmin={isAdmin}
             cellValue={cellValue}
             cellChips={cellChips}
             overByCol={overByCol}

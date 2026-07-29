@@ -1,5 +1,6 @@
 import { daysIn, mondaysIn, type PayPeriod } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
+import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { loadPeriodCa } from './compta-ca'
@@ -11,7 +12,9 @@ import { loadPeriodCa } from './compta-ca'
  *
  * Le cloisonnement est porté par la RLS (0085) : admin → tout, manager/sous-manager → ses
  * rattachés directs. SAUF le CA, la date d'entrée et les noms de modèles, lus par client
- * ADMIN et cadrés côté application — voir le commentaire de l'ancre plus bas.
+ * ADMIN et cadrés côté application — et SAUF la population elle-même, dont la RLS est
+ * transitive depuis 0087 et que le filtre `manager_id` de l'ancre re-borne aux directs. Les
+ * deux exceptions sont détaillées au commentaire de l'ancre, plus bas.
  */
 
 /**
@@ -34,20 +37,44 @@ export async function loadComptaSources({
   const from = period.start
   const to = period.end
 
+  // L'APPELANT — `getProfile()` est `cache()` (mémoïsé par requête) : sur le chemin PAGE
+  // (RSC), `requireAccess('compta')` l'a déjà appelé, donc pas de seconde requête. Depuis les
+  // Server Actions de paiement (payPeriod/payAllForPeriod), `cache()` ne mémoïse PAS
+  // (guidelines-standard-feature §4) : `requireAdminProfile` puis ce `getProfile` font 2
+  // lectures profil par geste — assumé (1 seule fois par lot, pas par fiche).
+  const profile = await getProfile()
+  // Inatteignable derrière le garde de page (`requireAccess` redirige vers /login sans session)
+  // et derrière `requireAdminProfile` côté paiement : on préfère lever plutôt que construire une
+  // requête dont le filtre de périmètre serait vide.
+  if (!profile) throw new Error('Session expirée')
+  const isAdmin = profile.role === 'admin'
+
   // La population vient de `profiles` (rôle chatteur), pas de `chatters` : c'est le MEMBRE
   // qu'on paie (0085). 96 lignes sur l'UAT — loin du plafond PostgREST.
   //
-  // ⚠️ CETTE LECTURE EST L'ANCRE DE SÉCURITÉ DE TOUT LE FICHIER. La policy
-  // `profiles_self_admin_or_team_read` vaut `id = auth.uid() or is_admin() or (is_manager() and
-  // manager_id = auth.uid())` — vérifié sur `pg_policy` et mesuré sous RLS le 2026-07-27 :
-  // Chérif 15 profils chatteur visibles = ses 15 rattachés, 0 hors périmètre ; Marco 35 = ses
-  // 35, 0 hors périmètre. Les lectures par client ADMIN plus bas se cadrent TOUTES sur ce que
-  // cette requête a renvoyé — ne jamais les élargir au-delà.
-  const membersQuery = supabase
+  // ⚠️ CETTE LECTURE EST L'ANCRE DE SÉCURITÉ DE TOUT LE FICHIER, et depuis 0087 elle ne peut
+  // plus s'en remettre à la seule RLS. La policy `profiles_self_admin_or_team_read` est
+  // désormais TRANSITIVE : `id = auth.uid() or is_admin() or (is_manager() and id = any(array(
+  // select managed_subtree())))` — un manager y lit donc TOUT son sous-arbre, les chatteurs de
+  // ses sous-managers compris, là où elle rendait ses seuls rattachés directs avant 0087.
+  //
+  // Le `.eq('manager_id', …)` ci-dessous RE-BORNE la compta aux rattachés DIRECTS, À DESSEIN :
+  // le périmètre de PAIE reste direct (décision de la spec compta — un manager gère SES
+  // chatteurs). La transitivité de 0087 ne vaut que pour VOIR (dashboard, membres, comptes
+  // rendus). Toutes les AUTRES lectures de ce fichier — `compta_settings`, `compta_rates`,
+  // `compta_primes`, `compta_payments`, `compta_day_entries`, `compta_week_entries` — sont
+  // restées sur `manages()`, direct-only (0085, intouchée par 0087). Sans ce filtre, un manager
+  // verrait donc les chatteurs de ses sous-managers avec un net FAUX et SILENCIEUX : taux
+  // retombé sur le fallback 10 %, fixe 0, périodes réglées affichées « non payé ».
+  //
+  // Les lectures par client ADMIN plus bas se cadrent TOUTES sur ce que cette requête a
+  // renvoyé — ne jamais les élargir au-delà.
+  let membersQuery = supabase
     .from('profiles')
     .select('id, display_name, email, role, chatter_id')
     .eq('role', 'chatteur')
     .order('display_name')
+  if (!isAdmin) membersQuery = membersQuery.eq('manager_id', profile.id)
 
   const [
     { data: members, error: membersErr },
@@ -93,10 +120,11 @@ export async function loadComptaSources({
     // guidelines-data-loading §2). Tronqué, ce sont des bonus ET des malus manuels qui
     // disparaissent : le net dérive dans les deux sens sans une seule erreur.
     // `.order('chatter_id').order('date')` = la PK complète → pagination déterministe.
+    // Colonnes explicites : le calcul (compta-rows) ne lit que ces 4 champs — pas de `*`.
     fetchAll((f, t) =>
       supabase
         .from('compta_day_entries')
-        .select('*')
+        .select('chatter_id, bonus, malus, handoffs')
         .gte('date', from)
         .lte('date', to)
         .order('chatter_id')
@@ -114,7 +142,17 @@ export async function loadComptaSources({
     // faux sur des périodes réglées (bouton « Marquer payé » de retour sur une ligne déjà
     // payée) et mentir les deux KPI monétaires. `.order('id')` = la PK complète de
     // `compta_payments` → pagination déterministe.
-    fetchAll((f, t) => supabase.from('compta_payments').select('*').order('id').range(f, t)),
+    // Colonnes explicites (6 champs consommés par compta-rows/coverage) : le `*` embarquait
+    // ~19 colonnes dont l'instantané jsonb `rates_applied`, sur TOUT l'historique, dans le
+    // chemin de chaque affichage/paiement. `.order('id')` sur colonne non sélectionnée : OK
+    // PostgREST (même patron que police_entries ci-dessous).
+    fetchAll((f, t) =>
+      supabase
+        .from('compta_payments')
+        .select('chatter_id, covered_days, paid_at, period_start, amount, prime_amount')
+        .order('id')
+        .range(f, t),
+    ),
     // `fetchAll` pour la MÊME raison, et c'est le cas le plus coûteux : ce sont les RETENUES.
     // Tronquée, la table fait disparaître des sanctions → net surestimé → l'admin SUR-PAIE,
     // sans erreur. Le plafond est atteignable dès que les 96 membres cumulent quelques entrées
@@ -135,8 +173,10 @@ export async function loadComptaSources({
     // `chatter_daily_admin_read` (vérifié sur `pg_policy`, UAT) → appelée par un manager elle
     // renverrait ZÉRO ligne, et le bandeau comme la prime disparaîtraient de sa vue sans une
     // seule erreur. Aucune donnée brute n'en ressort : seules les dates des membres déjà
-    // renvoyés par la RLS `profiles` sont lues.
-    admin.rpc('chatter_first_seen'),
+    // renvoyés par la RLS `profiles` sont lues. `fetchAll` : le cap PostgREST (1000)
+    // s'applique AUSSI aux rpc set-returning (mesuré, audit 2026-07-29) — 311 chatteurs
+    // aujourd'hui, ~25 de plus/semaine → tronqué en silence sinon d'ici quelques mois.
+    fetchAll((f, t) => admin.rpc('chatter_first_seen').order('chatter_id').range(f, t)),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (settingsErr) throw new Error(settingsErr.message)
@@ -151,8 +191,8 @@ export async function loadComptaSources({
   // LE CA DE LA PÉRIODE — hors RLS, cadré applicativement par `linked` (cf. `compta-ca.ts`).
   //
   // ⚠️ `linked` EST LA BARRIÈRE. Il ne contient que les `profiles.chatter_id` déjà renvoyés par
-  // la lecture RLS de `profiles` ci-dessus — donc, pour un encadrant, ses rattachés directs et
-  // personne d'autre. NE JAMAIS le construire depuis une autre source.
+  // l'ancre ci-dessus (RLS + filtre `manager_id`) — donc, pour un encadrant, ses rattachés
+  // directs et personne d'autre. NE JAMAIS le construire depuis une autre source.
   const linked = (members ?? []).map((m) => m.chatter_id).filter((v): v is string => v != null)
   const caByChatter = await loadPeriodCa({ linked, from, to })
 

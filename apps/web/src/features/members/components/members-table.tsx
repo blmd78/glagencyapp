@@ -42,6 +42,10 @@ export function MembersTable({
       filterPlaceholder="Filtrer par nom…"
       initialSorting={[{ id: 'createdAt', desc: false }]}
       pageSize={20}
+      // Identité STABLE des lignes : sans elle TanStack keye par index — après une
+      // suppression, les MemberDialog montés en ligne se réapparient par position et
+      // servent l'état RHF d'un AUTRE membre (seule DataTable de l'app qui l'omettait).
+      getRowId={(m) => m.id}
       countLabel={(n) => `${n} membre(s)`}
       toolbar={
         <MemberDialog

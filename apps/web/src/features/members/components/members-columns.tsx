@@ -24,6 +24,11 @@ import { ImpersonateButton } from './impersonate-button'
 import { MemberDialog } from './member-dialog'
 import type { Member } from '../types'
 
+// « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
+// spenders-table) : created_at est un timestamptz — sans timeZone, le SSR (UTC) et un
+// navigateur parisien peuvent rendre un jour différent → mismatch d'hydratation.
+const FR_DATE_PARIS = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' })
+
 const initials = (name: string) =>
   name
     .split(/\s+/)
@@ -35,8 +40,14 @@ const initials = (name: string) =>
 
 /**
  * Colonne Actions : Modifier (dialog) + Supprimer (ConfirmDialog). Admins jamais
- * éditables ici ; un manager n'agit que sur les comptes user — les siens, sa vue étant
- * déjà filtrée par la RLS — et jamais sur sa propre ligne (rôle manager).
+ * éditables ici ; un manager n'agit que sur les comptes user, et jamais sur sa propre
+ * ligne (rôle manager).
+ *
+ * `member.editable` porte le dernier filtre, celui que la vue ne suffit plus à donner : depuis
+ * 0087 la RLS montre à un manager TOUT son sous-arbre, tandis que `authz.ts` n'autorise
+ * l'écriture que sur ses rattachés DIRECTS. Sans lui, les deux boutons s'afficheraient sur les
+ * chatteurs de ses sous-managers pour échouer à chaque clic. Garde d'AFFICHAGE seule — la vraie
+ * barrière reste `authz.ts` (`requireEditableTarget`) côté serveur, doublée par la RLS.
  */
 function RowActions({
   member,
@@ -60,55 +71,62 @@ function RowActions({
   if (member.role === 'admin' && !superadmin) return null
   if (viewer === 'manager' && member.role !== 'chatteur') return null
 
+  // Consulter en tant que : admin uniquement, rôle BRUT de la ligne dans l'allowlist (garde
+  // d'affichage seule — la vraie barrière est côté serveur, `startImpersonation`). Elle ne
+  // dépend PAS de `editable` : un admin a de toute façon tout en éditable.
+  const canImpersonate = viewer === 'admin' && isImpersonatable(member.role)
+  // Plus rien à rendre : pas de cellule vide (une ligne sans action ne montre pas une colonne).
+  if (!canImpersonate && !member.editable) return null
+
   return (
     <div className="flex justify-end gap-1.5">
-      {/* Consulter en tant que : admin uniquement, rôle BRUT de la ligne dans l'allowlist
-          (garde d'affichage seule — la vraie barrière est côté serveur, `startImpersonation`). */}
-      {viewer === 'admin' && isImpersonatable(member.role) && (
-        <ImpersonateButton memberId={member.id} memberName={member.displayName} />
+      {canImpersonate && <ImpersonateButton memberId={member.id} memberName={member.displayName} />}
+      {member.editable && (
+        <>
+          <MemberDialog
+            member={member}
+            creators={creators}
+            chatters={chatters}
+            managers={managers}
+            scope={scope}
+            viewer={viewer}
+            superadmin={superadmin}
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                aria-label={`Modifier ${member.displayName}`}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            }
+          />
+          {/* onConfirm renvoie l'erreur (string) en cas d'échec → le dialog reste ouvert et l'affiche. */}
+          <ConfirmDialog
+            title={`Supprimer ${member.displayName} ?`}
+            description="Son compte et ses accès sont supprimés définitivement — il ne pourra plus se connecter. Les données du CRM ne sont pas touchées."
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-red-600 hover:text-red-700"
+                aria-label={`Supprimer ${member.displayName}`}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            }
+            onConfirm={async () => {
+              const res = await deleteMember(member.id)
+              if (!res.success) {
+                toast.error(res.error)
+                return res.error
+              }
+              toast.success('Membre supprimé')
+            }}
+          />
+        </>
       )}
-      <MemberDialog
-        member={member}
-        creators={creators}
-        chatters={chatters}
-        managers={managers}
-        scope={scope}
-        viewer={viewer}
-        superadmin={superadmin}
-        trigger={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
-            aria-label={`Modifier ${member.displayName}`}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-        }
-      />
-      {/* onConfirm renvoie l'erreur (string) en cas d'échec → le dialog reste ouvert et l'affiche. */}
-      <ConfirmDialog
-        title={`Supprimer ${member.displayName} ?`}
-        description="Son compte et ses accès sont supprimés définitivement — il ne pourra plus se connecter. Les données du CRM ne sont pas touchées."
-        trigger={
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 text-red-600 hover:text-red-700"
-            aria-label={`Supprimer ${member.displayName}`}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        }
-        onConfirm={async () => {
-          const res = await deleteMember(member.id)
-          if (!res.success) {
-            toast.error(res.error)
-            return res.error
-          }
-          toast.success('Membre supprimé')
-        }}
-      />
     </div>
   )
 }
@@ -262,7 +280,7 @@ export function buildMembersColumns({
       header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
       cell: ({ getValue }) => (
         <span className="tabular-nums text-muted-foreground">
-          {new Date(getValue() as string).toLocaleDateString('fr-FR')}
+          {FR_DATE_PARIS.format(new Date(getValue() as string))}
         </span>
       ),
       meta: { align: 'right' },

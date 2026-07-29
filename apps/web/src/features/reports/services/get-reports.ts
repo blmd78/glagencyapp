@@ -75,18 +75,27 @@ export const isPiled = (member: ReportMember, selfId: string): boolean =>
 
 /**
  * Personnes consultables sur le Dashboard — TOUT LE MONDE sauf le superadmin, chatteurs
- * compris : c'est ce qui alimente le sélecteur. La RLS de `profiles` (0054) fait le scoping
- * hiérarchique : admin/superadmin → tout le monde ; manager/sous-manager → soi + rattachés
- * directs (`manager_id`) ; chatteur → soi seul. Le tri de la PILE se fait ensuite côté page
- * (`isPiled`), pas ici — sinon le sélecteur perdrait les chatteurs avec elle.
+ * compris : c'est ce qui alimente le sélecteur. La RLS de `profiles` (0054, élargie en 0087)
+ * fait le scoping hiérarchique : admin/superadmin → tout le monde ; manager → soi + TOUT son
+ * sous-arbre (ses sous-managers ET les chatteurs de ceux-ci — sans quoi son sélecteur serait
+ * quasi vide, la plupart des chatteurs étant rattachés à un sous-manager) ; sous-manager →
+ * soi + ses rattachés directs (il n'a personne sous ses chatteurs) ; chatteur → soi seul.
+ * Le tri de la PILE se fait ensuite côté page (`isPiled`), pas ici — sinon le sélecteur
+ * perdrait les chatteurs avec elle.
  */
 export async function getReportMembers(): Promise<ReportMember[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, display_name, email, role')
-    .neq('role', 'superadmin')
-    .order('display_name')
+  // fetchAll : `profiles` grossit avec l'équipe (cap PostgREST 1000 silencieux) — même règle
+  // que team.ts/get-repos sur la même table. `.order('id')` en tiebreaker = tri déterministe.
+  const { data, error } = await fetchAll((f, t) =>
+    supabase
+      .from('profiles')
+      .select('id, display_name, email, role')
+      .neq('role', 'superadmin')
+      .order('display_name')
+      .order('id')
+      .range(f, t),
+  )
   if (error) throw new Error(error.message)
-  return (data ?? []).map((p) => ({ id: p.id, name: p.display_name ?? p.email ?? '—', role: p.role }))
+  return data.map((p) => ({ id: p.id, name: p.display_name ?? p.email ?? '—', role: p.role }))
 }

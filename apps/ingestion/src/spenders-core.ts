@@ -6,7 +6,7 @@ import {
   type ChatConversation,
   type MoneyTx,
 } from '@glagency/mypuls'
-import { createAdminClient } from '@glagency/db'
+import { createAdminClient, fetchAll } from '@glagency/db'
 import { normLabel } from './norm'
 
 // Briques PURES du scrape spenders (aucune dépendance Node/CLI : ni fs, ni @sentry/node) →
@@ -22,9 +22,12 @@ export type ChatterResolver = (label: string | null) => string | null
  * display_name / email normalisés). 2 lectures Supabase — à réutiliser sur tous les modèles.
  */
 export async function chatterResolver(db: Db): Promise<ChatterResolver> {
+  // fetchAll (x2) : même socle d'identité que pipeline.ts (2 lectures réutilisées sur tous
+  // les modèles) — select nu sans fetchAll tronquerait silencieusement à 1000 lignes dès que
+  // chatters/chatter_alias dépassent ce volume.
   const [{ data: chatters }, { data: aliases }] = await Promise.all([
-    db.from('chatters').select('id, display_name, email'),
-    db.from('chatter_alias').select('chatter_id, raw_label_norm'),
+    fetchAll((f, t) => db.from('chatters').select('id, display_name, email').order('id').range(f, t)),
+    fetchAll((f, t) => db.from('chatter_alias').select('chatter_id, raw_label_norm').order('id').range(f, t)),
   ])
   const byNorm = new Map<string, string>()
   for (const c of chatters ?? []) {

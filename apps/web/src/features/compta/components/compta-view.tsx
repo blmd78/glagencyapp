@@ -30,7 +30,13 @@ export function ComptaView({
 }) {
   const { pending, select } = usePeriodSelect()
 
-  const due = data.rows.filter((r) => !r.paid)
+  // Même population que le filtre « À payer » de la table (compta-table) : les membres non
+  // reliés à MyPuls en sont EXCLUS — sans ce garde, le KPI et le bouton-filtre du même écran
+  // affichaient deux comptes différents, et un non-relié avec un fixe réglé gonflait le
+  // montant d'une somme que ni la vue filtrée ni le paiement groupé ne présentent.
+  const due = data.rows.filter((r) => !r.paid && r.chatterId != null)
+  // « Réglés » = reliés ET payés (pas `rows - due`, qui compterait les non-reliés en réglés).
+  const paidCount = data.rows.filter((r) => r.chatterId != null && r.paid).length
   const kpis: Kpi[] = [
     {
       key: 'due', label: 'À payer', value: eur2(due.reduce((s, r) => s + r.payslip.net, 0)),
@@ -40,8 +46,10 @@ export function ComptaView({
       // L'INSTANTANÉ (`paidAmount`), pas `payslip.net` : ce dernier est le recalcul du jour, et
       // une ré-ingestion du CA le ferait diverger des virements réellement passés — c'est
       // précisément ce que l'instantané existe pour éviter (spec §5.3).
-      key: 'paid', label: 'Déjà payé', value: eur2(data.rows.reduce((s, r) => s + (r.paidAmount ?? 0), 0)),
-      deltaPct: null, trendLabel: 'Période couverte', hint: `${data.rows.length - due.length} réglé${data.rows.length - due.length > 1 ? 's' : ''}`,
+      // Même population que le hint (reliés) : un membre payé PUIS délié garderait un
+      // paidAmount — le sommer gonflerait un total que « N réglés » ne couvre pas.
+      key: 'paid', label: 'Déjà payé', value: eur2(data.rows.reduce((s, r) => s + (r.chatterId != null ? (r.paidAmount ?? 0) : 0), 0)),
+      deltaPct: null, trendLabel: 'Période couverte', hint: `${paidCount} réglé${paidCount > 1 ? 's' : ''}`,
     },
     {
       key: 'ca', label: 'CA de la période', value: eur2(data.rows.reduce((s, r) => s + r.payslip.ca, 0)),

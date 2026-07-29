@@ -82,17 +82,19 @@ export async function runMarketingTelegram(): Promise<TelegramRunSummary> {
     return { status: 'ok', channels: 0, scraped: 0, missing: [], updatedDaily: 0, warnings }
   }
 
-  const { data: prevRows } = await db
-    .from('mkt_social_daily')
-    .select('account_id, date, followers, views_total')
-    .in('account_id', channels.map((c) => c.id))
-    .lt('date', date)
-    .order('date', { ascending: false })
-    .limit(1000)
+  // RPC `distinct on` (0089) : le dernier relevé antérieur PAR compte en 1 sous-requête —
+  // même bascule que marketing-social.ts (5c3b948). Le fetchAll rapatriait TOUT l'historique
+  // (ceil(N/1000) sous-requêtes, croissant sans borne) pour n'en garder qu'une ligne par
+  // compte, ET avalait son erreur (pagination interrompue = deltas calculés sur un instantané
+  // partiel, en silence). Ce pipeline tourne sur le Worker Cloudflare (cron, budget 50
+  // sous-requêtes/invocation) : la dérive aurait fini par mordre.
+  const { data: prevRows, error: pErr } = await db.rpc('mkt_social_prev_snapshot', {
+    account_ids: channels.map((c) => c.id),
+    before_date: date,
+  })
+  if (pErr) throw new Error(`mkt_social_daily lecture : ${pErr.message}`)
   const prev = new Map<string, { followers: number | null; viewsTotal: number | null }>()
-  for (const r of prevRows ?? []) {
-    if (!prev.has(r.account_id)) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
-  }
+  for (const r of prevRows ?? []) prev.set(r.account_id, { followers: r.followers, viewsTotal: r.views_total })
 
   const rows: {
     account_id: string

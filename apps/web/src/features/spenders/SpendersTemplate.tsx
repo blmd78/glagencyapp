@@ -1,12 +1,11 @@
 import { frDateTimeParis } from '@glagency/core'
-import { KpiCard, type Kpi } from '@/components/kpi-card'
-import { eur } from '@/lib/format'
 import { SpendersView, type SpendersViewKind } from './components/spenders-view'
 import { isARelancer, R_ALERTE, type SpendersData } from './types'
 
 // Le h1 (titre) remonte dans chaque page.tsx (pattern standard, s'affiche immédiatement,
 // avant que la donnée réponde) — ce Template ne garde que le sous-titre, qui a besoin de
-// `shownCount`/`freshness` calculés depuis la donnée streamée.
+// `shownCount`/`freshness` calculés depuis la donnée streamée. Les cartes KPI de la Liste
+// vivent dans SpendersView (client) : elles se recalculent sur le modèle sélectionné.
 const SUB: Record<SpendersViewKind, (n: number) => string> = {
   liste: (n) => `${n} fan(s) tracké(s)`,
   tracker: (n) => `${n} spender(s) à cocher aujourd’hui (R < ${R_ALERTE})`,
@@ -43,49 +42,6 @@ export function SpendersTemplate({
           ? actifs.filter((s) => s.compteurR >= R_ALERTE).length
           : actifs.length
 
-  const caTotal = actifs.reduce((s, x) => s + x.ca, 0)
-  const aRelancer = actifs.filter(isARelancer).length
-  const alertesR10 = actifs.filter((s) => s.compteurR >= R_ALERTE).length
-  const orphelins = actifs.filter((s) => !s.chatterName && !s.assignedLabel).length
-
-  const kpis: Array<Kpi & { accent?: string }> = [
-    {
-      key: 'spenders',
-      label: 'Spenders trackés',
-      value: String(actifs.length),
-      deltaPct: null,
-      trendLabel: `CA ≥ ${data.threshold} € net MyPuls`,
-      hint: freshness ? `scrapé le ${freshness}` : '',
-    },
-    {
-      key: 'ca',
-      label: 'CA cumulé spenders',
-      value: eur(caTotal),
-      deltaPct: null,
-      trendLabel: 'total vie de chaque fan',
-      hint: 'somme des CA affichés',
-      info: 'Somme des CA vie de tous les spenders actifs (chacun = tout son historique MyPuls). Repère de volume, pas un CA de période.',
-    },
-    {
-      key: 'relancer',
-      label: 'À relancer',
-      value: String(aRelancer),
-      deltaPct: null,
-      trendLabel: 'non relancés aujourd’hui',
-      hint: `cycle en cours (R < ${R_ALERTE})`,
-      accent: 'border-t-amber-500',
-    },
-    {
-      key: 'alertes',
-      label: `Alertes R${R_ALERTE}`,
-      value: String(alertesR10),
-      deltaPct: null,
-      trendLabel: 'fin de cycle — à archiver',
-      hint: `${orphelins} non assigné(s)`,
-      accent: 'border-t-red-500',
-    },
-  ]
-
   return (
     <div className="flex flex-col gap-6">
       <p className="-mt-4 text-sm text-muted-foreground">
@@ -93,15 +49,14 @@ export function SpendersTemplate({
         {freshness && ` · scrapé le ${freshness}`}
       </p>
 
-      {view === 'liste' && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {kpis.map(({ accent, ...k }) => (
-            <KpiCard key={k.key} kpi={k} accent={accent} />
-          ))}
-        </div>
-      )}
-
-      <SpendersView spenders={data.spenders} view={view} isAdmin={isAdmin} canWrite={canWrite} />
+      <SpendersView
+        spenders={data.spenders}
+        view={view}
+        isAdmin={isAdmin}
+        canWrite={canWrite}
+        threshold={data.threshold}
+        freshness={freshness}
+      />
     </div>
   )
 }

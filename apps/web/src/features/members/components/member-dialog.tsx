@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -101,6 +101,7 @@ export function MemberDialog({
     control,
     handleSubmit,
     setError,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
@@ -132,6 +133,47 @@ export function MemberDialog({
       chatterId: member?.chatterId ?? '',
     },
   })
+  // Réinitialise à L'OUVERTURE SEULEMENT (transition fermé→ouvert, gardée par prevOpen) : le
+  // useForm n'est semé qu'au montage — sans reset, le dialog garde l'état de sa précédente
+  // ouverture. SURTOUT PAS « à chaque changement de member » dialog ouvert : les actions de
+  // l'onglet Compta (saveMemberRate…) font revalidatePath SANS fermer le dialog → nouvelle
+  // identité de `member` → un reset ici écraserait la saisie en cours de l'onglet Général
+  // (régression attrapée par l'audit du 2026-07-29).
+  const prevOpen = useRef(false)
+  useEffect(() => {
+    const opening = open && !prevOpen.current
+    prevOpen.current = open
+    if (!opening) return
+    const slugs = new Set(
+      (scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES).map((c) => c.slug as string),
+    )
+    const cSet = new Set(creators.map((c) => c.id))
+    reset({
+      scope,
+      email: member?.email ?? '',
+      displayName: member?.displayName ?? '',
+      role:
+        viewer === 'manager'
+          ? 'chatteur'
+          : member?.role === 'admin'
+            ? 'admin'
+            : member?.role === 'manager'
+              ? 'manager'
+              : member?.role === 'sous-manager'
+                ? 'sous-manager'
+                : member?.role === 'police'
+                  ? 'police'
+                  : 'chatteur',
+      pages: (member?.pages ?? []).filter((p) => slugs.has(p)),
+      creatorIds: (member?.creatorIds ?? []).filter((id) => cSet.has(id)),
+      managerId: member?.managerId ?? '',
+      workLink: member?.workLink ?? '',
+      closingRole: member?.closingRole ?? null,
+      closingTeam: member?.closingTeam ?? null,
+      chatterId: member?.chatterId ?? '',
+    })
+  }, [open, member, scope, viewer, creators, reset])
+
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })
 

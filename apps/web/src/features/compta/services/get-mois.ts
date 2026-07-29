@@ -8,6 +8,7 @@ import {
   type PayPeriod,
 } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
+import { getProfile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { loadMonthSetterPrimes } from './setter-ranking'
@@ -62,6 +63,19 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
   const supabase = await createClient()
   const admin = createAdminClient()
 
+  // `getProfile` est `cache()` : la page a déjà appelé `requireAccess('compta')` dans le même
+  // rendu — pas de seconde requête. Même patron que `get-compta.ts` / `get-suivi.ts`.
+  const profile = await getProfile()
+  // Inatteignable derrière `requireAccess('compta')` — même garde que `compta-sources.ts`.
+  if (!profile) throw new Error('Session expirée')
+  const isAdmin = profile.role === 'admin'
+
+  const membersQuery = supabase
+    .from('profiles')
+    .select('id, display_name, email, chatter_id')
+    .eq('role', 'chatteur')
+    .order('display_name')
+
   const [
     { data: members, error: membersErr },
     { data: dayEntries, error: dayErr },
@@ -69,13 +83,13 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
     setterPrimes,
   ] = await Promise.all([
     // ⚠️ ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` et `get-suivi.ts` : c'est CETTE
-    // lecture, sous RLS, qui définit la population. La lecture par client admin plus bas se cadre
-    // dessus et ne doit jamais l'élargir.
-    supabase
-      .from('profiles')
-      .select('id, display_name, email, chatter_id')
-      .eq('role', 'chatteur')
-      .order('display_name'),
+    // lecture qui définit la population, et la lecture par client admin plus bas se cadre dessus
+    // sans jamais l'élargir. Le `.eq('manager_id', …)` RE-BORNE aux rattachés DIRECTS ce que la
+    // RLS `profiles` rend transitif depuis 0087 (tout le sous-arbre) — motif complet dans
+    // `compta-sources.ts` : le périmètre de PAIE reste direct, et les handoffs lus juste en
+    // dessous (`compta_day/week_entries`) sont eux restés sur `manages()` direct-only, donc un
+    // chatteur de sous-manager s'afficherait avec 0 handoff et une prime setter nulle.
+    isAdmin ? membersQuery : membersQuery.eq('manager_id', profile.id),
     // Handoffs saisis au JOUR, sous RLS : la population affichée est exactement celle que la RLS
     // laisse passer, donc aucune raison de passer par le client admin ici (contrairement au
     // classement, dont les RANGS dépendent de toute l'agence). `fetchAll` : jusqu'à 31 jours ×

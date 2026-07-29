@@ -75,22 +75,26 @@ export function ComptaEntryForm({
     <form {...rowProps} className={cn('grid', ENTRY_GRID_COLS)}>
       <span className="col-span-2 text-sm font-medium sm:col-span-1">Semaine du {weekLabel}</span>
 
+      {/* Ids suffixés par chatterId : plusieurs fiches peuvent être dépliées en même temps et
+          toutes partagent les 2 mêmes lundis — sans le suffixe, deux fiches ouvertes dupliquent
+          les ids et le label focalise le champ de la MAUVAISE fiche (même règle que le
+          `idSuffix` de report-panel). */}
       <EntryField
-        id={`bonus-${weekStart}`}
+        id={`bonus-${chatterId}-${weekStart}`}
         label="Bonus €"
         step="0.01"
         error={err('bonus')}
         registration={register('bonus')}
       />
       <EntryField
-        id={`malus-${weekStart}`}
+        id={`malus-${chatterId}-${weekStart}`}
         label="Malus €"
         step="0.01"
         error={err('malus')}
         registration={register('malus')}
       />
       <EntryField
-        id={`handoffs-${weekStart}`}
+        id={`handoffs-${chatterId}-${weekStart}`}
         label="Handoffs"
         error={err('handoffs')}
         registration={register('handoffs')}

@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import {
+  BusinessError,
   runAction,
   noGuard,
   requireAdminProfile,
@@ -29,31 +30,38 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: cellInput,
     input: raw,
-    // Ajout/retrait d'un repos dans une case = ADMIN uniquement (les managers sont en lecture
-    // seule sur les cases ; seule la case « envoyé Telegram » leur reste, cf. setReposSent).
-    // Contrôle en tête de handler (patron §4) : le profil sert aussi à `updated_by`.
+    // Cases CHATTEURS (colonnes modèles) : admin OU manager/sous-manager porteur de la page.
+    // Cases ENCADREMENT (managers/policiers) : admin uniquement. L'ÉCRITURE passe par le RPC
+    // `save_repos_cell` (0090, SECURITY DEFINER) qui porte TOUT le contrôle en SQL — droit
+    // (can_write_page), colonne, et périmètre : les ids ajoutés/retirés doivent appartenir au
+    // sous-arbre de l'appelant (managed_subtree, 0087), delta calculé sous verrou FOR UPDATE.
+    // Les policies d'écriture directes de rest_planning_cells restent admin-only (0076) : un
+    // non-admin ne PEUT écrire que via ce RPC. La garde app ci-dessous n'est qu'un miroir
+    // (message propre sans aller-retour) ; l'enforcement réel est en base.
     guard: noGuard,
     handler: async (values) => {
-      const profile = await requireAdminProfile()
+      const profile = await requireWriteProfile('repos')
       const { weekStart, day, col, chatterIds, names } = values
+      if ((col === 'managers' || col === 'policiers') && profile.role !== 'admin')
+        throw new BusinessError('Accès refusé')
 
       const supabase = await createClient()
-
-      // Admin-only : écriture directe de la cellule telle que soumise (plus de MERGE de scope).
-      const { error } = await supabase.from('rest_planning_cells').upsert(
-        {
-          week_start: weekStart,
-          day,
-          col,
-          chatter_ids: chatterIds,
-          names: names.trim(),
-          updated_at: new Date().toISOString(),
-          updated_by: profile.id,
-        },
-        { onConflict: 'week_start,day,col' },
-      )
-      // Erreur technique → throw : runAction capture (Sentry) + message générique.
-      if (error) throw new Error(error.message)
+      const { error } = await supabase.rpc('save_repos_cell', {
+        p_week_start: weekStart,
+        p_day: day,
+        p_col: col,
+        p_chatter_ids: chatterIds,
+        p_names: names.trim(),
+      })
+      if (error) {
+        // Sentinelles métier du RPC → messages utilisateur ; le reste = erreur technique
+        // (throw : runAction capture Sentry + message générique).
+        if (error.message.includes('repos_hors_equipe'))
+          throw new BusinessError('Tu ne peux modifier que les repos des chatters de ton équipe')
+        if (error.message.includes('repos_colonne_encadrement') || error.message.includes('repos_acces_refuse'))
+          throw new BusinessError('Accès refusé')
+        throw new Error(error.message)
+      }
       revalidatePath('/chatter/repos')
     },
   })

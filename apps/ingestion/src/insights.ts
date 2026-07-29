@@ -9,7 +9,7 @@ import {
   addDays,
   weekLabel,
 } from '@glagency/core'
-import { createAdminClient, type Json } from '@glagency/db'
+import { createAdminClient, fetchAll, type Json } from '@glagency/db'
 
 type Db = ReturnType<typeof createAdminClient>
 
@@ -23,17 +23,32 @@ type Db = ReturnType<typeof createAdminClient>
 
 
 async function fetchWindow(db: Db, start: string, end: string): Promise<Omit<WeekWindow, 'label'>> {
+  // fetchAll (x2) : CASSÉ sans ça — une semaine ≈ 150 lignes/jour pour chatter_daily et
+  // bien plus pour chatter_creator_daily (multi-modèles) → dépasse le plafond PostgREST
+  // (1000 lignes, silencieux) dès la fenêtre évaluée par cette fonction, faussant les
+  // insights hebdo. `.order()` sur la PK complète de chaque table (migration 0001).
   const [{ data: chd, error: e1 }, { data: ccd, error: e2 }] = await Promise.all([
-    db
-      .from('chatter_daily')
-      .select('chatter_id, date, ca, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
-      .gte('date', start)
-      .lte('date', end),
-    db
-      .from('chatter_creator_daily')
-      .select('chatter_id, creator_id, date, ca')
-      .gte('date', start)
-      .lte('date', end),
+    fetchAll((f, t) =>
+      db
+        .from('chatter_daily')
+        .select('chatter_id, date, ca, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
+        .gte('date', start)
+        .lte('date', end)
+        .order('chatter_id')
+        .order('date')
+        .range(f, t),
+    ),
+    fetchAll((f, t) =>
+      db
+        .from('chatter_creator_daily')
+        .select('chatter_id, creator_id, date, ca')
+        .gte('date', start)
+        .lte('date', end)
+        .order('chatter_id')
+        .order('creator_id')
+        .order('date')
+        .range(f, t),
+    ),
   ])
   if (e1) throw e1
   if (e2) throw e2
@@ -95,7 +110,9 @@ export async function generateWeeklyInsights(
 
   // Référentiels : noms + quotas par modèle (creators.team_id → quotas).
   const [{ data: chatters }, { data: creators }, { data: quotas }] = await Promise.all([
-    db.from('chatters').select('id, display_name'),
+    // fetchAll : select nu sans filtre sur le roster complet — grossit avec l'effectif,
+    // aucune borne native contre le plafond PostgREST (1000 lignes, silencieux).
+    fetchAll((f, t) => db.from('chatters').select('id, display_name').order('id').range(f, t)),
     db.from('creators').select('id, name, team_id'),
     db.from('quotas').select('team_id, presence_h, reactivite_s, medias_proposes, conv_pct, ca_eur'),
   ])

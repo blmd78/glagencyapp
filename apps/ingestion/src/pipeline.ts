@@ -7,7 +7,7 @@ import {
   login,
   type MoneyTeamDay,
 } from '@glagency/mypuls'
-import { createAdminClient } from '@glagency/db'
+import { createAdminClient, fetchAll } from '@glagency/db'
 import { summarizeRun, type IngestDayResult, type IngestRunSummary } from '@glagency/core'
 import { decodeEntities, normLabel } from './norm'
 
@@ -377,7 +377,11 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
   }
   // Ces deux selects sont le SOCLE de la résolution d'identité : un échec silencieux
   // donnerait des maps vides → duplication massive + re-pointage des alias. On THROW.
-  const { data: chatterRows, error: chattersErr } = await db.from('chatters').select('id, display_name, email')
+  // fetchAll : un select nu tronqué à 1000 lignes donnerait des maps INCOMPLÈTES (pas
+  // vides) → le garde-fou `chattersErr` ne verrait rien passer.
+  const { data: chatterRows, error: chattersErr } = await fetchAll((f, t) =>
+    db.from('chatters').select('id, display_name, email').order('id').range(f, t),
+  )
   if (chattersErr) throw chattersErr
   const nameToChatter = new Map<string, string>()
   const emailToChatter = new Map<string, string>()
@@ -387,7 +391,11 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     // de rapprochement label → email connu, à la même normalisation que les alias.
     if (c.email) emailToChatter.set(normLabel(c.email), c.id)
   }
-  const { data: aliasRows, error: aliasErr } = await db.from('chatter_alias').select('chatter_id, raw_label_norm')
+  // fetchAll : même socle d'identité — chatter_alias grossit à chaque nouveau libellé
+  // scrapé jamais vu (bootstrap), aucune borne native.
+  const { data: aliasRows, error: aliasErr } = await fetchAll((f, t) =>
+    db.from('chatter_alias').select('chatter_id, raw_label_norm').order('id').range(f, t),
+  )
   if (aliasErr) throw aliasErr
   const aliasToChatter = new Map<string, string>()
   // Re-normalise les norms STOCKÉS (posés avant le durcissement de normLabel — emojis,

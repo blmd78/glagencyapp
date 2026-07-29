@@ -21,12 +21,19 @@ export async function getMktStaff(period: Period): Promise<MktStaffData> {
   const [staffRes, staffLinksRes, accountsRes, linksRes, dailyRes, socialRes, paymentsRes] =
     await Promise.all([
       supabase.from('mkt_staff').select('*').order('role').order('name'),
-      supabase.from('mkt_staff_links').select('staff_id, link_id'),
+      // fetchAll sur mkt_staff_links et mkt_links : tables sans purge (~15 liens/semaine,
+      // cap PostgREST 1000 atteignable en ~1 an) — même règle que get-mkt-links, qui pagine
+      // déjà mkt_links avec le commentaire « grossit sans purge » (audit 2026-07-29).
+      fetchAll((f, t) =>
+        supabase.from('mkt_staff_links').select('staff_id, link_id').order('staff_id').order('link_id').range(f, t),
+      ),
       supabase
         .from('mkt_social_accounts')
         .select('id, handle, staff_id, platform')
         .in('platform', ['instagram', 'twitter']),
-      supabase.from('mkt_links').select('id, name, active, type'),
+      fetchAll((f, t) =>
+        supabase.from('mkt_links').select('id, name, active, type').order('id').range(f, t),
+      ),
       fetchAll((f, t) =>
         supabase
           .from('mkt_link_daily')
