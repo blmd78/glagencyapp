@@ -127,11 +127,18 @@ export async function getOrganisation(): Promise<OrganisationData> {
         rows.push(rowFor({ id: sm.id, smId: sm.id, smName: nameOf(sm) }, creatorId))
       }
     }
-    for (const creatorId of modelsByProfile.get(mgr.id) ?? []) {
-      if (seen.has(creatorId)) continue
-      seen.add(creatorId)
-      coveredModels.add(creatorId)
-      rows.push(rowFor({ id: mgr.id, smId: null, smName: null }, creatorId))
+    // Lignes « directes » (modèle porté par la tête elle-même) — SEULEMENT pour un manager.
+    // Un ADMIN est assigné à TOUS les modèles par nature (c'est son périmètre d'accès, pas
+    // une information d'organisation) : les rendre en lignes donnait 16 lignes « Axel » là où
+    // la feuille en montre 2 via son sous-manager. Ses assignations restent intactes en base
+    // — on ne les affiche simplement pas comme de l'orga.
+    if (mgr.role === 'manager') {
+      for (const creatorId of modelsByProfile.get(mgr.id) ?? []) {
+        if (seen.has(creatorId)) continue
+        seen.add(creatorId)
+        coveredModels.add(creatorId)
+        rows.push(rowFor({ id: mgr.id, smId: null, smName: null }, creatorId))
+      }
     }
     // Managers sans équipe ni modèle (ex. face marketing) : pas de groupe vide.
     if (rows.length === 0 && team.length === 0) continue
