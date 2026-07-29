@@ -96,6 +96,9 @@ const rowInput = z.object({
   /** Paire actuelle à remplacer — null = AJOUT d'une ligne. */
   prevOwnerId: z.uuid().nullable(),
   prevCreatorId: z.uuid().nullable(),
+  /** Section visée : si le porteur est un sous-manager NON rattaché à ce manager, il l'est
+   *  rendu — sans quoi la ligne n'apparaîtrait dans aucune section (audit 2026-07-29). */
+  sectionManagerId: z.uuid().nullable().optional(),
 })
 
 /**
@@ -134,6 +137,24 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
         .from('profile_creators')
         .upsert({ profile_id: ownerId, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
       if (error) throw new Error(error.message)
+      // Le porteur sous-manager doit appartenir à la section visée, sinon la ligne créée
+      // serait invisible (le board ne construit ses sections que par rattachement).
+      if (values.sectionManagerId && owner.role === 'sous-manager') {
+        const { data: sm, error: rErr } = await admin
+          .from('profiles')
+          .select('manager_ids')
+          .eq('id', ownerId)
+          .maybeSingle()
+        if (rErr) throw new Error(rErr.message)
+        const current = sm?.manager_ids ?? []
+        if (!current.includes(values.sectionManagerId)) {
+          const { error: aErr } = await admin
+            .from('profiles')
+            .update({ manager_ids: [...current, values.sectionManagerId] })
+            .eq('id', ownerId)
+          if (aErr) throw new Error(aErr.message)
+        }
+      }
       revalidatePath('/chatter/organisation')
       revalidatePath('/chatter/members')
     },
@@ -142,7 +163,8 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
 
 const teamInput = z.object({
   sousManagerId: z.uuid(),
-  fromManagerId: z.uuid(),
+  /** null = le sous-manager n'était rattaché à personne (section « Sans manager »). */
+  fromManagerId: z.uuid().nullable(),
   toManagerId: z.uuid(),
 })
 

@@ -36,12 +36,15 @@ export function MemberClosingFields({
   roleValue,
   isSubmitting,
   linked,
+  showShift,
 }: {
   control: Control<MemberForm>
   roleValue: MemberForm['role']
   isSubmitting: boolean
   /** Lien MyPuls présent : le shift s'écrit sur la fiche liée — sans lien, il ne peut pas être conservé. */
   linked: boolean
+  /** Le shift vit sur la fiche chatteur : ADMIN seul (cf. member-dialog / applyShift). */
+  showShift: boolean
 }) {
   'use no memo'
   if (roleValue !== 'chatteur') return null
@@ -103,6 +106,7 @@ export function MemberClosingFields({
           </div>
         )}
       />
+      {showShift && (
       <Controller
         name="shift"
         control={control}
@@ -136,6 +140,7 @@ export function MemberClosingFields({
           </div>
         )}
       />
+      )}
     </div>
   )
 }

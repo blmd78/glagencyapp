@@ -140,6 +140,32 @@ export async function getOrganisation(): Promise<OrganisationData> {
     })
   }
 
+  // SOUS-MANAGERS RATTACHÉS À PERSONNE (ou à un manager absent) : sans cette section, leurs
+  // modèles et leurs chatters n'apparaîtraient NULLE PART — le board ne construit ses sections
+  // que par manager (en prod : 2 sous-managers sur 5, dont l'un porte 4 modèles et 24
+  // chatters, audit 2026-07-29). `managerId: ''` = sentinelle « sans manager » : choisir un
+  // manager sur une de ces lignes rattache le sous-manager (moveOrgTeam, fromManagerId null).
+  const managerIdSet = new Set(managers.map((m) => m.id))
+  const orphanSms = sousManagers
+    .filter((sm) => !(sm.manager_ids ?? []).some((id) => managerIdSet.has(id)))
+    .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
+  const orphanRows: OrgRow[] = []
+  for (const sm of orphanSms) {
+    for (const creatorId of modelsByProfile.get(sm.id) ?? []) {
+      if (orphanRows.some((r) => r.creatorId === creatorId && r.ownerId === sm.id)) continue
+      coveredModels.add(creatorId)
+      orphanRows.push(rowFor({ id: sm.id, smId: sm.id, smName: nameOf(sm) }, creatorId))
+    }
+  }
+  if (orphanRows.length) {
+    sections.push({
+      managerId: '',
+      managerName: 'Sans manager',
+      rows: orphanRows,
+      total: orphanRows.reduce((s, r) => s + r.total, 0),
+    })
+  }
+
   // Modèles actifs hors de toute section = trou d'assignation, à rendre VISIBLE (pas caché).
   const orphanModels = creators
     .filter((c) => c.active && !coveredModels.has(c.id))
@@ -163,7 +189,8 @@ export async function getOrganisation(): Promise<OrganisationData> {
       .sort((a, b) => a.name.localeCompare(b.name)),
     orphanModels,
     counts: {
-      managers: sections.length,
+      // Sections réelles : la synthétique « Sans manager » n'est pas une équipe.
+      managers: sections.filter((x) => x.managerId !== '').length,
       sousManagers: sousManagers.length,
       modeles: creators.filter((c) => c.active).length,
       chatteurs: chatterMembers.length,

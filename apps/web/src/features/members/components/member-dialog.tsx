@@ -245,7 +245,16 @@ export function MemberDialog({
 
       {/* Désignation closing (setter/closer + équipe) — chatteur uniquement (masqué sinon).
           Placée au-dessus des pages : rôle → désignation → pages/modèles. */}
-      <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} linked={!!member?.chatterId} />
+      {/* `showShift` : le shift vit sur la FICHE chatteur (comme le lien MyPuls) → admin seul.
+          Sinon un manager verrait « Aucun » (getMembers ne lui envoie pas les shifts) et le
+          simple fait d'enregistrer l'effacerait — audit 2026-07-29. */}
+      <MemberClosingFields
+        control={control}
+        roleValue={roleValue}
+        isSubmitting={isSubmitting}
+        linked={!!member?.chatterId}
+        showShift={viewer === 'admin'}
+      />
 
       {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
           ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de

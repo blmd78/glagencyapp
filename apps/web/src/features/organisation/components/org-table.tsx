@@ -182,10 +182,10 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                 >
                   <td className="p-1 px-2 align-top">
                     <ChipSelect
-                      value={section.managerId}
+                      value={section.managerId || null}
                       label={section.managerName}
                       options={data.managerOptions}
-                      chipClass={CHIP_GREEN}
+                      chipClass={section.managerId ? CHIP_GREEN : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}
                       editable={isAdmin}
                       disabled={pending}
                       title={
@@ -198,7 +198,8 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                           r.sousManagerId
                             ? moveOrgTeam({
                                 sousManagerId: r.sousManagerId,
-                                fromManagerId: section.managerId,
+                                // '' = section synthétique « Sans manager » → simple rattachement.
+                                fromManagerId: section.managerId || null,
                                 toManagerId: to,
                               })
                             : saveOrgRow({
@@ -215,7 +216,9 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                     <ChipSelect
                       value={r.sousManagerId ?? 'direct'}
                       label={r.sousManagerName ?? 'direct'}
-                      options={[DIRECT, ...data.sousManagerOptions]}
+                      // « direct » = porté par le manager de la section : sans objet dans la
+                      // section synthétique « Sans manager ».
+                      options={section.managerId ? [DIRECT, ...data.sousManagerOptions] : data.sousManagerOptions}
                       chipClass={r.sousManagerName ? CHIP_GREEN : 'bg-muted text-muted-foreground'}
                       editable={isAdmin}
                       disabled={pending}
@@ -226,6 +229,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                             creatorId: r.creatorId,
                             prevOwnerId: r.ownerId,
                             prevCreatorId: r.creatorId,
+                            sectionManagerId: v === 'direct' ? null : section.managerId || null,
                           }),
                         )
                       }
@@ -254,7 +258,11 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                   {CRM_SHIFTS.map((shift) => {
                     const server = r.byShift[shift]
                     const ids = cellIds(r.creatorId, shift, server)
-                    const previous = server.map((c) => c.id)
+                    // `previous` = l'état AFFICHÉ (override optimiste compris), pas l'état
+                    // serveur du rendu : deux toggles rapides sur la même case (décocher puis
+                    // recocher) diffaient sinon contre une base périmée → early-return et
+                    // désassignation silencieuse (audit 2026-07-29).
+                    const previous = ids
                     if (!isAdmin)
                       return (
                         <td key={shift} className="px-3 py-2">
@@ -293,7 +301,12 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                               )}
                             </button>
                           }
-                          options={data.chatterOptions.map((o) => ({ value: o.id, label: o.name }))}
+                          // LIÉS uniquement : sans fiche MyPuls, le shift n'a nulle part où
+                          // s'écrire — l'ajout créait une assignation fantôme, invisible au
+                          // rechargement (audit). Le compte des non-liés vit dans le KPI.
+                          options={data.chatterOptions
+                            .filter((o) => o.linked)
+                            .map((o) => ({ value: o.id, label: o.name }))}
                           value={ids}
                           labelById={Object.fromEntries(nameById)}
                           onChange={(next) => commitCell(r.creatorId, shift, next, previous)}
@@ -364,6 +377,9 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                             creatorId: creator,
                             prevOwnerId: null,
                             prevCreatorId: null,
+                            // Rattache le sous-manager choisi au manager de la ligne, sinon
+                            // elle n'apparaîtrait dans aucune section (audit).
+                            sectionManagerId: d.owner === 'direct' ? null : d.manager,
                           }),
                         )
                       }}

@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { applyChatterLink } from '@/lib/chatter-link'
+import type { Profile } from '@/lib/auth'
 import { readStateCookie } from '@/lib/impersonation/session'
 import {
   authorizeRoleAndScope,
@@ -42,10 +43,26 @@ const revalidateMembers = () => {
   revalidatePath('/chatter/organisation')
 }
 
-/** Écrit le shift sur la fiche chatteur LIÉE (chatters.shift = LA source, partagée avec la
- *  page Chatters et le board Organisation). Sans lien : rien à écrire — le champ du dialog
- *  l'annonce. Appelé APRÈS applyChatterLink pour viser le lien à jour. */
-async function applyShift(admin: ReturnType<typeof createAdminClient>, profileId: string, shift: string | null) {
+/**
+ * Écrit le shift sur la fiche chatteur LIÉE (chatters.shift = LA source, partagée avec la
+ * page Chatters et le board Organisation). Sans lien : rien à écrire — le champ du dialog
+ * l'annonce. Appelé APRÈS applyChatterLink pour viser le lien à jour.
+ *
+ * ⚠️ NO-OP POUR UN NON-ADMIN, exactement comme `applyChatterLink` — et pour les deux mêmes
+ * raisons : (1) `getMembers` ne charge les shifts que pour un admin, donc le formulaire d'un
+ * manager porte `shift: null` sans que personne l'ait choisi → enregistrer une simple
+ * modification de pages EFFACERAIT le shift (perte silencieuse, audit 2026-07-29 : reproduit
+ * sur l'UAT) ; (2) l'écriture passe par le SERVICE-ROLE, qui court-circuite la RLS
+ * `chatters_crm_update` (0029/0060 : réservée à `can_write_page('chatters')`) — un encadrant
+ * sans cette page écrirait une colonne que la base lui refuse.
+ */
+async function applyShift(
+  admin: ReturnType<typeof createAdminClient>,
+  caller: Profile,
+  profileId: string,
+  shift: string | null,
+) {
+  if (caller.role !== 'admin') return // non-admin : shift inchangé (cf. applyChatterLink)
   const { data: prof, error } = await admin.from('profiles').select('chatter_id').eq('id', profileId).maybeSingle()
   if (error) throw new Error(error.message)
   if (!prof?.chatter_id) return
@@ -133,7 +150,7 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing ci-dessus) —
       // sinon on force à null pour ne pas « consommer » l'unicité d'un chatteur sur un non-chatteur.
       await applyChatterLink(admin, caller, uid, role === 'chatteur' ? chatterId : '')
-      if (role === 'chatteur') await applyShift(admin, uid, values.shift)
+      if (role === 'chatteur') await applyShift(admin, caller, uid, values.shift)
       if (role !== 'chatteur') {
         const { error: rErr } = await admin
           .from('profiles')
@@ -200,7 +217,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing) — un membre
       // promu manager/police/admin voit son chatter_id remis à null (sinon lien orphelin non réparable).
       await applyChatterLink(admin, caller, id, role === 'chatteur' ? chatterId : '')
-      if (role === 'chatteur') await applyShift(admin, id, values.shift)
+      if (role === 'chatteur') await applyShift(admin, caller, id, values.shift)
       // La cible cesse d'être manager/sous-manager (démotion chatteur OU promotion admin) :
       // détacher ses chatteurs, sinon ils restent rattachés à un non-manager — invisibles de
       // tous les managers, et l'édition admin bloquerait sur un rattachement périmé.
