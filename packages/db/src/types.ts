@@ -2356,6 +2356,7 @@ export type Database = {
           date: string
         }[]
       }
+      crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
       crm_spenders_tracker: {
         Args: { p_seuil?: number }
         Returns: {
@@ -2411,6 +2412,7 @@ export type Database = {
         }
         Returns: Json
       }
+      repos_data_weeks: { Args: never; Returns: Json }
       save_repos_cell: {
         Args: {
           p_chatter_ids: string[]
