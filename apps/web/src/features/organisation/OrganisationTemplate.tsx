@@ -11,8 +11,9 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
   const { counts, orphanModels } = data
 
   const kpis: Array<Kpi & { accent?: string }> = [
-    // Liserés = code couleur de l'app (bleu chatter, vert encadrement, violet modèles) ;
-    // l'AMBRE d'alerte prime quand il y a un trou à régler, comme le rouge des chips.
+    // Liserés = code couleur de l'app (bleu chatter, vert encadrement, violet modèles —
+    // toujours) ; l'AMBRE d'alerte ne reste que sur « À placer » (les modèles sans équipe
+    // s'annoncent dans le trendLabel de leur carte).
     {
       key: 'chatteurs',
       label: 'Chatters',
@@ -38,7 +39,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       deltaPct: null,
       trendLabel: orphanModels.length ? `${orphanModels.length} sans équipe` : 'tous couverts',
       hint: 'assignés via Membres',
-      accent: orphanModels.length ? 'border-t-amber-500' : 'border-t-violet-500',
+      accent: 'border-t-violet-500',
     },
     {
       key: 'aPlacer',
