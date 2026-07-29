@@ -216,8 +216,15 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       if (pErr) throw new Error(pErr.message)
       // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing) — un membre
       // promu manager/police/admin voit son chatter_id remis à null (sinon lien orphelin non réparable).
+      // Lien AVANT modification : si l'admin re-lie le membre à une AUTRE fiche, la valeur de
+      // shift du formulaire décrit l'ANCIENNE fiche — l'appliquer écraserait le shift propre
+      // de la nouvelle (audit 2026-07-29). Dans ce cas on ne touche pas au shift.
+      const { data: beforeLink } = await admin.from('profiles').select('chatter_id').eq('id', id).maybeSingle()
       await applyChatterLink(admin, caller, id, role === 'chatteur' ? chatterId : '')
-      if (role === 'chatteur') await applyShift(admin, caller, id, values.shift)
+      const { data: afterLink } = await admin.from('profiles').select('chatter_id').eq('id', id).maybeSingle()
+      if (role === 'chatteur' && beforeLink?.chatter_id === afterLink?.chatter_id) {
+        await applyShift(admin, caller, id, values.shift)
+      }
       // La cible cesse d'être manager/sous-manager (démotion chatteur OU promotion admin) :
       // détacher ses chatteurs, sinon ils restent rattachés à un non-manager — invisibles de
       // tous les managers, et l'édition admin bloquerait sur un rattachement périmé.

@@ -137,6 +137,56 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
         .from('profile_creators')
         .upsert({ profile_id: ownerId, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
       if (error) throw new Error(error.message)
+      // PORTEUR JUMEAU : un modèle est très souvent porté À LA FOIS par le sous-manager (qui
+      // l'opère) et par son manager (périmètre de lecture) — le board n'affiche alors qu'UNE
+      // ligne, celle du sous-manager. Sans ce bloc, changer le modèle d'une telle ligne
+      // laissait l'assignation du manager en place : l'ancien modèle « ressuscitait » aussitôt
+      // en ligne « direct » (audit 2026-07-29). On aligne donc le manager sur sa nouvelle
+      // ligne — SAUF si un AUTRE de ses sous-managers porte encore l'ancien modèle (son
+      // périmètre de lecture doit rester couvrant).
+      if (prevCreatorId && prevCreatorId !== creatorId && values.sectionManagerId && owner.role === 'sous-manager') {
+        const mgrId = values.sectionManagerId
+        const { data: mgrHas, error: hErr } = await admin
+          .from('profile_creators')
+          .select('creator_id')
+          .eq('profile_id', mgrId)
+          .eq('creator_id', prevCreatorId)
+          .maybeSingle()
+        if (hErr) throw new Error(hErr.message)
+        if (mgrHas) {
+          // Un autre sous-manager rattaché à ce manager porte-t-il encore l'ancien modèle ?
+          const { data: team, error: tErr } = await admin
+            .from('profiles')
+            .select('id')
+            .eq('role', 'sous-manager')
+            .contains('manager_ids', [mgrId])
+          if (tErr) throw new Error(tErr.message)
+          const others = (team ?? []).map((t) => t.id).filter((id) => id !== ownerId)
+          let stillCarried = false
+          if (others.length) {
+            const { data: carriers, error: cErr } = await admin
+              .from('profile_creators')
+              .select('profile_id')
+              .eq('creator_id', prevCreatorId)
+              .in('profile_id', others)
+            if (cErr) throw new Error(cErr.message)
+            stillCarried = (carriers ?? []).length > 0
+          }
+          if (!stillCarried) {
+            const { error: dErr } = await admin
+              .from('profile_creators')
+              .delete()
+              .eq('profile_id', mgrId)
+              .eq('creator_id', prevCreatorId)
+            if (dErr) throw new Error(dErr.message)
+          }
+          const { error: uErr } = await admin
+            .from('profile_creators')
+            .upsert({ profile_id: mgrId, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
+          if (uErr) throw new Error(uErr.message)
+        }
+      }
+
       // Le porteur sous-manager doit appartenir à la section visée, sinon la ligne créée
       // serait invisible (le board ne construit ses sections que par rattachement).
       if (values.sectionManagerId && owner.role === 'sous-manager') {

@@ -1,17 +1,18 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
-/** Silhouette de l'orga : sous-titre + 3 sections (titre + tableau). */
+/** Silhouette de l'orga — mêmes dimensions que le rendu final (anti-CLS, guidelines §2) :
+ *  la grille de 4 cartes KPI puis LE tableau unique. */
 export function OrganisationSkeleton() {
   return (
-    <div role="status" className="flex flex-col gap-8">
+    <div role="status" className="flex flex-col gap-6">
       <span className="sr-only">Chargement…</span>
-      <div aria-hidden="true" className="flex flex-col gap-8">
-        {Array.from({ length: 3 }, (_, i) => (
-          <div key={i} className="flex flex-col gap-3">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-40 w-full rounded-xl" />
-          </div>
-        ))}
+      <div aria-hidden="true" className="flex flex-col gap-6">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-[8.5rem] w-full rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-[28rem] w-full rounded-xl" />
       </div>
     </div>
   )
