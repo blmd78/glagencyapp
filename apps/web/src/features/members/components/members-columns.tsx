@@ -61,7 +61,7 @@ function RowActions({
   member: Member
   creators: { id: string; name: string }[]
   chatters: { id: string; name: string }[]
-  managers: { id: string; name: string }[]
+  managers: { id: string; name: string; role: string }[]
   scope: 'chatter' | 'marketing'
   viewer: 'admin' | 'manager'
   /** Propriétaire : seul à pouvoir gérer les fiches admin. */
@@ -158,7 +158,7 @@ export function buildMembersColumns({
 }: {
   creators: { id: string; name: string }[]
   chatters: { id: string; name: string }[]
-  managers: { id: string; name: string }[]
+  managers: { id: string; name: string; role: string }[]
   scope: 'chatter' | 'marketing'
   viewer: 'admin' | 'manager'
   superadmin: boolean

@@ -60,11 +60,11 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       const managerIds = caller.role !== 'admin' ? [caller.id] : values.managerIds
 
       const admin = createAdminClient()
-      // Rattachements choisis par un admin : chaque cible doit être un manager (un appelant
-      // manager est déjà forcé sur lui-même, garanti manager par requireCaller). Inutile
-      // pour un rôle admin (managerIdsPatch le vide de toute façon).
-      if (role !== 'admin' && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
-        const mErr = await requireManagerTargets(admin, managerIds)
+      // Rattachements choisis par un admin : chaque cible doit être valide pour le rôle (un
+      // appelant manager est déjà forcé sur lui-même, garanti manager par requireCaller).
+      // Inutile pour un rôle admin/manager (managerIdsPatch le vide de toute façon).
+      if (role !== 'admin' && role !== 'manager' && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
+        const mErr = await requireManagerTargets(admin, managerIds, role)
         if (mErr) throw new BusinessError(mErr)
       }
       if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
@@ -155,9 +155,9 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
       if ('error' in target) throw new BusinessError(target.error)
-      // Cf. createMember : on ne valide pas un rattachement qui sera vidé (rôle admin).
-      if (role !== 'admin' && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
-        const mErr = await requireManagerTargets(admin, managerIds)
+      // Cf. createMember : on ne valide pas un rattachement qui sera vidé (rôle admin/manager).
+      if (role !== 'admin' && role !== 'manager' && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
+        const mErr = await requireManagerTargets(admin, managerIds, role)
         if (mErr) throw new BusinessError(mErr)
       }
       if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')

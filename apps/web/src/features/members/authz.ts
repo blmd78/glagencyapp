@@ -126,14 +126,25 @@ export async function requireEditableTarget(
   return { role: target.role }
 }
 
-/** Rattachements valides = CHAQUE id est un profil existant de rôle manager/sous-manager. */
-export async function requireManagerTargets(admin: Admin, managerIds: string[]): Promise<string | null> {
+/**
+ * Rattachements valides selon le RÔLE CIBLE : un sous-manager ne se rattache qu'à des
+ * MANAGERS (pas de chaîne de sous-managers) ; un chatteur/police, à des managers OU
+ * sous-managers. (Un rôle manager/admin n'a jamais de rattachement — managerIdsPatch vide.)
+ */
+export async function requireManagerTargets(
+  admin: Admin,
+  managerIds: string[],
+  targetRole: Role,
+): Promise<string | null> {
   if (!managerIds.length) return null
+  const allowed: string[] = targetRole === 'sous-manager' ? ['manager'] : ['manager', 'sous-manager']
   const { data: mgrs } = await admin.from('profiles').select('id, role').in('id', managerIds)
-  const ok = new Set(
-    (mgrs ?? []).filter((m) => m.role === 'manager' || m.role === 'sous-manager').map((m) => m.id),
-  )
-  return managerIds.every((id) => ok.has(id)) ? null : 'Rattachement invalide (pas un manager)'
+  const ok = new Set((mgrs ?? []).filter((m) => allowed.includes(m.role)).map((m) => m.id))
+  return managerIds.every((id) => ok.has(id))
+    ? null
+    : targetRole === 'sous-manager'
+      ? 'Rattachement invalide (un sous-manager se rattache à un manager)'
+      : 'Rattachement invalide (pas un manager)'
 }
 
 export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
@@ -174,14 +185,15 @@ export async function authorizeRoleAndScope(
 
 /**
  * Valeur de `manager_ids` à patcher ('{}' = détaché), ou objet vide pour ne PAS toucher la
- * colonne. Un rôle admin ne porte jamais de rattachement (il voit tout) — nettoyé quelle
- * que soit la face, sinon la fiche promue resterait visible dans la vue équipe de ses
- * ex-managers (la policy 0054 ne regarde pas le rôle de la ligne). Sinon le rattachement
- * est un concept de la face chatteurs ; `apply` = false pour un appelant manager en
- * édition (il ne déplace pas un rattachement — la colonne reste préservée).
+ * colonne. Un rôle admin OU MANAGER ne porte jamais de rattachement (haut de hiérarchie,
+ * décision Benoit 2026-07-29) — nettoyé quelle que soit la face, sinon la fiche promue
+ * resterait visible dans la vue équipe de ses ex-managers (la policy 0054 ne regarde pas le
+ * rôle de la ligne). Sinon le rattachement est un concept de la face chatteurs ; `apply` =
+ * false pour un appelant manager en édition (il ne déplace pas un rattachement — la colonne
+ * reste préservée).
  */
 export function managerIdsPatch(role: Role, scope: 'chatter' | 'marketing', managerIds: string[], apply: boolean) {
-  if (role === 'admin') return { manager_ids: [] as string[] }
+  if (role === 'admin' || role === 'manager') return { manager_ids: [] as string[] }
   if (scope === 'chatter' && apply) return { manager_ids: managerIds }
   return {}
 }

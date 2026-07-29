@@ -77,7 +77,7 @@ export function MemberDialog({
   /** Chatteurs MyPuls sélectionnables pour le lien (champ superadmin uniquement). */
   chatters: { id: string; name: string }[]
   /** Managers rattachables (sélecteur admin, face chatteurs). */
-  managers?: { id: string; name: string }[]
+  managers?: { id: string; name: string; role: string }[]
   trigger: ReactNode
   /** Face dont on gère les droits — les slugs de l'autre face sont préservés côté serveur. */
   scope?: 'chatter' | 'marketing'

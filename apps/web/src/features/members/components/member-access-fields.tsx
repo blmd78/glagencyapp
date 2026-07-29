@@ -32,7 +32,7 @@ export function MemberAccessFields({
   roleValue: MemberForm['role']
   superadmin: boolean
   /** Managers rattachables (l'éditée est déjà exclue par l'appelant). */
-  attachables: { id: string; name: string }[]
+  attachables: { id: string; name: string; role: string }[]
   isSubmitting: boolean
 }) {
   'use no memo'
@@ -65,16 +65,25 @@ export function MemberAccessFields({
         )}
       />
 
-      {scope === 'chatter' && roleValue !== 'admin' && (
+      {/* Un rôle MANAGER ne porte jamais de rattachement (haut de la hiérarchie) — même
+          règle qu'admin, vidé côté serveur (managerIdsPatch). */}
+      {scope === 'chatter' && roleValue !== 'admin' && roleValue !== 'manager' && (
         <Controller
           name="managerIds"
           control={control}
-          render={({ field }) => (
+          render={({ field }) => {
+            const options =
+              roleValue === 'sous-manager'
+                ? attachables.filter((m) => m.role === 'manager')
+                : attachables
+            return (
             <div className="grid gap-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Managers (rattachement)
               </label>
-              {/* MULTIPLE (0092) : un membre peut dépendre de plusieurs encadrants. */}
+              {/* MULTIPLE (0092) : un membre peut dépendre de plusieurs encadrants.
+                  Un SOUS-MANAGER ne se rattache qu'à des MANAGERS (pas de chaîne de
+                  sous-managers) ; un chatteur/police, aux deux. */}
               <ComboboxMultiple
                 trigger={
                   <Button
@@ -94,7 +103,7 @@ export function MemberAccessFields({
                     <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                   </Button>
                 }
-                options={attachables.map((m) => ({ value: m.id, label: m.name }))}
+                options={options.map((m) => ({ value: m.id, label: m.name }))}
                 value={field.value}
                 onChange={field.onChange}
                 placeholder="Rechercher un manager…"
@@ -103,7 +112,8 @@ export function MemberAccessFields({
                 Le membre apparaît dans la vue Membres de chacun de ces managers.
               </p>
             </div>
-          )}
+            )
+          }}
         />
       )}
     </>

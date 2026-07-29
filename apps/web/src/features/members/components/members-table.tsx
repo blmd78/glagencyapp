@@ -30,7 +30,7 @@ export function MembersTable({
   // Managers rattachables (sélecteur admin du dialog) — dérivés de la liste courante.
   const managers = members
     .filter((m) => m.role === 'manager' || m.role === 'sous-manager')
-    .map((m) => ({ id: m.id, name: m.displayName }))
+    .map((m) => ({ id: m.id, name: m.displayName, role: m.role }))
 
   const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin })
 
