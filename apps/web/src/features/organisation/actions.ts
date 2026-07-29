@@ -123,8 +123,8 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
         .eq('id', ownerId)
         .maybeSingle()
       if (oErr) throw new Error(oErr.message)
-      if (!owner || (owner.role !== 'manager' && owner.role !== 'sous-manager'))
-        throw new BusinessError('Le porteur d’une ligne doit être un manager ou un sous-manager')
+      if (!owner || !['admin', 'manager', 'sous-manager'].includes(owner.role))
+        throw new BusinessError('Le porteur d’une ligne doit être un encadrant')
       if (prevOwnerId && prevCreatorId) {
         const { error } = await admin
           .from('profile_creators')
@@ -239,7 +239,9 @@ export async function moveOrgTeam(raw: unknown): Promise<ActionResult> {
       if (sErr) throw new Error(sErr.message)
       if (tErr) throw new Error(tErr.message)
       if (sm?.role !== 'sous-manager') throw new BusinessError('La ligne n’a pas de sous-manager à déplacer')
-      if (to?.role !== 'manager') throw new BusinessError('La cible doit être un manager')
+      // Un ADMIN peut diriger une équipe (Axel, Dorian) — cf. ATTACHABLE_ROLES.
+      if (!to || !['admin', 'manager'].includes(to.role))
+        throw new BusinessError('La cible doit être un manager ou un admin')
       const next = [...new Set([...(sm.manager_ids ?? []).filter((m) => m !== fromManagerId), toManagerId])]
       const { error } = await admin.from('profiles').update({ manager_ids: next }).eq('id', sousManagerId)
       if (error) throw new Error(error.message)

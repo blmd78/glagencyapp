@@ -74,7 +74,9 @@ export interface MembersData {
 export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
 
 /**
- * SOURCE UNIQUE « qui est rattachable à qui » (0092) — la règle ne se définit qu'ici, les
+ * SOURCE UNIQUE « qui est rattachable à qui » (0092 ; les ADMINS ouverts aux sous-managers le
+ * 2026-07-29 : Axel et Dorian dirigent des équipes tout en étant admins — sans ça leurs
+ * équipes n'avaient aucune tête de section sur le board Organisation) — la règle ne se définit qu'ici, les
  * trois couches ne font que la LIRE : le sélecteur du dialog (affichage du champ + options),
  * la validation serveur (`requireManagerTargets`) et le patch d'écriture (`managerIdsPatch`).
  * Tableau vide = ce rôle ne porte JAMAIS de rattachement.
@@ -86,7 +88,7 @@ export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
 export const ATTACHABLE_ROLES: Record<Role, readonly string[]> = {
   chatteur: [],
   police: [],
-  'sous-manager': ['manager'],
+  'sous-manager': ['manager', 'admin'],
   manager: [],
   admin: [],
 }

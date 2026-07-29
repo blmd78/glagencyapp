@@ -25,7 +25,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
       admin
         .from('profiles')
         .select('id, display_name, email, role, manager_ids, chatter_id')
-        .in('role', ['manager', 'sous-manager', 'chatteur'])
+        .in('role', ['admin', 'manager', 'sous-manager', 'chatteur'])
         .order('id')
         .range(f, t),
     ),
@@ -103,8 +103,11 @@ export async function getOrganisation(): Promise<OrganisationData> {
 
   // Groupes : un manager, ses sous-managers (rattachés), une ligne par modèle de chacun ;
   // puis les modèles portés par le manager lui-même et non couverts par ses sous-managers.
+  // Tête de section = manager OU ADMIN : dans l'agence, certains admins (Axel, Dorian)
+  // dirigent une équipe. Un admin sans équipe ni modèle ne crée pas de section (garde plus
+  // bas), donc la liste ne se pollue pas.
   const managers = profiles
-    .filter((p) => p.role === 'manager')
+    .filter((p) => p.role === 'manager' || p.role === 'admin')
     .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
   const sousManagers = profiles.filter((p) => p.role === 'sous-manager')
   const coveredModels = new Set<string>()
