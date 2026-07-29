@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
-import { moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
+import { deleteOrgRow, moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
 import type { OrgChatter, OrganisationData } from '../types'
 
 // ── LECTURE D'ABORD (refonte 2026-07-29 — la version « une pastille par nom » était
@@ -55,6 +55,7 @@ function ChipSelect({
   disabled,
   placeholder = 'Rechercher…',
   title,
+  defaultOpen = false,
 }: {
   value: string | null
   label: string | null
@@ -65,8 +66,10 @@ function ChipSelect({
   disabled?: boolean
   placeholder?: string
   title?: string
+  /** Ouvre la recherche dès l'affichage (ligne d'ajout : on choisit tout de suite). */
+  defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const chip = label ? (
     <span className={cn('rounded px-2 py-0.5 text-xs font-medium', chipClass)}>{label}</span>
   ) : (
@@ -167,7 +170,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
     })
   }
 
-  const COLS = 7
+  const COLS = 8
   const DIRECT = { id: 'direct', name: 'porté par le manager' }
 
   /** Cellule de shift : pastilles BLEUES des chatters sur le lavis de la colonne ; le cadre
@@ -252,6 +255,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
               </th>
             ))}
             <th className="w-16 px-3 py-2.5 text-right">Total</th>
+            <th className="w-8 px-1 py-2.5" />
           </tr>
         </thead>
         <tbody>
@@ -354,6 +358,21 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                       <ShiftCell key={shift} creatorId={r.creatorId} shift={shift} server={r.byShift[shift]} />
                     ))}
                     <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{r.total}</td>
+                    <td className="px-1 py-2 text-right">
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-6 text-muted-foreground/40 hover:text-red-600"
+                          aria-label={`Supprimer la ligne ${r.modelName}`}
+                          title="Supprimer la ligne — l’encadrant perd ce modèle ; les chatteurs gardent le leur"
+                          disabled={pending}
+                          onClick={() => run(() => deleteOrgRow({ ownerId: r.ownerId, creatorId: r.creatorId }))}
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      )}
+                    </td>
                   </tr>
                 )
               })}
@@ -378,6 +397,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                   options={data.managerOptions}
                   chipClass={CHIP_GREEN}
                   editable
+                  defaultOpen={!draft.manager}
                   placeholder="Rechercher un manager…"
                   onSelect={(m) => setDraft({ manager: m, owner: draft.owner })}
                 />
@@ -440,7 +460,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                   className="gap-1.5 text-muted-foreground"
                   disabled={pending}
                   onClick={() =>
-                    setDraft({ manager: data.sections.find((s) => s.managerId)?.managerId ?? '', owner: 'direct' })
+                    setDraft({ manager: '', owner: 'direct' })
                   }
                 >
                   <Plus className="size-3.5" />
