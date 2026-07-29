@@ -17,14 +17,13 @@ import {
 import { cn } from '@/lib/utils'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
 import { moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
-import type { OrgChatter, OrgSection, OrganisationData } from '../types'
+import type { OrgChatter, OrganisationData } from '../types'
 
 // ── LECTURE D'ABORD (refonte 2026-07-29 — la version « une pastille par nom » était
 // illisible à côté de la feuille d'origine) ──────────────────────────────────────────────────
-// Ce qui rendait la feuille lisible : les noms COULENT en texte (pas une boîte par personne),
-// et chaque colonne de shift porte sa teinte — on scanne une journée d'un coup d'œil. On garde
-// ce principe, dans le langage de l'app :
-//  • noms au fil du texte, séparés par « · » ;
+// Ce qui rendait la feuille lisible : chaque colonne de shift porte sa teinte — on scanne une
+// journée d'un coup d'œil. On garde ce principe, dans le langage de l'app :
+//  • pastilles BLEUES des chatters dans les cases (code couleur des rôles) ;
 //  • lavis de colonne « heure de la journée » (matin chaud → soir froid) : c'est un FOND, pas
 //    un badge — le code couleur des RÔLES (chatter bleu, encadrement vert, police orange,
 //    modèle violet) reste réservé aux pastilles ;
@@ -149,19 +148,28 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
     })
   }
 
-  const COLS = 6
+  const COLS = 7
   const DIRECT = { id: 'direct', name: 'porté par le manager' }
 
-  /** Cellule de shift : les noms au fil du texte ; le fond d'édition n'apparaît qu'au survol. */
+  /** Cellule de shift : pastilles BLEUES des chatters sur le lavis de la colonne ; le cadre
+   *  pointillé « + Ajouter » ne s'affiche que sur une case vide (comme le planning repos). */
   function ShiftCell({ creatorId, shift, server }: { creatorId: string; shift: CrmShift; server: OrgChatter[] }) {
     const ids = cellIds(creatorId, shift, server)
-    const names = ids.map((id) => nameById.get(id) ?? '?')
-    const text = names.length ? (
-      <span className="leading-relaxed">{names.join(' · ')}</span>
-    ) : (
-      <span className="text-muted-foreground/40">—</span>
-    )
-    if (!isAdmin) return <td className={cn('px-3 py-2 align-top', SHIFTS[shift].wash)}>{text}</td>
+    const chips = ids.map((id) => (
+      <span key={id} className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_BLUE)}>
+        {nameById.get(id) ?? '?'}
+      </span>
+    ))
+    if (!isAdmin)
+      return (
+        <td className={cn('px-3 py-2 align-top', SHIFTS[shift].wash)}>
+          {chips.length ? (
+            <div className="flex flex-wrap gap-1">{chips}</div>
+          ) : (
+            <span className="text-muted-foreground/40">—</span>
+          )}
+        </td>
+      )
     return (
       <td className={cn('p-1 align-top', SHIFTS[shift].wash)}>
         <ComboboxMultiple
@@ -174,14 +182,14 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                 // Case VIDE = cadre pointillé « + Ajouter » (même affordance que le planning
                 // repos) ; case remplie = pas de cadre, la couleur de colonne suffit.
-                names.length
+                chips.length
                   ? 'border-transparent hover:bg-foreground/[0.04]'
                   : 'border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-foreground/[0.04]',
               )}
             >
-              {names.length ? (
+              {chips.length ? (
                 <>
-                  {text}
+                  <span className="flex flex-wrap gap-1">{chips}</span>
                   <Plus className="ml-auto size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-60" />
                 </>
               ) : (
@@ -203,36 +211,12 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
     )
   }
 
-  /** Bande de manager : le nom en tête de section, l'effectif à droite. */
-  function SectionHead({ section }: { section: OrgSection }) {
-    const teams = new Set(section.rows.map((r) => r.sousManagerId ?? 'direct'))
-    return (
-      <tr className="border-t-2 bg-muted/60">
-        <td colSpan={COLS} className="px-3 py-2">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span
-              className={cn(
-                'text-sm font-semibold tracking-tight',
-                section.managerId ? '' : 'text-amber-700 dark:text-amber-400',
-              )}
-            >
-              {section.managerName}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {section.rows.length} modèle{section.rows.length > 1 ? 's' : ''} · {teams.size} équipe
-              {teams.size > 1 ? 's' : ''} · {section.total} chatter{section.total > 1 ? 's' : ''}
-            </span>
-          </div>
-        </td>
-      </tr>
-    )
-  }
-
   return (
     <div className="overflow-x-auto rounded-xl border">
       <table className="w-full min-w-[60rem] border-collapse text-sm">
         <thead>
           <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+            <th className="w-40 px-3 py-2.5">Manager</th>
             <th className="w-44 px-3 py-2.5">Sous-manager</th>
             <th className="w-40 px-3 py-2.5">Modèle</th>
             {CRM_SHIFTS.map((s) => (
@@ -246,7 +230,6 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
         <tbody>
           {data.sections.map((section) => (
             <Fragment key={section.managerId || 'sans-manager'}>
-              <SectionHead section={section} />
               {section.rows.map((r, i) => {
                 // Le sous-manager n'est écrit que sur SA première ligne (groupe visuel) —
                 // fini les pastilles répétées à l'identique sur chacun de ses modèles.
@@ -254,7 +237,56 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                 const firstOfTeam =
                   !prev || (prev.sousManagerId ?? 'direct') !== (r.sousManagerId ?? 'direct')
                 return (
-                  <tr key={`${r.ownerId}:${r.creatorId}`} className="border-t align-top">
+                  <tr
+                    key={`${r.ownerId}:${r.creatorId}`}
+                    className={cn('border-t align-top', i === 0 && 'border-t-2')}
+                  >
+                    {/* MANAGER — écrit une fois par équipe (aligné sur le sous-manager) : le
+                        changer déplace cette équipe. L'effectif de la section n'est rappelé
+                        que sur sa première ligne. */}
+                    <td className="px-3 py-2">
+                      {firstOfTeam && (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <ChipSelect
+                            value={section.managerId || null}
+                            label={section.managerName}
+                            options={data.managerOptions}
+                            chipClass={
+                              section.managerId ? CHIP_GREEN : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            }
+                            editable={isAdmin}
+                            disabled={pending}
+                            placeholder="Rechercher un manager…"
+                            title={
+                              r.sousManagerId
+                                ? 'Changer déplace toute l’équipe de ce sous-manager'
+                                : 'Changer passe le modèle sous l’autre manager'
+                            }
+                            onSelect={(to) =>
+                              run(() =>
+                                r.sousManagerId
+                                  ? moveOrgTeam({
+                                      sousManagerId: r.sousManagerId,
+                                      fromManagerId: section.managerId || null,
+                                      toManagerId: to,
+                                    })
+                                  : saveOrgRow({
+                                      ownerId: to,
+                                      creatorId: r.creatorId,
+                                      prevOwnerId: r.ownerId,
+                                      prevCreatorId: r.creatorId,
+                                    }),
+                              )
+                            }
+                          />
+                          {i === 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              {section.total} chatter{section.total > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2">
                       {firstOfTeam && (
                         <div className="flex flex-col items-start gap-0.5">
@@ -280,27 +312,6 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                               )
                             }
                           />
-                          {isAdmin && r.sousManagerId && (
-                            <ChipSelect
-                              value={section.managerId || null}
-                              label={section.managerId ? `↳ ${section.managerName}` : '↳ sans manager'}
-                              options={data.managerOptions}
-                              chipClass="text-muted-foreground"
-                              editable
-                              disabled={pending}
-                              placeholder="Rechercher un manager…"
-                              title="Changer de manager déplace toute l’équipe de ce sous-manager"
-                              onSelect={(to) =>
-                                run(() =>
-                                  moveOrgTeam({
-                                    sousManagerId: r.sousManagerId as string,
-                                    fromManagerId: section.managerId || null,
-                                    toManagerId: to,
-                                  }),
-                                )
-                              }
-                            />
-                          )}
                         </div>
                       )}
                     </td>
