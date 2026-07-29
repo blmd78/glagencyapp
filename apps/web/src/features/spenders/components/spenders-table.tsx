@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ExternalLink } from 'lucide-react'
+import { ChevronsUpDown, ExternalLink } from 'lucide-react'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TeamBadge } from '@/components/team-badge'
-import { Combobox } from '@/components/ui/combobox'
+import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { Toggle } from '@/components/ui/toggle'
 import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
@@ -236,6 +236,8 @@ export function SpendersTable({
   canWrite = false,
   tracker = false,
   readOnlyRelances = false,
+  models,
+  onModelsChange,
 }: {
   spenders: SpenderRow[]
   /** Colonnes ajoutées en fin (ex. actions du tracker). */
@@ -247,8 +249,14 @@ export function SpendersTable({
   tracker?: boolean
   /** Vue « Liste » : compteur en consultation seule (ni « + » ni crayon). */
   readOnlyRelances?: boolean
+  /**
+   * Filtre modèle CONTRÔLÉ par le parent (SpendersView) : l'état vit là-haut pour que
+   * les cartes KPI de la Liste se recalculent sur la sélection. MULTIPLE (un chatteur/
+   * manager suit souvent plusieurs modèles) — vide = tous les modèles.
+   */
+  models: string[]
+  onModelsChange: (models: string[]) => void
 }) {
-  const [model, setModel] = useState('all')
   // Tracker : par défaut on n'affiche QUE les non-relancés du jour (cocher = la ligne
   // sort de la file) ; le toggle bascule sur ceux déjà relancés aujourd'hui.
   const [showDone, setShowDone] = useState(false)
@@ -256,17 +264,28 @@ export function SpendersTable({
   const modelOptions = useMemo(() => {
     const byId = new Map<string, string>()
     for (const s of spenders) byId.set(s.creatorId, s.model)
-    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+    return [...byId.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
   }, [spenders])
 
   // Le filtre « relancés aujourd'hui » s'applique APRÈS le filtre modèle : le compteur
   // du toggle correspond exactement aux lignes qu'il affichera.
   const { filtered, doneToday } = useMemo(() => {
-    const byModel = model === 'all' ? spenders : spenders.filter((s) => s.creatorId === model)
+    const wanted = new Set(models)
+    const byModel = wanted.size === 0 ? spenders : spenders.filter((s) => wanted.has(s.creatorId))
     if (!tracker) return { filtered: byModel, doneToday: 0 }
     const done = byModel.filter((s) => s.grise).length
     return { filtered: byModel.filter((s) => (showDone ? s.grise : !s.grise)), doneToday: done }
-  }, [spenders, model, tracker, showDone])
+  }, [spenders, models, tracker, showDone])
+
+  // Libellé du déclencheur : état de la sélection en un coup d'œil.
+  const modelLabel =
+    models.length === 0
+      ? 'Tous les modèles'
+      : models.length === 1
+        ? (modelOptions.find((o) => o.value === models[0])?.label ?? '1 modèle')
+        : `${models.length} modèles`
 
   const columns = useMemo(() => [...makeColumns(isAdmin, canWrite, tracker, readOnlyRelances), ...extra], [extra, isAdmin, canWrite, tracker, readOnlyRelances])
 
@@ -289,15 +308,22 @@ export function SpendersTable({
       countLabel={(n) => `${n} spender(s)`}
       toolbar={
         <>
-          <Combobox
-            value={model}
-            onChange={setModel}
-            className="w-44"
-            searchPlaceholder="Rechercher un modèle…"
-            options={[
-              { value: 'all', label: 'Tous les modèles' },
-              ...modelOptions.map(([id, name]) => ({ value: id, label: name })),
-            ]}
+          <ComboboxMultiple
+            trigger={
+              <Button
+                type="button"
+                variant="outline"
+                role="combobox"
+                className="h-9 w-44 justify-between font-normal"
+              >
+                <span className="truncate">{modelLabel}</span>
+                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+              </Button>
+            }
+            options={modelOptions}
+            value={models}
+            onChange={onModelsChange}
+            placeholder="Rechercher un modèle…"
           />
           {tracker && (
             <Toggle
