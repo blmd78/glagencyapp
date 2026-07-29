@@ -2352,6 +2352,7 @@ export type Database = {
         }[]
       }
       chatters_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      copy_repos_week: { Args: { p_to: string }; Returns: number }
       crm_spenders_daily: {
         Args: never
         Returns: {
@@ -2381,7 +2382,6 @@ export type Database = {
           username: string
         }[]
       }
-      copy_repos_week: { Args: { p_to: string }; Returns: number }
       crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
       has_page: { Args: { slug: string }; Returns: boolean }
       health_report: {
