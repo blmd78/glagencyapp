@@ -125,8 +125,12 @@ export function PlanningGrid({
       // (cellule affichée fausse, inéditable — chaque resoumission repartirait de l'override
       // refusé — et l'image Telegram exporterait cet état). Cas NORMAL depuis la garde de
       // périmètre 0090 : retirer le chip d'un chatter hors sous-arbre est refusé.
+      // GARDE D'IDENTITÉ : on ne revert que si l'override en place est ENCORE `nextCell` —
+      // si une 2e édition est partie pendant la requête, c'est son résultat qui tranchera
+      // (sinon l'échec de la 1re effacerait l'optimiste de la 2e, audit 2026-07-29).
       if (!res.success) {
         setOverrides((prev) => {
+          if (prev[`${day}:${col}`] !== nextCell) return prev
           const next = { ...prev }
           delete next[`${day}:${col}`]
           return next
@@ -140,9 +144,10 @@ export function PlanningGrid({
     setColumnOverrides((prev) => ({ ...prev, [col]: ids }))
     startTransition(async () => {
       const res = await saveReposColumnMembers({ col, effectiveFrom: data.weekStart, creatorIds: ids })
-      // Même règle que commitCell : un refus revert l'override, sinon le header reste faux.
+      // Même règle que commitCell : un refus revert l'override (s'il est encore le nôtre).
       if (!res.success) {
         setColumnOverrides((prev) => {
+          if (prev[col] !== ids) return prev
           const next = { ...prev }
           delete next[col]
           return next

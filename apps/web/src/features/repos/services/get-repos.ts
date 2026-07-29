@@ -67,19 +67,11 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
       .select('col, effective_from, creator_ids')
       .lte('effective_from', weekStart)
       .order('effective_from', { ascending: true }),
-    // Semaines qui ont des données saisies (la « range ») — pour le sélecteur. Table sans
-    // borne temporelle naturelle (tout l'historique cumulé, ~56 lignes/semaine) → fetchAll,
-    // tri sur la PK complète (week_start, day, col — migration 0016) sinon troncature
-    // silencieuse à 1000 lignes (docs/guidelines-data-loading.md §2).
-    fetchAll((f, t) =>
-      supabase
-        .from('rest_planning_cells')
-        .select('week_start')
-        .order('week_start')
-        .order('day')
-        .order('col')
-        .range(f, t),
-    ),
+    // Semaines qui ont des données saisies (la « range ») — pour le sélecteur. RPC
+    // `repos_data_weeks` (0091, json, distinct EN BASE, RLS invoker) : l'ancien fetchAll
+    // rapatriait UNE LIGNE PAR CASE (~56/semaine, historique cumulé) pour un Set d'à peine
+    // quelques valeurs distinctes.
+    supabase.rpc('repos_data_weeks'),
   ])
   if (cellsRes.error) throw new Error(cellsRes.error.message)
   if (weekRes.error) throw new Error(weekRes.error.message)
@@ -99,7 +91,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   // Sélecteur : semaines avec données (range) + semaine en cours + semaine +1. Future en haut.
   const nextMonday = addDays(currentMonday, 7)
   const weekSet = new Set<string>([currentMonday, nextMonday])
-  for (const r of dataWeekRows ?? []) if (r.week_start) weekSet.add(r.week_start)
+  for (const w of (dataWeekRows ?? []) as string[]) if (w) weekSet.add(w)
   const weeks: WeekChoice[] = [...weekSet]
     .sort()
     .reverse()
