@@ -152,7 +152,18 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
           return c
         })
         toast.error(res.error)
+        return
       }
+      // Contrairement au planning repos, les 3 cases d'une LIGNE partagent la même donnée
+      // (un chatteur a UN shift) : déplacer quelqu'un de Matin vers Soir doit le retirer de
+      // Matin. On rend donc la main au serveur pour toute la ligne — overrides du modèle
+      // vidés + rafraîchissement, dans la même transition (pas de clignotement).
+      setOverrides((p) => {
+        const c = { ...p }
+        for (const sh of CRM_SHIFTS) delete c[`${creatorId}:${sh}`]
+        return c
+      })
+      router.refresh()
     })
   }
 
