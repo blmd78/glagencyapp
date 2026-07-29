@@ -29,8 +29,7 @@ export interface OrgRow {
   creatorId: string
   modelName: string
   byShift: Record<CrmShift, OrgChatter[]>
-  /** Chatters du modèle sans shift (non liés ou shift vide) — « à placer ». */
-  sansShift: OrgChatter[]
+  /** Total = TOUS les chatters assignés au modèle (avec ou sans shift renseigné). */
   total: number
 }
 
