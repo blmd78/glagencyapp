@@ -34,8 +34,9 @@ const memberFields = {
   role: z.enum(['chatteur', 'police', 'sous-manager', 'manager', 'admin']),
   pages: z.array(z.string()),
   creatorIds: z.array(z.uuid()).max(50),
-  // Rattachement à un manager ('' = aucun) — forcé au créateur si l'appelant est manager.
-  managerId: z.uuid().or(z.literal('')),
+  // Rattachements managers (vide = aucun, MULTIPLE depuis 0092) — forcé au créateur si
+  // l'appelant est manager.
+  managerIds: z.array(z.uuid()).max(10),
   workLink,
   closingRole,
   closingTeam,

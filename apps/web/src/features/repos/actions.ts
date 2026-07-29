@@ -99,6 +99,34 @@ export async function saveReposColumnMembers(raw: unknown): Promise<ActionResult
   })
 }
 
+const copyInput = z.object({ weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
+
+/**
+ * Copie le setup de la semaine PRÉCÉDENTE vers `weekStart` — RPC `copy_repos_week` (0093) :
+ * admin uniquement, refuse si la semaine cible a déjà du contenu (jamais d'écrasement).
+ * Retourne le nombre de cases copiées (0 = semaine précédente vide).
+ */
+export async function copyReposWeek(raw: unknown): Promise<ActionResult<number>> {
+  return runAction({
+    schema: copyInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ weekStart }) => {
+      await requireAdminProfile()
+      const supabase = await createClient()
+      const { data, error } = await supabase.rpc('copy_repos_week', { p_to: weekStart })
+      if (error) {
+        if (error.message.includes('repos_semaine_non_vide'))
+          throw new BusinessError('Cette semaine contient déjà des repos — rien n’a été écrasé')
+        if (error.message.includes('repos_acces_refuse')) throw new BusinessError('Accès refusé')
+        throw new Error(error.message)
+      }
+      revalidatePath('/chatter/repos')
+      return data ?? 0
+    },
+  })
+}
+
 const sentInput = z.object({
   weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   sent: z.boolean(),

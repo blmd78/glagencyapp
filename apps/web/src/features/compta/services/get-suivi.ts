@@ -47,7 +47,7 @@ export async function getSuivi(): Promise<SuiviData> {
 
   // ⚠️ ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` : c'est CETTE lecture qui définit la
   // population, et les lectures par client admin plus bas se cadrent toutes dessus. Le
-  // `.eq('manager_id', …)` RE-BORNE aux rattachés DIRECTS ce que la RLS `profiles` rend
+  // `.contains('manager_ids', …)` RE-BORNE aux rattachés DIRECTS ce que la RLS `profiles` rend
   // transitif depuis 0087 (sous-arbre entier) — motif complet dans `compta-sources.ts`. Ici
   // l'enjeu est la liste des primes échues : sans lui, un manager se verrait réclamer les
   // primes des chatteurs de ses sous-managers, qu'il ne peut ni régler ni faire verser.
@@ -64,7 +64,7 @@ export async function getSuivi(): Promise<SuiviData> {
     { data: debts, error: debtsErr },
     { data: firstSeen, error: fsErr },
   ] = await Promise.all([
-    isAdmin ? membersQuery : membersQuery.eq('manager_id', profile.id),
+    isAdmin ? membersQuery : membersQuery.contains('manager_ids', [profile.id]),
     // `status` AUSSI : une prime `'skipped'` (renoncée) n'a rien à faire dans une liste
     // d'argent dû — elle est exclue plus bas, pas étiquetée.
     supabase.from('compta_primes').select('chatter_id, amount, status'),

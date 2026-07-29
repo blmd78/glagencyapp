@@ -1,6 +1,7 @@
 'use client'
 
 import { Controller, type Control } from 'react-hook-form'
+import { ChevronsUpDown } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -8,8 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { ROLE_NAME } from '@/lib/roles'
 import type { MemberForm } from '../schema'
+import { ATTACHABLE_ROLES, canBeAttached } from '../types'
 
 /**
  * Rôle + rattachement manager — réservés à un appelant admin (le manager a son rôle/
@@ -29,7 +33,7 @@ export function MemberAccessFields({
   roleValue: MemberForm['role']
   superadmin: boolean
   /** Managers rattachables (l'éditée est déjà exclue par l'appelant). */
-  attachables: { id: string; name: string }[]
+  attachables: { id: string; name: string; role: string }[]
   isSubmitting: boolean
 }) {
   'use no memo'
@@ -62,38 +66,51 @@ export function MemberAccessFields({
         )}
       />
 
-      {scope === 'chatter' && roleValue !== 'admin' && (
+      {/* Champ affiché seulement pour un rôle rattachable — la règle (qui, à qui) vit dans
+          ATTACHABLE_ROLES (types.ts, source unique), miroir exact de la validation serveur. */}
+      {scope === 'chatter' && canBeAttached(roleValue) && (
         <Controller
-          name="managerId"
+          name="managerIds"
           control={control}
-          render={({ field }) => (
+          render={({ field }) => {
+            const options = attachables.filter((m) => ATTACHABLE_ROLES[roleValue].includes(m.role))
+            return (
             <div className="grid gap-1.5">
               <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Manager (rattachement)
+                Managers (rattachement)
               </label>
-              {/* Radix interdit value="" sur un item → sentinelle 'none' ↔ '' côté form. */}
-              <Select
-                value={field.value || 'none'}
-                onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}
-                disabled={isSubmitting}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Aucun</SelectItem>
-                  {attachables.map((m) => (
-                    <SelectItem key={m.id} value={m.id}>
-                      {m.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* MULTIPLE (0092) : un membre peut dépendre de plusieurs encadrants —
+                  options filtrées par ATTACHABLE_ROLES selon le rôle choisi. */}
+              <ComboboxMultiple
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    disabled={isSubmitting}
+                    className="h-9 w-56 justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {field.value.length === 0
+                        ? 'Aucun'
+                        : field.value.length === 1
+                          ? (attachables.find((m) => m.id === field.value[0])?.name ?? '1 manager')
+                          : `${field.value.length} managers`}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                }
+                options={options.map((m) => ({ value: m.id, label: m.name }))}
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Rechercher un manager…"
+              />
               <p className="text-xs text-muted-foreground">
-                Le membre apparaît dans la vue Membres de ce manager.
+                Le membre apparaît dans la vue Membres de chacun de ces managers.
               </p>
             </div>
-          )}
+            )
+          }}
         />
       )}
     </>

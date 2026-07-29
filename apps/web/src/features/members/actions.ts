@@ -8,19 +8,20 @@ import { applyChatterLink } from '@/lib/chatter-link'
 import { readStateCookie } from '@/lib/impersonation/session'
 import {
   authorizeRoleAndScope,
-  managerIdPatch,
+  managerIdsPatch,
   mergePages,
   requireCaller,
   requireEditableTarget,
-  requireManagerTarget,
+  requireManagerTargets,
   syncAssignments,
 } from './authz'
 import { memberInput, memberUpdateInput } from './schema'
+import { canBeAttached } from './types'
 
 /**
  * Mutations de la page Membres. Toutes : zod → autorisation applicative → client SERVICE-ROLE
  * (auth.admin.* exige la clé secrète). Admin (superadmin compris) : tout. Manager :
- * uniquement SES chatters — création rattachée à lui (manager_id), édition/suppression
+ * uniquement SES chatters — création rattachée à lui (manager_ids), édition/suppression
  * bornées par requireEditableTarget, rôle user forcé, modèles de son périmètre.
  * Autorisation fine (gardes fail-closed, démotion/detach, compensation deleteUser) :
  * `./authz.ts` — helpers GELÉS (mêmes noms, mêmes corps, mêmes messages, cf. self-review de
@@ -56,15 +57,15 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
       if ('error' in auth) throw new BusinessError(auth.error)
       const { role, ownScope } = auth
-      // Manager : rattachement FORCÉ à lui ; admin : la cible choisie (validée ci-dessous).
-      const managerId = caller.role !== 'admin' ? caller.id : values.managerId
+      // Manager : rattachement FORCÉ à lui ; admin : les cibles choisies (validées ci-dessous).
+      const managerIds = caller.role !== 'admin' ? [caller.id] : values.managerIds
 
       const admin = createAdminClient()
-      // Rattachement choisi par un admin : la cible doit être un manager (un appelant
-      // manager est déjà forcé sur lui-même, garanti manager par requireCaller). Inutile
-      // pour un rôle admin (managerIdPatch le nullifie de toute façon).
-      if (role !== 'admin' && scope === 'chatter' && managerId && caller.role === 'admin') {
-        const mErr = await requireManagerTarget(admin, managerId)
+      // Rattachements choisis par un admin : chaque cible doit être valide pour le rôle (un
+      // appelant manager est déjà forcé sur lui-même, garanti manager par requireCaller).
+      // Inutile pour un rôle non rattachable (managerIdsPatch le vide de toute façon).
+      if (canBeAttached(role) && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
+        const mErr = await requireManagerTargets(admin, managerIds, role)
         if (mErr) throw new BusinessError(mErr)
       }
       if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
@@ -104,11 +105,11 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // n'est pas setter/closer). Cf. 0077 — attribut porté par le membre, indépendant de chatters.
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
-          ...managerIdPatch(role, scope, managerId, true),
+          ...managerIdsPatch(role, scope, managerIds, true),
         })
         .eq('id', uid)
       if (pErr) {
-        // Compensation : sans ce patch (manager_id compris) le compte serait un orphelin
+        // Compensation : sans ce patch (manager_ids compris) le compte serait un orphelin
         // invisible du manager créateur (RLS) et irréparable par lui — on supprime le
         // compte auth fraîchement créé (best-effort) plutôt que de le laisser en rade.
         await admin.auth.admin.deleteUser(uid)
@@ -145,7 +146,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       // helpers gelés, même ordre de refus. `target.role` resservira pour la démotion.
       const caller = await requireCaller()
       if (!caller) throw new BusinessError('Accès refusé')
-      const { scope, id, displayName, pages, creatorIds, workLink, managerId, closingRole, closingTeam, chatterId } =
+      const { scope, id, displayName, pages, creatorIds, workLink, managerIds, closingRole, closingTeam, chatterId } =
         values
 
       const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
@@ -155,9 +156,9 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
       if ('error' in target) throw new BusinessError(target.error)
-      // Cf. createMember : on ne valide pas un rattachement qui sera nullifié (rôle admin).
-      if (role !== 'admin' && scope === 'chatter' && managerId && caller.role === 'admin') {
-        const mErr = await requireManagerTarget(admin, managerId)
+      // Cf. createMember : on ne valide pas un rattachement qui sera vidé (rôle non rattachable).
+      if (canBeAttached(role) && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
+        const mErr = await requireManagerTargets(admin, managerIds, role)
         if (mErr) throw new BusinessError(mErr)
       }
       if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
@@ -176,7 +177,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
           // apply seulement pour un admin : un manager ne déplace pas un rattachement.
-          ...managerIdPatch(role, scope, managerId, caller.role === 'admin'),
+          ...managerIdsPatch(role, scope, managerIds, caller.role === 'admin'),
         })
         .eq('id', id)
       if (pErr) throw new Error(pErr.message)
@@ -191,8 +192,21 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         role !== 'manager' &&
         role !== 'sous-manager'
       ) {
-        const { error: dErr } = await admin.from('profiles').update({ manager_id: null }).eq('manager_id', id)
-        if (dErr) throw new Error(dErr.message)
+        // `manager_ids` est un uuid[] : pas d'array_remove en PostgREST → on récupère les
+        // rattachés (`cs` contains) et on filtre ligne à ligne (rare geste admin, peu de
+        // lignes). La SUPPRESSION d'un membre, elle, est couverte par le trigger 0092.
+        const { data: attached, error: aErr } = await admin
+          .from('profiles')
+          .select('id, manager_ids')
+          .contains('manager_ids', [id])
+        if (aErr) throw new Error(aErr.message)
+        for (const row of attached ?? []) {
+          const { error: dErr } = await admin
+            .from('profiles')
+            .update({ manager_ids: (row.manager_ids ?? []).filter((m) => m !== id) })
+            .eq('id', row.id)
+          if (dErr) throw new Error(dErr.message)
+        }
       }
       if (scope === 'chatter') {
         const sErr = await syncAssignments(admin, id, creatorIds, ownScope)
