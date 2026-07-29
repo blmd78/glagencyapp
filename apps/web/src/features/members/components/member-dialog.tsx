@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -133,12 +133,17 @@ export function MemberDialog({
       chatterId: member?.chatterId ?? '',
     },
   })
-  // Réinitialise à chaque ouverture (même règle que todo-dialog, qui cite ce bug) : le
+  // Réinitialise à L'OUVERTURE SEULEMENT (transition fermé→ouvert, gardée par prevOpen) : le
   // useForm n'est semé qu'au montage — sans reset, le dialog garde l'état de sa précédente
-  // ouverture, et peut même servir les valeurs d'un AUTRE membre (avant `getRowId`, une
-  // suppression décalait les lignes keyées par index) : enregistrer écraserait sa fiche.
+  // ouverture. SURTOUT PAS « à chaque changement de member » dialog ouvert : les actions de
+  // l'onglet Compta (saveMemberRate…) font revalidatePath SANS fermer le dialog → nouvelle
+  // identité de `member` → un reset ici écraserait la saisie en cours de l'onglet Général
+  // (régression attrapée par l'audit du 2026-07-29).
+  const prevOpen = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const opening = open && !prevOpen.current
+    prevOpen.current = open
+    if (!opening) return
     const slugs = new Set(
       (scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES).map((c) => c.slug as string),
     )
