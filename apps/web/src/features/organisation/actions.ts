@@ -9,6 +9,7 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
+import { createClient } from '@/lib/supabase/server'
 import { CRM_SHIFTS } from '@/lib/types/chatters'
 import { BusinessError, runAction, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
 
@@ -36,53 +37,19 @@ export async function saveOrgCell(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (values) => {
       await requireAdminProfile()
-      const { creatorId, shift, chatterIds, previousIds } = values
-      const admin = createAdminClient()
-
-      const next = new Set(chatterIds)
-      const prev = new Set(previousIds)
-      const added = chatterIds.filter((id) => !prev.has(id))
-      const removed = previousIds.filter((id) => !next.has(id))
-      if (!added.length && !removed.length) return
-
-      // Liens MyPuls des membres touchés (pour poser/lire le shift).
-      const touched = [...new Set([...added, ...removed])]
-      const { data: members, error: mErr } = await admin
-        .from('profiles')
-        .select('id, chatter_id')
-        .in('id', touched)
-        .eq('role', 'chatteur')
-      if (mErr) throw new Error(mErr.message)
-      const linkOf = new Map((members ?? []).map((m) => [m.id, m.chatter_id]))
-
-      for (const id of added) {
-        if (!linkOf.has(id)) continue // pas un membre chatteur : ignoré
-        const { error } = await admin
-          .from('profile_creators')
-          .upsert({ profile_id: id, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
-        if (error) throw new Error(error.message)
-        const link = linkOf.get(id)
-        if (link) {
-          const { error: sErr } = await admin.from('chatters').update({ shift }).eq('id', link)
-          if (sErr) throw new Error(sErr.message)
-        }
+      const supabase = await createClient()
+      // UN SEUL aller-retour (RPC 0099) : l'ancienne version enchaînait plusieurs requêtes
+      // PAR personne touchée — c'est ce qui rendait l'édition lente sur base distante.
+      const { error } = await supabase.rpc('save_org_cell', {
+        p_creator_id: values.creatorId,
+        p_shift: values.shift,
+        p_chatter_ids: values.chatterIds,
+        p_previous_ids: values.previousIds,
+      })
+      if (error) {
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError('Accès refusé')
+        throw new Error(error.message)
       }
-
-      for (const id of removed) {
-        const link = linkOf.get(id)
-        if (!link) continue
-        // Shift ACTUEL relu en base : si l'autre case l'a déjà déplacé, ce retrait est un no-op.
-        const { data: ch, error: rErr } = await admin.from('chatters').select('shift').eq('id', link).maybeSingle()
-        if (rErr) throw new Error(rErr.message)
-        if (ch?.shift !== shift) continue
-        const { error } = await admin
-          .from('profile_creators')
-          .delete()
-          .eq('profile_id', id)
-          .eq('creator_id', creatorId)
-        if (error) throw new Error(error.message)
-      }
-
       revalidatePath('/chatter/organisation')
       revalidatePath('/chatter/members')
     },
@@ -114,96 +81,22 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (values) => {
       await requireAdminProfile()
-      const admin = createAdminClient()
-      const { ownerId, creatorId, prevOwnerId, prevCreatorId } = values
-      // Le porteur doit être un encadrant (manager/sous-manager) — jamais un chatteur.
-      const { data: owner, error: oErr } = await admin
-        .from('profiles')
-        .select('role')
-        .eq('id', ownerId)
-        .maybeSingle()
-      if (oErr) throw new Error(oErr.message)
-      if (!owner || !['admin', 'manager', 'sous-manager'].includes(owner.role))
-        throw new BusinessError('Le porteur d’une ligne doit être un encadrant')
-      if (prevOwnerId && prevCreatorId) {
-        const { error } = await admin
-          .from('profile_creators')
-          .delete()
-          .eq('profile_id', prevOwnerId)
-          .eq('creator_id', prevCreatorId)
-        if (error) throw new Error(error.message)
-      }
-      const { error } = await admin
-        .from('profile_creators')
-        .upsert({ profile_id: ownerId, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
-      if (error) throw new Error(error.message)
-      // PORTEUR JUMEAU : un modèle est très souvent porté À LA FOIS par le sous-manager (qui
-      // l'opère) et par son manager (périmètre de lecture) — le board n'affiche alors qu'UNE
-      // ligne, celle du sous-manager. Sans ce bloc, changer le modèle d'une telle ligne
-      // laissait l'assignation du manager en place : l'ancien modèle « ressuscitait » aussitôt
-      // en ligne « direct » (audit 2026-07-29). On aligne donc le manager sur sa nouvelle
-      // ligne — SAUF si un AUTRE de ses sous-managers porte encore l'ancien modèle (son
-      // périmètre de lecture doit rester couvrant).
-      if (prevCreatorId && prevCreatorId !== creatorId && values.sectionManagerId && owner.role === 'sous-manager') {
-        const mgrId = values.sectionManagerId
-        const { data: mgrHas, error: hErr } = await admin
-          .from('profile_creators')
-          .select('creator_id')
-          .eq('profile_id', mgrId)
-          .eq('creator_id', prevCreatorId)
-          .maybeSingle()
-        if (hErr) throw new Error(hErr.message)
-        if (mgrHas) {
-          // Un autre sous-manager rattaché à ce manager porte-t-il encore l'ancien modèle ?
-          const { data: team, error: tErr } = await admin
-            .from('profiles')
-            .select('id')
-            .eq('role', 'sous-manager')
-            .contains('manager_ids', [mgrId])
-          if (tErr) throw new Error(tErr.message)
-          const others = (team ?? []).map((t) => t.id).filter((id) => id !== ownerId)
-          let stillCarried = false
-          if (others.length) {
-            const { data: carriers, error: cErr } = await admin
-              .from('profile_creators')
-              .select('profile_id')
-              .eq('creator_id', prevCreatorId)
-              .in('profile_id', others)
-            if (cErr) throw new Error(cErr.message)
-            stillCarried = (carriers ?? []).length > 0
-          }
-          if (!stillCarried) {
-            const { error: dErr } = await admin
-              .from('profile_creators')
-              .delete()
-              .eq('profile_id', mgrId)
-              .eq('creator_id', prevCreatorId)
-            if (dErr) throw new Error(dErr.message)
-          }
-          const { error: uErr } = await admin
-            .from('profile_creators')
-            .upsert({ profile_id: mgrId, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
-          if (uErr) throw new Error(uErr.message)
-        }
-      }
-
-      // Le porteur sous-manager doit appartenir à la section visée, sinon la ligne créée
-      // serait invisible (le board ne construit ses sections que par rattachement).
-      if (values.sectionManagerId && owner.role === 'sous-manager') {
-        const { data: sm, error: rErr } = await admin
-          .from('profiles')
-          .select('manager_ids')
-          .eq('id', ownerId)
-          .maybeSingle()
-        if (rErr) throw new Error(rErr.message)
-        const current = sm?.manager_ids ?? []
-        if (!current.includes(values.sectionManagerId)) {
-          const { error: aErr } = await admin
-            .from('profiles')
-            .update({ manager_ids: [...current, values.sectionManagerId] })
-            .eq('id', ownerId)
-          if (aErr) throw new Error(aErr.message)
-        }
+      const supabase = await createClient()
+      // UN SEUL aller-retour (RPC 0099) : remplacement de la paire, alignement du porteur
+      // jumeau et rattachement du sous-manager tiennent dans la fonction — l'ancienne version
+      // faisait jusqu'à 10 requêtes séquentielles.
+      const { error } = await supabase.rpc('save_org_row', {
+        p_owner_id: values.ownerId,
+        p_creator_id: values.creatorId,
+        p_prev_owner_id: values.prevOwnerId,
+        p_prev_creator_id: values.prevCreatorId,
+        p_section_manager_id: values.sectionManagerId ?? null,
+      })
+      if (error) {
+        if (error.message.includes('org_porteur_invalide'))
+          throw new BusinessError('Le porteur d’une ligne doit être un encadrant')
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError('Accès refusé')
+        throw new Error(error.message)
       }
       revalidatePath('/chatter/organisation')
       revalidatePath('/chatter/members')

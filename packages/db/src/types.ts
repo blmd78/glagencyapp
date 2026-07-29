@@ -2410,6 +2410,25 @@ export type Database = {
         Returns: Json
       }
       repos_data_weeks: { Args: never; Returns: Json }
+      save_org_cell: {
+        Args: {
+          p_chatter_ids: string[]
+          p_creator_id: string
+          p_previous_ids: string[]
+          p_shift: string
+        }
+        Returns: undefined
+      }
+      save_org_row: {
+        Args: {
+          p_creator_id: string
+          p_owner_id: string
+          p_prev_creator_id: string | null
+          p_prev_owner_id: string | null
+          p_section_manager_id: string | null
+        }
+        Returns: undefined
+      }
       save_repos_cell: {
         Args: {
           p_chatter_ids: string[]
