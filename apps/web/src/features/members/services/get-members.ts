@@ -44,12 +44,18 @@ export async function getMembers(): Promise<MembersData> {
     { data: rates, error: ratesErr },
     { data: primes, error: primesErr },
   ] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select(
-        'id, email, display_name, role, pages, work_link, manager_id, closing_role, closing_team, chatter_id, created_at',
-      )
-      .order('created_at'),
+    // fetchAll : `profiles` grossit avec l'équipe (cap PostgREST 1000 silencieux) —
+    // `.order('id')` en tiebreaker (created_at peut avoir des égalités) = tri déterministe.
+    fetchAll((f, t) =>
+      supabase
+        .from('profiles')
+        .select(
+          'id, email, display_name, role, pages, work_link, manager_id, closing_role, closing_team, chatter_id, created_at',
+        )
+        .order('created_at')
+        .order('id')
+        .range(f, t),
+    ),
     // fetchAll : cap PostgREST silencieux — `profile_creators` grossit avec les membres et leurs
     // modèles assignés. `.order('profile_id').order('creator_id')` = la PK complète (0001).
     fetchAll((f, t) =>

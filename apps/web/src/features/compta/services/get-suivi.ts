@@ -91,8 +91,9 @@ export async function getSuivi(): Promise<SuiviData> {
     // `chatter_daily_admin_read`. Appelée par un manager, elle rendrait ZÉRO ligne et l'onglet
     // Suivi serait vide pour lui, sans une seule erreur. Aucune donnée brute n'en ressort : on
     // n'y lit que les dates des membres déjà renvoyés par la RLS ci-dessus. Indépendante des
-    // autres lectures → dans le même `Promise.all` (pas de waterfall).
-    admin.rpc('chatter_first_seen'),
+    // autres lectures → dans le même `Promise.all` (pas de waterfall). `fetchAll` : le cap
+    // PostgREST (1000) s'applique aussi aux rpc set-returning (audit 2026-07-29).
+    fetchAll((f, t) => admin.rpc('chatter_first_seen').order('chatter_id').range(f, t)),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (primesErr) throw new Error(primesErr.message)

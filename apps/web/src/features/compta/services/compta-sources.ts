@@ -173,8 +173,10 @@ export async function loadComptaSources({
     // `chatter_daily_admin_read` (vérifié sur `pg_policy`, UAT) → appelée par un manager elle
     // renverrait ZÉRO ligne, et le bandeau comme la prime disparaîtraient de sa vue sans une
     // seule erreur. Aucune donnée brute n'en ressort : seules les dates des membres déjà
-    // renvoyés par la RLS `profiles` sont lues.
-    admin.rpc('chatter_first_seen'),
+    // renvoyés par la RLS `profiles` sont lues. `fetchAll` : le cap PostgREST (1000)
+    // s'applique AUSSI aux rpc set-returning (mesuré, audit 2026-07-29) — 311 chatteurs
+    // aujourd'hui, ~25 de plus/semaine → tronqué en silence sinon d'ici quelques mois.
+    fetchAll((f, t) => admin.rpc('chatter_first_seen').order('chatter_id').range(f, t)),
   ])
   if (membersErr) throw new Error(membersErr.message)
   if (settingsErr) throw new Error(settingsErr.message)
