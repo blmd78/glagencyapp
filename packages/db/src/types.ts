@@ -2382,7 +2382,6 @@ export type Database = {
       is_manager: { Args: never; Returns: boolean }
       is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
-      managed_subtree: { Args: never; Returns: string[] }
       manages: { Args: { target: string }; Returns: boolean }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
