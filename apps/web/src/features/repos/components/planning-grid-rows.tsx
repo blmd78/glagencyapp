@@ -3,7 +3,7 @@
 import { Plus } from 'lucide-react'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { cn } from '@/lib/utils'
-import { CHIP_GREEN, CHIP_RED, normName, tokensOf, type CellChip } from './planning-grid-utils'
+import { CHIP_RED, chipForCol, normName, tokensOf, type CellChip } from './planning-grid-utils'
 import { JOURS, type ReposCell, type ReposColumn, type ReposData } from '../types'
 
 /**
@@ -70,6 +70,8 @@ export function PlanningGridRows({
             }
             // Éditabilité PAR COLONNE : encadrement admin-only, chatteurs ouverts au manager.
             const editable = c.encadrement ? isAdmin : canWrite
+            // Couleur de base des chips de la colonne (le rouge d'alerte prime toujours).
+            const chip = chipForCol(c.key)
             return (
               <td key={c.key} className={cn('p-1 align-top', border)}>
                 {editable ? (
@@ -96,7 +98,7 @@ export function PlanningGridRows({
                               }
                               className={cn(
                                 'rounded px-1.5 py-0.5 text-xs font-medium',
-                                ch.over ? CHIP_RED : CHIP_GREEN,
+                                ch.over ? CHIP_RED : chip,
                               )}
                             >
                               {ch.label}
@@ -121,7 +123,7 @@ export function PlanningGridRows({
                   // Le combobox ne gère que les IDs — les noms texte legacy restent
                   // intacts (chips retirables via leur croix dans le popover, cf. extraChips).
                   onChange={(ids) => onCommitCell(day, c.key, { ids, names: cell.names })}
-                  chipClassName={(id) => (over.ids.has(id) ? CHIP_RED : CHIP_GREEN)}
+                  chipClassName={(id) => (over.ids.has(id) ? CHIP_RED : chip)}
                   chipTitle={(id) =>
                     over.ids.has(id)
                       ? `${data.chatterById[id] ?? '?'} : plus de 2 repos cette semaine`
@@ -130,7 +132,7 @@ export function PlanningGridRows({
                   extraChips={tokensOf(cell.names).map((t) => ({
                     key: `txt:${t}`,
                     label: t,
-                    className: over.txt.has(normName(t)) ? CHIP_RED : CHIP_GREEN,
+                    className: over.txt.has(normName(t)) ? CHIP_RED : chip,
                     title: over.txt.has(normName(t))
                       ? `${t} : plus de 2 repos cette semaine`
                       : undefined,
@@ -149,7 +151,7 @@ export function PlanningGridRows({
                           title={ch.over ? `${ch.label} : plus de 2 repos cette semaine` : undefined}
                           className={cn(
                             'rounded px-1.5 py-0.5 text-xs font-medium',
-                            ch.over ? CHIP_RED : CHIP_GREEN,
+                            ch.over ? CHIP_RED : chip,
                           )}
                         >
                           {ch.label}

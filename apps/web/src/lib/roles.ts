@@ -18,17 +18,17 @@ export const ROLE_NAME: Record<string, string> = {
 }
 
 /**
- * Teinte du badge de rôle — reprise telle quelle des badges de la page Membres, qui les
- * codaient en dur : bleu = direction, vert = encadrement, ambre = rôle fonctionnel, gris =
- * chatter. Même palette sémantique que le reste de l'app (`lib/status-color.ts`).
+ * Teinte du badge de rôle — code couleur unifié de l'app (décision Benoit 2026-07-29,
+ * aligné sur Organisation et le planning repos) : CHATTER en bleu, MANAGER/SOUS-MANAGER en
+ * vert, POLICE en orange ; la direction garde son ton info, le violet reste aux modèles.
  */
 export const ROLE_TONE: Record<string, string> = {
   superadmin: STATUS_COLORS.info,
   admin: STATUS_COLORS.info,
-  manager: STATUS_COLORS.positive,
-  'sous-manager': STATUS_COLORS.positive,
-  police: STATUS_COLORS.warning,
-  chatteur: STATUS_COLORS.neutral,
+  manager: 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
+  'sous-manager': 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300',
+  police: 'bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300',
+  chatteur: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
 }
 
 /**
