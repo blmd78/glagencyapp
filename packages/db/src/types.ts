@@ -2411,6 +2411,16 @@ export type Database = {
         }
         Returns: Json
       }
+      save_repos_cell: {
+        Args: {
+          p_chatter_ids: string[]
+          p_col: string
+          p_day: number
+          p_names: string
+          p_week_start: string
+        }
+        Returns: undefined
+      }
       upsert_police_report: {
         Args: {
           p_absents: number
