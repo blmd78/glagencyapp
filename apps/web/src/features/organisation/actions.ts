@@ -10,7 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { CRM_SHIFTS } from '@/lib/types/chatters'
-import { runAction, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
+import { BusinessError, runAction, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
 
 const cellInput = z.object({
   creatorId: z.uuid(),
@@ -83,6 +83,118 @@ export async function saveOrgCell(raw: unknown): Promise<ActionResult> {
         if (error) throw new Error(error.message)
       }
 
+      revalidatePath('/chatter/organisation')
+      revalidatePath('/chatter/members')
+    },
+  })
+}
+
+const rowInput = z.object({
+  /** Nouveau porteur de l'assignation (sous-manager, ou manager pour « direct »). */
+  ownerId: z.uuid(),
+  creatorId: z.uuid(),
+  /** Paire actuelle à remplacer — null = AJOUT d'une ligne. */
+  prevOwnerId: z.uuid().nullable(),
+  prevCreatorId: z.uuid().nullable(),
+})
+
+/**
+ * Déplace/ajoute une LIGNE du board : la paire (owner, modèle). Changer le modèle d'une
+ * ligne, son sous-manager, ou passer un modèle en « direct » = supprimer l'ancienne paire et
+ * poser la nouvelle (profile_creators de l'encadrant). Les chatters du modèle ne bougent
+ * pas — seule l'assignation d'ENCADREMENT change.
+ */
+export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: rowInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (values) => {
+      await requireAdminProfile()
+      const admin = createAdminClient()
+      const { ownerId, creatorId, prevOwnerId, prevCreatorId } = values
+      // Le porteur doit être un encadrant (manager/sous-manager) — jamais un chatteur.
+      const { data: owner, error: oErr } = await admin
+        .from('profiles')
+        .select('role')
+        .eq('id', ownerId)
+        .maybeSingle()
+      if (oErr) throw new Error(oErr.message)
+      if (!owner || (owner.role !== 'manager' && owner.role !== 'sous-manager'))
+        throw new BusinessError('Le porteur d’une ligne doit être un manager ou un sous-manager')
+      if (prevOwnerId && prevCreatorId) {
+        const { error } = await admin
+          .from('profile_creators')
+          .delete()
+          .eq('profile_id', prevOwnerId)
+          .eq('creator_id', prevCreatorId)
+        if (error) throw new Error(error.message)
+      }
+      const { error } = await admin
+        .from('profile_creators')
+        .upsert({ profile_id: ownerId, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/organisation')
+      revalidatePath('/chatter/members')
+    },
+  })
+}
+
+const deleteRowInput = z.object({ ownerId: z.uuid(), creatorId: z.uuid() })
+
+/** Supprime une LIGNE : l'encadrant perd l'assignation du modèle (les chatters ne bougent pas —
+ *  le modèle réapparaît en « sans équipe » s'il ne reste couvert par personne). */
+export async function deleteOrgRow(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: deleteRowInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (values) => {
+      await requireAdminProfile()
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('profile_creators')
+        .delete()
+        .eq('profile_id', values.ownerId)
+        .eq('creator_id', values.creatorId)
+      if (error) throw new Error(error.message)
+      revalidatePath('/chatter/organisation')
+      revalidatePath('/chatter/members')
+    },
+  })
+}
+
+const teamInput = z.object({
+  sousManagerId: z.uuid(),
+  fromManagerId: z.uuid(),
+  toManagerId: z.uuid(),
+})
+
+/**
+ * Change le MANAGER d'un sous-manager (colonne Manager d'une ligne à sous-manager) : toute
+ * son équipe — toutes ses lignes — passe sous le nouveau manager (rattachement manager_ids,
+ * multi conservé : seul le manager de la section quittée est remplacé).
+ */
+export async function moveOrgTeam(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: teamInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (values) => {
+      await requireAdminProfile()
+      const admin = createAdminClient()
+      const { sousManagerId, fromManagerId, toManagerId } = values
+      const [{ data: sm, error: sErr }, { data: to, error: tErr }] = await Promise.all([
+        admin.from('profiles').select('role, manager_ids').eq('id', sousManagerId).maybeSingle(),
+        admin.from('profiles').select('role').eq('id', toManagerId).maybeSingle(),
+      ])
+      if (sErr) throw new Error(sErr.message)
+      if (tErr) throw new Error(tErr.message)
+      if (sm?.role !== 'sous-manager') throw new BusinessError('La ligne n’a pas de sous-manager à déplacer')
+      if (to?.role !== 'manager') throw new BusinessError('La cible doit être un manager')
+      const next = [...new Set([...(sm.manager_ids ?? []).filter((m) => m !== fromManagerId), toManagerId])]
+      const { error } = await admin.from('profiles').update({ manager_ids: next }).eq('id', sousManagerId)
+      if (error) throw new Error(error.message)
       revalidatePath('/chatter/organisation')
       revalidatePath('/chatter/members')
     },

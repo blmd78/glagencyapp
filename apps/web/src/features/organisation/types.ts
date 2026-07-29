@@ -18,9 +18,13 @@ export interface OrgChatter {
   linked: boolean
 }
 
-/** Une ligne du board = (sous-manager, modèle) : les chatters du modèle groupés par shift. */
+/** Une ligne du board = (owner, modèle) : les chatters du modèle groupés par shift.
+ *  L'owner est le porteur de l'assignation — le sous-manager, ou le manager (« direct »). */
 export interface OrgRow {
+  /** Profil qui porte l'assignation du modèle (sous-manager, ou manager si direct). */
+  ownerId: string
   /** null = modèle porté par le manager sans sous-manager dédié (« direct »). */
+  sousManagerId: string | null
   sousManagerName: string | null
   creatorId: string
   modelName: string
@@ -32,6 +36,7 @@ export interface OrgRow {
 
 /** Un groupe = un manager (cellule fusionnée sur ses lignes, comme la sheet). */
 export interface OrgSection {
+  managerId: string
   managerName: string
   rows: OrgRow[]
   total: number
@@ -41,6 +46,10 @@ export interface OrganisationData {
   sections: OrgSection[]
   /** Options des cases : tous les membres rôle chatteur. */
   chatterOptions: { id: string; name: string; linked: boolean }[]
+  /** Options des lignes (édition structurelle, admin). */
+  sousManagerOptions: { id: string; name: string }[]
+  managerOptions: { id: string; name: string }[]
+  modelOptions: { id: string; name: string }[]
   /** Modèles actifs qu'aucune section ne couvre (trous d'assignation, à corriger dans Membres). */
   orphanModels: string[]
   /** Effectifs réels (membres par rôle). */

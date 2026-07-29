@@ -83,7 +83,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
   }
   for (const arr of chattersByModel.values()) arr.sort((a, b) => a.name.localeCompare(b.name))
 
-  const rowFor = (sousManagerName: string | null, creatorId: string): OrgRow => {
+  const rowFor = (owner: { id: string; smId: string | null; smName: string | null }, creatorId: string): OrgRow => {
     const all = chattersByModel.get(creatorId) ?? []
     const byShift = Object.fromEntries(CRM_SHIFTS.map((s) => [s, [] as OrgChatter[]])) as Record<
       CrmShift,
@@ -92,7 +92,9 @@ export async function getOrganisation(): Promise<OrganisationData> {
     const sansShift: OrgChatter[] = []
     for (const c of all) (c.shift ? byShift[c.shift] : sansShift).push(c)
     return {
-      sousManagerName,
+      ownerId: owner.id,
+      sousManagerId: owner.smId,
+      sousManagerName: owner.smName,
       creatorId,
       modelName: creatorName.get(creatorId) ?? '?',
       byShift,
@@ -121,18 +123,19 @@ export async function getOrganisation(): Promise<OrganisationData> {
         if (seen.has(creatorId)) continue
         seen.add(creatorId)
         coveredModels.add(creatorId)
-        rows.push(rowFor(nameOf(sm), creatorId))
+        rows.push(rowFor({ id: sm.id, smId: sm.id, smName: nameOf(sm) }, creatorId))
       }
     }
     for (const creatorId of modelsByProfile.get(mgr.id) ?? []) {
       if (seen.has(creatorId)) continue
       seen.add(creatorId)
       coveredModels.add(creatorId)
-      rows.push(rowFor(null, creatorId))
+      rows.push(rowFor({ id: mgr.id, smId: null, smName: null }, creatorId))
     }
     // Managers sans équipe ni modèle (ex. face marketing) : pas de groupe vide.
     if (rows.length === 0 && team.length === 0) continue
     sections.push({
+      managerId: mgr.id,
       managerName: nameOf(mgr),
       rows,
       total: rows.reduce((s, r) => s + r.total, 0),
@@ -152,6 +155,14 @@ export async function getOrganisation(): Promise<OrganisationData> {
   return {
     sections,
     chatterOptions,
+    sousManagerOptions: sousManagers
+      .map((sm) => ({ id: sm.id, name: nameOf(sm) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    managerOptions: managers.map((m) => ({ id: m.id, name: nameOf(m) })),
+    modelOptions: creators
+      .filter((c) => c.active)
+      .map((c) => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     orphanModels,
     counts: {
       managers: sections.length,
