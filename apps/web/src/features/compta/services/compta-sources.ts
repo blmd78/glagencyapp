@@ -37,9 +37,11 @@ export async function loadComptaSources({
   const from = period.start
   const to = period.end
 
-  // L'APPELANT — `getProfile()` est `cache()` (mémoïsé par requête) : la page a déjà appelé
-  // `requireAccess('compta')` et les deux gestes de paiement `requireAdminProfile()` dans le
-  // même rendu, donc pas de seconde requête. Même patron que `get-compta.ts` / `get-suivi.ts`.
+  // L'APPELANT — `getProfile()` est `cache()` (mémoïsé par requête) : sur le chemin PAGE
+  // (RSC), `requireAccess('compta')` l'a déjà appelé, donc pas de seconde requête. Depuis les
+  // Server Actions de paiement (payPeriod/payAllForPeriod), `cache()` ne mémoïse PAS
+  // (guidelines-standard-feature §4) : `requireAdminProfile` puis ce `getProfile` font 2
+  // lectures profil par geste — assumé (1 seule fois par lot, pas par fiche).
   const profile = await getProfile()
   // Inatteignable derrière le garde de page (`requireAccess` redirige vers /login sans session)
   // et derrière `requireAdminProfile` côté paiement : on préfère lever plutôt que construire une
@@ -118,10 +120,11 @@ export async function loadComptaSources({
     // guidelines-data-loading §2). Tronqué, ce sont des bonus ET des malus manuels qui
     // disparaissent : le net dérive dans les deux sens sans une seule erreur.
     // `.order('chatter_id').order('date')` = la PK complète → pagination déterministe.
+    // Colonnes explicites : le calcul (compta-rows) ne lit que ces 4 champs — pas de `*`.
     fetchAll((f, t) =>
       supabase
         .from('compta_day_entries')
-        .select('*')
+        .select('chatter_id, bonus, malus, handoffs')
         .gte('date', from)
         .lte('date', to)
         .order('chatter_id')
@@ -139,7 +142,17 @@ export async function loadComptaSources({
     // faux sur des périodes réglées (bouton « Marquer payé » de retour sur une ligne déjà
     // payée) et mentir les deux KPI monétaires. `.order('id')` = la PK complète de
     // `compta_payments` → pagination déterministe.
-    fetchAll((f, t) => supabase.from('compta_payments').select('*').order('id').range(f, t)),
+    // Colonnes explicites (6 champs consommés par compta-rows/coverage) : le `*` embarquait
+    // ~19 colonnes dont l'instantané jsonb `rates_applied`, sur TOUT l'historique, dans le
+    // chemin de chaque affichage/paiement. `.order('id')` sur colonne non sélectionnée : OK
+    // PostgREST (même patron que police_entries ci-dessous).
+    fetchAll((f, t) =>
+      supabase
+        .from('compta_payments')
+        .select('chatter_id, covered_days, paid_at, period_start, amount, prime_amount')
+        .order('id')
+        .range(f, t),
+    ),
     // `fetchAll` pour la MÊME raison, et c'est le cas le plus coûteux : ce sont les RETENUES.
     // Tronquée, la table fait disparaître des sanctions → net surestimé → l'admin SUR-PAIE,
     // sans erreur. Le plafond est atteignable dès que les 96 membres cumulent quelques entrées
