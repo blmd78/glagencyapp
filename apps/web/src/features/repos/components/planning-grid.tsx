@@ -243,7 +243,7 @@ export function PlanningGrid({
             columns={columns}
             data={data}
             // Cases CHATTEURS éditables par admin + manager/sous-manager (`canWrite`, miroir
-            // RLS can_write_page) ; cases ENCADREMENT (Managers/Policiers) admin-only —
+            // RLS can_write_page) ; cases ENCADREMENT (Managers/Sous-managers/Policiers) admin-only —
             // le distinguo par colonne vit dans PlanningGridRows (`isAdmin`).
             canWrite={canWrite}
             isAdmin={isAdmin}

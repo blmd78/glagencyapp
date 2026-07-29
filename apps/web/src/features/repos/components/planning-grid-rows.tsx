@@ -27,7 +27,7 @@ export function PlanningGridRows({
   data: ReposData
   /** Cases des colonnes CHATTEURS (modèles) : admin + manager/sous-manager (miroir RLS). */
   canWrite: boolean
-  /** Cases des colonnes ENCADREMENT (Managers/Policiers) : admin uniquement. */
+  /** Cases des colonnes ENCADREMENT (Managers/Sous-managers/Policiers) : admin uniquement. */
   isAdmin: boolean
   cellValue: (day: number, col: string) => ReposCell
   cellChips: (day: number, col: string) => CellChip[]
@@ -113,10 +113,9 @@ export function PlanningGridRows({
                     </button>
                   }
                   value={cell.chatterIds}
-                  // Colonne Policiers : options = profils rôle police ; colonne Managers :
-                  // options = profils rôle manager (uniquement, pas de sous-manager) ;
-                  // colonnes modèles : chatteurs actifs. La RÉSOLUTION des noms déjà
-                  // assignés (labelById) reste, elle, sur la map fusionnée data.chatterById.
+                  // Chaque colonne encadrement a les options de SON rôle exact (Managers /
+                  // Sous-managers / Policiers) ; colonnes modèles : chatteurs. La RÉSOLUTION
+                  // des noms déjà posés (labelById) reste sur la map fusionnée data.chatterById.
                   options={optionsByKind[kind].map((o) => ({ value: o.id, label: o.name }))}
                   labelById={data.chatterById}
                   // Le combobox ne gère que les IDs — les noms texte legacy restent

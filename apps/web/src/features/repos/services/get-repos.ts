@@ -111,8 +111,8 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     .filter((m) => m.role === 'chatteur' && m.displayName)
     .map((m) => ({ id: m.id, name: m.displayName as string }))
     .sort((a, b) => a.name.localeCompare(b.name))
-  // Options par colonne encadrement — filtrées par rôle EXACT (pas de sous-manager dans
-  // Managers, pas de manager dans Policiers).
+  // Options par colonne encadrement — filtrées par rôle EXACT : chaque colonne (Managers,
+  // Sous-managers, Policiers) ne propose que les profils de SON rôle.
   const optsForRole = (role: string) =>
     (profileRows ?? [])
       .filter((m) => m.role === role && m.display_name)

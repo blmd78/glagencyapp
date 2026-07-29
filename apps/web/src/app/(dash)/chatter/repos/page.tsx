@@ -22,7 +22,7 @@ export default async function ReposPage({
   const isAdmin = profile.role === 'admin'
   // `canWrite` (admin ou manager/sous-manager) : case « envoyé Telegram » + ÉDITION des
   // cases des colonnes CHATTEURS (les managers posent/décalent les repos de leurs chatters,
-  // miroir RLS can_write_page). Colonnes encadrement (Managers/Policiers) et compo des
+  // miroir RLS can_write_page). Colonnes encadrement (Managers/Sous-managers/Policiers) et compo des
   // colonnes : admin-only (cf. PlanningGrid). Un chatteur reste en lecture seule totale.
   const canWrite = isAdmin || profile.manager
 
