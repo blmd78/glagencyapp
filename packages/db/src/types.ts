@@ -1738,7 +1738,6 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
-          manager_id: string | null
           manager_ids: string[]
           pages: string[]
           role: string
@@ -1752,7 +1751,6 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
-          manager_id?: string | null
           manager_ids?: string[]
           pages?: string[]
           role?: string
@@ -1766,7 +1764,6 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
-          manager_id?: string | null
           manager_ids?: string[]
           pages?: string[]
           role?: string
@@ -1778,13 +1775,6 @@ export type Database = {
             columns: ["chatter_id"]
             isOneToOne: true
             referencedRelation: "chatters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "profiles_manager_id_fkey"
-            columns: ["manager_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2392,7 +2382,6 @@ export type Database = {
       is_manager: { Args: never; Returns: boolean }
       is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
-      managed_subtree: { Args: never; Returns: string[] }
       manages: { Args: { target: string }; Returns: boolean }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }

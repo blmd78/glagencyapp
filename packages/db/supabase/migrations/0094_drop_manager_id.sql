@@ -1,0 +1,11 @@
+-- 0094 — Nettoyage : drop de `profiles.manager_id`, dépréciée par 0092 (multi-rattachement
+-- `manager_ids uuid[]`).
+--
+-- Conditions vérifiées AVANT le drop (2026-07-29, prod) :
+--   • l'app en prod est la Release 1.13 (f93b2e7) — plus aucune lecture/écriture de la colonne ;
+--   • aucun objet SQL ne la référence : balayage pg_proc/pg_policy/pg_views/pg_trigger avec
+--     `manager_id[^s]` → 0 résultat (les 4 fonctions hiérarchie sont sur manager_ids depuis 0092) ;
+--   • zéro dérive de données : aucune ligne où manager_id ∉ manager_ids (et inversement).
+-- Le drop emporte automatiquement sa FK (profiles_manager_id_fkey), son check
+-- (profiles_manager_not_self, 0054) et son index (profiles_manager_id_idx, 0055).
+alter table public.profiles drop column manager_id;

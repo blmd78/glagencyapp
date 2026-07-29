@@ -11,9 +11,8 @@ export interface VisibleProfile {
 
 /**
  * LA source « qui est dans mon périmètre » — profils visibles par l'utilisateur courant
- * sous RLS (`managed_subtree()`, migration 0087) : admin → tout le monde ; manager → soi +
- * tout son sous-arbre (ses sous-managers ET leurs chatteurs) ; sous-manager → soi + ses
- * chatteurs directs ; chatteur → soi.
+ * sous RLS (0095) : admin → tout le monde ; manager/sous-manager → TOUS les chatteurs + ses
+ * sous-managers + soi (plus d'assignation de chatteurs) ; chatteur → soi.
  *
  * Tout sélecteur de personnes (options d'un picker) doit partir d'ici, PAS du client admin :
  * la profondeur hiérarchique est définie UNE fois en SQL et héritée partout. Le client admin

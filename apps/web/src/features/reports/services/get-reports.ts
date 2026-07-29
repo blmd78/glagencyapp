@@ -75,11 +75,9 @@ export const isPiled = (member: ReportMember, selfId: string): boolean =>
 
 /**
  * Personnes consultables sur le Dashboard — TOUT LE MONDE sauf le superadmin, chatteurs
- * compris : c'est ce qui alimente le sélecteur. La RLS de `profiles` (0054, élargie en 0087)
- * fait le scoping hiérarchique : admin/superadmin → tout le monde ; manager → soi + TOUT son
- * sous-arbre (ses sous-managers ET les chatteurs de ceux-ci — sans quoi son sélecteur serait
- * quasi vide, la plupart des chatteurs étant rattachés à un sous-manager) ; sous-manager →
- * soi + ses rattachés directs (il n'a personne sous ses chatteurs) ; chatteur → soi seul.
+ * compris : c'est ce qui alimente le sélecteur. La RLS de `profiles` (0095) fait le scoping :
+ * admin/superadmin → tout le monde ; manager/sous-manager → TOUS les chatteurs + ses
+ * sous-managers + soi (plus d'assignation de chatteurs) ; chatteur → soi seul.
  * Le tri de la PILE se fait ensuite côté page (`isPiled`), pas ici — sinon le sélecteur
  * perdrait les chatteurs avec elle.
  */

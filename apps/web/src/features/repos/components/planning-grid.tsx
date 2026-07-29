@@ -123,8 +123,7 @@ export function PlanningGrid({
       // toast par clic serait bruyant) ; l'échec, lui, était avalé avant ce refacto → surfacé.
       // REVERT sur refus : sans lui, l'override resterait prioritaire sur l'état serveur
       // (cellule affichée fausse, inéditable — chaque resoumission repartirait de l'override
-      // refusé — et l'image Telegram exporterait cet état). Cas NORMAL depuis la garde de
-      // périmètre 0090 : retirer le chip d'un chatter hors sous-arbre est refusé.
+      // refusé — et l'image Telegram exporterait cet état).
       // GARDE D'IDENTITÉ : on ne revert que si l'override en place est ENCORE `nextCell` —
       // si une 2e édition est partie pendant la requête, c'est son résultat qui tranchera
       // (sinon l'échec de la 1re effacerait l'optimiste de la 2e, audit 2026-07-29).
