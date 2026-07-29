@@ -250,6 +250,14 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                         )
                       }
                     />
+                    {r.sansShift.length > 0 && (
+                      <div
+                        className="mt-1 px-1.5 text-xs text-muted-foreground"
+                        title="Membres du modèle sans shift (non liés à un chatteur MyPuls ou shift vide) — les ajouter à une case de shift les place ; le lien se règle dans Membres."
+                      >
+                        à placer : {r.sansShift.map((c) => c.name).join(', ')}
+                      </div>
+                    )}
                   </td>
                   {CRM_SHIFTS.map((shift) => {
                     const server = r.byShift[shift]
