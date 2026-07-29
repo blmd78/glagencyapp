@@ -67,12 +67,6 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
 
       <OrgTable data={data} isAdmin={isAdmin} />
 
-      {orphanModels.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Modèles actifs sans équipe (aucun manager/sous-manager assigné) :{' '}
-          {orphanModels.join(', ')} — à régler dans Membres.
-        </p>
-      )}
     </div>
   )
 }
