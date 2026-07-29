@@ -4,7 +4,12 @@
 // `import-x/no-restricted-paths`, guidelines §1). Remplace la copie locale « à garder
 // aligné » qui vivait dans `features/compta/services/compta-rows.ts`.
 
-/** 11 types d'erreurs contrôlés — repris de l'outil HTML source (setters/closers). */
+/** 14 types d'erreurs contrôlés — les 11 repris de l'outil HTML source (setters/closers),
+ *  plus 3 ajoutés le 2026-07-29 (relances et horaires). Ajouter une entrée ici suffit :
+ *  le formulaire du Tracker, la validation Zod et le libellé sur la fiche de paie en
+ *  dérivent tous. `police_entries.error_key` est un `text` SANS contrainte de valeurs en
+ *  base (vérifié sur `pg_constraint`) — donc aucune migration, et les sanctions déjà
+ *  enregistrées ne bougent pas. */
 export const POLICE_ERRORS = [
   { key: 'media_argent', label: 'Parle de média/argent directement' },
   { key: 'reactivite', label: 'Réponse > 45 s par sub' },
@@ -17,6 +22,9 @@ export const POLICE_ERRORS = [
   { key: 'temps_media', label: "N'attend pas le temps du média" },
   { key: 'infos_non_transmises', label: 'Ne transmet pas les infos' },
   { key: 'infos_non_notees', label: 'Ne note pas les infos' },
+  { key: 'relance_spendeur', label: 'Aucune relance au spendeur' },
+  { key: 'relance_ppv', label: 'Aucune relance après PPV' },
+  { key: 'horaires', label: 'Non respect des horaires de travail' },
 ] as const
 
 /** Libellé par clé — pour afficher une sanction stockée (`error_key`). Dérivé, jamais copié. */
