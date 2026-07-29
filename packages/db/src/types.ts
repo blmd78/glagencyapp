@@ -2356,7 +2356,6 @@ export type Database = {
           date: string
         }[]
       }
-      crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
       crm_spenders_tracker: {
         Args: { p_seuil?: number }
         Returns: {
@@ -2379,6 +2378,7 @@ export type Database = {
           username: string
         }[]
       }
+      crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
       has_page: { Args: { slug: string }; Returns: boolean }
       health_report: {
         Args: { p_from: string; p_to: string; p_week_from: string }
@@ -2388,6 +2388,7 @@ export type Database = {
       is_manager: { Args: never; Returns: boolean }
       is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
+      managed_subtree: { Args: never; Returns: string[] }
       manages: { Args: { target: string }; Returns: boolean }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
@@ -2397,8 +2398,8 @@ export type Database = {
         Args: { account_ids: string[]; before_date: string }
         Returns: {
           account_id: string
-          followers: number | null
-          views_total: number | null
+          followers: number
+          views_total: number
         }[]
       }
       models_report: { Args: { p_from: string; p_to: string }; Returns: Json }
@@ -2435,6 +2436,7 @@ export type Database = {
         }
         Returns: string
       }
+      writable_todo_targets: { Args: never; Returns: string[] }
     }
     Enums: {
       [_ in never]: never
