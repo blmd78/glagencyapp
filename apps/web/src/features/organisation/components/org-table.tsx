@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
-import { deleteOrgRow, moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
+import { moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
 import type { OrgChatter, OrganisationData } from '../types'
 
 // MÊME DA QUE LE PLANNING REPOS (chips + popovers, pas de selects de formulaire).
@@ -151,7 +151,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
       </span>
     ))
 
-  const rowCount = 8
+  const rowCount = 7
   const DIRECT = { id: 'direct', name: 'direct (manager)' }
   // Brouillon global « Ajouter une ligne » (un seul bouton, en pied de tableau).
   const [draft, setDraft] = useState<{ manager: string; owner: string } | null>(null)
@@ -170,7 +170,6 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
               </th>
             ))}
             <th className="px-3 py-2 text-right">Total</th>
-            <th className="w-8 px-1 py-2" />
           </tr>
         </thead>
         <tbody>
@@ -313,21 +312,6 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                     )
                   })}
                   <td className="px-3 py-2 text-right tabular-nums">{r.total}</td>
-                  <td className="px-1 py-2 text-right align-top">
-                    {isAdmin && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-6 text-muted-foreground/50 hover:text-red-600"
-                        aria-label={`Retirer la ligne ${r.modelName}`}
-                        title="Retirer la ligne (l’encadrant perd le modèle — les chatters ne bougent pas)"
-                        disabled={pending}
-                        onClick={() => run(() => deleteOrgRow({ ownerId: r.ownerId, creatorId: r.creatorId }))}
-                      >
-                        <X className="size-3.5" />
-                      </Button>
-                    )}
-                  </td>
                 </tr>
               ))}
               {section.rows.length === 0 && (

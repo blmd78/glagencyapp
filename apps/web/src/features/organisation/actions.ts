@@ -140,30 +140,6 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
   })
 }
 
-const deleteRowInput = z.object({ ownerId: z.uuid(), creatorId: z.uuid() })
-
-/** Supprime une LIGNE : l'encadrant perd l'assignation du modèle (les chatters ne bougent pas —
- *  le modèle réapparaît en « sans équipe » s'il ne reste couvert par personne). */
-export async function deleteOrgRow(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: deleteRowInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (values) => {
-      await requireAdminProfile()
-      const admin = createAdminClient()
-      const { error } = await admin
-        .from('profile_creators')
-        .delete()
-        .eq('profile_id', values.ownerId)
-        .eq('creator_id', values.creatorId)
-      if (error) throw new Error(error.message)
-      revalidatePath('/chatter/organisation')
-      revalidatePath('/chatter/members')
-    },
-  })
-}
-
 const teamInput = z.object({
   sousManagerId: z.uuid(),
   fromManagerId: z.uuid(),
