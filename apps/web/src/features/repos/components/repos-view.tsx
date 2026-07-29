@@ -75,9 +75,11 @@ export function ReposView({
     startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
 
-  // « Copier la semaine précédente » (0093) : admin, et seulement quand la semaine AFFICHÉE
-  // est sans contenu — le RPC refuse de toute façon d'écraser (garde serveur, ce test n'est
-  // que de l'affichage). Cases vestigielles vides ignorées, comme côté SQL.
+  // « Copier la semaine précédente » (0093) : bouton TOUJOURS VISIBLE pour l'admin, grisé
+  // quand la semaine AFFICHÉE a déjà du contenu (retour Benoit : masqué, il devenait
+  // introuvable dès que la semaine suivante était remplie — plus aucune semaine vide dans le
+  // sélecteur). Le RPC refuse de toute façon d'écraser (garde serveur) ; ce test n'est que
+  // de l'affichage. Cases vestigielles vides ignorées, comme côté SQL.
   const weekIsEmpty = Object.values(data.cells).every((byCol) =>
     Object.values(byCol).every((c) => c.chatterIds.length === 0 && c.names === ''),
   )
@@ -100,8 +102,19 @@ export function ReposView({
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          {isAdmin && weekIsEmpty && (
-            <Button variant="outline" size="sm" onClick={copyPreviousWeek} disabled={pending} className="gap-1.5">
+          {isAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyPreviousWeek}
+              disabled={pending || !weekIsEmpty}
+              title={
+                weekIsEmpty
+                  ? undefined
+                  : 'Cette semaine a déjà des repos — la copie ne remplit qu’une semaine vide (rien n’est jamais écrasé)'
+              }
+              className="gap-1.5"
+            >
               <Copy className="size-3.5" />
               Copier la semaine précédente
             </Button>
