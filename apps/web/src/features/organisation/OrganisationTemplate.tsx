@@ -11,9 +11,9 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
   const { counts, orphanModels } = data
 
   const kpis: Array<Kpi & { accent?: string }> = [
-    // Liserés = code couleur de l'app (bleu chatter, vert encadrement, violet modèles —
-    // toujours) ; l'AMBRE d'alerte ne reste que sur « À placer » (les modèles sans équipe
-    // s'annoncent dans le trendLabel de leur carte).
+    // Liserés = code couleur de l'app (bleu chatter, vert encadrement, violet modèles) —
+    // les trous (modèles sans équipe, chatters à placer) se lisent dans les trendLabels et
+    // sur les lignes du board, pas en carte dédiée.
     {
       key: 'chatteurs',
       label: 'Chatters',
@@ -41,15 +41,6 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       hint: 'assignés via Membres',
       accent: 'border-t-violet-500',
     },
-    {
-      key: 'aPlacer',
-      label: 'À placer',
-      value: String(counts.aPlacer),
-      deltaPct: null,
-      trendLabel: 'sans shift renseigné',
-      hint: 'lien MyPuls ou shift à régler',
-      accent: counts.aPlacer ? 'border-t-amber-500' : 'border-t-blue-500',
-    },
   ]
 
   return (
@@ -59,7 +50,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
         en permanence — éditer une case met à jour les assignations et le shift.
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {kpis.map(({ accent, ...k }) => (
           <KpiCard key={k.key} kpi={k} accent={accent} />
         ))}

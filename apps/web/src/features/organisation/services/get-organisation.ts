@@ -65,7 +65,6 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
   const chatterMembers = profiles.filter((p) => p.role === 'chatteur')
   const chattersByModel = new Map<string, OrgChatter[]>()
-  let aPlacer = 0
   for (const m of chatterMembers) {
     const raw = m.chatter_id ? shiftByMypuls.get(m.chatter_id) : null
     const entry: OrgChatter = {
@@ -74,7 +73,6 @@ export async function getOrganisation(): Promise<OrganisationData> {
       shift: isShift(raw) ? raw : null,
       linked: !!m.chatter_id,
     }
-    if (!entry.shift) aPlacer += 1
     for (const creatorId of modelsByProfile.get(m.id) ?? []) {
       const arr = chattersByModel.get(creatorId)
       if (arr) arr.push(entry)
@@ -169,7 +167,6 @@ export async function getOrganisation(): Promise<OrganisationData> {
       sousManagers: sousManagers.length,
       modeles: creators.filter((c) => c.active).length,
       chatteurs: chatterMembers.length,
-      aPlacer,
     },
   }
 }

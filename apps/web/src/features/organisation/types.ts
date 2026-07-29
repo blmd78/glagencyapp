@@ -53,12 +53,5 @@ export interface OrganisationData {
   /** Modèles actifs qu'aucune section ne couvre (trous d'assignation, à corriger dans Membres). */
   orphanModels: string[]
   /** Effectifs réels (membres par rôle). */
-  counts: {
-    managers: number
-    sousManagers: number
-    modeles: number
-    chatteurs: number
-    /** Chatteurs sans shift renseigné (non liés MyPuls ou shift vide) — à placer. */
-    aPlacer: number
-  }
+  counts: { managers: number; sousManagers: number; modeles: number; chatteurs: number }
 }
