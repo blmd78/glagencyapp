@@ -3,7 +3,7 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getVisibleProfiles } from '@/lib/services/team'
-import { REPOS_COLUMNS, type ReposCell, type ReposData, type WeekChoice } from '../types'
+import { ENCADREMENT_COLUMNS, LEGACY_COL_LABELS, MODEL_COL_KEYS, type ReposCell, type ReposColumn, type ReposData, type WeekChoice } from '../types'
 
 /** Libellé spécifique repos « Lundi 06/07 au Dimanche 12/07 » (dates via @glagency/core, UTC-safe). */
 function weekLabel(start: string): string {
@@ -119,6 +119,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
       .map((m) => ({ id: m.id, name: m.display_name as string }))
       .sort((a, b) => a.name.localeCompare(b.name))
   const managerOptions = optsForRole('manager')
+  const sousManagerOptions = optsForRole('sous-manager')
   const policierOptions = optsForRole('police')
 
   // Modèles (header) : id → nom + options actifs.
@@ -133,15 +134,26 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   const memberByCol: Record<string, string[]> = {}
   for (const m of memberRows ?? []) memberByCol[m.col] = m.creator_ids ?? []
 
-  // Colonnes résolues : label = noms des modèles (join) sinon défaut du code. Toutes les
-  // colonnes sont renvoyées (vue complète — plus de cloisonnement app-side).
-  const columns = REPOS_COLUMNS.map((c) => {
-    const creatorIds = memberByCol[c.key] ?? []
-    const label = creatorIds.length
-      ? creatorIds.map((id) => creatorById[id] ?? '?').join(' + ')
-      : c.label
-    return { key: c.key, label, encadrement: c.encadrement, creatorIds }
-  })
+  // Colonnes MODÈLES dynamiques (0096) : une clé g1..g12 n'est rendue que si sa compo est non
+  // vide pour CETTE semaine OU si ses cases de la semaine ont du contenu — vider la compo d'une
+  // colonne sans repos posés la fait disparaître ; « Ajouter une colonne » (grille, admin)
+  // reprend la première clé libre. Les colonnes encadrement sont toujours rendues.
+  const contentCols = new Set(
+    (cellRows ?? [])
+      .filter((r) => (r.chatter_ids ?? []).length > 0 || (r.names ?? '') !== '')
+      .map((r) => r.col),
+  )
+  const columns: ReposColumn[] = [
+    ...MODEL_COL_KEYS.flatMap((key, i): ReposColumn[] => {
+      const creatorIds = memberByCol[key] ?? []
+      if (creatorIds.length === 0 && !contentCols.has(key)) return []
+      const label = creatorIds.length
+        ? creatorIds.map((id) => creatorById[id] ?? '?').join(' + ')
+        : (LEGACY_COL_LABELS[key] ?? `Colonne ${i + 1}`)
+      return [{ key, label, encadrement: false, creatorIds }]
+    }),
+    ...ENCADREMENT_COLUMNS.map((c): ReposColumn => ({ key: c.key, label: c.label, encadrement: true, creatorIds: [] })),
+  ]
 
   // Cellules { chatterIds, names } — vue complète : IDs et texte legacy tels quels.
   const cells: Record<number, Record<string, ReposCell>> = {}
@@ -165,6 +177,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     chatterById,
     chatterOptions,
     managerOptions,
+    sousManagerOptions,
     policierOptions,
     sentTelegram: weekRow?.sent_telegram ?? false,
     weeks,

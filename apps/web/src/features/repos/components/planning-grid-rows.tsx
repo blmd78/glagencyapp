@@ -48,15 +48,24 @@ export function PlanningGridRows({
             const chips = cellChips(day, c.key)
             const over = overByCol.get(c.key) ?? { ids: new Set<string>(), txt: new Set<string>() }
             // Kind de colonne dérivé UNE fois — indexe `options` et `placeholder` ci-dessous.
-            const kind = c.key === 'policiers' ? 'police' : c.encadrement ? 'manager' : 'chatteur'
+            const kind =
+              c.key === 'policiers'
+                ? 'police'
+                : c.key === 'sous-managers'
+                  ? 'sousManager'
+                  : c.encadrement
+                    ? 'manager'
+                    : 'chatteur'
             const optionsByKind = {
               police: data.policierOptions,
               manager: data.managerOptions,
+              sousManager: data.sousManagerOptions,
               chatteur: data.chatterOptions,
             }
             const placeholderByKind = {
               police: 'Rechercher un policier…',
               manager: 'Rechercher un manager…',
+              sousManager: 'Rechercher un sous-manager…',
               chatteur: 'Rechercher un chatter…',
             }
             // Éditabilité PAR COLONNE : encadrement admin-only, chatteurs ouverts au manager.

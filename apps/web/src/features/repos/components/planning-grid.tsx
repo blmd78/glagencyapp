@@ -1,12 +1,12 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { Check, Copy } from 'lucide-react'
+import { Check, Copy, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { saveReposCell, saveReposColumnMembers, setReposSent } from '../actions'
-import { JOURS, REPOS_COLUMNS, type ReposCell, type ReposData } from '../types'
+import { JOURS, MODEL_COL_KEYS, type ReposCell, type ReposColKey, type ReposColumn, type ReposData } from '../types'
 import { copyPlanningImage } from './planning-image'
 import { PlanningGridHeader } from './planning-grid-header'
 import { PlanningGridRows } from './planning-grid-rows'
@@ -33,6 +33,10 @@ export function PlanningGrid({
   // Overrides locaux optimistes (une revalidation n'écrase pas une édition en cours).
   const [overrides, setOverrides] = useState<Record<string, ReposCell>>({})
   const [columnOverrides, setColumnOverrides] = useState<Record<string, string[]>>({})
+  // Colonnes modèles AJOUTÉES localement (admin) : le serveur ne rend une colonne que si sa
+  // compo ou ses cases existent (0096) — une colonne neuve vit ici jusqu'à sa première compo
+  // (crayon) ou son premier repos posé, qui la font persister.
+  const [extraCols, setExtraCols] = useState<string[]>([])
   const [sent, setSent] = useState(data.sentTelegram)
   const [copied, setCopied] = useState(false)
   const [, startTransition] = useTransition()
@@ -40,24 +44,45 @@ export function PlanningGrid({
   const cellValue = (day: number, col: string): ReposCell =>
     overrides[`${day}:${col}`] ?? data.cells[day]?.[col] ?? EMPTY_CELL
 
-  // Colonnes résolues (compo modèles + override local) → libellé recalculé depuis creatorById.
-  const columns = useMemo(
-    () =>
-      data.columns.map((c) => {
-        const creatorIds = columnOverrides[c.key] ?? c.creatorIds
-        const label = creatorIds.length
-          ? creatorIds.map((id) => data.creatorById[id] ?? '?').join(' + ')
-          : c.label
-        return { ...c, creatorIds, label }
-      }),
-    [data.columns, data.creatorById, columnOverrides],
-  )
+  // Colonnes résolues (compo modèles + override local) → libellé recalculé depuis creatorById,
+  // puis colonnes locales (« Ajouter une colonne ») insérées AVANT l'encadrement — dédupliquées
+  // par clé dès que le serveur les renvoie (compo ou case persistée).
+  const columns = useMemo(() => {
+    const resolved = data.columns.map((c) => {
+      const creatorIds = columnOverrides[c.key] ?? c.creatorIds
+      const label = creatorIds.length
+        ? creatorIds.map((id) => data.creatorById[id] ?? '?').join(' + ')
+        : c.label
+      return { ...c, creatorIds, label }
+    })
+    const present = new Set<string>(resolved.map((c) => c.key))
+    const extras: ReposColumn[] = extraCols
+      .filter((k) => !present.has(k))
+      .map((k) => {
+        const creatorIds = columnOverrides[k] ?? []
+        return {
+          key: k as ReposColKey,
+          label: creatorIds.length
+            ? creatorIds.map((id) => data.creatorById[id] ?? '?').join(' + ')
+            : 'Nouvelle colonne',
+          encadrement: false,
+          creatorIds,
+        }
+      })
+    const firstEnc = resolved.findIndex((c) => c.encadrement)
+    return firstEnc === -1
+      ? [...resolved, ...extras]
+      : [...resolved.slice(0, firstEnc), ...extras, ...resolved.slice(firstEnc)]
+  }, [data.columns, data.creatorById, columnOverrides, extraCols])
+
+  // Première clé modèle libre — bouton masqué quand les 12 emplacements sont pris.
+  const nextFreeKey = MODEL_COL_KEYS.find((k) => !columns.some((c) => c.key === k))
 
   // ROUGE : une même personne cumule > 2 repos dans la semaine sur sa colonne. Comptage par
   // (colonne, chatter_id) pour les IDs, et par (colonne, nom normalisé) pour le texte libre.
   const overByCol = useMemo(() => {
     const res = new Map<string, { ids: Set<string>; txt: Set<string> }>()
-    for (const col of REPOS_COLUMNS) {
+    for (const col of columns) {
       const idCounts = new Map<string, number>()
       const txtCounts = new Map<string, number>()
       for (let day = 0; day < JOURS.length; day++) {
@@ -75,7 +100,7 @@ export function PlanningGrid({
     }
     return res
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.cells, overrides])
+  }, [data.cells, overrides, columns])
 
   /** Chips d'une cellule : chatteurs (IDs résolus) puis texte libre (legacy), avec drapeau sur-repos. */
   function cellChips(day: number, col: string): CellChip[] {
@@ -192,6 +217,19 @@ export function PlanningGrid({
 
   return (
     <div className="flex flex-col gap-4">
+      {isAdmin && nextFreeKey && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setExtraCols((prev) => [...prev, nextFreeKey])}
+          >
+            <Plus className="size-3.5" />
+            Ajouter une colonne modèles
+          </Button>
+        </div>
+      )}
       <div className="overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[64rem] border-collapse text-sm">
           <PlanningGridHeader
