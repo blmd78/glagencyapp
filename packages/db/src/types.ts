@@ -1739,6 +1739,7 @@ export type Database = {
           email: string | null
           id: string
           manager_id: string | null
+          manager_ids: string[]
           pages: string[]
           role: string
           work_link: string
@@ -1752,6 +1753,7 @@ export type Database = {
           email?: string | null
           id: string
           manager_id?: string | null
+          manager_ids?: string[]
           pages?: string[]
           role?: string
           work_link?: string
@@ -1765,6 +1767,7 @@ export type Database = {
           email?: string | null
           id?: string
           manager_id?: string | null
+          manager_ids?: string[]
           pages?: string[]
           role?: string
           work_link?: string
