@@ -89,8 +89,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
       CrmShift,
       OrgChatter[]
     >
-    const sansShift: OrgChatter[] = []
-    for (const c of all) (c.shift ? byShift[c.shift] : sansShift).push(c)
+    for (const c of all) if (c.shift) byShift[c.shift].push(c)
     return {
       ownerId: owner.id,
       sousManagerId: owner.smId,
@@ -98,7 +97,6 @@ export async function getOrganisation(): Promise<OrganisationData> {
       creatorId,
       modelName: creatorName.get(creatorId) ?? '?',
       byShift,
-      sansShift,
       total: all.length,
     }
   }
