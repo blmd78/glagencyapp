@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useState, useTransition } from 'react'
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Pencil, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
@@ -17,21 +17,33 @@ import {
 import { cn } from '@/lib/utils'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
 import { moveOrgTeam, saveOrgCell, saveOrgRow } from '../actions'
-import type { OrgChatter, OrganisationData } from '../types'
+import type { OrgChatter, OrgSection, OrganisationData } from '../types'
 
-// MÊME DA QUE LE PLANNING REPOS (chips + popovers, pas de selects de formulaire).
-// Code couleur demandé par Benoit : encadrement (manager/sous-manager) en VERT, modèle en
-// VIOLET, chatters en BLEU. Vert/violet identiques à planning-grid-utils (recopiés : les
-// features ne s'importent pas entre elles).
+// ── LECTURE D'ABORD (refonte 2026-07-29 — la version « une pastille par nom » était
+// illisible à côté de la feuille d'origine) ──────────────────────────────────────────────────
+// Ce qui rendait la feuille lisible : les noms COULENT en texte (pas une boîte par personne),
+// et chaque colonne de shift porte sa teinte — on scanne une journée d'un coup d'œil. On garde
+// ce principe, dans le langage de l'app :
+//  • noms au fil du texte, séparés par « · » ;
+//  • lavis de colonne « heure de la journée » (matin chaud → soir froid) : c'est un FOND, pas
+//    un badge — le code couleur des RÔLES (chatter bleu, encadrement vert, police orange,
+//    modèle violet) reste réservé aux pastilles ;
+//  • la hiérarchie passe par la STRUCTURE, plus par la répétition : une bande par manager, le
+//    sous-manager écrit une seule fois sur ses modèles.
+const SHIFTS: Record<CrmShift, { label: string; wash: string }> = {
+  matin: { label: 'Matin', wash: 'bg-amber-50/70 dark:bg-amber-950/20' },
+  aprem: { label: 'Après-midi', wash: 'bg-muted/40' },
+  soir: { label: 'Soir', wash: 'bg-indigo-50/70 dark:bg-indigo-950/25' },
+}
+
 const CHIP_GREEN = 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
 const CHIP_VIOLET = 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
 const CHIP_BLUE = 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
 
-const SHIFT_LABELS: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
-
 /**
- * Sélecteur « chip » façon repos : la valeur est un chip coloré cliquable (admin) qui ouvre
- * un popover de recherche à choix unique. Non éditable → chip statique.
+ * Pastille cliquable (admin) qui ouvre une recherche à choix unique. Au repos : AUCUN cadre,
+ * c'est une étiquette. Le fond et le crayon n'apparaissent qu'au survol — l'écran se lit
+ * comme un tableau, pas comme un formulaire.
  */
 function ChipSelect({
   value,
@@ -56,7 +68,7 @@ function ChipSelect({
 }) {
   const [open, setOpen] = useState(false)
   const chip = label ? (
-    <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', chipClass)}>{label}</span>
+    <span className={cn('rounded px-2 py-0.5 text-xs font-medium', chipClass)}>{label}</span>
   ) : (
     <span className="text-xs text-muted-foreground/60">choisir…</span>
   )
@@ -69,15 +81,12 @@ function ChipSelect({
           disabled={disabled}
           title={title ?? 'Cliquer pour changer'}
           className={cn(
-            'group flex min-h-8 flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-left transition-colors',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-            label
-              ? 'border-transparent hover:bg-muted/50'
-              : 'border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/40',
+            'group/chip -mx-1 flex items-center gap-1 rounded-md px-1 py-0.5 text-left transition-colors',
+            'hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
           )}
         >
           {chip}
-          <Plus className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
+          <Pencil className="size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/chip:opacity-60" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
@@ -107,15 +116,11 @@ function ChipSelect({
   )
 }
 
-/**
- * Le board d'orga, DYNAMIQUE comme le planning repos : cases de shift éditables (chips bleus,
- * ComboboxMultiple) et LIGNES éditables (admin) — manager, sous-manager, modèle en chips
- * cliquables, ajout/retrait de lignes. Tout est WRITE-THROUGH (cf. actions.ts).
- */
+/** Le board d'orga — lecture d'abord, édition au survol. Write-through (cf. actions.ts). */
 export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: boolean }) {
   const [pending, startTransition] = useTransition()
-  // Overrides optimistes par case `${creatorId}:${shift}` → ids affichés (cases seulement).
   const [overrides, setOverrides] = useState<Record<string, string[]>>({})
+  const [draft, setDraft] = useState<{ manager: string; owner: string } | null>(null)
   const nameById = new Map(data.chatterOptions.map((o) => [o.id, o.name]))
 
   const cellIds = (creatorId: string, shift: CrmShift, server: OrgChatter[]) =>
@@ -144,200 +149,191 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
     })
   }
 
-  const chatterChips = (ids: string[]) =>
-    ids.map((id) => (
-      <span key={id} className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_BLUE)}>
-        {nameById.get(id) ?? '?'}
-      </span>
-    ))
+  const COLS = 6
+  const DIRECT = { id: 'direct', name: 'porté par le manager' }
 
-  const rowCount = 7
-  const DIRECT = { id: 'direct', name: 'direct (manager)' }
-  // Brouillon global « Ajouter une ligne » (un seul bouton, en pied de tableau).
-  const [draft, setDraft] = useState<{ manager: string; owner: string } | null>(null)
+  /** Cellule de shift : les noms au fil du texte ; le fond d'édition n'apparaît qu'au survol. */
+  function ShiftCell({ creatorId, shift, server }: { creatorId: string; shift: CrmShift; server: OrgChatter[] }) {
+    const ids = cellIds(creatorId, shift, server)
+    const names = ids.map((id) => nameById.get(id) ?? '?')
+    const text = names.length ? (
+      <span className="leading-relaxed">{names.join(' · ')}</span>
+    ) : (
+      <span className="text-muted-foreground/40">—</span>
+    )
+    if (!isAdmin) return <td className={cn('px-3 py-2 align-top', SHIFTS[shift].wash)}>{text}</td>
+    return (
+      <td className={cn('p-0 align-top', SHIFTS[shift].wash)}>
+        <ComboboxMultiple
+          trigger={
+            <button
+              type="button"
+              title="Cliquer pour composer ce shift"
+              className={cn(
+                'group/cell flex min-h-10 w-full items-start gap-1 px-3 py-2 text-left transition-colors',
+                'hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+              )}
+            >
+              {names.length ? text : <span className="text-muted-foreground/40">Composer</span>}
+              <Plus className="ml-auto size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-60" />
+            </button>
+          }
+          options={data.chatterOptions.filter((o) => o.linked).map((o) => ({ value: o.id, label: o.name }))}
+          value={ids}
+          labelById={Object.fromEntries(nameById)}
+          onChange={(next) => commitCell(creatorId, shift, next, ids)}
+          chipClassName={CHIP_BLUE}
+          placeholder="Rechercher un chatter…"
+        />
+      </td>
+    )
+  }
+
+  /** Bande de manager : le nom en tête de section, l'effectif à droite. */
+  function SectionHead({ section }: { section: OrgSection }) {
+    const teams = new Set(section.rows.map((r) => r.sousManagerId ?? 'direct'))
+    return (
+      <tr className="border-t-2 bg-muted/60">
+        <td colSpan={COLS} className="px-3 py-2">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span
+              className={cn(
+                'text-sm font-semibold tracking-tight',
+                section.managerId ? '' : 'text-amber-700 dark:text-amber-400',
+              )}
+            >
+              {section.managerName}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {section.rows.length} modèle{section.rows.length > 1 ? 's' : ''} · {teams.size} équipe
+              {teams.size > 1 ? 's' : ''} · {section.total} chatter{section.total > 1 ? 's' : ''}
+            </span>
+          </div>
+        </td>
+      </tr>
+    )
+  }
 
   return (
     <div className="overflow-x-auto rounded-xl border">
-      <table className="w-full min-w-[64rem] border-collapse text-sm">
+      <table className="w-full min-w-[60rem] border-collapse text-sm">
         <thead>
-          <tr className="bg-muted/50 text-left text-xs font-medium text-muted-foreground">
-            <th className="px-3 py-2">Manager</th>
-            <th className="px-3 py-2">Sous-manager</th>
-            <th className="px-3 py-2">Modèle</th>
+          <tr className="border-b text-left text-xs font-medium text-muted-foreground">
+            <th className="w-44 px-3 py-2.5">Sous-manager</th>
+            <th className="w-40 px-3 py-2.5">Modèle</th>
             {CRM_SHIFTS.map((s) => (
-              <th key={s} className="px-3 py-2">
-                {SHIFT_LABELS[s]}
+              <th key={s} className={cn('px-3 py-2.5', SHIFTS[s].wash)}>
+                {SHIFTS[s].label}
               </th>
             ))}
-            <th className="px-3 py-2 text-right">Total</th>
+            <th className="w-16 px-3 py-2.5 text-right">Total</th>
           </tr>
         </thead>
         <tbody>
-          {data.sections.map((section, si) => (
-            <Fragment key={section.managerId}>
-              {section.rows.map((r, i) => (
-                <tr
-                  key={`${r.ownerId}:${r.creatorId}`}
-                  className={cn('border-t align-top', si > 0 && i === 0 && 'border-t-2')}
-                >
-                  <td className="p-1 px-2 align-top">
-                    <ChipSelect
-                      value={section.managerId || null}
-                      label={section.managerName}
-                      options={data.managerOptions}
-                      chipClass={section.managerId ? CHIP_GREEN : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'}
-                      editable={isAdmin}
-                      disabled={pending}
-                      title={
-                        r.sousManagerId
-                          ? 'Changer déplace toute l’équipe du sous-manager sous l’autre manager'
-                          : 'Changer passe le modèle sous l’autre manager'
-                      }
-                      onSelect={(to) =>
-                        run(() =>
-                          r.sousManagerId
-                            ? moveOrgTeam({
-                                sousManagerId: r.sousManagerId,
-                                // '' = section synthétique « Sans manager » → simple rattachement.
-                                fromManagerId: section.managerId || null,
-                                toManagerId: to,
-                              })
-                            : saveOrgRow({
-                                ownerId: to,
-                                creatorId: r.creatorId,
-                                prevOwnerId: r.ownerId,
-                                prevCreatorId: r.creatorId,
-                              }),
-                        )
-                      }
-                    />
-                  </td>
-                  <td className="p-1 px-2 align-top">
-                    <ChipSelect
-                      value={r.sousManagerId ?? 'direct'}
-                      label={r.sousManagerName ?? 'direct'}
-                      // « direct » = porté par le manager de la section : sans objet dans la
-                      // section synthétique « Sans manager ».
-                      options={section.managerId ? [DIRECT, ...data.sousManagerOptions] : data.sousManagerOptions}
-                      chipClass={r.sousManagerName ? CHIP_GREEN : 'bg-muted text-muted-foreground'}
-                      editable={isAdmin}
-                      disabled={pending}
-                      onSelect={(v) =>
-                        run(() =>
-                          saveOrgRow({
-                            ownerId: v === 'direct' ? section.managerId : v,
-                            creatorId: r.creatorId,
-                            prevOwnerId: r.ownerId,
-                            prevCreatorId: r.creatorId,
-                            sectionManagerId: v === 'direct' ? null : section.managerId || null,
-                          }),
-                        )
-                      }
-                    />
-                  </td>
-                  <td className="p-1 px-2 align-top">
-                    <ChipSelect
-                      value={r.creatorId}
-                      label={r.modelName}
-                      options={data.modelOptions}
-                      chipClass={CHIP_VIOLET}
-                      editable={isAdmin}
-                      disabled={pending}
-                      onSelect={(v) =>
-                        run(() =>
-                          saveOrgRow({
-                            ownerId: r.ownerId,
-                            creatorId: v,
-                            prevOwnerId: r.ownerId,
-                            prevCreatorId: r.creatorId,
-                          }),
-                        )
-                      }
-                    />
-                  </td>
-                  {CRM_SHIFTS.map((shift) => {
-                    const server = r.byShift[shift]
-                    const ids = cellIds(r.creatorId, shift, server)
-                    // `previous` = l'état AFFICHÉ (override optimiste compris), pas l'état
-                    // serveur du rendu : deux toggles rapides sur la même case (décocher puis
-                    // recocher) diffaient sinon contre une base périmée → early-return et
-                    // désassignation silencieuse (audit 2026-07-29).
-                    const previous = ids
-                    if (!isAdmin)
-                      return (
-                        <td key={shift} className="px-3 py-2">
-                          {ids.length ? (
-                            <div className="flex flex-wrap gap-1">{chatterChips(ids)}</div>
-                          ) : (
-                            <span className="text-xs text-muted-foreground/40">—</span>
+          {data.sections.map((section) => (
+            <Fragment key={section.managerId || 'sans-manager'}>
+              <SectionHead section={section} />
+              {section.rows.map((r, i) => {
+                // Le sous-manager n'est écrit que sur SA première ligne (groupe visuel) —
+                // fini les pastilles répétées à l'identique sur chacun de ses modèles.
+                const prev = section.rows[i - 1]
+                const firstOfTeam =
+                  !prev || (prev.sousManagerId ?? 'direct') !== (r.sousManagerId ?? 'direct')
+                return (
+                  <tr key={`${r.ownerId}:${r.creatorId}`} className="border-t align-top">
+                    <td className="px-3 py-2">
+                      {firstOfTeam && (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <ChipSelect
+                            value={r.sousManagerId ?? 'direct'}
+                            label={r.sousManagerName ?? 'porté par le manager'}
+                            options={
+                              section.managerId ? [DIRECT, ...data.sousManagerOptions] : data.sousManagerOptions
+                            }
+                            chipClass={r.sousManagerName ? CHIP_GREEN : 'bg-muted text-muted-foreground'}
+                            editable={isAdmin}
+                            disabled={pending}
+                            placeholder="Rechercher un sous-manager…"
+                            onSelect={(v) =>
+                              run(() =>
+                                saveOrgRow({
+                                  ownerId: v === 'direct' ? section.managerId : v,
+                                  creatorId: r.creatorId,
+                                  prevOwnerId: r.ownerId,
+                                  prevCreatorId: r.creatorId,
+                                  sectionManagerId: v === 'direct' ? null : section.managerId || null,
+                                }),
+                              )
+                            }
+                          />
+                          {isAdmin && r.sousManagerId && (
+                            <ChipSelect
+                              value={section.managerId || null}
+                              label={section.managerId ? `↳ ${section.managerName}` : '↳ sans manager'}
+                              options={data.managerOptions}
+                              chipClass="text-muted-foreground"
+                              editable
+                              disabled={pending}
+                              placeholder="Rechercher un manager…"
+                              title="Changer de manager déplace toute l’équipe de ce sous-manager"
+                              onSelect={(to) =>
+                                run(() =>
+                                  moveOrgTeam({
+                                    sousManagerId: r.sousManagerId as string,
+                                    fromManagerId: section.managerId || null,
+                                    toManagerId: to,
+                                  }),
+                                )
+                              }
+                            />
                           )}
-                        </td>
-                      )
-                    return (
-                      <td key={shift} className="p-1 align-top">
-                        <ComboboxMultiple
-                          trigger={
-                            <button
-                              type="button"
-                              title="Cliquer pour choisir les chatters de ce shift"
-                              className={cn(
-                                'group flex min-h-9 w-full flex-wrap items-center gap-1 rounded-md border px-1.5 py-1 text-left transition-colors',
-                                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                                ids.length
-                                  ? 'border-transparent hover:bg-muted/50'
-                                  : 'border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-muted/40',
-                              )}
-                            >
-                              {ids.length ? (
-                                <>
-                                  {chatterChips(ids)}
-                                  <Plus className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
-                                </>
-                              ) : (
-                                <span className="flex items-center gap-1 text-xs text-muted-foreground/60">
-                                  <Plus className="size-3" />
-                                  Ajouter
-                                </span>
-                              )}
-                            </button>
-                          }
-                          // LIÉS uniquement : sans fiche MyPuls, le shift n'a nulle part où
-                          // s'écrire — l'ajout créait une assignation fantôme, invisible au
-                          // rechargement (audit). Le compte des non-liés vit dans le KPI.
-                          options={data.chatterOptions
-                            .filter((o) => o.linked)
-                            .map((o) => ({ value: o.id, label: o.name }))}
-                          value={ids}
-                          labelById={Object.fromEntries(nameById)}
-                          onChange={(next) => commitCell(r.creatorId, shift, next, previous)}
-                          chipClassName={CHIP_BLUE}
-                          placeholder="Rechercher un chatter…"
-                        />
-                      </td>
-                    )
-                  })}
-                  <td className="px-3 py-2 text-right tabular-nums">{r.total}</td>
-                </tr>
-              ))}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2">
+                      <ChipSelect
+                        value={r.creatorId}
+                        label={r.modelName}
+                        options={data.modelOptions}
+                        chipClass={CHIP_VIOLET}
+                        editable={isAdmin}
+                        disabled={pending}
+                        placeholder="Rechercher un modèle…"
+                        onSelect={(v) =>
+                          run(() =>
+                            saveOrgRow({
+                              ownerId: r.ownerId,
+                              creatorId: v,
+                              prevOwnerId: r.ownerId,
+                              prevCreatorId: r.creatorId,
+                              sectionManagerId: section.managerId || null,
+                            }),
+                          )
+                        }
+                      />
+                    </td>
+                    {CRM_SHIFTS.map((shift) => (
+                      <ShiftCell key={shift} creatorId={r.creatorId} shift={shift} server={r.byShift[shift]} />
+                    ))}
+                    <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{r.total}</td>
+                  </tr>
+                )
+              })}
               {section.rows.length === 0 && (
-                <tr className={cn('border-t', si > 0 && 'border-t-2')}>
-                  <td className="p-1 px-2">
-                    <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_GREEN)}>
-                      {section.managerName}
-                    </span>
-                  </td>
-                  <td colSpan={rowCount - 1} className="px-3 py-2 text-sm text-muted-foreground">
+                <tr className="border-t">
+                  <td colSpan={COLS} className="px-3 py-2 text-sm text-muted-foreground">
                     Aucun modèle assigné à cette équipe.
                   </td>
                 </tr>
               )}
             </Fragment>
           ))}
+
           {isAdmin && (
             <tr className="border-t-2">
-              <td colSpan={rowCount} className="p-1">
+              <td colSpan={COLS} className="p-1">
                 {draft ? (
-                  <div className="flex flex-wrap items-center gap-2 px-2 py-1">
+                  <div className="flex flex-wrap items-center gap-3 px-2 py-1">
                     <ChipSelect
                       value={draft.manager || null}
                       label={data.managerOptions.find((m) => m.id === draft.manager)?.name ?? null}
@@ -351,7 +347,7 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                       value={draft.owner}
                       label={
                         draft.owner === 'direct'
-                          ? 'direct'
+                          ? 'porté par le manager'
                           : (data.sousManagerOptions.find((o) => o.id === draft.owner)?.name ?? null)
                       }
                       options={[DIRECT, ...data.sousManagerOptions]}
@@ -377,20 +373,12 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                             creatorId: creator,
                             prevOwnerId: null,
                             prevCreatorId: null,
-                            // Rattache le sous-manager choisi au manager de la ligne, sinon
-                            // elle n'apparaîtrait dans aucune section (audit).
                             sectionManagerId: d.owner === 'direct' ? null : d.manager,
                           }),
                         )
                       }}
                     />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-6"
-                      aria-label="Annuler l’ajout"
-                      onClick={() => setDraft(null)}
-                    >
+                    <Button variant="ghost" size="icon" className="size-6" aria-label="Annuler" onClick={() => setDraft(null)}>
                       <X className="size-3.5" />
                     </Button>
                   </div>
@@ -400,7 +388,9 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
                     size="sm"
                     className="gap-1.5 text-muted-foreground"
                     disabled={pending}
-                    onClick={() => setDraft({ manager: data.sections[0]?.managerId ?? '', owner: 'direct' })}
+                    onClick={() =>
+                      setDraft({ manager: data.sections.find((s) => s.managerId)?.managerId ?? '', owner: 'direct' })
+                    }
                   >
                     <Plus className="size-3.5" />
                     Ajouter une ligne
