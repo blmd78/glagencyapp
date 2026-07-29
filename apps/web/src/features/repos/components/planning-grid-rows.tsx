@@ -15,6 +15,7 @@ export function PlanningGridRows({
   columns,
   data,
   canWrite,
+  isAdmin,
   cellValue,
   cellChips,
   overByCol,
@@ -24,7 +25,10 @@ export function PlanningGridRows({
 }: {
   columns: ReposColumn[]
   data: ReposData
+  /** Cases des colonnes CHATTEURS (modèles) : admin + manager/sous-manager (miroir RLS). */
   canWrite: boolean
+  /** Cases des colonnes ENCADREMENT (Managers/Policiers) : admin uniquement. */
+  isAdmin: boolean
   cellValue: (day: number, col: string) => ReposCell
   cellChips: (day: number, col: string) => CellChip[]
   overByCol: Map<string, { ids: Set<string>; txt: Set<string> }>
@@ -55,9 +59,11 @@ export function PlanningGridRows({
               manager: 'Rechercher un manager…',
               chatteur: 'Rechercher un chatter…',
             }
+            // Éditabilité PAR COLONNE : encadrement admin-only, chatteurs ouverts au manager.
+            const editable = c.encadrement ? isAdmin : canWrite
             return (
               <td key={c.key} className={cn('p-1 align-top', border)}>
-                {canWrite ? (
+                {editable ? (
                 <ComboboxMultiple
                   trigger={
                     <button
@@ -125,8 +131,8 @@ export function PlanningGridRows({
                   placeholder={placeholderByKind[kind]}
                 />
                 ) : (
-                  // Lecture seule (non-admin : managers + chatteurs) : chips statiques, sans
-                  // combobox ni édition — `canWrite` reçoit désormais la valeur `isAdmin`.
+                  // Lecture seule (chatteur partout ; manager sur les colonnes encadrement) :
+                  // chips statiques, sans combobox ni édition.
                   <div className="flex min-h-9 w-full flex-wrap items-center gap-1 px-1.5 py-1">
                     {chips.length ? (
                       chips.map((ch) => (

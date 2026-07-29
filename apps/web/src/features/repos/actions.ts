@@ -10,6 +10,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import {
+  BusinessError,
   runAction,
   noGuard,
   requireAdminProfile,
@@ -29,17 +30,51 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: cellInput,
     input: raw,
-    // Ajout/retrait d'un repos dans une case = ADMIN uniquement (les managers sont en lecture
-    // seule sur les cases ; seule la case « envoyé Telegram » leur reste, cf. setReposSent).
+    // Cases CHATTEURS (colonnes modèles) : admin OU manager/sous-manager porteur de la page
+    // (miroir RLS can_write_page('repos'), 0060) — les managers posent/décalent les repos de
+    // leurs chatters. Cases ENCADREMENT (managers/policiers) : admin uniquement.
     // Contrôle en tête de handler (patron §4) : le profil sert aussi à `updated_by`.
     guard: noGuard,
     handler: async (values) => {
-      const profile = await requireAdminProfile()
+      const profile = await requireWriteProfile('repos')
       const { weekStart, day, col, chatterIds, names } = values
+      if ((col === 'managers' || col === 'policiers') && profile.role !== 'admin')
+        throw new BusinessError('Accès refusé')
 
       const supabase = await createClient()
 
-      // Admin-only : écriture directe de la cellule telle que soumise (plus de MERGE de scope).
+      // Périmètre hiérarchique (0087) : un non-admin ne peut MODIFIER (ajouter/retirer) que
+      // des chatters visibles sous son RLS profiles — son sous-arbre. Le delta se calcule
+      // contre la cellule actuelle : les chatters des autres équipes déjà posés transitent
+      // intacts dans l'upsert (l'UI les resoummet tels quels), seuls les IDs qui changent
+      // sont contrôlés. Les jetons texte legacy (`names`) n'ont pas d'ID → non contrôlables.
+      if (profile.role !== 'admin') {
+        const { data: currentRow, error: readErr } = await supabase
+          .from('rest_planning_cells')
+          .select('chatter_ids')
+          .eq('week_start', weekStart)
+          .eq('day', day)
+          .eq('col', col)
+          .maybeSingle()
+        if (readErr) throw new Error(readErr.message)
+        const before = new Set(currentRow?.chatter_ids ?? [])
+        const after = new Set(chatterIds)
+        const changed = [...new Set([...before, ...after])].filter(
+          (id) => before.has(id) !== after.has(id),
+        )
+        if (changed.length) {
+          // Sous RLS, seuls les profils du sous-arbre répondent : tout ID manquant = hors équipe.
+          const { data: visible, error: visErr } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('id', changed)
+          if (visErr) throw new Error(visErr.message)
+          if ((visible ?? []).length !== changed.length)
+            throw new BusinessError('Tu ne peux modifier que les repos des chatters de ton équipe')
+        }
+      }
+
+      // Écriture directe de la cellule telle que soumise (plus de MERGE de scope).
       const { error } = await supabase.from('rest_planning_cells').upsert(
         {
           week_start: weekStart,

@@ -2,6 +2,7 @@ import { addDays, currentWeekStart, frDayShort, todayParis } from '@glagency/cor
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { getVisibleProfiles } from '@/lib/services/team'
 import { REPOS_COLUMNS, type ReposCell, type ReposData, type WeekChoice } from '../types'
 
 /** Libellé spécifique repos « Lundi 06/07 au Dimanche 12/07 » (dates via @glagency/core, UTC-safe). */
@@ -13,8 +14,9 @@ function weekLabel(start: string): string {
  * Planning des repos d'une semaine (lundi YYYY-MM-DD) — semaine courante par défaut.
  * RLS : admin ou page `repos` accordée (sous-managers) ; sinon 0 ligne.
  * Vue COMPLÈTE pour tout porteur de la page (plus de cloisonnement app-side) : l'accès reste
- * garanti en amont par requireAccess('repos') ; l'ÉCRITURE des cases est, elle, admin-only
- * (cf. saveReposCell). Les managers voient tout en lecture seule (sauf « envoyé Telegram »).
+ * garanti en amont par requireAccess('repos') ; l'ÉCRITURE des cases chatteurs est ouverte
+ * aux managers/sous-managers porteurs de la page (cf. saveReposCell) — encadrement et compo
+ * des colonnes restent admin-only.
  */
 export async function getRepos(week: string | null | undefined): Promise<ReposData> {
   const supabase = await createClient()
@@ -32,6 +34,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     weekRes,
     chattersRes,
     profilesRes,
+    visibleProfiles,
     creatorsRes,
     membersRes,
     dataWeeksRes,
@@ -42,10 +45,10 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     // bascule vers les membres) — plus la source des options. Noms seuls (pas `active`).
     // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
     fetchAll((f, t) => admin.from('chatters').select('id, display_name').order('id').range(f, t)),
-    // Profils utiles au planning en UNE requête paginée (fetchAll — anti-troncature) : encadrants
-    // (manager/sous-manager/police, pour les colonnes managers/policiers + la résolution des noms)
-    // ET membres role chatteur (OPTIONS des cellules chatteur, Repos non filtré). Les sous-ensembles
-    // sont DÉRIVÉS en JS plus bas (options par colonne = rôle EXACT ; options chatteur = role chatteur).
+    // Profils via le client ADMIN (fetchAll — anti-troncature) : RÉSOLUTION des noms (le board
+    // complet affiche les chatters de toutes les équipes) + options des colonnes encadrement
+    // (managers/policiers, édition admin-only). Les OPTIONS des cellules chatteur viennent,
+    // elles, de getVisibleProfiles (RLS) ci-dessous.
     fetchAll((f, t) =>
       admin
         .from('profiles')
@@ -54,6 +57,10 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
         .order('id')
         .range(f, t),
     ),
+    // Périmètre RLS de l'appelant (0087, lib/services/team) : admin → tous ; manager → son
+    // sous-arbre (sous-managers + leurs chatteurs) ; sous-manager → ses chatteurs directs.
+    // → OPTIONS des cellules chatteur : chacun ne peut AJOUTER que les chatters de son équipe.
+    getVisibleProfiles(),
     admin.from('creators').select('id, name, active'),
     supabase
       .from('rest_planning_column_members')
@@ -106,10 +113,12 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
   for (const m of profileRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
-  // Options des cellules chatteur = TOUS les membres role chatteur (Repos non filtré, cf. Police).
-  const chatterOptions = (profileRows ?? [])
-    .filter((m) => m.role === 'chatteur' && m.display_name)
-    .map((m) => ({ id: m.id, name: m.display_name as string }))
+  // Options des cellules chatteur = membres role chatteur DU PÉRIMÈTRE RLS de l'appelant
+  // (admin → tous, manager → son sous-arbre — cf. getVisibleProfiles). La résolution des
+  // noms déjà posés (chatterById, admin) reste complète : on voit tout, on n'ajoute que chez soi.
+  const chatterOptions = visibleProfiles
+    .filter((m) => m.role === 'chatteur' && m.displayName)
+    .map((m) => ({ id: m.id, name: m.displayName as string }))
     .sort((a, b) => a.name.localeCompare(b.name))
   // Options par colonne encadrement — filtrées par rôle EXACT (pas de sous-manager dans
   // Managers, pas de manager dans Policiers).

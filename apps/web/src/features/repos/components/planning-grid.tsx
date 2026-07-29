@@ -181,9 +181,11 @@ export function PlanningGrid({
           <PlanningGridRows
             columns={columns}
             data={data}
-            // Édition des cases = ADMIN uniquement (le prop `canWrite` de la ligne reçoit
-            // désormais `isAdmin`) : un manager voit tout le tableau en lecture seule.
-            canWrite={isAdmin}
+            // Cases CHATTEURS éditables par admin + manager/sous-manager (`canWrite`, miroir
+            // RLS can_write_page) ; cases ENCADREMENT (Managers/Policiers) admin-only —
+            // le distinguo par colonne vit dans PlanningGridRows (`isAdmin`).
+            canWrite={canWrite}
+            isAdmin={isAdmin}
             cellValue={cellValue}
             cellChips={cellChips}
             overByCol={overByCol}

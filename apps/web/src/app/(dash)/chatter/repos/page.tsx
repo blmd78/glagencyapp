@@ -20,9 +20,10 @@ export default async function ReposPage({
   // streame dans un seul boundary.
   const data = getRepos(week ?? null)
   const isAdmin = profile.role === 'admin'
-  // `canWrite` (admin ou manager/sous-manager) ne gouverne plus QUE la case « envoyé
-  // Telegram » : l'ÉDITION des cases et de la compo des colonnes est désormais admin-only
-  // (cf. PlanningGrid, gating sur `isAdmin`). Un chatteur reste en lecture seule totale.
+  // `canWrite` (admin ou manager/sous-manager) : case « envoyé Telegram » + ÉDITION des
+  // cases des colonnes CHATTEURS (les managers posent/décalent les repos de leurs chatters,
+  // miroir RLS can_write_page). Colonnes encadrement (Managers/Policiers) et compo des
+  // colonnes : admin-only (cf. PlanningGrid). Un chatteur reste en lecture seule totale.
   const canWrite = isAdmin || profile.manager
 
   return (
