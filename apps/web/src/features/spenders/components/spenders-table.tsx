@@ -79,7 +79,6 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
         {row.original.mypulsCreatorId && (
           <Button
             asChild
-            variant="outline"
             size="sm"
             className="h-6 shrink-0 gap-1 px-2 text-[11px] font-medium"
           >
@@ -89,8 +88,8 @@ const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolean, read
               rel="noreferrer noopener"
               aria-label={`Ouvrir la conversation MyPuls de ${row.original.username}`}
             >
-              <ExternalLink className="size-3" />
               Conv
+              <ExternalLink className="size-3" />
             </a>
           </Button>
         )}
