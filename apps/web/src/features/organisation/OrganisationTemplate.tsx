@@ -11,6 +11,8 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
   const { counts, orphanModels } = data
 
   const kpis: Array<Kpi & { accent?: string }> = [
+    // Liserés = code couleur de l'app (bleu chatter, vert encadrement, violet modèles) ;
+    // l'AMBRE d'alerte prime quand il y a un trou à régler, comme le rouge des chips.
     {
       key: 'chatteurs',
       label: 'Chatters',
@@ -18,6 +20,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       deltaPct: null,
       trendLabel: 'membres rôle chatter',
       hint: 'effectif réel',
+      accent: 'border-t-blue-500',
     },
     {
       key: 'sousManagers',
@@ -26,6 +29,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       deltaPct: null,
       trendLabel: `${counts.managers} équipe${counts.managers > 1 ? 's' : ''} managers`,
       hint: 'rattachements à jour dans Membres',
+      accent: 'border-t-green-500',
     },
     {
       key: 'modeles',
@@ -34,7 +38,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       deltaPct: null,
       trendLabel: orphanModels.length ? `${orphanModels.length} sans équipe` : 'tous couverts',
       hint: 'assignés via Membres',
-      accent: orphanModels.length ? 'border-t-amber-500' : undefined,
+      accent: orphanModels.length ? 'border-t-amber-500' : 'border-t-violet-500',
     },
     {
       key: 'aPlacer',
@@ -43,7 +47,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       deltaPct: null,
       trendLabel: 'sans shift renseigné',
       hint: 'lien MyPuls ou shift à régler',
-      accent: counts.aPlacer ? 'border-t-amber-500' : undefined,
+      accent: counts.aPlacer ? 'border-t-amber-500' : 'border-t-blue-500',
     },
   ]
 
