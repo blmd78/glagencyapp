@@ -163,19 +163,33 @@ export function OrgTable({ data, isAdmin }: { data: OrganisationData; isAdmin: b
     )
     if (!isAdmin) return <td className={cn('px-3 py-2 align-top', SHIFTS[shift].wash)}>{text}</td>
     return (
-      <td className={cn('p-0 align-top', SHIFTS[shift].wash)}>
+      <td className={cn('p-1 align-top', SHIFTS[shift].wash)}>
         <ComboboxMultiple
           trigger={
             <button
               type="button"
               title="Cliquer pour composer ce shift"
               className={cn(
-                'group/cell flex min-h-10 w-full items-start gap-1 px-3 py-2 text-left transition-colors',
-                'hover:bg-foreground/[0.04] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+                'group/cell flex min-h-9 w-full items-start gap-1 rounded-md border px-2 py-1.5 text-left transition-colors',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                // Case VIDE = cadre pointillé « + Ajouter » (même affordance que le planning
+                // repos) ; case remplie = pas de cadre, la couleur de colonne suffit.
+                names.length
+                  ? 'border-transparent hover:bg-foreground/[0.04]'
+                  : 'border-dashed border-muted-foreground/25 hover:border-muted-foreground/50 hover:bg-foreground/[0.04]',
               )}
             >
-              {names.length ? text : <span className="text-muted-foreground/40">Composer</span>}
-              <Plus className="ml-auto size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-60" />
+              {names.length ? (
+                <>
+                  {text}
+                  <Plus className="ml-auto size-3 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/cell:opacity-60" />
+                </>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground/60">
+                  <Plus className="size-3" />
+                  Ajouter
+                </span>
+              )}
             </button>
           }
           options={data.chatterOptions.filter((o) => o.linked).map((o) => ({ value: o.id, label: o.name }))}
