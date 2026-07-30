@@ -98,7 +98,9 @@ function RowActions({
   // Consulter en tant que : admin uniquement, rôle BRUT de la ligne dans l'allowlist (garde
   // d'affichage seule — la vraie barrière est côté serveur, `startImpersonation`). Elle ne
   // dépend PAS de `editable` : un admin a de toute façon tout en éditable.
-  const canImpersonate = viewer === 'admin' && isImpersonatable(member.role)
+  // `!member.leftAt` : consulter EN TANT QU'un parti n'a plus de sens depuis 0102 — `getProfile`
+  // lui retourne null, la session d'emprunt atterrirait donc sur /login sans rien expliquer.
+  const canImpersonate = viewer === 'admin' && isImpersonatable(member.role) && !member.leftAt
   // Plus rien à rendre : pas de cellule vide (une ligne sans action ne montre pas une colonne).
   if (!canImpersonate && !member.editable) return null
 
