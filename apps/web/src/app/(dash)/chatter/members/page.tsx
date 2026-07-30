@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { requireAdminOrManager } from '@/lib/auth'
+import { resolvePeriod } from '@/lib/period'
 import { getMembers } from '@/features/members/services/get-members'
 import { getTurnover } from '@/features/members/services/get-turnover'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
@@ -10,16 +11,20 @@ import type { MembersData, TurnoverData } from '@/features/members/types'
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string }>
+  searchParams: Promise<{ vue?: string; from?: string; to?: string }>
 }) {
   const profile = await requireAdminOrManager()
-  const { vue: vueParam } = await searchParams
-  const vue = vueParam === 'turnover' ? 'turnover' : 'liste'
+  const sp = await searchParams
+  const vue = sp.vue === 'turnover' ? 'turnover' : 'liste'
+  // Le turnover suit le DATEPICKER GLOBAL du header (`?from=&to=`), comme toutes les pages du
+  // CRM — `resolvePeriod` est la source unique (défaut : mois en cours). La liste des comptes,
+  // elle, n'a pas de période : un membre est là ou il n'est pas là.
+  const period = resolvePeriod(sp)
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, le contenu streame dans son
   // boundary. UNE SEULE des deux lectures est lancée — l'onglet Turnover ne fait pas payer son
   // RPC à qui vient consulter la liste, et réciproquement.
   const data = vue === 'liste' ? getMembers() : null
-  const turnover = vue === 'turnover' ? getTurnover() : null
+  const turnover = vue === 'turnover' ? getTurnover(period) : null
 
   return (
     <div className="flex flex-col gap-6">

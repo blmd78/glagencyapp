@@ -1,4 +1,4 @@
-import { todayParis, tenureDays, turnoverRate } from '@glagency/core'
+import { tenureDays, turnoverRate } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { TurnoverData } from '../types'
 
@@ -12,36 +12,26 @@ interface TurnoverReport {
 /**
  * Statistiques de turnover de l'agence (onglet de la page Membres).
  *
- * ── LA FENÊTRE NE REMONTE PAS BÊTEMENT À 12 MOIS ──────────────────────────────────────────────
- * Elle démarre au PREMIER MOUVEMENT RÉELLEMENT CONNU (plus ancienne arrivée saisie, à défaut plus
- * ancienne création de compte), plafonné à 12 mois. Sans cette borne, le graphe afficherait des
- * mois à effectif ~0 avant le peuplement du CRM (tous les comptes datent du 17-29 juillet 2026),
- * puis un bond à 110 : ça se lirait comme une croissance explosive alors que c'est une absence de
- * donnée. Mieux vaut un graphe court et vrai qu'un graphe long et faux.
+ * ── LA PÉRIODE EST CELLE DU DATEPICKER GLOBAL ─────────────────────────────────────────────────
+ * `?from=&to=` résolus par `lib/period.ts`, comme partout ailleurs dans le CRM (demande Benoit
+ * 2026-07-30). Le sélecteur du header pilote donc aussi cet onglet — une page du CRM qui
+ * ignorerait le datepicker affiché juste au-dessus d'elle serait un piège.
  *
- * Le bandeau de la vue dit la même chose en toutes lettres — la borne évite le contresens visuel,
- * la phrase évite le contresens tout court.
+ * Le mois de la borne de DÉBUT est rendu ENTIER : le graphe raisonne par mois, afficher un
+ * demi-mois de janvier à côté de mois pleins ferait lire une chute d'activité là où il n'y a
+ * qu'une borne au milieu du mois.
+ *
+ * Contrepartie assumée : rien n'empêche de choisir une période antérieure au peuplement du CRM,
+ * où l'effectif ressortira à ~0 faute de dates d'arrivée saisies. C'est le rôle du bandeau de la
+ * vue de le dire — on préfère avertir que brider le choix de l'utilisateur.
  */
-export async function getTurnover(): Promise<TurnoverData> {
+export async function getTurnover(period: { from: string; to: string }): Promise<TurnoverData> {
   const supabase = await createClient()
-  const today = todayParis()
+  // Mois entier côté début (cf. ci-dessus) ; la borne de fin reste telle quelle — le mois en
+  // cours est partiel par nature, et le lecteur le sait.
+  const from = `${period.from.slice(0, 7)}-01`
 
-  // Premier mouvement connu. `created_at` en repli : au démarrage, personne n'a d'`arrived_at`.
-  const { data: oldest, error: oldestErr } = await supabase
-    .from('profiles')
-    .select('arrived_at, created_at')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-  if (oldestErr) throw new Error(oldestErr.message)
-
-  const firstKnown = oldest?.arrived_at ?? oldest?.created_at?.slice(0, 10) ?? today
-  const twelveMonthsAgo = `${new Date(Date.parse(`${today}T00:00:00Z`) - 365 * 86_400_000)
-    .toISOString()
-    .slice(0, 7)}-01`
-  const from = firstKnown > twelveMonthsAgo ? `${firstKnown.slice(0, 7)}-01` : twelveMonthsAgo
-
-  const { data, error } = await supabase.rpc('turnover_report', { p_from: from, p_to: today })
+  const { data, error } = await supabase.rpc('turnover_report', { p_from: from, p_to: period.to })
   if (error) throw new Error(error.message)
   // `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`, inapplicable
   // sur l'union Json avec postgrest-js — cf. guidelines-data-loading §1).
@@ -65,7 +55,7 @@ export async function getTurnover(): Promise<TurnoverData> {
 
   return {
     from,
-    to: today,
+    to: period.to,
     months,
     reasons: rep.by_reason.map((r) => ({ reason: r.reason, n: Number(r.n) || 0 })),
     exits,
