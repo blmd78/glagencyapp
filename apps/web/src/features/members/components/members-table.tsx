@@ -4,7 +4,7 @@
 // `members-columns.tsx` (split « > 300 lignes », même découpe que le pilote chatters).
 
 import { useState } from 'react'
-import { TriangleAlert, UserPlus } from 'lucide-react'
+import { TriangleAlert, UserPlus, Users } from 'lucide-react'
 import { isStaleNew } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
@@ -42,8 +42,17 @@ export function MembersTable({
   // Filtre de VUE (pas d'URL) : il ne change pas la donnée chargée, juste ce qu'on montre d'un jeu
   // déjà là — `useState` local, comme le sélecteur de modèle du pilote chatters (norme §6).
   const [onlyStale, setOnlyStale] = useState(false)
-  const stale = members.filter((m) => isStaleNew(m.isNew, m.arrivedAt))
-  const rows = onlyStale ? stale : members
+  // Les PARTIS sont masqués par défaut (0102) : cette page sert d'abord à gérer les gens en poste.
+  // Ils ne sont pas perdus pour autant — la bascule les ramène, avec leur badge « Parti le … ».
+  // Filtre de vue, donc `useState` et pas d'URL (norme §6) : il ne change pas la donnée chargée.
+  const [showLeft, setShowLeft] = useState(false)
+  const left = members.filter((m) => m.leftAt)
+  const inPost = members.filter((m) => !m.leftAt)
+  // `stale` se calcule sur les membres EN POSTE : un parti n'a plus de drapeau « nouveau » à
+  // revoir, et le laisser gonfler le compteur enverrait décocher quelqu'un qui n'est plus là.
+  const stale = inPost.filter((m) => isStaleNew(m.isNew, m.arrivedAt))
+  const base = showLeft ? members : inPost
+  const rows = onlyStale ? stale : base
 
   return (
     <DataTable
@@ -72,6 +81,18 @@ export function MembersTable({
             >
               <TriangleAlert className="size-3.5" />
               {stale.length} à revoir
+            </Button>
+          )}
+          {left.length > 0 && (
+            <Button
+              size="sm"
+              variant={showLeft ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={showLeft}
+              onClick={() => setShowLeft((v) => !v)}
+            >
+              <Users className="size-3.5" />
+              {left.length} ancien{left.length > 1 ? 's' : ''}
             </Button>
           )}
           <MemberDialog

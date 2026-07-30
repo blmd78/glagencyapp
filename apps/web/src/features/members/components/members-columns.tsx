@@ -6,7 +6,7 @@
 
 import { type ColumnDef } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { AlertTriangle, Pencil, ShieldCheck, Trash2 } from 'lucide-react'
+import { AlertTriangle, LogOut, Pencil, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { isImpersonatable } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
@@ -21,15 +21,39 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
-import { deleteMember } from '../actions'
+import { STATUS_COLORS } from '@/lib/status-color'
+import { deleteMember, reactivateMember } from '../actions'
 import { ImpersonateButton } from './impersonate-button'
+import { MemberDepartureDialog } from './member-departure-dialog'
 import { MemberDialog } from './member-dialog'
-import type { Member } from '../types'
+import { DEPARTURE_LABEL, type Member } from '../types'
 
 // « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
 // spenders-table) : created_at est un timestamptz — sans timeZone, le SSR (UTC) et un
 // navigateur parisien peuvent rendre un jour différent → mismatch d'hydratation.
 const FR_DATE_PARIS = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' })
+
+/**
+ * Badge « Parti le … » (0102). GRIS (`STATUS_COLORS.neutral`) : un départ n'est ni une alerte ni
+ * une information à mettre en avant, c'est un état éteint — et la ligne est de toute façon masquée
+ * par défaut (bascule « anciens »). Le détail — motif, acteur, commentaire — tient dans le
+ * survol : trois informations de plus dans la cellule la rendraient illisible.
+ */
+function DepartureBadge({ member }: { member: Member }) {
+  if (!member.leftAt) return null
+  const detail = [
+    member.leftReason ? DEPARTURE_LABEL[member.leftReason] : null,
+    member.leftByName ? `acté par ${member.leftByName}` : null,
+    member.leftNote,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <Badge className={STATUS_COLORS.neutral} title={detail || undefined}>
+      Parti le {FR_DATE_PARIS.format(new Date(`${member.leftAt}T00:00:00`))}
+    </Badge>
+  )
+}
 
 const initials = (name: string) =>
   name
@@ -102,29 +126,75 @@ function RowActions({
               </Button>
             }
           />
-          {/* onConfirm renvoie l'erreur (string) en cas d'échec → le dialog reste ouvert et l'affiche. */}
-          <ConfirmDialog
-            title={`Supprimer ${member.displayName} ?`}
-            description="Son compte et ses accès sont supprimés définitivement — il ne pourra plus se connecter. Les données du CRM ne sont pas touchées."
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-red-600 hover:text-red-700"
-                aria-label={`Supprimer ${member.displayName}`}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            }
-            onConfirm={async () => {
-              const res = await deleteMember(member.id)
-              if (!res.success) {
-                toast.error(res.error)
-                return res.error
+          {/* DÉPART ou RETOUR — le geste courant. Un départ n'efface rien : il enregistre une
+              date, un motif, et coupe l'accès (0102). C'est ce qui rend le turnover mesurable. */}
+          {member.leftAt ? (
+            <ConfirmDialog
+              title={`Réactiver ${member.displayName} ?`}
+              description="Son accès est rétabli et les informations de départ sont effacées — il redeviendra un membre en poste."
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={`Réactiver ${member.displayName}`}
+                >
+                  <RotateCcw className="size-3.5" />
+                </Button>
               }
-              toast.success('Membre supprimé')
-            }}
-          />
+              onConfirm={async () => {
+                const res = await reactivateMember(member.id)
+                if (!res.success) {
+                  toast.error(res.error)
+                  return res.error
+                }
+                toast.success(`${member.displayName} réactivé`)
+              }}
+            />
+          ) : (
+            <MemberDepartureDialog
+              member={member}
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  aria-label={`Enregistrer le départ de ${member.displayName}`}
+                >
+                  <LogOut className="size-3.5" />
+                </Button>
+              }
+            />
+          )}
+          {/* LA CORBEILLE — admin/superadmin SEULEMENT (décision Benoit 2026-07-30 : ce sont les
+              managers qui créent les comptes et qui en ratent). Elle DÉTRUIT, elle ne sert donc
+              qu'au compte créé par erreur. Rouge et distincte de la porte de sortie ci-dessus
+              pour que les deux gestes ne se confondent jamais.
+              onConfirm renvoie l'erreur (string) en cas d'échec → le dialog reste ouvert. */}
+          {viewer === 'admin' && (
+            <ConfirmDialog
+              title={`Supprimer définitivement ${member.displayName} ?`}
+              description="Aucune trace ne sera conservée — à réserver à un compte créé par erreur (doublon, email erroné). Pour un vrai départ, utilise « Enregistrer le départ » : le profil est conservé et compte dans le turnover."
+              trigger={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 text-red-600 hover:text-red-700"
+                  aria-label={`Supprimer définitivement ${member.displayName}`}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              }
+              onConfirm={async () => {
+                const res = await deleteMember(member.id)
+                if (!res.success) {
+                  toast.error(res.error)
+                  return res.error
+                }
+                toast.success('Compte supprimé définitivement')
+              }}
+            />
+          )}
         </>
       )}
     </div>
@@ -248,6 +318,7 @@ export function buildMembersColumns({
               <TeamBadge team={row.original.closingTeam} />
               <ShiftBadge shift={row.original.shift} />
               <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} />
+              <DepartureBadge member={row.original} />
             </div>
           ) : (
             badge
