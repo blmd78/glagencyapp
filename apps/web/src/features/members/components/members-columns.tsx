@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
 import { ShiftBadge } from '@/components/shift-badge'
+import { NewBadge } from '@/components/new-badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -246,6 +247,7 @@ export function buildMembersColumns({
               <RoleBadge role={row.original.closingRole} />
               <TeamBadge team={row.original.closingTeam} />
               <ShiftBadge shift={row.original.shift} />
+              <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} />
             </div>
           ) : (
             badge

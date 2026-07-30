@@ -3,7 +3,9 @@
 // Composition de la table Membres — les défs de colonnes et actions de ligne vivent dans
 // `members-columns.tsx` (split « > 300 lignes », même découpe que le pilote chatters).
 
-import { UserPlus } from 'lucide-react'
+import { useState } from 'react'
+import { TriangleAlert, UserPlus } from 'lucide-react'
+import { isStaleNew } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
 import { buildMembersColumns } from './members-columns'
@@ -34,9 +36,18 @@ export function MembersTable({
 
   const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin })
 
+  // LE point de contrôle du drapeau « nouvel arrivant » (0101). Un drapeau posé à la main, personne
+  // ne le retire : sans ce compteur unique, le rappel n'existerait que dispersé dans les six écrans
+  // qui affichent le badge, et « nouveau » finirait par ne plus rien vouloir dire.
+  // Filtre de VUE (pas d'URL) : il ne change pas la donnée chargée, juste ce qu'on montre d'un jeu
+  // déjà là — `useState` local, comme le sélecteur de modèle du pilote chatters (norme §6).
+  const [onlyStale, setOnlyStale] = useState(false)
+  const stale = members.filter((m) => isStaleNew(m.isNew, m.arrivedAt))
+  const rows = onlyStale ? stale : members
+
   return (
     <DataTable
-      data={members}
+      data={rows}
       columns={columns}
       filterColumnId="displayName"
       filterPlaceholder="Filtrer par nom…"
@@ -48,20 +59,36 @@ export function MembersTable({
       getRowId={(m) => m.id}
       countLabel={(n) => `${n} membre(s)`}
       toolbar={
-        <MemberDialog
-          creators={creators}
-          chatters={chatters}
-          managers={managers}
-          scope={scope}
-          viewer={viewer}
-          superadmin={superadmin}
-          trigger={
-            <Button size="sm" className="gap-1.5">
-              <UserPlus className="size-3.5" />
-              Nouveau membre
+        <div className="flex items-center gap-2">
+          {/* Rendu SEULEMENT s'il y a des cas : une toolbar qui affiche « 0 à revoir » en
+              permanence est un bruit dont l'œil apprend à se passer. */}
+          {stale.length > 0 && (
+            <Button
+              size="sm"
+              variant={onlyStale ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={onlyStale}
+              onClick={() => setOnlyStale((v) => !v)}
+            >
+              <TriangleAlert className="size-3.5" />
+              {stale.length} à revoir
             </Button>
-          }
-        />
+          )}
+          <MemberDialog
+            creators={creators}
+            chatters={chatters}
+            managers={managers}
+            scope={scope}
+            viewer={viewer}
+            superadmin={superadmin}
+            trigger={
+              <Button size="sm" className="gap-1.5">
+                <UserPlus className="size-3.5" />
+                Nouveau membre
+              </Button>
+            }
+          />
+        </div>
       }
     />
   )
