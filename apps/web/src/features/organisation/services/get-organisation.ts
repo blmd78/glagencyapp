@@ -134,8 +134,13 @@ export async function getOrganisation(): Promise<OrganisationData> {
         rows.push(rowFor({ id: mgr.id, smId: null, smName: null }, creatorId))
       }
     }
-    // Managers sans équipe ni modèle (ex. face marketing) : pas de groupe vide.
-    if (rows.length === 0 && team.length === 0) continue
+    // AUCUNE SECTION SANS LIGNE. Une section vide ne produisait qu'un « Aucun modèle assigné à
+    // cette équipe » — un `<tr>` réduit à son message, SANS la colonne Manager : plusieurs
+    // équipes dans ce cas donnaient des lignes rigoureusement identiques, impossibles à
+    // distinguer (retour Benoit 2026-07-30, capture à l'appui). Le board ne montre donc que ce
+    // qui existe ; les trous d'organisation se lisent dans la carte KPI « Modèles actifs »
+    // (« N sans équipe »), qui est faite pour ça.
+    if (rows.length === 0) continue
     sections.push({
       managerId: mgr.id,
       managerName: nameOf(mgr),
