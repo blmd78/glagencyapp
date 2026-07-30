@@ -27,6 +27,10 @@ export interface ComptaRow {
    *  attendu, et sa fiche de paie se lit avec cette information en tête. */
   isNew: boolean
   arrivedAt: string | null
+  /** Parti le… (0102). Non null = il a quitté l'agence mais reste ici parce qu'il a travaillé
+   *  sur la période : la Compta est le SEUL écran où un parti doit rester visible, sinon on
+   *  efface une dette de l'écran qui sert à la payer. */
+  leftAt: string | null
   /** `profiles.chatter_id` — null = non relié à MyPuls, donc aucun CA calculable. */
   chatterId: string | null
   /**

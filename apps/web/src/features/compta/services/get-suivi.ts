@@ -48,6 +48,10 @@ export async function getSuivi(): Promise<SuiviData> {
   // ANCRE DE SÉCURITÉ, comme dans `compta-sources.ts` : c'est CETTE lecture qui définit la
   // population, et les lectures par client admin plus bas se cadrent toutes dessus. Depuis
   // 0095, un encadrant porteur de la page = TOUS les chatteurs (plus d'assignation).
+  // AUCUN FILTRE SUR LES PARTIS (0102), et c'est délibéré : cet écran liste ce qui est DÛ, et une
+  // dette ne s'éteint pas avec le départ de la personne. Un parti dont la prime n'a jamais été
+  // décidée est même exactement la ligne qu'on ne veut pas perdre de vue. Le filtrage utile est
+  // déjà fait plus bas, sur l'échéance et le statut — pas sur la présence dans l'agence.
   const membersQuery = supabase
     .from('profiles')
     .select('id, display_name, email, chatter_id')

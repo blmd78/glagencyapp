@@ -69,10 +69,13 @@ export async function getMois({ debut }: { debut?: string }): Promise<MoisData> 
   // Inatteignable derrière `requireAccess('compta')` — même garde que `compta-sources.ts`.
   if (!profile) throw new Error('Session expirée')
 
+  // Partis (0102) : gardés s'ils ont travaillé dans le mois affiché — même règle que
+  // `compta-sources.ts`. Un mois de paie ne se réécrit pas après le départ de quelqu'un.
   const membersQuery = supabase
     .from('profiles')
     .select('id, display_name, email, chatter_id')
     .eq('role', 'chatteur')
+    .or(`left_at.is.null,left_at.gte.${month.start}`)
     .order('display_name')
 
   const [

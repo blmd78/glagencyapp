@@ -109,7 +109,10 @@ export async function getChattersByModel(): Promise<Record<string, ReportOption[
   const admin = createAdminClient()
   const [linksRes, profilesRes] = await Promise.all([
     fetchAll((from, to) => admin.from('profile_creators').select('profile_id, creator_id').order('profile_id').order('creator_id').range(from, to)),
-    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role, is_new, arrived_at').order('id').range(from, to)),
+    // `.is('left_at', null)` : un parti (0102) ne se suit plus. Sans risque pour l'historique —
+    // les rapports déjà écrits résolvent leurs noms par la requête SANS filtre de `getPoliceReports`
+    // (plus haut), et restent donc lisibles après le départ de la personne qu'ils nomment.
+    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role, is_new, arrived_at').is('left_at', null).order('id').range(from, to)),
   ])
   if (linksRes.error) throw new Error(linksRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)

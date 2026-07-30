@@ -56,10 +56,18 @@ export async function loadComptaSources({
   // de la page compta = TOUS les chatteurs (RLS profiles : chatteurs ouverts à is_manager(),
   // et `manages()` — les écritures compta — alignée pareil). Le droit d'accès à la surface
   // reste la PAGE (`requireAccess('compta')` / can_write_page).
+  //
+  // LES PARTIS (0102) NE DISPARAISSENT PAS D'ICI COMME AILLEURS. Un chatteur parti le 15 a
+  // travaillé quinze jours : ON LUI DOIT DE L'ARGENT. L'exclure reviendrait à effacer une dette
+  // de l'écran qui sert précisément à la payer — c'est le seul endroit de l'app où un parti doit
+  // rester visible. Il est gardé s'il est encore en poste OU s'il est parti PENDANT ou APRÈS le
+  // début de la période affichée (donc il y a travaillé). Les périodes antérieures à son départ
+  // restent consultables pour la même raison : on ne réécrit pas une paie passée.
   const membersQuery = supabase
     .from('profiles')
-    .select('id, display_name, email, role, chatter_id, is_new, arrived_at')
+    .select('id, display_name, email, role, chatter_id, is_new, arrived_at, left_at')
     .eq('role', 'chatteur')
+    .or(`left_at.is.null,left_at.gte.${period.start}`)
     .order('display_name')
 
   const [

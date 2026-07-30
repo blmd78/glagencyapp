@@ -80,6 +80,8 @@ export async function getOverview(
               .from('profiles')
               .select('id, chatter_id')
               .eq('role', 'chatteur')
+              // Les partis (0102) sortent de l'effectif : ce périmètre décrit l'équipe actuelle.
+              .is('left_at', null)
               .order('id')
               .range(f, t),
           ).then(({ data, error }) => {

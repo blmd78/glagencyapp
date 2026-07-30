@@ -26,6 +26,10 @@ export async function getOrganisation(): Promise<OrganisationData> {
         .from('profiles')
         .select('id, display_name, email, role, manager_ids, shift, is_new, arrived_at')
         .in('role', ['admin', 'manager', 'sous-manager', 'chatteur'])
+        // Les PARTIS (0102) sortent de l'organigramme : il décrit qui travaille ici aujourd'hui.
+        // Leurs `profile_creators` ne sont pas supprimées pour autant — elles racontent ce qui
+        // était vrai quand ils étaient là ; on cesse simplement de les rendre.
+        .is('left_at', null)
         .order('id')
         .range(f, t),
     ),
