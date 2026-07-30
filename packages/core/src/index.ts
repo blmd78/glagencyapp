@@ -48,6 +48,7 @@ export {
   round2,
 } from './domain/dates'
 export { NEW_THRESHOLD_DAYS, daysSinceArrival, isStaleNew } from './domain/anciennete'
+export { tenureDays, turnoverRate } from './domain/turnover'
 export {
   periodOf,
   recentPeriods,
