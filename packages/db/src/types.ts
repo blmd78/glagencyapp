@@ -1728,6 +1728,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          arrived_at: string | null
           chatter_id: string | null
           closing_role: string | null
           closing_team: string | null
@@ -1736,6 +1737,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          is_new: boolean
           manager_ids: string[]
           pages: string[]
           role: string
@@ -1743,6 +1745,7 @@ export type Database = {
           work_link: string
         }
         Insert: {
+          arrived_at?: string | null
           chatter_id?: string | null
           closing_role?: string | null
           closing_team?: string | null
@@ -1751,6 +1754,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          is_new?: boolean
           manager_ids?: string[]
           pages?: string[]
           role?: string
@@ -1758,6 +1762,7 @@ export type Database = {
           work_link?: string
         }
         Update: {
+          arrived_at?: string | null
           chatter_id?: string | null
           closing_role?: string | null
           closing_team?: string | null
@@ -1766,6 +1771,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          is_new?: boolean
           manager_ids?: string[]
           pages?: string[]
           role?: string
