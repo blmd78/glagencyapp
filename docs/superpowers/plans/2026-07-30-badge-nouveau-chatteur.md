@@ -25,10 +25,26 @@ Form, Tailwind v4 + shadcn/ui, Vitest (`packages/core` uniquement).
 - **Libellés** : « Nouvel arrivant » dans le dialog Membres, « Nouveau » sur le badge affiché.
 - **`'use no memo'`** obligatoire en tête de tout composant client lisant `formState` (RHF +
   React Compiler).
-- **Migrations** : `cd packages/db && supabase db push --db-url "$DATABASE_URL"`. Jamais
+- **Migrations : sur `DATABASE_URL_UAT`** (préprod) — on est sur `develop`, la prod reçoit la
+  migration au merge. `cd packages/db && supabase db push --db-url "$DATABASE_URL_UAT"`. Jamais
   `psql -f`, jamais `supabase link` (cassé sur ce projet).
 - **Aucun commit sans accord de Benoit** — les étapes « Commit » ci-dessous se demandent d'abord.
-- Après chaque tâche : `pnpm --filter @glagency/web build` doit passer (aucun test dans `web`).
+- Après chaque tâche : **`pnpm --filter @glagency/web lint && pnpm --filter @glagency/web
+  typecheck`** — c'est la norme du projet (`guidelines-standard-feature.md`, checklist), pas
+  `build`. Référence de bruit acceptable : 2 warnings `react-hooks/incompatible-library`
+  préexistants sur TanStack Table, 0 erreur.
+
+## État d'exécution
+
+- **Task 1 — FAITE** (2026-07-30). 135 tests verts dans `@glagency/core` (126 + 9), dont un cas
+  non prévu au plan : date illisible → `null` plutôt qu'un `NaN` silencieux.
+- **Task 2 — FAITE** sur la préprod UAT. Colonnes, `check` et index partiel vérifiés en base,
+  0 membre marqué. **Écart assumé avec l'étape 5 telle qu'écrite** : les types ont été édités à
+  la main (6 lignes) au lieu d'être régénérés en bloc — la génération depuis l'UAT ajoutait
+  28 lignes de schéma `graphql_public` sans rapport avec cette tâche (extension active sur
+  l'UAT, absente du fichier généré depuis la prod). Diff vérifié : hors ce bruit, le résultat
+  est identique à la génération.
+- **Tasks 3 à 8** : à faire.
 
 ## Carte des fichiers
 
@@ -38,12 +54,12 @@ Form, Tailwind v4 + shadcn/ui, Vitest (`packages/core` uniquement).
 | `packages/core/src/domain/anciennete.test.ts` | **créé** — Vitest du calcul pur |
 | `packages/core/src/index.ts` | export des trois symboles |
 | `packages/db/supabase/migrations/0101_profils_nouvel_arrivant.sql` | **créé** — colonnes + check + index |
-| `packages/db/src/types.ts` | régénéré |
+| `packages/db/src/types.ts` | 6 lignes sur `profiles` (cf. État d'exécution) |
 | `apps/web/src/components/new-badge.tsx` | **créé** — badge/icône, source unique du rendu |
 | `apps/web/src/features/members/{schema,types,actions}.ts` | saisie + écriture |
 | `apps/web/src/features/members/services/get-members.ts` | lecture |
-| `apps/web/src/features/members/components/member-closing-fields.tsx` | les deux champs |
-| `apps/web/src/features/members/components/member-dialog.tsx` | valeurs par défaut |
+| `apps/web/src/features/members/components/member-arrival-fields.tsx` | **créé** — case + date, garde de rôle |
+| `apps/web/src/features/members/components/member-dialog.tsx` | montage du champ + `defaultValues` **et** `reset()` |
 | `apps/web/src/features/members/components/members-columns.tsx` | badge texte |
 | `apps/web/src/features/members/components/members-table.tsx` | bouton « N à revoir » |
 | `apps/web/src/features/organisation/{types.ts,services/get-organisation.ts,components/org-table.tsx}` | icône |
@@ -309,8 +325,14 @@ git commit -m "feat(db): 0101 — nouvel arrivant (is_new + arrived_at) sur prof
 - Modify : `apps/web/src/features/members/types.ts` (interface `Member`)
 - Modify : `apps/web/src/features/members/services/get-members.ts` (`select` + mapping)
 - Modify : `apps/web/src/features/members/actions.ts` (create + update)
-- Modify : `apps/web/src/features/members/components/member-dialog.tsx` (valeurs par défaut)
-- Modify : `apps/web/src/features/members/components/member-closing-fields.tsx` (les deux champs)
+- Modify : `apps/web/src/features/members/components/member-dialog.tsx` — **DEUX endroits**
+  (`defaultValues` ligne ~108 **et** le `reset()` de l'`useEffect` ligne ~152)
+- Create : `apps/web/src/features/members/components/member-arrival-fields.tsx`
+
+**Fichier dédié, pas `member-closing-fields.tsx`** : « nouvel arrivant » n'est pas une donnée de
+closing (le closing dit comment le chatteur est payé, l'arrivée depuis quand il est là). La norme
+du projet est explicite — un fichier, une responsabilité (`guidelines-standard-feature.md` §1).
+Le nouveau composant reprend le garde `if (roleValue !== 'chatteur') return null` de son voisin.
 
 **Interfaces :**
 - Consomme : rien de la Task 1 (pure saisie).
@@ -381,20 +403,28 @@ de la ligne `shift: role === 'chatteur' ? values.shift : null,` :
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
 ```
 
-- [ ] **Étape 5 : valeurs par défaut du formulaire**
+- [ ] **Étape 5 : valeurs par défaut du formulaire — LES DEUX ENDROITS**
 
-Dans `member-dialog.tsx`, dans l'objet `defaultValues`, à côté de `shift` :
+Dans `member-dialog.tsx`, ajouter à côté de `shift` **dans les deux objets** :
 
 ```ts
       isNew: member?.isNew ?? false,
       arrivedAt: member?.arrivedAt ?? null,
 ```
 
-- [ ] **Étape 6 : les deux champs dans le dialog**
+1. `defaultValues` de `useForm` (ligne ~133) — sème le form au montage ;
+2. le `reset({…})` de l'`useEffect` d'ouverture (ligne ~174) — **le seul qui compte à la
+   RÉOUVERTURE**. Le `useForm` n'est semé qu'au montage : oublier celui-ci donne un dialog qui
+   affiche les valeurs du membre précédemment ouvert (piège documenté,
+   `guidelines-standard-feature.md` §5 « Pièges »). Ne PAS toucher aux dépendances de l'effet ni
+   à sa garde `prevOpen` — elle protège la saisie en cours quand l'onglet Compta revalide
+   (régression attrapée à l'audit du 2026-07-29).
 
-Dans `member-closing-fields.tsx` — le composant a déjà `'use no memo'` et son garde
-`if (roleValue !== 'chatteur') return null`, les deux champs héritent donc de la bonne
-condition. Ajouter les imports :
+- [ ] **Étape 6 : le composant des champs d'arrivée**
+
+Créer `member-arrival-fields.tsx` sur le patron de son voisin `member-closing-fields.tsx` :
+`'use client'`, **`'use no memo'`** en première ligne du corps (React Compiler casse `formState`
+sinon), et le même garde de rôle. Imports :
 
 ```tsx
 import { useWatch } from 'react-hook-form'
@@ -477,7 +507,7 @@ signature depuis `member-dialog.tsx` (le `useForm` y vit déjà), sur le modèle
 
 - [ ] **Étape 7 : vérifier que ça compile**
 
-Run : `pnpm --filter @glagency/web build`
+Run : `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck`
 Attendu : succès. Une erreur `Property 'is_new' does not exist` signifie que la Task 2 étape 5
 (régénération des types) n'a pas été faite.
 
@@ -636,7 +666,7 @@ Remplacer `data={members}` par `data={rows}`, et mettre la `toolbar` sous cette 
 
 - [ ] **Étape 4 : vérifier que ça compile**
 
-Run : `pnpm --filter @glagency/web build`
+Run : `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck`
 Attendu : succès.
 
 - [ ] **Étape 5 : essai manuel des deux tons**
@@ -720,7 +750,7 @@ puis remplacer le rendu de la ligne 152 :
 
 - [ ] **Étape 4 : vérifier**
 
-Run : `pnpm --filter @glagency/web build`
+Run : `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck`
 Puis `/chatter/organisation` : le chatteur marqué porte une étincelle dans sa case, au bon ton.
 Vérifier qu'un déplacement de case (drag/combobox) fonctionne toujours et que l'icône suit.
 
@@ -816,7 +846,7 @@ Le `<span>` de la puce porte déjà `inline-flex`-compatible ; si l'icône saute
 
 - [ ] **Étape 4 : vérifier**
 
-Run : `pnpm --filter @glagency/web build`
+Run : `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck`
 Puis `/chatter/repos` : le chatteur marqué porte l'icône dans les cases où il est posé. Poser et
 retirer un repos, vérifier que l'icône suit et que la génération d'image du planning
 (`planning-image.ts`) n'est pas cassée — elle rend du texte, elle ignore le badge.
@@ -890,7 +920,7 @@ Ajouter les deux champs au type de ligne correspondant, puis rendre
 
 - [ ] **Étape 4 : vérifier**
 
-Run : `pnpm --filter @glagency/web build`
+Run : `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck`
 Attendu : succès, **y compris `features/spenders/services/get-spenders.ts`** qui consomme la même
 map. Puis `/chatter/chatters` (badge sur la fiche du chatteur marqué, rien sur les fiches sans
 membre lié) et `/chatter/compta` (icône dans la pile de noms).
@@ -992,7 +1022,7 @@ la passer à `<ReportLinesEditor>` :
 
 - [ ] **Étape 4 : vérifier**
 
-Run : `pnpm --filter @glagency/web build`
+Run : `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck`
 Puis `/chatter/rapport-police` : ajouter un chatteur marqué au suivi → l'icône apparaît sur sa
 carte. Enregistrer un rapport, vérifier qu'il se relit bien dans l'historique.
 
@@ -1008,7 +1038,7 @@ git commit -m "feat(police): icône « nouveau » sur les cartes chatteur du rap
 ## Recette finale (avant merge)
 
 - [ ] `pnpm --filter @glagency/core test` — vert
-- [ ] `pnpm --filter @glagency/web build` — vert
+- [ ] `pnpm --filter @glagency/web lint && pnpm --filter @glagency/web typecheck` — 0 erreur (2 warnings TanStack préexistants)
 - [ ] Sur la préprod UAT, avec un chatteur marqué à J-0 et un autre à J-40 : parcourir Membres,
       Tracker, Organisation, Repos, Rapport police, Compta — badge bleu d'un côté, ambre de
       l'autre, aux six endroits.
