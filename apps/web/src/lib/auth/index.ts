@@ -50,10 +50,19 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   const supabase = await createClient()
   const { data } = await supabase
     .from('profiles')
-    .select('id, role, pages, display_name, email, work_link')
+    .select('id, role, pages, display_name, email, work_link, left_at')
     .eq('id', user.id)
     .single()
   if (!data) return null
+  // MEMBRE PARTI (0102) = plus d'accès, partout et d'un coup : les quatre gardes de page
+  // (`requireAccess`, `requireAdmin`, `requireAdminOrManager`, `requireSuperadmin`) font toutes
+  // `if (!profile) redirect('/login')`.
+  //
+  // CEINTURE ET BRETELLES. Le vrai verrou est le BAN GoTrue posé par `recordDeparture` : il
+  // invalide session, API et RLS ensemble, donc rien ne dépend de cette ligne pour la sécurité.
+  // Elle couvre la fenêtre d'une session déjà rendue côté serveur, et surtout elle rend la règle
+  // LISIBLE ici — sans elle, « pourquoi un parti n'a plus accès » ne se lit nulle part dans l'app.
+  if (data.left_at) return null
   const raw = data.role
   const baseRole: Profile['baseRole'] =
     raw === 'superadmin' ||

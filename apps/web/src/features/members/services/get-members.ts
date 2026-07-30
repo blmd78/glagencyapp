@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getProfile } from '@/lib/auth'
 import { CRM_SHIFTS, type CrmRole, type CrmShift, type CrmTeam } from '@/lib/types/chatters'
-import type { Member, MembersData } from '../types'
+import type { DepartureReason, Member, MembersData } from '../types'
 
 /** Défaut de la colonne `compta_settings.fixed_amount` (migration 0084), repris tel quel : tant
  *  qu'aucune ligne n'existe, c'est ce que la Compta calcule (`loadComptaRows`). Le défaut du
@@ -50,7 +50,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, chatter_id, created_at, created_by',
+          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, left_at, left_reason, left_note, left_by, chatter_id, created_at, created_by',
         )
         .order('created_at')
         .order('id')
@@ -188,6 +188,13 @@ export async function getMembers(): Promise<MembersData> {
       shift: isShift(p.shift) ? p.shift : null,
       isNew: p.is_new ?? false,
       arrivedAt: p.arrived_at ?? null,
+      // Les partis ne sont PAS filtrés ici : Membres est le seul écran qui doit pouvoir les
+      // afficher (bascule « Voir les anciens »). Les écrans opérationnels, eux, filtrent chez eux.
+      leftAt: p.left_at ?? null,
+      leftReason: (p.left_reason ?? null) as DepartureReason | null,
+      leftNote: p.left_note ?? null,
+      // Résolu avec la `nameById` DÉJÀ construite pour `createdByName` — aucune requête de plus.
+      leftByName: p.left_by ? (nameById.get(p.left_by) ?? '—') : null,
       createdAt: p.created_at,
       createdByName: p.created_by ? (nameById.get(p.created_by) ?? '—') : null,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────

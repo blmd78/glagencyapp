@@ -27,6 +27,27 @@ export interface MemberPay {
   prime: { amount: number; status: string; paidAt: string | null } | null
 }
 
+/**
+ * Motifs de sortie — SOURCE UNIQUE (miroir du check SQL 0102), dans l'ordre du sélecteur.
+ *
+ * « Abandon de poste » est un motif À PART et pas un cas de démission : le chatteur disparaît sans
+ * prévenir, c'est fréquent en agence, et le confondre avec un départ annoncé fausserait la lecture
+ * du turnover — c'est précisément la distinction qu'on cherche à mesurer.
+ */
+export const DEPARTURE_REASONS = [
+  { value: 'vire', label: 'Viré' },
+  { value: 'demission', label: 'Démission' },
+  { value: 'fin_essai', label: "Fin de période d'essai" },
+  { value: 'abandon', label: 'Abandon de poste' },
+  { value: 'autre', label: 'Autre' },
+] as const
+
+export type DepartureReason = (typeof DEPARTURE_REASONS)[number]['value']
+
+export const DEPARTURE_LABEL = Object.fromEntries(
+  DEPARTURE_REASONS.map((r) => [r.value, r.label]),
+) as Record<DepartureReason, string>
+
 export interface Member {
   id: string
   email: string
@@ -51,6 +72,13 @@ export interface Member {
   /** Date d'arrivée réelle dans l'agence ('YYYY-MM-DD'). CONSERVÉE après retrait du drapeau :
    *  c'est la base du calcul d'ancienneté, pas un simple attribut d'affichage. */
   arrivedAt: string | null
+  /** Date de sortie (0102). null = en poste. Un membre parti garde son profil, son rôle et ses
+   *  assignations — seul son ACCÈS est coupé (ban GoTrue). */
+  leftAt: string | null
+  leftReason: DepartureReason | null
+  leftNote: string | null
+  /** Nom du profil qui a acté le départ — null si posé en SQL direct : l'écran affiche « — ». */
+  leftByName: string | null
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string

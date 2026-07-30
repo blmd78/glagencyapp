@@ -77,6 +77,25 @@ export const memberInput = z
   .refine(arrivalWhenNew, { message: 'Renseigne la date d’arrivée', path: ['arrivedAt'] })
 export type MemberForm = z.infer<typeof memberInput>
 
+/**
+ * Départ d'un membre (0102). Le motif est REQUIS — c'est lui qui rend le turnover interprétable
+ * (subi ou choisi), et le check SQL `profiles_left_needs_reason` en est le miroir en base.
+ *
+ * `leftBy` n'est PAS dans ce schéma : l'acteur est posé côté serveur (`caller.id`), jamais envoyé
+ * par le client — même règle que `created_by` (0098).
+ */
+export const departureInput = z.object({
+  id: z.uuid(),
+  leftAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
+  leftReason: z.enum(['vire', 'demission', 'fin_essai', 'abandon', 'autre'], {
+    message: 'Choisis un motif',
+  }),
+  leftNote: z.string().trim().max(500, 'Commentaire trop long'),
+})
+export type DepartureForm = z.infer<typeof departureInput>
+
 /** Édition : mêmes règles sans l'email (verrouillé), + l'id. */
 export const memberUpdateInput = z
   .object({
