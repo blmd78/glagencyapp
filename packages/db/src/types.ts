@@ -2479,6 +2479,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {
           p_absents: number

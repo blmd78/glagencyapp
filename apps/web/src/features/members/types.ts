@@ -96,6 +96,29 @@ export interface Member {
   pay?: MemberPay
 }
 
+/** Contrat de l'onglet « Turnover » (0103). Tout est déjà agrégé côté service. */
+export interface TurnoverData {
+  /** Bornes réelles de la fenêtre — affichées, parce qu'elles ne sont PAS « 12 derniers mois »
+   *  par défaut : elles démarrent au premier mouvement connu (cf. `get-turnover.ts`). */
+  from: string
+  to: string
+  months: { mois: string; entrees: number; sorties: number; effectif: number }[]
+  reasons: { reason: string; n: number }[]
+  /** Totaux de la fenêtre. */
+  entries: number
+  exits: number
+  /** Effectif à la fin du dernier mois. */
+  headcount: number
+  /** Sorties ÷ effectif moyen. null = effectif nul (jamais une division par zéro). */
+  rate: number | null
+  /** Ancienneté moyenne à la sortie, en jours — calculée sur les SEULS départs dont l'arrivée
+   *  est connue. null = aucun départ mesurable. */
+  tenureAvgDays: number | null
+  /** Le dénominateur de la moyenne ci-dessus : combien de départs elle a réellement pu compter.
+   *  Affiché À CÔTÉ d'elle — une moyenne partielle muette est un chiffre faux. */
+  tenureKnown: number
+}
+
 export interface MembersData {
   members: Member[]
   /** Modèles assignables (non exclus), pour les cases à cocher. */
