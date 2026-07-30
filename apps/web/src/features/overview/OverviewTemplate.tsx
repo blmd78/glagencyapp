@@ -13,7 +13,12 @@ export function OverviewTemplate({ data }: { data: OverviewData }) {
         {data.periodLabel} · vue d’ensemble de l’agence
       </p>
 
-      <KpiGrid kpis={data.kpis} />
+      {/* Liserés = code couleur de l'app : CA en émeraude (argent), cartes CHATTERS en bleu,
+          « Sous 200 € » en ambre (alerte). En mode restreint la 4e carte n'existe pas. */}
+      <KpiGrid
+        kpis={data.kpis}
+        accents={['border-t-emerald-500', 'border-t-blue-500', 'border-t-blue-500', 'border-t-amber-500']}
+      />
 
       <RevenueChart data={data.daily} periodLabel={data.periodLabel} />
     </div>

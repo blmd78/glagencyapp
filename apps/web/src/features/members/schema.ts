@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
-import { CRM_ROLES, CRM_TEAMS } from '@/lib/types/chatters'
+import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
 
 // Désignation « closing » portée par le membre (setter/closer + équipe rouge/bleue) — n'a de sens
 // que pour un chatteur ; le serveur la force à null pour les autres rôles. null = aucune.
@@ -40,6 +40,8 @@ const memberFields = {
   workLink,
   closingRole,
   closingTeam,
+  // Shift (matin/aprem/soir) — écrit sur la FICHE CHATTEUR liée (chatters.shift) au save.
+  shift: z.enum(CRM_SHIFTS).nullable(),
   // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
   chatterId: z.uuid().or(z.literal('')),
 }

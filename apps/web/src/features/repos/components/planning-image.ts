@@ -113,11 +113,19 @@ export async function copyPlanningImage(params: {
       const chips = cellChips(day, c.key)
       const filled = chips.length > 0
       const alert = chips.some((ch) => ch.over)
+      // Même code couleur que l'écran : chatters bleu, managers/sous-managers vert,
+      // policiers orange — rouge d'alerte inchangé (blue/green/orange/red-100 et -800).
+      const tone =
+        c.key === 'policiers'
+          ? { bg: '#ffedd5', fg: '#9a3412' }
+          : c.key === 'managers' || c.key === 'sous-managers'
+            ? { bg: '#dcfce7', fg: '#166534' }
+            : { bg: '#dbeafe', fg: '#1e40af' }
       if (filled) {
-        ctx.fillStyle = alert ? '#fee2e2' : '#dcfce7'
+        ctx.fillStyle = alert ? '#fee2e2' : tone.bg
         ctx.fillRect(x + 2, y + 2, COL_W - 4, h - 4)
       }
-      ctx.fillStyle = filled ? (alert ? '#991b1b' : '#166534') : '#d1d5db'
+      ctx.fillStyle = filled ? (alert ? '#991b1b' : tone.fg) : '#d1d5db'
       ctx.font = font(12)
       cellLines[day][i].forEach((line, li) => {
         ctx.fillText(line, x + PAD, y + PAD + 12 + li * LINE_H)

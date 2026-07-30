@@ -3,7 +3,7 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getProfile } from '@/lib/auth'
-import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
+import { CRM_SHIFTS, type CrmRole, type CrmShift, type CrmTeam } from '@/lib/types/chatters'
 import type { Member, MembersData } from '../types'
 
 /** Défaut de la colonne `compta_settings.fixed_amount` (migration 0084), repris tel quel : tant
@@ -14,12 +14,13 @@ const DEFAULT_FIXED = 0
 
 /**
  * Liste des membres + modèles assignables (page admin OU manager). La RLS filtre par
- * appelant (0095) : admin = tout, manager/sous-manager = TOUS les chatteurs + ses
- * sous-managers + soi (plus d'assignation de chatteurs — l'édition suit, `authz.ts`) ;
+ * appelant (0097) : admin ET tout encadrant = tout le monde ; l'ÉDITION reste bornée aux
+ * comptes chatteurs pour un manager (`authz.ts`) ;
  * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
  * `chatters` (options du lien MyPuls, client admin agence-wide) n'est chargé QUE pour un
  * admin : le champ lien est admin-only (UI + serveur) et un manager ne doit pas recevoir
- * cette liste hors de son périmètre RLS dans son payload.
+ * cette liste hors de son périmètre RLS dans son payload. Le SHIFT, lui, ne dépend plus de
+ * cette table depuis 0100 (`profiles.shift`) : tout encadrant le lit et l'édite.
  *
  * MÊME RÈGLE POUR LES RÉGLAGES DE PAIE (2026-07-28) : `compta_settings` et `compta_primes` ne
  * sont lus que pour un admin. La RLS les laisse LIRE à un manager sur ses rattachés
@@ -49,7 +50,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, chatter_id, created_at',
+          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, chatter_id, created_at, created_by',
         )
         .order('created_at')
         .order('id')
@@ -70,14 +71,11 @@ export async function getMembers(): Promise<MembersData> {
     supabase.from('creators').select('id, name').order('name'),
     // fetchAll : cap PostgREST silencieux — `chatters` (MyPuls) grossit sans purge. Tri
     // d'affichage `display_name` conservé en tête, `id` (PK) en tiebreaker déterministe.
+    // Ne sert plus qu'aux OPTIONS du lien MyPuls (admin-only) : le shift a quitté cette table
+    // pour `profiles.shift` (0100) et se lit désormais avec le reste du profil.
     isAdmin
       ? fetchAll((f, t) =>
-          admin
-            .from('chatters')
-            .select('id, display_name')
-            .order('display_name')
-            .order('id')
-            .range(f, t),
+          admin.from('chatters').select('id, display_name').order('display_name').order('id').range(f, t),
         )
       : Promise.resolve({ data: [] as { id: string; display_name: string | null }[], error: null }),
     // Pas de `fetchAll`, et c'est borné par la CLÉ : `chatter_id` est la PK des deux tables
@@ -153,6 +151,14 @@ export async function getMembers(): Promise<MembersData> {
     if (arr) arr.push(l.creator_id)
     else byProfile.set(l.profile_id, [l.creator_id])
   }
+  // Shift = colonne du MEMBRE depuis 0100 (`profiles.shift`), plus la fiche MyPuls : lisible
+  // par tout encadrant, indépendante du lien. Éditable ici et sur le board Organisation.
+  const isShift = (v: string | null): v is CrmShift =>
+    !!v && (CRM_SHIFTS as readonly string[]).includes(v)
+
+  // Résolution « Créé par » : le créateur est un profil de la même liste (0097 : un
+  // encadrant voit tout le monde) — créateur supprimé ou colonne pré-0098 → null → « — ».
+  const nameById = new Map((profiles ?? []).map((p) => [p.id, p.display_name ?? p.email ?? '—']))
   const members: Member[] = (profiles ?? []).map((p) => {
     const s = settingsById.get(p.id)
     const prime = primeById.get(p.id)
@@ -179,7 +185,9 @@ export async function getMembers(): Promise<MembersData> {
       closingRole: (p.closing_role ?? null) as CrmRole | null,
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
       chatterId: p.chatter_id ?? '',
+      shift: isShift(p.shift) ? p.shift : null,
       createdAt: p.created_at,
+      createdByName: p.created_by ? (nameById.get(p.created_by) ?? '—') : null,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────
       // La règle est celle de `requireEditableTarget` (`authz.ts`), recopiée telle quelle :
       // admin (superadmin compris) → tout ; manager/sous-manager → n'importe quel CHATTEUR

@@ -243,7 +243,7 @@ export function PlanningGrid({
             columns={columns}
             data={data}
             // Cases CHATTEURS éditables par admin + manager/sous-manager (`canWrite`, miroir
-            // RLS can_write_page) ; cases ENCADREMENT (Managers/Policiers) admin-only —
+            // RLS can_write_page) ; cases ENCADREMENT (Managers/Sous-managers/Policiers) admin-only —
             // le distinguo par colonne vit dans PlanningGridRows (`isAdmin`).
             canWrite={canWrite}
             isAdmin={isAdmin}
@@ -266,10 +266,22 @@ export function PlanningGrid({
           modèle de la colonne
         </span>
         <span className="flex items-center gap-1.5">
+          <span className="rounded bg-blue-100 px-1.5 py-0.5 font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+            bleu
+          </span>
+          chatter au repos
+        </span>
+        <span className="flex items-center gap-1.5">
           <span className="rounded bg-green-100 px-1.5 py-0.5 font-medium text-green-800 dark:bg-green-950 dark:text-green-300">
             vert
           </span>
-          repos posé
+          manager / sous-manager
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="rounded bg-orange-100 px-1.5 py-0.5 font-medium text-orange-800 dark:bg-orange-950 dark:text-orange-300">
+            orange
+          </span>
+          policier
         </span>
         <span className="flex items-center gap-1.5">
           <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800 dark:bg-red-950 dark:text-red-300">

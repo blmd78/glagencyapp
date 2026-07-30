@@ -1,7 +1,7 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
 import type { RateChange } from '@glagency/core'
-import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
+import type { CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 /**
  * Réglages de paie d'un membre (`compta_settings` + `compta_rates` + `compta_primes`) — onglet
@@ -43,9 +43,13 @@ export interface Member {
   /** Désignation « closing » du membre (chatteur) — null = pas dans le dispositif. */
   closingRole: CrmRole | null
   closingTeam: CrmTeam | null
+  /** Shift de la fiche chatteur LIÉE (chatters.shift) — null : non lié ou non renseigné. */
+  shift: CrmShift | null
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string
+  /** Nom du profil qui a créé le membre (0098) — null : compte trigger/antérieur → « — ». */
+  createdByName: string | null
   /** L'appelant peut-il MODIFIER/SUPPRIMER cette ligne ? Calqué sur `requireEditableTarget`
    *  (`authz.ts`), calculé côté serveur dans `get-members.ts` : admin → tout ; manager →
    *  n'importe quel compte `chatteur` (0095, plus d'assignation).
@@ -70,7 +74,9 @@ export interface MembersData {
 export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
 
 /**
- * SOURCE UNIQUE « qui est rattachable à qui » (0092) — la règle ne se définit qu'ici, les
+ * SOURCE UNIQUE « qui est rattachable à qui » (0092 ; les ADMINS ouverts aux sous-managers le
+ * 2026-07-29 : Axel et Dorian dirigent des équipes tout en étant admins — sans ça leurs
+ * équipes n'avaient aucune tête de section sur le board Organisation) — la règle ne se définit qu'ici, les
  * trois couches ne font que la LIRE : le sélecteur du dialog (affichage du champ + options),
  * la validation serveur (`requireManagerTargets`) et le patch d'écriture (`managerIdsPatch`).
  * Tableau vide = ce rôle ne porte JAMAIS de rattachement.
@@ -82,7 +88,7 @@ export type Role = 'chatteur' | 'police' | 'sous-manager' | 'manager' | 'admin'
 export const ATTACHABLE_ROLES: Record<Role, readonly string[]> = {
   chatteur: [],
   police: [],
-  'sous-manager': ['manager'],
+  'sous-manager': ['manager', 'admin'],
   manager: [],
   admin: [],
 }

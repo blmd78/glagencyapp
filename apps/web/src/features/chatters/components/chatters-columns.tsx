@@ -11,7 +11,6 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { eur, pct } from '@/lib/format'
-import { ChatterCrmDialog } from './chatter-crm-dialog'
 import type { ChatterRow } from '@/lib/types/chatters'
 
 // Couleurs de statut partagées (recette badge shadcn) : lib/status-color.ts.
@@ -67,19 +66,15 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
     },
   },
   {
-    // Rôle (setter/closer) et équipe (rouge/bleue) sont lus depuis le MEMBRE lié (read-only,
-    // édités sur la fiche Membre) ; shift reste propre au chatteur, édité via le crayon.
+    // Rôle (setter/closer) et équipe (rouge/bleue) : lus depuis le MEMBRE lié, read-only ici —
+    // édités sur la fiche Membre. Le shift les a rejoints sur le membre en 0100 et s'édite au
+    // même endroit (ou sur le board Organisation) : plus de badge ni de crayon sur cette page.
     id: 'crm',
     header: 'Closing',
     cell: ({ row }) => (
       <div className="flex items-center gap-1">
         <RoleBadge role={row.original.closingRole} />
         <TeamBadge team={row.original.closingTeam} />
-        {row.original.shift && (
-          <Badge variant="outline" className="text-muted-foreground">
-            {row.original.shift === 'matin' ? 'Matin' : row.original.shift === 'aprem' ? 'Aprem' : 'Soir'}
-          </Badge>
-        )}
       </div>
     ),
   },
@@ -171,27 +166,11 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
 ]
 
 /**
- * Colonnes de la table chatteurs. La colonne d'édition CRM (crayon → dialog `updateChatterCrm`)
- * n'apparaît que pour un compte en écriture (`canWrite` = admin ou manager/sous-manager) — un
- * chatteur est en lecture seule (aligné sur la policy `chatters_crm_update` / `hasWriteAccess`).
- * La colonne reste toujours présente (cellule vide pour un chatteur) pour préserver
- * l'alignement des sous-lignes (`chatters-sub-rows.tsx`, 12 cellules).
+ * Colonnes de la table chatteurs — LECTURE SEULE depuis 0100.
+ *
+ * Il y avait ici une 12e colonne d'édition (crayon → dialog `updateChatterCrm`) dont le seul
+ * champ était le shift. Le shift ayant rejoint le membre (`profiles.shift`), il s'édite dans
+ * Membres et sur le board Organisation : la colonne, son dialog, son action et son schéma ont
+ * été supprimés, et les sous-lignes (`chatters-sub-rows.tsx`) sont passées à 11 cellules.
  */
-export function makeChattersColumns({ canWrite }: { canWrite: boolean }): ColumnDef<ChatterRow>[] {
-  return [
-    ...baseColumns,
-    {
-      id: 'edit',
-      header: '',
-      cell: ({ row }) => (
-        // stopPropagation : le dialog et ses selects sont portalés dans <body> côté DOM mais
-        // enfants de cette cellule côté React — sans ça, tout clic dans la modal bubble
-        // jusqu'au onClick d'expansion de la ligne (data-table.tsx).
-        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-          {canWrite && <ChatterCrmDialog chatter={row.original} />}
-        </div>
-      ),
-      meta: { align: 'right' },
-    },
-  ]
-}
+export const chattersColumns: ColumnDef<ChatterRow>[] = baseColumns

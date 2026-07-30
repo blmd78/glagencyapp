@@ -68,7 +68,7 @@ export interface ReposData {
   weekStart: string
   /** Libellé « Lundi 06/07 au Dimanche 12/07 ». */
   weekLabel: string
-  /** Colonnes résolues (libellés/compo) — remplace l'usage direct de REPOS_COLUMNS au rendu. */
+  /** Colonnes résolues (libellés/compo) — modèles visibles (dynamiques) + encadrement. */
   columns: ReposColumn[]
   /** cells[day][colKey] = contenu de la cellule (IDs chatteurs + texte libre). */
   cells: Record<number, Record<string, ReposCell>>

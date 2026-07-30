@@ -1735,12 +1735,14 @@ export type Database = {
           closing_role: string | null
           closing_team: string | null
           created_at: string
+          created_by: string | null
           display_name: string | null
           email: string | null
           id: string
           manager_ids: string[]
           pages: string[]
           role: string
+          shift: string | null
           work_link: string
         }
         Insert: {
@@ -1748,12 +1750,14 @@ export type Database = {
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
+          created_by?: string | null
           display_name?: string | null
           email?: string | null
           id: string
           manager_ids?: string[]
           pages?: string[]
           role?: string
+          shift?: string | null
           work_link?: string
         }
         Update: {
@@ -1761,12 +1765,14 @@ export type Database = {
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
+          created_by?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
           manager_ids?: string[]
           pages?: string[]
           role?: string
+          shift?: string | null
           work_link?: string
         }
         Relationships: [
@@ -1775,6 +1781,13 @@ export type Database = {
             columns: ["chatter_id"]
             isOneToOne: true
             referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2396,6 +2409,14 @@ export type Database = {
         }[]
       }
       models_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      move_org_team: {
+        Args: {
+          p_from_manager_id?: string
+          p_sous_manager_id: string
+          p_to_manager_id: string
+        }
+        Returns: undefined
+      }
       overview_report: {
         Args: {
           p_chart_from: string
@@ -2407,6 +2428,25 @@ export type Database = {
         Returns: Json
       }
       repos_data_weeks: { Args: never; Returns: Json }
+      save_org_cell: {
+        Args: {
+          p_chatter_ids: string[]
+          p_creator_id: string
+          p_previous_ids: string[]
+          p_shift: string
+        }
+        Returns: undefined
+      }
+      save_org_row: {
+        Args: {
+          p_creator_id: string
+          p_owner_id: string
+          p_prev_creator_id?: string
+          p_prev_owner_id?: string
+          p_section_manager_id?: string
+        }
+        Returns: undefined
+      }
       save_repos_cell: {
         Args: {
           p_chatter_ids: string[]

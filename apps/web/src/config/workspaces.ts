@@ -22,6 +22,7 @@ import {
   Banknote,
   CalendarClock,
   ChartLine,
+  Network,
   UsersRound,
   Briefcase,
   Globe,
@@ -99,6 +100,9 @@ export const WORKSPACES: Workspace[] = [
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
       { href: '/chatter/planning', label: 'Planning', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
+      // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
+      // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
+      { href: '/chatter/organisation', label: 'Organisation', icon: Network, group: 'equipe' },
       // Libellé affiché « Tracker » — slug/route/dossier restent `police` (renommer
       // casserait profiles.pages + policies RLS, cf. features/police/).
       { href: '/chatter/police', label: 'Tracker', icon: ShieldAlert, group: 'police' },
@@ -167,7 +171,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

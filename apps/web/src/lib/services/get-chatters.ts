@@ -1,13 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
-import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
-import type {
-  ChatterModel,
-  ChatterRow,
-  ChattersData,
-  CrmShift,
-} from '@/lib/types/chatters'
+import type { ChatterModel, ChatterRow, ChattersData } from '@/lib/types/chatters'
 
 import { conv, round1, round2 } from '@/lib/format'
 
@@ -68,17 +62,16 @@ export async function getChatters(
   const restricted = opts.restricted ?? false
   const supabase = await createClient()
 
-  // Shift (chatters.shift, migration 0029) — hors RPC pour ne pas toucher chatters_report ;
-  // lecture couverte par la policy chatters_scoped_read. Rôle/équipe closing sont gérés sur le
-  // MEMBRE : lus via le helper partagé `getClosingByChatter` (source unique, cf. 0077/0079).
-  const [rpcRes, crmRes, closingByChatter] = await Promise.all([
+  // Rôle/équipe closing sont gérés sur le MEMBRE : lus via le helper partagé
+  // `getClosingByChatter` (source unique, cf. 0077/0079). Le SHIFT a suivi le même chemin en
+  // 0100 — il est devenu une colonne de `profiles`, éditée dans Membres et sur le board
+  // Organisation ; cette page ne le lit plus (elle liste des FICHES MyPuls, dont la plupart
+  // n'ont aucun membre lié).
+  const [rpcRes, closingByChatter] = await Promise.all([
     supabase.rpc('chatters_report', { p_from: period.from, p_to: period.to }),
-    // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
-    fetchAll((f, t) => supabase.from('chatters').select('id, shift').order('id').range(f, t)),
     getClosingByChatter(),
   ])
   if (rpcRes.error) throw new Error(rpcRes.error.message)
-  if (crmRes.error) throw new Error(crmRes.error.message)
   // Le RPC est typé (nom + args) mais son retour est déclaré `Json` (types générés) →
   // on applique le contrat local par cast. `.overrideTypes<Report>` est inapplicable ici :
   // le garde de postgrest-js 2.110 distribue sur l'union Json et rejette tout override
@@ -93,7 +86,6 @@ export async function getChatters(
   }
 
   const chMeta = new Map(rep.chatters.map((c) => [c.id, c]))
-  const crmById = new Map((crmRes.data ?? []).map((c) => [c.id, c]))
 
   // Agrégat chatteur (header). Non restreint : depuis `totals` (déjà 1 ligne/chatteur).
   // Restreint : `totals` vide → somme de la ventilation par modèle visible.
@@ -170,7 +162,6 @@ export async function getChatters(
         email: meta?.email ?? null,
         active: meta?.active ?? false,
         managementTeam: meta?.team ?? null,
-        shift: (crmById.get(id)?.shift ?? null) as CrmShift | null,
         closingRole: closingByChatter.get(id)?.role ?? null,
         closingTeam: closingByChatter.get(id)?.team ?? null,
         ca: a.ca,
