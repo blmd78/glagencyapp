@@ -42,6 +42,13 @@ const memberFields = {
   closingTeam,
   // Shift (matin/aprem/soir) — écrit sur la FICHE CHATTEUR liée (chatters.shift) au save.
   shift: z.enum(CRM_SHIFTS).nullable(),
+  // Nouvel arrivant : drapeau MANUEL + date d'arrivée réelle (0101). La date est EXIGÉE quand le
+  // drapeau est posé (refine `arrivalWhenNew` plus bas, miroir du check SQL).
+  isNew: z.boolean(),
+  arrivedAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide')
+    .nullable(),
   // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
   chatterId: z.uuid().or(z.literal('')),
 }
@@ -53,6 +60,11 @@ const pagesOfScope = (d: { scope: 'chatter' | 'marketing'; pages: string[] }) =>
 // serait inutilisable (atterrit sur /no-access).
 const atLeastOnePage = (d: { role: string; pages: string[] }) =>
   d.role === 'admin' || d.pages.length > 0
+// Miroir applicatif du check SQL `profiles_is_new_needs_arrived_at` (0101) : un drapeau sans date
+// s'afficherait « nouveau depuis on ne sait quand », donc nouveau pour toujours — et le rappel de
+// retrait à 30 jours ne pourrait jamais se déclencher.
+const arrivalWhenNew = (d: { isNew: boolean; arrivedAt: string | null }) =>
+  !d.isNew || d.arrivedAt !== null
 
 export const memberInput = z
   .object({
@@ -62,6 +74,7 @@ export const memberInput = z
   })
   .refine(pagesOfScope, { message: 'Page inconnue', path: ['pages'] })
   .refine(atLeastOnePage, { message: 'Coche au moins une page', path: ['pages'] })
+  .refine(arrivalWhenNew, { message: 'Renseigne la date d’arrivée', path: ['arrivedAt'] })
 export type MemberForm = z.infer<typeof memberInput>
 
 /** Édition : mêmes règles sans l'email (verrouillé), + l'id. */
@@ -73,3 +86,4 @@ export const memberUpdateInput = z
   })
   .refine(pagesOfScope, { message: 'Page inconnue', path: ['pages'] })
   .refine(atLeastOnePage, { message: 'Coche au moins une page', path: ['pages'] })
+  .refine(arrivalWhenNew, { message: 'Renseigne la date d’arrivée', path: ['arrivedAt'] })

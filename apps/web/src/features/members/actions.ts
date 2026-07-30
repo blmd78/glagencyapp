@@ -118,6 +118,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // Shift : même règle, et depuis 0100 même TABLE que le closing (il vivait sur la fiche
           // MyPuls, ce qui le rendait inaccessible aux chatteurs sans lien).
           shift: role === 'chatteur' ? values.shift : null,
+          // Nouvel arrivant (0101) : même règle de rôle. `arrived_at` ne survit pas à un rôle
+          // non-chatteur — un drapeau orphelin sur un manager ne voudrait rien dire.
+          is_new: role === 'chatteur' ? values.isNew : false,
+          arrived_at: role === 'chatteur' ? values.arrivedAt : null,
           // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
           created_by: caller.id,
           ...managerIdsPatch(role, scope, managerIds, true),
@@ -193,6 +197,11 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           closing_team: role === 'chatteur' ? closingTeam : null,
           // Shift (0100) : attribut du membre, remis à null si la cible cesse d'être chatteur.
           shift: role === 'chatteur' ? values.shift : null,
+          // Nouvel arrivant (0101) : même règle. Décocher le drapeau NE VIDE PAS `arrived_at` —
+          // c'est voulu (base du calcul d'ancienneté/turnover) ; seul un changement de rôle
+          // l'efface, puisque la personne quitte le dispositif chatteur.
+          is_new: role === 'chatteur' ? values.isNew : false,
+          arrived_at: role === 'chatteur' ? values.arrivedAt : null,
           // apply seulement pour un admin : un manager ne déplace pas un rattachement.
           ...managerIdsPatch(role, scope, managerIds, caller.role === 'admin'),
         })

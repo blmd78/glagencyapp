@@ -50,7 +50,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, chatter_id, created_at, created_by',
+          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, chatter_id, created_at, created_by',
         )
         .order('created_at')
         .order('id')
@@ -186,6 +186,8 @@ export async function getMembers(): Promise<MembersData> {
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
       chatterId: p.chatter_id ?? '',
       shift: isShift(p.shift) ? p.shift : null,
+      isNew: p.is_new ?? false,
+      arrivedAt: p.arrived_at ?? null,
       createdAt: p.created_at,
       createdByName: p.created_by ? (nameById.get(p.created_by) ?? '—') : null,
       // ── QUI EST ÉDITABLE, ET POURQUOI ÇA SE CALCULE ICI ─────────────────────────────────

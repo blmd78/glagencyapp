@@ -45,6 +45,12 @@ export interface Member {
   closingTeam: CrmTeam | null
   /** Shift de la fiche chatteur LIÉE (chatters.shift) — null : non lié ou non renseigné. */
   shift: CrmShift | null
+  /** Drapeau MANUEL « nouvel arrivant » (0101) — chatteurs uniquement, `false` pour les autres
+   *  rôles (le serveur le force, comme `closing_role` et `shift`). */
+  isNew: boolean
+  /** Date d'arrivée réelle dans l'agence ('YYYY-MM-DD'). CONSERVÉE après retrait du drapeau :
+   *  c'est la base du calcul d'ancienneté, pas un simple attribut d'affichage. */
+  arrivedAt: string | null
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string

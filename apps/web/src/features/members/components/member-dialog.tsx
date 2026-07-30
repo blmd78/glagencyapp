@@ -21,6 +21,7 @@ import { createMember, updateMember } from '../actions'
 import { memberInput, type MemberForm } from '../schema'
 import type { Member } from '../types'
 import { MemberAccessFields } from './member-access-fields'
+import { MemberArrivalFields } from './member-arrival-fields'
 import { MemberChatterLinkField } from './member-chatter-link-field'
 import { MemberClosingFields } from './member-closing-fields'
 import { MemberIdentityFields } from './member-identity-fields'
@@ -30,7 +31,7 @@ import { MemberPermissionFields } from './member-permission-fields'
 /** Champs affichant un message d'erreur juste sous eux (les autres — role/managerIds/
  *  creatorIds — n'ont pas de zone dédiée) : un `fieldErrors` server-side dessus est remonté
  *  au message global plutôt qu'avalé silencieusement (cf. remap dans `submit`). */
-const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages'] as const satisfies readonly (keyof MemberForm)[]
+const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages', 'arrivedAt'] as const satisfies readonly (keyof MemberForm)[]
 const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[number] =>
   (DISPLAYED_FIELDS as readonly string[]).includes(field)
 
@@ -102,6 +103,8 @@ export function MemberDialog({
     handleSubmit,
     setError,
     reset,
+    getValues,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
@@ -131,6 +134,8 @@ export function MemberDialog({
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
       shift: member?.shift ?? null,
+      isNew: member?.isNew ?? false,
+      arrivedAt: member?.arrivedAt ?? null,
       chatterId: member?.chatterId ?? '',
     },
   })
@@ -172,12 +177,17 @@ export function MemberDialog({
       closingRole: member?.closingRole ?? null,
       closingTeam: member?.closingTeam ?? null,
       shift: member?.shift ?? null,
+      isNew: member?.isNew ?? false,
+      arrivedAt: member?.arrivedAt ?? null,
       chatterId: member?.chatterId ?? '',
     })
   }, [open, member, scope, viewer, creators, reset])
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })
+  // Commande l'apparition du champ « Arrivé le » (0101) — observé ici, comme `roleValue`, plutôt
+  // que dans le composant de champs : un `useWatch` par composant multiplierait les re-rendus.
+  const isNewValue = useWatch({ control, name: 'isNew' })
 
   const submit = handleSubmit(async (values) => {
     const res = member
@@ -193,6 +203,8 @@ export function MemberDialog({
           closingRole: values.closingRole,
           closingTeam: values.closingTeam,
           shift: values.shift,
+          isNew: values.isNew,
+          arrivedAt: values.arrivedAt,
           chatterId: values.chatterId,
         })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
@@ -248,6 +260,15 @@ export function MemberDialog({
           Le shift est ouvert aux encadrants depuis 0100 : porté par `profiles`, il n'est plus
           tributaire de la table MyPuls admin-only qui imposait de le leur cacher. */}
       <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
+
+      <MemberArrivalFields
+        control={control}
+        roleValue={roleValue}
+        isNewValue={isNewValue}
+        isSubmitting={isSubmitting}
+        getValues={getValues}
+        setValue={setValue}
+      />
 
       {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
           ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de
