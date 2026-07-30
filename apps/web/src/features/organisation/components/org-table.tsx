@@ -522,13 +522,6 @@ export function OrgTable({
                   </tr>
                 )
               })}
-              {section.rows.length === 0 && (
-                <tr className="border-t">
-                  <td colSpan={COLS} className="px-3 py-2 text-sm text-muted-foreground">
-                    Aucun modèle assigné à cette équipe.
-                  </td>
-                </tr>
-              )}
             </Fragment>
           ))}
 
