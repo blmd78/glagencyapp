@@ -47,6 +47,7 @@ export {
   round1,
   round2,
 } from './domain/dates'
+export { NEW_THRESHOLD_DAYS, daysSinceArrival, isStaleNew } from './domain/anciennete'
 export {
   periodOf,
   recentPeriods,
