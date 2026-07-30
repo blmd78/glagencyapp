@@ -1738,6 +1738,10 @@ export type Database = {
           email: string | null
           id: string
           is_new: boolean
+          left_at: string | null
+          left_by: string | null
+          left_note: string | null
+          left_reason: string | null
           manager_ids: string[]
           pages: string[]
           role: string
@@ -1755,6 +1759,10 @@ export type Database = {
           email?: string | null
           id: string
           is_new?: boolean
+          left_at?: string | null
+          left_by?: string | null
+          left_note?: string | null
+          left_reason?: string | null
           manager_ids?: string[]
           pages?: string[]
           role?: string
@@ -1772,6 +1780,10 @@ export type Database = {
           email?: string | null
           id?: string
           is_new?: boolean
+          left_at?: string | null
+          left_by?: string | null
+          left_note?: string | null
+          left_reason?: string | null
           manager_ids?: string[]
           pages?: string[]
           role?: string
@@ -1789,6 +1801,13 @@ export type Database = {
           {
             foreignKeyName: "profiles_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_left_by_fkey"
+            columns: ["left_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
