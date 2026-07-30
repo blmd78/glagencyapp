@@ -5,6 +5,7 @@ import { ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
+import { NewBadge } from '@/components/new-badge'
 import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
@@ -32,8 +33,11 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
             !row.getCanExpand() && 'opacity-0',
           )}
         />
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-1.5">
           <div className="truncate font-medium">{row.original.name}</div>
+          {/* Avec le NOM et pas dans la colonne « Closing » : « nouvel arrivant » n'est pas une
+              désignation de paie, c'est une propriété de la personne. */}
+          <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} />
         </div>
       </div>
     ),

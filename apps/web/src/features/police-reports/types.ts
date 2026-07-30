@@ -28,4 +28,7 @@ export interface PoliceReport {
 export interface ReportOption {
   id: string
   name: string
+  /** Nouvel arrivant (0101) — ABSENTS sur les options de MODÈLES, qui n'en portent pas. */
+  isNew?: boolean
+  arrivedAt?: string | null
 }

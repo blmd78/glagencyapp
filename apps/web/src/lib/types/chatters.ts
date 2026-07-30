@@ -55,6 +55,10 @@ export interface ChatterRow {
   // read-only ici ; l'édition est sur la fiche Membre. null = chatteur non lié / sans désignation.
   closingRole: CrmRole | null
   closingTeam: CrmTeam | null
+  // Nouvel arrivant (0101), lu par le MÊME chemin que le closing (profiles.chatter_id) — `false`
+  // sur une fiche sans membre lié, qui ne correspond à personne dans l'équipe actuelle.
+  isNew: boolean
+  arrivedAt: string | null
   // Sommables (= Σ modèles)
   ca: number
   ppv: number

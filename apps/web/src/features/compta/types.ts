@@ -23,6 +23,10 @@ export interface ComptaRow {
   id: string
   name: string
   role: string
+  /** Nouvel arrivant (0101) — icône à côté du nom : un arrivant n'a pas le même rendement
+   *  attendu, et sa fiche de paie se lit avec cette information en tête. */
+  isNew: boolean
+  arrivedAt: string | null
   /** `profiles.chatter_id` — null = non relié à MyPuls, donc aucun CA calculable. */
   chatterId: string | null
   /**

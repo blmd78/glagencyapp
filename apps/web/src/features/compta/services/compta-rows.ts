@@ -164,6 +164,8 @@ export async function loadComptaRows({
       id: m.id,
       name: m.display_name ?? m.email ?? '—',
       role: m.role,
+      isNew: m.is_new ?? false,
+      arrivedAt: m.arrived_at ?? null,
       chatterId: m.chatter_id,
       // L'historique du membre, tel quel — la fiche de paie s'en sert pour dire depuis quand le
       // taux courant s'applique, et la colonne « Rémunération » pour résumer la période.

@@ -58,7 +58,7 @@ export async function loadComptaSources({
   // reste la PAGE (`requireAccess('compta')` / can_write_page).
   const membersQuery = supabase
     .from('profiles')
-    .select('id, display_name, email, role, chatter_id')
+    .select('id, display_name, email, role, chatter_id, is_new, arrived_at')
     .eq('role', 'chatteur')
     .order('display_name')
 

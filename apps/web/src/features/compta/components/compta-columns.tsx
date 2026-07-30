@@ -4,6 +4,7 @@ import { type ColumnDef } from '@tanstack/react-table'
 import { ChevronRight } from 'lucide-react'
 import { frDayShort } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
+import { NewBadge } from '@/components/new-badge'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { eur2 } from '@/lib/format'
@@ -85,6 +86,9 @@ export function makeComptaColumns({
             )}
           />
           <span className="font-medium">{row.original.name}</span>
+          {/* Icône et non badge texte : la ligne porte déjà un badge de rôle, un second mot la
+              surchargerait. Utile ici — un nouvel arrivant n'a pas le même rendement attendu. */}
+          <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} variant="icon" />
           {ROLE_NAME[row.original.role] && (
             <Badge
               className={cn('shrink-0 text-xs font-normal', ROLE_TONE[row.original.role])}

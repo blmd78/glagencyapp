@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Check, Pencil, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { NewBadge } from '@/components/new-badge'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
@@ -134,6 +135,7 @@ function ShiftCell({
   shift,
   ids,
   nameById,
+  newById,
   options,
   canWrite,
   modelName,
@@ -142,14 +144,27 @@ function ShiftCell({
   shift: CrmShift
   ids: string[]
   nameById: Map<string, string>
+  /** Drapeau « nouvel arrivant » par id (0101) — même provenance que `nameById` : les options. */
+  newById: Map<string, { isNew: boolean; arrivedAt: string | null }>
   options: { id: string; name: string }[]
   canWrite: boolean
   modelName: string
   onChange: (next: string[]) => void
 }) {
   const chips = ids.map((id) => (
-    <span key={id} className={cn('rounded px-1.5 py-0.5 text-xs font-medium', CHIP_BLUE)}>
+    <span
+      key={id}
+      className={cn(
+        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
+        CHIP_BLUE,
+      )}
+    >
       {nameById.get(id) ?? '?'}
+      <NewBadge
+        isNew={newById.get(id)?.isNew ?? false}
+        arrivedAt={newById.get(id)?.arrivedAt ?? null}
+        variant="icon"
+      />
     </span>
   ))
   if (!canWrite)
@@ -244,6 +259,11 @@ export function OrgTable({
   const [overrides, setOverrides] = useState<Record<string, string[]>>({})
   const [draft, setDraft] = useState<{ manager: string; owner: string } | null>(null)
   const nameById = new Map(data.chatterOptions.map((o) => [o.id, o.name]))
+  // Le drapeau suit exactement le chemin du nom — dérivé des MÊMES options, pour qu'une case n'ait
+  // rien à aller chercher ailleurs que dans ce que le service lui a déjà donné.
+  const newById = new Map(
+    data.chatterOptions.map((o) => [o.id, { isNew: o.isNew, arrivedAt: o.arrivedAt }]),
+  )
 
   // LES OVERRIDES NE SONT JAMAIS VIDÉS EN MASSE — exactement comme le planning repos, et c'est
   // ce qui rend l'ajout « à la volée » fluide (retour Benoit 2026-07-30).
@@ -487,6 +507,7 @@ export function OrgTable({
                         shift={shift}
                         ids={cellIds(r.creatorId, shift, r.byShift[shift])}
                         nameById={nameById}
+                        newById={newById}
                         options={data.chatterOptions}
                         canWrite={canWrite}
                         modelName={r.modelName}

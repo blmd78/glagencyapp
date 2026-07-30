@@ -52,7 +52,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     fetchAll((f, t) =>
       admin
         .from('profiles')
-        .select('id, display_name, role')
+        .select('id, display_name, role, is_new, arrived_at')
         .in('role', ['manager', 'sous-manager', 'police', 'chatteur'])
         .order('id')
         .range(f, t),
@@ -104,6 +104,11 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
   for (const m of profileRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
+  // Le drapeau « nouvel arrivant » (0101), lui, ne vient QUE des profils : une fiche MyPuls legacy
+  // ne correspond à personne dans l'équipe actuelle, elle n'a pas de drapeau à porter.
+  const newByChatter: Record<string, { isNew: boolean; arrivedAt: string | null }> = {}
+  for (const m of profileRows ?? [])
+    if (m.id) newByChatter[m.id] = { isNew: m.is_new ?? false, arrivedAt: m.arrived_at ?? null }
   // Options des cellules chatteur = membres role chatteur visibles sous RLS (0095 : tous,
   // pour tout encadrant — cf. getVisibleProfiles). La résolution des noms déjà posés
   // (chatterById, admin) couvre aussi les ids legacy.
@@ -175,6 +180,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     creatorById,
     creatorOptions,
     chatterById,
+    newByChatter,
     chatterOptions,
     managerOptions,
     sousManagerOptions,

@@ -35,4 +35,8 @@ export interface CellChip {
   over: boolean
   id?: string
   token?: string
+  /** Nouvel arrivant (0101) — ABSENTS sur une puce de texte libre : un token legacy n'a aucun
+   *  membre derrière lui. */
+  isNew?: boolean
+  arrivedAt?: string | null
 }
