@@ -1,0 +1,49 @@
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import type { MemberEvent } from '../types'
+import { EventsTimeline } from './events-timeline'
+
+/** '2026-07-30' → '30/07/2026'. */
+const fr = (iso: string) => iso.split('-').reverse().join('/')
+
+/**
+ * Onglet « Activité » (0104) — le MÊME historique que la fiche membre, lu par l'autre bout :
+ * la fiche répond à « qu'est-il arrivé à Mehdi ? », ce flux à « qui a bougé quoi cette semaine ? ».
+ *
+ * Server Component : la timeline (feuille cliente) porte le seul état de la vue, la case
+ * « afficher les droits ».
+ */
+export function ActivityView({
+  events,
+  from,
+  to,
+  limit,
+}: {
+  events: MemberEvent[]
+  from: string
+  to: string
+  /** Plafond de la lecture — sert à dire quand la liste est tronquée. */
+  limit: number
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Activité de l’agence</CardTitle>
+        <CardDescription>
+          Tous les changements du {fr(from)} au {fr(to)} — la période suit le sélecteur de dates en
+          haut de page.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <EventsTimeline events={events} showMember />
+        {/* AUCUNE TRONCATURE SILENCIEUSE : si le plafond est atteint, la liste ne montre pas tout
+            et doit le dire — sinon « rien après le 12 » se lit comme « rien ne s'est passé ». */}
+        {events.length >= limit && (
+          <p className="text-xs text-muted-foreground">
+            Seuls les {limit} changements les plus récents de cette période sont affichés —
+            resserre les dates pour voir les plus anciens.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

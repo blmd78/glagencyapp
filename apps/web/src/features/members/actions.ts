@@ -15,8 +15,9 @@ import {
   requireManagerTargets,
   syncAssignments,
 } from './authz'
+import { getMemberEvents } from './services/get-member-events'
 import { departureInput, memberInput, memberUpdateInput } from './schema'
-import { canBeAttached } from './types'
+import { canBeAttached, type MemberEvent } from './types'
 
 /**
  * Mutations de la page Membres. Toutes : zod → autorisation applicative → client SERVICE-ROLE
@@ -124,6 +125,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
           // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
           created_by: caller.id,
+          // « Modifié par » (0104) : LU PAR LE TRIGGER D'HISTORIQUE. Cette page écrit en
+          // service role, où `auth.uid()` est null — sans cette colonne, tout changement fait
+          // ici serait attribué à « système ».
+          updated_by: caller.id,
           ...managerIdsPatch(role, scope, managerIds, true),
         })
         .eq('id', uid)
@@ -202,6 +207,10 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           // l'efface, puisque la personne quitte le dispositif chatteur.
           is_new: role === 'chatteur' ? values.isNew : false,
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
+          // LU PAR LE TRIGGER D'HISTORIQUE (0104), et écrit AVANT `syncAssignments` plus bas —
+          // c'est ce qui permet au trigger de `profile_creators` de retrouver l'auteur d'un
+          // changement de modèle malgré le service role. Ne pas déplacer cette écriture après.
+          updated_by: caller.id,
           // apply seulement pour un admin : un manager ne déplace pas un rattachement.
           ...managerIdsPatch(role, scope, managerIds, caller.role === 'admin'),
         })
@@ -247,6 +256,27 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
 }
 
 /**
+ * Historique d'un membre (0104) — chargé À L'OUVERTURE de l'onglet, pas avec le dialog : la
+ * fiche ne paie cette lecture que si on la demande. Patron `loadPlanning`.
+ *
+ * Garde en tête de handler avec `noGuard` (§4) : la page Membres n'a pas de slug cochable
+ * (`adminOnly` + `managerAccess`), donc ni `pageGuard` ni `adminGuard` ne conviennent —
+ * `requireCaller` porte exactement la règle « admin ou encadrant » de cette page.
+ */
+export async function loadMemberEvents(raw: unknown): Promise<ActionResult<MemberEvent[]>> {
+  return runAction({
+    schema: z.object({ profileId: z.uuid() }),
+    input: raw,
+    guard: noGuard,
+    handler: async ({ profileId }) => {
+      const caller = await requireCaller()
+      if (!caller) throw new BusinessError('Accès refusé')
+      return getMemberEvents({ profileId })
+    },
+  })
+}
+
+/**
  * 100 ans. GoTrue attend une DURÉE, pas une date de fin ; le ban se lève par `'none'`
  * (`reactivateMember`), il n'expire donc jamais tout seul.
  */
@@ -286,6 +316,7 @@ export async function recordDeparture(raw: unknown): Promise<ActionResult> {
           left_reason: values.leftReason,
           left_note: values.leftNote || null,
           left_by: caller.id,
+          updated_by: caller.id,
         })
         .eq('id', values.id)
       if (pErr) throw new Error(pErr.message)
@@ -327,7 +358,7 @@ export async function reactivateMember(raw: unknown): Promise<ActionResult> {
       if (bErr) throw new Error(bErr.message)
       const { error: pErr } = await admin
         .from('profiles')
-        .update({ left_at: null, left_reason: null, left_note: null, left_by: null })
+        .update({ left_at: null, left_reason: null, left_note: null, left_by: null, updated_by: caller.id })
         .eq('id', id)
       if (pErr) throw new Error(pErr.message)
       revalidateMembers()

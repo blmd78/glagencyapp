@@ -1062,6 +1062,51 @@ export type Database = {
           },
         ]
       }
+      member_events: {
+        Row: {
+          actor_id: string | null
+          at: string
+          from_value: string | null
+          id: number
+          kind: string
+          profile_id: string
+          to_value: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          at?: string
+          from_value?: string | null
+          id?: number
+          kind: string
+          profile_id: string
+          to_value?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          at?: string
+          from_value?: string | null
+          id?: number
+          kind?: string
+          profile_id?: string
+          to_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mkt_link_daily: {
         Row: {
           clicks: number
@@ -1746,6 +1791,7 @@ export type Database = {
           pages: string[]
           role: string
           shift: string | null
+          updated_by: string | null
           work_link: string
         }
         Insert: {
@@ -1767,6 +1813,7 @@ export type Database = {
           pages?: string[]
           role?: string
           shift?: string | null
+          updated_by?: string | null
           work_link?: string
         }
         Update: {
@@ -1788,6 +1835,7 @@ export type Database = {
           pages?: string[]
           role?: string
           shift?: string | null
+          updated_by?: string | null
           work_link?: string
         }
         Relationships: [
@@ -1808,6 +1856,13 @@ export type Database = {
           {
             foreignKeyName: "profiles_left_by_fkey"
             columns: ["left_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { useMemberPanel } from '@/hooks/use-member-panel'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -17,13 +18,14 @@ import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
-import { createMember, updateMember } from '../actions'
+import { createMember, loadMemberEvents, updateMember } from '../actions'
 import { memberInput, type MemberForm } from '../schema'
-import type { Member } from '../types'
+import type { Member, MemberEvent } from '../types'
 import { MemberAccessFields } from './member-access-fields'
 import { MemberArrivalFields } from './member-arrival-fields'
 import { MemberChatterLinkField } from './member-chatter-link-field'
 import { MemberClosingFields } from './member-closing-fields'
+import { MemberHistoryTab } from './member-history-tab'
 import { MemberIdentityFields } from './member-identity-fields'
 import { MemberPayForm, MemberPayPlaceholder } from './member-pay-form'
 import { MemberPermissionFields } from './member-permission-fields'
@@ -185,6 +187,9 @@ export function MemberDialog({
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })
+  // Historique (0104) : chargé quand on ARRIVE sur l'onglet, via `onValueChange` ci-dessous —
+  // un événement, pas un effet (patron `useMemberPanel`, partagé avec les piles de noms).
+  const { panel: historyPanel, open: loadHistory } = useMemberPanel<MemberEvent[]>(loadMemberEvents)
   // Commande l'apparition du champ « Arrivé le » (0101) — observé ici, comme `roleValue`, plutôt
   // que dans le composant de champs : un `useWatch` par composant multiplierait les re-rendus.
   const isNewValue = useWatch({ control, name: 'isNew' })
@@ -321,22 +326,37 @@ export function MemberDialog({
         </DialogHeader>
 
         {/* Pas d'onglets quand il n'y en aurait qu'un : un `TabsList` à une seule entrée serait
-            du bruit pour un manager (ou pour un membre non chatteur), qui ne verra jamais rien
-            d'autre que le formulaire. */}
-        {showPayTab ? (
-          <Tabs defaultValue="general">
+            du bruit. L'HISTORIQUE (0104) n'existe que pour un membre DÉJÀ CRÉÉ — à la création,
+            il n'y a rien à raconter, et pas d'id à interroger. */}
+        {showPayTab || member ? (
+          <Tabs
+            defaultValue="general"
+            onValueChange={(v) => {
+              // Une seule lecture par ouverture de dialog : `panel.id` retient déjà ce membre.
+              if (v === 'historique' && member && historyPanel?.id !== member.id)
+                loadHistory(member.id)
+            }}
+          >
             <TabsList>
               <TabsTrigger value="general">Général</TabsTrigger>
-              <TabsTrigger value="compta">Compta</TabsTrigger>
+              {showPayTab && <TabsTrigger value="compta">Compta</TabsTrigger>}
+              {member && <TabsTrigger value="historique">Historique</TabsTrigger>}
             </TabsList>
             <TabsContent value="general">{generalForm}</TabsContent>
-            <TabsContent value="compta">
-              {member?.pay ? (
-                <MemberPayForm memberId={member.id} pay={member.pay} />
-              ) : (
-                <MemberPayPlaceholder />
-              )}
-            </TabsContent>
+            {showPayTab && (
+              <TabsContent value="compta">
+                {member?.pay ? (
+                  <MemberPayForm memberId={member.id} pay={member.pay} />
+                ) : (
+                  <MemberPayPlaceholder />
+                )}
+              </TabsContent>
+            )}
+            {member && (
+              <TabsContent value="historique">
+                <MemberHistoryTab panel={historyPanel} />
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           generalForm

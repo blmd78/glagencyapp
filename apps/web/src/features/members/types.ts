@@ -96,6 +96,35 @@ export interface Member {
   pay?: MemberPay
 }
 
+/** Types d'événement de l'historique (0104) — miroir du check SQL `member_events.kind`. */
+export const EVENT_KINDS = [
+  'creation',
+  'role',
+  'shift',
+  'closing',
+  'modele',
+  'manager',
+  'pages',
+  'nouveau',
+  'arrivee',
+  'sortie',
+] as const
+export type EventKind = (typeof EVENT_KINDS)[number]
+
+/** Une ligne de la timeline. `label` est déjà rédigé côté serveur : la vue ne fait que l'afficher. */
+export interface MemberEvent {
+  id: number
+  /** ISO complet — l'affichage le formate en fuseau Paris. */
+  at: string
+  kind: EventKind
+  /** Phrase prête à lire, ex. « Shift : Matin → Soir ». */
+  label: string
+  /** Nom de l'auteur, ou `null` → l'écran affiche « système » (écriture SQL directe). */
+  actorName: string | null
+  /** Nom du membre concerné — sert le flux global, où la timeline mélange tout le monde. */
+  memberName: string
+}
+
 /** Contrat de l'onglet « Turnover » (0103). Tout est déjà agrégé côté service. */
 export interface TurnoverData {
   /** Bornes réelles de la fenêtre — affichées, parce qu'elles ne sont PAS « 12 derniers mois »

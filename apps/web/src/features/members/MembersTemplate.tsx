@@ -1,7 +1,8 @@
 import { MembersTable } from './components/members-table'
 import { MembersTabs } from './components/members-tabs'
 import { TurnoverView } from './components/turnover-view'
-import type { MembersData, TurnoverData } from './types'
+import { ActivityView } from './components/activity-view'
+import type { MemberEvent, MembersData, TurnoverData } from './types'
 
 /**
  * Template Membres (admin) : comptes, pages accessibles, modèles assignés — et l'onglet
@@ -18,6 +19,7 @@ import type { MembersData, TurnoverData } from './types'
 export function MembersTemplate({
   data,
   turnover = null,
+  activity = null,
   vue = 'liste',
   scope = 'chatter',
   viewer = 'admin',
@@ -25,7 +27,8 @@ export function MembersTemplate({
 }: {
   data: MembersData | null
   turnover?: TurnoverData | null
-  vue?: 'liste' | 'turnover'
+  activity?: { events: MemberEvent[]; from: string; to: string; limit: number } | null
+  vue?: 'liste' | 'turnover' | 'activite'
   /** Face dont cette page gère les droits (les droits de l'autre face sont préservés). */
   scope?: 'chatter' | 'marketing'
   /** Manager : gère uniquement SES chatters (rôle user forcé) — défaut admin. */
@@ -64,6 +67,7 @@ export function MembersTemplate({
       vue={vue}
       liste={liste}
       turnover={turnover ? <TurnoverView data={turnover} /> : null}
+      activite={activity ? <ActivityView {...activity} /> : null}
     />
   )
 }
