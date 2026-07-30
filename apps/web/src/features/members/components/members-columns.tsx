@@ -11,6 +11,7 @@ import { isImpersonatable } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
+import { ShiftBadge } from '@/components/shift-badge'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -236,12 +237,15 @@ export function buildMembersColumns({
               {ROLE_NAME[role] ?? ROLE_NAME.chatteur}
             </Badge>
           )
-          // Un chatter porte en plus ses étiquettes closing (setter/closer, équipe).
+          // Un chatter porte en plus ses étiquettes closing (setter/closer, équipe) et son
+          // SHIFT — les trois sont des attributs du membre (0077 pour le closing, 0099 pour le
+          // shift, qui vivait jusque-là sur la fiche MyPuls).
           return role === 'chatteur' || !ROLE_NAME[role] ? (
             <div className="flex flex-wrap items-center gap-1">
               {badge}
               <RoleBadge role={row.original.closingRole} />
               <TeamBadge team={row.original.closingTeam} />
+              <ShiftBadge shift={row.original.shift} />
             </div>
           ) : (
             badge

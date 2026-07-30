@@ -32,7 +32,6 @@ export function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-right text-muted-foreground">—</TableCell>
           <TableCell className="text-center text-muted-foreground">—</TableCell>
-          <TableCell />
         </TableRow>
       ))}
       {row.original.caUnattributed > 0 && (
@@ -45,7 +44,7 @@ export function chatterSubRows(row: Row<ChatterRow>) {
           <TableCell className="text-right italic tabular-nums text-amber-600">
             {eur(row.original.caUnattributed)}
           </TableCell>
-          <TableCell colSpan={8} className="text-muted-foreground">—</TableCell>
+          <TableCell colSpan={7} className="text-muted-foreground">—</TableCell>
         </TableRow>
       )}
     </>

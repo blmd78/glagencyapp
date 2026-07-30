@@ -1,17 +1,28 @@
 'use server'
 
 // Server Actions du board Organisation — ÉDITION EN WRITE-THROUGH : les cases écrivent les
-// VRAIES données (profile_creators = assignation au modèle, chatters.shift via le lien
-// MyPuls), jamais une copie — Membres/Chatters et le board restent une seule vérité.
-// Édition ADMIN uniquement (v1) : réassigner un modèle change le périmètre RLS du chatteur,
-// même pouvoir que le dialog Membres admin. Client service-role, garde en tête de handler.
+// VRAIES données (profile_creators = assignation au modèle, profiles.shift depuis 0100),
+// jamais une copie — Membres et le board restent une seule vérité.
+//
+// DEUX NIVEAUX DE DROIT, comme le planning repos :
+//  • COMPOSER UNE CASE (saveOrgCell) = admin OU encadrant porteur de la page `organisation`
+//    (miroir de `can_write_page('organisation')` dans le RPC, 0100) ;
+//  • STRUCTURE (saveOrgRow, deleteOrgRow, moveOrgTeam) = ADMIN seul : ajouter/supprimer une
+//    ligne ou déplacer une équipe réécrit l'organigramme, pas la composition d'un shift.
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { CRM_SHIFTS } from '@/lib/types/chatters'
-import { BusinessError, runAction, noGuard, requireAdminProfile, type ActionResult } from '@/lib/actions'
+import {
+  BusinessError,
+  runAction,
+  noGuard,
+  requireAdminProfile,
+  requireWriteProfile,
+  type ActionResult,
+} from '@/lib/actions'
 
 const cellInput = z.object({
   creatorId: z.uuid(),
@@ -24,11 +35,13 @@ const cellInput = z.object({
 
 /**
  * Sauvegarde d'une case (modèle × shift) :
- *  - AJOUTÉ   → assigné au modèle (upsert profile_creators) + shift posé sur sa fiche
- *               chatteur (via le lien MyPuls ; sans lien, il reste « à placer » — visible) ;
+ *  - AJOUTÉ   → assigné au modèle (upsert profile_creators) + shift posé sur le MEMBRE ;
  *  - RETIRÉ   → désassigné du modèle SEULEMENT si son shift est encore celui de la case
  *               (un déplacement de shift = retrait d'une case + ajout dans l'autre, dans
  *               n'importe quel ordre : le retrait voit alors un shift différent → no-op).
+ *
+ * Ouvert aux encadrants porteurs de la page (0100). La garde ci-dessous n'est qu'un MIROIR du
+ * `can_write_page('organisation')` que le RPC applique en base — l'enforcement réel est là-bas.
  */
 export async function saveOrgCell(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -36,7 +49,7 @@ export async function saveOrgCell(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (values) => {
-      await requireAdminProfile()
+      await requireWriteProfile('organisation')
       const supabase = await createClient()
       // UN SEUL aller-retour (RPC 0099) : l'ancienne version enchaînait plusieurs requêtes
       // PAR personne touchée — c'est ce qui rendait l'édition lente sur base distante.
@@ -85,12 +98,16 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
       // UN SEUL aller-retour (RPC 0099) : remplacement de la paire, alignement du porteur
       // jumeau et rattachement du sous-manager tiennent dans la fonction — l'ancienne version
       // faisait jusqu'à 10 requêtes séquentielles.
+      // `?? undefined` sur les trois arguments optionnels : ils ont un `default null` en SQL
+      // (0101) et les types générés les rendent optionnels — on OMET la clé au lieu d'envoyer
+      // null, comme `upsert_police_report`. `supabase gen types` ne sait pas exprimer un
+      // argument nullable, il générerait `string` et l'appel ne compilerait pas.
       const { error } = await supabase.rpc('save_org_row', {
         p_owner_id: values.ownerId,
         p_creator_id: values.creatorId,
-        p_prev_owner_id: values.prevOwnerId,
-        p_prev_creator_id: values.prevCreatorId,
-        p_section_manager_id: values.sectionManagerId ?? null,
+        p_prev_owner_id: values.prevOwnerId ?? undefined,
+        p_prev_creator_id: values.prevCreatorId ?? undefined,
+        p_section_manager_id: values.sectionManagerId ?? undefined,
       })
       if (error) {
         if (error.message.includes('org_porteur_invalide'))
@@ -150,21 +167,23 @@ export async function moveOrgTeam(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (values) => {
       await requireAdminProfile()
-      const admin = createAdminClient()
-      const { sousManagerId, fromManagerId, toManagerId } = values
-      const [{ data: sm, error: sErr }, { data: to, error: tErr }] = await Promise.all([
-        admin.from('profiles').select('role, manager_ids').eq('id', sousManagerId).maybeSingle(),
-        admin.from('profiles').select('role').eq('id', toManagerId).maybeSingle(),
-      ])
-      if (sErr) throw new Error(sErr.message)
-      if (tErr) throw new Error(tErr.message)
-      if (sm?.role !== 'sous-manager') throw new BusinessError('La ligne n’a pas de sous-manager à déplacer')
-      // Un ADMIN peut diriger une équipe (Axel, Dorian) — cf. ATTACHABLE_ROLES.
-      if (!to || !['admin', 'manager'].includes(to.role))
-        throw new BusinessError('La cible doit être un manager ou un admin')
-      const next = [...new Set([...(sm.manager_ids ?? []).filter((m) => m !== fromManagerId), toManagerId])]
-      const { error } = await admin.from('profiles').update({ manager_ids: next }).eq('id', sousManagerId)
-      if (error) throw new Error(error.message)
+      const supabase = await createClient()
+      // UN SEUL aller-retour : les deux lectures de contrôle et l'UPDATE tiennent dans le RPC
+      // (0099), comme pour les deux autres écritures du board.
+      const { error } = await supabase.rpc('move_org_team', {
+        p_sous_manager_id: values.sousManagerId,
+        p_to_manager_id: values.toManagerId,
+        // `?? undefined` : `default null` en SQL → argument optionnel côté types générés.
+        p_from_manager_id: values.fromManagerId ?? undefined,
+      })
+      if (error) {
+        if (error.message.includes('org_pas_de_sous_manager'))
+          throw new BusinessError('La ligne n’a pas de sous-manager à déplacer')
+        if (error.message.includes('org_cible_invalide'))
+          throw new BusinessError('La cible doit être un manager ou un admin')
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError('Accès refusé')
+        throw new Error(error.message)
+      }
       revalidatePath('/chatter/organisation')
       revalidatePath('/chatter/members')
     },

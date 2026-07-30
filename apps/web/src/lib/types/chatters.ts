@@ -8,7 +8,8 @@ import type { RevenueScope } from '@/lib/types/revenue'
 
 // Constantes closing CRM. `CRM_ROLES`/`CRM_TEAMS` = valeurs de `profiles.closing_role`/`closing_team`
 // (le closing est porté par le membre, 0077 ; `chatters.role`/`team` droppées en 0080). `CRM_SHIFTS`
-// = valeurs de `chatters.shift` (toujours édité côté Chatteurs).
+// = valeurs de `profiles.shift` — le shift a rejoint le membre en 0100 (il vivait sur la fiche
+// MyPuls, ce qui le rendait impossible à poser sur un chatteur sans lien).
 // QUATRE valeurs depuis le 2026-07-28 (migration 0090) : la légende de la feuille de paie du
 // propriétaire connaît `nouveau` (🔴) et « chatteurs hybrides » en plus de setter/closer, et le
 // `check` de `profiles.closing_role` les accepte désormais. Élargir ICI est ce qui rend Membres
@@ -47,9 +48,9 @@ export interface ChatterRow {
   active: boolean
   /** Nom de la team de management (teams.name via team_id) — ≠ `closingTeam` rouge/bleue. */
   managementTeam: string | null
-  // Shift (matin/aprem/soir), édité via le crayon — null = non renseigné.
-  // Rôle (setter/closer) et équipe (rouge/bleue) sont désormais gérés sur le MEMBRE.
-  shift: CrmShift | null
+  // Le SHIFT ne figure plus ici : porté par le membre depuis 0100, il se lit et s'édite dans
+  // Membres et sur le board Organisation. Cette page liste des FICHES MyPuls, dont la majorité
+  // n'a aucun membre lié — y afficher un shift n'avait de sens que pour une minorité.
   // Closing lu DEPUIS le membre lié (profiles.closing_role/closing_team via profiles.chatter_id) —
   // read-only ici ; l'édition est sur la fiche Membre. null = chatteur non lié / sans désignation.
   closingRole: CrmRole | null

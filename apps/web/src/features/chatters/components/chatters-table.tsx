@@ -11,24 +11,21 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { DataTable } from '@/components/data-table/data-table'
-import { canExpand, makeChattersColumns } from './chatters-columns'
+import { canExpand, chattersColumns } from './chatters-columns'
 import { chatterSubRows } from './chatters-sub-rows'
 import { downloadRanking } from './download-ranking'
 import type { ChatterRow, DailyRanking } from '@/lib/types/chatters'
 
+// Table en LECTURE SEULE pour tout le monde depuis 0100 : la seule édition qu'elle portait était
+// le shift, désormais attribut du membre (Membres + board Organisation). Plus de `canWrite`.
 export function ChattersTable({
   chatters,
   dailyRanking = null,
-  canWrite,
 }: {
   chatters: ChatterRow[]
   dailyRanking?: DailyRanking | null
-  canWrite: boolean
 }) {
   const [modelId, setModelId] = useState('all')
-  // Colonne d'édition CRM gatée sur `canWrite` (admin ou manager/sous-manager) — un
-  // chatteur voit la table en lecture seule.
-  const columns = makeChattersColumns({ canWrite })
 
   // Options du sélecteur : les comptes OF présents dans les données de la période
   // (dédupliqués par creator_id — deux comptes peuvent partager un nom).
@@ -42,7 +39,7 @@ export function ChattersTable({
   return (
     <DataTable
       data={filtered}
-      columns={columns}
+      columns={chattersColumns}
       filterColumnId="name"
       filterPlaceholder="Filtrer par chatter…"
       initialSorting={[{ id: 'ca', desc: true }]}

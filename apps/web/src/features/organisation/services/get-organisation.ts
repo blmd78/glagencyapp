@@ -7,11 +7,11 @@ import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
  * Le board d'orga, DÉRIVÉ des données existantes (AUCUNE saisie propre) :
  *   manager → ses sous-managers (rattachement `manager_ids`) → leurs modèles
  *   (`profile_creators`) → les chatters assignés à chaque modèle, groupés par shift
- *   (fiche chatteur MyPuls via le lien `profiles.chatter_id`).
+ *   (`profiles.shift`, migration 0100).
  *
- * Conséquence voulue : tout changement fait dans MEMBRES (assignations, rattachements, lien
- * MyPuls) ou sur la fiche CHATTERS (shift) se reflète ici automatiquement — et inversement,
- * l'édition des cases du board (actions.ts) écrit CES données-là, pas une copie.
+ * Conséquence voulue : tout changement fait dans MEMBRES (assignations, rattachements, shift)
+ * se reflète ici automatiquement — et inversement, l'édition des cases du board (actions.ts)
+ * écrit CES données-là, pas une copie.
  *
  * Client ADMIN : page opérationnelle agence-wide (l'orga n'a de sens que complète), accès
  * gardé en amont par requireAccess('organisation') — même patron que get-repos.
@@ -19,12 +19,12 @@ import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
 export async function getOrganisation(): Promise<OrganisationData> {
   const admin = createAdminClient()
 
-  const [profilesRes, creatorsRes, assignRes, chattersRes] = await Promise.all([
+  const [profilesRes, creatorsRes, assignRes] = await Promise.all([
     // fetchAll partout : tables sans purge, cap PostgREST silencieux (guidelines §2).
     fetchAll((f, t) =>
       admin
         .from('profiles')
-        .select('id, display_name, email, role, manager_ids, chatter_id')
+        .select('id, display_name, email, role, manager_ids, shift')
         .in('role', ['admin', 'manager', 'sous-manager', 'chatteur'])
         .order('id')
         .range(f, t),
@@ -38,20 +38,16 @@ export async function getOrganisation(): Promise<OrganisationData> {
         .order('creator_id')
         .range(f, t),
     ),
-    fetchAll((f, t) => admin.from('chatters').select('id, shift').order('id').range(f, t)),
   ])
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (creatorsRes.error) throw new Error(creatorsRes.error.message)
   if (assignRes.error) throw new Error(assignRes.error.message)
-  if (chattersRes.error) throw new Error(chattersRes.error.message)
 
   const profiles = profilesRes.data
   const creators = creatorsRes.data ?? []
   const nameOf = (p: { display_name: string | null; email: string | null }) =>
     p.display_name ?? p.email ?? '—'
 
-  // Shift par chatteur MyPuls, puis par MEMBRE via son lien.
-  const shiftByMypuls = new Map(chattersRes.data.map((c) => [c.id, c.shift]))
   const isShift = (v: string | null | undefined): v is CrmShift =>
     !!v && (CRM_SHIFTS as readonly string[]).includes(v)
 
@@ -67,12 +63,10 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const chattersByModel = new Map<string, OrgChatter[]>()
   let aPlacer = 0
   for (const m of chatterMembers) {
-    const raw = m.chatter_id ? shiftByMypuls.get(m.chatter_id) : null
     const entry: OrgChatter = {
       id: m.id,
       name: nameOf(m),
-      shift: isShift(raw) ? raw : null,
-      linked: !!m.chatter_id,
+      shift: isShift(m.shift) ? m.shift : null,
     }
     if (!entry.shift) aPlacer += 1
     for (const creatorId of modelsByProfile.get(m.id) ?? []) {
@@ -182,8 +176,10 @@ export async function getOrganisation(): Promise<OrganisationData> {
     .map((c) => c.name)
     .sort((a, b) => a.localeCompare(b))
 
+  // TOUS les membres rôle chatteur sont plaçables depuis 0100 : le shift vit sur le membre, plus
+  // sur la fiche MyPuls — un chatteur sans lien n'est plus un angle mort du board.
   const chatterOptions = chatterMembers
-    .map((m) => ({ id: m.id, name: nameOf(m), linked: !!m.chatter_id }))
+    .map((m) => ({ id: m.id, name: nameOf(m) }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return {

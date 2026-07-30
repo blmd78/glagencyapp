@@ -26,25 +26,24 @@ const TEAM_LABEL: Record<CrmTeam, string> = { rouge: 'Rouge', bleue: 'Bleue' }
 const SHIFT_LABEL: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
 
 /**
- * Désignation « closing » d'un chatteur : rôle (setter/closer/hybride/nouveau) + équipe
- * (rouge/bleue), portée par le MEMBRE (cf. migration 0077). Masquée pour les autres rôles — le
- * serveur force null. Sentinelle 'none' ↔ null car Radix interdit value="" sur un item (même
- * patron que le rattachement manager).
+ * Désignation « closing » d'un chatteur : rôle (setter/closer/hybride/nouveau), équipe
+ * (rouge/bleue) et SHIFT — tous trois portés par le MEMBRE (0077 pour le closing, 0100 pour le
+ * shift, qui vivait jusque-là sur la fiche MyPuls). Masquée pour les autres rôles — le serveur
+ * force null. Sentinelle 'none' ↔ null car Radix interdit value="" sur un item (même patron que
+ * le rattachement manager).
+ *
+ * Les trois champs sont ouverts à tout éditeur du membre (admin ou encadrant) : aucun ne dépend
+ * plus d'une table admin-only, donc aucun ne risque plus l'effacement silencieux qui imposait
+ * de masquer le shift aux managers (audit 2026-07-29).
  */
 export function MemberClosingFields({
   control,
   roleValue,
   isSubmitting,
-  linked,
-  showShift,
 }: {
   control: Control<MemberForm>
   roleValue: MemberForm['role']
   isSubmitting: boolean
-  /** Lien MyPuls présent : le shift s'écrit sur la fiche liée — sans lien, il ne peut pas être conservé. */
-  linked: boolean
-  /** Le shift vit sur la fiche chatteur : ADMIN seul (cf. member-dialog / applyShift). */
-  showShift: boolean
 }) {
   'use no memo'
   if (roleValue !== 'chatteur') return null
@@ -106,7 +105,6 @@ export function MemberClosingFields({
           </div>
         )}
       />
-      {showShift && (
       <Controller
         name="shift"
         control={control}
@@ -132,15 +130,9 @@ export function MemberClosingFields({
                 ))}
               </SelectContent>
             </Select>
-            {!linked && (
-              <p className="text-xs text-muted-foreground">
-                Nécessite le lien MyPuls (le shift vit sur la fiche chatteur).
-              </p>
-            )}
           </div>
         )}
       />
-      )}
     </div>
   )
 }

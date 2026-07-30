@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { applyChatterLink } from '@/lib/chatter-link'
-import type { Profile } from '@/lib/auth'
 import { readStateCookie } from '@/lib/impersonation/session'
 import {
   authorizeRoleAndScope,
@@ -43,32 +42,13 @@ const revalidateMembers = () => {
   revalidatePath('/chatter/organisation')
 }
 
-/**
- * Écrit le shift sur la fiche chatteur LIÉE (chatters.shift = LA source, partagée avec la
- * page Chatters et le board Organisation). Sans lien : rien à écrire — le champ du dialog
- * l'annonce. Appelé APRÈS applyChatterLink pour viser le lien à jour.
- *
- * ⚠️ NO-OP POUR UN NON-ADMIN, exactement comme `applyChatterLink` — et pour les deux mêmes
- * raisons : (1) `getMembers` ne charge les shifts que pour un admin, donc le formulaire d'un
- * manager porte `shift: null` sans que personne l'ait choisi → enregistrer une simple
- * modification de pages EFFACERAIT le shift (perte silencieuse, audit 2026-07-29 : reproduit
- * sur l'UAT) ; (2) l'écriture passe par le SERVICE-ROLE, qui court-circuite la RLS
- * `chatters_crm_update` (0029/0060 : réservée à `can_write_page('chatters')`) — un encadrant
- * sans cette page écrirait une colonne que la base lui refuse.
- */
-async function applyShift(
-  admin: ReturnType<typeof createAdminClient>,
-  caller: Profile,
-  profileId: string,
-  shift: string | null,
-) {
-  if (caller.role !== 'admin') return // non-admin : shift inchangé (cf. applyChatterLink)
-  const { data: prof, error } = await admin.from('profiles').select('chatter_id').eq('id', profileId).maybeSingle()
-  if (error) throw new Error(error.message)
-  if (!prof?.chatter_id) return
-  const { error: sErr } = await admin.from('chatters').update({ shift }).eq('id', prof.chatter_id)
-  if (sErr) throw new Error(sErr.message)
-}
+// LE SHIFT N'A PLUS DE HELPER DÉDIÉ (0100). Il vivait sur `chatters.shift` — la fiche MyPuls —
+// ce qui imposait `applyShift` : résoudre le lien, écrire sur l'autre table, et NE RIEN FAIRE
+// pour un encadrant (le formulaire d'un manager portait `shift: null` faute de pouvoir lire la
+// table admin-only, si bien qu'un simple enregistrement de pages effaçait le shift — audit
+// 2026-07-29). Porté par `profiles`, c'est une colonne du membre comme `closing_role` : écrite
+// dans le patch principal de createMember/updateMember, lisible par tout encadrant (0097), et
+// indépendante du lien MyPuls — les chatteurs sans fiche ont enfin un shift.
 
 /** Crée le compte auth (email confirmé → OTP direct), le profil, pages + modèles. */
 export async function createMember(raw: unknown): Promise<ActionResult> {
@@ -135,6 +115,9 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // n'est pas setter/closer). Cf. 0077 — attribut porté par le membre, indépendant de chatters.
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
+          // Shift : même règle, et depuis 0100 même TABLE que le closing (il vivait sur la fiche
+          // MyPuls, ce qui le rendait inaccessible aux chatteurs sans lien).
+          shift: role === 'chatteur' ? values.shift : null,
           // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
           created_by: caller.id,
           ...managerIdsPatch(role, scope, managerIds, true),
@@ -150,7 +133,6 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing ci-dessus) —
       // sinon on force à null pour ne pas « consommer » l'unicité d'un chatteur sur un non-chatteur.
       await applyChatterLink(admin, caller, uid, role === 'chatteur' ? chatterId : '')
-      if (role === 'chatteur') await applyShift(admin, caller, uid, values.shift)
       if (role !== 'chatteur') {
         const { error: rErr } = await admin
           .from('profiles')
@@ -209,6 +191,8 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           // Désignation closing : uniquement pour un chatteur, null sinon (cf. 0077, createMember).
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
+          // Shift (0100) : attribut du membre, remis à null si la cible cesse d'être chatteur.
+          shift: role === 'chatteur' ? values.shift : null,
           // apply seulement pour un admin : un manager ne déplace pas un rattachement.
           ...managerIdsPatch(role, scope, managerIds, caller.role === 'admin'),
         })
@@ -216,15 +200,10 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       if (pErr) throw new Error(pErr.message)
       // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing) — un membre
       // promu manager/police/admin voit son chatter_id remis à null (sinon lien orphelin non réparable).
-      // Lien AVANT modification : si l'admin re-lie le membre à une AUTRE fiche, la valeur de
-      // shift du formulaire décrit l'ANCIENNE fiche — l'appliquer écraserait le shift propre
-      // de la nouvelle (audit 2026-07-29). Dans ce cas on ne touche pas au shift.
-      const { data: beforeLink } = await admin.from('profiles').select('chatter_id').eq('id', id).maybeSingle()
+      // La danse beforeLink/afterLink qui protégeait le shift ici (audit 2026-07-29) a disparu
+      // avec 0100 : le shift ne vit plus sur la fiche MyPuls, donc re-lier un membre à une AUTRE
+      // fiche ne peut plus écraser le shift de personne — il est écrit avec le reste du profil.
       await applyChatterLink(admin, caller, id, role === 'chatteur' ? chatterId : '')
-      const { data: afterLink } = await admin.from('profiles').select('chatter_id').eq('id', id).maybeSingle()
-      if (role === 'chatteur' && beforeLink?.chatter_id === afterLink?.chatter_id) {
-        await applyShift(admin, caller, id, values.shift)
-      }
       // La cible cesse d'être manager/sous-manager (démotion chatteur OU promotion admin) :
       // détacher ses chatteurs, sinon ils restent rattachés à un non-manager — invisibles de
       // tous les managers, et l'édition admin bloquerait sur un rattachement périmé.

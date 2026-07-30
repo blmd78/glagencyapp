@@ -7,7 +7,15 @@ import type { OrganisationData } from './types'
  * cartes KPI au-dessus. Tout est dérivé de Membres/Chatters et les éditions écrivent ces
  * mêmes données (write-through) — cf. get-organisation / actions.ts.
  */
-export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData; isAdmin: boolean }) {
+export function OrganisationTemplate({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: OrganisationData
+  isAdmin: boolean
+  canWrite: boolean
+}) {
   const { counts, orphanModels } = data
 
   const kpis: Array<Kpi & { accent?: string }> = [
@@ -47,7 +55,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
       value: String(counts.aPlacer),
       deltaPct: null,
       trendLabel: 'sans shift renseigné',
-      hint: 'lien MyPuls ou shift à régler',
+      hint: 'à poser dans une case ou dans Membres',
       accent: counts.aPlacer ? 'border-t-amber-500' : 'border-t-blue-500',
     },
   ]
@@ -65,7 +73,7 @@ export function OrganisationTemplate({ data, isAdmin }: { data: OrganisationData
         ))}
       </div>
 
-      <OrgTable data={data} isAdmin={isAdmin} />
+      <OrgTable data={data} isAdmin={isAdmin} canWrite={canWrite} />
 
     </div>
   )

@@ -13,9 +13,13 @@ export default async function OrganisationPage() {
   const profile = await requireAccess('organisation')
   // Kickoff SANS await : le h1 s'affiche immédiatement, l'orga streame dans son boundary.
   const data = getOrganisation()
-  // Édition (cases + statut) : ADMIN uniquement (v1) — réassigner un modèle change le
-  // périmètre RLS d'un chatteur, même pouvoir que le dialog Membres admin.
+  // Deux niveaux, comme le planning repos (cf. features/organisation/actions.ts) :
+  //  • canWrite (admin OU encadrant porteur de la page) = composer les CASES — poser un shift,
+  //    assigner un chatteur à un modèle ; miroir de `can_write_page('organisation')` (0100) ;
+  //  • isAdmin = la STRUCTURE (ajouter/supprimer une ligne, déplacer une équipe), qui réécrit
+  //    l'organigramme. Un chatteur reste en lecture seule totale.
   const isAdmin = profile.role === 'admin'
+  const canWrite = isAdmin || profile.manager
 
   return (
     <div className="flex flex-col gap-6">
@@ -27,12 +31,20 @@ export default async function OrganisationPage() {
           </SectionFallback>
         }
       >
-        <OrganisationContent data={data} isAdmin={isAdmin} />
+        <OrganisationContent data={data} isAdmin={isAdmin} canWrite={canWrite} />
       </Suspense>
     </div>
   )
 }
 
-async function OrganisationContent({ data, isAdmin }: { data: Promise<OrganisationData>; isAdmin: boolean }) {
-  return <OrganisationTemplate data={await data} isAdmin={isAdmin} />
+async function OrganisationContent({
+  data,
+  isAdmin,
+  canWrite,
+}: {
+  data: Promise<OrganisationData>
+  isAdmin: boolean
+  canWrite: boolean
+}) {
+  return <OrganisationTemplate data={await data} isAdmin={isAdmin} canWrite={canWrite} />
 }

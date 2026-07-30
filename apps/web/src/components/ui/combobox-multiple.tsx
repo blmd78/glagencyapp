@@ -40,6 +40,7 @@ export function ComboboxMultiple({
   chipClassName,
   chipTitle,
   extraChips = [],
+  note,
 }: {
   trigger: ReactNode
   options: ComboOption[]
@@ -54,6 +55,9 @@ export function ComboboxMultiple({
   /** Tooltip d'un chip (par valeur). */
   chipTitle?: (v: string) => string | undefined
   extraChips?: ExtraChip[]
+  /** Avertissement affiché EN TÊTE du popover, avant tout choix — pour une case dont la
+   *  sélection a des effets au-delà d'elle-même (board Organisation : shift + assignation). */
+  note?: ReactNode
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
@@ -92,6 +96,11 @@ export function ComboboxMultiple({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <Command>
+          {note && (
+            <p className="border-b px-2 py-1.5 text-[11px] leading-snug text-muted-foreground">
+              {note}
+            </p>
+          )}
           {/* Champ ComboboxChips : sélections (croix de retrait) + saisie inline. */}
           <div
             className="flex flex-wrap items-center gap-1 border-b px-2 py-1.5"

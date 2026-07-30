@@ -1,21 +1,19 @@
 // Types de la feature « Organisation » (catégorie Équipe) — le board d'orga de l'agence,
 // IDENTIQUE à la Google Sheet : Manager | Manager 2 | Modèle | Shift matin | Après-midi |
 // Soir | Total chatteurs. Éditable comme le planning repos (cases ComboboxMultiple), en
-// WRITE-THROUGH : les cases écrivent les VRAIES données (profile_creators + chatters.shift),
-// jamais une copie — Membres/Chatters et ce board restent une seule et même vérité.
+// WRITE-THROUGH : les cases écrivent les VRAIES données (profile_creators + profiles.shift),
+// jamais une copie — Membres et ce board restent une seule et même vérité.
 // Colonnes et COULEURS identiques au fichier d'origine (matin #F4CCCC, après-midi #D9EAD3,
 // soir #C9DAF8), sans la colonne Statut (retirée à la demande de Benoit).
 
 import type { CrmShift } from '@/lib/types/chatters'
 
-/** Un chatteur affiché dans une case : shift résolu via son lien MyPuls. */
+/** Un chatteur affiché dans une case. */
 export interface OrgChatter {
   id: string
   name: string
-  /** null = membre non lié à un chatteur MyPuls, ou shift non renseigné → « à placer ». */
+  /** null = shift non renseigné → « à placer ». */
   shift: CrmShift | null
-  /** Sans lien MyPuls, le shift n'est pas modifiable depuis le board. */
-  linked: boolean
 }
 
 /** Une ligne du board = (owner, modèle) : les chatters du modèle groupés par shift.
@@ -45,7 +43,7 @@ export interface OrgSection {
 export interface OrganisationData {
   sections: OrgSection[]
   /** Options des cases : tous les membres rôle chatteur. */
-  chatterOptions: { id: string; name: string; linked: boolean }[]
+  chatterOptions: { id: string; name: string }[]
   /** Options des lignes (édition structurelle, admin). */
   sousManagerOptions: { id: string; name: string }[]
   managerOptions: { id: string; name: string }[]
@@ -58,7 +56,7 @@ export interface OrganisationData {
     sousManagers: number
     modeles: number
     chatteurs: number
-    /** Chatteurs sans shift renseigné (non liés MyPuls ou shift vide). */
+    /** Chatteurs sans shift renseigné. */
     aPlacer: number
   }
 }

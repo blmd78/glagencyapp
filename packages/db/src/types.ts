@@ -1742,6 +1742,7 @@ export type Database = {
           manager_ids: string[]
           pages: string[]
           role: string
+          shift: string | null
           work_link: string
         }
         Insert: {
@@ -1756,6 +1757,7 @@ export type Database = {
           manager_ids?: string[]
           pages?: string[]
           role?: string
+          shift?: string | null
           work_link?: string
         }
         Update: {
@@ -1770,6 +1772,7 @@ export type Database = {
           manager_ids?: string[]
           pages?: string[]
           role?: string
+          shift?: string | null
           work_link?: string
         }
         Relationships: [
@@ -1778,6 +1781,13 @@ export type Database = {
             columns: ["chatter_id"]
             isOneToOne: true
             referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2399,6 +2409,14 @@ export type Database = {
         }[]
       }
       models_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      move_org_team: {
+        Args: {
+          p_from_manager_id?: string
+          p_sous_manager_id: string
+          p_to_manager_id: string
+        }
+        Returns: undefined
+      }
       overview_report: {
         Args: {
           p_chart_from: string
@@ -2423,9 +2441,9 @@ export type Database = {
         Args: {
           p_creator_id: string
           p_owner_id: string
-          p_prev_creator_id: string | null
-          p_prev_owner_id: string | null
-          p_section_manager_id: string | null
+          p_prev_creator_id?: string
+          p_prev_owner_id?: string
+          p_section_manager_id?: string
         }
         Returns: undefined
       }
