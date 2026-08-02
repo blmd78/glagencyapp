@@ -5,27 +5,20 @@
 // `chatters-columns.tsx`). `members-table.tsx` ne garde que la composition DataTable + toolbar.
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { toast } from 'sonner'
-import { AlertTriangle, LogOut, Pencil, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
-import { isImpersonatable } from '@glagency/core'
+import { AlertTriangle, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { RoleBadge } from '@/components/role-badge'
 import { TeamBadge } from '@/components/team-badge'
 import { ShiftBadge } from '@/components/shift-badge'
 import { NewBadge } from '@/components/new-badge'
-import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { STATUS_COLORS } from '@/lib/status-color'
-import { deleteMember, reactivateMember } from '../actions'
-import { ImpersonateButton } from './impersonate-button'
-import { MemberDepartureDialog } from './member-departure-dialog'
-import { MemberDialog } from './member-dialog'
+import { RowActions } from './member-row-actions'
 import { DEPARTURE_LABEL, type Member } from '../types'
 
 // « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
@@ -64,145 +57,6 @@ const initials = (name: string) =>
     .join('')
     .toUpperCase()
 
-/**
- * Colonne Actions : Modifier (dialog) + Supprimer (ConfirmDialog). Admins jamais
- * éditables ici ; un manager n'agit que sur les comptes user, et jamais sur sa propre
- * ligne (rôle manager).
- *
- * `member.editable` porte le dernier filtre (admin → tout ; manager → les chatteurs, 0095).
- * Garde d'AFFICHAGE seule — la vraie barrière reste `authz.ts` (`requireEditableTarget`)
- * côté serveur, doublée par la RLS.
- */
-function RowActions({
-  member,
-  creators,
-  chatters,
-  managers,
-  scope,
-  viewer,
-  superadmin,
-}: {
-  member: Member
-  creators: { id: string; name: string }[]
-  chatters: { id: string; name: string }[]
-  managers: { id: string; name: string; role: string }[]
-  scope: 'chatter' | 'marketing'
-  viewer: 'admin' | 'manager'
-  /** Propriétaire : seul à pouvoir gérer les fiches admin. */
-  superadmin: boolean
-}) {
-  if (member.role === 'superadmin') return null
-  if (member.role === 'admin' && !superadmin) return null
-  if (viewer === 'manager' && member.role !== 'chatteur') return null
-
-  // Consulter en tant que : admin uniquement, rôle BRUT de la ligne dans l'allowlist (garde
-  // d'affichage seule — la vraie barrière est côté serveur, `startImpersonation`). Elle ne
-  // dépend PAS de `editable` : un admin a de toute façon tout en éditable.
-  // `!member.leftAt` : consulter EN TANT QU'un parti n'a plus de sens depuis 0102 — `getProfile`
-  // lui retourne null, la session d'emprunt atterrirait donc sur /login sans rien expliquer.
-  const canImpersonate = viewer === 'admin' && isImpersonatable(member.role) && !member.leftAt
-  // Plus rien à rendre : pas de cellule vide (une ligne sans action ne montre pas une colonne).
-  if (!canImpersonate && !member.editable) return null
-
-  return (
-    <div className="flex justify-end gap-1.5">
-      {canImpersonate && <ImpersonateButton memberId={member.id} memberName={member.displayName} />}
-      {member.editable && (
-        <>
-          <MemberDialog
-            member={member}
-            creators={creators}
-            chatters={chatters}
-            managers={managers}
-            scope={scope}
-            viewer={viewer}
-            superadmin={superadmin}
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                aria-label={`Modifier ${member.displayName}`}
-              >
-                <Pencil className="size-3.5" />
-              </Button>
-            }
-          />
-          {/* DÉPART ou RETOUR — le geste courant. Un départ n'efface rien : il enregistre une
-              date, un motif, et coupe l'accès (0102). C'est ce qui rend le turnover mesurable. */}
-          {member.leftAt ? (
-            <ConfirmDialog
-              title={`Réactiver ${member.displayName} ?`}
-              description="Son accès est rétabli et les informations de départ sont effacées — il redeviendra un membre en poste."
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  aria-label={`Réactiver ${member.displayName}`}
-                >
-                  <RotateCcw className="size-3.5" />
-                </Button>
-              }
-              onConfirm={async () => {
-                const res = await reactivateMember(member.id)
-                if (!res.success) {
-                  toast.error(res.error)
-                  return res.error
-                }
-                toast.success(`${member.displayName} réactivé`)
-              }}
-            />
-          ) : (
-            <MemberDepartureDialog
-              member={member}
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7"
-                  aria-label={`Enregistrer le départ de ${member.displayName}`}
-                >
-                  <LogOut className="size-3.5" />
-                </Button>
-              }
-            />
-          )}
-          {/* LA CORBEILLE — admin/superadmin SEULEMENT (décision Benoit 2026-07-30 : ce sont les
-              managers qui créent les comptes et qui en ratent). Elle DÉTRUIT, elle ne sert donc
-              qu'au compte créé par erreur. Rouge et distincte de la porte de sortie ci-dessus
-              pour que les deux gestes ne se confondent jamais.
-              onConfirm renvoie l'erreur (string) en cas d'échec → le dialog reste ouvert. */}
-          {viewer === 'admin' && (
-            <ConfirmDialog
-              title={`Supprimer définitivement ${member.displayName} ?`}
-              description="Aucune trace ne sera conservée — à réserver à un compte créé par erreur (doublon, email erroné). Pour un vrai départ, utilise « Enregistrer le départ » : le profil est conservé et compte dans le turnover."
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 text-red-600 hover:text-red-700"
-                  aria-label={`Supprimer définitivement ${member.displayName}`}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              }
-              onConfirm={async () => {
-                const res = await deleteMember(member.id)
-                if (!res.success) {
-                  toast.error(res.error)
-                  return res.error
-                }
-                toast.success('Compte supprimé définitivement')
-              }}
-            />
-          )}
-        </>
-      )}
-    </div>
-  )
-}
-
 /** Badges limités à `max`, le reste en « +N ». */
 function BadgeList({ items, max = 4 }: { items: { key: string; node: React.ReactNode }[]; max?: number }) {
   const shown = items.slice(0, max)
@@ -219,7 +73,6 @@ function BadgeList({ items, max = 4 }: { items: { key: string; node: React.React
   )
 }
 
-/** Colonnes de la table — mêmes défs qu'avant l'extraction, comportement identique. */
 export function buildMembersColumns({
   creators,
   chatters,

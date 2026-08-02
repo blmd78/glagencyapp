@@ -1,4 +1,5 @@
 import { createAdminClient } from '@glagency/db'
+import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { DEPARTURE_LABEL, EVENT_KINDS, type DepartureReason, type EventKind, type MemberEvent } from '../types'
 
@@ -49,10 +50,14 @@ function labelOf(kind: EventKind, from: string | null, to: string | null): strin
       return to ? `Date d’arrivée : ${fr(to)}` : 'Date d’arrivée effacée'
     case 'sortie': {
       if (!to) return 'Départ annulé (réactivé)'
-      // `to` = '2026-08-15 (vire)' — on traduit le motif en clair.
-      const [date, raw] = [to.slice(0, 10), to.slice(12, -1)]
-      const motif = DEPARTURE_LABEL[raw as DepartureReason] ?? raw
-      return `Départ le ${fr(date)} — ${motif}`
+      // `to` = '2026-08-15 (vire)', composé par le trigger. Parsé par REGEX et non par index :
+      // un `slice(12, -1)` produirait un libellé faux et silencieux au moindre changement de
+      // format côté SQL. Si la forme ne correspond pas, on affiche la valeur BRUTE — visiblement
+      // imparfaite, mais jamais trompeuse.
+      const m = /^(\d{4}-\d{2}-\d{2})(?:\s+\((.+)\))?$/.exec(to)
+      if (!m) return `Départ : ${to}`
+      const motif = m[2] ? (DEPARTURE_LABEL[m[2] as DepartureReason] ?? m[2]) : null
+      return `Départ le ${fr(m[1])}${motif ? ` — ${motif}` : ''}`
     }
   }
 }
@@ -65,12 +70,14 @@ const fr = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
  * omis — la même lecture sert les deux questions : « qu'est-il arrivé à Mehdi ? » et « qui a bougé
  * quoi cette semaine ? ».
  *
- * Client ADMIN : la table est agence-wide et son accès est déjà gardé en amont
- * (`requireAdminOrManager` sur la page Membres), comme `get-organisation`. La RLS de
- * `member_events` (0104) reste le filet réel côté base.
+ * DEUX CLIENTS, ET C'EST LA RÈGLE DU PROJET. Les ÉVÉNEMENTS se lisent sous RLS (client session) :
+ * la policy `member_events_read` (0104) est l'enforcement réel, s'en remettre au service role
+ * ferait de la garde de page le seul rempart. La RÉSOLUTION DES NOMS, elle, passe par le client
+ * admin — c'est l'usage que la norme lui réserve (`lib/services/team.ts`) : un `actor_id` peut
+ * pointer un profil hors du périmètre du lecteur, ou parti, et l'événement doit rester lisible.
  *
- * Les noms sont résolus ICI, pas par une jointure : `actor_id` peut pointer un profil supprimé
- * (`on delete set null`) et l'événement doit rester lisible.
+ * Résolus par map et non par jointure PostgREST, pour la même raison : `actor_id` est en
+ * `on delete set null`, une jointure ferait disparaître la ligne au lieu d'afficher « système ».
  */
 export async function getMemberEvents(opts: {
   profileId?: string
@@ -78,10 +85,11 @@ export async function getMemberEvents(opts: {
   to?: string
   limit?: number
 }): Promise<MemberEvent[]> {
+  const supabase = await createClient()
   const admin = createAdminClient()
   const limit = opts.limit ?? 200
 
-  let q = admin
+  let q = supabase
     .from('member_events')
     .select('id, at, kind, from_value, to_value, actor_id, profile_id')
     .order('at', { ascending: false })

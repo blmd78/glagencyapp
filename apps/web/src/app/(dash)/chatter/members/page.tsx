@@ -5,8 +5,8 @@ import { getMembers } from '@/features/members/services/get-members'
 import { getTurnover } from '@/features/members/services/get-turnover'
 import { getMemberEvents } from '@/features/members/services/get-member-events'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
-import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 import { SectionFallback } from '@/components/skeletons/route-loading'
+import { MembersSkeleton } from '@/features/members/components/members-skeleton'
 import type { MemberEvent, MembersData, TurnoverData } from '@/features/members/types'
 
 /** Plafond du flux d'activité. La vue DIT quand il est atteint — pas de troncature muette. */
@@ -40,7 +40,7 @@ export default async function MembersPage({
       <Suspense
         fallback={
           <SectionFallback>
-            <TableSkeleton />
+            <MembersSkeleton />
           </SectionFallback>
         }
       >

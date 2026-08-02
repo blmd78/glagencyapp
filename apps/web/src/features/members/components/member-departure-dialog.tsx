@@ -26,7 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ActionButton } from '@/components/action-button'
-import { recordDeparture } from '../actions'
+import { recordDeparture } from '../actions-lifecycle'
 import { departureInput, type DepartureForm } from '../schema'
 import { DEPARTURE_REASONS, type Member } from '../types'
 
