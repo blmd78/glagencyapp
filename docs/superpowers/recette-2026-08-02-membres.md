@@ -40,8 +40,10 @@ irrécupérables.
 - [ ] **0.2 — Le planning passé reste lisible.** Pose quelqu'un en repos sur une semaine, puis
       enregistre son départ. Reviens sur cette semaine : **son nom doit toujours s'afficher**. Un
       `?` signifie que le filtre a été posé au mauvais endroit.
-- [ ] **0.3 — Un parti ne peut plus se connecter.** Avec un compte de test jetable : enregistre son
-      départ, puis tente une connexion OTP depuis une fenêtre privée. Elle doit échouer.
+- [x] **0.3 — Un parti ne peut plus se connecter.** ✅ **VÉRIFIÉ EN BASE le 02/08** : le départ de
+      « sam » (enregistré par Benoit via l'UI) a posé `auth.users.banned_until = 2126-07-06`. La
+      chaîne dialog → action → écriture → ban GoTrue fonctionne de bout en bout. Reste facultatif :
+      tenter une connexion OTP réelle pour confirmer que GoTrue refuse.
 - [ ] **0.4 — La corbeille n'est plus le geste par défaut.** Sur une ligne membre, la porte de
       sortie et la corbeille rouge doivent être **deux boutons distincts**, la corbeille disant
       « Aucune trace ne sera conservée ».
@@ -174,9 +176,31 @@ SQL sont verts, mais aucun de ces trois ne dit qu'un bouton est au bon endroit, 
 s'ouvre, ou qu'une timeline est lisible. **Tout le bloc visuel de cette recette est à faire
 entièrement.**
 
-**Le ban GoTrue n'a jamais été exercé en conditions réelles.** L'action pose
-`ban_duration: '876000h'`, l'API est vérifiée dans le SDK installé, mais aucune tentative de
-connexion d'un compte banni n'a été faite. C'est le test 0.3, et c'est le plus important des six.
+**Le ban GoTrue EST exercé** — vérifié le 02/08 sur le départ de « sam » : `banned_until` posé à
+100 ans. Il ne reste qu'à confirmer qu'une tentative de connexion OTP est bien refusée côté GoTrue,
+ce que la présence de `banned_until` rend très probable.
+
+## ⚠️ ORDRE DE DÉPLOIEMENT — le seul risque grave trouvé
+
+`getProfile` (`lib/auth/index.ts`) lit désormais `left_at`, et **n'y destructure pas l'erreur** :
+`const { data } = await …`. Si le code arrive en prod **avant** la migration `0102`, la colonne
+n'existe pas, la requête échoue, `data` vaut `null` — et les quatre gardes de page font toutes
+`if (!profile) redirect('/login')`.
+
+**Conséquence : l'application entière devient inaccessible**, pour tout le monde, avec une boucle
+de login sans message d'erreur. 37 fichiers dépendent de cette fonction.
+
+**Règle de merge, non négociable** : appliquer `0101` → `0104` sur la prod **AVANT** de déployer le
+code.
+
+```bash
+cd packages/db
+DBU=$(grep '^DATABASE_URL=' ../../.env | cut -d= -f2- | sed 's/^"//; s/"$//')
+supabase db push --db-url "$DBU" --dry-run   # doit annoncer 0101, 0102, 0103, 0104
+supabase db push --db-url "$DBU"
+```
+
+Puis seulement : merge de `develop` vers `main`.
 
 ## Risques connus, assumés
 
