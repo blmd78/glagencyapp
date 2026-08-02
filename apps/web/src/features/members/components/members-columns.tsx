@@ -19,7 +19,8 @@ import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { RowActions } from './member-row-actions'
-import { DEPARTURE_LABEL, type Member } from '../types'
+import { DEPARTURE_LABEL } from '@glagency/core'
+import type { Member } from '../types'
 
 // « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
 // spenders-table) : created_at est un timestamptz — sans timeZone, le SSR (UTC) et un

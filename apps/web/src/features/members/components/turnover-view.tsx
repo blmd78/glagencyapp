@@ -3,7 +3,8 @@ import { KpiGrid } from '@/components/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
-import { DEPARTURE_LABEL, type DepartureReason, type TurnoverData } from '../types'
+import { DEPARTURE_LABEL, type DepartureReason } from '@glagency/core'
+import type { TurnoverData } from '../types'
 
 const MOIS_FR = [
   'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',

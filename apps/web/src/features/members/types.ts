@@ -1,6 +1,6 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
-import type { RateChange } from '@glagency/core'
+import type { DepartureReason, EventKind, RateChange } from '@glagency/core'
 import type { CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 /**
@@ -26,27 +26,6 @@ export interface MemberPay {
    *  de la Compta affiche sous « montant jamais décidé ». */
   prime: { amount: number; status: string; paidAt: string | null } | null
 }
-
-/**
- * Motifs de sortie — SOURCE UNIQUE (miroir du check SQL 0102), dans l'ordre du sélecteur.
- *
- * « Abandon de poste » est un motif À PART et pas un cas de démission : le chatteur disparaît sans
- * prévenir, c'est fréquent en agence, et le confondre avec un départ annoncé fausserait la lecture
- * du turnover — c'est précisément la distinction qu'on cherche à mesurer.
- */
-export const DEPARTURE_REASONS = [
-  { value: 'vire', label: 'Viré' },
-  { value: 'demission', label: 'Démission' },
-  { value: 'fin_essai', label: "Fin de période d'essai" },
-  { value: 'abandon', label: 'Abandon de poste' },
-  { value: 'autre', label: 'Autre' },
-] as const
-
-export type DepartureReason = (typeof DEPARTURE_REASONS)[number]['value']
-
-export const DEPARTURE_LABEL = Object.fromEntries(
-  DEPARTURE_REASONS.map((r) => [r.value, r.label]),
-) as Record<DepartureReason, string>
 
 export interface Member {
   id: string
@@ -95,21 +74,6 @@ export interface Member {
    *  reviendrait à monter un onglet dont l'enregistrement serait refusé en base, tard et mal. */
   pay?: MemberPay
 }
-
-/** Types d'événement de l'historique (0104) — miroir du check SQL `member_events.kind`. */
-export const EVENT_KINDS = [
-  'creation',
-  'role',
-  'shift',
-  'closing',
-  'modele',
-  'manager',
-  'pages',
-  'nouveau',
-  'arrivee',
-  'sortie',
-] as const
-export type EventKind = (typeof EVENT_KINDS)[number]
 
 /** Une ligne de la timeline. `label` est déjà rédigé côté serveur : la vue ne fait que l'afficher. */
 export interface MemberEvent {

@@ -50,6 +50,14 @@ export {
 export { NEW_THRESHOLD_DAYS, daysSinceArrival, isStaleNew } from './domain/anciennete'
 export { tenureDays, turnoverRate } from './domain/turnover'
 export {
+  DEPARTURE_REASONS,
+  DEPARTURE_LABEL,
+  EVENT_KINDS,
+  isEventKind,
+  memberEventLabel,
+} from './domain/member-events'
+export type { DepartureReason, EventKind } from './domain/member-events'
+export {
   periodOf,
   recentPeriods,
   mondaysIn,

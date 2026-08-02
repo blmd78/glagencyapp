@@ -4,7 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getProfile } from '@/lib/auth'
 import { CRM_SHIFTS, type CrmRole, type CrmShift, type CrmTeam } from '@/lib/types/chatters'
-import type { DepartureReason, Member, MembersData } from '../types'
+import type { DepartureReason } from '@glagency/core'
+import type { Member, MembersData } from '../types'
 
 /** Défaut de la colonne `compta_settings.fixed_amount` (migration 0084), repris tel quel : tant
  *  qu'aucune ligne n'existe, c'est ce que la Compta calcule (`loadComptaRows`). Le défaut du

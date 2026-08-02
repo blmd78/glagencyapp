@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
-import type { EventKind, MemberEvent } from '../types'
+import type { EventKind } from '@glagency/core'
+import type { MemberEvent } from '../types'
 
 /** Horodatage en fuseau Paris EXPLICITE : `at` est un timestamptz — sans `timeZone`, le SSR (UTC)
  *  et un navigateur parisien rendraient un jour différent (mismatch d'hydratation). Même patron

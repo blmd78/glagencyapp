@@ -28,7 +28,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { ActionButton } from '@/components/action-button'
 import { recordDeparture } from '../actions-lifecycle'
 import { departureInput, type DepartureForm } from '../schema'
-import { DEPARTURE_REASONS, type Member } from '../types'
+import { DEPARTURE_REASONS } from '@glagency/core'
+import type { Member } from '../types'
 
 /**
  * ENREGISTRER UN DÉPART — ce qui remplace la suppression pour un vrai départ (0102).
