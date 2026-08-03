@@ -18,7 +18,8 @@ import {
   BusinessError,
   type ActionResult,
 } from '@/lib/actions'
-import { archiveInput, relanceInput, setCompteurInput, targetInput } from './schema'
+import { archiveInput, relanceInput, setCompteurInput, spendersPageInput, targetInput } from './schema'
+import { getSpendersPage, type SpendersPage } from './services/get-spenders-page'
 
 // Scope 'layout' : ce layout (app/(dash)/chatter/spenders/layout.tsx) ne fetch plus rien
 // lui-même (chaque page a son propre fetch, cf. normalisation batch 4), mais il reste le
@@ -161,6 +162,26 @@ export async function setArchived(raw: unknown): Promise<ActionResult> {
       )
       if (error) throw new Error(error.message)
       revalidatePath(SPENDERS_PATH, 'layout')
+    },
+  })
+}
+
+/**
+ * TRANCHE SUIVANTE de spenders (0104) — appelée par l'infinite scroll, et à chaque changement
+ * de tri, de recherche ou de filtre modèle : ces trois gestes vivent en base désormais, une
+ * tranche ne peut pas être réordonnée côté client sans mentir sur le classement.
+ *
+ * LECTURE : `requirePageProfile` suffit (un chatteur consulte ses spenders) — c'est la RLS qui
+ * cloisonne par modèle, le RPC restant STABLE invoker.
+ */
+export async function loadSpendersPage(raw: unknown): Promise<ActionResult<SpendersPage>> {
+  return runAction({
+    schema: spendersPageInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (values) => {
+      await requirePageProfile('crm-spenders')
+      return getSpendersPage(values)
     },
   })
 }

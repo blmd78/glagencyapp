@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
-import { getSpenders } from '@/features/spenders/services/get-spenders'
+import { getSpendersPage, getSpendersKpis } from '@/features/spenders/services/get-spenders-page'
 import { requireAccess } from '@/lib/auth'
 import { SpendersTemplate } from '@/features/spenders/SpendersTemplate'
 import { SpendersListeSkeleton } from '@/features/spenders/components/spenders-liste-skeleton'
 import { SectionFallback } from '@/components/skeletons/route-loading'
-import type { SpendersData } from '@/features/spenders/types'
+import { CA_TRACKING_SEUIL } from '@/features/spenders/types'
 
 // Vue « Liste » — fetch propre à cette page (pattern standard). Les 4 vues spenders
 // consomment la MÊME donnée complète (le filtrage par vue vit dans SpendersView, côté
@@ -14,7 +14,9 @@ export default async function SpendersListePage() {
   const profile = await requireAccess('crm-spenders')
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, KPIs + table streament
   // dans leur boundary quand le RPC répond.
-  const data = getSpenders('liste')
+  // PREMIÈRE TRANCHE seulement (0104) : cette vue rapatriait ~9 800 lignes et 3,1 Mo que
+  // personne ne parcourt. Le scroll demande la suite, le tri et la recherche repartent en base.
+  const data = Promise.all([getSpendersPage({ view: 'liste', limit: 100 }), getSpendersKpis()])
 
   return (
     <div className="flex flex-col gap-6">
@@ -41,9 +43,19 @@ async function SpendersListeContent({
   isAdmin,
   canWrite,
 }: {
-  data: Promise<SpendersData>
+  data: Promise<[Awaited<ReturnType<typeof getSpendersPage>>, Awaited<ReturnType<typeof getSpendersKpis>>]>
   isAdmin: boolean
   canWrite: boolean
 }) {
-  return <SpendersTemplate data={await data} view="liste" isAdmin={isAdmin} canWrite={canWrite} />
+  const [page, kpis] = await data
+  return (
+    <SpendersTemplate
+      data={{ spenders: page.rows, capturedAt: null, threshold: CA_TRACKING_SEUIL }}
+      view="liste"
+      isAdmin={isAdmin}
+      canWrite={canWrite}
+      total={page.total}
+      serverKpis={kpis}
+    />
+  )
 }
