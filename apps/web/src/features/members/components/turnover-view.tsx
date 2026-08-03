@@ -7,8 +7,10 @@ import type { TurnoverData } from '../types'
 /**
  * Onglet TURNOVER — Server Component, aucun état : tout est agrégé par `get-turnover.ts`.
  *
- * Graphe en barres CSS et non en librairie : deux séries sur douze points au maximum, une grille
- * de `div` le fait aussi bien et ne coûte aucun kilo-octet de plus au bundle.
+ * Quatre KPI, le graphe quotidien (`turnover-chart`, recharts comme les quatre autres graphes du
+ * CRM), puis deux cartes qui se lisent ENSEMBLE : la liste nommée des départs et la moyenne
+ * qu'elle produit. L'une donne les cas, l'autre le résumé — et depuis 0110 les deux viennent de
+ * la même source, elles ne peuvent plus se contredire.
  */
 export function TurnoverView({ data }: { data: TurnoverData }) {
   const kpis = [

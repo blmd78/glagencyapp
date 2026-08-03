@@ -93,10 +93,6 @@ export interface MemberEvent {
 
 /** Contrat de l'onglet « Turnover » (0103). Tout est déjà agrégé côté service. */
 export interface TurnoverData {
-  /** Bornes réelles de la fenêtre — affichées, parce qu'elles ne sont PAS « 12 derniers mois »
-   *  par défaut : elles démarrent au premier mouvement connu (cf. `get-turnover.ts`). */
-  from: string
-  to: string
   /** Un point PAR JOUR de la période, y compris les jours sans mouvement — un jour manquant
    *  resserrerait le graphe sur les seules dates actives et ferait lire une activité continue. */
   days: { jour: string; entrees: number; sorties: number; effectif: number }[]
