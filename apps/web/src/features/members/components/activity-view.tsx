@@ -1,13 +1,11 @@
 'use client'
 
+import { frDateNumeric } from '@glagency/core'
 import { DataTable } from '@/components/data-table/data-table'
 import { MemberSelect } from '@/components/member-select'
 import type { SelectableMember } from '@/lib/types/member'
 import type { MemberEvent } from '../types'
 import { activityColumns } from './activity-columns'
-
-/** '2026-07-30' → '30/07/2026'. */
-const fr = (iso: string) => iso.split('-').reverse().join('/')
 
 /**
  * Onglet « Activité » (0104) — le MÊME historique que la fiche membre, lu par l'autre bout : la
@@ -46,7 +44,7 @@ export function ActivityView({
   return (
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        Du {fr(from)} au {fr(to)} — la période suit le sélecteur de dates en haut de page.
+        Du {frDateNumeric(from)} au {frDateNumeric(to)} — la période suit le sélecteur de dates en haut de page.
         {/* AUCUNE TRONCATURE SILENCIEUSE : au plafond, la liste ne montre pas tout et doit le
             dire — sinon « rien après le 12 » se lit comme « rien ne s'est passé ». */}
         {events.length >= limit &&

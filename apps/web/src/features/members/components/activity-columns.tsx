@@ -4,13 +4,12 @@
 // vivent à part de la composition, guidelines-standard-feature §1).
 
 import { type ColumnDef } from '@tanstack/react-table'
-import type { EventKind } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Sortable } from '@/components/data-table/sortable'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
-import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
 import type { MemberEvent } from '../types'
+import { KIND_LABEL, KIND_TONE } from './event-kind'
 
 /** Date ET heure en fuseau Paris EXPLICITE : `at` est un timestamptz — sans `timeZone`, le SSR
  *  (UTC) et un navigateur parisien rendraient un jour différent (mismatch d'hydratation). Même
@@ -23,39 +22,6 @@ const FR_DATETIME = new Intl.DateTimeFormat('fr-FR', {
   hour: '2-digit',
   minute: '2-digit',
 })
-
-/** Teinte par nature d'événement — code couleur de l'app : violet pour les modèles (comme
- *  `modelColor`), vert pour l'encadrement, ambre pour un départ, bleu pour le reste. */
-const KIND_TONE: Record<EventKind, string> = {
-  creation: STATUS_COLORS.info,
-  role: STATUS_COLORS.positive,
-  shift: STATUS_COLORS.info,
-  closing: STATUS_COLORS.info,
-  modele: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
-  manager: STATUS_COLORS.positive,
-  pages: STATUS_COLORS.neutral,
-  nouveau: STATUS_COLORS.info,
-  arrivee: STATUS_COLORS.positive,
-  sortie: STATUS_COLORS.warning,
-  // Le lien MyPuls décide de la paie : il mérite d'être vu, pas fondu dans le gris.
-  lien: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
-  identite: STATUS_COLORS.neutral,
-}
-
-const KIND_LABEL: Record<EventKind, string> = {
-  creation: 'Création',
-  role: 'Rôle',
-  shift: 'Shift',
-  closing: 'Closing',
-  modele: 'Modèle',
-  manager: 'Rattachement',
-  pages: 'Droits',
-  nouveau: 'Nouveau',
-  arrivee: 'Arrivée',
-  sortie: 'Départ',
-  lien: 'Lien MyPuls',
-  identite: 'Fiche',
-}
 
 /**
  * Colonnes du flux d'activité : QUI (nom + rôle), QUOI (type + description), QUAND, et PAR QUI.

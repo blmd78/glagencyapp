@@ -1,4 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { frDateNumeric } from '@glagency/core'
 import { KpiGrid } from '@/components/kpi-card'
 import { Badge } from '@/components/ui/badge'
 import { STATUS_COLORS } from '@/lib/status-color'
@@ -16,9 +17,6 @@ const moisLabel = (iso: string) => {
   const [y, m] = iso.split('-')
   return `${MOIS_FR[Number(m) - 1]} ${y.slice(2)}`
 }
-
-/** '2026-07-30' → '30/07/2026'. */
-const frDate = (iso: string) => iso.split('-').reverse().join('/')
 
 /**
  * Onglet TURNOVER — Server Component, aucun état : tout est agrégé par `get-turnover.ts`.
@@ -73,7 +71,7 @@ export function TurnoverView({ data }: { data: TurnoverData }) {
           lisent comme un creux d'activité, et l'ancienneté moyenne comme une mesure complète.
           Un chiffre dont on ignore la couverture vaut moins que pas de chiffre. */}
       <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-        Période analysée : du {frDate(data.from)} au {frDate(data.to)} — elle suit le sélecteur de
+        Période analysée : du {frDateNumeric(data.from)} au {frDateNumeric(data.to)} — elle suit le sélecteur de
         dates en haut de page. Les <strong className="font-medium">arrivées</strong> ne sont
         comptées que pour les membres dont la date a été saisie sur leur fiche ; les{' '}
         <strong className="font-medium">départs</strong>, eux, sont complets depuis leur premier
