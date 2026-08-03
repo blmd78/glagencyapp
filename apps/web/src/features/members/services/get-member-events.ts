@@ -37,15 +37,15 @@ export async function getMemberEvents(opts: {
 
   let q = supabase
     .from('member_events')
-    .select('id, at, kind, from_value, to_value, actor_id, profile_id')
-    .order('at', { ascending: false })
+    .select('id, created_at, kind, from_value, to_value, created_by, profile_id')
+    .order('created_at', { ascending: false })
     .order('id', { ascending: false })
     .limit(limit)
   if (opts.profileId) q = q.eq('profile_id', opts.profileId)
-  if (opts.from) q = q.gte('at', `${opts.from}T00:00:00Z`)
+  if (opts.from) q = q.gte('created_at', `${opts.from}T00:00:00Z`)
   // Borne de fin INCLUSE : `to` est un jour, pas un instant — sans le `T23:59:59`, le dernier
   // jour de la période sélectionnée serait silencieusement exclu.
-  if (opts.to) q = q.lte('at', `${opts.to}T23:59:59Z`)
+  if (opts.to) q = q.lte('created_at', `${opts.to}T23:59:59Z`)
 
   const { data, error } = await q
   if (error) throw new Error(error.message)
@@ -69,11 +69,11 @@ export async function getMemberEvents(opts: {
     .filter((r) => isEventKind(r.kind))
     .map((r) => ({
       id: r.id,
-      at: r.at,
+      at: r.created_at,
       kind: r.kind as EventKind,
       // Rédaction dans @glagency/core (testée) : ce service ne fait que lire et assembler.
       label: memberEventLabel(r.kind as EventKind, r.from_value, r.to_value),
-      actorName: r.actor_id ? (byId.get(r.actor_id)?.name ?? null) : null,
+      actorName: r.created_by ? (byId.get(r.created_by)?.name ?? null) : null,
       memberName: byId.get(r.profile_id)?.name ?? '—',
       memberRole: byId.get(r.profile_id)?.role ?? 'chatteur',
     }))

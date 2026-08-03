@@ -343,7 +343,12 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     .select('id, name, is_private, mypuls_creator_id')
   if (error) throw error
   const nameToId = new Map((creators ?? []).map((c) => [c.name as string, c.id as string]))
-  const mains = (creators ?? []).filter((c) => !c.is_private).map((c) => c.name as string)
+  // Tri longueur décroissante : un pseudo peut contenir plusieurs noms (« juliette_mims »
+  // contient « Julie » ET « Juliette ») — le match le plus long doit gagner, pas l'ordre du select.
+  const mains = (creators ?? [])
+    .filter((c) => !c.is_private)
+    .map((c) => c.name as string)
+    .sort((a, b) => b.length - a.length)
   const pseudoToName = (pseudo: string): string | null => {
     const p = (pseudo || '').toLowerCase()
     return PRIV[p] ?? mains.find((n) => p.includes(n.toLowerCase())) ?? null

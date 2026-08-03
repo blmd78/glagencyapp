@@ -1064,8 +1064,8 @@ export type Database = {
       }
       member_events: {
         Row: {
-          actor_id: string | null
-          at: string
+          created_at: string
+          created_by: string | null
           from_value: string | null
           id: number
           kind: string
@@ -1073,8 +1073,8 @@ export type Database = {
           to_value: string | null
         }
         Insert: {
-          actor_id?: string | null
-          at?: string
+          created_at?: string
+          created_by?: string | null
           from_value?: string | null
           id?: number
           kind: string
@@ -1082,8 +1082,8 @@ export type Database = {
           to_value?: string | null
         }
         Update: {
-          actor_id?: string | null
-          at?: string
+          created_at?: string
+          created_by?: string | null
           from_value?: string | null
           id?: number
           kind?: string
@@ -1092,8 +1092,8 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "member_events_actor_id_fkey"
-            columns: ["actor_id"]
+            foreignKeyName: "member_events_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
