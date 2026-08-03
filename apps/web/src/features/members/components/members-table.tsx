@@ -64,7 +64,6 @@ export function MembersTable({
       columns={columns}
       filterColumnId="displayName"
       filterPlaceholder="Filtrer par nom…"
-      initialSorting={[{ id: 'createdAt', desc: false }]}
       pageSize={20}
       // Identité STABLE des lignes : sans elle TanStack keye par index — après une
       // suppression, les MemberDialog montés en ligne se réapparient par position et
