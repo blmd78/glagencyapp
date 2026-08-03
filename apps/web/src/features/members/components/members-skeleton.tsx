@@ -4,7 +4,7 @@ import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 /**
  * Silhouette de la page Membres — barre d'onglets PUIS contenu.
  *
- * Composant dédié parce que la page a trois onglets depuis 0103/0104 : un `TableSkeleton` nu
+ * Composant dédié parce que la page a trois onglets depuis 0101 : un `TableSkeleton` nu
  * laissait la `TabsList` apparaître d'un coup à l'arrivée des données, en poussant tout le
  * contenu vers le bas (CLS). Consommé par `loading.tsx` ET par le fallback `<Suspense>` de
  * `page.tsx` — jamais dupliqué byte-à-byte entre les deux (guidelines-standard-feature §2.4).

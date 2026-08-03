@@ -51,7 +51,7 @@ export interface Member {
   /** Date d'arrivée réelle dans l'agence ('YYYY-MM-DD'). CONSERVÉE après retrait du drapeau :
    *  c'est la base du calcul d'ancienneté, pas un simple attribut d'affichage. */
   arrivedAt: string | null
-  /** Date de sortie (0102). null = en poste. Un membre parti garde son profil, son rôle et ses
+  /** Date de sortie (0101). null = en poste. Un membre parti garde son profil, son rôle et ses
    *  assignations — seul son ACCÈS est coupé (ban GoTrue). */
   leftAt: string | null
   leftReason: DepartureReason | null
@@ -91,7 +91,7 @@ export interface MemberEvent {
   memberRole: string
 }
 
-/** Contrat de l'onglet « Turnover » (0103). Tout est déjà agrégé côté service. */
+/** Contrat de l'onglet « Turnover » (0101). Tout est déjà agrégé côté service. */
 export interface TurnoverData {
   /** Un point PAR JOUR de la période, y compris les jours sans mouvement — un jour manquant
    *  resserrerait le graphe sur les seules dates actives et ferait lire une activité continue. */
@@ -108,7 +108,7 @@ export interface TurnoverData {
   /** Totaux de la fenêtre. */
   entries: number
   exits: number
-  /** Effectif CHATTEUR à cet instant (0107) : ni les encadrants ni les partis. */
+  /** Effectif CHATTEUR à cet instant (0101) : ni les encadrants ni les partis. */
   headcount: number
   /** Sorties ÷ effectif moyen. null = effectif nul (jamais une division par zéro). */
   rate: number | null

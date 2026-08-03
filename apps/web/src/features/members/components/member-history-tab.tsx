@@ -9,7 +9,7 @@ import type { MemberEvent } from '../types'
 import { KIND_LABEL, KIND_TONE } from './event-kind'
 
 /**
- * Onglet « Historique » du dialog membre (0104) — la timeline de CETTE personne.
+ * Onglet « Historique » du dialog membre (0101) — la timeline de CETTE personne.
  *
  * Pas de DataTable ici, contrairement à l'onglet Activité : dans un dialog étroit, six colonnes ne
  * tiennent pas, et « Membre » y répéterait la même valeur sur chaque ligne. Les deux surfaces

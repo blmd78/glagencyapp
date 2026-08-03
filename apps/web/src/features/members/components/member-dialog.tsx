@@ -135,7 +135,7 @@ export function MemberDialog({
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })
-  // Historique (0104) : chargé quand on ARRIVE sur l'onglet, via `onValueChange` ci-dessous —
+  // Historique (0101) : chargé quand on ARRIVE sur l'onglet, via `onValueChange` ci-dessous —
   // un événement, pas un effet (patron `useMemberPanel`, partagé avec les piles de noms).
   const { panel: historyPanel, open: loadHistory } = useMemberPanel<MemberEvent[]>(loadMemberEvents)
   // Commande l'apparition du champ « Arrivé le » (0101) — observé ici, comme `roleValue`, plutôt
@@ -263,7 +263,7 @@ export function MemberDialog({
         </DialogHeader>
 
         {/* Pas d'onglets quand il n'y en aurait qu'un : un `TabsList` à une seule entrée serait
-            du bruit. L'HISTORIQUE (0104) n'existe que pour un membre DÉJÀ CRÉÉ — à la création,
+            du bruit. L'HISTORIQUE (0101) n'existe que pour un membre DÉJÀ CRÉÉ — à la création,
             il n'y a rien à raconter, et pas d'id à interroger. */}
         {showPayTab || member ? (
           <Tabs

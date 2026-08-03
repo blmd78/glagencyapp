@@ -5,7 +5,7 @@ import { STATUS_COLORS } from '@/lib/status-color'
  * Libellé et teinte d'un type d'événement — SOURCE UNIQUE des deux surfaces qui les affichent :
  * la table de l'onglet Activité et la timeline de la fiche membre.
  *
- * Elles vivaient en double, et l'ajout de `lien`/`identite` (0106) a dû être fait aux DEUX
+ * Elles vivaient en double, et l'ajout de `lien`/`identite` (0101) a dû être fait aux DEUX
  * endroits : la démonstration qu'un troisième oubli n'était qu'une question de temps.
  *
  * `Record<EventKind, …>` et non un objet libre : ajouter un `kind` sans lui donner de libellé ni

@@ -11,7 +11,7 @@ interface TurnoverReport {
 
 /**
  * Statistiques de turnover de l'agence (onglet de la page Membres). CHATTEURS UNIQUEMENT depuis
- * 0107 : les encadrants sont une poignée et bougent rarement, les mélanger diluait le taux.
+ * 0101 : les encadrants sont une poignée et bougent rarement, les mélanger diluait le taux.
  *
  * ── LA PÉRIODE EST CELLE DU DATEPICKER GLOBAL ─────────────────────────────────────────────────
  * `?from=&to=` résolus par `lib/period.ts`, comme partout ailleurs dans le CRM. Le sélecteur du

@@ -28,7 +28,7 @@ const revalidateMembers = () => {
 }
 
 /**
- * Historique d'un membre (0104) — chargé À L'OUVERTURE de l'onglet, pas avec le dialog : la
+ * Historique d'un membre (0101) — chargé À L'OUVERTURE de l'onglet, pas avec le dialog : la
  * fiche ne paie cette lecture que si on la demande. Patron `loadPlanning`.
  *
  * Garde en tête de handler avec `noGuard` (§4) : la page Membres n'a pas de slug cochable
@@ -55,7 +55,7 @@ export async function loadMemberEvents(raw: unknown): Promise<ActionResult<Membe
 const BAN_FOREVER = '876000h'
 
 /**
- * ENREGISTRER UN DÉPART (0102) — ce qui remplace la suppression pour un vrai départ.
+ * ENREGISTRER UN DÉPART (0101) — ce qui remplace la suppression pour un vrai départ.
  *
  * Le compte est BANNI côté GoTrue, jamais supprimé : `deleteUser` déclencherait la cascade
  * `profiles_id_fkey` qui effacerait le profil, c'est-à-dire la donnée même qu'on est en train

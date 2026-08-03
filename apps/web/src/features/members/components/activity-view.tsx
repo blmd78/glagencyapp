@@ -8,7 +8,7 @@ import type { MemberEvent } from '../types'
 import { activityColumns } from './activity-columns'
 
 /**
- * Onglet « Activité » (0104) — le MÊME historique que la fiche membre, lu par l'autre bout : la
+ * Onglet « Activité » (0101) — le MÊME historique que la fiche membre, lu par l'autre bout : la
  * fiche répond à « qu'est-il arrivé à Mehdi ? », ce flux à « qui a bougé quoi cette semaine ? ».
  *
  * DATATABLE et non timeline (demande Benoit 2026-08-03) : mêmes colonnes triables, même toolbar,

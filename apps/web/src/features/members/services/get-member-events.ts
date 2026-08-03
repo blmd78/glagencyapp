@@ -11,7 +11,7 @@ import type { MemberEvent } from '../types'
  * quoi cette semaine ? ».
  *
  * DEUX CLIENTS, ET C'EST LA RÈGLE DU PROJET. Les ÉVÉNEMENTS se lisent sous RLS (client session) :
- * la policy `member_events_read` (0104) est l'enforcement réel, s'en remettre au service role
+ * la policy `member_events_read` (0101) est l'enforcement réel, s'en remettre au service role
  * ferait de la garde de page le seul rempart. La RÉSOLUTION DES NOMS, elle, passe par le client
  * admin — c'est l'usage que la norme lui réserve (`lib/services/team.ts`) : un `actor_id` peut
  * pointer un profil hors du périmètre du lecteur, ou parti, et l'événement doit rester lisible.
