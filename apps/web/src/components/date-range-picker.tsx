@@ -119,6 +119,17 @@ export function DateRangePicker({ className }: { className?: string }) {
           selected={draft}
           onSelect={handleSelect}
           numberOfMonths={2}
+          // DEUX MOIS CÔTE À CÔTE = PAS DE JOUR DU MOIS VOISIN. En débordement, une date
+          // s'affiche DEUX FOIS — dans sa grille, et en bord de celle d'à côté. 0102 avait
+          // retiré le fond de sélection sur ces jours-là (utile, et conservé pour tous les
+          // autres calendriers), mais la date restait dupliquée, en gris.
+          //
+          // Ici chaque grille ne montre que SON mois. Les cases de début et de fin restent
+          // vides mais présentes : l'alignement sur les jours de la semaine est conservé, et
+          // aucune date ne peut se répéter. C'est le patron des sélecteurs de plage multi-mois.
+          // Le calendrier À UN SEUL MOIS de shadcn garde ses jours voisins, à raison : ils
+          // situent le début et la fin du mois, sans grille voisine pour faire doublon.
+          showOutsideDays={false}
           disabled={{ after: now }}
           endMonth={endOfMonth(now)}
           locale={fr}
