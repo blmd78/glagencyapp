@@ -1,4 +1,3 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { MemberSelect } from '@/components/member-select'
 import type { SelectableMember } from '@/lib/types/member'
 import type { MemberEvent } from '../types'
@@ -11,10 +10,14 @@ const fr = (iso: string) => iso.split('-').reverse().join('/')
  * Onglet « Activité » (0104) — le MÊME historique que la fiche membre, lu par l'autre bout :
  * la fiche répond à « qu'est-il arrivé à Mehdi ? », ce flux à « qui a bougé quoi cette semaine ? ».
  *
+ * MISE EN PAGE CALQUÉE SUR L'ONGLET COMPTES (demande Benoit 2026-08-03), au rythme exact de la
+ * `DataTable` : sous-titre de contexte, puis une barre de contrôles (`flex flex-wrap items-center
+ * gap-2`), puis le contenu, puis le compte en bas. Pas de `Card` — l'onglet voisin n'en a pas, et
+ * deux onglets d'une même page qui se présentent différemment se lisent comme deux pages.
+ *
  * DEUX FILTRES, tous deux dans l'URL donc partageables (guidelines §6) : la PÉRIODE via le
  * sélecteur de dates du header (`?from=&to=`, comme tout le CRM) et le MEMBRE via `?membre=` — le
- * même `MemberSelect` que le Planning et le Dashboard, qui préserve `?vue=turnover`/`activite` en
- * écrivant. Les deux se combinent : « ce qu'a fait Mehdi en juillet ».
+ * même `MemberSelect` que le Planning et le Dashboard, qui préserve `?vue=` en écrivant.
  *
  * Server Component : le sélecteur (feuille cliente) porte à lui seul l'interactivité.
  */
@@ -37,27 +40,26 @@ export function ActivityView({
   limit: number
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Activité de l’agence</CardTitle>
-        <CardDescription>
-          Du {fr(from)} au {fr(to)} — la période suit le sélecteur de dates en haut de page.
-        </CardDescription>
-        <div className="pt-2">
+    <div className="flex flex-col gap-6">
+      <p className="text-sm text-muted-foreground">
+        Du {fr(from)} au {fr(to)} — la période suit le sélecteur de dates en haut de page.
+      </p>
+
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <MemberSelect members={members} value={selectedMember} allowAll />
         </div>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+
         <EventsTimeline events={events} showMember={!selectedMember} />
-        {/* AUCUNE TRONCATURE SILENCIEUSE : si le plafond est atteint, la liste ne montre pas tout
-            et doit le dire — sinon « rien après le 12 » se lit comme « rien ne s'est passé ». */}
-        {events.length >= limit && (
-          <p className="text-xs text-muted-foreground">
-            Seuls les {limit} changements les plus récents de cette période sont affichés —
-            resserre les dates ou choisis un membre pour voir les plus anciens.
-          </p>
-        )}
-      </CardContent>
-    </Card>
+
+        <div className="text-sm text-muted-foreground">
+          {events.length} changement{events.length > 1 ? 's' : ''}
+          {/* AUCUNE TRONCATURE SILENCIEUSE : au plafond, la liste ne montre pas tout et doit le
+              dire — sinon « rien après le 12 » se lit comme « rien ne s'est passé ». */}
+          {events.length >= limit &&
+            ` — plafond atteint, resserre les dates ou choisis un membre pour voir les plus anciens`}
+        </div>
+      </div>
+    </div>
   )
 }
