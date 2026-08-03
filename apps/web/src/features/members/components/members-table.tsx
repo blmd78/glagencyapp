@@ -73,8 +73,10 @@ export function MembersTable({
       countLabel={(n) => `${n} membre(s)`}
       toolbar={
         <div className="flex flex-wrap items-center gap-2">
-          {/* Chaque bouton n'apparaît QUE s'il a des cas : une toolbar qui affiche « 0 à revoir »
-              en permanence est un bruit dont l'œil apprend à se passer. */}
+          {/* LIBELLÉS SEULS, sans compteur (retour Benoit) : le nombre est déjà sous la table
+              (« N membre(s) »), et il changeait à chaque filtrage — un bouton dont le texte bouge
+              se relit à chaque clic. Chaque bouton n'apparaît QUE s'il a des cas : une toolbar
+              affichant « Désactivés » alors qu'il n'y en a aucun est un bruit inutile. */}
           {nouveaux.length > 0 && (
             <Button
               size="sm"
@@ -84,7 +86,7 @@ export function MembersTable({
               onClick={bascule('nouveaux')}
             >
               <Sparkles className="size-3.5" />
-              {nouveaux.length} nouveau{nouveaux.length > 1 ? 'x' : ''}
+              Nouveaux
             </Button>
           )}
           {anciens.length > 0 && (
@@ -96,7 +98,7 @@ export function MembersTable({
               onClick={bascule('anciens')}
             >
               <RotateCcw className="size-3.5" />
-              {anciens.length} à réactiver
+              Désactivés
             </Button>
           )}
           <MemberDialog

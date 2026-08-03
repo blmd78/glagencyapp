@@ -178,6 +178,18 @@ export function buildMembersColumns({
     },
     ...modelsColumn,
     {
+      // « Créé par » REMISE (retour Benoit 2026-08-03) : savoir qui a ouvert un compte se lit
+      // d'un coup d'œil sur la liste — l'historique et la fiche de détail le disent aussi, mais
+      // il fallait ouvrir. « Créé le », en revanche, reste hors table : la date brute d'ouverture
+      // d'un compte ne se compare pas d'une ligne à l'autre.
+      id: 'createdBy',
+      accessorFn: (m) => m.createdByName ?? '',
+      header: ({ column }) => <Sortable column={column} label="Créé par" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">{row.original.createdByName ?? '—'}</span>
+      ),
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
