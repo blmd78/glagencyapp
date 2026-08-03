@@ -24,6 +24,8 @@ import { cn } from '@/lib/utils'
  */
 export function ConfirmDialog({
   trigger,
+  open: openProp,
+  onOpenChange,
   title = 'Confirmer la suppression ?',
   description = 'Cette action est définitive et ne peut pas être annulée.',
   confirmLabel = 'Supprimer',
@@ -31,7 +33,13 @@ export function ConfirmDialog({
   onConfirm,
   destructive = true,
 }: {
-  trigger: ReactNode
+  /** Déclencheur monté par le dialog. Omis quand l'ouverture est PILOTÉE par `open` — un item de
+   *  menu déroulant ne peut pas servir de trigger : Radix démonte le menu à la sélection, et le
+   *  dialog partirait avec lui. */
+  trigger?: ReactNode
+  /** Mode contrôlé : fourni, il pilote l'ouverture et `onOpenChange` doit l'accompagner. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   title?: string
   description?: ReactNode
   confirmLabel?: string
@@ -39,7 +47,10 @@ export function ConfirmDialog({
   onConfirm: () => void | string | Promise<void | string>
   destructive?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  // Contrôlé si `open` est fourni, autonome sinon — les deux usages coexistent dans l'app.
+  const open = openProp ?? openState
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -70,7 +81,7 @@ export function ConfirmDialog({
         if (!next) setError(null)
       }}
     >
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      {trigger && <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

@@ -71,6 +71,8 @@ export function MemberDialog({
   chatters,
   managers = [],
   trigger,
+  open: openProp,
+  onOpenChange,
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
@@ -82,7 +84,10 @@ export function MemberDialog({
   chatters: { id: string; name: string }[]
   /** Managers rattachables (sélecteur admin, face chatteurs). */
   managers?: { id: string; name: string; role: string }[]
-  trigger: ReactNode
+  /** Omis quand l'ouverture est pilotée par `open`. */
+  trigger?: ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   /** Face dont on gère les droits — les slugs de l'autre face sont préservés côté serveur. */
   scope?: 'chatter' | 'marketing'
   /** Manager : rôle verrouillé sur user, sélecteurs rôle/rattachement masqués. */
@@ -91,7 +96,11 @@ export function MemberDialog({
   superadmin?: boolean
 }) {
   'use no memo'
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  // Contrôlé quand `open` est fourni (ouverture depuis un menu déroulant, qui ne peut pas servir
+  // de trigger : Radix le démonte à la sélection), autonome sinon.
+  const open = openProp ?? openState
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
   const scopeSlugs = new Set(choices.map((c) => c.slug as string))
   // Un modèle hors du périmètre de l'appelant (invisible dans `creators`) ne doit pas
@@ -315,7 +324,7 @@ export function MemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{member ? `Modifier ${member.displayName}` : 'Nouveau membre'}</DialogTitle>

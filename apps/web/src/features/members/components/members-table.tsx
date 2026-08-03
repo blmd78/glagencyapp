@@ -4,8 +4,7 @@
 // `members-columns.tsx` (split « > 300 lignes », même découpe que le pilote chatters).
 
 import { useState } from 'react'
-import { RotateCcw, Sparkles, TriangleAlert, UserPlus } from 'lucide-react'
-import { isStaleNew } from '@glagency/core'
+import { RotateCcw, Sparkles, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
 import { buildMembersColumns } from './members-columns'
@@ -36,25 +35,25 @@ export function MembersTable({
 
   const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin })
 
-  // ── LES QUATRE VUES DE LA LISTE ────────────────────────────────────────────────────────────
+  // ── LES TROIS VUES DE LA LISTE ─────────────────────────────────────────────────────────────
   // UN SEUL filtre actif à la fois, et c'est délibéré : des bascules indépendantes autorisaient
   // des combinaisons qui n'existent pas — « nouveau ET parti » ne désigne personne, et l'écran
   // affichait alors une liste vide sans qu'on comprenne pourquoi. Recliquer le filtre actif
   // revient à « en poste ».
   //
+  // PAS DE FILTRE « à revoir » (retrait Benoit 2026-08-03) : le drapeau resté trop longtemps se
+  // voit déjà au BADGE AMBRE sur la ligne, et « nouveaux » les rassemble tous — un troisième
+  // bouton pour un sous-ensemble que l'œil isole seul ne payait pas sa place dans la toolbar.
+  //
   // Filtres de VUE et non d'URL (norme §6) : ils ne changent pas la donnée chargée, seulement ce
   // qu'on montre d'un jeu déjà là — `useState` local, comme le sélecteur de modèle du pilote.
-  const [filtre, setFiltre] = useState<'poste' | 'nouveaux' | 'a-revoir' | 'anciens'>('poste')
+  const [filtre, setFiltre] = useState<'poste' | 'nouveaux' | 'anciens'>('poste')
 
   const anciens = members.filter((m) => m.leftAt)
   const enPoste = members.filter((m) => !m.leftAt)
   const nouveaux = enPoste.filter((m) => m.isNew)
-  // `aRevoir` se calcule sur les membres EN POSTE : un parti n'a plus de drapeau à décocher, et le
-  // laisser gonfler le compteur enverrait s'occuper de quelqu'un qui n'est plus là.
-  const aRevoir = enPoste.filter((m) => isStaleNew(m.isNew, m.arrivedAt))
 
-  const rows =
-    filtre === 'nouveaux' ? nouveaux : filtre === 'a-revoir' ? aRevoir : filtre === 'anciens' ? anciens : enPoste
+  const rows = filtre === 'nouveaux' ? nouveaux : filtre === 'anciens' ? anciens : enPoste
 
   /** Bascule d'un filtre : le recliquer revient à la vue par défaut. */
   const bascule = (cible: typeof filtre) => () => setFiltre((f) => (f === cible ? 'poste' : cible))
@@ -86,18 +85,6 @@ export function MembersTable({
             >
               <Sparkles className="size-3.5" />
               {nouveaux.length} nouveau{nouveaux.length > 1 ? 'x' : ''}
-            </Button>
-          )}
-          {aRevoir.length > 0 && (
-            <Button
-              size="sm"
-              variant={filtre === 'a-revoir' ? 'default' : 'outline'}
-              className="gap-1.5"
-              aria-pressed={filtre === 'a-revoir'}
-              onClick={bascule('a-revoir')}
-            >
-              <TriangleAlert className="size-3.5" />
-              {aRevoir.length} à revoir
             </Button>
           )}
           {anciens.length > 0 && (

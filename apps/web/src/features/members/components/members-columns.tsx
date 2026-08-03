@@ -7,9 +7,6 @@
 import { type ColumnDef } from '@tanstack/react-table'
 import { AlertTriangle, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { RoleBadge } from '@/components/role-badge'
-import { TeamBadge } from '@/components/team-badge'
-import { ShiftBadge } from '@/components/shift-badge'
 import { NewBadge } from '@/components/new-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sortable } from '@/components/data-table/sortable'
@@ -164,15 +161,14 @@ export function buildMembersColumns({
               {ROLE_NAME[role] ?? ROLE_NAME.chatteur}
             </Badge>
           )
-          // Un chatter porte en plus ses étiquettes closing (setter/closer, équipe) et son
-          // SHIFT — les trois sont des attributs du membre (0077 pour le closing, 0099 pour le
-          // shift, qui vivait jusque-là sur la fiche MyPuls).
+          // LA LIGNE NE GARDE QUE CE QUI IDENTIFIE ET CE QUI ALERTE (allègement Benoit
+          // 2026-08-03). Closing, équipe et shift ont quitté la cellule : ce sont des attributs
+          // de CONFIGURATION, consultés quand on gère les équipes, pas à chaque coup d'œil — six
+          // badges côte à côte ne se lisaient plus. Ils vivent dans « Voir le détail », d'un clic
+          // sur le menu de la ligne, et restent éditables dans la fiche.
           return role === 'chatteur' || !ROLE_NAME[role] ? (
             <div className="flex flex-wrap items-center gap-1">
               {badge}
-              <RoleBadge role={row.original.closingRole} />
-              <TeamBadge team={row.original.closingTeam} />
-              <ShiftBadge shift={row.original.shift} />
               <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} />
               <DepartureBadge member={row.original} />
             </div>
@@ -206,24 +202,6 @@ export function buildMembersColumns({
       },
     },
     ...modelsColumn,
-    {
-      id: 'createdBy',
-      accessorFn: (m) => m.createdByName ?? '',
-      header: ({ column }) => <Sortable column={column} label="Créé par" />,
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">{row.original.createdByName ?? '—'}</span>
-      ),
-    },
-    {
-      accessorKey: 'createdAt',
-      header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
-      cell: ({ getValue }) => (
-        <span className="tabular-nums text-muted-foreground">
-          {FR_DATE_PARIS.format(new Date(getValue() as string))}
-        </span>
-      ),
-      meta: { align: 'right' },
-    },
     {
       id: 'actions',
       header: '',

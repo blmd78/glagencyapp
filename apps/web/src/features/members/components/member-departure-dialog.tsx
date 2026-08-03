@@ -44,12 +44,21 @@ import type { Member } from '../types'
 export function MemberDepartureDialog({
   member,
   trigger,
+  open: openProp,
+  onOpenChange,
 }: {
   member: Member
-  trigger: ReactNode
+  /** Omis quand l'ouverture est pilotée par `open`. */
+  trigger?: ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   'use no memo'
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  // Contrôlé quand `open` est fourni (ouverture depuis un menu déroulant, qui ne peut pas servir
+  // de trigger : Radix le démonte à la sélection), autonome sinon.
+  const open = openProp ?? openState
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
   const {
     control,
     register,
@@ -88,7 +97,7 @@ export function MemberDepartureDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Départ de {member.displayName}</DialogTitle>
