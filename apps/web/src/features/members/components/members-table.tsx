@@ -4,7 +4,7 @@
 // `members-columns.tsx` (split « > 300 lignes », même découpe que le pilote chatters).
 
 import { useState } from 'react'
-import { TriangleAlert, UserPlus, Users } from 'lucide-react'
+import { RotateCcw, Sparkles, TriangleAlert, UserPlus } from 'lucide-react'
 import { isStaleNew } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
@@ -36,23 +36,28 @@ export function MembersTable({
 
   const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin })
 
-  // LE point de contrôle du drapeau « nouvel arrivant » (0101). Un drapeau posé à la main, personne
-  // ne le retire : sans ce compteur unique, le rappel n'existerait que dispersé dans les six écrans
-  // qui affichent le badge, et « nouveau » finirait par ne plus rien vouloir dire.
-  // Filtre de VUE (pas d'URL) : il ne change pas la donnée chargée, juste ce qu'on montre d'un jeu
-  // déjà là — `useState` local, comme le sélecteur de modèle du pilote chatters (norme §6).
-  const [onlyStale, setOnlyStale] = useState(false)
-  // Les PARTIS sont masqués par défaut (0102) : cette page sert d'abord à gérer les gens en poste.
-  // Ils ne sont pas perdus pour autant — la bascule les ramène, avec leur badge « Parti le … ».
-  // Filtre de vue, donc `useState` et pas d'URL (norme §6) : il ne change pas la donnée chargée.
-  const [showLeft, setShowLeft] = useState(false)
-  const left = members.filter((m) => m.leftAt)
-  const inPost = members.filter((m) => !m.leftAt)
-  // `stale` se calcule sur les membres EN POSTE : un parti n'a plus de drapeau « nouveau » à
-  // revoir, et le laisser gonfler le compteur enverrait décocher quelqu'un qui n'est plus là.
-  const stale = inPost.filter((m) => isStaleNew(m.isNew, m.arrivedAt))
-  const base = showLeft ? members : inPost
-  const rows = onlyStale ? stale : base
+  // ── LES QUATRE VUES DE LA LISTE ────────────────────────────────────────────────────────────
+  // UN SEUL filtre actif à la fois, et c'est délibéré : des bascules indépendantes autorisaient
+  // des combinaisons qui n'existent pas — « nouveau ET parti » ne désigne personne, et l'écran
+  // affichait alors une liste vide sans qu'on comprenne pourquoi. Recliquer le filtre actif
+  // revient à « en poste ».
+  //
+  // Filtres de VUE et non d'URL (norme §6) : ils ne changent pas la donnée chargée, seulement ce
+  // qu'on montre d'un jeu déjà là — `useState` local, comme le sélecteur de modèle du pilote.
+  const [filtre, setFiltre] = useState<'poste' | 'nouveaux' | 'a-revoir' | 'anciens'>('poste')
+
+  const anciens = members.filter((m) => m.leftAt)
+  const enPoste = members.filter((m) => !m.leftAt)
+  const nouveaux = enPoste.filter((m) => m.isNew)
+  // `aRevoir` se calcule sur les membres EN POSTE : un parti n'a plus de drapeau à décocher, et le
+  // laisser gonfler le compteur enverrait s'occuper de quelqu'un qui n'est plus là.
+  const aRevoir = enPoste.filter((m) => isStaleNew(m.isNew, m.arrivedAt))
+
+  const rows =
+    filtre === 'nouveaux' ? nouveaux : filtre === 'a-revoir' ? aRevoir : filtre === 'anciens' ? anciens : enPoste
+
+  /** Bascule d'un filtre : le recliquer revient à la vue par défaut. */
+  const bascule = (cible: typeof filtre) => () => setFiltre((f) => (f === cible ? 'poste' : cible))
 
   return (
     <DataTable
@@ -68,31 +73,43 @@ export function MembersTable({
       getRowId={(m) => m.id}
       countLabel={(n) => `${n} membre(s)`}
       toolbar={
-        <div className="flex items-center gap-2">
-          {/* Rendu SEULEMENT s'il y a des cas : une toolbar qui affiche « 0 à revoir » en
-              permanence est un bruit dont l'œil apprend à se passer. */}
-          {stale.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Chaque bouton n'apparaît QUE s'il a des cas : une toolbar qui affiche « 0 à revoir »
+              en permanence est un bruit dont l'œil apprend à se passer. */}
+          {nouveaux.length > 0 && (
             <Button
               size="sm"
-              variant={onlyStale ? 'default' : 'outline'}
+              variant={filtre === 'nouveaux' ? 'default' : 'outline'}
               className="gap-1.5"
-              aria-pressed={onlyStale}
-              onClick={() => setOnlyStale((v) => !v)}
+              aria-pressed={filtre === 'nouveaux'}
+              onClick={bascule('nouveaux')}
             >
-              <TriangleAlert className="size-3.5" />
-              {stale.length} à revoir
+              <Sparkles className="size-3.5" />
+              {nouveaux.length} nouveau{nouveaux.length > 1 ? 'x' : ''}
             </Button>
           )}
-          {left.length > 0 && (
+          {aRevoir.length > 0 && (
             <Button
               size="sm"
-              variant={showLeft ? 'default' : 'outline'}
+              variant={filtre === 'a-revoir' ? 'default' : 'outline'}
               className="gap-1.5"
-              aria-pressed={showLeft}
-              onClick={() => setShowLeft((v) => !v)}
+              aria-pressed={filtre === 'a-revoir'}
+              onClick={bascule('a-revoir')}
             >
-              <Users className="size-3.5" />
-              {left.length} ancien{left.length > 1 ? 's' : ''}
+              <TriangleAlert className="size-3.5" />
+              {aRevoir.length} à revoir
+            </Button>
+          )}
+          {anciens.length > 0 && (
+            <Button
+              size="sm"
+              variant={filtre === 'anciens' ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={filtre === 'anciens'}
+              onClick={bascule('anciens')}
+            >
+              <RotateCcw className="size-3.5" />
+              {anciens.length} à réactiver
             </Button>
           )}
           <MemberDialog
