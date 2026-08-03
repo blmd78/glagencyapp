@@ -4,7 +4,8 @@ import type { TurnoverData } from '../types'
 
 /** Miroir TS du `json` de `turnover_report` (0103) — `Returns: Json` côté Postgres. */
 interface TurnoverReport {
-  by_month: { mois: string; entrees: number; sorties: number; effectif_fin: number }[]
+  by_day: { jour: string; entrees: number; sorties: number; effectif: number }[]
+  headcount: number
   by_reason: { reason: string; n: number }[]
   tenure: { sum_days: number; known: number; exits: number }
 }
@@ -35,32 +36,35 @@ export async function getTurnover(period: { from: string; to: string }): Promise
   if (error) throw new Error(error.message)
   // `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`, inapplicable
   // sur l'union Json avec postgrest-js — cf. guidelines-data-loading §1).
-  const rep = (data as TurnoverReport | null) ?? { by_month: [], by_reason: [], tenure: { sum_days: 0, known: 0, exits: 0 } }
+  const rep = (data as TurnoverReport | null) ?? {
+    by_day: [],
+    headcount: 0,
+    by_reason: [],
+    tenure: { sum_days: 0, known: 0, exits: 0 },
+  }
 
-  const months = rep.by_month.map((m) => ({
-    mois: m.mois,
-    entrees: Number(m.entrees) || 0,
-    sorties: Number(m.sorties) || 0,
-    effectif: Number(m.effectif_fin) || 0,
+  const days = rep.by_day.map((d) => ({
+    jour: d.jour,
+    entrees: Number(d.entrees) || 0,
+    sorties: Number(d.sorties) || 0,
+    effectif: Number(d.effectif) || 0,
   }))
 
-  // Effectif MOYEN de la fenêtre = moyenne des fins de mois. Approximation assumée et suffisante
-  // pour un taux : la mesure exacte (moyenne jour par jour) ne changerait pas la décision qu'on
-  // prend en le lisant.
-  const avgHeadcount = months.length
-    ? months.reduce((s, m) => s + m.effectif, 0) / months.length
-    : 0
+  // Effectif MOYEN de la fenêtre — désormais une vraie moyenne JOUR PAR JOUR, et non plus une
+  // moyenne de fins de mois : le RPC donne le point quotidien depuis 0108.
+  const avgHeadcount = days.length ? days.reduce((s, d) => s + d.effectif, 0) / days.length : 0
   const exits = Number(rep.tenure.exits) || 0
   const known = Number(rep.tenure.known) || 0
 
   return {
     from,
     to: period.to,
-    months,
+    days,
     reasons: rep.by_reason.map((r) => ({ reason: r.reason, n: Number(r.n) || 0 })),
     exits,
-    entries: months.reduce((s, m) => s + m.entrees, 0),
-    headcount: months.at(-1)?.effectif ?? 0,
+    entries: days.reduce((s, d) => s + d.entrees, 0),
+    // Effectif À CET INSTANT, donné par le RPC — plus une extrapolation du dernier point.
+    headcount: Number(rep.headcount) || 0,
     rate: turnoverRate(exits, avgHeadcount),
     /** Moyenne SEULEMENT sur les départs à l'arrivée connue — `known` est le dénominateur que la
      *  vue affiche à côté (« sur 7 départs sur 12 »). null = aucun départ mesurable. */

@@ -97,12 +97,14 @@ export interface TurnoverData {
    *  par défaut : elles démarrent au premier mouvement connu (cf. `get-turnover.ts`). */
   from: string
   to: string
-  months: { mois: string; entrees: number; sorties: number; effectif: number }[]
+  /** Un point PAR JOUR de la période, y compris les jours sans mouvement — un jour manquant
+   *  resserrerait le graphe sur les seules dates actives et ferait lire une activité continue. */
+  days: { jour: string; entrees: number; sorties: number; effectif: number }[]
   reasons: { reason: string; n: number }[]
   /** Totaux de la fenêtre. */
   entries: number
   exits: number
-  /** Effectif à la fin du dernier mois. */
+  /** Effectif CHATTEUR à cet instant (0107) : ni les encadrants ni les partis. */
   headcount: number
   /** Sorties ÷ effectif moyen. null = effectif nul (jamais une division par zéro). */
   rate: number | null
