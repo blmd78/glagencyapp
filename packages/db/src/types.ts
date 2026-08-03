@@ -2462,6 +2462,24 @@ export type Database = {
           username: string
         }[]
       }
+      crm_spenders_page: {
+        Args: {
+          p_seuil?: number
+          p_view?: string
+          p_alerte?: number
+          p_models?: string[]
+          p_search?: string
+          p_sort?: string
+          p_desc?: boolean
+          p_limit?: number
+          p_offset?: number
+        }
+        Returns: Json
+      }
+      crm_spenders_kpis_json: {
+        Args: { p_seuil?: number; p_alerte?: number; p_models?: string[] }
+        Returns: Json
+      }
       crm_spenders_tracker_json: {
         Args: { p_seuil?: number; p_view?: string; p_alerte?: number }
         Returns: Json

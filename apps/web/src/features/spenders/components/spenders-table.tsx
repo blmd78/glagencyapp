@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { ChevronsUpDown, ExternalLink } from 'lucide-react'
-import { type ColumnDef } from '@tanstack/react-table'
+import { type ColumnDef, type SortingState } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { TeamBadge } from '@/components/team-badge'
@@ -238,6 +238,14 @@ export function SpendersTable({
   readOnlyRelances = false,
   models,
   onModelsChange,
+  manual,
+  sorting,
+  onSortingChange,
+  search,
+  onSearchChange,
+  totalCount,
+  hasMore,
+  onLoadMore,
 }: {
   spenders: SpenderRow[]
   /** Colonnes ajoutées en fin (ex. actions du tracker). */
@@ -256,6 +264,15 @@ export function SpendersTable({
    */
   models: string[]
   onModelsChange: (models: string[]) => void
+  /** Mode serveur (0104) : tri, recherche et découpage vivent en base — cf. DataTable. */
+  manual?: boolean
+  sorting?: SortingState
+  onSortingChange?: (next: SortingState) => void
+  search?: string
+  onSearchChange?: (next: string) => void
+  totalCount?: number
+  hasMore?: boolean
+  onLoadMore?: () => void
 }) {
   // Tracker : par défaut on n'affiche QUE les non-relancés du jour (cocher = la ligne
   // sort de la file) ; le toggle bascule sur ceux déjà relancés aujourd'hui.
@@ -305,6 +322,14 @@ export function SpendersTable({
       }
       getRowId={(s) => `${s.creatorId}:${s.fanId}`}
       paginated={false}
+      manual={manual}
+      sorting={sorting}
+      onSortingChange={onSortingChange}
+      search={search}
+      onSearchChange={onSearchChange}
+      totalCount={totalCount}
+      hasMore={hasMore}
+      onLoadMore={onLoadMore}
       countLabel={(n) => `${n} spender(s)`}
       toolbar={
         <>

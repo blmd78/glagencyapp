@@ -46,7 +46,7 @@ const dayAxis = (
  * par défaut : c'est le mouvement qu'on vient regarder, l'effectif est le contexte.
  *
  * TOUS LES JOURS DE LA PÉRIODE sont rendus, y compris ceux à zéro (`generate_series` côté RPC,
- * 0107) : un graphe qui ne montre que les jours actifs les colle les uns aux autres et fait lire
+ * 0101) : un graphe qui ne montre que les jours actifs les colle les uns aux autres et fait lire
  * une activité continue là où il n'y a eu que deux mouvements dans le mois.
  *
  * Écrit avec `ChartContainer`/`ChartTooltip` comme les quatre autres graphes du CRM, et au même

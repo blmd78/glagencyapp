@@ -32,7 +32,7 @@ import { DEPARTURE_REASONS } from '@glagency/core'
 import type { Member } from '../types'
 
 /**
- * ENREGISTRER UN DÉPART — ce qui remplace la suppression pour un vrai départ (0102).
+ * ENREGISTRER UN DÉPART — ce qui remplace la suppression pour un vrai départ (0101).
  *
  * Le compte est désactivé (ban GoTrue) mais le profil RESTE : c'est lui qui porte le turnover.
  * L'encart le dit explicitement, parce que le geste part du bouton qui supprimait jusqu'ici et

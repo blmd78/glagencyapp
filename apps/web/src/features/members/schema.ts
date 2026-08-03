@@ -78,7 +78,7 @@ export const memberInput = z
 export type MemberForm = z.infer<typeof memberInput>
 
 /**
- * Départ d'un membre (0102). Le motif est REQUIS — c'est lui qui rend le turnover interprétable
+ * Départ d'un membre (0101). Le motif est REQUIS — c'est lui qui rend le turnover interprétable
  * (subi ou choisi), et le check SQL `profiles_left_needs_reason` en est le miroir en base.
  *
  * `leftBy` n'est PAS dans ce schéma : l'acteur est posé côté serveur (`caller.id`), jamais envoyé

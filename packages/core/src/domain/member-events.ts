@@ -1,5 +1,5 @@
 /**
- * ÉVÉNEMENTS DE VIE D'UN MEMBRE — vocabulaire et rédaction (0102/0104).
+ * ÉVÉNEMENTS DE VIE D'UN MEMBRE — vocabulaire et rédaction (0101).
  *
  * Dans le domaine et pas dans `apps/web` pour une raison simple : `apps/web` n'a pas de Vitest,
  * et cette rédaction contient du PARSING (la valeur composite d'une sortie) plus une dizaine de
@@ -48,7 +48,7 @@ export const INITIATIVE_LABEL: Record<DepartureInitiative, string> = {
   autre: 'Autres',
 }
 
-/** Types d'événement — miroir du `check` SQL `member_events.kind` (0104). */
+/** Types d'événement — miroir du `check` SQL `member_events.kind` (0101). */
 export const EVENT_KINDS = [
   'creation',
   'role',
@@ -130,7 +130,7 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
         : to
           ? `Lié à la fiche MyPuls ${to}`
           : `Lien MyPuls retiré${from ? ` (${from})` : ''}`
-    // Nom, email ou lien de travail — un seul kind, cf. 0106 : ils décrivent la même chose.
+    // Nom, email ou lien de travail — un seul kind, cf. 0101 : ils décrivent la même chose.
     case 'identite':
       return arrow('Fiche', from, to)
     case 'sortie': {

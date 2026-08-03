@@ -12,7 +12,7 @@ export type MembersVue = 'liste' | 'turnover' | 'activite'
 
 /**
  * Les trois vues de la page Membres : la liste des comptes, le turnover de l'agence, et le flux
- * d'activité (qui a changé quoi, 0104).
+ * d'activité (qui a changé quoi, 0101).
  *
  * ONGLET plutôt que nouvelle route : aucun slug ni droit à créer (la page est déjà réservée aux
  * encadrants), et les statistiques RH vivent là où se gèrent les gens.

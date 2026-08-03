@@ -57,6 +57,25 @@ interface DataTableProps<T> {
    * forcées à cette hauteur. 44 = `p-2` (16) + contenu mono-ligne (badges/cases ~28).
    */
   estimateRowHeight?: number
+  /**
+   * MODE SERVEUR. Tri, recherche et découpage vivent en base : la table n'ordonne ni ne filtre
+   * plus ce qu'elle reçoit, elle l'affiche. Indispensable dès qu'on ne détient qu'une TRANCHE —
+   * trier 100 lignes sur 9 800 donnerait un classement faux, et convaincant.
+   * Les autres tables ne passent pas ces props et gardent le comportement client.
+   */
+  manual?: boolean
+  /** Tri CONTRÔLÉ par le parent (mode serveur) — c'est lui qui refait la requête. */
+  sorting?: SortingState
+  onSortingChange?: (next: SortingState) => void
+  /** Valeur de la barre de recherche, remontée au parent au lieu de filtrer sur place. */
+  search?: string
+  onSearchChange?: (next: string) => void
+  /** Appelé quand le scroll approche du bas — charge la tranche suivante. */
+  onLoadMore?: () => void
+  /** Reste-t-il des lignes à charger ? `false` coupe les appels. */
+  hasMore?: boolean
+  /** Nombre total de lignes du PÉRIMÈTRE (pas de la tranche) — alimente `countLabel`. */
+  totalCount?: number
 }
 
 /**
@@ -132,10 +151,15 @@ function VirtualizedTable<T>({
   table,
   estimateRowHeight,
   renderSubRows,
+  onLoadMore,
+  hasMore = false,
 }: {
   table: TanstackTable<T>
   estimateRowHeight: number
   renderSubRows?: (row: Row<T>) => ReactNode
+  /** Mode serveur : charger la tranche suivante quand le bas approche. */
+  onLoadMore?: () => void
+  hasMore?: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const rows = table.getRowModel().rows
@@ -147,6 +171,17 @@ function VirtualizedTable<T>({
     overscan: 12,
   })
   const items = virtualizer.getVirtualItems()
+  // INFINITE SCROLL — on déclenche sur le dernier index MONTÉ, pas sur la position du scroll :
+  // le virtualiseur sait déjà ce qu'il rend, et une lecture de scrollTop se serait désynchronisée
+  // des lignes de hauteur estimée. La marge (overscan + une page d'avance) fait charger avant que
+  // l'utilisateur touche le fond, donc sans à-coup visible.
+  const dernierIndex = items.length > 0 ? items[items.length - 1].index : 0
+  useEffect(() => {
+    if (!onLoadMore || !hasMore) return
+    if (dernierIndex >= rows.length - 20) onLoadMore()
+    // `onLoadMore` est stable côté appelant (useCallback) ; le garde-fou anti-rafale vit là-bas,
+    // seul endroit qui sache si une requête est déjà en vol.
+  }, [dernierIndex, rows.length, hasMore, onLoadMore])
   const paddingTop = items.length > 0 ? items[0].start : 0
   const paddingBottom = items.length > 0 ? virtualizer.getTotalSize() - items[items.length - 1].end : 0
   // Span exact des colonnes visibles : les lignes-espaceurs portent un <td colSpan> (un <tr>
@@ -218,16 +253,37 @@ export function DataTable<T>({
   toolbar,
   paginated = true,
   estimateRowHeight = 44,
+  manual = false,
+  sorting: sortingProp,
+  onSortingChange,
+  search,
+  onSearchChange,
+  onLoadMore,
+  hasMore = false,
+  totalCount,
 }: DataTableProps<T>) {
-  const [sorting, setSorting] = useState<SortingState>(initialSorting)
+  const [sortingLocal, setSortingLocal] = useState<SortingState>(initialSorting)
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  // En mode serveur le tri appartient au parent (il déclenche la requête) ; sinon il vit ici.
+  const sorting = manual && sortingProp ? sortingProp : sortingLocal
+  const setSorting = (updater: SortingState | ((s: SortingState) => SortingState)) => {
+    const next = typeof updater === 'function' ? updater(sorting) : updater
+    if (manual && onSortingChange) onSortingChange(next)
+    else setSortingLocal(next)
+  }
 
+  // Mode serveur : le total vient de la base. Afficher les lignes déjà chargées ferait croire
+  // que la liste est plus courte qu'elle n'est — « 100 spender(s) » sur un périmètre de 9 800.
   const table = useReactTable({
     data,
     columns,
     state: { sorting, columnFilters },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
+    // Le row model reste monté (les en-têtes triables en dépendent) mais n'ordonne ni ne
+    // filtre : la base l'a déjà fait, refaire le travail sur une tranche la mélangerait.
+    manualSorting: manual,
+    manualFiltering: manual,
     getRowCanExpand,
     getRowId,
     getCoreRowModel: getCoreRowModel(),
@@ -251,14 +307,19 @@ export function DataTable<T>({
   }, [pageCount, pageIndex, table])
 
   const count = table.getFilteredRowModel().rows.length
+  const shownCount = manual && totalCount !== undefined ? totalCount : count
 
   const filterAndToolbar = (filterColumnId || toolbar) && (
     <div className="flex flex-wrap items-center gap-2">
       {filterColumnId && (
         <Input
           placeholder={filterPlaceholder}
-          value={(table.getColumn(filterColumnId)?.getFilterValue() as string) ?? ''}
-          onChange={(e) => table.getColumn(filterColumnId)?.setFilterValue(e.target.value)}
+          value={manual ? (search ?? '') : ((table.getColumn(filterColumnId)?.getFilterValue() as string) ?? '')}
+          onChange={(e) =>
+            manual
+              ? onSearchChange?.(e.target.value)
+              : table.getColumn(filterColumnId)?.setFilterValue(e.target.value)
+          }
           className="max-w-xs"
         />
       )}
@@ -275,9 +336,11 @@ export function DataTable<T>({
           table={table}
           estimateRowHeight={estimateRowHeight}
           renderSubRows={renderSubRows}
+          onLoadMore={onLoadMore}
+          hasMore={hasMore}
         />
         <div className="text-sm text-muted-foreground">
-          {countLabel ? countLabel(count) : count}
+          {countLabel ? countLabel(shownCount) : shownCount}
         </div>
       </div>
     )
@@ -325,7 +388,7 @@ export function DataTable<T>({
 
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {countLabel ? countLabel(count) : count}
+          {countLabel ? countLabel(shownCount) : shownCount}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">

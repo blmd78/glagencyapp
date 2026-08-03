@@ -26,7 +26,7 @@ describe('vocabulaire', () => {
 
   it('reconnaît les kinds du check SQL, et rejette le reste', () => {
     // Liste ÉNUMÉRÉE et non comptée : un simple `toHaveLength` passerait si on remplaçait un
-    // kind par un autre. Miroir exact du check `member_events_kind_check` (0104 puis 0106) —
+    // kind par un autre. Miroir exact du check `member_events_kind_check` (0101) —
     // ce test est ce qui casse quand la base et le domaine divergent.
     expect([...EVENT_KINDS]).toEqual([
       'creation',
@@ -125,7 +125,7 @@ describe('memberEventLabel — la sortie, dont la valeur est composite', () => {
   })
 })
 
-describe('memberEventLabel — lien MyPuls et fiche (0106)', () => {
+describe('memberEventLabel — lien MyPuls et fiche (0101)', () => {
   it('nomme le lien MyPuls dans les trois sens', () => {
     // Ce lien décide de quel CA est attribué au membre, donc de sa paie : le libellé doit dire
     // ce qui s'est passé, pas « Lien : → Sam ».

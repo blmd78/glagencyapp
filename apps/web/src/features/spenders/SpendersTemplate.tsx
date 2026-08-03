@@ -1,5 +1,6 @@
 import { frDateTimeParis } from '@glagency/core'
 import { SpendersView, type SpendersViewKind } from './components/spenders-view'
+import type { SpendersKpis } from './services/get-spenders-page'
 import { isARelancer, R_ALERTE, type SpendersData } from './types'
 
 // Le h1 (titre) remonte dans chaque page.tsx (pattern standard, s'affiche immédiatement,
@@ -17,11 +18,16 @@ const SUB: Record<SpendersViewKind, (n: number) => string> = {
 export function SpendersTemplate({
   data,
   view,
+  total,
+  serverKpis,
   isAdmin,
   canWrite,
 }: {
   data: SpendersData
   view: SpendersViewKind
+  /** Mode serveur (0104) : total du périmètre — `data.spenders` n'est alors qu'une tranche. */
+  total?: number
+  serverKpis?: SpendersKpis
   isAdmin?: boolean
   /** admin ou manager/sous-manager : peut reset/archiver (0060). Calculé dans la page. */
   canWrite?: boolean
@@ -32,8 +38,10 @@ export function SpendersTemplate({
   // spenders-table.tsx).
   const freshness = data.capturedAt ? frDateTimeParis(data.capturedAt) : null
 
+  // MODE SERVEUR : `data.spenders` n'est qu'une tranche — le sous-titre annoncerait « 100
+  // spender(s) » sur un périmètre de 9 800. Le total vient alors de la base.
   const actifs = data.spenders.filter((s) => !s.archived)
-  const shownCount =
+  const shownCount = total !== undefined ? total :
     view === 'archive'
       ? data.spenders.length - actifs.length
       : view === 'tracker'
@@ -56,6 +64,8 @@ export function SpendersTemplate({
         canWrite={canWrite}
         threshold={data.threshold}
         freshness={freshness}
+        total={total}
+        serverKpis={serverKpis}
       />
     </div>
   )

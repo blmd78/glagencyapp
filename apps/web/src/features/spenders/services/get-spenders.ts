@@ -5,7 +5,7 @@ import type { SpendersViewKind } from '../components/spenders-view'
 
 /** Forme d'une ligne du json de `crm_spenders_tracker_json` (0091) — miroir du
  *  `returns table` de `crm_spenders_tracker`, que le wrapper agrège en un seul json. */
-interface TrackerRow {
+export interface TrackerRow {
   creator_id: string
   fan_id: number
   username: string

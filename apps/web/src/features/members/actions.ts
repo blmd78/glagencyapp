@@ -123,7 +123,7 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
           // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
           created_by: caller.id,
-          // « Modifié par » (0104) : LU PAR LE TRIGGER D'HISTORIQUE. Cette page écrit en
+          // « Modifié par » (0101) : LU PAR LE TRIGGER D'HISTORIQUE. Cette page écrit en
           // service role, où `auth.uid()` est null — sans cette colonne, tout changement fait
           // ici serait attribué à « système ».
           updated_by: caller.id,
@@ -205,7 +205,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           // l'efface, puisque la personne quitte le dispositif chatteur.
           is_new: role === 'chatteur' ? values.isNew : false,
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
-          // LU PAR LE TRIGGER D'HISTORIQUE (0104), et écrit AVANT `syncAssignments` plus bas —
+          // LU PAR LE TRIGGER D'HISTORIQUE (0101), et écrit AVANT `syncAssignments` plus bas —
           // c'est ce qui permet au trigger de `profile_creators` de retrouver l'auteur d'un
           // changement de modèle malgré le service role. Ne pas déplacer cette écriture après.
           updated_by: caller.id,
