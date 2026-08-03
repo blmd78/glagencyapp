@@ -59,6 +59,9 @@ export interface ChatterRow {
   // sur une fiche sans membre lié, qui ne correspond à personne dans l'équipe actuelle.
   isNew: boolean
   arrivedAt: string | null
+  /** Date de sortie du membre lié (0101) — éteint le badge « nouveau » sur une fiche dont le
+   *  membre a quitté l'agence. */
+  leftAt: string | null
   // Sommables (= Σ modèles)
   ca: number
   ppv: number

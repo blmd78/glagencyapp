@@ -88,7 +88,12 @@ export function makeComptaColumns({
           <span className="font-medium">{row.original.name}</span>
           {/* Icône et non badge texte : la ligne porte déjà un badge de rôle, un second mot la
               surchargerait. Utile ici — un nouvel arrivant n'a pas le même rendement attendu. */}
-          <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} variant="icon" />
+          <NewBadge
+            isNew={row.original.isNew}
+            arrivedAt={row.original.arrivedAt}
+            leftAt={row.original.leftAt}
+            variant="icon"
+          />
           {/* Parti mais encore listé : il reste dû. Le badge dit POURQUOI il est là, sinon sa
               présence dans une liste de paie ressemblerait à une erreur. */}
           {row.original.leftAt && (

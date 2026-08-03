@@ -169,7 +169,11 @@ export function buildMembersColumns({
           return role === 'chatteur' || !ROLE_NAME[role] ? (
             <div className="flex flex-wrap items-center gap-1">
               {badge}
-              <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} />
+              <NewBadge
+                isNew={row.original.isNew}
+                arrivedAt={row.original.arrivedAt}
+                leftAt={row.original.leftAt}
+              />
               <DepartureBadge member={row.original} />
             </div>
           ) : (

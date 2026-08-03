@@ -35,13 +35,19 @@ const frDate = (iso: string) => iso.split('-').reverse().join('/')
 export function NewBadge({
   isNew,
   arrivedAt,
+  leftAt = null,
   variant = 'badge',
 }: {
   isNew: boolean
   arrivedAt: string | null
+  /** Date de sortie du membre. Renseignée, elle ÉTEINT le badge : « nouvel arrivant » n'a plus de
+   *  sens pour quelqu'un qui est parti, et le voir à côté de « Parti le … » se lit comme une
+   *  contradiction. Corrigé ICI et pas dans chaque écran — le compteur « nouveaux » de la page
+   *  Membres excluait déjà les partis, l'affichage le contredisait. */
+  leftAt?: string | null
   variant?: 'badge' | 'icon'
 }) {
-  if (!isNew) return null
+  if (!isNew || leftAt) return null
   const stale = isStaleNew(isNew, arrivedAt)
   const days = daysSinceArrival(arrivedAt)
   const title = stale

@@ -37,7 +37,11 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
           <div className="truncate font-medium">{row.original.name}</div>
           {/* Avec le NOM et pas dans la colonne « Closing » : « nouvel arrivant » n'est pas une
               désignation de paie, c'est une propriété de la personne. */}
-          <NewBadge isNew={row.original.isNew} arrivedAt={row.original.arrivedAt} />
+          <NewBadge
+            isNew={row.original.isNew}
+            arrivedAt={row.original.arrivedAt}
+            leftAt={row.original.leftAt}
+          />
         </div>
       </div>
     ),

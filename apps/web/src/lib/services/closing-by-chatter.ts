@@ -16,7 +16,13 @@ import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 export async function getClosingByChatter(): Promise<
   Map<
     string,
-    { role: CrmRole | null; team: CrmTeam | null; isNew: boolean; arrivedAt: string | null }
+    {
+      role: CrmRole | null
+      team: CrmTeam | null
+      isNew: boolean
+      arrivedAt: string | null
+      leftAt: string | null
+    }
   >
 > {
   const admin = createAdminClient()
@@ -26,7 +32,7 @@ export async function getClosingByChatter(): Promise<
   const { data, error } = await fetchAll((f, t) =>
     admin
       .from('profiles')
-      .select('chatter_id, closing_role, closing_team, is_new, arrived_at')
+      .select('chatter_id, closing_role, closing_team, is_new, arrived_at, left_at')
       .not('chatter_id', 'is', null)
       .order('id')
       .range(f, t),
@@ -34,7 +40,13 @@ export async function getClosingByChatter(): Promise<
   if (error) throw new Error(error.message)
   const map = new Map<
     string,
-    { role: CrmRole | null; team: CrmTeam | null; isNew: boolean; arrivedAt: string | null }
+    {
+      role: CrmRole | null
+      team: CrmTeam | null
+      isNew: boolean
+      arrivedAt: string | null
+      leftAt: string | null
+    }
   >()
   for (const m of data ?? [])
     if (m.chatter_id)
@@ -43,6 +55,7 @@ export async function getClosingByChatter(): Promise<
         team: (m.closing_team ?? null) as CrmTeam | null,
         isNew: m.is_new ?? false,
         arrivedAt: m.arrived_at ?? null,
+        leftAt: m.left_at ?? null,
       })
   return map
 }

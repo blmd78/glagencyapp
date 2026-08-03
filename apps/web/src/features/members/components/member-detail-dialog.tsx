@@ -15,6 +15,7 @@ import { ShiftBadge } from '@/components/shift-badge'
 import { NewBadge } from '@/components/new-badge'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { STATUS_COLORS } from '@/lib/status-color'
+import { modelColor } from '@/lib/model-color'
 import { cn } from '@/lib/utils'
 import type { Member } from '../types'
 
@@ -100,8 +101,11 @@ export function MemberDetailDialog({
 
           <Ligne label="Modèles">
             {modeles.length ? (
+              // `modelColor` : chaque modèle a une teinte STABLE dans toute l'app (colonne
+              // Modèles, Tracker, graphes). Un badge gris ici aurait fait de cette fiche le seul
+              // écran où Emma n'est pas de la couleur d'Emma.
               modeles.map((n) => (
-                <Badge key={n} variant="outline" className="font-normal">
+                <Badge key={n} className={modelColor(n)}>
                   {n}
                 </Badge>
               ))
@@ -110,9 +114,11 @@ export function MemberDetailDialog({
             )}
           </Ligne>
 
-          {member.isNew && (
+          {(member.arrivedAt || member.isNew) && (
             <Ligne label="Arrivée">
-              <NewBadge isNew arrivedAt={member.arrivedAt} />
+              {/* `leftAt` éteint le badge : « nouvel arrivant » et « parti le … » sur la même
+                  fiche se lisaient comme une contradiction. La DATE, elle, reste. */}
+              <NewBadge isNew={member.isNew} arrivedAt={member.arrivedAt} leftAt={member.leftAt} />
               {member.arrivedAt && (
                 <span className="text-muted-foreground">le {frDateNumeric(member.arrivedAt)}</span>
               )}

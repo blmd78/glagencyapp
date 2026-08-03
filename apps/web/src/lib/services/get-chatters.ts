@@ -166,6 +166,7 @@ export async function getChatters(
         closingTeam: closingByChatter.get(id)?.team ?? null,
         isNew: closingByChatter.get(id)?.isNew ?? false,
         arrivedAt: closingByChatter.get(id)?.arrivedAt ?? null,
+        leftAt: closingByChatter.get(id)?.leftAt ?? null,
         ca: a.ca,
         ppv: a.ppv,
         tips: a.tips,
