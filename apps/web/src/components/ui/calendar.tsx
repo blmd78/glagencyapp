@@ -191,15 +191,23 @@ function CalendarDayButton({
       variant="ghost"
       size="icon"
       data-day={day.date.toLocaleDateString()}
+      // UN JOUR DU MOIS VOISIN N'EST JAMAIS PEINT COMME SÉLECTIONNÉ. Sur deux mois affichés
+      // côte à côte, la même date apparaît DEUX FOIS — une fois dans sa grille, une fois en
+      // débordement de la grille d'à côté. Peindre les deux donnait un 1er août en noir à deux
+      // endroits : une plage du 1er au 3 semblait en compter trois (retour Benoit 2026-08-03).
+      // Le jour reste affiché, en gris, comme chez shadcn — c'est le FOND de sélection qu'on
+      // retire, pas la date. Neutralisé ici plutôt qu'en CSS : deux classes Tailwind de même
+      // spécificité auraient laissé l'ordre du bundle décider laquelle gagne.
       data-selected-single={
         modifiers.selected &&
+        !modifiers.outside &&
         !modifiers.range_start &&
         !modifiers.range_end &&
         !modifiers.range_middle
       }
-      data-range-start={modifiers.range_start}
-      data-range-end={modifiers.range_end}
-      data-range-middle={modifiers.range_middle}
+      data-range-start={modifiers.range_start && !modifiers.outside}
+      data-range-end={modifiers.range_end && !modifiers.outside}
+      data-range-middle={modifiers.range_middle && !modifiers.outside}
       className={cn(
         "data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-ring/50 flex aspect-square h-auto w-full min-w-(--cell-size) flex-col gap-1 font-normal leading-none data-[range-end=true]:rounded-md data-[range-middle=true]:rounded-none data-[range-start=true]:rounded-md group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:ring-[3px] [&>span]:text-xs [&>span]:opacity-70",
         defaultClassNames.day,
