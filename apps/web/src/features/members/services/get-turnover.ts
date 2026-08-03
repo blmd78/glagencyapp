@@ -1,4 +1,4 @@
-import { tenureDays, turnoverRate } from '@glagency/core'
+import { turnoverRate } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { TurnoverData } from '../types'
 
@@ -68,6 +68,3 @@ export async function getTurnover(period: { from: string; to: string }): Promise
     tenureKnown: known,
   }
 }
-
-/** Ré-export local : la vue calcule l'ancienneté d'un départ isolé avec la même règle. */
-export { tenureDays }
