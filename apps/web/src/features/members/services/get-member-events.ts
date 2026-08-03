@@ -2,6 +2,7 @@ import { isEventKind, memberEventLabel, type EventKind } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import type { SelectableMember } from '@/lib/types/member'
 import type { MemberEvent } from '../types'
 
 /**
@@ -17,6 +18,12 @@ import type { MemberEvent } from '../types'
  *
  * Résolus par map et non par jointure PostgREST, pour la même raison : `actor_id` est en
  * `on delete set null`, une jointure ferait disparaître la ligne au lieu d'afficher « système ».
+ *
+ * TOUT EST REMONTÉ, sans exception ni filtre (décision Benoit 2026-08-03). Les changements de
+ * droits ont d'abord été masqués derrière une case, puis écartés au service : les deux ont été
+ * retirés. Un historique qui décide de ce qu'il montre n'est plus un historique — c'est
+ * l'exhaustivité qui fait sa valeur, et le filtrage se fait par MEMBRE et par PÉRIODE, pas par
+ * nature d'événement.
  */
 export async function getMemberEvents(opts: {
   profileId?: string
@@ -65,4 +72,26 @@ export async function getMemberEvents(opts: {
       actorName: r.actor_id ? (nameById.get(r.actor_id) ?? null) : null,
       memberName: nameById.get(r.profile_id) ?? '—',
     }))
+}
+
+/**
+ * Options du sélecteur de membre de l'onglet « Activité » (`?membre=`).
+ *
+ * LES PARTIS SONT INCLUS, contrairement à `getVisibleProfiles` qui les écarte : ce sélecteur ne
+ * sert pas à DÉSIGNER quelqu'un pour une action, il sert à RELIRE son passé — et l'historique de
+ * quelqu'un qui vient de partir est précisément celui qu'on veut consulter.
+ *
+ * Client admin, comme la résolution des noms au-dessus : la liste doit couvrir tous les profils
+ * qu'un événement peut nommer, y compris hors périmètre du lecteur. La page est déjà gardée par
+ * `requireAdminOrManager`, et seuls id/nom/rôle sortent d'ici.
+ */
+export async function getEventMemberOptions(): Promise<SelectableMember[]> {
+  const admin = createAdminClient()
+  const { data, error } = await fetchAll((f, t) =>
+    admin.from('profiles').select('id, display_name, email, role').order('id').range(f, t),
+  )
+  if (error) throw new Error(error.message)
+  return (data ?? [])
+    .map((p) => ({ id: p.id, name: p.display_name ?? p.email ?? '—', role: p.role }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 }

@@ -3,11 +3,41 @@ import { requireAdminOrManager } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 import { getMembers } from '@/features/members/services/get-members'
 import { getTurnover } from '@/features/members/services/get-turnover'
-import { getMemberEvents } from '@/features/members/services/get-member-events'
+import { getEventMemberOptions, getMemberEvents } from '@/features/members/services/get-member-events'
+import { resolveFilter } from '@/lib/roster'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { MembersSkeleton } from '@/features/members/components/members-skeleton'
-import type { MemberEvent, MembersData, TurnoverData } from '@/features/members/types'
+import type { MembersData, TurnoverData } from '@/features/members/types'
+import type { SelectableMember } from '@/lib/types/member'
+import type { MemberEvent } from '@/features/members/types'
+
+interface ActivityData {
+  events: MemberEvent[]
+  members: SelectableMember[]
+  selectedMember: string | null
+}
+
+/**
+ * Le filtre `?membre=` est validé PAR APPARTENANCE à la liste (`resolveFilter`, patron du Planning)
+ * — un id inconnu ou mal formé est ignoré. Séquentiel et non parallèle : la liste doit exister
+ * AVANT de décider si le filtre est valide, sinon on lirait les événements d'un id refusé ensuite
+ * par le sélecteur, et l'écran afficherait « Tous les membres » au-dessus d'une liste filtrée.
+ */
+async function loadActivity(
+  period: { from: string; to: string },
+  membre: string | undefined,
+): Promise<ActivityData> {
+  const members = await getEventMemberOptions()
+  const selectedMember = resolveFilter(members, membre)
+  const events = await getMemberEvents({
+    profileId: selectedMember ?? undefined,
+    from: period.from,
+    to: period.to,
+    limit: ACTIVITY_LIMIT,
+  })
+  return { events, members, selectedMember }
+}
 
 /** Plafond du flux d'activité. La vue DIT quand il est atteint — pas de troncature muette. */
 const ACTIVITY_LIMIT = 200
@@ -15,7 +45,7 @@ const ACTIVITY_LIMIT = 200
 export default async function MembersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; from?: string; to?: string }>
+  searchParams: Promise<{ vue?: string; from?: string; to?: string; membre?: string }>
 }) {
   const profile = await requireAdminOrManager()
   const sp = await searchParams
@@ -29,10 +59,7 @@ export default async function MembersPage({
   // requête à qui consulte un autre onglet.
   const data = vue === 'liste' ? getMembers() : null
   const turnover = vue === 'turnover' ? getTurnover(period) : null
-  const activity =
-    vue === 'activite'
-      ? getMemberEvents({ from: period.from, to: period.to, limit: ACTIVITY_LIMIT })
-      : null
+  const activity = vue === 'activite' ? loadActivity(period, sp.membre) : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,7 +96,7 @@ async function MembersContent({
 }: {
   data: Promise<MembersData> | null
   turnover: Promise<TurnoverData> | null
-  activity: Promise<MemberEvent[]> | null
+  activity: Promise<ActivityData> | null
   period: { from: string; to: string }
   vue: 'liste' | 'turnover' | 'activite'
   viewer: 'admin' | 'manager'
@@ -79,11 +106,7 @@ async function MembersContent({
     <MembersTemplate
       data={data ? await data : null}
       turnover={turnover ? await turnover : null}
-      activity={
-        activity
-          ? { events: await activity, from: period.from, to: period.to, limit: ACTIVITY_LIMIT }
-          : null
-      }
+      activity={activity ? { ...(await activity), from: period.from, to: period.to, limit: ACTIVITY_LIMIT } : null}
       vue={vue}
       viewer={viewer}
       superadmin={superadmin}

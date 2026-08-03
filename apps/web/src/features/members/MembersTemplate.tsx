@@ -2,6 +2,7 @@ import { MembersTable } from './components/members-table'
 import { MembersTabs } from './components/members-tabs'
 import { TurnoverView } from './components/turnover-view'
 import { ActivityView } from './components/activity-view'
+import type { SelectableMember } from '@/lib/types/member'
 import type { MemberEvent, MembersData, TurnoverData } from './types'
 
 /**
@@ -27,7 +28,16 @@ export function MembersTemplate({
 }: {
   data: MembersData | null
   turnover?: TurnoverData | null
-  activity?: { events: MemberEvent[]; from: string; to: string; limit: number } | null
+  activity?:
+    | {
+        events: MemberEvent[]
+        members: SelectableMember[]
+        selectedMember: string | null
+        from: string
+        to: string
+        limit: number
+      }
+    | null
   vue?: 'liste' | 'turnover' | 'activite'
   /** Face dont cette page gère les droits (les droits de l'autre face sont préservés). */
   scope?: 'chatter' | 'marketing'
