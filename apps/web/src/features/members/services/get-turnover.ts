@@ -6,7 +6,7 @@ import type { TurnoverData } from '../types'
 interface TurnoverReport {
   by_day: { jour: string; entrees: number; sorties: number; effectif: number }[]
   headcount: number
-  by_reason: { reason: string; n: number }[]
+  departures: { name: string; reason: string; left_at: string; tenure_days: number | null }[]
   tenure: { sum_days: number; known: number; exits: number }
 }
 
@@ -39,7 +39,7 @@ export async function getTurnover(period: { from: string; to: string }): Promise
   const rep = (data as TurnoverReport | null) ?? {
     by_day: [],
     headcount: 0,
-    by_reason: [],
+    departures: [],
     tenure: { sum_days: 0, known: 0, exits: 0 },
   }
 
@@ -60,7 +60,12 @@ export async function getTurnover(period: { from: string; to: string }): Promise
     from,
     to: period.to,
     days,
-    reasons: rep.by_reason.map((r) => ({ reason: r.reason, n: Number(r.n) || 0 })),
+    departures: rep.departures.map((d) => ({
+      name: d.name,
+      reason: d.reason,
+      leftAt: d.left_at,
+      tenureDays: d.tenure_days === null ? null : Number(d.tenure_days),
+    })),
     exits,
     entries: days.reduce((s, d) => s + d.entrees, 0),
     // Effectif À CET INSTANT, donné par le RPC — plus une extrapolation du dernier point.

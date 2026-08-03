@@ -100,7 +100,15 @@ export interface TurnoverData {
   /** Un point PAR JOUR de la période, y compris les jours sans mouvement — un jour manquant
    *  resserrerait le graphe sur les seules dates actives et ferait lire une activité continue. */
   days: { jour: string; entrees: number; sorties: number; effectif: number }[]
-  reasons: { reason: string; n: number }[]
+  /** Les départs de la période, NOMMÉS et du plus récent au plus ancien. Sur les volumes réels
+   *  d'une agence, savoir qui est parti et pourquoi apprend plus qu'un comptage par motif. */
+  departures: {
+    name: string
+    reason: string
+    leftAt: string
+    /** Jours entre l'arrivée et le départ — null si l'arrivée n'a pas été saisie. */
+    tenureDays: number | null
+  }[]
   /** Totaux de la fenêtre. */
   entries: number
   exits: number

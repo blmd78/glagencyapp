@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { DEPARTURE_LABEL, frDateNumeric, type DepartureReason } from '@glagency/core'
 import { KpiGrid } from '@/components/kpi-card'
 import { TurnoverChart } from './turnover-chart'
-import { ReasonBreakdown } from './reason-breakdown'
 import type { TurnoverData } from '../types'
 
 /**
@@ -59,16 +59,32 @@ export function TurnoverView({ data }: { data: TurnoverData }) {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Motifs de départ</CardTitle>
-            <CardDescription>
-              Départs décidés par l’agence ou subis — c’est ce que le taux seul ne dit pas.
-            </CardDescription>
+            <CardTitle className="text-base">Départs de la période</CardTitle>
+            <CardDescription>Qui est parti, et pourquoi.</CardDescription>
           </CardHeader>
           <CardContent>
-            {data.reasons.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun départ enregistré sur la période.</p>
+            {data.departures.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun départ sur la période.</p>
             ) : (
-              <ReasonBreakdown reasons={data.reasons} total={data.exits} />
+              <ul className="flex flex-col">
+                {data.departures.map((d) => (
+                  <li
+                    key={`${d.name}-${d.leftAt}`}
+                    className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b py-2 last:border-0"
+                  >
+                    <span className="font-medium">{d.name}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {DEPARTURE_LABEL[d.reason as DepartureReason] ?? d.reason}
+                    </span>
+                    <span className="w-full text-xs tabular-nums text-muted-foreground">
+                      {frDateNumeric(d.leftAt)}
+                      {/* Durée omise plutôt qu'affichée à zéro quand l'arrivée n'est pas saisie :
+                          « 0 jour » se lirait comme un départ le jour même. */}
+                      {d.tenureDays !== null && ` · ${d.tenureDays} jours`}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
