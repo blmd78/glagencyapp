@@ -12,7 +12,7 @@ export default async function SpendersAlertesPage() {
   const profile = await requireAccess('crm-spenders')
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, la table streame dans
   // son boundary quand le RPC répond.
-  const data = getSpenders()
+  const data = getSpenders('alertes')
 
   return (
     <div className="flex flex-col gap-6">

@@ -119,6 +119,11 @@ export function DateRangePicker({ className }: { className?: string }) {
           selected={draft}
           onSelect={handleSelect}
           numberOfMonths={2}
+          // Pas de jours du mois voisin. Avec deux grilles côte à côte ils font DOUBLON — le
+          // 1er août apparaissait à la fois en fin de juillet et en tête d'août, et comme le
+          // style `outside` ne grise que le texte, la case gardait son fond de sélection : une
+          // plage du 1er au 3 semblait en compter trois. La date voisine est déjà à l'écran.
+          showOutsideDays={false}
           disabled={{ after: now }}
           endMonth={endOfMonth(now)}
           locale={fr}
