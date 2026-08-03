@@ -94,13 +94,6 @@ export function makeComptaColumns({
             leftAt={row.original.leftAt}
             variant="icon"
           />
-          {/* Parti mais encore listé : il reste dû. Le badge dit POURQUOI il est là, sinon sa
-              présence dans une liste de paie ressemblerait à une erreur. */}
-          {row.original.leftAt && (
-            <Badge className={cn('shrink-0 text-xs font-normal', STATUS_COLORS.neutral)}>
-              Parti le {row.original.leftAt.split('-').reverse().slice(0, 2).join('/')}
-            </Badge>
-          )}
           {ROLE_NAME[row.original.role] && (
             <Badge
               className={cn('shrink-0 text-xs font-normal', ROLE_TONE[row.original.role])}
