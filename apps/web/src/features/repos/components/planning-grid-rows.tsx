@@ -5,7 +5,7 @@ import { NewBadge } from '@/components/new-badge'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { cn } from '@/lib/utils'
 import { CHIP_RED, chipForCol, normName, tokensOf, type CellChip } from './planning-grid-utils'
-import { JOURS, type ReposCell, type ReposColumn, type ReposData } from '../types'
+import { JOURS, type ReposCell, type ReposColumn, type ReposData, type ReposSelf } from '../types'
 
 /**
  * Corps (`tbody`) de la grille : une ligne par jour (cellules `ComboboxMultiple`, chatteurs au
@@ -17,6 +17,7 @@ export function PlanningGridRows({
   data,
   canWrite,
   isAdmin,
+  self,
   cellValue,
   cellChips,
   overByCol,
@@ -30,6 +31,8 @@ export function PlanningGridRows({
   canWrite: boolean
   /** Cases des colonnes ENCADREMENT (Managers/Sous-managers/Policiers) : admin uniquement. */
   isAdmin: boolean
+  /** L'appelant : sert à ouvrir SA colonne d'encadrement et à y borner ses options. */
+  self: ReposSelf
   cellValue: (day: number, col: string) => ReposCell
   cellChips: (day: number, col: string) => CellChip[]
   overByCol: Map<string, { ids: Set<string>; txt: Set<string> }>
@@ -69,8 +72,11 @@ export function PlanningGridRows({
               sousManager: 'Rechercher un sous-manager…',
               chatteur: 'Rechercher un chatter…',
             }
-            // Éditabilité PAR COLONNE : encadrement admin-only, chatteurs ouverts au manager.
-            const editable = c.encadrement ? isAdmin : canWrite
+            // Éditabilité PAR COLONNE. Encadrement : l'admin partout, et depuis 0102 chacun dans
+            // LA SIENNE — un manager pose son repos chez les Managers, un policier chez les
+            // Policiers. Colonnes chatteurs : ouvertes à tout encadrant (`canWrite`).
+            const sienne = c.encadrement && c.key === self.encadrementCol
+            const editable = c.encadrement ? isAdmin || sienne : canWrite
             // Couleur de base des chips de la colonne (le rouge d'alerte prime toujours).
             const chip = chipForCol(c.key)
             return (
@@ -124,7 +130,14 @@ export function PlanningGridRows({
                   // Chaque colonne encadrement a les options de SON rôle exact (Managers /
                   // Sous-managers / Policiers) ; colonnes modèles : chatteurs. La RÉSOLUTION
                   // des noms déjà posés (labelById) reste sur la map fusionnée data.chatterById.
-                  options={optionsByKind[kind].map((o) => ({ value: o.id, label: o.name }))}
+                  //
+                  // AUTO-ASSIGNATION (0102) : dans sa propre colonne, un non-admin ne se voit que
+                  // LUI — proposer ses collègues laisserait cocher un nom que le serveur refuse
+                  // (`repos_encadrement_soi_meme`), c'est-à-dire promettre un geste impossible.
+                  options={(sienne && !isAdmin
+                    ? optionsByKind[kind].filter((o) => o.id === self.id)
+                    : optionsByKind[kind]
+                  ).map((o) => ({ value: o.id, label: o.name }))}
                   labelById={data.chatterById}
                   // Le combobox ne gère que les IDs — les noms texte legacy restent
                   // intacts (chips retirables via leur croix dans le popover, cf. extraChips).

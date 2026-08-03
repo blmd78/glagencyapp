@@ -31,6 +31,27 @@ export const ENCADREMENT_COLUMNS = [
 
 export type ReposColKey = (typeof MODEL_COL_KEYS)[number] | (typeof ENCADREMENT_COLUMNS)[number]['key']
 
+/**
+ * Colonne d'encadrement qu'un rôle peut éditer LUI-MÊME (0102) — un manager pose son repos chez
+ * les Managers, un policier chez les Policiers. Chacun ne touche que sa propre ligne dans la
+ * case ; l'admin, lui, garde la main sur tout.
+ *
+ * Miroir du `case` de `save_repos_cell` : les deux doivent rester alignés. Le SQL est
+ * l'enforcement réel, ceci ne fait que masquer ce qui serait de toute façon refusé.
+ */
+/** L'appelant, pour l'auto-assignation : qui il est et quelle colonne d'encadrement il peut
+ *  éditer (null = aucune — chatteur, police sans colonne, ou admin qui les a toutes). */
+export interface ReposSelf {
+  id: string
+  encadrementCol: ReposColKey | null
+}
+
+export const ENCADREMENT_COL_BY_ROLE: Record<string, ReposColKey | undefined> = {
+  manager: 'managers',
+  'sous-manager': 'sous-managers',
+  police: 'policiers',
+}
+
 export const JOURS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'] as const
 
 export interface WeekChoice {

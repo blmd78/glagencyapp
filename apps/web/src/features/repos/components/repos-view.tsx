@@ -15,17 +15,19 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { copyReposWeek } from '../actions'
 import { PlanningGrid } from './planning-grid'
-import type { ReposData } from '../types'
+import type { ReposData, ReposSelf } from '../types'
 
 /** Template Planning repos : sélecteur de semaine + grille éditable. Aucun fetch. */
 export function ReposView({
   data,
   isAdmin,
   canWrite,
+  self,
 }: {
   data: ReposData
   isAdmin: boolean
   canWrite: boolean
+  self: ReposSelf
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -135,7 +137,7 @@ export function ReposView({
       </div>
 
       <div className={pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'}>
-        <PlanningGrid key={data.weekStart} data={data} isAdmin={isAdmin} canWrite={canWrite} />
+        <PlanningGrid key={data.weekStart} data={data} isAdmin={isAdmin} canWrite={canWrite} self={self} />
       </div>
     </div>
   )
