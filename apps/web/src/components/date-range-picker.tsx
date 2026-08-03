@@ -68,7 +68,18 @@ export function DateRangePicker({ className }: { className?: string }) {
     setOpen(false)
   }
 
-  function handleSelect(next: DateRange | undefined) {
+  function handleSelect(next: DateRange | undefined, jourClique: Date) {
+    // PREMIER CLIC SUR UNE PLAGE DÉJÀ COMPLÈTE = on en commence une nouvelle.
+    //
+    // Le calendrier s'ouvre sur la plage appliquée, donc `draft` a toujours `from` ET `to`.
+    // Or `addToRange` ne rend JAMAIS de plage incomplète dans ce cas : cliquer avant `from`
+    // donne `{from: clic, to}`, cliquer après donne `{from, to: clic}` — complet des deux
+    // côtés. On committait donc, et on refermait, dès le premier clic ; il fallait rouvrir
+    // pour poser la seconde date. On repart ici d'un `to` vide : clic 1 = début, clic 2 = fin.
+    if (draft?.from && draft?.to) {
+      setDraft({ from: jourClique, to: undefined })
+      return
+    }
     setDraft(next)
     // Navigation (donc refetch) UNIQUEMENT quand la plage est complète.
     if (next?.from && next?.to) commit(next)

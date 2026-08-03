@@ -58,10 +58,12 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
   // (`requireAccess`, `requireAdmin`, `requireAdminOrManager`, `requireSuperadmin`) font toutes
   // `if (!profile) redirect('/login')`.
   //
-  // CEINTURE ET BRETELLES. Le vrai verrou est le BAN GoTrue posé par `recordDeparture` : il
-  // invalide session, API et RLS ensemble, donc rien ne dépend de cette ligne pour la sécurité.
-  // Elle couvre la fenêtre d'une session déjà rendue côté serveur, et surtout elle rend la règle
-  // LISIBLE ici — sans elle, « pourquoi un parti n'a plus accès » ne se lit nulle part dans l'app.
+  // TROIS VERROUS, et cette ligne est le plus visible, pas le plus fort. Le ban GoTrue posé par
+  // `recordDeparture` interdit connexion et rafraîchissement ; la migration 0102 retire les
+  // droits EN BASE (`is_admin`, `has_page`… exigent `left_at is null`), ce qui ferme l'heure
+  // pendant laquelle un jeton déjà émis restait valide côté API. Ici, on sort la personne de
+  // l'app — et surtout on rend la règle LISIBLE : sans cette ligne, « pourquoi un parti n'a plus
+  // accès » ne se lit nulle part dans le code applicatif.
   if (data.left_at) return null
   const raw = data.role
   const baseRole: Profile['baseRole'] =

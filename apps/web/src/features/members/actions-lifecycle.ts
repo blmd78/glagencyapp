@@ -59,7 +59,9 @@ const BAN_FOREVER = '876000h'
  *
  * Le compte est BANNI côté GoTrue, jamais supprimé : `deleteUser` déclencherait la cascade
  * `profiles_id_fkey` qui effacerait le profil, c'est-à-dire la donnée même qu'on est en train
- * d'écrire. Le ban invalide session, API et RLS ensemble — c'est le vrai verrou d'accès.
+ * d'écrire. Le ban interdit de se reconnecter et de rafraîchir un jeton ; il ne révoque PAS
+ * l'access token déjà émis, valide encore ~1 h. C'est le `left_at` écrit juste avant qui ferme
+ * cette fenêtre, depuis 0102 : les fonctions de droits SQL l'exigent nul.
  *
  * Droits : ceux de `requireEditableTarget`, inchangés (admin sur tout, manager sur un chatteur) —
  * un manager peut donc acter un départ, mais plus supprimer (cf. `deleteMember`).
