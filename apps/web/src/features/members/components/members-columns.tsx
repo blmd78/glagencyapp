@@ -14,37 +14,8 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
-import { STATUS_COLORS } from '@/lib/status-color'
 import { RowActions } from './member-row-actions'
-import { DEPARTURE_LABEL } from '@glagency/core'
 import type { Member } from '../types'
-
-// « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
-// spenders-table) : created_at est un timestamptz — sans timeZone, le SSR (UTC) et un
-// navigateur parisien peuvent rendre un jour différent → mismatch d'hydratation.
-const FR_DATE_PARIS = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' })
-
-/**
- * Badge « Parti le … » (0102). GRIS (`STATUS_COLORS.neutral`) : un départ n'est ni une alerte ni
- * une information à mettre en avant, c'est un état éteint — et la ligne est de toute façon masquée
- * par défaut (bascule « anciens »). Le détail — motif, acteur, commentaire — tient dans le
- * survol : trois informations de plus dans la cellule la rendraient illisible.
- */
-function DepartureBadge({ member }: { member: Member }) {
-  if (!member.leftAt) return null
-  const detail = [
-    member.leftReason ? DEPARTURE_LABEL[member.leftReason] : null,
-    member.leftByName ? `acté par ${member.leftByName}` : null,
-    member.leftNote,
-  ]
-    .filter(Boolean)
-    .join(' · ')
-  return (
-    <Badge className={STATUS_COLORS.neutral} title={detail || undefined}>
-      Parti le {FR_DATE_PARIS.format(new Date(`${member.leftAt}T00:00:00`))}
-    </Badge>
-  )
-}
 
 const initials = (name: string) =>
   name
@@ -161,11 +132,12 @@ export function buildMembersColumns({
               {ROLE_NAME[role] ?? ROLE_NAME.chatteur}
             </Badge>
           )
-          // LA LIGNE NE GARDE QUE CE QUI IDENTIFIE ET CE QUI ALERTE (allègement Benoit
-          // 2026-08-03). Closing, équipe et shift ont quitté la cellule : ce sont des attributs
-          // de CONFIGURATION, consultés quand on gère les équipes, pas à chaque coup d'œil — six
-          // badges côte à côte ne se lisaient plus. Ils vivent dans « Voir le détail », d'un clic
-          // sur le menu de la ligne, et restent éditables dans la fiche.
+          // LA LIGNE NE GARDE QUE LE RÔLE ET LE DRAPEAU « NOUVEAU » (allègement Benoit
+          // 2026-08-03). Closing, équipe et shift sont des attributs de CONFIGURATION, consultés
+          // quand on gère les équipes, pas à chaque coup d'œil — six badges côte à côte ne se
+          // lisaient plus. Le badge « Parti le … » est parti aussi : on ne voit des partis QUE
+          // via le filtre « à réactiver », qui le dit déjà. Tout cela vit dans « Voir le
+          // détail », d'un clic sur le menu de la ligne.
           return role === 'chatteur' || !ROLE_NAME[role] ? (
             <div className="flex flex-wrap items-center gap-1">
               {badge}
@@ -174,7 +146,6 @@ export function buildMembersColumns({
                 arrivedAt={row.original.arrivedAt}
                 leftAt={row.original.leftAt}
               />
-              <DepartureBadge member={row.original} />
             </div>
           ) : (
             badge
