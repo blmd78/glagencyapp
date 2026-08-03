@@ -1,25 +1,28 @@
+'use client'
+
+import { DataTable } from '@/components/data-table/data-table'
 import { MemberSelect } from '@/components/member-select'
 import type { SelectableMember } from '@/lib/types/member'
 import type { MemberEvent } from '../types'
-import { EventsTimeline } from './events-timeline'
+import { activityColumns } from './activity-columns'
 
 /** '2026-07-30' → '30/07/2026'. */
 const fr = (iso: string) => iso.split('-').reverse().join('/')
 
 /**
- * Onglet « Activité » (0104) — le MÊME historique que la fiche membre, lu par l'autre bout :
- * la fiche répond à « qu'est-il arrivé à Mehdi ? », ce flux à « qui a bougé quoi cette semaine ? ».
+ * Onglet « Activité » (0104) — le MÊME historique que la fiche membre, lu par l'autre bout : la
+ * fiche répond à « qu'est-il arrivé à Mehdi ? », ce flux à « qui a bougé quoi cette semaine ? ».
  *
- * MISE EN PAGE CALQUÉE SUR L'ONGLET COMPTES (demande Benoit 2026-08-03), au rythme exact de la
- * `DataTable` : sous-titre de contexte, puis une barre de contrôles (`flex flex-wrap items-center
- * gap-2`), puis le contenu, puis le compte en bas. Pas de `Card` — l'onglet voisin n'en a pas, et
- * deux onglets d'une même page qui se présentent différemment se lisent comme deux pages.
+ * DATATABLE et non timeline (demande Benoit 2026-08-03) : mêmes colonnes triables, même toolbar,
+ * même pagination et même compte de lignes que l'onglet Comptes. Deux onglets d'une même page
+ * doivent se manipuler pareil — une liste libre à côté d'un tableau se lit comme deux écrans
+ * étrangers. La fiche membre, elle, garde sa timeline : dans un dialog étroit, six colonnes ne
+ * tiennent pas, et « Membre » y serait la même valeur sur toutes les lignes.
  *
  * DEUX FILTRES, tous deux dans l'URL donc partageables (guidelines §6) : la PÉRIODE via le
- * sélecteur de dates du header (`?from=&to=`, comme tout le CRM) et le MEMBRE via `?membre=` — le
- * même `MemberSelect` que le Planning et le Dashboard, qui préserve `?vue=` en écrivant.
- *
- * Server Component : le sélecteur (feuille cliente) porte à lui seul l'interactivité.
+ * sélecteur de dates du header (`?from=&to=`) et le MEMBRE via `?membre=`. Le filtre texte de la
+ * table, lui, porte sur le CHANGEMENT (« Julie », « Soir ») — il complète le sélecteur au lieu de
+ * le doubler, et reste un filtre de vue, non partagé (norme §6).
  */
 export function ActivityView({
   events,
@@ -43,26 +46,23 @@ export function ActivityView({
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
         Du {fr(from)} au {fr(to)} — la période suit le sélecteur de dates en haut de page.
+        {/* AUCUNE TRONCATURE SILENCIEUSE : au plafond, la liste ne montre pas tout et doit le
+            dire — sinon « rien après le 12 » se lit comme « rien ne s'est passé ». */}
+        {events.length >= limit &&
+          ` · plafond de ${limit} atteint, resserre les dates ou choisis un membre pour voir les plus anciens`}
       </p>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <MemberSelect members={members} value={selectedMember} allowAll />
-        </div>
-
-        <EventsTimeline events={events} showMember={!selectedMember} />
-
-        {/* Le total a été retiré (retour Benoit) : compter les lignes d'une liste qu'on a sous les
-            yeux n'apprend rien. Ce qui reste est la SEULE information que l'œil ne peut PAS
-            déduire — que la liste est incomplète. Affiché uniquement dans ce cas : sinon
-            « rien après le 12 » se lirait comme « rien ne s'est passé ». */}
-        {events.length >= limit && (
-          <p className="text-sm text-muted-foreground">
-            Plafond de {limit} atteint — resserre les dates ou choisis un membre pour voir les plus
-            anciens.
-          </p>
-        )}
-      </div>
+      <DataTable
+        data={events}
+        columns={activityColumns}
+        filterColumnId="label"
+        filterPlaceholder="Filtrer par changement…"
+        initialSorting={[{ id: 'at', desc: true }]}
+        pageSize={20}
+        getRowId={(e) => String(e.id)}
+        countLabel={(n) => `${n} changement(s)`}
+        toolbar={<MemberSelect members={members} value={selectedMember} allowAll />}
+      />
     </div>
   )
 }

@@ -54,11 +54,15 @@ export async function getMemberEvents(opts: {
 
   // fetchAll : `profiles` grossit avec l'équipe (cap PostgREST 1000 silencieux).
   const { data: profiles, error: pErr } = await fetchAll((f, t) =>
-    admin.from('profiles').select('id, display_name, email').order('id').range(f, t),
+    admin.from('profiles').select('id, display_name, email, role').order('id').range(f, t),
   )
   if (pErr) throw new Error(pErr.message)
-  const nameById = new Map(
-    (profiles ?? []).map((p) => [p.id, p.display_name ?? p.email ?? '—'] as const),
+  // Nom ET rôle dans la même map : la table d'activité affiche les deux, et les profils sont
+  // déjà chargés — aucune requête supplémentaire.
+  const byId = new Map(
+    (profiles ?? []).map(
+      (p) => [p.id, { name: p.display_name ?? p.email ?? '—', role: p.role }] as const,
+    ),
   )
 
   return rows
@@ -69,8 +73,9 @@ export async function getMemberEvents(opts: {
       kind: r.kind as EventKind,
       // Rédaction dans @glagency/core (testée) : ce service ne fait que lire et assembler.
       label: memberEventLabel(r.kind as EventKind, r.from_value, r.to_value),
-      actorName: r.actor_id ? (nameById.get(r.actor_id) ?? null) : null,
-      memberName: nameById.get(r.profile_id) ?? '—',
+      actorName: r.actor_id ? (byId.get(r.actor_id)?.name ?? null) : null,
+      memberName: byId.get(r.profile_id)?.name ?? '—',
+      memberRole: byId.get(r.profile_id)?.role ?? 'chatteur',
     }))
 }
 

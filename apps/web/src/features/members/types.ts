@@ -85,8 +85,10 @@ export interface MemberEvent {
   label: string
   /** Nom de l'auteur, ou `null` → l'écran affiche « système » (écriture SQL directe). */
   actorName: string | null
-  /** Nom du membre concerné — sert le flux global, où la timeline mélange tout le monde. */
+  /** Nom du membre concerné — sert le flux global, où la liste mélange tout le monde. */
   memberName: string
+  /** Rôle BRUT du membre (`profiles.role`) — rendu en badge, comme dans la table des comptes. */
+  memberRole: string
 }
 
 /** Contrat de l'onglet « Turnover » (0103). Tout est déjà agrégé côté service. */
