@@ -5,7 +5,7 @@ import { NewBadge } from '@/components/new-badge'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { cn } from '@/lib/utils'
 import { CHIP_RED, chipForCol, normName, tokensOf, type CellChip } from './planning-grid-utils'
-import { JOURS, type ReposCell, type ReposColumn, type ReposData, type ReposSelf } from '../types'
+import { JOURS, encadrementRight, isEncadrementCol, type ReposCell, type ReposColumn, type ReposData, type ReposSelf } from '../types'
 
 /**
  * Corps (`tbody`) de la grille : une ligne par jour (cellules `ComboboxMultiple`, chatteurs au
@@ -29,9 +29,9 @@ export function PlanningGridRows({
   data: ReposData
   /** Cases des colonnes CHATTEURS (modèles) : admin + manager/sous-manager (miroir RLS). */
   canWrite: boolean
-  /** Cases des colonnes ENCADREMENT (Managers/Sous-managers/Policiers) : admin uniquement. */
+  /** Passe-droit sur les colonnes ENCADREMENT : l'admin y place qui il veut, partout. */
   isAdmin: boolean
-  /** L'appelant : sert à ouvrir SA colonne d'encadrement et à y borner ses options. */
+  /** L'appelant : son rôle ouvre les colonnes d'encadrement, son id y borne les options. */
   self: ReposSelf
   cellValue: (day: number, col: string) => ReposCell
   cellChips: (day: number, col: string) => CellChip[]
@@ -72,11 +72,16 @@ export function PlanningGridRows({
               sousManager: 'Rechercher un sous-manager…',
               chatteur: 'Rechercher un chatter…',
             }
-            // Éditabilité PAR COLONNE. Encadrement : l'admin partout, et depuis 0102 chacun dans
-            // LA SIENNE — un manager pose son repos chez les Managers, un policier chez les
-            // Policiers. Colonnes chatteurs : ouvertes à tout encadrant (`canWrite`).
-            const sienne = c.encadrement && c.key === self.encadrementCol
-            const editable = c.encadrement ? isAdmin || sienne : canWrite
+            // Éditabilité PAR COLONNE. Encadrement (0103) : l'admin partout ; sinon la règle
+            // hiérarchique — un manager remplit librement Sous-managers et Policiers, mais ne
+            // s'inscrit QUE lui-même chez les Managers ; un sous-manager et un policier n'ont que
+            // leur propre case. Colonnes chatteurs : ouvertes à tout encadrant (`canWrite`).
+            const droit = !isEncadrementCol(c.key)
+              ? null // colonne modèle : `canWrite` tranche, pas la règle d'encadrement
+              : isAdmin
+                ? 'libre'
+                : encadrementRight(self.role, c.key)
+            const editable = droit === null ? canWrite : droit !== 'non'
             // Couleur de base des chips de la colonne (le rouge d'alerte prime toujours).
             const chip = chipForCol(c.key)
             return (
@@ -131,10 +136,10 @@ export function PlanningGridRows({
                   // Sous-managers / Policiers) ; colonnes modèles : chatteurs. La RÉSOLUTION
                   // des noms déjà posés (labelById) reste sur la map fusionnée data.chatterById.
                   //
-                  // AUTO-ASSIGNATION (0102) : dans sa propre colonne, un non-admin ne se voit que
-                  // LUI — proposer ses collègues laisserait cocher un nom que le serveur refuse
-                  // (`repos_encadrement_soi_meme`), c'est-à-dire promettre un geste impossible.
-                  options={(sienne && !isAdmin
+                  // Droit « soi » (0103) : la case ne propose que LUI — offrir ses collègues
+                  // laisserait cocher un nom que le serveur refuse (`repos_encadrement_soi_meme`),
+                  // c'est-à-dire promettre un geste impossible.
+                  options={(droit === 'soi'
                     ? optionsByKind[kind].filter((o) => o.id === self.id)
                     : optionsByKind[kind]
                   ).map((o) => ({ value: o.id, label: o.name }))}
