@@ -23,7 +23,7 @@
 -- surface d'injection sur un nom de colonne venu du client.
 --
 -- `p_models` vide = tous les modèles (le filtre de la barre d'outils, désormais serveur).
--- `p_search` cherche dans le pseudo, sans tenir compte de la casse ni des accents absents.
+-- `p_search` cherche une sous-chaîne du pseudo, sans tenir compte de la casse.
 
 create or replace function public.crm_spenders_page(
   p_seuil  numeric default 40,
@@ -51,7 +51,10 @@ as $function$
             else not t.archived
           end
       and (coalesce(array_length(p_models, 1), 0) = 0 or t.creator_id = any(p_models))
-      and (coalesce(p_search, '') = '' or t.username ilike '%' || p_search || '%')
+      -- `strpos` plutôt qu'un `ilike '%…%'` : dans un motif LIKE, `%` et `_` sont des JOKERS.
+      -- Chercher « _ » aurait ramené tous les pseudos, et « % » absolument tout — une recherche
+      -- qui ment. Ici la saisie est du texte, pas un motif.
+      and (coalesce(p_search, '') = '' or strpos(lower(t.username), lower(p_search)) > 0)
   ),
   page as (
     select *

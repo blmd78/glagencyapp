@@ -124,13 +124,23 @@ export function SpendersView({
   // au démontage du bouton cliqué si le patch optimiste sort la ligne de la vue).
   const ctx = useMemo(() => ({ apply }), [apply])
 
-  // UN SEUL CHEMIN de chargement : `offset` à 0 remplace, sinon on ajoute. `enVol` empêche la
-  // rafale — le virtualiseur rappelle `onLoadMore` à chaque ligne montée tant que le bas est
-  // proche, et sans ce verrou la même tranche partirait dix fois.
+  // UN SEUL CHEMIN de chargement : `offset` à 0 remplace, sinon on ajoute.
+  //
+  // DEUX GARDE-FOUS DISTINCTS, et les confondre casse le tri. `enVol` ne protège que l'AJOUT :
+  // le virtualiseur rappelle `onLoadMore` à chaque ligne montée tant que le bas est proche, donc
+  // sans lui la même tranche partirait dix fois. L'appliquer aussi au rechargement (offset 0)
+  // faisait abandonner en silence un tri demandé pendant un chargement — la liste gardait
+  // l'ancien ordre sans rien dire.
+  //
+  // `generation` règle la course inverse : deux requêtes lancées coup sur coup (on tri, puis on
+  // filtre) peuvent revenir dans le désordre. Seule la réponse de la dernière demande est
+  // retenue, sinon l'écran affiche le résultat d'un critère qu'on a déjà quitté.
   const enVol = useRef(false)
+  const generation = useRef(0)
   const charger = useCallback(
     async (offset: number, critères: { sort: SortingState; search: string; models: string[] }) => {
-      if (enVol.current) return
+      if (offset > 0 && enVol.current) return
+      const gen = ++generation.current
       enVol.current = true
       setChargement(true)
       const tri = critères.sort[0]
@@ -143,6 +153,7 @@ export function SpendersView({
         limit: 100,
         offset,
       })
+      if (gen !== generation.current) return // doublée par une demande plus récente
       enVol.current = false
       setChargement(false)
       if (!res.success) {
