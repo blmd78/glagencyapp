@@ -1,22 +1,11 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { frDateNumeric } from '@glagency/core'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KpiGrid } from '@/components/kpi-card'
+import { TurnoverChart } from './turnover-chart'
 import { Badge } from '@/components/ui/badge'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
-import { DEPARTURE_LABEL, type DepartureReason } from '@glagency/core'
+import { DEPARTURE_LABEL, frDateNumeric, type DepartureReason } from '@glagency/core'
 import type { TurnoverData } from '../types'
-
-const MOIS_FR = [
-  'janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin',
-  'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.',
-]
-
-/** '2026-08' → 'août 26'. */
-const moisLabel = (iso: string) => {
-  const [y, m] = iso.split('-')
-  return `${MOIS_FR[Number(m) - 1]} ${y.slice(2)}`
-}
 
 /**
  * Onglet TURNOVER — Server Component, aucun état : tout est agrégé par `get-turnover.ts`.
@@ -25,7 +14,6 @@ const moisLabel = (iso: string) => {
  * de `div` le fait aussi bien et ne coûte aucun kilo-octet de plus au bundle.
  */
 export function TurnoverView({ data }: { data: TurnoverData }) {
-  const max = Math.max(1, ...data.months.map((m) => Math.max(m.entrees, m.sorties)))
   const kpis = [
     {
       key: 'headcount',
@@ -80,48 +68,7 @@ export function TurnoverView({ data }: { data: TurnoverData }) {
 
       <KpiGrid kpis={kpis} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Arrivées et départs par mois</CardTitle>
-          <CardDescription>
-            Effectif de fin de mois en gris sous chaque barre.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {data.months.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun mouvement sur la période.</p>
-          ) : (
-            <div className="flex items-end gap-3 overflow-x-auto pb-2">
-              {data.months.map((m) => (
-                <div key={m.mois} className="flex min-w-14 flex-1 flex-col items-center gap-1.5">
-                  <div className="flex h-32 w-full items-end justify-center gap-1">
-                    <div
-                      className="w-1/3 rounded-t bg-blue-500/80"
-                      style={{ height: `${(m.entrees / max) * 100}%` }}
-                      title={`${m.entrees} arrivée(s) en ${moisLabel(m.mois)}`}
-                    />
-                    <div
-                      className="w-1/3 rounded-t bg-amber-500/80"
-                      style={{ height: `${(m.sorties / max) * 100}%` }}
-                      title={`${m.sorties} départ(s) en ${moisLabel(m.mois)}`}
-                    />
-                  </div>
-                  <span className="text-xs font-medium">{moisLabel(m.mois)}</span>
-                  <span className="text-xs text-muted-foreground">{m.effectif}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="mt-4 flex gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-blue-500/80" /> Arrivées
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-sm bg-amber-500/80" /> Départs
-            </span>
-          </div>
-        </CardContent>
-      </Card>
+      <TurnoverChart data={data} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>

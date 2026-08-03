@@ -4,24 +4,13 @@
 // vivent à part de la composition, guidelines-standard-feature §1).
 
 import { type ColumnDef } from '@tanstack/react-table'
+import { frDateTimeParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Sortable } from '@/components/data-table/sortable'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import type { MemberEvent } from '../types'
 import { KIND_LABEL, KIND_TONE } from './event-kind'
-
-/** Date ET heure en fuseau Paris EXPLICITE : `at` est un timestamptz — sans `timeZone`, le SSR
- *  (UTC) et un navigateur parisien rendraient un jour différent (mismatch d'hydratation). Même
- *  formateur hoisté que `members-columns.tsx`. */
-const FR_DATETIME = new Intl.DateTimeFormat('fr-FR', {
-  timeZone: 'Europe/Paris',
-  day: '2-digit',
-  month: '2-digit',
-  year: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 
 /**
  * Colonnes du flux d'activité : QUI (nom + rôle), QUOI (type + description), QUAND, et PAR QUI.
@@ -73,7 +62,7 @@ export const activityColumns: ColumnDef<MemberEvent>[] = [
     header: ({ column }) => <Sortable column={column} label="Date" />,
     cell: ({ row }) => (
       <span className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">
-        {FR_DATETIME.format(new Date(row.original.at))}
+        {frDateTimeParis(row.original.at)}
       </span>
     ),
   },

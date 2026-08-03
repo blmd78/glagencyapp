@@ -1,22 +1,12 @@
 'use client'
 
+import { frDateTimeParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { MemberPanel } from '@/hooks/use-member-panel'
 import { cn } from '@/lib/utils'
 import type { MemberEvent } from '../types'
 import { KIND_LABEL, KIND_TONE } from './event-kind'
-
-/** Date ET heure en fuseau Paris EXPLICITE : `at` est un timestamptz — sans `timeZone`, le SSR
- *  (UTC) et un navigateur parisien rendraient un jour différent (mismatch d'hydratation). */
-const FR_DATETIME = new Intl.DateTimeFormat('fr-FR', {
-  timeZone: 'Europe/Paris',
-  day: '2-digit',
-  month: '2-digit',
-  year: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-})
 
 /**
  * Onglet « Historique » du dialog membre (0104) — la timeline de CETTE personne.
@@ -59,7 +49,7 @@ export function MemberHistoryTab({ panel }: { panel: MemberPanel<MemberEvent[]> 
           className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b py-2 last:border-0"
         >
           <span className="w-28 shrink-0 text-xs tabular-nums text-muted-foreground">
-            {FR_DATETIME.format(new Date(e.at))}
+            {frDateTimeParis(e.at)}
           </span>
           <Badge className={cn('shrink-0 text-xs font-normal', KIND_TONE[e.kind])}>
             {KIND_LABEL[e.kind]}
