@@ -22,8 +22,24 @@ describe('vocabulaire', () => {
     for (const r of DEPARTURE_REASONS) expect(DEPARTURE_LABEL[r.value]).toBe(r.label)
   })
 
-  it('reconnaît les kinds du check SQL 0104, et rejette le reste', () => {
-    expect(EVENT_KINDS).toHaveLength(10)
+  it('reconnaît les kinds du check SQL, et rejette le reste', () => {
+    // Liste ÉNUMÉRÉE et non comptée : un simple `toHaveLength` passerait si on remplaçait un
+    // kind par un autre. Miroir exact du check `member_events_kind_check` (0104 puis 0106) —
+    // ce test est ce qui casse quand la base et le domaine divergent.
+    expect([...EVENT_KINDS]).toEqual([
+      'creation',
+      'role',
+      'shift',
+      'closing',
+      'modele',
+      'manager',
+      'pages',
+      'nouveau',
+      'arrivee',
+      'sortie',
+      'lien',
+      'identite',
+    ])
     expect(isEventKind('shift')).toBe(true)
     expect(isEventKind('nimportequoi')).toBe(false)
   })
@@ -104,5 +120,24 @@ describe('memberEventLabel — la sortie, dont la valeur est composite', () => {
 
   it('une réactivation est un départ annulé', () => {
     expect(memberEventLabel('sortie', '2026-08-15 (vire)', null)).toBe('Départ annulé (réactivé)')
+  })
+})
+
+describe('memberEventLabel — lien MyPuls et fiche (0106)', () => {
+  it('nomme le lien MyPuls dans les trois sens', () => {
+    // Ce lien décide de quel CA est attribué au membre, donc de sa paie : le libellé doit dire
+    // ce qui s'est passé, pas « Lien : → Sam ».
+    expect(memberEventLabel('lien', null, 'Sam')).toBe('Lié à la fiche MyPuls Sam')
+    expect(memberEventLabel('lien', 'Sam', null)).toBe('Lien MyPuls retiré (Sam)')
+    expect(memberEventLabel('lien', 'Sam', 'Léa')).toBe('Lien MyPuls : Sam → Léa')
+  })
+
+  it('rend les changements de fiche (nom, email, lien de travail)', () => {
+    expect(memberEventLabel('identite', 'Aboubakar', 'Aboubakar B.')).toBe(
+      'Fiche : Aboubakar → Aboubakar B.',
+    )
+    expect(memberEventLabel('identite', null, 'https://exemple.fr')).toBe(
+      'Fiche : https://exemple.fr',
+    )
   })
 })

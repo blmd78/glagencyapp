@@ -29,6 +29,8 @@ const KIND_TONE: Record<EventKind, string> = {
   nouveau: STATUS_COLORS.info,
   arrivee: STATUS_COLORS.positive,
   sortie: STATUS_COLORS.warning,
+  lien: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+  identite: STATUS_COLORS.neutral,
 }
 
 const KIND_LABEL: Record<EventKind, string> = {
@@ -42,6 +44,8 @@ const KIND_LABEL: Record<EventKind, string> = {
   nouveau: 'Nouveau',
   arrivee: 'Arrivée',
   sortie: 'Départ',
+  lien: 'Lien MyPuls',
+  identite: 'Fiche',
 }
 
 /**

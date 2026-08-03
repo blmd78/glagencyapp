@@ -42,6 +42,8 @@ export const EVENT_KINDS = [
   'nouveau',
   'arrivee',
   'sortie',
+  'lien',
+  'identite',
 ] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
@@ -103,6 +105,16 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
       return to === 'true' ? 'Marqué nouvel arrivant' : 'Drapeau « nouvel arrivant » retiré'
     case 'arrivee':
       return to ? `Date d’arrivée : ${fr(to)}` : 'Date d’arrivée effacée'
+    // Le lien MyPuls : c'est lui qui attribue le CA, donc la paie. Le délier n'est pas un détail.
+    case 'lien':
+      return from && to
+        ? `Lien MyPuls : ${from} → ${to}`
+        : to
+          ? `Lié à la fiche MyPuls ${to}`
+          : `Lien MyPuls retiré${from ? ` (${from})` : ''}`
+    // Nom, email ou lien de travail — un seul kind, cf. 0106 : ils décrivent la même chose.
+    case 'identite':
+      return arrow('Fiche', from, to)
     case 'sortie': {
       if (!to) return 'Départ annulé (réactivé)'
       // `to` = '2026-08-15 (vire)', composé par le trigger. Parsé par REGEX et non par index : un
