@@ -109,17 +109,28 @@ export async function getChattersByModel(): Promise<Record<string, ReportOption[
   const admin = createAdminClient()
   const [linksRes, profilesRes] = await Promise.all([
     fetchAll((from, to) => admin.from('profile_creators').select('profile_id, creator_id').order('profile_id').order('creator_id').range(from, to)),
-    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
+    // `.is('left_at', null)` : un parti (0102) ne se suit plus. Sans risque pour l'historique —
+    // les rapports déjà écrits résolvent leurs noms par la requête SANS filtre de `getPoliceReports`
+    // (plus haut), et restent donc lisibles après le départ de la personne qu'ils nomment.
+    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role, is_new, arrived_at').is('left_at', null).order('id').range(from, to)),
   ])
   if (linksRes.error) throw new Error(linksRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
-  const chatteurName: Record<string, string> = {}
-  for (const p of profilesRes.data ?? []) if (p.role === 'chatteur' && p.id && p.display_name) chatteurName[p.id] = p.display_name
+  // Le drapeau « nouvel arrivant » (0101) voyage avec le nom : c'est sur CETTE page qu'il compte le
+  // plus — juger le travail d'un chatteur sans savoir qu'il vient d'arriver n'a pas le même sens.
+  const chatteur: Record<string, Omit<ReportOption, 'id'>> = {}
+  for (const p of profilesRes.data ?? [])
+    if (p.role === 'chatteur' && p.id && p.display_name)
+      chatteur[p.id] = {
+        name: p.display_name,
+        isNew: p.is_new ?? false,
+        arrivedAt: p.arrived_at ?? null,
+      }
   const byModel: Record<string, ReportOption[]> = {}
   for (const l of linksRes.data ?? []) {
-    const name = chatteurName[l.profile_id]
-    if (!name) continue // le membre n'est pas un chatteur
-    ;(byModel[l.creator_id] ??= []).push({ id: l.profile_id, name })
+    const c = chatteur[l.profile_id]
+    if (!c) continue // le membre n'est pas un chatteur
+    ;(byModel[l.creator_id] ??= []).push({ id: l.profile_id, ...c })
   }
   for (const k of Object.keys(byModel)) byModel[k].sort((a, b) => a.name.localeCompare(b.name))
   return byModel

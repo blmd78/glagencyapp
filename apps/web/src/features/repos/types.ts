@@ -78,6 +78,10 @@ export interface ReposData {
   creatorOptions: EntityOption[]
   /** id chatteur OU manager/sous-manager/police → nom : affichage des cellules (map fusionnée). */
   chatterById: Record<string, string>
+  /** Drapeau « nouvel arrivant » (0101) par id de MEMBRE. Contrairement à `chatterById`, cette map
+   *  ne contient QUE des profils : les fiches MyPuls legacy des cellules d'avant la bascule ne
+   *  correspondent à personne dans l'équipe actuelle et n'ont donc pas de drapeau. */
+  newByChatter: Record<string, { isNew: boolean; arrivedAt: string | null }>
   /** Chatteurs actifs — options des cellules des colonnes modèles. */
   chatterOptions: EntityOption[]
   /** Profils rôle manager (uniquement) — options de la colonne « Managers ». */

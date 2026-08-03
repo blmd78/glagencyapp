@@ -30,11 +30,19 @@ import { startImpersonation } from '@/lib/impersonation/actions'
 export function ImpersonateButton({
   memberId,
   memberName,
+  open: openProp,
+  onOpenChange,
 }: {
   memberId: string
   memberName: string
+  /** Contrôlé quand fourni : l'ouverture vient d'un item de menu, qui ne peut pas être un trigger
+   *  (Radix démonte le menu à la sélection et emporterait le dialog). Autonome sinon. */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  const open = openProp ?? openState
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
   const [pending, startTransition] = useTransition()
 
   const confirm = () => {
@@ -59,6 +67,8 @@ export function ImpersonateButton({
         setOpen(next)
       }}
     >
+      {/* Pas de trigger en mode contrôlé : le déclencheur est l'item de menu. */}
+      {openProp === undefined && (
       <AlertDialogTrigger asChild>
         <Button
           variant="ghost"
@@ -69,6 +79,7 @@ export function ImpersonateButton({
           <Eye className="size-3.5" />
         </Button>
       </AlertDialogTrigger>
+      )}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Consulter en tant que {memberName} ?</AlertDialogTitle>

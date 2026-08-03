@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { useMemberPanel } from '@/hooks/use-member-panel'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import {
@@ -18,11 +19,15 @@ import { ActionButton } from '@/components/action-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
+import { loadMemberEvents } from '../actions-lifecycle'
 import { memberInput, type MemberForm } from '../schema'
-import type { Member } from '../types'
+import { memberDefaults } from './member-defaults'
+import type { Member, MemberEvent } from '../types'
 import { MemberAccessFields } from './member-access-fields'
+import { MemberArrivalFields } from './member-arrival-fields'
 import { MemberChatterLinkField } from './member-chatter-link-field'
 import { MemberClosingFields } from './member-closing-fields'
+import { MemberHistoryTab } from './member-history-tab'
 import { MemberIdentityFields } from './member-identity-fields'
 import { MemberPayForm, MemberPayPlaceholder } from './member-pay-form'
 import { MemberPermissionFields } from './member-permission-fields'
@@ -30,7 +35,7 @@ import { MemberPermissionFields } from './member-permission-fields'
 /** Champs affichant un message d'erreur juste sous eux (les autres — role/managerIds/
  *  creatorIds — n'ont pas de zone dédiée) : un `fieldErrors` server-side dessus est remonté
  *  au message global plutôt qu'avalé silencieusement (cf. remap dans `submit`). */
-const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages'] as const satisfies readonly (keyof MemberForm)[]
+const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages', 'arrivedAt'] as const satisfies readonly (keyof MemberForm)[]
 const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[number] =>
   (DISPLAYED_FIELDS as readonly string[]).includes(field)
 
@@ -67,6 +72,8 @@ export function MemberDialog({
   chatters,
   managers = [],
   trigger,
+  open: openProp,
+  onOpenChange,
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
@@ -78,7 +85,10 @@ export function MemberDialog({
   chatters: { id: string; name: string }[]
   /** Managers rattachables (sélecteur admin, face chatteurs). */
   managers?: { id: string; name: string; role: string }[]
-  trigger: ReactNode
+  /** Omis quand l'ouverture est pilotée par `open`. */
+  trigger?: ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
   /** Face dont on gère les droits — les slugs de l'autre face sont préservés côté serveur. */
   scope?: 'chatter' | 'marketing'
   /** Manager : rôle verrouillé sur user, sélecteurs rôle/rattachement masqués. */
@@ -87,12 +97,12 @@ export function MemberDialog({
   superadmin?: boolean
 }) {
   'use no memo'
-  const [open, setOpen] = useState(false)
+  const [openState, setOpenState] = useState(false)
+  // Contrôlé quand `open` est fourni (ouverture depuis un menu déroulant, qui ne peut pas servir
+  // de trigger : Radix le démonte à la sélection), autonome sinon.
+  const open = openProp ?? openState
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
-  const scopeSlugs = new Set(choices.map((c) => c.slug as string))
-  // Un modèle hors du périmètre de l'appelant (invisible dans `creators`) ne doit pas
-  // rester dans le form : le serveur le refuserait — il est préservé côté serveur.
-  const creatorSet = new Set(creators.map((c) => c.id))
   // Pas d'auto-rattachement (check en base) : on exclut la ligne éditée des options.
   const attachables = managers.filter((m) => m.id !== member?.id)
 
@@ -102,37 +112,12 @@ export function MemberDialog({
     handleSubmit,
     setError,
     reset,
+    getValues,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
-    defaultValues: {
-      scope,
-      email: member?.email ?? '',
-      displayName: member?.displayName ?? '',
-      role:
-        viewer === 'manager'
-          ? 'chatteur'
-          : member?.role === 'admin'
-            ? 'admin'
-            : member?.role === 'manager'
-              ? 'manager'
-              : member?.role === 'sous-manager'
-                ? 'sous-manager'
-                : member?.role === 'police'
-                  ? 'police'
-                  : 'chatteur',
-      // Seules les pages du périmètre courant sont éditées ici.
-      pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
-      creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
-      // Le serveur force le rattachement au créateur pour un appelant manager,
-      // et l'ignore sur ses éditions (il ne peut pas déplacer un chatter).
-      managerIds: member?.managerIds ?? [],
-      workLink: member?.workLink ?? '',
-      closingRole: member?.closingRole ?? null,
-      closingTeam: member?.closingTeam ?? null,
-      shift: member?.shift ?? null,
-      chatterId: member?.chatterId ?? '',
-    },
+    defaultValues: memberDefaults({ member, scope, viewer, creators }),
   })
   // Réinitialise à L'OUVERTURE SEULEMENT (transition fermé→ouvert, gardée par prevOpen) : le
   // useForm n'est semé qu'au montage — sans reset, le dialog garde l'état de sa précédente
@@ -145,56 +130,25 @@ export function MemberDialog({
     const opening = open && !prevOpen.current
     prevOpen.current = open
     if (!opening) return
-    const slugs = new Set(
-      (scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES).map((c) => c.slug as string),
-    )
-    const cSet = new Set(creators.map((c) => c.id))
-    reset({
-      scope,
-      email: member?.email ?? '',
-      displayName: member?.displayName ?? '',
-      role:
-        viewer === 'manager'
-          ? 'chatteur'
-          : member?.role === 'admin'
-            ? 'admin'
-            : member?.role === 'manager'
-              ? 'manager'
-              : member?.role === 'sous-manager'
-                ? 'sous-manager'
-                : member?.role === 'police'
-                  ? 'police'
-                  : 'chatteur',
-      pages: (member?.pages ?? []).filter((p) => slugs.has(p)),
-      creatorIds: (member?.creatorIds ?? []).filter((id) => cSet.has(id)),
-      managerIds: member?.managerIds ?? [],
-      workLink: member?.workLink ?? '',
-      closingRole: member?.closingRole ?? null,
-      closingTeam: member?.closingTeam ?? null,
-      shift: member?.shift ?? null,
-      chatterId: member?.chatterId ?? '',
-    })
+    reset(memberDefaults({ member, scope, viewer, creators }))
   }, [open, member, scope, viewer, creators, reset])
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })
+  // Historique (0104) : chargé quand on ARRIVE sur l'onglet, via `onValueChange` ci-dessous —
+  // un événement, pas un effet (patron `useMemberPanel`, partagé avec les piles de noms).
+  const { panel: historyPanel, open: loadHistory } = useMemberPanel<MemberEvent[]>(loadMemberEvents)
+  // Commande l'apparition du champ « Arrivé le » (0101) — observé ici, comme `roleValue`, plutôt
+  // que dans le composant de champs : un `useWatch` par composant multiplierait les re-rendus.
+  const isNewValue = useWatch({ control, name: 'isNew' })
 
   const submit = handleSubmit(async (values) => {
+    // `...values` des DEUX côtés : `memberUpdateInput` ne déclare pas `email` (verrouillé en
+    // édition) et Zod retire les clés non déclarées au parse — inutile de recopier quinze champs
+    // à la main. C'était une liste de plus à tenir à jour : chaque champ ajouté au formulaire
+    // devait l'être ici aussi, sans que rien ne le signale à la compilation.
     const res = member
-      ? await updateMember({
-          scope,
-          id: member.id,
-          displayName: values.displayName,
-          role: values.role,
-          pages: values.pages,
-          creatorIds: values.creatorIds,
-          managerIds: values.managerIds,
-          workLink: values.workLink,
-          closingRole: values.closingRole,
-          closingTeam: values.closingTeam,
-          shift: values.shift,
-          chatterId: values.chatterId,
-        })
+      ? await updateMember({ ...values, scope, id: member.id })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
       // Un message global générique ne dit pas quel champ corriger (ex. email déjà pris) —
@@ -249,6 +203,15 @@ export function MemberDialog({
           tributaire de la table MyPuls admin-only qui imposait de le leur cacher. */}
       <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
 
+      <MemberArrivalFields
+        control={control}
+        roleValue={roleValue}
+        isNewValue={isNewValue}
+        isSubmitting={isSubmitting}
+        getValues={getValues}
+        setValue={setValue}
+      />
+
       {/* Lien chatteur : visible aux ADMINS (admin + superadmin, = garde serveur applyChatterLink)
           ET seulement pour un membre role chatteur (le closing n'existe que pour eux — évite de
           « consommer » l'unicité d'un chatteur sur un membre non-chatteur). */}
@@ -288,7 +251,7 @@ export function MemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{member ? `Modifier ${member.displayName}` : 'Nouveau membre'}</DialogTitle>
@@ -300,22 +263,37 @@ export function MemberDialog({
         </DialogHeader>
 
         {/* Pas d'onglets quand il n'y en aurait qu'un : un `TabsList` à une seule entrée serait
-            du bruit pour un manager (ou pour un membre non chatteur), qui ne verra jamais rien
-            d'autre que le formulaire. */}
-        {showPayTab ? (
-          <Tabs defaultValue="general">
+            du bruit. L'HISTORIQUE (0104) n'existe que pour un membre DÉJÀ CRÉÉ — à la création,
+            il n'y a rien à raconter, et pas d'id à interroger. */}
+        {showPayTab || member ? (
+          <Tabs
+            defaultValue="general"
+            onValueChange={(v) => {
+              // Une seule lecture par ouverture de dialog : `panel.id` retient déjà ce membre.
+              if (v === 'historique' && member && historyPanel?.id !== member.id)
+                loadHistory(member.id)
+            }}
+          >
             <TabsList>
               <TabsTrigger value="general">Général</TabsTrigger>
-              <TabsTrigger value="compta">Compta</TabsTrigger>
+              {showPayTab && <TabsTrigger value="compta">Compta</TabsTrigger>}
+              {member && <TabsTrigger value="historique">Historique</TabsTrigger>}
             </TabsList>
             <TabsContent value="general">{generalForm}</TabsContent>
-            <TabsContent value="compta">
-              {member?.pay ? (
-                <MemberPayForm memberId={member.id} pay={member.pay} />
-              ) : (
-                <MemberPayPlaceholder />
-              )}
-            </TabsContent>
+            {showPayTab && (
+              <TabsContent value="compta">
+                {member?.pay ? (
+                  <MemberPayForm memberId={member.id} pay={member.pay} />
+                ) : (
+                  <MemberPayPlaceholder />
+                )}
+              </TabsContent>
+            )}
+            {member && (
+              <TabsContent value="historique">
+                <MemberHistoryTab panel={historyPanel} />
+              </TabsContent>
+            )}
           </Tabs>
         ) : (
           generalForm

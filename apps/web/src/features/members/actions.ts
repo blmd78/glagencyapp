@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { applyChatterLink } from '@/lib/chatter-link'
@@ -118,8 +117,16 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // Shift : même règle, et depuis 0100 même TABLE que le closing (il vivait sur la fiche
           // MyPuls, ce qui le rendait inaccessible aux chatteurs sans lien).
           shift: role === 'chatteur' ? values.shift : null,
+          // Nouvel arrivant (0101) : même règle de rôle. `arrived_at` ne survit pas à un rôle
+          // non-chatteur — un drapeau orphelin sur un manager ne voudrait rien dire.
+          is_new: role === 'chatteur' ? values.isNew : false,
+          arrived_at: role === 'chatteur' ? values.arrivedAt : null,
           // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
           created_by: caller.id,
+          // « Modifié par » (0104) : LU PAR LE TRIGGER D'HISTORIQUE. Cette page écrit en
+          // service role, où `auth.uid()` est null — sans cette colonne, tout changement fait
+          // ici serait attribué à « système ».
+          updated_by: caller.id,
           ...managerIdsPatch(role, scope, managerIds, true),
         })
         .eq('id', uid)
@@ -193,6 +200,15 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           closing_team: role === 'chatteur' ? closingTeam : null,
           // Shift (0100) : attribut du membre, remis à null si la cible cesse d'être chatteur.
           shift: role === 'chatteur' ? values.shift : null,
+          // Nouvel arrivant (0101) : même règle. Décocher le drapeau NE VIDE PAS `arrived_at` —
+          // c'est voulu (base du calcul d'ancienneté/turnover) ; seul un changement de rôle
+          // l'efface, puisque la personne quitte le dispositif chatteur.
+          is_new: role === 'chatteur' ? values.isNew : false,
+          arrived_at: role === 'chatteur' ? values.arrivedAt : null,
+          // LU PAR LE TRIGGER D'HISTORIQUE (0104), et écrit AVANT `syncAssignments` plus bas —
+          // c'est ce qui permet au trigger de `profile_creators` de retrouver l'auteur d'un
+          // changement de modèle malgré le service role. Ne pas déplacer cette écriture après.
+          updated_by: caller.id,
           // apply seulement pour un admin : un manager ne déplace pas un rattachement.
           ...managerIdsPatch(role, scope, managerIds, caller.role === 'admin'),
         })
@@ -232,30 +248,6 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         const sErr = await syncAssignments(admin, id, creatorIds, ownScope)
         if (sErr) throw new Error(sErr)
       }
-      revalidateMembers()
-    },
-  })
-}
-
-const deleteMemberInput = z.uuid()
-
-export async function deleteMember(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: deleteMemberInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (id) => {
-      // Même patron §4 : autorisation unique en tête de handler.
-      const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
-      const admin = createAdminClient()
-      // Manager : requireEditableTarget borne la suppression à SES chatters (rôle user).
-      const target = await requireEditableTarget(admin, id, caller)
-      if ('error' in target) throw new BusinessError(target.error)
-      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
-      // Supprime le compte auth → profiles/profile_creators suivent par cascade FK.
-      const { error } = await admin.auth.admin.deleteUser(id)
-      if (error) throw new Error(error.message)
       revalidateMembers()
     },
   })

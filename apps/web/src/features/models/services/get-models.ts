@@ -45,7 +45,7 @@ export async function getModels(period: Period): Promise<ModelsData> {
     { data: cc, error: ccErr },
     { data: chatters, error: chattersErr },
   ] = await Promise.all([
-    supabase.from('creators').select('id, name, is_private, excluded'),
+    supabase.from('creators').select('id, name, is_private, excluded, active'),
     // Agrégation EN BASE (migration 0050 models_report, SECURITY INVOKER = RLS appliquée) :
     // GROUP BY par modèle + par (modèle, chatteur) fait en Postgres → plus de fetchAll de
     // milliers de lignes journalières ni de reduce JS. RPC typé (nom + args) — pas de
@@ -116,8 +116,11 @@ export async function getModels(period: Period): Promise<ModelsData> {
   }
 
   // `excluded` = exclusion du calcul LTV UNIQUEMENT (page Santé) — la page Modèles
-  // montre TOUS les comptes, exclus compris (décision 2026-07-03, page Quotas).
+  // montre TOUS les comptes actifs, exclus compris (décision 2026-07-03, page Quotas),
+  // y compris à 0 € / 0 chatteur (décision 2026-08-03, arrivée de Juliette) : seule
+  // `active = false` masque une modèle, comme sur Organisation / Repos / Infos modèles.
   const models: ModelRow[] = (creators ?? [])
+    .filter((c) => c.active)
     .map((c) => {
       const a = agg.get(c.id) ?? { total: 0, ppv: 0, tips: 0, renew: 0, newSubs: 0, renewals: 0 }
       const byCh = breakdown.get(c.id) ?? new Map()
@@ -154,7 +157,6 @@ export async function getModels(period: Period): Promise<ModelsData> {
         isPrivate: c.is_private,
       }
     })
-    .filter((m) => m.total > 0 || m.nbChatters > 0)
     .sort((a, b) => b.total - a.total)
 
   // Part CA : arrondi « plus fort reste » sur les modèles affichés → la colonne somme

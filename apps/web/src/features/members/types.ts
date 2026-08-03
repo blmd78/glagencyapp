@@ -1,6 +1,6 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
-import type { RateChange } from '@glagency/core'
+import type { DepartureReason, EventKind, RateChange } from '@glagency/core'
 import type { CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 /**
@@ -45,6 +45,19 @@ export interface Member {
   closingTeam: CrmTeam | null
   /** Shift de la fiche chatteur LIÉE (chatters.shift) — null : non lié ou non renseigné. */
   shift: CrmShift | null
+  /** Drapeau MANUEL « nouvel arrivant » (0101) — chatteurs uniquement, `false` pour les autres
+   *  rôles (le serveur le force, comme `closing_role` et `shift`). */
+  isNew: boolean
+  /** Date d'arrivée réelle dans l'agence ('YYYY-MM-DD'). CONSERVÉE après retrait du drapeau :
+   *  c'est la base du calcul d'ancienneté, pas un simple attribut d'affichage. */
+  arrivedAt: string | null
+  /** Date de sortie (0102). null = en poste. Un membre parti garde son profil, son rôle et ses
+   *  assignations — seul son ACCÈS est coupé (ban GoTrue). */
+  leftAt: string | null
+  leftReason: DepartureReason | null
+  leftNote: string | null
+  /** Nom du profil qui a acté le départ — null si posé en SQL direct : l'écran affiche « — ». */
+  leftByName: string | null
   /** Chatteur MyPuls lié ('' = aucun) — permet de lire le closing du membre côté Chatteurs/Spenders. */
   chatterId: string
   createdAt: string
@@ -60,6 +73,51 @@ export interface Member {
    *  l'admin. Un manager peut ouvrir ce dialog dans son périmètre : lui envoyer ces valeurs
    *  reviendrait à monter un onglet dont l'enregistrement serait refusé en base, tard et mal. */
   pay?: MemberPay
+}
+
+/** Une ligne de la timeline. `label` est déjà rédigé côté serveur : la vue ne fait que l'afficher. */
+export interface MemberEvent {
+  id: number
+  /** ISO complet — l'affichage le formate en fuseau Paris. */
+  at: string
+  kind: EventKind
+  /** Phrase prête à lire, ex. « Shift : Matin → Soir ». */
+  label: string
+  /** Nom de l'auteur, ou `null` → l'écran affiche « système » (écriture SQL directe). */
+  actorName: string | null
+  /** Nom du membre concerné — sert le flux global, où la liste mélange tout le monde. */
+  memberName: string
+  /** Rôle BRUT du membre (`profiles.role`) — rendu en badge, comme dans la table des comptes. */
+  memberRole: string
+}
+
+/** Contrat de l'onglet « Turnover » (0103). Tout est déjà agrégé côté service. */
+export interface TurnoverData {
+  /** Un point PAR JOUR de la période, y compris les jours sans mouvement — un jour manquant
+   *  resserrerait le graphe sur les seules dates actives et ferait lire une activité continue. */
+  days: { jour: string; entrees: number; sorties: number; effectif: number }[]
+  /** Les départs de la période, NOMMÉS et du plus récent au plus ancien. Sur les volumes réels
+   *  d'une agence, savoir qui est parti et pourquoi apprend plus qu'un comptage par motif. */
+  departures: {
+    name: string
+    reason: string
+    leftAt: string
+    /** Jours entre l'arrivée et le départ — null si l'arrivée n'a pas été saisie. */
+    tenureDays: number | null
+  }[]
+  /** Totaux de la fenêtre. */
+  entries: number
+  exits: number
+  /** Effectif CHATTEUR à cet instant (0107) : ni les encadrants ni les partis. */
+  headcount: number
+  /** Sorties ÷ effectif moyen. null = effectif nul (jamais une division par zéro). */
+  rate: number | null
+  /** Ancienneté moyenne à la sortie, en jours — calculée sur les SEULS départs dont l'arrivée
+   *  est connue. null = aucun départ mesurable. */
+  tenureAvgDays: number | null
+  /** Le dénominateur de la moyenne ci-dessus : combien de départs elle a réellement pu compter.
+   *  Affiché À CÔTÉ d'elle — une moyenne partielle muette est un chiffre faux. */
+  tenureKnown: number
 }
 
 export interface MembersData {

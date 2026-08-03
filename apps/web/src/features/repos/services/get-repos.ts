@@ -52,7 +52,12 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     fetchAll((f, t) =>
       admin
         .from('profiles')
-        .select('id, display_name, role')
+        // `left_at` est LU mais PAS filtré ici, volontairement : cette requête alimente
+        // `chatterById`, qui résout les noms des cellules DÉJÀ POSÉES. Filtrer les partis à la
+        // source ferait afficher « ? » à la place de leur nom dans les plannings passés — un
+        // planning d'août doit rester lisible en septembre. Le filtre vit donc sur les OPTIONS
+        // (plus bas), là où il veut vraiment dire « ne le propose plus ».
+        .select('id, display_name, role, is_new, arrived_at, left_at')
         .in('role', ['manager', 'sous-manager', 'police', 'chatteur'])
         .order('id')
         .range(f, t),
@@ -104,6 +109,11 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   const chatterById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) chatterById[c.id] = c.display_name
   for (const m of profileRows ?? []) if (m.id && m.display_name) chatterById[m.id] = m.display_name
+  // Le drapeau « nouvel arrivant » (0101), lui, ne vient QUE des profils : une fiche MyPuls legacy
+  // ne correspond à personne dans l'équipe actuelle, elle n'a pas de drapeau à porter.
+  const newByChatter: Record<string, { isNew: boolean; arrivedAt: string | null }> = {}
+  for (const m of profileRows ?? [])
+    if (m.id) newByChatter[m.id] = { isNew: m.is_new ?? false, arrivedAt: m.arrived_at ?? null }
   // Options des cellules chatteur = membres role chatteur visibles sous RLS (0095 : tous,
   // pour tout encadrant — cf. getVisibleProfiles). La résolution des noms déjà posés
   // (chatterById, admin) couvre aussi les ids legacy.
@@ -115,7 +125,9 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
   // Sous-managers, Policiers) ne propose que les profils de SON rôle.
   const optsForRole = (role: string) =>
     (profileRows ?? [])
-      .filter((m) => m.role === role && m.display_name)
+      // `!m.left_at` : un parti (0102) ne se propose plus, mais son nom reste résoluble
+      // ci-dessus pour les semaines où il figurait.
+      .filter((m) => m.role === role && m.display_name && !m.left_at)
       .map((m) => ({ id: m.id, name: m.display_name as string }))
       .sort((a, b) => a.name.localeCompare(b.name))
   const managerOptions = optsForRole('manager')
@@ -175,6 +187,7 @@ export async function getRepos(week: string | null | undefined): Promise<ReposDa
     creatorById,
     creatorOptions,
     chatterById,
+    newByChatter,
     chatterOptions,
     managerOptions,
     sousManagerOptions,

@@ -1062,6 +1062,51 @@ export type Database = {
           },
         ]
       }
+      member_events: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          from_value: string | null
+          id: number
+          kind: string
+          profile_id: string
+          to_value: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          from_value?: string | null
+          id?: number
+          kind: string
+          profile_id: string
+          to_value?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          from_value?: string | null
+          id?: number
+          kind?: string
+          profile_id?: string
+          to_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mkt_link_daily: {
         Row: {
           clicks: number
@@ -1728,6 +1773,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          arrived_at: string | null
           chatter_id: string | null
           closing_role: string | null
           closing_team: string | null
@@ -1736,13 +1782,20 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          is_new: boolean
+          left_at: string | null
+          left_by: string | null
+          left_note: string | null
+          left_reason: string | null
           manager_ids: string[]
           pages: string[]
           role: string
           shift: string | null
+          updated_by: string | null
           work_link: string
         }
         Insert: {
+          arrived_at?: string | null
           chatter_id?: string | null
           closing_role?: string | null
           closing_team?: string | null
@@ -1751,13 +1804,20 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          is_new?: boolean
+          left_at?: string | null
+          left_by?: string | null
+          left_note?: string | null
+          left_reason?: string | null
           manager_ids?: string[]
           pages?: string[]
           role?: string
           shift?: string | null
+          updated_by?: string | null
           work_link?: string
         }
         Update: {
+          arrived_at?: string | null
           chatter_id?: string | null
           closing_role?: string | null
           closing_team?: string | null
@@ -1766,10 +1826,16 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          is_new?: boolean
+          left_at?: string | null
+          left_by?: string | null
+          left_note?: string | null
+          left_reason?: string | null
           manager_ids?: string[]
           pages?: string[]
           role?: string
           shift?: string | null
+          updated_by?: string | null
           work_link?: string
         }
         Relationships: [
@@ -1783,6 +1849,20 @@ export type Database = {
           {
             foreignKeyName: "profiles_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_left_by_fkey"
+            columns: ["left_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -2454,6 +2534,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {
           p_absents: number

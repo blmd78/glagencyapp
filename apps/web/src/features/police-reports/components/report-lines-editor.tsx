@@ -8,6 +8,7 @@ import {
   type UseFormRegister,
 } from 'react-hook-form'
 import { ThumbsUp, Trash2, Wrench } from 'lucide-react'
+import { NewBadge } from '@/components/new-badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,6 +28,7 @@ export function ReportLinesEditor({
   register,
   errors,
   chatterOptions,
+  newByChatter,
   modelSelected,
   disabled,
 }: {
@@ -34,6 +36,9 @@ export function ReportLinesEditor({
   register: UseFormRegister<ReportFormValues>
   errors: FieldErrors<ReportFormValues>
   chatterOptions: ComboOption[]
+  /** Nouvel arrivant par id (0101) — prop DÉDIÉE : `ComboOption` est une primitive d'UI partagée
+   *  (`components/ui/combobox`), elle n'a pas à porter une notion métier de l'agence. */
+  newByChatter: Record<string, { isNew: boolean; arrivedAt: string | null }>
   /** Un modèle est-il sélectionné ? (sinon pas de chatteurs proposables). */
   modelSelected: boolean
   disabled?: boolean
@@ -85,7 +90,14 @@ export function ReportLinesEditor({
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm">
                       <span className="text-muted-foreground">Chatter</span>{' '}
-                      <span className="font-medium">{nameById.get(f.chatterId) ?? '—'}</span>
+                      <span className="font-medium">{nameById.get(f.chatterId) ?? '—'}</span>{' '}
+                      {/* Le rapport JUGE le travail du chatteur : savoir qu'il vient d'arriver
+                          change la lecture de ce qu'on écrit dans « à régler ». */}
+                      <NewBadge
+                        isNew={newByChatter[f.chatterId]?.isNew ?? false}
+                        arrivedAt={newByChatter[f.chatterId]?.arrivedAt ?? null}
+                        variant="icon"
+                      />
                     </span>
                     <Button
                       type="button"

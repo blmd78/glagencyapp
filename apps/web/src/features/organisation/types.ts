@@ -14,6 +14,9 @@ export interface OrgChatter {
   name: string
   /** null = shift non renseigné → « à placer ». */
   shift: CrmShift | null
+  /** Nouvel arrivant (0101) — icône dans la case ; aucune édition ici, ça se pose dans Membres. */
+  isNew: boolean
+  arrivedAt: string | null
 }
 
 /** Une ligne du board = (owner, modèle) : les chatters du modèle groupés par shift.
@@ -42,8 +45,10 @@ export interface OrgSection {
 
 export interface OrganisationData {
   sections: OrgSection[]
-  /** Options des cases : tous les membres rôle chatteur. */
-  chatterOptions: { id: string; name: string }[]
+  /** Options des cases : tous les membres rôle chatteur. Portent le drapeau « nouvel arrivant »
+   *  (0101) — c'est de cette liste que la table dérive l'icône des cases, comme elle en dérive
+   *  déjà les noms (`nameById`). */
+  chatterOptions: { id: string; name: string; isNew: boolean; arrivedAt: string | null }[]
   /** Options des lignes (édition structurelle, admin). */
   sousManagerOptions: { id: string; name: string }[]
   managerOptions: { id: string; name: string }[]

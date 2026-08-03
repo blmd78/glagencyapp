@@ -24,8 +24,12 @@ export async function getOrganisation(): Promise<OrganisationData> {
     fetchAll((f, t) =>
       admin
         .from('profiles')
-        .select('id, display_name, email, role, manager_ids, shift')
+        .select('id, display_name, email, role, manager_ids, shift, is_new, arrived_at')
         .in('role', ['admin', 'manager', 'sous-manager', 'chatteur'])
+        // Les PARTIS (0102) sortent de l'organigramme : il décrit qui travaille ici aujourd'hui.
+        // Leurs `profile_creators` ne sont pas supprimées pour autant — elles racontent ce qui
+        // était vrai quand ils étaient là ; on cesse simplement de les rendre.
+        .is('left_at', null)
         .order('id')
         .range(f, t),
     ),
@@ -67,6 +71,8 @@ export async function getOrganisation(): Promise<OrganisationData> {
       id: m.id,
       name: nameOf(m),
       shift: isShift(m.shift) ? m.shift : null,
+      isNew: m.is_new ?? false,
+      arrivedAt: m.arrived_at ?? null,
     }
     if (!entry.shift) aPlacer += 1
     for (const creatorId of modelsByProfile.get(m.id) ?? []) {
@@ -184,7 +190,12 @@ export async function getOrganisation(): Promise<OrganisationData> {
   // TOUS les membres rôle chatteur sont plaçables depuis 0100 : le shift vit sur le membre, plus
   // sur la fiche MyPuls — un chatteur sans lien n'est plus un angle mort du board.
   const chatterOptions = chatterMembers
-    .map((m) => ({ id: m.id, name: nameOf(m) }))
+    .map((m) => ({
+      id: m.id,
+      name: nameOf(m),
+      isNew: m.is_new ?? false,
+      arrivedAt: m.arrived_at ?? null,
+    }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   return {

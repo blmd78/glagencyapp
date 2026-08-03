@@ -1,16 +1,65 @@
 import { Suspense } from 'react'
 import { requireAdminOrManager } from '@/lib/auth'
+import { resolvePeriod } from '@/lib/period'
 import { getMembers } from '@/features/members/services/get-members'
+import { getTurnover } from '@/features/members/services/get-turnover'
+import { getEventMemberOptions, getMemberEvents } from '@/features/members/services/get-member-events'
+import { resolveFilter } from '@/lib/roster'
 import { MembersTemplate } from '@/features/members/MembersTemplate'
-import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 import { SectionFallback } from '@/components/skeletons/route-loading'
-import type { MembersData } from '@/features/members/types'
+import { MembersSkeleton } from '@/features/members/components/members-skeleton'
+import type { MembersData, TurnoverData } from '@/features/members/types'
+import type { SelectableMember } from '@/lib/types/member'
+import type { MemberEvent } from '@/features/members/types'
 
-export default async function MembersPage() {
+interface ActivityData {
+  events: MemberEvent[]
+  members: SelectableMember[]
+  selectedMember: string | null
+}
+
+/**
+ * Le filtre `?membre=` est validé PAR APPARTENANCE à la liste (`resolveFilter`, patron du Planning)
+ * — un id inconnu ou mal formé est ignoré. Séquentiel et non parallèle : la liste doit exister
+ * AVANT de décider si le filtre est valide, sinon on lirait les événements d'un id refusé ensuite
+ * par le sélecteur, et l'écran afficherait « Tous les membres » au-dessus d'une liste filtrée.
+ */
+async function loadActivity(
+  period: { from: string; to: string },
+  membre: string | undefined,
+): Promise<ActivityData> {
+  const members = await getEventMemberOptions()
+  const selectedMember = resolveFilter(members, membre)
+  const events = await getMemberEvents({
+    profileId: selectedMember ?? undefined,
+    from: period.from,
+    to: period.to,
+    limit: ACTIVITY_LIMIT,
+  })
+  return { events, members, selectedMember }
+}
+
+/** Plafond du flux d'activité. La vue DIT quand il est atteint — pas de troncature muette. */
+const ACTIVITY_LIMIT = 200
+
+export default async function MembersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vue?: string; from?: string; to?: string; membre?: string }>
+}) {
   const profile = await requireAdminOrManager()
-  // Kickoff SANS await : le shell (h1) s'affiche immédiatement, la table streame
-  // dans son boundary quand la lecture répond.
-  const data = getMembers()
+  const sp = await searchParams
+  const vue = sp.vue === 'turnover' ? 'turnover' : sp.vue === 'activite' ? 'activite' : 'liste'
+  // Turnover et Activité suivent le DATEPICKER GLOBAL du header (`?from=&to=`), comme toutes les
+  // pages du CRM — `resolvePeriod` est la source unique (défaut : mois en cours). La liste des
+  // comptes, elle, n'a pas de période : un membre est là ou il n'est pas là.
+  const period = resolvePeriod(sp)
+  // Kickoff SANS await : le shell (h1) s'affiche immédiatement, le contenu streame dans son
+  // boundary. UNE SEULE des trois lectures est lancée — un onglet ne fait jamais payer sa
+  // requête à qui consulte un autre onglet.
+  const data = vue === 'liste' ? getMembers() : null
+  const turnover = vue === 'turnover' ? getTurnover(period) : null
+  const activity = vue === 'activite' ? loadActivity(period, sp.membre) : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -18,12 +67,16 @@ export default async function MembersPage() {
       <Suspense
         fallback={
           <SectionFallback>
-            <TableSkeleton />
+            <MembersSkeleton />
           </SectionFallback>
         }
       >
         <MembersContent
           data={data}
+          turnover={turnover}
+          activity={activity}
+          period={period}
+          vue={vue}
           viewer={profile.role === 'admin' ? 'admin' : 'manager'}
           superadmin={profile.superadmin}
         />
@@ -34,12 +87,29 @@ export default async function MembersPage() {
 
 async function MembersContent({
   data,
+  turnover,
+  activity,
+  period,
+  vue,
   viewer,
   superadmin,
 }: {
-  data: Promise<MembersData>
+  data: Promise<MembersData> | null
+  turnover: Promise<TurnoverData> | null
+  activity: Promise<ActivityData> | null
+  period: { from: string; to: string }
+  vue: 'liste' | 'turnover' | 'activite'
   viewer: 'admin' | 'manager'
   superadmin: boolean
 }) {
-  return <MembersTemplate data={await data} viewer={viewer} superadmin={superadmin} />
+  return (
+    <MembersTemplate
+      data={data ? await data : null}
+      turnover={turnover ? await turnover : null}
+      activity={activity ? { ...(await activity), from: period.from, to: period.to, limit: ACTIVITY_LIMIT } : null}
+      vue={vue}
+      viewer={viewer}
+      superadmin={superadmin}
+    />
+  )
 }

@@ -104,6 +104,14 @@ export function ReportForm({
     value: c.id,
     label: c.name,
   }))
+  // Le drapeau part dans une prop SÉPARÉE : `ComboOption` (`components/ui/combobox`) est une
+  // primitive d'UI partagée, elle n'a pas à connaître les nouveaux arrivants de l'agence.
+  const newByChatter = Object.fromEntries(
+    (chattersByModel[creatorId ?? ''] ?? []).map((c) => [
+      c.id,
+      { isNew: c.isNew ?? false, arrivedAt: c.arrivedAt ?? null },
+    ]),
+  )
 
   const onSubmit = handleSubmit(async (values) => {
     const res = await upsertPoliceReport(values)
@@ -248,6 +256,7 @@ export function ReportForm({
         register={register}
         errors={errors}
         chatterOptions={chatterOptions}
+        newByChatter={newByChatter}
         modelSelected={!!creatorId}
         disabled={isSubmitting}
       />

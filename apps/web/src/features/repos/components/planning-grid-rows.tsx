@@ -1,6 +1,7 @@
 'use client'
 
 import { Plus } from 'lucide-react'
+import { NewBadge } from '@/components/new-badge'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { cn } from '@/lib/utils'
 import { CHIP_RED, chipForCol, normName, tokensOf, type CellChip } from './planning-grid-utils'
@@ -97,11 +98,16 @@ export function PlanningGridRows({
                                 ch.over ? `${ch.label} : plus de 2 repos cette semaine` : undefined
                               }
                               className={cn(
-                                'rounded px-1.5 py-0.5 text-xs font-medium',
+                                'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
                                 ch.over ? CHIP_RED : chip,
                               )}
                             >
                               {ch.label}
+                              <NewBadge
+                                isNew={ch.isNew ?? false}
+                                arrivedAt={ch.arrivedAt ?? null}
+                                variant="icon"
+                              />
                             </span>
                           ))}
                           <Plus className="size-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-70" />
@@ -150,11 +156,16 @@ export function PlanningGridRows({
                           key={ch.key}
                           title={ch.over ? `${ch.label} : plus de 2 repos cette semaine` : undefined}
                           className={cn(
-                            'rounded px-1.5 py-0.5 text-xs font-medium',
+                            'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
                             ch.over ? CHIP_RED : chip,
                           )}
                         >
                           {ch.label}
+                          <NewBadge
+                            isNew={ch.isNew ?? false}
+                            arrivedAt={ch.arrivedAt ?? null}
+                            variant="icon"
+                          />
                         </span>
                       ))
                     ) : (

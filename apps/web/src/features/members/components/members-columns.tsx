@@ -5,30 +5,17 @@
 // `chatters-columns.tsx`). `members-table.tsx` ne garde que la composition DataTable + toolbar.
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { toast } from 'sonner'
-import { AlertTriangle, Pencil, ShieldCheck, Trash2 } from 'lucide-react'
-import { isImpersonatable } from '@glagency/core'
+import { AlertTriangle, ShieldCheck } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { RoleBadge } from '@/components/role-badge'
-import { TeamBadge } from '@/components/team-badge'
-import { ShiftBadge } from '@/components/shift-badge'
-import { Button } from '@/components/ui/button'
+import { NewBadge } from '@/components/new-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
-import { deleteMember } from '../actions'
-import { ImpersonateButton } from './impersonate-button'
-import { MemberDialog } from './member-dialog'
+import { RowActions } from './member-row-actions'
 import type { Member } from '../types'
-
-// « Créé le » en fuseau Europe/Paris EXPLICITE (formateur hoisté, même patron que
-// spenders-table) : created_at est un timestamptz — sans timeZone, le SSR (UTC) et un
-// navigateur parisien peuvent rendre un jour différent → mismatch d'hydratation.
-const FR_DATE_PARIS = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris' })
 
 const initials = (name: string) =>
   name
@@ -38,97 +25,6 @@ const initials = (name: string) =>
     .slice(0, 2)
     .join('')
     .toUpperCase()
-
-/**
- * Colonne Actions : Modifier (dialog) + Supprimer (ConfirmDialog). Admins jamais
- * éditables ici ; un manager n'agit que sur les comptes user, et jamais sur sa propre
- * ligne (rôle manager).
- *
- * `member.editable` porte le dernier filtre (admin → tout ; manager → les chatteurs, 0095).
- * Garde d'AFFICHAGE seule — la vraie barrière reste `authz.ts` (`requireEditableTarget`)
- * côté serveur, doublée par la RLS.
- */
-function RowActions({
-  member,
-  creators,
-  chatters,
-  managers,
-  scope,
-  viewer,
-  superadmin,
-}: {
-  member: Member
-  creators: { id: string; name: string }[]
-  chatters: { id: string; name: string }[]
-  managers: { id: string; name: string; role: string }[]
-  scope: 'chatter' | 'marketing'
-  viewer: 'admin' | 'manager'
-  /** Propriétaire : seul à pouvoir gérer les fiches admin. */
-  superadmin: boolean
-}) {
-  if (member.role === 'superadmin') return null
-  if (member.role === 'admin' && !superadmin) return null
-  if (viewer === 'manager' && member.role !== 'chatteur') return null
-
-  // Consulter en tant que : admin uniquement, rôle BRUT de la ligne dans l'allowlist (garde
-  // d'affichage seule — la vraie barrière est côté serveur, `startImpersonation`). Elle ne
-  // dépend PAS de `editable` : un admin a de toute façon tout en éditable.
-  const canImpersonate = viewer === 'admin' && isImpersonatable(member.role)
-  // Plus rien à rendre : pas de cellule vide (une ligne sans action ne montre pas une colonne).
-  if (!canImpersonate && !member.editable) return null
-
-  return (
-    <div className="flex justify-end gap-1.5">
-      {canImpersonate && <ImpersonateButton memberId={member.id} memberName={member.displayName} />}
-      {member.editable && (
-        <>
-          <MemberDialog
-            member={member}
-            creators={creators}
-            chatters={chatters}
-            managers={managers}
-            scope={scope}
-            viewer={viewer}
-            superadmin={superadmin}
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7"
-                aria-label={`Modifier ${member.displayName}`}
-              >
-                <Pencil className="size-3.5" />
-              </Button>
-            }
-          />
-          {/* onConfirm renvoie l'erreur (string) en cas d'échec → le dialog reste ouvert et l'affiche. */}
-          <ConfirmDialog
-            title={`Supprimer ${member.displayName} ?`}
-            description="Son compte et ses accès sont supprimés définitivement — il ne pourra plus se connecter. Les données du CRM ne sont pas touchées."
-            trigger={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 text-red-600 hover:text-red-700"
-                aria-label={`Supprimer ${member.displayName}`}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            }
-            onConfirm={async () => {
-              const res = await deleteMember(member.id)
-              if (!res.success) {
-                toast.error(res.error)
-                return res.error
-              }
-              toast.success('Membre supprimé')
-            }}
-          />
-        </>
-      )}
-    </div>
-  )
-}
 
 /** Badges limités à `max`, le reste en « +N ». */
 function BadgeList({ items, max = 4 }: { items: { key: string; node: React.ReactNode }[]; max?: number }) {
@@ -146,7 +42,6 @@ function BadgeList({ items, max = 4 }: { items: { key: string; node: React.React
   )
 }
 
-/** Colonnes de la table — mêmes défs qu'avant l'extraction, comportement identique. */
 export function buildMembersColumns({
   creators,
   chatters,
@@ -237,15 +132,20 @@ export function buildMembersColumns({
               {ROLE_NAME[role] ?? ROLE_NAME.chatteur}
             </Badge>
           )
-          // Un chatter porte en plus ses étiquettes closing (setter/closer, équipe) et son
-          // SHIFT — les trois sont des attributs du membre (0077 pour le closing, 0099 pour le
-          // shift, qui vivait jusque-là sur la fiche MyPuls).
+          // LA LIGNE NE GARDE QUE LE RÔLE ET LE DRAPEAU « NOUVEAU » (allègement Benoit
+          // 2026-08-03). Closing, équipe et shift sont des attributs de CONFIGURATION, consultés
+          // quand on gère les équipes, pas à chaque coup d'œil — six badges côte à côte ne se
+          // lisaient plus. Le badge « Parti le … » est parti aussi : on ne voit des partis QUE
+          // via le filtre « à réactiver », qui le dit déjà. Tout cela vit dans « Voir le
+          // détail », d'un clic sur le menu de la ligne.
           return role === 'chatteur' || !ROLE_NAME[role] ? (
             <div className="flex flex-wrap items-center gap-1">
               {badge}
-              <RoleBadge role={row.original.closingRole} />
-              <TeamBadge team={row.original.closingTeam} />
-              <ShiftBadge shift={row.original.shift} />
+              <NewBadge
+                isNew={row.original.isNew}
+                arrivedAt={row.original.arrivedAt}
+                leftAt={row.original.leftAt}
+              />
             </div>
           ) : (
             badge
@@ -278,22 +178,16 @@ export function buildMembersColumns({
     },
     ...modelsColumn,
     {
+      // « Créé par » REMISE (retour Benoit 2026-08-03) : savoir qui a ouvert un compte se lit
+      // d'un coup d'œil sur la liste — l'historique et la fiche de détail le disent aussi, mais
+      // il fallait ouvrir. « Créé le », en revanche, reste hors table : la date brute d'ouverture
+      // d'un compte ne se compare pas d'une ligne à l'autre.
       id: 'createdBy',
       accessorFn: (m) => m.createdByName ?? '',
       header: ({ column }) => <Sortable column={column} label="Créé par" />,
       cell: ({ row }) => (
         <span className="text-muted-foreground">{row.original.createdByName ?? '—'}</span>
       ),
-    },
-    {
-      accessorKey: 'createdAt',
-      header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
-      cell: ({ getValue }) => (
-        <span className="tabular-nums text-muted-foreground">
-          {FR_DATE_PARIS.format(new Date(getValue() as string))}
-        </span>
-      ),
-      meta: { align: 'right' },
     },
     {
       id: 'actions',

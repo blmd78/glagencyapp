@@ -3,7 +3,8 @@
 // Composition de la table Membres — les défs de colonnes et actions de ligne vivent dans
 // `members-columns.tsx` (split « > 300 lignes », même découpe que le pilote chatters).
 
-import { UserPlus } from 'lucide-react'
+import { useState } from 'react'
+import { RotateCcw, Sparkles, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
 import { buildMembersColumns } from './members-columns'
@@ -34,9 +35,32 @@ export function MembersTable({
 
   const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin })
 
+  // ── LES TROIS VUES DE LA LISTE ─────────────────────────────────────────────────────────────
+  // UN SEUL filtre actif à la fois, et c'est délibéré : des bascules indépendantes autorisaient
+  // des combinaisons qui n'existent pas — « nouveau ET parti » ne désigne personne, et l'écran
+  // affichait alors une liste vide sans qu'on comprenne pourquoi. Recliquer le filtre actif
+  // revient à « en poste ».
+  //
+  // PAS DE FILTRE « à revoir » (retrait Benoit 2026-08-03) : le drapeau resté trop longtemps se
+  // voit déjà au BADGE AMBRE sur la ligne, et « nouveaux » les rassemble tous — un troisième
+  // bouton pour un sous-ensemble que l'œil isole seul ne payait pas sa place dans la toolbar.
+  //
+  // Filtres de VUE et non d'URL (norme §6) : ils ne changent pas la donnée chargée, seulement ce
+  // qu'on montre d'un jeu déjà là — `useState` local, comme le sélecteur de modèle du pilote.
+  const [filtre, setFiltre] = useState<'poste' | 'nouveaux' | 'anciens'>('poste')
+
+  const anciens = members.filter((m) => m.leftAt)
+  const enPoste = members.filter((m) => !m.leftAt)
+  const nouveaux = enPoste.filter((m) => m.isNew)
+
+  const rows = filtre === 'nouveaux' ? nouveaux : filtre === 'anciens' ? anciens : enPoste
+
+  /** Bascule d'un filtre : le recliquer revient à la vue par défaut. */
+  const bascule = (cible: typeof filtre) => () => setFiltre((f) => (f === cible ? 'poste' : cible))
+
   return (
     <DataTable
-      data={members}
+      data={rows}
       columns={columns}
       filterColumnId="displayName"
       filterPlaceholder="Filtrer par nom…"
@@ -48,20 +72,50 @@ export function MembersTable({
       getRowId={(m) => m.id}
       countLabel={(n) => `${n} membre(s)`}
       toolbar={
-        <MemberDialog
-          creators={creators}
-          chatters={chatters}
-          managers={managers}
-          scope={scope}
-          viewer={viewer}
-          superadmin={superadmin}
-          trigger={
-            <Button size="sm" className="gap-1.5">
-              <UserPlus className="size-3.5" />
-              Nouveau membre
+        <div className="flex flex-wrap items-center gap-2">
+          {/* LIBELLÉS SEULS, sans compteur (retour Benoit) : le nombre est déjà sous la table
+              (« N membre(s) »), et il changeait à chaque filtrage — un bouton dont le texte bouge
+              se relit à chaque clic. Chaque bouton n'apparaît QUE s'il a des cas : une toolbar
+              affichant « Désactivés » alors qu'il n'y en a aucun est un bruit inutile. */}
+          {nouveaux.length > 0 && (
+            <Button
+              size="sm"
+              variant={filtre === 'nouveaux' ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={filtre === 'nouveaux'}
+              onClick={bascule('nouveaux')}
+            >
+              <Sparkles className="size-3.5" />
+              Nouveaux
             </Button>
-          }
-        />
+          )}
+          {anciens.length > 0 && (
+            <Button
+              size="sm"
+              variant={filtre === 'anciens' ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={filtre === 'anciens'}
+              onClick={bascule('anciens')}
+            >
+              <RotateCcw className="size-3.5" />
+              Désactivés
+            </Button>
+          )}
+          <MemberDialog
+            creators={creators}
+            chatters={chatters}
+            managers={managers}
+            scope={scope}
+            viewer={viewer}
+            superadmin={superadmin}
+            trigger={
+              <Button size="sm" className="gap-1.5">
+                <UserPlus className="size-3.5" />
+                Nouveau membre
+              </Button>
+            }
+          />
+        </div>
       }
     />
   )

@@ -108,7 +108,14 @@ export function PlanningGrid({
     const over = overByCol.get(col) ?? { ids: new Set<string>(), txt: new Set<string>() }
     const chips: CellChip[] = []
     for (const id of c.chatterIds)
-      chips.push({ key: id, label: data.chatterById[id] ?? '?', over: over.ids.has(id), id })
+      chips.push({
+        key: id,
+        label: data.chatterById[id] ?? '?',
+        over: over.ids.has(id),
+        id,
+        isNew: data.newByChatter[id]?.isNew ?? false,
+        arrivedAt: data.newByChatter[id]?.arrivedAt ?? null,
+      })
     for (const t of tokensOf(c.names))
       chips.push({ key: `txt:${t}`, label: t, over: over.txt.has(normName(t)), token: t })
     return chips
