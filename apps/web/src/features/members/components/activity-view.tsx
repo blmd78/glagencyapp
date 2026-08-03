@@ -19,10 +19,11 @@ const fr = (iso: string) => iso.split('-').reverse().join('/')
  * étrangers. La fiche membre, elle, garde sa timeline : dans un dialog étroit, six colonnes ne
  * tiennent pas, et « Membre » y serait la même valeur sur toutes les lignes.
  *
- * DEUX FILTRES, tous deux dans l'URL donc partageables (guidelines §6) : la PÉRIODE via le
- * sélecteur de dates du header (`?from=&to=`) et le MEMBRE via `?membre=`. Le filtre texte de la
- * table, lui, porte sur le CHANGEMENT (« Julie », « Soir ») — il complète le sélecteur au lieu de
- * le doubler, et reste un filtre de vue, non partagé (norme §6).
+ * DEUX FILTRES, ET DEUX SEULEMENT, tous deux dans l'URL donc partageables (guidelines §6) : la
+ * PÉRIODE via le sélecteur de dates du header (`?from=&to=`) et le MEMBRE via `?membre=`. Pas de
+ * recherche texte (retour Benoit) : un troisième filtre, local et non partageable celui-là,
+ * demandait de choisir entre chercher un nom (doublon du sélecteur) ou un changement — deux
+ * réponses également défendables, signe qu'il n'avait pas sa place.
  */
 export function ActivityView({
   events,
@@ -55,8 +56,6 @@ export function ActivityView({
       <DataTable
         data={events}
         columns={activityColumns}
-        filterColumnId="label"
-        filterPlaceholder="Filtrer par changement…"
         initialSorting={[{ id: 'at', desc: true }]}
         pageSize={20}
         getRowId={(e) => String(e.id)}
