@@ -52,11 +52,13 @@ export { tenureDays, turnoverRate } from './domain/turnover'
 export {
   DEPARTURE_REASONS,
   DEPARTURE_LABEL,
+  DEPARTURE_INITIATIVE,
+  INITIATIVE_LABEL,
   EVENT_KINDS,
   isEventKind,
   memberEventLabel,
 } from './domain/member-events'
-export type { DepartureReason, EventKind } from './domain/member-events'
+export type { DepartureReason, DepartureInitiative, EventKind } from './domain/member-events'
 export {
   periodOf,
   recentPeriods,

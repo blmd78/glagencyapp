@@ -13,15 +13,20 @@
  * valeur ajoutée en base doit l'être ici aussi.
  */
 
+/**
+ * `initiative` — QUI a décidé du départ. C'est la lecture utile d'un turnover : un départ décidé
+ * par l'agence interroge le recrutement, un départ subi interroge les conditions de travail. Sans
+ * cette distinction, un taux de 20 % ne dit pas s'il faut mieux recruter ou mieux retenir.
+ */
 export const DEPARTURE_REASONS = [
-  { value: 'vire', label: 'Viré' },
-  { value: 'demission', label: 'Démission' },
-  { value: 'fin_essai', label: "Fin de période d'essai" },
+  { value: 'vire', label: 'Viré', initiative: 'agence' },
+  { value: 'demission', label: 'Démission', initiative: 'chatteur' },
+  { value: 'fin_essai', label: "Fin de période d'essai", initiative: 'agence' },
   // « Abandon de poste » est un motif À PART et pas un cas de démission : le chatteur disparaît
   // sans prévenir, c'est fréquent en agence, et le confondre avec un départ annoncé fausserait la
   // lecture du turnover — c'est justement la distinction qu'on cherche à mesurer.
-  { value: 'abandon', label: 'Abandon de poste' },
-  { value: 'autre', label: 'Autre' },
+  { value: 'abandon', label: 'Abandon de poste', initiative: 'chatteur' },
+  { value: 'autre', label: 'Autre', initiative: 'autre' },
 ] as const
 
 export type DepartureReason = (typeof DEPARTURE_REASONS)[number]['value']
@@ -29,6 +34,19 @@ export type DepartureReason = (typeof DEPARTURE_REASONS)[number]['value']
 export const DEPARTURE_LABEL = Object.fromEntries(
   DEPARTURE_REASONS.map((r) => [r.value, r.label]),
 ) as Record<DepartureReason, string>
+
+/** Qui a décidé : `agence` (viré, fin d'essai), `chatteur` (démission, abandon), ou `autre`. */
+export type DepartureInitiative = (typeof DEPARTURE_REASONS)[number]['initiative']
+
+export const DEPARTURE_INITIATIVE = Object.fromEntries(
+  DEPARTURE_REASONS.map((r) => [r.value, r.initiative]),
+) as Record<DepartureReason, DepartureInitiative>
+
+export const INITIATIVE_LABEL: Record<DepartureInitiative, string> = {
+  agence: 'Décidés par l’agence',
+  chatteur: 'À l’initiative du chatteur',
+  autre: 'Autres',
+}
 
 /** Types d'événement — miroir du `check` SQL `member_events.kind` (0104). */
 export const EVENT_KINDS = [

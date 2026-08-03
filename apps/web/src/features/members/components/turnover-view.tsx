@@ -1,10 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { KpiGrid } from '@/components/kpi-card'
 import { TurnoverChart } from './turnover-chart'
-import { Badge } from '@/components/ui/badge'
-import { STATUS_COLORS } from '@/lib/status-color'
-import { cn } from '@/lib/utils'
-import { DEPARTURE_LABEL, frDateNumeric, type DepartureReason } from '@glagency/core'
+import { ReasonBreakdown } from './reason-breakdown'
 import type { TurnoverData } from '../types'
 
 /**
@@ -55,17 +52,6 @@ export function TurnoverView({ data }: { data: TurnoverData }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* CE BANDEAU N'EST PAS DÉCORATIF. Sans lui, les mois d'avant le peuplement du CRM se
-          lisent comme un creux d'activité, et l'ancienneté moyenne comme une mesure complète.
-          Un chiffre dont on ignore la couverture vaut moins que pas de chiffre. */}
-      <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-        Période analysée : du {frDateNumeric(data.from)} au {frDateNumeric(data.to)} — elle suit le sélecteur de
-        dates en haut de page. Les <strong className="font-medium">arrivées</strong> ne sont
-        comptées que pour les membres dont la date a été saisie sur leur fiche ; les{' '}
-        <strong className="font-medium">départs</strong>, eux, sont complets depuis leur premier
-        enregistrement.
-      </p>
-
       <KpiGrid kpis={kpis} />
 
       <TurnoverChart data={data} />
@@ -74,33 +60,35 @@ export function TurnoverView({ data }: { data: TurnoverData }) {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Motifs de départ</CardTitle>
+            <CardDescription>
+              Départs décidés par l’agence ou subis — c’est ce que le taux seul ne dit pas.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+          <CardContent>
             {data.reasons.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun départ enregistré.</p>
+              <p className="text-sm text-muted-foreground">Aucun départ enregistré sur la période.</p>
             ) : (
-              data.reasons.map((r) => (
-                <Badge key={r.reason} className={cn('gap-1.5', STATUS_COLORS.neutral)}>
-                  {DEPARTURE_LABEL[r.reason as DepartureReason] ?? r.reason}
-                  <span className="font-semibold">{r.n}</span>
-                </Badge>
-              ))
+              <ReasonBreakdown reasons={data.reasons} total={data.exits} />
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Ancienneté moyenne à la sortie</CardTitle>
+            <CardTitle className="text-base">Temps entre l’arrivée et le départ</CardTitle>
+            <CardDescription>Combien de temps les chatteurs restent, en moyenne.</CardDescription>
           </CardHeader>
           <CardContent>
             {data.tenureAvgDays === null ? (
               <p className="text-sm text-muted-foreground">
-                Pas encore mesurable : aucun départ ne porte de date d’arrivée.
+                Pas encore mesurable : aucun des départs de la période ne porte de date
+                d’arrivée. Renseigne-la sur les fiches pour que ce chiffre se remplisse.
               </p>
             ) : (
               <>
-                <p className="text-2xl font-semibold">{data.tenureAvgDays} jours</p>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {data.tenureAvgDays} <span className="text-base font-normal">jours</span>
+                </p>
                 {/* LE DÉNOMINATEUR EST AFFICHÉ, TOUJOURS. Cette moyenne ne porte que sur les
                     départs dont l'arrivée est connue ; la donner seule laisserait croire
                     qu'elle couvre tout le monde. */}

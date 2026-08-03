@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  DEPARTURE_INITIATIVE,
   DEPARTURE_LABEL,
   DEPARTURE_REASONS,
+  INITIATIVE_LABEL,
   EVENT_KINDS,
   isEventKind,
   memberEventLabel,
@@ -139,5 +141,21 @@ describe('memberEventLabel — lien MyPuls et fiche (0106)', () => {
     expect(memberEventLabel('identite', null, 'https://exemple.fr')).toBe(
       'Fiche : https://exemple.fr',
     )
+  })
+})
+
+describe('initiative du départ — la lecture utile du turnover', () => {
+  it('range chaque motif du côté de qui a décidé', () => {
+    // Sans cette distinction, un taux de 20 % ne dit pas s'il faut mieux recruter ou mieux
+    // retenir : deux problèmes différents, deux réponses différentes.
+    expect(DEPARTURE_INITIATIVE.vire).toBe('agence')
+    expect(DEPARTURE_INITIATIVE.fin_essai).toBe('agence')
+    expect(DEPARTURE_INITIATIVE.demission).toBe('chatteur')
+    expect(DEPARTURE_INITIATIVE.abandon).toBe('chatteur')
+    expect(DEPARTURE_INITIATIVE.autre).toBe('autre')
+  })
+
+  it('donne un libellé à chaque initiative', () => {
+    for (const r of DEPARTURE_REASONS) expect(INITIATIVE_LABEL[r.initiative]).toBeTruthy()
   })
 })
