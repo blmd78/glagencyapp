@@ -96,9 +96,9 @@ export const WORKSPACES: Workspace[] = [
     nav: [
       { href: '/chatter/overview', label: 'Overview', icon: LayoutDashboard },
       { href: '/chatter/insights', label: 'Insights', icon: Lightbulb },
-      { href: '/chatter/bilan', label: 'Bilan', icon: CalendarCheck, group: 'performance' },
+      { href: '/chatter/bilan', label: 'Bilan hebdo', icon: CalendarCheck, group: 'performance' },
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
-      { href: '/chatter/planning', label: 'Planning', icon: CalendarClock, group: 'equipe' },
+      { href: '/chatter/planning', label: 'Planning / Todo', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
       // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
       // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
@@ -119,7 +119,7 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/spenders/tracker', label: 'À relancer', icon: Send, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/spenders/alertes', label: 'Alertes R10', icon: TriangleAlert, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/spenders/archive', label: 'Archive', icon: Archive, slug: 'crm-spenders', group: 'spenders' },
-      { href: '/chatter/stats', label: 'Stats', icon: ChartColumn, group: 'performance' },
+      { href: '/chatter/stats', label: 'Stats subs', icon: ChartColumn, group: 'performance' },
       { href: '/chatter/stat-chatteur', label: 'Stat chatter', icon: Trophy, group: 'performance' },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse, group: 'performance' },
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,

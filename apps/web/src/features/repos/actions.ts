@@ -9,15 +9,17 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { MODEL_COL_KEYS } from './types'
+import { MODEL_COL_KEYS, encadrementRight, isEncadrementCol } from './types'
 import {
   BusinessError,
   runAction,
   noGuard,
   requireAdminProfile,
+  requirePageProfile,
   requireWriteProfile,
   type ActionResult,
 } from '@/lib/actions'
+import { hasWriteAccess } from '@/lib/auth'
 
 const cellInput = z.object({
   weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -32,18 +34,23 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
     schema: cellInput,
     input: raw,
     // Cases CHATTEURS (colonnes modèles) : admin OU manager/sous-manager porteur de la page,
-    // pour N'IMPORTE quel chatteur (0095 : plus d'assignation). Cases ENCADREMENT
-    // (managers/policiers) : admin uniquement. L'ÉCRITURE passe par le RPC `save_repos_cell`
-    // (0090, réécrit en 0095, SECURITY DEFINER) — droit (can_write_page) + colonnes en SQL ;
-    // les policies d'écriture directes de rest_planning_cells restent admin-only (0076) : un
-    // non-admin ne PEUT écrire que via ce RPC. La garde app ci-dessous n'est qu'un miroir
-    // (message propre sans aller-retour) ; l'enforcement réel est en base.
+    // pour N'IMPORTE quel chatteur (0095 : plus d'assignation). Cases ENCADREMENT : règle
+    // hiérarchique par colonne (0103, `encadrementRight`) — c'est la seule écriture ouverte au
+    // POLICIER, qui n'est ni admin ni `profile.manager` et échouerait donc sur
+    // `requireWriteProfile`. L'ÉCRITURE passe par le RPC `save_repos_cell` (0090, réécrit en
+    // 0095/0103, SECURITY DEFINER) — droits et colonnes contrôlés en SQL ; les policies
+    // d'écriture directes de rest_planning_cells restent admin-only (0076) : un non-admin ne PEUT
+    // écrire que via ce RPC. Les gardes ci-dessous ne sont qu'un miroir (message propre sans
+    // aller-retour) ; l'enforcement réel est en base.
     guard: noGuard,
     handler: async (values) => {
-      const profile = await requireWriteProfile('repos')
       const { weekStart, day, col, chatterIds, names } = values
-      if ((col === 'managers' || col === 'policiers') && profile.role !== 'admin')
-        throw new BusinessError('Accès refusé')
+      // Socle commun : avoir la page. Le droit d'ÉCRIRE se décide ensuite, PAR COLONNE.
+      const profile = await requirePageProfile('repos')
+      const autorise = isEncadrementCol(col)
+        ? profile.role === 'admin' || encadrementRight(profile.baseRole, col) !== 'non'
+        : hasWriteAccess(profile, 'repos')
+      if (!autorise) throw new BusinessError('Accès refusé')
 
       const supabase = await createClient()
       const { error } = await supabase.rpc('save_repos_cell', {

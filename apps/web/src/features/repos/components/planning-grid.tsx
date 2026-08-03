@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { saveReposCell, saveReposColumnMembers, setReposSent } from '../actions'
-import { JOURS, MODEL_COL_KEYS, type ReposCell, type ReposColKey, type ReposColumn, type ReposData } from '../types'
+import { JOURS, MODEL_COL_KEYS, type ReposCell, type ReposColKey, type ReposColumn, type ReposData, type ReposSelf } from '../types'
 import { copyPlanningImage } from './planning-image'
 import { PlanningGridHeader } from './planning-grid-header'
 import { PlanningGridRows } from './planning-grid-rows'
@@ -25,10 +25,12 @@ export function PlanningGrid({
   data,
   isAdmin,
   canWrite,
+  self,
 }: {
   data: ReposData
   isAdmin: boolean
   canWrite: boolean
+  self: ReposSelf
 }) {
   // Overrides locaux optimistes (une revalidation n'écrase pas une édition en cours).
   const [overrides, setOverrides] = useState<Record<string, ReposCell>>({})
@@ -247,6 +249,7 @@ export function PlanningGrid({
             onCommitColumn={commitColumn}
           />
           <PlanningGridRows
+            self={self}
             columns={columns}
             data={data}
             // Cases CHATTEURS éditables par admin + manager/sous-manager (`canWrite`, miroir
