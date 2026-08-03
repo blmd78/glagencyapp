@@ -112,21 +112,27 @@ export function AppSidebar({
 
   const isActivePath = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
-  // Préchargement de FOND de tous les onglets visibles. Règles issues de l'audit perf :
-  // démarre APRÈS window load + idle (le sweep concurrençait le chargement critique du
-  // hard load — ~1 Mo + 17 rendus serveur dans la fenêtre des 4 s), routes lourdes
-  // (spenders) en FIN de sweep, une route à la fois (jamais de rafale — Error 1102),
-  // cadence calée sur la fraîcheur du full-prefetch (~300 s — défaut interne
-  // staleTimes.static de Next sous Cache Components) : cycle ≤ ~250 s. Onglet caché :
-  // pause. Pas de préchauffage sur connexion contrainte (saveData/2g).
+  // Préchargement de FOND des onglets visibles. Règles issues de l'audit perf : démarre APRÈS
+  // window load + idle (le sweep concurrençait le chargement critique du hard load — ~1 Mo et
+  // 17 rendus serveur dans la fenêtre des 4 s), une route à la fois (jamais de rafale —
+  // Error 1102), cadence calée sur la fraîcheur du full-prefetch (~300 s — défaut interne
+  // staleTimes.static de Next sous Cache Components) : cycle ≤ ~250 s. Onglet caché : pause.
+  // Pas de préchauffage sur connexion contrainte (saveData/2g).
+  //
+  // SPENDERS EXCLU DU SWEEP. Ses quatre pages appellent toutes `getSpenders()`, donc la même
+  // agrégation de ~106 000 conversations rendue en ~4,4 Mo de JSON. Les repousser en fin de
+  // cycle ne suffisait pas : le sweep BOUCLE, donc chaque utilisateur connecté relançait les
+  // quatre en continu. Sous charge, le RPC passait de ~200 ms à 8 s et se faisait tuer par le
+  // `statement_timeout` (10 occurrences Sentry en 3 jours sur /spenders/alertes).
+  // Ces pages restent préchargées AU SURVOL (`prefetchOnHover`) — c'est-à-dire quand quelqu'un
+  // veut vraiment y aller, pas en fond pour tout le monde.
   const allHrefs = useMemo(() => {
     const sp = new URLSearchParams()
     const [from, to] = period.split('|')
     if (from) sp.set('from', from)
     if (to) sp.set('to', to)
-    const heavy = (href: string) => Number(href.startsWith('/chatter/spenders/'))
-    return [...items]
-      .sort((a, b) => heavy(a.href) - heavy(b.href))
+    return items
+      .filter((i) => !i.href.startsWith('/chatter/spenders/'))
       .map((i) => withPeriod(i.href, sp))
   }, [items, period])
   // Effect Event (React 19.2) : lit isActivePath/router À JOUR à chaque tick sans relancer le
