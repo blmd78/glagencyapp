@@ -2462,7 +2462,10 @@ export type Database = {
           username: string
         }[]
       }
-      crm_spenders_tracker_json: { Args: { p_seuil?: number }; Returns: Json }
+      crm_spenders_tracker_json: {
+        Args: { p_seuil?: number; p_view?: string; p_alerte?: number }
+        Returns: Json
+      }
       has_page: { Args: { slug: string }; Returns: boolean }
       health_report: {
         Args: { p_from: string; p_to: string; p_week_from: string }

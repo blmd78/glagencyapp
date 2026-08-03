@@ -14,7 +14,7 @@ export default async function SpendersListePage() {
   const profile = await requireAccess('crm-spenders')
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, KPIs + table streament
   // dans leur boundary quand le RPC répond.
-  const data = getSpenders()
+  const data = getSpenders('liste')
 
   return (
     <div className="flex flex-col gap-6">

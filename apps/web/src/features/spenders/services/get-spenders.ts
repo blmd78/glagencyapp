@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClosingByChatter } from '@/lib/services/closing-by-chatter'
-import { CA_TRACKING_SEUIL, type SpenderRow, type SpendersData } from '../types'
+import { CA_TRACKING_SEUIL, R_ALERTE, type SpenderRow, type SpendersData } from '../types'
+import type { SpendersViewKind } from '../components/spenders-view'
 
 /** Forme d'une ligne du json de `crm_spenders_tracker_json` (0091) — miroir du
  *  `returns table` de `crm_spenders_tracker`, que le wrapper agrège en un seul json. */
@@ -34,14 +35,22 @@ interface TrackerRow {
  * RÉ-EXÉCUTAIT l'agrégation complète à chaque page (Function Scan, ~490 ms + 3,6 Mo par
  * visite pour 7 000 spenders) — le wrapper json = 1 requête, même RLS.
  */
-export async function getSpenders(): Promise<SpendersData> {
+export async function getSpenders(view: SpendersViewKind = 'liste'): Promise<SpendersData> {
   const supabase = await createClient()
 
   // Équipe closing lue DEPUIS le membre lié — helper partagé `getClosingByChatter` (source unique
   // avec la page Chatteurs, cf. 0077/0079). On n'en utilise ici que l'équipe.
   const [{ data: rowsJson, error }, { data: freshRow, error: freshErr }, closingByChatter, { data: creatorRows, error: creatorsErr }] =
     await Promise.all([
-      supabase.rpc('crm_spenders_tracker_json', { p_seuil: CA_TRACKING_SEUIL }),
+      // La VUE est filtrée EN SQL (0103) : « alertes » rapatriait 9 814 lignes pour en
+      // afficher 34, « archive » 4,4 Mo pour une page vide. `SpendersView` refiltre ensuite
+      // sur le même critère — redondant mais volontaire : c'est ce qui garde l'état optimiste
+      // cohérent quand un archivage doit faire sortir une ligne de la vue à l'instant.
+      supabase.rpc('crm_spenders_tracker_json', {
+        p_seuil: CA_TRACKING_SEUIL,
+        p_view: view,
+        p_alerte: R_ALERTE,
+      }),
       supabase
         .from('spender_conversations')
         .select('captured_at')
