@@ -52,13 +52,16 @@ export function ActivityView({
 
         <EventsTimeline events={events} showMember={!selectedMember} />
 
-        <div className="text-sm text-muted-foreground">
-          {events.length} changement{events.length > 1 ? 's' : ''}
-          {/* AUCUNE TRONCATURE SILENCIEUSE : au plafond, la liste ne montre pas tout et doit le
-              dire — sinon « rien après le 12 » se lit comme « rien ne s'est passé ». */}
-          {events.length >= limit &&
-            ` — plafond atteint, resserre les dates ou choisis un membre pour voir les plus anciens`}
-        </div>
+        {/* Le total a été retiré (retour Benoit) : compter les lignes d'une liste qu'on a sous les
+            yeux n'apprend rien. Ce qui reste est la SEULE information que l'œil ne peut PAS
+            déduire — que la liste est incomplète. Affiché uniquement dans ce cas : sinon
+            « rien après le 12 » se lirait comme « rien ne s'est passé ». */}
+        {events.length >= limit && (
+          <p className="text-sm text-muted-foreground">
+            Plafond de {limit} atteint — resserre les dates ou choisis un membre pour voir les plus
+            anciens.
+          </p>
+        )}
       </div>
     </div>
   )
