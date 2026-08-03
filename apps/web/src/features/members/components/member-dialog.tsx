@@ -21,6 +21,7 @@ import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
 import { loadMemberEvents } from '../actions-lifecycle'
 import { memberInput, type MemberForm } from '../schema'
+import { memberDefaults } from './member-defaults'
 import type { Member, MemberEvent } from '../types'
 import { MemberAccessFields } from './member-access-fields'
 import { MemberArrivalFields } from './member-arrival-fields'
@@ -102,10 +103,6 @@ export function MemberDialog({
   const open = openProp ?? openState
   const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
   const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
-  const scopeSlugs = new Set(choices.map((c) => c.slug as string))
-  // Un modèle hors du périmètre de l'appelant (invisible dans `creators`) ne doit pas
-  // rester dans le form : le serveur le refuserait — il est préservé côté serveur.
-  const creatorSet = new Set(creators.map((c) => c.id))
   // Pas d'auto-rattachement (check en base) : on exclut la ligne éditée des options.
   const attachables = managers.filter((m) => m.id !== member?.id)
 
@@ -120,36 +117,7 @@ export function MemberDialog({
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
-    defaultValues: {
-      scope,
-      email: member?.email ?? '',
-      displayName: member?.displayName ?? '',
-      role:
-        viewer === 'manager'
-          ? 'chatteur'
-          : member?.role === 'admin'
-            ? 'admin'
-            : member?.role === 'manager'
-              ? 'manager'
-              : member?.role === 'sous-manager'
-                ? 'sous-manager'
-                : member?.role === 'police'
-                  ? 'police'
-                  : 'chatteur',
-      // Seules les pages du périmètre courant sont éditées ici.
-      pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
-      creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
-      // Le serveur force le rattachement au créateur pour un appelant manager,
-      // et l'ignore sur ses éditions (il ne peut pas déplacer un chatter).
-      managerIds: member?.managerIds ?? [],
-      workLink: member?.workLink ?? '',
-      closingRole: member?.closingRole ?? null,
-      closingTeam: member?.closingTeam ?? null,
-      shift: member?.shift ?? null,
-      isNew: member?.isNew ?? false,
-      arrivedAt: member?.arrivedAt ?? null,
-      chatterId: member?.chatterId ?? '',
-    },
+    defaultValues: memberDefaults({ member, scope, viewer, creators }),
   })
   // Réinitialise à L'OUVERTURE SEULEMENT (transition fermé→ouvert, gardée par prevOpen) : le
   // useForm n'est semé qu'au montage — sans reset, le dialog garde l'état de sa précédente
@@ -162,37 +130,7 @@ export function MemberDialog({
     const opening = open && !prevOpen.current
     prevOpen.current = open
     if (!opening) return
-    const slugs = new Set(
-      (scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES).map((c) => c.slug as string),
-    )
-    const cSet = new Set(creators.map((c) => c.id))
-    reset({
-      scope,
-      email: member?.email ?? '',
-      displayName: member?.displayName ?? '',
-      role:
-        viewer === 'manager'
-          ? 'chatteur'
-          : member?.role === 'admin'
-            ? 'admin'
-            : member?.role === 'manager'
-              ? 'manager'
-              : member?.role === 'sous-manager'
-                ? 'sous-manager'
-                : member?.role === 'police'
-                  ? 'police'
-                  : 'chatteur',
-      pages: (member?.pages ?? []).filter((p) => slugs.has(p)),
-      creatorIds: (member?.creatorIds ?? []).filter((id) => cSet.has(id)),
-      managerIds: member?.managerIds ?? [],
-      workLink: member?.workLink ?? '',
-      closingRole: member?.closingRole ?? null,
-      closingTeam: member?.closingTeam ?? null,
-      shift: member?.shift ?? null,
-      isNew: member?.isNew ?? false,
-      arrivedAt: member?.arrivedAt ?? null,
-      chatterId: member?.chatterId ?? '',
-    })
+    reset(memberDefaults({ member, scope, viewer, creators }))
   }, [open, member, scope, viewer, creators, reset])
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
@@ -205,23 +143,12 @@ export function MemberDialog({
   const isNewValue = useWatch({ control, name: 'isNew' })
 
   const submit = handleSubmit(async (values) => {
+    // `...values` des DEUX côtés : `memberUpdateInput` ne déclare pas `email` (verrouillé en
+    // édition) et Zod retire les clés non déclarées au parse — inutile de recopier quinze champs
+    // à la main. C'était une liste de plus à tenir à jour : chaque champ ajouté au formulaire
+    // devait l'être ici aussi, sans que rien ne le signale à la compilation.
     const res = member
-      ? await updateMember({
-          scope,
-          id: member.id,
-          displayName: values.displayName,
-          role: values.role,
-          pages: values.pages,
-          creatorIds: values.creatorIds,
-          managerIds: values.managerIds,
-          workLink: values.workLink,
-          closingRole: values.closingRole,
-          closingTeam: values.closingTeam,
-          shift: values.shift,
-          isNew: values.isNew,
-          arrivedAt: values.arrivedAt,
-          chatterId: values.chatterId,
-        })
+      ? await updateMember({ ...values, scope, id: member.id })
       : await createMember({ ...values, scope, email: values.email.trim().toLowerCase() })
     if (!res.success) {
       // Un message global générique ne dit pas quel champ corriger (ex. email déjà pris) —
