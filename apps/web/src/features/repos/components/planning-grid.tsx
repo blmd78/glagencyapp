@@ -14,7 +14,7 @@ import { EMPTY_CELL, normName, tokensOf, type CellChip } from './planning-grid-u
 
 /**
  * Grille hebdo : 7 jours × colonnes de modèles. Cellule = chatteurs au repos (multi-select),
- * verte quand remplie, rouge si > 2 repos/semaine pour une même personne. En-tête modèles en
+ * verte quand remplie, rouge si > 1 repos/semaine pour une même personne. En-tête modèles en
  * chips violets, éditable par l'admin (crayon → compo datée). Copie du planning en image.
  * Split > 300 lignes (docs/guidelines-standard-feature.md §1) : `planning-grid-header.tsx`
  * (thead), `planning-grid-rows.tsx` (tbody), `planning-grid-utils.ts` (tokens/couleurs, hors
@@ -77,11 +77,12 @@ export function PlanningGrid({
       : [...resolved.slice(0, firstEnc), ...extras, ...resolved.slice(firstEnc)]
   }, [data.columns, data.creatorById, columnOverrides, extraCols])
 
-  // Première clé modèle libre — bouton masqué quand les 12 emplacements sont pris.
+  // Première clé modèle libre — bouton masqué quand les 30 emplacements sont pris.
   const nextFreeKey = MODEL_COL_KEYS.find((k) => !columns.some((c) => c.key === k))
 
-  // ROUGE : une même personne cumule > 2 repos dans la semaine sur sa colonne. Comptage par
-  // (colonne, chatter_id) pour les IDs, et par (colonne, nom normalisé) pour le texte libre.
+  // ROUGE : une même personne cumule > 1 repos dans la semaine sur sa colonne (dès le 2e —
+  // demande Benoit 2026-08-05, avant : > 2). Comptage par (colonne, chatter_id) pour les IDs,
+  // et par (colonne, nom normalisé) pour le texte libre.
   const overByCol = useMemo(() => {
     const res = new Map<string, { ids: Set<string>; txt: Set<string> }>()
     for (const col of columns) {
@@ -96,8 +97,8 @@ export function PlanningGrid({
         }
       }
       res.set(col.key, {
-        ids: new Set([...idCounts.entries()].filter(([, n]) => n > 2).map(([k]) => k)),
-        txt: new Set([...txtCounts.entries()].filter(([, n]) => n > 2).map(([k]) => k)),
+        ids: new Set([...idCounts.entries()].filter(([, n]) => n > 1).map(([k]) => k)),
+        txt: new Set([...txtCounts.entries()].filter(([, n]) => n > 1).map(([k]) => k)),
       })
     }
     return res
@@ -297,7 +298,7 @@ export function PlanningGrid({
           <span className="rounded bg-red-100 px-1.5 py-0.5 font-medium text-red-800 dark:bg-red-950 dark:text-red-300">
             rouge
           </span>
-          plus de 2 repos dans la semaine pour une même personne
+          plus d’un repos dans la semaine pour une même personne
         </span>
       </div>
 

@@ -76,7 +76,7 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
 
 // Édition de la compo (MODÈLES) d'une colonne — réservée admin (garde back + policy RLS is_admin).
 const colMembersInput = z.object({
-  col: z.enum(MODEL_COL_KEYS), // colonnes modèles uniquement (g1..g12, miroir SQL 0096)
+  col: z.enum(MODEL_COL_KEYS), // colonnes modèles uniquement (g1..g30, miroir SQL 0105)
   effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   creatorIds: z.array(z.uuid()).max(50),
 })

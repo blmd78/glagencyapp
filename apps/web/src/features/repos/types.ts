@@ -4,11 +4,14 @@
  * Clés possibles des colonnes MODÈLES — DYNAMIQUES depuis 0096 : une colonne n'est rendue que
  * si sa compo est non vide pour la semaine OU si ses cases de la semaine ont du contenu.
  * Vider la compo d'une colonne sans repos posés la fait donc disparaître ; « Ajouter une
- * colonne » (admin, grille) reprend la première clé libre. 12 emplacements — large marge
- * (miroir de la whitelist SQL de save_repos_cell).
+ * colonne » (admin, grille) reprend la première clé libre. 30 emplacements depuis 0105 — les
+ * 12 de 0096 ne couvraient plus une colonne par modèle (17 modèles actifs). Miroir de la
+ * whitelist SQL de save_repos_cell.
  */
 export const MODEL_COL_KEYS = [
-  'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10', 'g11', 'g12',
+  'g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10',
+  'g11', 'g12', 'g13', 'g14', 'g15', 'g16', 'g17', 'g18', 'g19', 'g20',
+  'g21', 'g22', 'g23', 'g24', 'g25', 'g26', 'g27', 'g28', 'g29', 'g30',
 ] as const
 
 /** Libellés legacy de la Google Sheet — fallback des colonnes historiques SANS compo datée
