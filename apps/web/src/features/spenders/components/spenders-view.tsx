@@ -144,15 +144,29 @@ export function SpendersView({
       enVol.current = true
       setChargement(true)
       const tri = critères.sort[0]
-      const res = await loadSpendersPage({
-        view,
-        models: critères.models,
-        search: critères.search,
-        sort: tri?.id ?? 'ca',
-        desc: tri?.desc ?? true,
-        limit: 100,
-        offset,
-      })
+      let res: Awaited<ReturnType<typeof loadSpendersPage>>
+      try {
+        res = await loadSpendersPage({
+          view,
+          models: critères.models,
+          search: critères.search,
+          sort: tri?.id ?? 'ca',
+          desc: tri?.desc ?? true,
+          limit: 100,
+          offset,
+        })
+      } catch {
+        // Échec RÉSEAU du POST lui-même (connexion coupée) : `runAction` n'enveloppe que les
+        // erreurs métier en `{success: false}`, pas ça. Sans ce catch, la promesse rejette dans
+        // le vide (debounce et onLoadMore ne l'attendent pas) → unhandledrejection, et surtout
+        // `enVol`/`chargement` restaient bloqués à true : plus aucun scroll jusqu'au remontage.
+        if (gen === generation.current) {
+          enVol.current = false
+          setChargement(false)
+          toast.error('Connexion perdue — réessaie')
+        }
+        return
+      }
       if (gen !== generation.current) return // doublée par une demande plus récente
       enVol.current = false
       setChargement(false)

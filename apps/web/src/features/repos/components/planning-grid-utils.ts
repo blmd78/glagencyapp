@@ -24,7 +24,7 @@ export const CHIP_ORANGE = 'bg-orange-100 text-orange-800 dark:bg-orange-950 dar
 
 /** Code couleur par colonne (décision Benoit 2026-07-29, aligné sur l'onglet Organisation) :
  *  chatters en BLEU, managers/sous-managers en VERT, policiers en ORANGE — le rouge reste
- *  l'alerte « > 2 repos/semaine », le violet les modèles. */
+ *  l'alerte « > 1 repos/semaine », le violet les modèles. */
 export const chipForCol = (colKey: string) =>
   colKey === 'policiers' ? CHIP_ORANGE : colKey === 'managers' || colKey === 'sous-managers' ? CHIP_GREEN : CHIP_BLUE
 
