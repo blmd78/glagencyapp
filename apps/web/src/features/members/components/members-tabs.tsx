@@ -30,11 +30,15 @@ export function MembersTabs({
   liste,
   turnover,
   activite,
+  showActivite = true,
 }: {
   vue: MembersVue
   liste: ReactNode
   turnover: ReactNode
   activite: ReactNode
+  /** Onglet Activité réservé aux ADMINS (décision Benoit 2026-08-06 — miroir de la RLS 0108
+   *  qui ferme member_events aux managers) : masqué pour un manager. */
+  showActivite?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -57,7 +61,7 @@ export function MembersTabs({
       <TabsList className="self-start">
         <TabsTrigger value="liste">Comptes</TabsTrigger>
         <TabsTrigger value="turnover">Turnover</TabsTrigger>
-        <TabsTrigger value="activite">Activité</TabsTrigger>
+        {showActivite && <TabsTrigger value="activite">Activité</TabsTrigger>}
       </TabsList>
       <div
         data-pending={pending ? '' : undefined}
@@ -65,7 +69,7 @@ export function MembersTabs({
       >
         <TabsContent value="liste">{liste}</TabsContent>
         <TabsContent value="turnover">{turnover}</TabsContent>
-        <TabsContent value="activite">{activite}</TabsContent>
+        {showActivite && <TabsContent value="activite">{activite}</TabsContent>}
       </div>
     </Tabs>
   )

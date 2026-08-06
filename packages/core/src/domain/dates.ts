@@ -222,3 +222,23 @@ export const todayParis = (now: Date = new Date()): string =>
     month: '2-digit',
     day: '2-digit',
   }).format(now)
+
+/**
+ * Instant UTC (ISO) du DÉBUT du jour métier Paris `YYYY-MM-DD` — pour borner un `timestamptz`
+ * en base sur des jours Paris (audit 2026-08-06 : borner en `T00:00:00Z` range les événements
+ * de 0 h–2 h heure de Paris dans la veille). DST géré via Intl : à minuit UTC, Paris affiche
+ * 1 h (hiver, UTC+1) ou 2 h (été, UTC+2) → le minuit PARIS de ce jour est cet écart plus tôt.
+ * Borne de FIN d'une plage : `parisDayStartUtc(addDays(to, 1))`, EXCLUSIVE (`.lt`).
+ */
+export function parisDayStartUtc(day: string): string {
+  const utcMidnight = new Date(`${day}T00:00:00Z`)
+  // `en-GB` : heure NUE sur 24 h (« 01 ») — `fr-FR` ajoute « h » et casserait le Number().
+  const parisHour = Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Paris',
+      hour: '2-digit',
+      hour12: false,
+    }).format(utcMidnight),
+  )
+  return new Date(utcMidnight.getTime() - parisHour * 3_600_000).toISOString()
+}

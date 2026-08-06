@@ -3,16 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
+import { canWritePolice, getProfile, type Profile } from '@/lib/auth'
+import { getCreatorScope } from '@/lib/services/creator-scope'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { reportInput, deleteReportInput } from './schema'
 
-/** Miroir de la RLS d'écriture : page police + (droit d'écriture OU rôle police fonctionnel). */
-async function requireReporter(): Promise<Profile | null> {
+/** Contrôle d'écriture Police — `canWritePolice` (lib/auth, SOURCE UNIQUE, miroir RLS 0078) ;
+ *  même garde que le Tracker (l'audit 2026-08-06 en a trouvé quatre copies manuscrites). */
+async function requireReporter(): Promise<Profile> {
   const profile = await getProfile()
-  if (!profile) return null
-  const isFunctionalPolice = profile.baseRole === 'police' && profile.pages.includes('police')
-  return hasWriteAccess(profile, 'police') || isFunctionalPolice ? profile : null
+  if (!canWritePolice(profile)) throw new BusinessError('Accès refusé')
+  return profile
 }
 
 /** Crée ou met à jour la fiche du soir (upsert sur (author_id, creator_id, day)) + ses lignes. */
@@ -23,10 +24,15 @@ export async function upsertPoliceReport(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (values) => {
       const profile = await requireReporter()
-      if (!profile) throw new BusinessError('Accès refusé')
+      // PÉRIMÈTRE PAR MODÈLE côté ÉCRITURE (audit 2026-08-06) : la lecture est bornée en SQL
+      // (`getPoliceReports`), l'écriture doit l'être aussi — sinon un encadrant cloisonné
+      // publiait des rapports sur des modèles qu'il ne peut même pas relire.
+      const scope = await getCreatorScope(profile.id, profile.baseRole)
+      if (scope && !scope.has(values.creatorId))
+        throw new BusinessError('Ce modèle n’est pas dans ton périmètre')
       const supabase = await createClient()
-      // Police NON cloisonné (cf. 0078) : aucun filtre modèle sur l'auteur. On garde toutefois, au
-      // niveau de l'ACTION, l'INTÉGRITÉ par modèle des lignes — un chatteur d'un rapport sur le modèle
+      // On garde aussi, au niveau de l'ACTION, l'INTÉGRITÉ par modèle des lignes — un chatteur
+      // d'un rapport sur le modèle
       // M doit être un membre role chatteur ASSIGNÉ à M. Défense en profondeur INCOMPLÈTE : un appel
       // RPC `upsert_police_report` direct (grant authenticated) la contourne — la RLS des lignes ne
       // contrôle que la propriété de l'en-tête, pas l'appartenance chatteur↔modèle (dette pré-existante,
@@ -75,7 +81,6 @@ export async function deletePoliceReport(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async ({ id }) => {
       const profile = await requireReporter()
-      if (!profile) throw new BusinessError('Accès refusé')
       const supabase = await createClient()
       // .eq('author_id') : on ne supprime que le sien (la RLS le garantit déjà).
       const { data, error } = await supabase

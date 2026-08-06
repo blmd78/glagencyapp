@@ -10,7 +10,7 @@ import { Sortable } from '@/components/data-table/sortable'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import type { MemberEvent } from '../types'
-import { KIND_LABEL, KIND_TONE } from './event-kind'
+import { KIND_LABEL, KIND_TONE, OP_LABEL, OP_TONE } from './event-kind'
 
 /**
  * Colonnes du flux d'activité : QUI (nom + rôle), QUOI (type + description), QUAND, et PAR QUI.
@@ -47,6 +47,18 @@ export const activityColumns: ColumnDef<MemberEvent>[] = [
     cell: ({ row }) => (
       <Badge className={cn('text-xs font-normal', KIND_TONE[row.original.kind])}>
         {KIND_LABEL[row.original.kind]}
+      </Badge>
+    ),
+  },
+  {
+    // Nature de l'opération (demande Benoit 2026-08-06) : ajout / suppression / mise à jour —
+    // déduite de (from, to) dans le domaine, badge entre le type et la description.
+    id: 'op',
+    accessorKey: 'op',
+    header: 'Action',
+    cell: ({ row }) => (
+      <Badge className={cn('text-xs font-normal', OP_TONE[row.original.op])}>
+        {OP_LABEL[row.original.op]}
       </Badge>
     ),
   },

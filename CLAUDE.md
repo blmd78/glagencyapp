@@ -67,11 +67,13 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `police_report_lines.a_marche`/`a_regler`, migrations `0071`/`0072`). Upsert sur (auteur,
   modèle, jour). **Écriture** : police / manager avec la page / admin (miroir RLS + garde
   `requireReporter`) ; la saisie est masquée aux lecteurs seuls. **Lecture** : qui a la page +
-  admins. **NON cloisonné par modèle** depuis la migration `0078` (qui annule 0074/0075 et
-  repointe `chatter_id` sur `profiles`) : tout porteur de la page voit tous les modèles et tous
-  les rapports ; `profile_creators` ne sert plus qu'à grouper les chatteurs par modèle dans le
-  formulaire (`getChattersByModel`, client admin). Consultation =
-  historique filtrable par modèle / par chatteur (suppression de son propre rapport uniquement).
+  admins. **RLS non cloisonnée** depuis la migration `0078` (qui annule 0074/0075 et repointe
+  `chatter_id` sur `profiles`), mais depuis 2026-08-06 un **périmètre APPLICATIF par rôle**
+  (`lib/services/creator-scope.ts`, règle partagée avec le Tracker) borne manager /
+  sous-manager / policier **avec modèles assignés** à leurs modèles (`profile_creators`) —
+  sélecteur du formulaire, chatteurs groupés (`getChattersByModel`) et historique compris ;
+  admin, lecteurs et encadrant sans assignation voient tout. Consultation = historique
+  filtrable par modèle / par chatteur (suppression de son propre rapport uniquement).
 
 ## Données MyPuls — workflow d'ajout
 

@@ -64,14 +64,32 @@ export const EVENT_KINDS = [
   'sortie',
   'lien',
   'identite',
-  // Sanction du Tracker RETIRÉE (trigger delete 0107) — la pose, elle, se lit dans le Tracker.
+  // Sanction du Tracker RETIRÉE (trigger delete 0106) — la pose, elle, se lit dans le Tracker.
   'sanction',
+  // Rapport du soir SUPPRIMÉ par son auteur (trigger delete 0107) — posé sur SA timeline.
+  'rapport',
 ] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
 
 export const isEventKind = (v: string): v is EventKind =>
   (EVENT_KINDS as readonly string[]).includes(v)
+
+/** Nature de l'opération d'un événement — colonne « Action » du flux d'activité. */
+export type EventOp = 'ajout' | 'suppression' | 'maj'
+
+/**
+ * Déduite de la FORME (from, to), sans table de cas par kind : une valeur qui apparaît est un
+ * ajout, une valeur qui disparaît une suppression, un remplacement une mise à jour. La lecture
+ * tient partout — « Départ le … » est l'AJOUT d'une date de sortie, son annulation la retire,
+ * une sanction journalisée (0106) n'a qu'un `from` : suppression. (from, to) tous deux vides
+ * n'est produit par aucun trigger — repli sur « maj », le moins affirmatif des trois.
+ */
+export function memberEventOp(from: string | null, to: string | null): EventOp {
+  if (from === null && to !== null) return 'ajout'
+  if (from !== null && to === null) return 'suppression'
+  return 'maj'
+}
 
 // DUPLICATION CONNUE ET TOLÉRÉE : `member-closing-fields.tsx` porte les mêmes trois libellés pour
 // le sélecteur du formulaire. Les unifier imposerait de descendre `CrmShift`
@@ -148,6 +166,16 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
       if (!date) return `Sanction retirée (${from})`
       const err = errKey ? (ERROR_LABEL[errKey] ?? errKey) : null
       return `Sanction du ${fr(date)} retirée (${detail}${err ? ` — ${err}` : ''})`
+    }
+    case 'rapport': {
+      // `from` = '2026-08-03 (Julie)', composé par le trigger 0107 (nom du modèle résolu en
+      // base au moment de la suppression). Même doctrine que `sortie` : parsing par REGEX,
+      // forme inattendue → valeur brute, imparfaite mais jamais trompeuse.
+      if (!from) return 'Rapport du soir supprimé'
+      const m = /^(\d{4}-\d{2}-\d{2})\s+\((.+)\)$/.exec(from)
+      const [, date, modele] = m ?? []
+      if (!date) return `Rapport du soir supprimé (${from})`
+      return `Rapport du soir du ${fr(date)} supprimé (${modele})`
     }
     case 'sortie': {
       if (!to) return 'Départ annulé (réactivé)'

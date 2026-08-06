@@ -1,4 +1,11 @@
-import { isEventKind, memberEventLabel, type EventKind } from '@glagency/core'
+import {
+  addDays,
+  isEventKind,
+  memberEventLabel,
+  memberEventOp,
+  parisDayStartUtc,
+  type EventKind,
+} from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
@@ -42,10 +49,12 @@ export async function getMemberEvents(opts: {
     .order('id', { ascending: false })
     .limit(limit)
   if (opts.profileId) q = q.eq('profile_id', opts.profileId)
-  if (opts.from) q = q.gte('created_at', `${opts.from}T00:00:00Z`)
-  // Borne de fin INCLUSE : `to` est un jour, pas un instant — sans le `T23:59:59`, le dernier
-  // jour de la période sélectionnée serait silencieusement exclu.
-  if (opts.to) q = q.lte('created_at', `${opts.to}T23:59:59Z`)
+  // Bornes en JOUR MÉTIER Paris, converties en instants UTC (`parisDayStartUtc`, DST géré) :
+  // borner en `T00:00:00Z` rangeait les événements de 0 h–2 h heure de Paris dans la veille
+  // (audit 2026-08-06 — le piège du §6 des guidelines). Fin de plage : début (Paris) du jour
+  // SUIVANT, exclusive — le dernier jour sélectionné est inclus en entier.
+  if (opts.from) q = q.gte('created_at', parisDayStartUtc(opts.from))
+  if (opts.to) q = q.lt('created_at', parisDayStartUtc(addDays(opts.to, 1)))
 
   const { data, error } = await q
   if (error) throw new Error(error.message)
@@ -71,8 +80,10 @@ export async function getMemberEvents(opts: {
       id: r.id,
       at: r.created_at,
       kind: r.kind as EventKind,
-      // Rédaction dans @glagency/core (testée) : ce service ne fait que lire et assembler.
+      // Rédaction et nature d'opération dans @glagency/core (testées) : ce service ne fait
+      // que lire et assembler.
       label: memberEventLabel(r.kind as EventKind, r.from_value, r.to_value),
+      op: memberEventOp(r.from_value, r.to_value),
       actorName: r.created_by ? (byId.get(r.created_by)?.name ?? null) : null,
       memberName: byId.get(r.profile_id)?.name ?? '—',
       memberRole: byId.get(r.profile_id)?.role ?? 'chatteur',

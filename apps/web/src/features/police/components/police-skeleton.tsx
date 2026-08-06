@@ -25,8 +25,14 @@ export function PoliceSkeleton() {
       </div>
       {/* a11y (role="status" + sr-only) déjà portée par KpiSkeleton — pas de doublon ici. */}
       <KpiSkeleton count={3} />
-      <Skeleton className="h-40 w-full rounded-xl" />
-      <Skeleton className="h-64 w-full rounded-xl" />
+      {/* Bouton « Ajouter une sanction » (la saisie est en dialog depuis 2026-08-06 — l'ancien
+          panneau h-40 provoquait un saut de mise en page) puis la table (titre + toolbar + lignes). */}
+      <Skeleton className="h-9 w-44" />
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-6 w-44" />
+        <Skeleton className="h-9 w-72" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
     </div>
   )
 }

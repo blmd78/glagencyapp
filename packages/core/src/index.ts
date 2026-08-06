@@ -21,6 +21,7 @@ export type {
 export {
   isoDate,
   todayParis,
+  parisDayStartUtc,
   addDays,
   mondayOf,
   frDayShort,
@@ -57,8 +58,9 @@ export {
   EVENT_KINDS,
   isEventKind,
   memberEventLabel,
+  memberEventOp,
 } from './domain/member-events'
-export type { DepartureReason, DepartureInitiative, EventKind } from './domain/member-events'
+export type { DepartureReason, DepartureInitiative, EventKind, EventOp } from './domain/member-events'
 export { POLICE_ERRORS, ERROR_LABEL } from './domain/police-errors'
 export {
   periodOf,

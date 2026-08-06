@@ -141,3 +141,21 @@ export function hasPageAccess(profile: Profile | null, slug: PageSlug): profile 
 export function hasWriteAccess(profile: Profile | null, slug: PageSlug): profile is Profile {
   return !!profile && (profile.role === 'admin' || (profile.manager && profile.pages.includes(slug)))
 }
+
+/**
+ * Écrivain de la section POLICE (Tracker sanctions + Rapport du soir) — droit d'écriture de la
+ * page, OU rôle fonctionnel `police` porteur de la page (la 2ᵉ branche parce que `is_manager()`
+ * SQL ignore ce rôle, cf. 0070/0078). SOURCE UNIQUE de la règle : les gardes des actions des
+ * deux features et le `canWrite` de leurs deux pages en dérivent — l'audit 2026-08-06 en a
+ * trouvé quatre copies manuscrites. Miroir des policies `police_insert`/`police_update`/
+ * `police_delete` (0078/0106).
+ */
+export function canWritePolice(profile: Profile | null): profile is Profile {
+  if (!profile) return false
+  // Branche police d'abord : `hasWriteAccess` est un type guard, son échec rétrécirait
+  // `profile` à `never` pour tout ce qui suivrait dans l'expression.
+  return (
+    (profile.baseRole === 'police' && profile.pages.includes('police')) ||
+    hasWriteAccess(profile, 'police')
+  )
+}

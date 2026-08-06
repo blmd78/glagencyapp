@@ -1,6 +1,6 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
-import type { DepartureReason, EventKind, RateChange } from '@glagency/core'
+import type { DepartureReason, EventKind, EventOp, RateChange } from '@glagency/core'
 import type { CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 /**
@@ -83,6 +83,8 @@ export interface MemberEvent {
   kind: EventKind
   /** Phrase prête à lire, ex. « Shift : Matin → Soir ». */
   label: string
+  /** Nature de l'opération (colonne « Action ») — déduite de (from, to) dans le domaine. */
+  op: EventOp
   /** Nom de l'auteur, ou `null` → l'écran affiche « système » (écriture SQL directe). */
   actorName: string | null
   /** Nom du membre concerné — sert le flux global, où la liste mélange tout le monde. */

@@ -75,6 +75,7 @@ export function MembersTemplate({
   return (
     <MembersTabs
       vue={vue}
+      showActivite={viewer === 'admin'}
       liste={liste}
       turnover={turnover ? <TurnoverView data={turnover} /> : null}
       activite={activity ? <ActivityView {...activity} /> : null}

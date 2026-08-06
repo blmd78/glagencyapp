@@ -1,4 +1,4 @@
-import type { EventKind } from '@glagency/core'
+import type { EventKind, EventOp } from '@glagency/core'
 import { STATUS_COLORS } from '@/lib/status-color'
 
 /**
@@ -25,16 +25,23 @@ export const KIND_LABEL: Record<EventKind, string> = {
   lien: 'Lien MyPuls',
   identite: 'Fiche',
   sanction: 'Sanction',
+  rapport: 'Rapport',
 }
 
+// Code couleur de l'app, hors STATUS_COLORS : violet = modèles/lien MyPuls, orange = police —
+// UNE constante par teinte (l'audit a relevé quatre littéraux bruts, deux paires identiques).
+const TONE_VIOLET = 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300'
+const TONE_ORANGE = 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300'
+
 /** Code couleur de l'app : violet pour ce qui touche aux modèles et au lien MyPuls (comme
- *  `modelColor`), vert pour l'encadrement, ambre pour un départ, gris pour l'accessoire. */
+ *  `modelColor`), orange pour la police, vert pour l'encadrement, ambre pour un départ, gris
+ *  pour l'accessoire. */
 export const KIND_TONE: Record<EventKind, string> = {
   creation: STATUS_COLORS.info,
   role: STATUS_COLORS.positive,
   shift: STATUS_COLORS.info,
   closing: STATUS_COLORS.info,
-  modele: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+  modele: TONE_VIOLET,
   manager: STATUS_COLORS.positive,
   pages: STATUS_COLORS.neutral,
   nouveau: STATUS_COLORS.info,
@@ -42,8 +49,22 @@ export const KIND_TONE: Record<EventKind, string> = {
   sortie: STATUS_COLORS.warning,
   // Le lien MyPuls décide de quel CA est attribué au membre, donc de sa paie : il mérite d'être
   // vu, pas fondu dans le gris.
-  lien: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+  lien: TONE_VIOLET,
   identite: STATUS_COLORS.neutral,
-  // Orange = police (code couleur de l'app), comme la catégorie du Tracker dans la sidebar.
-  sanction: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
+  sanction: TONE_ORANGE,
+  rapport: TONE_ORANGE,
+}
+
+/** Colonne « Action » du flux d'activité — la nature de l'opération (`memberEventOp`, domaine).
+ *  Vert = quelque chose apparaît, rouge = quelque chose disparaît, gris = remplacement. */
+export const OP_LABEL: Record<EventOp, string> = {
+  ajout: 'Ajout',
+  suppression: 'Suppression',
+  maj: 'Mise à jour',
+}
+
+export const OP_TONE: Record<EventOp, string> = {
+  ajout: STATUS_COLORS.positive,
+  suppression: STATUS_COLORS.danger,
+  maj: STATUS_COLORS.neutral,
 }

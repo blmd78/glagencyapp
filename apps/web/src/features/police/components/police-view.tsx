@@ -8,12 +8,13 @@ import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { eur2max as eur } from '@/lib/format'
 import { ControlPanel } from './control-panel'
 import { PoliceTable } from './police-table'
-import type { PoliceData, PoliceEntry } from '../types'
+import type { PoliceData } from '../types'
 
 /** KPIs de la période au format des cartes partagées (cohérent avec Overview/Santé) — calculés
- *  sur les entrées AFFICHÉES (après filtre modèle) : des cartes figées au-dessus d'un journal
- *  filtré mentiraient. Libellés/repère (`hint`) branchés sur le mode : jour ou mois. */
-function policeKpis(data: PoliceData, entries: PoliceEntry[]): Kpi[] {
+ *  sur les entrées reçues, déjà bornées au périmètre par le serveur. Libellés/repère (`hint`)
+ *  branchés sur le mode : jour ou mois. */
+function policeKpis(data: PoliceData): Kpi[] {
+  const { entries } = data
   const isMonth = data.vue === 'mois'
   const suffix = isMonth ? '(mois)' : '(jour)'
   const hint = isMonth ? data.monthLabel : data.dayLabel
@@ -41,18 +42,12 @@ export function PoliceView({
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
-  // Sélecteurs PILOTÉS par le Tracker (via `onSelect`) : il pousse lui-même l'URL avec SA transition
-  // → le grisage `pending` du bloc ci-dessous. `selectMonth` = pendant mensuel de `selectDay`.
-  const selectDay = (day: string) => {
+  // Sélecteurs PILOTÉS par le Tracker (via `onSelect`) : il pousse lui-même l'URL avec SA
+  // transition → le grisage `pending` du bloc ci-dessous. Un seul corps pour jour et mois.
+  // `replace` + `scroll: false` (guidelines §6) : filtre d'URL, pas d'entrée d'historique.
+  const selectPeriode = (param: 'day' | 'month') => (value: string) => {
     const next = new URLSearchParams(searchParams)
-    next.set('day', day)
-    // `replace` + `scroll: false` (guidelines §6) : filtre d'URL, pas d'entrée d'historique.
-    startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
-  }
-  const selectMonth = (month: string) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('month', month)
-    // `replace` + `scroll: false` (guidelines §6) : filtre d'URL, pas d'entrée d'historique.
+    next.set(param, value)
     startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
 
@@ -80,7 +75,7 @@ export function PoliceView({
               param="day"
               value={data.day}
               options={data.days.map((d) => ({ value: d.day, label: d.label }))}
-              onSelect={selectDay}
+              onSelect={selectPeriode('day')}
               disabled={pending}
             />
           ) : (
@@ -88,14 +83,14 @@ export function PoliceView({
               param="month"
               value={data.month}
               options={data.months.map((m) => ({ value: m.month, label: m.label }))}
-              onSelect={selectMonth}
+              onSelect={selectPeriode('month')}
               disabled={pending}
             />
           )}
         </div>
       </div>
 
-      <KpiGrid kpis={policeKpis(data, data.entries)} accents={POLICE_ACCENTS} />
+      <KpiGrid kpis={policeKpis(data)} accents={POLICE_ACCENTS} />
 
       {/* Saisie en DIALOG, bouton à GAUCHE (écrivains, mode jour uniquement : le mois reste
           consultation pure). La page ne garde que l'historique en dessous. Le sélecteur de

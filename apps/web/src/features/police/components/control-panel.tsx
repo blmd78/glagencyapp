@@ -41,6 +41,8 @@ import { SHIFTS, type PoliceData } from '../types'
 const CONTROL_DEFAULTS: ControlForm = { chatterId: '', errorKey: '', shift: '', amount: '', note: '' }
 
 export function ControlPanel({ data }: { data: PoliceData }) {
+  // 'use no memo' : formState de RHF est un Proxy à abonnement — mémoïsé par le React
+  // Compiler, isSubmitting/errors gèlent (règle projet, mémoire forms-zod-rhf).
   'use no memo'
   const [open, setOpen] = useState(false)
   const {
@@ -59,6 +61,8 @@ export function ControlPanel({ data }: { data: PoliceData }) {
   // réapparaître. Le reset vit à l'OUVERTURE — le seul moment qui couvre tous les chemins de
   // fermeture (même patron que la fiche membre).
   const onOpenChange = (next: boolean) => {
+    // Pas de fermeture (croix/ESC/clic dehors) pendant l'envoi — même garde que le Rapport.
+    if (!next && isSubmitting) return
     setOpen(next)
     if (next) reset(CONTROL_DEFAULTS)
   }

@@ -65,7 +65,10 @@ interface DataTableProps<T> {
   /** Tri CONTRÔLÉ par le parent (mode serveur) — c'est lui qui refait la requête. */
   sorting?: SortingState
   onSortingChange?: (next: SortingState) => void
-  /** Valeur de la barre de recherche, remontée au parent au lieu de filtrer sur place. */
+  /** Valeur de la barre de recherche, remontée au parent au lieu de filtrer sur place.
+   *  Deux usages : mode serveur (`manual`), OU recherche CLIENT contrôlée sans `filterColumnId`
+   *  quand la matière cherchée n'est pas une colonne (ex. rapports : les noms de chatteurs
+   *  vivent dans les lignes imbriquées) — même input, mêmes classes, pas de réplique maison. */
   search?: string
   onSearchChange?: (next: string) => void
   /** Appelé quand le scroll approche du bas — charge la tranche suivante. */
@@ -147,16 +150,23 @@ export function DataTable<T>({
   const count = table.getFilteredRowModel().rows.length
   const shownCount = manual && totalCount !== undefined ? totalCount : count
 
-  const filterAndToolbar = (filterColumnId || toolbar) && (
+  // Recherche CONTRÔLÉE par le parent (mode serveur, ou client sans colonne cible) vs filtre
+  // de colonne TanStack — cf. la doc de `search` plus haut.
+  const controlledSearch = manual || !filterColumnId
+  const filterAndToolbar = (filterColumnId || onSearchChange || toolbar) && (
     <div className="flex flex-wrap items-center gap-2">
-      {filterColumnId && (
+      {(filterColumnId || onSearchChange) && (
         <Input
           placeholder={filterPlaceholder}
-          value={manual ? (search ?? '') : ((table.getColumn(filterColumnId)?.getFilterValue() as string) ?? '')}
+          value={
+            controlledSearch
+              ? (search ?? '')
+              : ((table.getColumn(filterColumnId as string)?.getFilterValue() as string) ?? '')
+          }
           onChange={(e) =>
-            manual
+            controlledSearch
               ? onSearchChange?.(e.target.value)
-              : table.getColumn(filterColumnId)?.setFilterValue(e.target.value)
+              : table.getColumn(filterColumnId as string)?.setFilterValue(e.target.value)
           }
           className="max-w-xs"
         />

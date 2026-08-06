@@ -1,16 +1,11 @@
-import { UrlSelect } from '@/components/url-select'
-import { PeriodToggle } from '@/components/period-toggle'
-import { ReportForm } from './components/report-form'
-import { ReportHistory } from './components/report-history'
+import { ReportsView } from './components/reports-view'
 import type { PoliceReport, ReportOption } from './types'
 
 /**
- * Rapport du soir (section Police) — Server Component, aucun fetch (données en props via
- * `page.tsx`). Piloté par une VUE (`PeriodToggle` d'en-tête, composant PARTAGÉ avec le Tracker) :
- * en JOUR, l'`UrlSelect param="day"` cale la page sur un jour (`?day=`, formulaire + historique du
- * jour) ; en MOIS, l'`UrlSelect param="month"` la cale sur un mois (`?month=`, historique groupé par
- * jour). La saisie (`ReportForm`) est réservée aux écrivains (`canWrite`) ET au mode jour uniquement
- * — le mois est une consultation pure (on ne saisit pas un rapport mensuel).
+ * Template Rapport du soir (section Police) — Server Component, aucun fetch (données en props
+ * via `page.tsx`), passe-plat vers la feuille client `ReportsView` : même architecture que le
+ * Tracker (`PoliceTemplate` → `PoliceView`), l'en-tête vit côté client pour porter le grisage
+ * de transition au changement de période (audit homogénéité 2026-08-06).
  */
 export function PoliceReportsTemplate({
   models,
@@ -30,7 +25,7 @@ export function PoliceReportsTemplate({
    *  modèle. `{}` pour un lecteur seul ou en mode mois (pas de formulaire). */
   chattersByModel: Record<string, ReportOption[]>
   canWrite: boolean
-  /** Spectateur — gate la corbeille dans l'historique (on ne supprime que ses propres rapports). */
+  /** Spectateur — gate la corbeille et « Modifier » (on n'édite que ses propres rapports). */
   currentProfileId: string
   /** Mode d'affichage (en-tête) : `jour` (mono-jour) ou `mois` (plage du mois). */
   vue: 'jour' | 'mois'
@@ -44,46 +39,17 @@ export function PoliceReportsTemplate({
   months: { month: string; label: string }[]
 }) {
   return (
-    <div className="flex flex-col gap-6">
-      {/* En-tête : titre à gauche ; à droite la bascule Jour/Mois PUIS le sélecteur du mode actif. */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Rapport du soir</h1>
-          <p className="text-sm text-muted-foreground">
-            Chiffres du modèle et suivi individuel des chatters, un rapport par modèle et par soir.
-          </p>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <PeriodToggle vue={vue} />
-          {vue === 'jour' ? (
-            <UrlSelect param="day" value={day} options={days.map((d) => ({ value: d.day, label: d.label }))} />
-          ) : (
-            <UrlSelect
-              param="month"
-              value={month}
-              options={months.map((m) => ({ value: m.month, label: m.label }))}
-            />
-          )}
-        </div>
-      </div>
-
-      {/* Saisie masquée pour un lecteur seul (comme le Tracker, police-view.tsx) ET hors mode jour :
-          en mois = consultation, on ne saisit pas un rapport mensuel. Le jour vient de l'en-tête
-          (`day`), plus de champ date dans le formulaire. */}
-      {canWrite && vue === 'jour' && (
-        <ReportForm
-          models={models}
-          reports={reports}
-          chattersByModel={chattersByModel}
-          currentProfileId={currentProfileId}
-          day={day}
-        />
-      )}
-
-      {/* Consultation / historique (filtrable par modèle / par chatteur). Rendu INCONDITIONNEL : la
-          consultation est ouverte à tout le monde (lecteurs seuls compris), seule la saisie ci-dessus
-          est réservée aux écrivains. En mois, l'historique regroupe les rapports par jour. */}
-      <ReportHistory reports={reports} currentProfileId={currentProfileId} vue={vue} />
-    </div>
+    <ReportsView
+      models={models}
+      reports={reports}
+      chattersByModel={chattersByModel}
+      canWrite={canWrite}
+      currentProfileId={currentProfileId}
+      vue={vue}
+      day={day}
+      days={days}
+      month={month}
+      months={months}
+    />
   )
 }
