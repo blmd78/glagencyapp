@@ -7,7 +7,7 @@ import {
   type FieldErrors,
   type UseFormRegister,
 } from 'react-hook-form'
-import { ThumbsUp, Trash2, Wrench } from 'lucide-react'
+import { ArrowDown, Trash2 } from 'lucide-react'
 import { NewBadge } from '@/components/new-badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -19,9 +19,10 @@ import type { ReportInput, ReportFormValues } from '../schema'
  * Éditeur des lignes chatteur (`useFieldArray` sur `lines`). Pas de bouton « ajouter » : on choisit
  * un chatteur dans le sélecteur en tête (« Ajouter un chatteur suivi… ») et il s'ajoute aussitôt en
  * carte ; les chatteurs déjà suivis disparaissent du sélecteur (pas de doublon possible). Chaque
- * carte = le nom du chatteur (fixe) + ses deux notes « a marché » / « à régler » CÔTE À CÔTE.
- * Un modèle doit être choisi pour proposer ses chatteurs. `control`/`register`/`errors` viennent du
- * form parent (un seul `useForm`, schéma partagé).
+ * carte = le nom du chatteur (fixe) + ses deux notes EMPILÉES, « a marché » puis « à régler »,
+ * reliées par une flèche vers le bas (l'ordre de lecture du débrief — demande Benoit 2026-08-06,
+ * exit les icônes 👍/🔧 des labels). Un modèle doit être choisi pour proposer ses chatteurs.
+ * `control`/`register`/`errors` viennent du form parent (un seul `useForm`, schéma partagé).
  */
 export function ReportLinesEditor({
   control,
@@ -43,6 +44,8 @@ export function ReportLinesEditor({
   modelSelected: boolean
   disabled?: boolean
 }) {
+  // 'use no memo' : formState de RHF est un Proxy à abonnement — mémoïsé par le React
+  // Compiler, isSubmitting/errors gèlent (règle projet, mémoire forms-zod-rhf).
   'use no memo'
   const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
 
@@ -113,12 +116,11 @@ export function ReportLinesEditor({
                   </div>
                   <input type="hidden" {...register(`lines.${index}.chatterId`)} />
 
-                  {/* Les deux notes CÔTE À CÔTE (même ligne). */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Les deux notes EMPILÉES, reliées par la flèche : ce qui a marché → ce qu'il
+                      reste à régler. */}
+                  <div className="flex flex-col gap-2">
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`lines-${index}-a-marche`} className="flex items-center gap-1.5">
-                        <ThumbsUp className="size-3.5" /> A marché
-                      </Label>
+                      <Label htmlFor={`lines-${index}-a-marche`}>A marché</Label>
                       <Textarea
                         id={`lines-${index}-a-marche`}
                         rows={3}
@@ -140,10 +142,9 @@ export function ReportLinesEditor({
                         </p>
                       )}
                     </div>
+                    <ArrowDown aria-hidden className="size-3.5 self-center text-muted-foreground" />
                     <div className="flex flex-col gap-1.5">
-                      <Label htmlFor={`lines-${index}-a-regler`} className="flex items-center gap-1.5">
-                        <Wrench className="size-3.5" /> À régler
-                      </Label>
+                      <Label htmlFor={`lines-${index}-a-regler`}>À régler</Label>
                       <Textarea
                         id={`lines-${index}-a-regler`}
                         rows={3}

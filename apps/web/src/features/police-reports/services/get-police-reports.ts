@@ -4,17 +4,24 @@ import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { PoliceReport, ReportOption } from '../types'
 
+/** Périmètre modèles de l'appelant (`lib/services/creator-scope`), résolu UNE fois par la page
+ *  et partagé en promesse entre les trois lectures — `null` = pas de borne. */
+type ScopePromise = Promise<Set<string> | null>
+
 /**
  * Rapports du soir, filtrables par modèle ou par chatteur (la vue par chatteur donne la valeur,
- * évolution soir après soir). Police NON cloisonné (cf. 0078 — RLS `police_reports_read` = admin OU
- * page Police) : tout porteur de la page voit tous les rapports. Volume potentiellement > 1000
- * lignes (mois / non filtré) → `fetchAll` (anti-troncature silencieuse PostgREST).
+ * évolution soir après soir). RLS `police_reports_read` (0078) = admin OU page Police — non
+ * cloisonnée ; le PÉRIMÈTRE PAR RÔLE (2026-08-06 : manager/sous-manager/policier bornés à leurs
+ * modèles assignés) est appliqué ICI, en SQL (`.in`), comme sur le Tracker. Volume
+ * potentiellement > 1000 lignes (mois / non filtré) → `fetchAll` (anti-troncature PostgREST).
  */
 export async function getPoliceReports(
   filter: { creatorId?: string; chatterId?: string; day?: string; month?: string },
+  scopePromise: ScopePromise,
 ): Promise<PoliceReport[]> {
   const supabase = await createClient()
   const admin = createAdminClient()
+  const scope = await scopePromise
 
   // Requête FRAÎCHE des rapports (rebâtie à chaque page pour `fetchAll`). Ordre DÉTERMINISTE
   // `day desc, id` : requis par la pagination ET utile au regroupement par jour côté historique.
@@ -29,6 +36,9 @@ export async function getPoliceReports(
       .order('day', { ascending: false })
       .order('id')
     if (filter.creatorId) q = q.eq('creator_id', filter.creatorId)
+    // Périmètre par rôle : cumulable avec le filtre modèle explicite (les deux s'ANDent — un
+    // `?creatorId=` forgé hors périmètre rend simplement zéro rapport).
+    if (scope) q = q.in('creator_id', [...scope])
     // `day` (mono-jour) et `month` (plage du mois) mutuellement exclusifs (la page n'en passe qu'un).
     if (filter.day) q = q.eq('day', filter.day)
     else if (filter.month) q = q.gte('day', startOfMonth(filter.month)).lte('day', endOfMonth(filter.month))
@@ -90,24 +100,33 @@ export async function getPoliceReports(
     .filter((rep) => !filter.chatterId || rep.lines.some((l) => l.chatterId === filter.chatterId))
 }
 
-/** TOUS les modèles de l'agence (Police NON cloisonné, cf. 0078) — client admin (la RLS
- *  `creators_scoped_read` cloisonnerait par modèle assigné, ce qu'on ne veut plus ici). */
-export async function getReportOptions(): Promise<ReportOption[]> {
+/** Modèles DU PÉRIMÈTRE de l'appelant (tous si non borné) — sélecteur du formulaire. Client
+ *  admin + borne applicative, PAS la RLS `creators_scoped_read` : la RLS cloisonne pour tous
+ *  les rôles, alors que la règle 2026-08-06 ne borne que manager/sous-manager/policier. */
+export async function getReportOptions(scopePromise: ScopePromise): Promise<ReportOption[]> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('creators').select('id, name').order('name')
+  const [scope, { data, error }] = await Promise.all([
+    scopePromise,
+    admin.from('creators').select('id, name').order('name'),
+  ])
   if (error) throw new Error(error.message)
-  return (data ?? []).map((c) => ({ id: c.id, name: c.name }))
+  return (data ?? [])
+    .filter((c) => !scope || scope.has(c.id))
+    .map((c) => ({ id: c.id, name: c.name }))
 }
 
 /**
  * Membres role chatteur groupés PAR MODÈLE (assignations `profile_creators`), en UNE passe, via le
- * client admin. Police NON cloisonné (cf. 0078) → TOUS les modèles, aucun filtre par appelant. Clé =
- * `creatorId` ; le formulaire lit `byModel[modèle sélectionné]` côté client (les lignes d'un rapport
- * sur le modèle M = chatteurs assignés à M).
+ * client admin — bornés au périmètre de l'appelant (les groupes hors périmètre ne partent pas au
+ * navigateur). Clé = `creatorId` ; le formulaire lit `byModel[modèle sélectionné]` côté client
+ * (les lignes d'un rapport sur le modèle M = chatteurs assignés à M).
  */
-export async function getChattersByModel(): Promise<Record<string, ReportOption[]>> {
+export async function getChattersByModel(
+  scopePromise: ScopePromise,
+): Promise<Record<string, ReportOption[]>> {
   const admin = createAdminClient()
-  const [linksRes, profilesRes] = await Promise.all([
+  const [scope, linksRes, profilesRes] = await Promise.all([
+    scopePromise,
     fetchAll((from, to) => admin.from('profile_creators').select('profile_id, creator_id').order('profile_id').order('creator_id').range(from, to)),
     // `.is('left_at', null)` : un parti (0102) ne se suit plus. Sans risque pour l'historique —
     // les rapports déjà écrits résolvent leurs noms par la requête SANS filtre de `getPoliceReports`
@@ -128,6 +147,7 @@ export async function getChattersByModel(): Promise<Record<string, ReportOption[
       }
   const byModel: Record<string, ReportOption[]> = {}
   for (const l of linksRes.data ?? []) {
+    if (scope && !scope.has(l.creator_id)) continue // modèle hors périmètre de l'appelant
     const c = chatteur[l.profile_id]
     if (!c) continue // le membre n'est pas un chatteur
     ;(byModel[l.creator_id] ??= []).push({ id: l.profile_id, ...c })

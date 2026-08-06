@@ -1,12 +1,13 @@
 import { Suspense } from 'react'
 import { startOfMonth, todayParis } from '@glagency/core'
-import { requireAccess, type Profile } from '@/lib/auth'
+import { canWritePolice, requireAccess } from '@/lib/auth'
 import { recentDays, recentMonths } from '@/lib/periods'
 import {
   getReportOptions,
   getPoliceReports,
   getChattersByModel,
 } from '@/features/police-reports/services/get-police-reports'
+import { getCreatorScope } from '@/lib/services/creator-scope'
 import { PoliceReportsTemplate } from '@/features/police-reports/PoliceReportsTemplate'
 import { PoliceReportsSkeleton } from '@/features/police-reports/components/reports-skeleton'
 
@@ -36,28 +37,33 @@ export default async function RapportPolicePage({
   const currentMonth = startOfMonth(today)
   const selectedMonth = month && months.some((m) => m.month === month) ? month : currentMonth
 
-  // Droit d'écriture — MÊME calcul que le Tracker (police/page.tsx:25), miroir de
-  // `requireReporter` (actions) + RLS `0071`. `requireAccess('police')` a déjà vérifié la page
-  // pour un non-admin, donc `baseRole === 'police'` ici a forcément la page.
-  const canWrite =
-    profile.role === 'admin' || profile.manager || profile.baseRole === 'police'
+  // Droit d'écriture — `canWritePolice` (lib/auth, SOURCE UNIQUE, même garde que le Tracker,
+  // miroir de `requireReporter` + RLS `0071`).
+  const canWrite = canWritePolice(profile)
 
-  const optionsPromise = getReportOptions()
+  // Périmètre modèles par rôle (2026-08-06, comme le Tracker) : résolu UNE fois, partagé en
+  // PROMESSE entre les trois lectures — le shell n'attend pas, chaque service l'attend en interne.
+  const scopePromise = getCreatorScope(profile.id, profile.baseRole)
+
+  // Options modèles : consommées par le SEUL formulaire de saisie → même condition que les
+  // chatteurs par modèle (l'audit a relevé le fetch inconditionnel pour un payload conditionnel).
+  const saisieJour = canWrite && vue === 'jour'
+  const optionsPromise = saisieJour ? getReportOptions(scopePromise) : Promise.resolve([])
   // Jour = rapports du seul jour (`.eq('day', …)`) ; mois = plage du mois (`.gte/.lte`). `day` et
   // `month` sont mutuellement exclusifs — on ne passe QUE l'ancre du mode actif.
   const reportsPromise =
     vue === 'mois'
-      ? getPoliceReports({ month: selectedMonth })
-      : getPoliceReports({ day: selectedDay })
+      ? getPoliceReports({ month: selectedMonth }, scopePromise)
+      : getPoliceReports({ day: selectedDay }, scopePromise)
   // Chatteurs par modèle : pré-chargés EN PARALLÈLE des rapports (kickoff sans await), pas en série
   // après. Utile au seul formulaire de saisie (écrivain en vue jour) ; sinon inutile → {}.
   const chattersByModelPromise: ReturnType<typeof getChattersByModel> =
-    canWrite && vue === 'jour' ? getChattersByModel() : Promise.resolve({})
+    saisieJour ? getChattersByModel(scopePromise) : Promise.resolve({})
 
   return (
     <Suspense fallback={<PoliceReportsSkeleton />}>
       <Content
-        profile={profile}
+        profileId={profile.id}
         canWrite={canWrite}
         vue={vue}
         day={selectedDay}
@@ -73,7 +79,7 @@ export default async function RapportPolicePage({
 }
 
 async function Content({
-  profile,
+  profileId,
   canWrite,
   vue,
   day,
@@ -84,7 +90,7 @@ async function Content({
   reportsPromise,
   chattersByModelPromise,
 }: {
-  profile: Profile
+  profileId: string
   canWrite: boolean
   vue: 'jour' | 'mois'
   day: string
@@ -109,7 +115,7 @@ async function Content({
       reports={reports}
       chattersByModel={chattersByModel}
       canWrite={canWrite}
-      currentProfileId={profile.id}
+      currentProfileId={profileId}
       vue={vue}
       day={day}
       days={days}
