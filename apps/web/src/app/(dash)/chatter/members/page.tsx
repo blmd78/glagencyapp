@@ -49,7 +49,11 @@ export default async function MembersPage({
 }) {
   const profile = await requireAdminOrManager()
   const sp = await searchParams
-  const vue = sp.vue === 'turnover' ? 'turnover' : sp.vue === 'activite' ? 'activite' : 'liste'
+  // Activité : ADMINS uniquement (décision Benoit 2026-08-06, miroir RLS 0108) — un
+  // `?vue=activite` forgé par un manager retombe sur la liste, et sa lecture n'est jamais lancée.
+  const isAdmin = profile.role === 'admin'
+  const vue =
+    sp.vue === 'turnover' ? 'turnover' : sp.vue === 'activite' && isAdmin ? 'activite' : 'liste'
   // Turnover et Activité suivent le DATEPICKER GLOBAL du header (`?from=&to=`), comme toutes les
   // pages du CRM — `resolvePeriod` est la source unique (défaut : mois en cours). La liste des
   // comptes, elle, n'a pas de période : un membre est là ou il n'est pas là.

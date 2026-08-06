@@ -7,6 +7,7 @@ import {
   EVENT_KINDS,
   isEventKind,
   memberEventLabel,
+  memberEventOp,
 } from './member-events'
 
 describe('vocabulaire', () => {
@@ -42,9 +43,28 @@ describe('vocabulaire', () => {
       'lien',
       'identite',
       'sanction',
+      'rapport',
     ])
     expect(isEventKind('shift')).toBe(true)
     expect(isEventKind('nimportequoi')).toBe(false)
+  })
+})
+
+describe('memberEventOp — la nature de l’opération se lit dans la forme (from, to)', () => {
+  it('une valeur qui apparaît = ajout', () => {
+    expect(memberEventOp(null, 'chatteur')).toBe('ajout') // création
+    expect(memberEventOp(null, 'Emma')).toBe('ajout') // modèle ajouté
+    expect(memberEventOp(null, '2026-08-15 (vire)')).toBe('ajout') // départ enregistré
+  })
+
+  it('une valeur qui disparaît = suppression', () => {
+    expect(memberEventOp('Sarah', null)).toBe('suppression') // modèle retiré
+    expect(memberEventOp('2026-08-06 (malus 11 € — horaires)', null)).toBe('suppression') // sanction
+  })
+
+  it('un remplacement = mise à jour, et (null, null) retombe dessus', () => {
+    expect(memberEventOp('matin', 'soir')).toBe('maj')
+    expect(memberEventOp(null, null)).toBe('maj')
   })
 })
 
@@ -97,6 +117,18 @@ describe('memberEventLabel — chaque type produit une phrase lisible', () => {
       'Sanction retirée (nimportequoi)',
     )
     expect(memberEventLabel('sanction', null, null)).toBe('Sanction retirée')
+  })
+
+  it('rapport du soir supprimé : date en français, modèle en clair', () => {
+    // `from` composé par le trigger 0107 — nom du modèle résolu en base à la suppression.
+    expect(memberEventLabel('rapport', '2026-08-03 (Julie)', null)).toBe(
+      'Rapport du soir du 03/08/2026 supprimé (Julie)',
+    )
+    // Format inattendu : valeur brute ; sans valeur : phrase minimale.
+    expect(memberEventLabel('rapport', 'nimportequoi', null)).toBe(
+      'Rapport du soir supprimé (nimportequoi)',
+    )
+    expect(memberEventLabel('rapport', null, null)).toBe('Rapport du soir supprimé')
   })
 
   it('pages : un compte, jamais la liste', () => {

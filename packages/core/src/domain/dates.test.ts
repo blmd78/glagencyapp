@@ -4,6 +4,7 @@ import {
   addMonthsSameDay,
   currentWeekStart,
   daysBetweenParis,
+  parisDayStartUtc,
   frDateTimeParis,
   frDayMonthParis,
   frMonthLong,
@@ -143,5 +144,18 @@ describe('daysBetweenParis', () => {
   })
   it('négatif si l’ordre est inversé', () => {
     expect(daysBetweenParis('2026-07-15T06:00:00Z', '2026-07-14T06:00:00Z')).toBe(-1)
+  })
+})
+
+describe('parisDayStartUtc — minuit Paris exprimé en instant UTC', () => {
+  it('été (UTC+2) : minuit Paris = 22 h UTC la veille', () => {
+    expect(parisDayStartUtc('2026-07-15')).toBe('2026-07-14T22:00:00.000Z')
+  })
+  it('hiver (UTC+1) : minuit Paris = 23 h UTC la veille', () => {
+    expect(parisDayStartUtc('2026-01-15')).toBe('2026-01-14T23:00:00.000Z')
+  })
+  it('jour du passage à l’heure d’été (29/03/2026) : l’offset du minuit est encore l’hiver', () => {
+    // À 00 h ce jour-là Paris est toujours en UTC+1 (la bascule est à 2 h du matin).
+    expect(parisDayStartUtc('2026-03-29')).toBe('2026-03-28T23:00:00.000Z')
   })
 })

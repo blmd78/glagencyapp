@@ -6,11 +6,11 @@
 // d'une sanction (0107) : `apps/web` n'est pas importable depuis le domaine, l'inverse oui.
 
 /** 14 types d'erreurs contrôlés — les 11 repris de l'outil HTML source (setters/closers),
- *  plus 3 ajoutés le 2026-07-29 (relances et horaires). Ajouter une entrée ici suffit :
- *  le formulaire du Tracker, la validation Zod, la fiche de paie et l'historique membre en
- *  dérivent tous. `police_entries.error_key` est un `text` SANS contrainte de valeurs en
- *  base (vérifié sur `pg_constraint`) — donc aucune migration, et les sanctions déjà
- *  enregistrées ne bougent pas. */
+ *  plus 3 ajoutés le 2026-07-29 (relances et horaires). Le formulaire du Tracker, la
+ *  validation Zod, la fiche de paie et l'historique membre en dérivent tous. ⚠️ Depuis 0108,
+ *  la base porte un `check` MIROIR (`police_entries_error_key_check`, NOT VALID — les
+ *  sanctions historiques ne bougent pas) : ajouter une clé ici exige une migration qui
+ *  élargit le check, sinon la saisie de ce motif sera refusée en base. */
 export const POLICE_ERRORS = [
   { key: 'media_argent', label: 'Parle de média/argent directement' },
   { key: 'reactivite', label: 'Réponse > 45 s par sub' },
