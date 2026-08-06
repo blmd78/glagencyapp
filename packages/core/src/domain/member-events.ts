@@ -13,6 +13,8 @@
  * valeur ajoutée en base doit l'être ici aussi.
  */
 
+import { ERROR_LABEL } from './police-errors'
+
 /**
  * `initiative` — QUI a décidé du départ. C'est la lecture utile d'un turnover : un départ décidé
  * par l'agence interroge le recrutement, un départ subi interroge les conditions de travail. Sans
@@ -48,7 +50,7 @@ export const INITIATIVE_LABEL: Record<DepartureInitiative, string> = {
   autre: 'Autres',
 }
 
-/** Types d'événement — miroir du `check` SQL `member_events.kind` (0101). */
+/** Types d'événement — miroir du `check` SQL `member_events.kind` (0101, élargi en 0107). */
 export const EVENT_KINDS = [
   'creation',
   'role',
@@ -62,6 +64,8 @@ export const EVENT_KINDS = [
   'sortie',
   'lien',
   'identite',
+  // Sanction du Tracker RETIRÉE (trigger delete 0107) — la pose, elle, se lit dans le Tracker.
+  'sanction',
 ] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
@@ -133,6 +137,18 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
     // Nom, email ou lien de travail — un seul kind, cf. 0101 : ils décrivent la même chose.
     case 'identite':
       return arrow('Fiche', from, to)
+    case 'sanction': {
+      // `from` = '2026-08-06 (malus 25 € — media_argent)' ou '2026-08-06 (avertissement — clé)',
+      // composé par le trigger 0107 (clé BRUTE : le SQL ne connaît pas les libellés — c'est ici
+      // qu'elle devient lisible, via ERROR_LABEL). Même doctrine que `sortie` : parsing par
+      // REGEX, forme inattendue → valeur brute, imparfaite mais jamais trompeuse.
+      if (!from) return 'Sanction retirée'
+      const m = /^(\d{4}-\d{2}-\d{2})\s+\((malus [^—)]+€|avertissement)(?:\s+—\s+(.+))?\)$/.exec(from)
+      const [, date, detail, errKey] = m ?? []
+      if (!date) return `Sanction retirée (${from})`
+      const err = errKey ? (ERROR_LABEL[errKey] ?? errKey) : null
+      return `Sanction du ${fr(date)} retirée (${detail}${err ? ` — ${err}` : ''})`
+    }
     case 'sortie': {
       if (!to) return 'Départ annulé (réactivé)'
       // `to` = '2026-08-15 (vire)', composé par le trigger. Parsé par REGEX et non par index : un

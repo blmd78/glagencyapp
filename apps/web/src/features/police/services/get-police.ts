@@ -18,12 +18,27 @@ import type { PoliceData, PoliceEntry } from '../types'
  * - `jour` : entrées d'un seul jour (`?day=`, défaut aujourd'hui), KPIs du jour — comportement historique.
  * - `mois` : entrées de tout le mois (`?month=`, défaut mois courant), KPIs agrégés sur le mois. Consultation
  *   pure (pas de saisie) → le compteur d'avertissements récents (aide-décision) n'est pas chargé.
- * RLS : page `police`, NON cloisonné (cf. 0078 — tout porteur de la page voit toutes les sanctions).
- * `chatter_id` désigne désormais un MEMBRE (`profiles`) ; les OPTIONS = tous les membres role
- * chatteur (aucun filtre modèle). Noms (chatteur + contrôleur) résolus via `profiles` (client admin).
+ * RLS : page `police` (0078 — la BASE ne cloisonne pas ; tout porteur de la page lit tout).
+ * `chatter_id` désigne désormais un MEMBRE (`profiles`). Noms (chatteur + contrôleur) résolus
+ * via `profiles` (client admin).
+ *
+ * PÉRIMÈTRE PAR RÔLE (décision Benoit 2026-08-06), appliqué ICI, côté serveur — les sanctions
+ * hors périmètre ne partent pas au navigateur :
+ *   - manager / sous-manager / policier AVEC modèles assignés : CLOISONNÉS sur les chatteurs
+ *     de leurs modèles (`profile_creators`) — journal, KPIs, options de saisie comprises ;
+ *   - admin, chatteur (lecture) — et un manager/sous-manager/policier SANS modèle assigné : tout.
+ * C'est un cloisonnement APPLICATIF (la RLS 0078 reste non cloisonnée) : un encadrant qui
+ * interroge l'API en direct lit toujours tout — assumé, même statut que le Rapport du soir.
  */
 export async function getPolice(
-  { vue, day, month }: { vue: 'jour' | 'mois'; day?: string; month?: string },
+  { vue, day, month, callerId, callerRole }: {
+    vue: 'jour' | 'mois'
+    day?: string
+    month?: string
+    callerId: string
+    /** Rôle BRUT (`profiles.baseRole`) — décide du cloisonnement ci-dessus. */
+    callerRole: string
+  },
 ): Promise<PoliceData> {
   const supabase = await createClient()
   const admin = createAdminClient()
@@ -66,7 +81,7 @@ export async function getPolice(
           .eq('occurred_on', selectedDay)
           .order('created_at', { ascending: false })
 
-  const [entriesRes, recentWarnsRes, profilesRes] = await Promise.all([
+  const [entriesRes, recentWarnsRes, profilesRes, creatorsRes, assignRes] = await Promise.all([
     entriesQuery,
     // Compteur d'avertissements récents : aide la décision de malus dans la SAISIE (mode jour uniquement).
     // En mois la saisie est masquée → requête inutile, on la saute.
@@ -86,13 +101,24 @@ export async function getPolice(
     // Membres (client admin, `fetchAll` anti-troncature) : résolution des NOMS — chatteur (chatter_id)
     // ET contrôleur (controller_id) sont tous deux des `profiles` — et OPTIONS (role chatteur).
     fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
+    // Modèles actifs : options du filtre « Modèles » du journal.
+    admin.from('creators').select('id, name, active'),
+    // Assignations chatteur ↔ modèle (client admin : le RLS de profile_creators cloisonne par
+    // appelant alors que le journal est agence-wide). Sert le filtre ET le défaut « mes modèles ».
+    fetchAll((from, to) =>
+      admin.from('profile_creators').select('profile_id, creator_id').order('profile_id').range(from, to),
+    ),
   ])
   if (entriesRes.error) throw new Error(entriesRes.error.message)
   if (recentWarnsRes?.error) throw new Error(recentWarnsRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
+  if (creatorsRes.error) throw new Error(creatorsRes.error.message)
+  if (assignRes.error) throw new Error(assignRes.error.message)
   const rows = entriesRes.data
   const recentWarns = recentWarnsRes?.data
   const profileRows = profilesRes.data
+  const creatorRows = creatorsRes.data
+  const assignRows = assignRes.data
 
   // Noms : chatteur (chatter_id) ET contrôleur (controller_id) sont tous deux des `profiles`.
   const nameById: Record<string, string> = {}
@@ -100,17 +126,43 @@ export async function getPolice(
   const chatterName = nameById
   const controllerName = nameById
 
-  // Options = TOUS les membres role chatteur (Police NON cloisonné, cf. 0078 — aucun filtre modèle).
-  const chatterOptions = (profileRows ?? [])
-    .filter((p) => p.role === 'chatteur' && p.display_name)
-    .map((p) => ({ id: p.id, name: p.display_name as string }))
-    .sort((a, b) => a.name.localeCompare(b.name))
-
   const warningsByChatter: Record<string, number> = {}
   for (const w of recentWarns ?? [])
     warningsByChatter[w.chatter_id] = (warningsByChatter[w.chatter_id] ?? 0) + 1
 
-  const entries: PoliceEntry[] = (rows ?? []).map((r) => ({
+  // Assignations chatteur → modèles + modèles de l'appelant (périmètre des encadrants).
+  const creatorsByChatter: Record<string, string[]> = {}
+  const myCreatorIds: string[] = []
+  for (const a of assignRows ?? []) {
+    ;(creatorsByChatter[a.profile_id] ??= []).push(a.creator_id)
+    if (a.profile_id === callerId) myCreatorIds.push(a.creator_id)
+  }
+
+  // Périmètre par rôle (cf. en-tête) : encadrant OU policier avec modèles = borné à SES modèles.
+  const scope =
+    (callerRole === 'manager' || callerRole === 'sous-manager' || callerRole === 'police') &&
+    myCreatorIds.length > 0
+      ? new Set(myCreatorIds)
+      : null
+  const inScope = (chatterId: string) =>
+    !scope || (creatorsByChatter[chatterId] ?? []).some((c) => scope.has(c))
+
+  // Options de saisie/filtre chatteur = membres role chatteur DU périmètre.
+  const chatterOptions = (profileRows ?? [])
+    .filter((p) => p.role === 'chatteur' && p.display_name && inScope(p.id))
+    .map((p) => ({ id: p.id, name: p.display_name as string }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // Options du sélecteur de modèles : bornées au périmètre aussi — un encadrant cloisonné
+  // n'affine que parmi SES modèles (« Tous les modèles » = tout SON périmètre).
+  const creatorOptions = (creatorRows ?? [])
+    .filter((c) => c.active && c.name && (!scope || scope.has(c.id)))
+    .map((c) => ({ id: c.id, name: c.name }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // Le journal lui-même suit le périmètre : les sanctions hors modèles de l'appelant ne
+  // quittent pas le serveur.
+  const entries: PoliceEntry[] = (rows ?? []).filter((r) => inScope(r.chatter_id)).map((r) => ({
     id: r.id,
     chatterId: r.chatter_id,
     chatterName: chatterName[r.chatter_id] ?? '?',
@@ -134,9 +186,10 @@ export async function getPolice(
     entries,
     chatterOptions,
     warningsByChatter,
-    totalMalusEur: entries.filter((e) => e.kind === 'malus').reduce((s, e) => s + e.amountEur, 0),
-    warningCount: entries.filter((e) => e.kind === 'warning').length,
-    chattersConcerned: new Set(entries.map((e) => e.chatterId)).size,
+    // Les KPIs de la période sont calculés CÔTÉ CLIENT (police-view) : ils suivent le filtre
+    // « Modèles », des cartes figées au-dessus d'un journal filtré mentiraient.
+    creatorOptions,
+    creatorsByChatter,
     days,
     months,
   }

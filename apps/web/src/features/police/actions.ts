@@ -1,14 +1,14 @@
 'use server'
 
 // Server Actions du tracker « Police » — supabase-js + RLS.
-// Saisie/modif : page `police` requise. Suppression : admin uniquement.
+// Saisie/modif/suppression : mêmes écrivains (0106 a aligné police_delete sur insert/update).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
-import { runAction, adminGuard, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
 /** Contrôle d'écriture Police (NON cloisonné, cf. 0078) : miroir de la policy RLS
@@ -112,8 +112,11 @@ export async function deletePoliceEntry(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: deleteEntryInput,
     input: raw,
-    guard: adminGuard,
+    // Même règle que la saisie depuis 0106 (« qui peut poser une sanction peut la retirer ») —
+    // adminGuard avant ça. Le miroir RLS est `police_delete`, alignée sur insert/update.
+    guard: noGuard,
     handler: async ({ id }) => {
+      await requirePoliceProfile()
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').delete().eq('id', id)
       if (error) throw new Error(error.message)

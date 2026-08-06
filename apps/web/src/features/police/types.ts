@@ -55,10 +55,11 @@ export interface PoliceData {
   chatterOptions: EntityOption[]
   /** chatterId → nb d'avertissements récents (fenêtre 30 j) — aide la décision de malus. Vide en mois. */
   warningsByChatter: Record<string, number>
-  /** KPIs agrégés sur la période affichée (jour OU mois). */
-  totalMalusEur: number
-  warningCount: number
-  chattersConcerned: number
+  /** Modèles actifs DU PÉRIMÈTRE de l'appelant — options du sélecteur « Modèles » (un
+   *  manager/sous-manager cloisonné n'y voit que les siens, cf. getPolice). */
+  creatorOptions: EntityOption[]
+  /** chatterId → modèles assignés (profile_creators) — le filtre modèle du journal s'appuie dessus. */
+  creatorsByChatter: Record<string, string[]>
   /** Jours proposés au sélecteur (aujourd'hui + 13 passés). */
   days: DayChoice[]
   /** Mois proposés au sélecteur (mois courant + 11 passés). */
