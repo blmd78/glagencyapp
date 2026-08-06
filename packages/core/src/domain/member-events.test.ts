@@ -41,6 +41,7 @@ describe('vocabulaire', () => {
       'sortie',
       'lien',
       'identite',
+      'sanction',
     ])
     expect(isEventKind('shift')).toBe(true)
     expect(isEventKind('nimportequoi')).toBe(false)
@@ -73,6 +74,29 @@ describe('memberEventLabel — chaque type produit une phrase lisible', () => {
   it('modèle : les deux sens sont nommés', () => {
     expect(memberEventLabel('modele', null, 'Emma')).toBe('Modèle Emma ajouté')
     expect(memberEventLabel('modele', 'Sarah', null)).toBe('Modèle Sarah retiré')
+  })
+
+  it('sanction retirée : date en français, clé d’erreur traduite', () => {
+    // `from` composé par le trigger 0107 — clé brute traduite ICI (le SQL ne connaît pas
+    // les libellés). Miroir exact du format `to_char(occurred_on) (détail — clé)`.
+    expect(memberEventLabel('sanction', '2026-08-06 (malus 25 € — media_argent)', null)).toBe(
+      'Sanction du 06/08/2026 retirée (malus 25 € — Parle de média/argent directement)',
+    )
+    expect(memberEventLabel('sanction', '2026-08-06 (avertissement — horaires)', null)).toBe(
+      'Sanction du 06/08/2026 retirée (avertissement — Non respect des horaires de travail)',
+    )
+    // Sans clé d'erreur (malus libre) : pas de tiret orphelin.
+    expect(memberEventLabel('sanction', '2026-08-06 (malus 10 €)', null)).toBe(
+      'Sanction du 06/08/2026 retirée (malus 10 €)',
+    )
+    // Clé inconnue : brute plutôt qu'un trou ; format inattendu : valeur telle quelle.
+    expect(memberEventLabel('sanction', '2026-08-06 (avertissement — nouvelle_cle)', null)).toBe(
+      'Sanction du 06/08/2026 retirée (avertissement — nouvelle_cle)',
+    )
+    expect(memberEventLabel('sanction', 'nimportequoi', null)).toBe(
+      'Sanction retirée (nimportequoi)',
+    )
+    expect(memberEventLabel('sanction', null, null)).toBe('Sanction retirée')
   })
 
   it('pages : un compte, jamais la liste', () => {

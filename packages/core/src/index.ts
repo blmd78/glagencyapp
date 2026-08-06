@@ -59,6 +59,7 @@ export {
   memberEventLabel,
 } from './domain/member-events'
 export type { DepartureReason, DepartureInitiative, EventKind } from './domain/member-events'
+export { POLICE_ERRORS, ERROR_LABEL } from './domain/police-errors'
 export {
   periodOf,
   recentPeriods,

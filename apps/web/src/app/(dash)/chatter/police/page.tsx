@@ -19,7 +19,9 @@ export default async function PolicePage({
   // (`PoliceView`, useRouter) qui a besoin de `data.vue`/`data.day(s)`/`data.month(s)` — pas de h1
   // « immédiat » séparable ici sans casser la mise en page (titre et sélecteur streament
   // ensemble, cf. scripts/planning + docs/guidelines-data-loading.md §3).
-  const data = getPolice({ vue, day, month })
+  // `callerId`/`callerRole` : périmètre par rôle — manager/sous-manager/policier cloisonnés
+  // sur les chatteurs de LEURS modèles, admin/chatteur voient tout (cf. getPolice).
+  const data = getPolice({ vue, day, month, callerId: profile.id, callerRole: profile.baseRole })
 
   // Droit d'écriture (saisie avert./malus, édition malus) : admin, manager/sous-manager, ou
   // le rôle fonctionnel `police` lui-même — un chatteur consulte en lecture seule. `requireAccess`
@@ -28,19 +30,17 @@ export default async function PolicePage({
 
   return (
     <Suspense fallback={<PoliceSkeleton />}>
-      <PoliceContent data={data} isAdmin={profile.role === 'admin'} canWrite={canWrite} />
+      <PoliceContent data={data} canWrite={canWrite} />
     </Suspense>
   )
 }
 
 async function PoliceContent({
   data,
-  isAdmin,
   canWrite,
 }: {
   data: Promise<PoliceData>
-  isAdmin: boolean
   canWrite: boolean
 }) {
-  return <PoliceTemplate data={await data} isAdmin={isAdmin} canWrite={canWrite} />
+  return <PoliceTemplate data={await data} canWrite={canWrite} />
 }

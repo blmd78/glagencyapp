@@ -1,25 +1,29 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { UrlSelect } from '@/components/url-select'
 import { PeriodToggle } from '@/components/period-toggle'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { eur2max as eur } from '@/lib/format'
 import { ControlPanel } from './control-panel'
-import { PoliceFeed } from './police-feed'
-import type { PoliceData } from '../types'
+import { PoliceTable } from './police-table'
+import type { PoliceData, PoliceEntry } from '../types'
 
-/** KPIs de la période au format des cartes partagées (cohérent avec Overview/Santé) — libellés
- *  et repère (`hint`) branchés sur le mode : jour (`data.dayLabel`) ou mois (`data.monthLabel`). */
-function policeKpis(data: PoliceData): Kpi[] {
+/** KPIs de la période au format des cartes partagées (cohérent avec Overview/Santé) — calculés
+ *  sur les entrées AFFICHÉES (après filtre modèle) : des cartes figées au-dessus d'un journal
+ *  filtré mentiraient. Libellés/repère (`hint`) branchés sur le mode : jour ou mois. */
+function policeKpis(data: PoliceData, entries: PoliceEntry[]): Kpi[] {
   const isMonth = data.vue === 'mois'
   const suffix = isMonth ? '(mois)' : '(jour)'
   const hint = isMonth ? data.monthLabel : data.dayLabel
+  const totalMalus = entries.filter((e) => e.kind === 'malus').reduce((s, e) => s + e.amountEur, 0)
+  const warnings = entries.filter((e) => e.kind === 'warning').length
+  const concerned = new Set(entries.map((e) => e.chatterId)).size
   return [
-    { key: 'malus', label: `Total malus ${suffix}`, value: eur(data.totalMalusEur), deltaPct: null, trendLabel: isMonth ? 'Sanctions du mois' : 'Sanctions du jour', hint },
-    { key: 'avert', label: 'Avertissements', value: String(data.warningCount), deltaPct: null, trendLabel: 'Fautes relevées', hint },
-    { key: 'chatters', label: 'Chatters concernés', value: String(data.chattersConcerned), deltaPct: null, trendLabel: isMonth ? 'Contrôlés ce mois' : 'Contrôlés aujourd’hui', hint },
+    { key: 'malus', label: `Total malus ${suffix}`, value: eur(totalMalus), deltaPct: null, trendLabel: isMonth ? 'Sanctions du mois' : 'Sanctions du jour', hint },
+    { key: 'avert', label: 'Avertissements', value: String(warnings), deltaPct: null, trendLabel: 'Fautes relevées', hint },
+    { key: 'chatters', label: 'Chatters concernés', value: String(concerned), deltaPct: null, trendLabel: isMonth ? 'Contrôlés ce mois' : 'Contrôlés aujourd’hui', hint },
   ]
 }
 
@@ -29,19 +33,14 @@ const POLICE_ACCENTS = ['border-t-red-500', 'border-t-amber-500', 'border-t-blue
  *  de la période. En mois : consultation pure (KPIs et historique agrégés sur le mois, pas de saisie). */
 export function PoliceView({
   data,
-  isAdmin,
   canWrite,
 }: {
   data: PoliceData
-  isAdmin: boolean
   canWrite: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [pending, startTransition] = useTransition()
-  // Chatteur sélectionné : partagé entre la saisie et le filtre de l'historique.
-  const [chatterId, setChatterId] = useState('')
-
   // Sélecteurs PILOTÉS par le Tracker (via `onSelect`) : il pousse lui-même l'URL avec SA transition
   // → le grisage `pending` du bloc ci-dessous. `selectMonth` = pendant mensuel de `selectDay`.
   const selectDay = (day: string) => {
@@ -57,7 +56,8 @@ export function PoliceView({
     startTransition(() => router.replace(`?${next.toString()}`, { scroll: false }))
   }
 
-  // Saisie visible seulement pour un écrivain ET en mode jour (le mois = consultation pure).
+  // Bouton « Ajouter une sanction » (dialog) : écrivains, ET en mode jour seulement (le mois
+  // = consultation pure — la sanction s'enregistre sur le jour affiché).
   const showControl = canWrite && data.vue === 'jour'
 
   return (
@@ -95,24 +95,24 @@ export function PoliceView({
         </div>
       </div>
 
-      <KpiGrid kpis={policeKpis(data)} accents={POLICE_ACCENTS} />
+      <KpiGrid kpis={policeKpis(data, data.entries)} accents={POLICE_ACCENTS} />
+
+      {/* Saisie en DIALOG, bouton à GAUCHE (écrivains, mode jour uniquement : le mois reste
+          consultation pure). La page ne garde que l'historique en dessous. Le sélecteur de
+          modèles a été retiré (demande Benoit 2026-08-06, « pour le moment ») — le PÉRIMÈTRE
+          par rôle, lui, reste appliqué côté serveur (getPolice). */}
+      {showControl && (
+        <div className="flex items-center">
+          <ControlPanel data={data} />
+        </div>
+      )}
 
       <div
         className={
           pending ? 'pointer-events-none opacity-40 transition-opacity' : 'transition-opacity'
         }
       >
-        {/* Saisie masquée pour un chatteur (lecture seule) ET en mode mois — il ne voit que l'historique. */}
-        {showControl && <ControlPanel data={data} onChatterChange={setChatterId} />}
-        <div className={showControl ? 'mt-4' : undefined}>
-          <PoliceFeed
-            data={data}
-            isAdmin={isAdmin}
-            canWrite={canWrite}
-            filterChatterId={chatterId}
-            onClearFilter={() => setChatterId('')}
-          />
-        </div>
+        <PoliceTable entries={data.entries} isMonth={data.vue === 'mois'} canWrite={canWrite} />
       </div>
     </div>
   )

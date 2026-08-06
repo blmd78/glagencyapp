@@ -24,6 +24,7 @@ export const KIND_LABEL: Record<EventKind, string> = {
   sortie: 'Départ',
   lien: 'Lien MyPuls',
   identite: 'Fiche',
+  sanction: 'Sanction',
 }
 
 /** Code couleur de l'app : violet pour ce qui touche aux modèles et au lien MyPuls (comme
@@ -43,4 +44,6 @@ export const KIND_TONE: Record<EventKind, string> = {
   // vu, pas fondu dans le gris.
   lien: 'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
   identite: STATUS_COLORS.neutral,
+  // Orange = police (code couleur de l'app), comme la catégorie du Tracker dans la sidebar.
+  sanction: 'bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300',
 }

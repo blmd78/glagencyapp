@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -86,11 +86,18 @@ export function BlockDialog({
     control,
     handleSubmit,
     setError,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<BlockForm>({
     resolver: zodResolver(blockForm),
     values: block ? toForm(block) : emptyForm,
   })
+  // `values` ne suffit PAS à rouvrir propre : RHF ne re-reset que si la prop `values` change
+  // en profondeur — rouvrir sur le MÊME bloc (ou « Nouveau bloc », même `emptyForm`) garde la
+  // saisie abandonnée à la croix/ESC. Reset explicite à chaque ouverture (audit 2026-08-06).
+  useEffect(() => {
+    if (open) reset(block ? toForm(block) : emptyForm)
+  }, [open, block, reset])
   // Mode « tâche simple » (puces) OU « sous-tâches » (catégories). Resynchronisé à chaque
   // OUVERTURE selon le bloc (ajustement d'état pendant le rendu — PAS dans un effet) : un bloc
   // avec catégories ouvre en mode sous-tâches, sinon simple. L'état reste ICI (le submit en

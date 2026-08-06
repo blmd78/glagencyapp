@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
@@ -57,11 +58,18 @@ export function ItemDialog({
     control,
     handleSubmit,
     setError,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<ItemForm>({
     resolver: zodResolver(itemForm),
     values: item ? toForm(item) : emptyForm,
   })
+  // `values` ne suffit PAS à rouvrir propre : RHF ne re-reset que si la prop `values` change
+  // en profondeur — rouvrir sur le MÊME item (ou « Nouvel item », même `emptyForm`) garde la
+  // saisie abandonnée à la croix/ESC. Reset explicite à chaque ouverture (audit 2026-08-06).
+  useEffect(() => {
+    if (open) reset(item ? toForm(item) : emptyForm)
+  }, [open, item, reset])
   // useWatch (pas watch) : compatible React Compiler.
   const kind = useWatch({ control, name: 'kind' })
 

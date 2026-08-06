@@ -52,8 +52,19 @@ function SetCompteurDialog({ spender }: { spender: SpenderRow }) {
     })
   }
 
+  // Réouverture propre (audit 2026-08-06) : le composant reste monté, une saisie invalide
+  // abandonnée à la croix/ESC réapparaissait — et la valeur initiale ne suivait pas le patch
+  // optimiste du compteur. Resync + erreur vidée à CHAQUE ouverture.
+  const onOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (next) {
+      setValue(String(spender.compteurR))
+      setError(null)
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button size="icon" variant="ghost" className="size-6 text-muted-foreground" title="Forcer la valeur de R (admin)">
           <Pencil className="size-3.5" />
