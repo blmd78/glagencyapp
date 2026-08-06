@@ -7,35 +7,58 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getProfile, hasWriteAccess, type Profile } from '@/lib/auth'
+import { canWritePolice, getProfile, type Profile } from '@/lib/auth'
+import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { warningInput, malusInput, updateMalusInput } from './schema'
 
-/** Contrôle d'écriture Police (NON cloisonné, cf. 0078) : miroir de la policy RLS
- *  `police_insert`/`police_update` (`can_write_page('police')` OR (`is_police()` AND
- *  `has_page('police')`)) — `hasWriteAccess` couvre la 1ʳᵉ branche, le rôle fonctionnel
- *  `police` doit AUSSI avoir la page pour couvrir la 2ᵉ (sinon la RLS le bloquerait avec une
- *  erreur brute au lieu d'un refus propre ici). Vérifié UNE SEULE FOIS, en tête de handler
- *  (patron §4 des guidelines) — refus = BusinessError, aucun filtre chatteur/modèle. */
+/** Contrôle d'écriture Police — `canWritePolice` (lib/auth, SOURCE UNIQUE, miroir RLS 0078) ;
+ *  vérifié UNE SEULE FOIS, en tête de handler (patron §4) — refus = BusinessError. */
 async function requirePoliceProfile(): Promise<Profile> {
   const profile = await getProfile()
-  const isFunctionalPolice =
-    !!profile && profile.baseRole === 'police' && profile.pages.includes('police')
-  if (!profile || !(hasWriteAccess(profile, 'police') || isFunctionalPolice)) {
-    throw new BusinessError('Accès refusé')
-  }
+  if (!canWritePolice(profile)) throw new BusinessError('Accès refusé')
   return profile
 }
 
-/** La cible d'une sanction doit être un MEMBRE role chatteur (cohérent avec la validation des lignes
- *  du Rapport). Défense en profondeur : les options n'exposent que des chatteurs, mais un appel forgé
- *  par un porteur de la page pourrait viser un manager/admin. Client admin (lecture d'un profil hors
- *  périmètre RLS de l'appelant). */
+/** PÉRIMÈTRE PAR MODÈLE côté ÉCRITURE (audit 2026-08-06) : le cloisonnement de l'affichage
+ *  (`getPolice`) ne suffit pas — sans cette garde, un encadrant/policier cloisonné pouvait
+ *  forger un appel et sanctionner (ou modifier/supprimer la sanction de) n'importe quel
+ *  chatteur de l'agence, malus de paie compris. La RLS 0078 reste volontairement large :
+ *  cette garde serveur est le rempart réel du périmètre. */
+async function requireChatterInScope(profile: Profile, chatterId: string): Promise<void> {
+  const scope = await getCreatorScope(profile.id, profile.baseRole)
+  if (!(await isChatterInScope(scope, chatterId)))
+    throw new BusinessError('Ce chatter n’est pas sur tes modèles')
+}
+
+/** La cible d'une sanction doit être un MEMBRE role chatteur, ENCORE EN POSTE (un parti — 0102 —
+ *  ne se sanctionne plus : sa paie ne doit plus bouger ; cohérent avec `getChattersByModel` qui
+ *  l'exclut des options). Défense en profondeur : les options n'exposent que des chatteurs
+ *  actifs, mais un appel forgé pourrait viser un manager/admin/parti. Client admin (lecture
+ *  d'un profil hors périmètre RLS de l'appelant). */
 async function assertChatteurMember(chatterId: string): Promise<void> {
   const admin = createAdminClient()
-  const { data, error } = await admin.from('profiles').select('role').eq('id', chatterId).maybeSingle()
+  const { data, error } = await admin
+    .from('profiles')
+    .select('role, left_at')
+    .eq('id', chatterId)
+    .maybeSingle()
   if (error) throw new Error(error.message)
   if (data?.role !== 'chatteur') throw new BusinessError('La cible n’est pas un chatter')
+  if (data.left_at) throw new BusinessError('Ce membre a quitté l’agence')
+}
+
+/** Le chatteur d'une entrée EXISTANTE (édition/suppression) — pour lui appliquer le périmètre. */
+async function chatterOfEntry(id: string): Promise<string> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('police_entries')
+    .select('chatter_id')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new BusinessError('Cette entrée n’existe plus')
+  return data.chatter_id
 }
 
 export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {
@@ -46,6 +69,7 @@ export async function addPoliceWarning(raw: unknown): Promise<ActionResult> {
     handler: async (values) => {
       const profile = await requirePoliceProfile()
       await assertChatteurMember(values.chatterId)
+      await requireChatterInScope(profile, values.chatterId)
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').insert({
         chatter_id: values.chatterId,
@@ -70,6 +94,7 @@ export async function addPoliceMalus(raw: unknown): Promise<ActionResult> {
     handler: async (values) => {
       const profile = await requirePoliceProfile()
       await assertChatteurMember(values.chatterId)
+      await requireChatterInScope(profile, values.chatterId)
       const supabase = await createClient()
       const { error } = await supabase.from('police_entries').insert({
         chatter_id: values.chatterId,
@@ -93,14 +118,21 @@ export async function updatePoliceMalus(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (values) => {
-      await requirePoliceProfile()
+      const profile = await requirePoliceProfile()
+      // Périmètre sur l'entrée EXISTANTE : on retrouve son chatteur, puis même règle qu'à la pose.
+      await requireChatterInScope(profile, await chatterOfEntry(values.id))
       const supabase = await createClient()
-      const { error } = await supabase
+      // `.select()` + contrôle : sans lui, un refus RLS (0 ligne) passerait pour un succès et
+      // l'UI dirait « Malus modifié » (audit 2026-08-06) — le refus du rempart doit se voir.
+      const { data, error } = await supabase
         .from('police_entries')
         .update({ amount_eur: values.amountEur, note: values.note ?? null })
         .eq('id', values.id)
         .eq('kind', 'malus')
+        .select('id')
+        .maybeSingle()
       if (error) throw new Error(error.message)
+      if (!data) throw new BusinessError('Ce malus n’existe plus ou t’est interdit')
       revalidatePath('/chatter/police')
     },
   })
@@ -116,10 +148,20 @@ export async function deletePoliceEntry(raw: unknown): Promise<ActionResult> {
     // adminGuard avant ça. Le miroir RLS est `police_delete`, alignée sur insert/update.
     guard: noGuard,
     handler: async ({ id }) => {
-      await requirePoliceProfile()
+      const profile = await requirePoliceProfile()
+      // Périmètre sur l'entrée EXISTANTE (audit 2026-08-06 : sans ça, tout écrivain pouvait
+      // énumérer les ids par l'API et supprimer n'importe quelle sanction de l'agence).
+      await requireChatterInScope(profile, await chatterOfEntry(id))
       const supabase = await createClient()
-      const { error } = await supabase.from('police_entries').delete().eq('id', id)
+      // `.select()` + contrôle : un refus RLS ne doit pas passer pour un succès (cf. update).
+      const { data, error } = await supabase
+        .from('police_entries')
+        .delete()
+        .eq('id', id)
+        .select('id')
+        .maybeSingle()
       if (error) throw new Error(error.message)
+      if (!data) throw new BusinessError('Cette entrée n’existe plus ou t’est interdite')
       revalidatePath('/chatter/police')
     },
   })

@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { getPolice } from '@/features/police/services/get-police'
 import { PoliceTemplate } from '@/features/police/PoliceTemplate'
 import { PoliceSkeleton } from '@/features/police/components/police-skeleton'
-import { requireAccess } from '@/lib/auth'
+import { canWritePolice, requireAccess } from '@/lib/auth'
 import type { PoliceData } from '@/features/police/types'
 
 // Tracker sanctions « Police » — accordable via le droit `police` (policiers/managers).
@@ -23,10 +23,9 @@ export default async function PolicePage({
   // sur les chatteurs de LEURS modèles, admin/chatteur voient tout (cf. getPolice).
   const data = getPolice({ vue, day, month, callerId: profile.id, callerRole: profile.baseRole })
 
-  // Droit d'écriture (saisie avert./malus, édition malus) : admin, manager/sous-manager, ou
-  // le rôle fonctionnel `police` lui-même — un chatteur consulte en lecture seule. `requireAccess`
-  // a déjà vérifié la page pour un non-admin, donc `baseRole === 'police'` ici a forcément la page.
-  const canWrite = profile.role === 'admin' || profile.manager || profile.baseRole === 'police'
+  // Droit d'écriture (saisie, édition, suppression) : `canWritePolice` (lib/auth, SOURCE
+  // UNIQUE — miroir des gardes d'action et de la RLS). Un chatteur consulte en lecture seule.
+  const canWrite = canWritePolice(profile)
 
   return (
     <Suspense fallback={<PoliceSkeleton />}>

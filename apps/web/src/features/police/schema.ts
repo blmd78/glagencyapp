@@ -3,7 +3,10 @@ import { isDayInWindow } from '@/lib/periods'
 import { POLICE_ERRORS } from '@/lib/types/police-errors'
 import { SHIFTS } from './types'
 
-// Schémas Zod PARTAGÉS client (form RHF) ↔ serveur (actions safeParse) — source unique.
+// Briques Zod — les ENTRÉES d'action (serveur) les composent, et les schémas de FORM client
+// plus bas en DÉRIVENT (le form manipule le montant en TEXTE, il ne peut pas être le même
+// schéma ; mais chaque contrainte n'est écrite qu'UNE fois — l'audit 2026-08-06 en avait
+// trouvé trois copies de la borne de note et deux de la règle de montant).
 
 const errorKeyZ = z.enum(POLICE_ERRORS.map((e) => e.key) as [string, ...string[]])
 const shiftZ = z.enum(SHIFTS)
@@ -12,7 +15,10 @@ const shiftZ = z.enum(SHIFTS)
 const dayZ = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(isDayInWindow, 'Date hors de la période autorisée')
 const uuidZ = z.uuid()
 const amountEurZ = z.number().min(0).max(100_000)
+// Borne MIROIR du check SQL `police_entries_note_check` (0108).
 const noteZ = z.string().max(500).optional()
+/** Montant saisi en TEXTE par le form (virgule tolérée) : strictement positif. */
+const montantTexteValide = (v: string) => Number(v.replace(',', '.')) > 0
 
 // ── Entrées des Server Actions
 export const warningInput = z.object({
@@ -45,16 +51,16 @@ export const controlFormSchema = z.object({
   amount: z
     .string()
     .optional()
-    .refine((v) => !v?.trim() || Number(v.replace(',', '.')) > 0, {
+    .refine((v) => !v?.trim() || montantTexteValide(v), {
       message: 'Montant invalide (laisse vide pour un simple avertissement).',
     }),
-  note: z.string().max(500).optional(),
+  note: noteZ,
 })
 export type ControlForm = z.infer<typeof controlFormSchema>
 
 // ── Édition inline d'un malus (montant + note).
 export const malusEditFormSchema = z.object({
-  amount: z.string().refine((v) => Number(v.replace(',', '.')) > 0, 'Montant invalide (> 0).'),
-  note: z.string().max(500).optional(),
+  amount: z.string().refine(montantTexteValide, 'Montant invalide (> 0).'),
+  note: noteZ,
 })
 export type MalusEditForm = z.infer<typeof malusEditFormSchema>

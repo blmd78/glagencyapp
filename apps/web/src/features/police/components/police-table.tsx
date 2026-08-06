@@ -121,7 +121,7 @@ export function PoliceTable({
 }) {
   const columns = useMemo(() => buildColumns(isMonth, canWrite), [isMonth, canWrite])
   return (
-    <div className="flex flex-col gap-4">
+    <section className="flex flex-col gap-4">
       <h2 className="text-lg font-semibold tracking-tight">
         {isMonth ? 'Historique du mois' : 'Historique du jour'}
       </h2>
@@ -135,19 +135,18 @@ export function PoliceTable({
         getRowId={(e) => e.id}
         countLabel={(n) => `${n} sanction(s)`}
       />
-    </div>
+    </section>
   )
 }
 
 /** Bout de ligne (écrivains) : édition du malus + suppression — mêmes règles que 0106. */
 function RowActions({ e }: { e: PoliceEntry }) {
   const isMalus = e.kind === 'malus'
+  // Échec → l'erreur reste DANS le ConfirmDialog (retour string) — plus de toast doublon
+  // (l'audit a relevé le même message affiché deux fois). Succès → toast.
   const remove = async () => {
     const res = await deletePoliceEntry({ id: e.id })
-    if (!res.success) {
-      toast.error(res.error)
-      return res.error
-    }
+    if (!res.success) return res.error
     toast.success('Entrée supprimée')
   }
   return (
@@ -176,6 +175,8 @@ function RowActions({ e }: { e: PoliceEntry }) {
 /** Édition inline d'un malus (montant + note) — accès `police` en ÉCRITURE (gaté par
  *  `canWrite` via la colonne actions ; un chatteur est en lecture seule). */
 function MalusEdit({ e }: { e: PoliceEntry }) {
+  // 'use no memo' : formState de RHF est un Proxy à abonnement — mémoïsé par le React
+  // Compiler, isSubmitting/errors gèlent (règle projet, mémoire forms-zod-rhf).
   'use no memo'
   const [open, setOpen] = useState(false)
   const {
