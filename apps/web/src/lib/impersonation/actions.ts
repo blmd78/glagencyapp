@@ -1,7 +1,6 @@
 'use server'
 
 import { redirect } from 'next/navigation'
-import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { isImpersonatable } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
@@ -90,11 +89,9 @@ export async function startImpersonation(targetId: string): Promise<ActionResult
         throw new BusinessError('Impossible de démarrer la consultation')
       }
 
-      // (10) audit Sentry (jamais de token).
-      Sentry.captureMessage('impersonate:start', {
-        level: 'info',
-        extra: { actor_id: caller.id, target_id: id },
-      })
+      // (10) L'audit est la row `impersonation_sessions` posée en (7) — acteur, cible, emails,
+      // started_at. Plus de `captureMessage('impersonate:start')` : il dupliquait cette row et
+      // remplissait la liste des issues Sentry de faux positifs (2026-08-10).
     },
   })
 
