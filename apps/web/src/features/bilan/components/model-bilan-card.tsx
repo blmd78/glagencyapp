@@ -3,11 +3,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { num, eur, int, dec2 } from '@/lib/format'
+import { num, eur, int } from '@/lib/format'
 import type { ModelBilan } from '../types'
 
-/** Cellule de référence : le VRAI montant de la période (S-1/M-1), suivi de
- *  l'écart signé entre parenthèses (vert si ≥ 0, rouge sinon). « — » sans donnée. */
+/** Cellule de référence : le VRAI montant de la période (S-1/M-1), avec l'écart signé
+ *  entre parenthèses EN DESSOUS (vert si ≥ 0, rouge sinon). « — » sans donnée. */
 function RefCell({
   cur,
   refValue,
@@ -26,18 +26,27 @@ function RefCell({
     return <span className="text-right text-muted-foreground">—</span>
   }
   const d = cur != null ? cur - refValue : null
+  const amount = fmt(refValue)
+  const delta = d != null ? `(${d >= 0 ? '+' : '−'}${fmtDelta(Math.abs(d))})` : null
+  // Écart toujours SOUS le montant : colonnes étroites, jamais de débordement. Si un
+  // chiffre est quand même trop long il tronque en « … », le `title` natif montre la
+  // valeur entière au survol (pas de Tooltip Radix : la carte reste Server Component).
   return (
-    <span className="text-right tabular-nums whitespace-nowrap">
-      {fmt(refValue)}
-      {d != null && (
+    <span className="min-w-0 text-right tabular-nums">
+      <span className="block truncate" title={amount}>
+        {amount}
+      </span>
+      {delta != null && (
         <span
           className={cn(
-            'ml-1 font-medium',
-            d >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+            'block truncate font-medium',
+            d != null && d >= 0
+              ? 'text-green-600 dark:text-green-400'
+              : 'text-red-600 dark:text-red-400',
           )}
+          title={delta}
         >
-          ({d >= 0 ? '+' : '−'}
-          {fmtDelta(Math.abs(d))})
+          {delta}
         </span>
       )}
     </span>
@@ -49,18 +58,19 @@ const HEAD = 'text-right text-[10px] font-medium uppercase tracking-wide text-mu
 /**
  * Carte bilan d'un modèle : une grille UNIQUE alignée en colonnes
  * (Semaine · S-1 · M-1). Les colonnes de référence montrent le VRAI montant de la
- * période avec l'écart signé entre parenthèses — ex. « 20 936,45 € (+3 623,12) ».
+ * période avec l'écart signé entre parenthèses en dessous — ex. « 20 936,45 € » puis
+ * « (+3 623,12) ». Tracks en minmax(0,1fr) : les cellules peuvent tronquer (« … » +
+ * title au survol) au lieu de faire déborder la grille du cadre de la carte.
  */
 export function ModelBilanCard({ m }: { m: ModelBilan }) {
-  // Deltas MONÉTAIRES en `dec2` (2 décimales sans le glyphe €, déjà porté par le montant
-  // principal — le répéter dans la parenthèse doublerait le bruit) ; formateurs partagés
-  // de lib/format, jamais de `toLocaleString` par appel (formateur reconstruit à chaque fois).
+  // Deltas MONÉTAIRES en `eur` : l'écart vit sur sa propre ligne depuis 2026-08-15, il
+  // porte donc son unité (« (+2 901,37 €) ») — plus de dec2 sans glyphe ; formateurs
+  // partagés de lib/format, jamais de `toLocaleString` par appel (formateur reconstruit
+  // à chaque fois).
   const rows = [
     { label: 'Abonnés', cur: m.newSubs, prev: m.newSubsPrev, lm: m.newSubsLm, fmt: (v: number) => num(v), fmtDelta: int, zeroOk: false },
-    // Union du merge 2026-07-28 : la branche compta apporte eur/dec2 (centimes partout) sur
-    // CA net et LTV ; develop (f9250a8) apporte les écarts S1/Hors S1 en % — les deux tiennent.
-    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: dec2, zeroOk: false },
-    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur, fmtDelta: dec2, zeroOk: false },
+    { label: 'CA net', cur: m.ca, prev: m.caPrev, lm: m.caLm, fmt: eur, fmtDelta: eur, zeroOk: false },
+    { label: 'LTV', cur: m.ltv, prev: m.ltvPrev, lm: m.ltvLm, fmt: eur, fmtDelta: eur, zeroOk: false },
     // % du CA par sous-ensemble de scripts (valeurs ET écarts en %) — « — » tant que pas de
     // mesure. zeroOk : 0 % est une vraie mesure (ex. mono-script → tout vient du N°1,
     // « Hors S1 » = 0 ; et réciproquement). S1 + Hors S1 ≤ 100, le reste = hors scripts.
@@ -73,22 +83,25 @@ export function ModelBilanCard({ m }: { m: ModelBilan }) {
       <CardContent className="flex flex-col gap-3 px-4">
         <Badge className={modelColor(m.name)}>{m.name}</Badge>
 
-        <div className="grid grid-cols-[1fr_auto_auto_auto] items-baseline gap-x-4 gap-y-1.5 text-sm">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-x-4 gap-y-1.5 text-sm">
           <span />
           <span className={HEAD}>Semaine</span>
           <span className={HEAD}>S-1</span>
           <span className={HEAD}>M-1</span>
 
-          {rows.map((r) => (
-            <Fragment key={r.label}>
-              <span className="text-muted-foreground">{r.label}</span>
-              <span className="text-right font-semibold tabular-nums">
-                {r.cur != null && (r.cur > 0 || r.zeroOk) ? r.fmt(r.cur) : '—'}
-              </span>
-              <RefCell cur={r.cur} refValue={r.prev} fmt={r.fmt} fmtDelta={r.fmtDelta} zeroOk={r.zeroOk} />
-              <RefCell cur={r.cur} refValue={r.lm} fmt={r.fmt} fmtDelta={r.fmtDelta} zeroOk={r.zeroOk} />
-            </Fragment>
-          ))}
+          {rows.map((r) => {
+            const cur = r.cur != null && (r.cur > 0 || r.zeroOk) ? r.fmt(r.cur) : '—'
+            return (
+              <Fragment key={r.label}>
+                <span className="text-muted-foreground">{r.label}</span>
+                <span className="truncate text-right font-semibold tabular-nums" title={cur}>
+                  {cur}
+                </span>
+                <RefCell cur={r.cur} refValue={r.prev} fmt={r.fmt} fmtDelta={r.fmtDelta} zeroOk={r.zeroOk} />
+                <RefCell cur={r.cur} refValue={r.lm} fmt={r.fmt} fmtDelta={r.fmtDelta} zeroOk={r.zeroOk} />
+              </Fragment>
+            )
+          })}
         </div>
       </CardContent>
     </Card>
