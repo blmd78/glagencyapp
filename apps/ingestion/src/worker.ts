@@ -1,5 +1,4 @@
 import * as Sentry from '@sentry/cloudflare'
-import { login } from '@glagency/mypuls'
 import type { IngestRunSummary } from '@glagency/core'
 import { runPipeline } from './pipeline'
 import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
@@ -14,6 +13,7 @@ import {
   ingestFanTransactions,
   ingestOneModel,
 } from './spenders-core'
+import { loadCookie, refreshCookie } from './session'
 import { createAdminClient } from '@glagency/db'
 
 /**
@@ -69,8 +69,10 @@ const iso = (d: Date) => d.toISOString().slice(0, 10)
  * fois. Solution : cette invocation fait le léger (transactions de la veille via l'API
  * token) puis lance UNE mini-requête par modèle vers `?job=spenders&model=…` — chaque
  * mini-requête est une invocation séparée, avec son propre budget, qui scrape 1 modèle.
- * Pas de cookie partagé : chaque mini-invocation re-login (switch-creator est lié à la
- * session — un cookie partagé en parallèle ferait lire le mauvais modèle).
+ * Cookie PARTAGÉ (0109) : l'orchestrateur rafraîchit la session UNE fois en tête de run, les
+ * mini-invocations la lisent (loadCookie). Le fan-out étant SÉRIEL, un seul switch-creator est
+ * actif à la fois — pas de lecture croisée. (Avant 0109 : re-login par modèle, désormais
+ * impossible à cause du CAPTCHA.)
  */
 async function runSpendersOrchestrator(env: Bindings) {
   const startedAt = new Date()
@@ -78,6 +80,15 @@ async function runSpendersOrchestrator(env: Bindings) {
   const byMypulsId = await creatorMap(db)
   const yesterday = iso(new Date(Date.now() - 24 * 3600 * 1000))
   const warnings: string[] = []
+
+  // Auto-renouvellement de la session (remember-me glissant, 0109) EN TÊTE de run : réécrit
+  // un cookie frais en table, que les mini-invocations du fan-out liront (loadCookie) sans
+  // re-déclencher la rotation. Best-effort : un échec ici n'empêche pas les transactions API.
+  try {
+    await refreshCookie(db)
+  } catch (err) {
+    warnings.push(`refresh session: ${(err as Error).message}`)
+  }
 
   try {
     const tx = await ingestFanTransactions(db, byMypulsId, yesterday)
@@ -93,11 +104,10 @@ async function runSpendersOrchestrator(env: Bindings) {
   if (!self || !selfUrl || !triggerToken) {
     throw new Error('binding SELF / WORKER_SELF_URL / TRIGGER_TOKEN requis pour le fan-out spenders')
   }
-  // EN SÉRIE, PAS EN RAFALE : chaque mini-invocation fait SON login MyPuls — 16 logins
-  // simultanés déclenchent le rate-limit (429 « login refusé ») au-delà de ~10 (run du
-  // 2026-07-14 : 10/16). Lancement séquentiel espacé de 2 s, puis une SECONDE CHANCE
-  // après 15 s de pause pour les refusés (le rate-limit se relâche). Wall time ~2-5 min :
-  // sans enjeu pour une invocation cron ; le budget CPU/sous-requêtes ne change pas.
+  // EN SÉRIE, PAS EN RAFALE : les mini-invocations partagent une seule session (cookie 0109)
+  // et chacune fait un switch-creator — deux switch simultanés liraient le mauvais modèle.
+  // Lancement séquentiel espacé de 2 s, puis une SECONDE CHANCE après 15 s pour les refusés
+  // (aléa réseau/session). Wall time ~2-5 min : sans enjeu pour un cron ; budget inchangé.
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
   const scrape = async (mypulsId: string, creatorId: string) => {
     const r = await self.fetch(`${selfUrl}?job=spenders&model=${mypulsId}&creator=${creatorId}`, {
@@ -147,10 +157,13 @@ async function runSpendersOrchestrator(env: Bindings) {
   return { status, modelsOk: ok, total: byMypulsId.size, warnings }
 }
 
-/** Une mini-invocation : scrape UN modèle (login isolé → switch → chat/init → upsert). */
+/** Une mini-invocation : scrape UN modèle (cookie partagé → switch → chat/init → upsert).
+ *  Le cookie vient de la table (rafraîchi par l'orchestrateur en tête de run) — pas de
+ *  re-login/refresh ici : ré-auth via remember-me ferait tourner le token 17× et invaliderait
+ *  les invocations suivantes. On lit l'état courant, valide pour la durée du run (~min). */
 async function scrapeOneModel(mypulsId: string, creatorId: string): Promise<number> {
   const db = createAdminClient()
-  const { cookie } = await login()
+  const cookie = await loadCookie(db)
   const resolveChatter = await chatterResolver(db)
   return ingestOneModel(db, cookie, mypulsId, creatorId, resolveChatter)
 }
@@ -218,7 +231,16 @@ function bindEnv(env: Bindings): void {
 async function runAndRecord(triggeredBy: IngestTrigger, day?: string): Promise<IngestRunSummary> {
   const startedAt = new Date()
   try {
-    const summary = await runPipeline(day, DEPS)
+    // Session auto-renouvelée (0109) : refresh en tête → cookie frais injecté dans le
+    // pipeline (chatteurs money-team). Best-effort : sans cookie, le pipeline dégrade vers
+    // l'API /team/money comme avant (creator_daily partiel, chatteurs ignorés).
+    let cookie: string | undefined
+    try {
+      cookie = await refreshCookie(createAdminClient())
+    } catch (e) {
+      console.warn('[ingestion] refresh session échoué → fallback login():', (e as Error).message)
+    }
+    const summary = await runPipeline(day, { ...DEPS, cookie })
     console.log(`[ingestion] ${summary.status.toUpperCase()} (${triggeredBy})`, JSON.stringify(summary))
     if (summary.status === 'degraded') {
       Sentry.captureMessage(

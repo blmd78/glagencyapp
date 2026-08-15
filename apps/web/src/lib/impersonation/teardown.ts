@@ -112,10 +112,9 @@ export async function performStop(): Promise<void> {
     if (forged) await revokeForged(forged)
     await endRow(sid)
     await clearStateCookie()
-    Sentry.captureMessage('impersonate:stop', {
-      level: 'info',
-      extra: { actor_id: row.actorId },
-    })
+    // L'audit est la pose de `ended_at` par `endRow` ci-dessus (la row porte déjà acteur/cible/
+    // fenêtre). Plus de `captureMessage('impersonate:stop')` : redondant, et bruit dans la liste
+    // des issues Sentry (2026-08-10). Le fallback ci-dessous reste, lui — c'est une anomalie.
   } catch (e) {
     // Fallback fail-closed : tuer le forgé (best-effort) + logout total. Réservé aux vrais
     // échecs (row absente/panne, porteur ≠ cible, admin sans email, forge KO, acteur non-admin).

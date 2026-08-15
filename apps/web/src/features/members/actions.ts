@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, DENY_STAFF, type ActionResult } from '@/lib/actions'
 import { applyChatterLink } from '@/lib/chatter-link'
 import { readStateCookie } from '@/lib/impersonation/session'
 import {
@@ -59,7 +59,7 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       // Autorisation UNE SEULE FOIS (patron §4) — mêmes helpers gelés, mêmes messages et
       // même ordre de refus que l'ancien guard ; un refus = BusinessError (affiché tel quel).
       const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
+      if (!caller) throw new BusinessError(DENY_STAFF)
       const { scope, email, displayName, pages, creatorIds, workLink, closingRole, closingTeam, chatterId } =
         values
 
@@ -167,7 +167,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       // Même patron §4 que createMember : autorisation unique en tête de handler, mêmes
       // helpers gelés, même ordre de refus. `target.role` resservira pour la démotion.
       const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
+      if (!caller) throw new BusinessError(DENY_STAFF)
       const { scope, id, displayName, pages, creatorIds, workLink, managerIds, closingRole, closingTeam, chatterId } =
         values
 

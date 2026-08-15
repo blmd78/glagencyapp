@@ -16,6 +16,7 @@ import {
   noGuard,
   requirePageProfile,
   BusinessError,
+  DENY_WRITE,
   type ActionResult,
 } from '@/lib/actions'
 import { archiveInput, relanceInput, setCompteurInput, spendersPageInput, targetInput } from './schema'
@@ -32,7 +33,7 @@ const SPENDERS_PATH = '/chatter/spenders'
 // (0060). Miroir de la RLS can_write_page('crm-spenders').
 async function crmWriteGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
   const profile = await getProfile()
-  return hasWriteAccess(profile, 'crm-spenders') ? { ok: true } : { ok: false, error: 'Accès refusé' }
+  return hasWriteAccess(profile, 'crm-spenders') ? { ok: true } : { ok: false, error: DENY_WRITE }
 }
 
 /**

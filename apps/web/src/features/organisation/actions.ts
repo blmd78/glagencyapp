@@ -21,6 +21,7 @@ import {
   noGuard,
   requireAdminProfile,
   requireWriteProfile,
+  DENY_WRITE,
   type ActionResult,
 } from '@/lib/actions'
 
@@ -60,7 +61,7 @@ export async function saveOrgCell(raw: unknown): Promise<ActionResult> {
         p_previous_ids: values.previousIds,
       })
       if (error) {
-        if (error.message.includes('org_acces_refuse')) throw new BusinessError('Accès refusé')
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError(DENY_WRITE)
         throw new Error(error.message)
       }
       revalidatePath('/chatter/organisation')
@@ -112,7 +113,7 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
       if (error) {
         if (error.message.includes('org_porteur_invalide'))
           throw new BusinessError('Le porteur d’une ligne doit être un encadrant')
-        if (error.message.includes('org_acces_refuse')) throw new BusinessError('Accès refusé')
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError(DENY_WRITE)
         throw new Error(error.message)
       }
       revalidatePath('/chatter/organisation')
@@ -181,7 +182,7 @@ export async function moveOrgTeam(raw: unknown): Promise<ActionResult> {
           throw new BusinessError('La ligne n’a pas de sous-manager à déplacer')
         if (error.message.includes('org_cible_invalide'))
           throw new BusinessError('La cible doit être un manager ou un admin')
-        if (error.message.includes('org_acces_refuse')) throw new BusinessError('Accès refusé')
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError(DENY_WRITE)
         throw new Error(error.message)
       }
       revalidatePath('/chatter/organisation')

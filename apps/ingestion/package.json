@@ -7,6 +7,8 @@
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
     "capture": "tsx src/capture.ts",
+    "check-session": "tsx src/check-session.ts",
+    "backfill-scripts": "tsx src/backfill-scripts.ts",
     "spenders": "tsx src/spenders.ts",
     "cf:dev": "wrangler dev --test-scheduled --port 8799",
     "deploy": "wrangler deploy",

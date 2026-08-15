@@ -24,16 +24,32 @@ export const cookieHeader = (jar: Record<string, string>) =>
     .join('; ')
 
 /**
- * Login MyPuls (formulaire Symfony) : GET /login → `_csrf_token` + cookie session,
- * POST /login (Content-Type urlencoded obligatoire, sinon le body n'est pas parsé) →
- * cookies authentifiés (PHPSESSID + REMEMBERME). Identifiants via env.
+ * Ouvre une session MyPuls.
+ *
+ * Depuis ~2026-08-12, MyPuls protège `/login` par un CAPTCHA Cloudflare Turnstile : le
+ * login automatisé par mot de passe est refusé (POST → 302 `/login`, aucun cookie posé).
+ * Voie prévue désormais : un cookie de session obtenu par un login HUMAIN (qui résout le
+ * Turnstile), injecté via le secret `MYPULS_SESSION_COOKIE` (« PHPSESSID=…; REMEMBERME=… »).
+ * Présent → on l'utilise tel quel, aucun POST. À renouveler quand la session expire
+ * (REMEMBERME ≈ 30 jours) ; `verifySession()` teste sa validité.
+ *
+ * Fallback (conservé) : formulaire Symfony GET /login → `_csrf_token` + cookie session,
+ * POST /login (Content-Type urlencoded obligatoire) → PHPSESSID + REMEMBERME. Ne marche
+ * que sur un environnement sans Turnstile — sinon il lève l'erreur « login refusé ».
  */
 export async function login(): Promise<MyPulsClient> {
+  const apiToken = process.env.MYPULS_API_KEY ?? ''
+
+  // Cookie de session injecté (login humain) : chemin nominal tant que le CAPTCHA est là.
+  const injected = process.env.MYPULS_SESSION_COOKIE?.trim()
+  if (injected) return { cookie: injected, apiToken }
+
   const email = process.env.MYPULS_EMAIL
   const password = process.env.MYPULS_PASSWORD
-  const apiToken = process.env.MYPULS_API_KEY ?? ''
   if (!email || !password) {
-    throw new Error('MYPULS_EMAIL / MYPULS_PASSWORD manquants (cf. .env.example)')
+    throw new Error(
+      'Session MyPuls indisponible : poser MYPULS_SESSION_COOKIE (login CAPTCHA) ou, à défaut, MYPULS_EMAIL/MYPULS_PASSWORD (cf. .env.example).',
+    )
   }
 
   const r1 = await fetch(`${BASE_URL}/login`, { headers: { 'User-Agent': UA, Accept: 'text/html' } })
@@ -62,9 +78,72 @@ export async function login(): Promise<MyPulsClient> {
   })
   Object.assign(jar, parseSetCookies(r2.headers.getSetCookie()))
   const location = r2.headers.get('location') ?? ''
-  // Succès attendu = redirection (302) hors /login. Un 200 (re-render) = échec.
+  // Succès attendu = redirection (302) hors /login. Un 200 (re-render) OU un 302 vers
+  // /login = échec — depuis le CAPTCHA Turnstile, c'est le cas systématique (cf. login()).
   if (!location || location.includes('/login')) {
-    throw new Error(`login refusé (status ${r2.status}) — vérifier MYPULS_EMAIL/MYPULS_PASSWORD`)
+    throw new Error(
+      `login refusé (status ${r2.status}) — MyPuls exige un CAPTCHA au login : fournir un cookie de session via MYPULS_SESSION_COOKIE (cf. apps/ingestion/README-cron.md).`,
+    )
   }
   return { cookie: cookieHeader(jar), apiToken }
+}
+
+/**
+ * Teste une session sans rien écrire : GET /dashboard suivi. 200 (pas de retombée /login)
+ * = cookie valide ; sinon session morte. Sert à valider `MYPULS_SESSION_COOKIE` avant de le
+ * poser en secret / avant un run. N'est PAS appelée par login() (coûterait +1 sous-requête
+ * par mini-invocation du fan-out, hors budget Worker Free).
+ */
+export async function verifySession(cookie: string): Promise<boolean> {
+  const res = await fetch(`${BASE_URL}/dashboard`, {
+    redirect: 'manual',
+    headers: { Cookie: cookie, 'User-Agent': UA, Accept: 'text/html' },
+  })
+  const loc = res.headers.get('location') ?? ''
+  return res.status === 200 && !loc.includes('/login')
+}
+
+/** Extrait la valeur d'un cookie nommé dans un header Cookie (« a=1; b=2 »). */
+export function readCookie(header: string, name: string): string | null {
+  const m = new RegExp(`(?:^|;\\s*)${name}=([^;]+)`).exec(header)
+  return m?.[1] ?? null
+}
+
+/** Expiration (epoch s) encodée dans un token remember-me Symfony « …:<uid>:<exp>:<hmac> ». */
+export function rememberMeExpiry(remember: string): number | null {
+  const parts = decodeURIComponent(remember).split(':')
+  const exp = parts[2] ? Number(parts[2]) : NaN
+  return Number.isFinite(exp) ? exp : null
+}
+
+/**
+ * Ré-authentifie via le cookie « remember me » SEUL (sans PHPSESSID) et renvoie un cookie
+ * FRAIS. MyPuls (Symfony, stratégie token glissante) répond alors avec un nouveau PHPSESSID
+ * ET un REMEMBERME réémis dont l'expiration est repoussée de 7 jours — c'est le mécanisme
+ * d'auto-renouvellement (cf. migration 0109 / apps/ingestion/src/session.ts). Le REMEMBERME
+ * fourni doit venir du dernier cookie stocké ; on le passe seul pour DÉCLENCHER le flow
+ * remember-me (un PHPSESSID valide court-circuiterait la réémission).
+ *
+ * @returns cookie complet à ré-utiliser + stocker, et l'expiration du nouveau REMEMBERME.
+ * @throws si la ré-auth échoue (REMEMBERME expiré/invalide → retombe sur /login).
+ */
+export async function rememberMeLogin(remember: string): Promise<{ cookie: string; rememberExpiry: number | null }> {
+  const res = await fetch(`${BASE_URL}/dashboard`, {
+    redirect: 'manual',
+    headers: { Cookie: `REMEMBERME=${remember}`, 'User-Agent': UA, Accept: 'text/html' },
+  })
+  const loc = res.headers.get('location') ?? ''
+  if (res.status !== 200 || loc.includes('/login')) {
+    throw new Error('remember-me refusé — REMEMBERME expiré/invalide, refournir MYPULS_SESSION_COOKIE.')
+  }
+  const jar = parseSetCookies(res.headers.getSetCookie())
+  // REMEMBERME réémis si présent, sinon on conserve l'ancien (encore valide). Idem PHPSESSID :
+  // MyPuls en renvoie toujours un neuf ici, mais on garde un filet si ce n'était pas le cas.
+  const freshRemember = jar['REMEMBERME'] ?? remember
+  const phpsessid = jar['PHPSESSID']
+  if (!phpsessid) throw new Error('remember-me : aucun PHPSESSID réémis (réponse inattendue)')
+  return {
+    cookie: `PHPSESSID=${phpsessid}; REMEMBERME=${freshRemember}`,
+    rememberExpiry: rememberMeExpiry(freshRemember),
+  }
 }

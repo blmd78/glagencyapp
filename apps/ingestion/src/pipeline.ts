@@ -26,6 +26,11 @@ export interface PipelineDeps {
    * rattrapage étant auto-cicatrisant nuit après nuit, un cap bas se résorbe seul.
    */
   maxCatchup?: number
+  /**
+   * Cookie de session MyPuls déjà obtenu (worker : `refreshCookie()`, auto-renouvelé, 0109).
+   * Fourni → on ne re-login pas ici. Absent → fallback `login()` (cookie env / mot de passe).
+   */
+  cookie?: string
 }
 
 /**
@@ -373,12 +378,15 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
 
   // Session web pour l'attribution par chatteur (dashboard money-team). Optionnelle :
   // si le login échoue, on ingère quand même creator_daily (API) sans casser le run.
-  let cookie: string | null = null
-  try {
-    cookie = (await login()).cookie
-  } catch (e) {
-    warnings.push(`login money-team échoué → chatteurs ignorés : ${(e as Error).message}`)
-    console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
+  // Cookie injecté (worker auto-renouvelé) prioritaire ; sinon fallback login().
+  let cookie: string | null = deps.cookie ?? null
+  if (!cookie) {
+    try {
+      cookie = (await login()).cookie
+    } catch (e) {
+      warnings.push(`login money-team échoué → chatteurs ignorés : ${(e as Error).message}`)
+      console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
+    }
   }
   // Ces deux selects sont le SOCLE de la résolution d'identité : un échec silencieux
   // donnerait des maps vides → duplication massive + re-pointage des alias. On THROW.

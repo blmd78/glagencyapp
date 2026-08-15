@@ -56,7 +56,9 @@ head_sampling_rate = 1
 # --- Secrets à injecter AVANT le 1er run (jamais dans ce fichier ni dans git) ---
 #   wrangler secret put SUPABASE_URL
 #   wrangler secret put SUPABASE_SECRET_KEY
-#   wrangler secret put MYPULS_EMAIL
+#   wrangler secret put MYPULS_SESSION_COOKIE  # « PHPSESSID=…; REMEMBERME=… » d'un login humain
+#                                              # (CAPTCHA Turnstile depuis ~2026-08-12) — à renouveler ~mensuellement
+#   wrangler secret put MYPULS_EMAIL           # fallback historique (KO tant que le CAPTCHA est là)
 #   wrangler secret put MYPULS_PASSWORD
 #   wrangler secret put MYPULS_API_KEY
 #   wrangler secret put TRIGGER_TOKEN   # optionnel : autorise le déclenchement manuel par HTTP

@@ -7,6 +7,27 @@ métier (`src/pipeline.ts` `runPipeline()`) :
 - `src/worker.ts` — **Cloudflare Worker** (Cron Trigger) = **mécanisme de prod ACTIF**.
   Utilise le parser money-team **HTMLRewriter** (cf. plus bas), secrets en bindings.
 
+## ⚠️ Auth MyPuls : cookie de session (CAPTCHA depuis ~2026-08-12)
+
+MyPuls a mis un **CAPTCHA Cloudflare Turnstile** sur `/login` : le login par
+`MYPULS_EMAIL`/`MYPULS_PASSWORD` est **refusé** (302 → `/login`). Symptôme observé : run
+`degraded`, `0/17` modèles spenders, et surtout **plus aucune donnée `chatter_*` ni
+dashboard (`new_subs`/`subs_active`)** — seules `fan_transactions` (API token) restent à jour.
+
+**Voie d'auth actuelle = un cookie de session ouvert À LA MAIN** (secret `MYPULS_SESSION_COOKIE`,
+lu par `login()` avant tout POST). Le fan-out spenders réutilise ce cookie unique (séquentiel →
+pas de collision `switch-creator`, et plus de rate-limit sur les re-logins).
+
+**Récupérer / poser le cookie :**
+1. Se connecter sur `https://mypuls.app` dans le navigateur (résoudre le Turnstile).
+2. DevTools → Application → Cookies → `mypuls.app` : copier `PHPSESSID` **et** `REMEMBERME`.
+3. `.env` local : `MYPULS_SESSION_COOKIE="PHPSESSID=…; REMEMBERME=…"`.
+4. Valider : `pnpm --filter @glagency/ingestion check-session` → doit dire « Session VALIDE ».
+5. Worker : `pnpm exec wrangler secret put MYPULS_SESSION_COOKIE` (coller la même valeur).
+
+**À renouveler** quand `check-session` repasse « INVALIDE » (REMEMBERME ≈ 30 j). Migration
+API officielle = solution durable à terme (l'API v1 token, elle, n'est pas derrière le CAPTCHA).
+
 ## Ce que fait un run (par jour)
 1. **`creator_daily`** — **dashboard prioritaire** : `dashboard/stats` (CA complet ventilé :
    tips/abo/ppv/mod/renew/push/affiliation/live) + `dashboard/subscriptions`
@@ -45,7 +66,8 @@ Secrets (une fois, jamais dans git ; déjà posés) :
 ```bash
 pnpm exec wrangler secret put SUPABASE_URL          # https://<ref>.supabase.co
 pnpm exec wrangler secret put SUPABASE_SECRET_KEY   # clé service-role (BYPASS RLS)
-pnpm exec wrangler secret put MYPULS_EMAIL
+pnpm exec wrangler secret put MYPULS_SESSION_COOKIE # « PHPSESSID=…; REMEMBERME=… » (login humain, CAPTCHA)
+pnpm exec wrangler secret put MYPULS_EMAIL          # fallback historique (KO tant que le CAPTCHA est là)
 pnpm exec wrangler secret put MYPULS_PASSWORD
 pnpm exec wrangler secret put MYPULS_API_KEY
 pnpm exec wrangler secret put TRIGGER_TOKEN         # protège le déclenchement HTTP manuel
