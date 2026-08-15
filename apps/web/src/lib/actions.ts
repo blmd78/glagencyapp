@@ -76,10 +76,18 @@ export async function runAction<S extends z.ZodType, T = void>(opts: {
   }
 }
 
+// Messages de refus — dire POURQUOI le refus (un « Accès refusé » nu envoyait l'utilisateur
+// demander à l'admin sans comprendre). Trois causes distinctes selon le garde qui bloque.
+export const DENY_ADMIN = 'Action réservée aux administrateurs.'
+export const DENY_PAGE = 'Cette section ne t’est pas attribuée — demande à un admin.'
+export const DENY_WRITE = 'Modification réservée aux encadrants de cette section.'
+/** Appelant qui n'est pas un encadrant (manager/admin) sur une action qui l'exige. */
+export const DENY_STAFF = 'Action réservée aux encadrants.'
+
 /** Garde « admin uniquement » pour runAction — remplace les 11 redéclarations locales. */
 export async function adminGuard(): Promise<{ ok: true } | { ok: false; error: string }> {
   const profile = await getProfile()
-  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: 'Accès refusé' }
+  return profile?.role === 'admin' ? { ok: true } : { ok: false, error: DENY_ADMIN }
 }
 
 /** Garde « admin OU page autorisée » pour runAction (LECTURE / actions ouvertes au chatteur). */
@@ -88,7 +96,7 @@ export function pageGuard(slug: PageSlug) {
     const profile = await getProfile()
     return profile && (profile.role === 'admin' || profile.pages.includes(slug))
       ? { ok: true }
-      : { ok: false, error: 'Accès refusé' }
+      : { ok: false, error: DENY_PAGE }
   }
 }
 
@@ -97,7 +105,7 @@ export function pageGuard(slug: PageSlug) {
 export function managerPageGuard(slug: PageSlug) {
   return async (): Promise<{ ok: true } | { ok: false; error: string }> => {
     const profile = await getProfile()
-    return hasWriteAccess(profile, slug) ? { ok: true } : { ok: false, error: 'Accès refusé' }
+    return hasWriteAccess(profile, slug) ? { ok: true } : { ok: false, error: DENY_WRITE }
   }
 }
 
@@ -114,7 +122,7 @@ export const noGuard = async () => ({ ok: true as const })
  */
 export async function requireAdminProfile(): Promise<Profile> {
   const profile = await getProfile()
-  if (profile?.role !== 'admin') throw new BusinessError('Accès refusé')
+  if (profile?.role !== 'admin') throw new BusinessError(DENY_ADMIN)
   return profile
 }
 
@@ -122,13 +130,13 @@ export async function requireAdminProfile(): Promise<Profile> {
  *  `can_write_page`) — même logique et même message que `requireAdminProfile`. */
 export async function requireWriteProfile(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
-  if (!hasWriteAccess(profile, slug)) throw new BusinessError('Accès refusé')
+  if (!hasWriteAccess(profile, slug)) throw new BusinessError(DENY_WRITE)
   return profile
 }
 
 /** Jumeau de `pageGuard` côté HANDLER (LECTURE / actions ouvertes au chatteur). */
 export async function requirePageProfile(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
-  if (!hasPageAccess(profile, slug)) throw new BusinessError('Accès refusé')
+  if (!hasPageAccess(profile, slug)) throw new BusinessError(DENY_PAGE)
   return profile
 }

@@ -17,6 +17,7 @@ import {
   requireAdminProfile,
   requirePageProfile,
   requireWriteProfile,
+  DENY_WRITE,
   type ActionResult,
 } from '@/lib/actions'
 import { hasWriteAccess } from '@/lib/auth'
@@ -50,7 +51,7 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
       const autorise = isEncadrementCol(col)
         ? profile.role === 'admin' || encadrementRight(profile.baseRole, col) !== 'non'
         : hasWriteAccess(profile, 'repos')
-      if (!autorise) throw new BusinessError('Accès refusé')
+      if (!autorise) throw new BusinessError(DENY_WRITE)
 
       const supabase = await createClient()
       const { error } = await supabase.rpc('save_repos_cell', {
@@ -66,7 +67,7 @@ export async function saveReposCell(raw: unknown): Promise<ActionResult> {
         if (error.message.includes('repos_hors_equipe'))
           throw new BusinessError('Tu ne peux modifier que les repos des chatters de ton équipe')
         if (error.message.includes('repos_colonne_encadrement') || error.message.includes('repos_acces_refuse'))
-          throw new BusinessError('Accès refusé')
+          throw new BusinessError(DENY_WRITE)
         throw new Error(error.message)
       }
       revalidatePath('/chatter/repos')
@@ -125,7 +126,7 @@ export async function copyReposWeek(raw: unknown): Promise<ActionResult<number>>
       if (error) {
         if (error.message.includes('repos_semaine_non_vide'))
           throw new BusinessError('Cette semaine contient déjà des repos — rien n’a été écrasé')
-        if (error.message.includes('repos_acces_refuse')) throw new BusinessError('Accès refusé')
+        if (error.message.includes('repos_acces_refuse')) throw new BusinessError(DENY_WRITE)
         throw new Error(error.message)
       }
       revalidatePath('/chatter/repos')

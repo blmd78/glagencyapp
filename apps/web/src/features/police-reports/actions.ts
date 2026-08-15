@@ -5,14 +5,14 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { canWritePolice, getProfile, type Profile } from '@/lib/auth'
 import { getCreatorScope } from '@/lib/services/creator-scope'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, DENY_WRITE, type ActionResult } from '@/lib/actions'
 import { reportInput, deleteReportInput } from './schema'
 
 /** Contrôle d'écriture Police — `canWritePolice` (lib/auth, SOURCE UNIQUE, miroir RLS 0078) ;
  *  même garde que le Tracker (l'audit 2026-08-06 en a trouvé quatre copies manuscrites). */
 async function requireReporter(): Promise<Profile> {
   const profile = await getProfile()
-  if (!canWritePolice(profile)) throw new BusinessError('Accès refusé')
+  if (!canWritePolice(profile)) throw new BusinessError(DENY_WRITE)
   return profile
 }
 

@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, BusinessError, DENY_STAFF, type ActionResult } from '@/lib/actions'
 import { readStateCookie } from '@/lib/impersonation/session'
 import { requireCaller, requireEditableTarget } from './authz'
 import { getMemberEvents } from './services/get-member-events'
@@ -42,7 +42,7 @@ export async function loadMemberEvents(raw: unknown): Promise<ActionResult<Membe
     guard: noGuard,
     handler: async ({ profileId }) => {
       const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
+      if (!caller) throw new BusinessError(DENY_STAFF)
       return getMemberEvents({ profileId })
     },
   })
@@ -73,7 +73,7 @@ export async function recordDeparture(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (values) => {
       const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
+      if (!caller) throw new BusinessError(DENY_STAFF)
       const admin = createAdminClient()
       const target = await requireEditableTarget(admin, values.id, caller)
       if ('error' in target) throw new BusinessError(target.error)
@@ -118,7 +118,7 @@ export async function reactivateMember(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (id) => {
       const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
+      if (!caller) throw new BusinessError(DENY_STAFF)
       const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
       if ('error' in target) throw new BusinessError(target.error)
@@ -150,7 +150,7 @@ export async function deleteMember(raw: unknown): Promise<ActionResult> {
     handler: async (id) => {
       // Même patron §4 : autorisation unique en tête de handler.
       const caller = await requireCaller()
-      if (!caller) throw new BusinessError('Accès refusé')
+      if (!caller) throw new BusinessError(DENY_STAFF)
       const admin = createAdminClient()
       // Manager : requireEditableTarget borne la suppression à SES chatters (rôle user).
       const target = await requireEditableTarget(admin, id, caller)
