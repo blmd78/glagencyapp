@@ -102,3 +102,48 @@ export async function verifySession(cookie: string): Promise<boolean> {
   const loc = res.headers.get('location') ?? ''
   return res.status === 200 && !loc.includes('/login')
 }
+
+/** Extrait la valeur d'un cookie nommé dans un header Cookie (« a=1; b=2 »). */
+export function readCookie(header: string, name: string): string | null {
+  const m = new RegExp(`(?:^|;\\s*)${name}=([^;]+)`).exec(header)
+  return m?.[1] ?? null
+}
+
+/** Expiration (epoch s) encodée dans un token remember-me Symfony « …:<uid>:<exp>:<hmac> ». */
+export function rememberMeExpiry(remember: string): number | null {
+  const parts = decodeURIComponent(remember).split(':')
+  const exp = parts[2] ? Number(parts[2]) : NaN
+  return Number.isFinite(exp) ? exp : null
+}
+
+/**
+ * Ré-authentifie via le cookie « remember me » SEUL (sans PHPSESSID) et renvoie un cookie
+ * FRAIS. MyPuls (Symfony, stratégie token glissante) répond alors avec un nouveau PHPSESSID
+ * ET un REMEMBERME réémis dont l'expiration est repoussée de 7 jours — c'est le mécanisme
+ * d'auto-renouvellement (cf. migration 0109 / apps/ingestion/src/session.ts). Le REMEMBERME
+ * fourni doit venir du dernier cookie stocké ; on le passe seul pour DÉCLENCHER le flow
+ * remember-me (un PHPSESSID valide court-circuiterait la réémission).
+ *
+ * @returns cookie complet à ré-utiliser + stocker, et l'expiration du nouveau REMEMBERME.
+ * @throws si la ré-auth échoue (REMEMBERME expiré/invalide → retombe sur /login).
+ */
+export async function rememberMeLogin(remember: string): Promise<{ cookie: string; rememberExpiry: number | null }> {
+  const res = await fetch(`${BASE_URL}/dashboard`, {
+    redirect: 'manual',
+    headers: { Cookie: `REMEMBERME=${remember}`, 'User-Agent': UA, Accept: 'text/html' },
+  })
+  const loc = res.headers.get('location') ?? ''
+  if (res.status !== 200 || loc.includes('/login')) {
+    throw new Error('remember-me refusé — REMEMBERME expiré/invalide, refournir MYPULS_SESSION_COOKIE.')
+  }
+  const jar = parseSetCookies(res.headers.getSetCookie())
+  // REMEMBERME réémis si présent, sinon on conserve l'ancien (encore valide). Idem PHPSESSID :
+  // MyPuls en renvoie toujours un neuf ici, mais on garde un filet si ce n'était pas le cas.
+  const freshRemember = jar['REMEMBERME'] ?? remember
+  const phpsessid = jar['PHPSESSID']
+  if (!phpsessid) throw new Error('remember-me : aucun PHPSESSID réémis (réponse inattendue)')
+  return {
+    cookie: `PHPSESSID=${phpsessid}; REMEMBERME=${freshRemember}`,
+    rememberExpiry: rememberMeExpiry(freshRemember),
+  }
+}
