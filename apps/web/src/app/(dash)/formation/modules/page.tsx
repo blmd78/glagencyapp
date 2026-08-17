@@ -1,18 +1,25 @@
+import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
+import { getModules } from '@/features/training-modules/services/get-modules'
+import { ModulesTemplate } from '@/features/training-modules/ModulesTemplate'
+import { ModulesSkeleton } from '@/features/training-modules/components/modules-skeleton'
+import { SectionFallback } from '@/components/skeletons/route-loading'
+import type { ModuleSummary } from '@/features/training-modules/types'
 
-// Placeholder — route nécessaire pour les liens typés (typedRoutes). Remplacée par la
-// feature Catalogue (tâches suivantes).
+/** Modules de formation — ouverts au droit Entraînement OU Suivi (miroir de `NavItem.anyOf`). */
 export default async function ModulesPage() {
   await requireAccess(['frm-entrainement', 'frm-suivi'])
+  const modules = getModules()
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Modules</h1>
-        <p className="text-sm text-muted-foreground">Cours et cas d’entraînement</p>
-      </div>
-      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-        Modules — arrive avec l’incrément Catalogue.
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Modules</h1>
+      <Suspense fallback={<SectionFallback><ModulesSkeleton /></SectionFallback>}>
+        <ModulesContent modules={modules} />
+      </Suspense>
     </div>
   )
+}
+
+async function ModulesContent({ modules }: { modules: Promise<ModuleSummary[]> }) {
+  return <ModulesTemplate modules={await modules} />
 }

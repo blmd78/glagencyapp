@@ -1,5 +1,10 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { RouteLoading } from '@/components/skeletons/route-loading'
+import { ModulesSkeleton } from '@/features/training-modules/components/modules-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return (
+    <RouteLoading title="h-7 w-32">
+      <ModulesSkeleton />
+    </RouteLoading>
+  )
 }
