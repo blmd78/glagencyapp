@@ -39,7 +39,7 @@ Livrables, dans l'ordre (chacun mergeable) :
 1. **Schéma** : tables du catalogue, RLS, index — migration `0113`.
 2. **Seed** : reprise de **tout** le contenu GLA (7 modules, 10 sections, **85 cas** = 79 solo
    + 5 défis simultanés + 1 boss final, messages d'ouverture, axes de barème, 25 créneaux
-   de défi, 5 fans du boss) — migration `0114`, générée par un script.
+   de défi, 5 fans du boss) — migration `0115`, générée par un script.
 3. **Onglet admin « Catalogue »** (`/formation/catalogue`) : lister / créer / éditer /
    ordonner / activer-désactiver modules, sections, axes, cas (des 3 sortes), messages
    d'ouverture, créneaux de défi, fans du boss.
@@ -225,7 +225,7 @@ Les lignes **inactives** restent lisibles par la RLS ; le **filtrage `active`** 
 dans les services de lecture chatter (une page Modules ne montre que l'actif), le
 Catalogue admin voit tout.
 
-## 4. Seed (migration `0114_training_catalog_seed.sql`)
+## 4. Seed (migration `0115_training_catalog_seed.sql`)
 
 Généré par `packages/db/scripts/gen-training-seed.mjs <chemin/formation.json>` (stdout →
 fichier de migration ; script commité, ré-exécutable, **jamais** appelé en prod — la
@@ -358,9 +358,11 @@ app/(dash)/formation/modules/[code]/page.tsx   idem ; notFound() si code inconnu
 - `revalidatePath('/formation/catalogue')`, `/formation/modules` (+ `[code]`) après mutation.
 
 **Écart tranché à l'implémentation** : pas de minimum d'axes (le Boss final GLA n'en a aucun —
-notation par étape) ; `saveModule`/`saveCase` (id null = création) ; item Modules en `anyOf`
-sans `slug` (+ `choiceLabel`) ; migration 0114 = index `updated_by` ajoutée en revue (Task 1),
-seed reporté en 0115 (renumérotation, cf. plan).
+notation par étape) ; 24 axes (comptage réel, pas ~30) ; `saveModule`/`saveCase` (id null =
+création) ; sur `saveCase` en édition, les enfants (messages / créneaux / fans) sont
+remplacés en bloc (rien ne les référence encore ; les sessions stockeront un instantané) ;
+item Modules en `anyOf` sans `slug` (+ `choiceLabel`) ; migration 0114 = index `updated_by`
+ajoutée en revue (Task 1), seed reporté en 0115 (renumérotation, cf. plan).
 
 ## 8. Tests
 
@@ -375,8 +377,9 @@ seed reporté en 0115 (renumérotation, cf. plan).
 
 ## 9. Découpage en PRs (détail dans le plan)
 
-1. `0113` schéma + RLS + types générés + slugs (`frm-entrainement`/`frm-suivi`, `anyOf`).
-2. Script de seed + `0114` (revue du Markdown des 6 cours).
+1. `0113` schéma + RLS + types générés + slugs (`frm-entrainement`/`frm-suivi`, `anyOf`)
+   + `0114` index `updated_by` (revue).
+2. Script de seed + `0115` (revue du Markdown des 6 cours).
 3. Catalogue admin — lecture (Template, liste modules, table cas, squelettes, route).
 4. Catalogue admin — écriture modules (dialog + actions + reorder/toggle).
 5. Catalogue admin — écriture cas (dialog des 3 sortes + messages / créneaux / fans + actions
