@@ -8,7 +8,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS, type CrmRole, type CrmShift, type CrmTeam } from '@/lib/types/chatters'
+import {
+  CRM_ROLES,
+  CRM_SHIFTS,
+  CRM_TEAMS,
+  SHIFT_LABEL,
+  type CrmRole,
+  type CrmShift,
+  type CrmTeam,
+} from '@/lib/types/chatters'
 import type { MemberForm } from '../schema'
 
 // QUATRE entrées depuis le 2026-07-28 : `profiles.closing_role` accepte `hybride` et `nouveau`
@@ -23,14 +31,16 @@ const ROLE_LABEL: Record<CrmRole, string> = {
   nouveau: 'Nouveau',
 }
 const TEAM_LABEL: Record<CrmTeam, string> = { rouge: 'Rouge', bleue: 'Bleue' }
-const SHIFT_LABEL: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
 
 /**
  * Désignation « closing » d'un chatteur : rôle (setter/closer/hybride/nouveau), équipe
- * (rouge/bleue) et SHIFT — tous trois portés par le MEMBRE (0077 pour le closing, 0100 pour le
- * shift, qui vivait jusque-là sur la fiche MyPuls). Masquée pour les autres rôles — le serveur
- * force null. Sentinelle 'none' ↔ null car Radix interdit value="" sur un item (même patron que
- * le rattachement manager).
+ * (rouge/bleue) et SHIFT PRINCIPAL — tous trois portés par le MEMBRE (0077 pour le closing, 0100
+ * pour le shift, qui vivait jusque-là sur la fiche MyPuls). Depuis 0110 le shift ici est le
+ * PRINCIPAL de la personne ; ses PLACEMENTS sur le board (plusieurs créneaux, par modèle) se
+ * composent dans Organisation et ne bougent pas quand on change le principal — tout placement sur
+ * un autre créneau y apparaît en heure sup. Masquée pour les autres rôles — le serveur force null.
+ * Sentinelle 'none' ↔ null car Radix interdit value="" sur un item (même patron que le
+ * rattachement manager).
  *
  * Les trois champs sont ouverts à tout éditeur du membre (admin ou encadrant) : aucun ne dépend
  * plus d'une table admin-only, donc aucun ne risque plus l'effacement silencieux qui imposait
@@ -111,7 +121,7 @@ export function MemberClosingFields({
         render={({ field }) => (
           <div className="grid gap-1.5">
             <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Shift
+              Shift principal
             </label>
             <Select
               value={field.value ?? 'none'}

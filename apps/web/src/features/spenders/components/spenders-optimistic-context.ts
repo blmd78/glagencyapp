@@ -33,7 +33,16 @@ export function applyPatch(rows: SpenderRow[], patch: SpenderPatch): SpenderRow[
     switch (patch.type) {
       case 'relance':
         // conversionPending:false : le RPC le calcule sur last_message_at > derniere_relance_at.
-        return { ...s, compteurR: s.compteurR + 1, grise: true, derniereRelanceAt: patch.at, conversionPending: false }
+        // derniereRelancePar:null : l'auteur (= le viewer) arrive avec la réponse serveur ; on
+        // efface l'ancien nom plutôt que d'afficher « ✓ fait · par <quelqu'un d'hier> » entre-temps.
+        return {
+          ...s,
+          compteurR: s.compteurR + 1,
+          grise: true,
+          derniereRelanceAt: patch.at,
+          derniereRelancePar: null,
+          conversionPending: false,
+        }
       case 'reset':
         return { ...s, compteurR: 0, conversionPending: false, grise: false, derniereRelanceAt: null }
       case 'set-compteur':

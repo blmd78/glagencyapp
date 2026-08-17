@@ -104,6 +104,16 @@ export const makeColumns = (isAdmin: boolean, canWrite: boolean, tracker: boolea
             ✓ fait
           </Badge>
         )}
+        {/* Qui a coché la relance du jour (0111) — pour tracker qui relance. Absent quand
+            l'auteur n'est pas lisible sous RLS (un chatteur ne lit que son propre profil). */}
+        {tracker && row.original.grise && row.original.derniereRelancePar && (
+          <span
+            className="max-w-32 shrink-0 truncate text-xs text-muted-foreground"
+            title={`Relance du jour faite par ${row.original.derniereRelancePar}`}
+          >
+            par {row.original.derniereRelancePar}
+          </span>
+        )}
       </div>
     ),
   },

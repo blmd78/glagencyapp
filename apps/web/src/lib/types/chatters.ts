@@ -8,8 +8,8 @@ import type { RevenueScope } from '@/lib/types/revenue'
 
 // Constantes closing CRM. `CRM_ROLES`/`CRM_TEAMS` = valeurs de `profiles.closing_role`/`closing_team`
 // (le closing est porté par le membre, 0077 ; `chatters.role`/`team` droppées en 0080). `CRM_SHIFTS`
-// = valeurs de `profiles.shift` — le shift a rejoint le membre en 0100 (il vivait sur la fiche
-// MyPuls, ce qui le rendait impossible à poser sur un chatteur sans lien).
+// = valeurs de `profiles.shift` (shift PRINCIPAL — il a rejoint le membre en 0100, il vivait sur la
+// fiche MyPuls) et des PLACEMENTS `profile_creators.shifts` (0110 : plusieurs par modèle, libres).
 // QUATRE valeurs depuis le 2026-07-28 (migration 0090) : la légende de la feuille de paie du
 // propriétaire connaît `nouveau` (🔴) et « chatteurs hybrides » en plus de setter/closer, et le
 // `check` de `profiles.closing_role` les accepte désormais. Élargir ICI est ce qui rend Membres
@@ -25,6 +25,16 @@ export const CRM_SHIFTS = ['matin', 'aprem', 'soir'] as const
 export type CrmRole = (typeof CRM_ROLES)[number]
 export type CrmTeam = (typeof CRM_TEAMS)[number]
 export type CrmShift = (typeof CRM_SHIFTS)[number]
+
+/** Libellés des shifts — SOURCE UNIQUE côté web (badge, fiche, formulaire, board). Le domaine
+ *  (`@glagency/core`, historique) garde sa copie volontairement (il ne dépend de rien). */
+export const SHIFT_LABEL: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
+
+/** Type PAR DÉFAUT d'un placement qu'on vient de poser (0110) : heure sup si la personne a un shift
+ *  principal DIFFÉRENT, principal sinon — la même règle que la RPC `save_org_cell`. La marque réelle
+ *  vit ensuite en base (`profile_creators.hs_shifts`) et se bascule sur le board. */
+export const isHeureSup = (principal: CrmShift | null | undefined, shift: CrmShift): boolean =>
+  !!principal && principal !== shift
 
 /** Détail par compte OF (sommable : argent + volume). */
 export interface ChatterModel {

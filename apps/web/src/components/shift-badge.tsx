@@ -1,10 +1,9 @@
 import { Badge } from '@/components/ui/badge'
-import type { CrmShift } from '@/lib/types/chatters'
-
-const LABEL: Record<CrmShift, string> = { matin: 'Matin', aprem: 'Après-midi', soir: 'Soir' }
+import { SHIFT_LABEL, type CrmShift } from '@/lib/types/chatters'
 
 /**
- * Badge de shift (matin/aprem/soir) d'un chatteur — donnée portée par le MEMBRE depuis 0099.
+ * Badge de shift (matin/aprem/soir) d'un chatteur — le shift PRINCIPAL, porté par le MEMBRE
+ * depuis 0099 (`profiles.shift`) ; les placements du board vivent ailleurs (0110).
  * Jumeau de `RoleBadge`/`TeamBadge` : source unique du rendu, `null` → ne rend rien (l'appelant
  * gère le placeholder).
  *
@@ -17,7 +16,7 @@ export function ShiftBadge({ shift }: { shift: CrmShift | null | undefined }) {
   if (!shift) return null
   return (
     <Badge variant="outline" className="text-muted-foreground">
-      {LABEL[shift]}
+      {SHIFT_LABEL[shift]}
     </Badge>
   )
 }

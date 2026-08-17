@@ -17,6 +17,7 @@ import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { modelColor } from '@/lib/model-color'
 import { cn } from '@/lib/utils'
+import { SHIFT_LABEL } from '@/lib/types/chatters'
 import type { Member } from '../types'
 
 /** Une ligne « libellé → valeur ». `value` vide (null, '', tableau vide) → rien n'est rendu :
@@ -57,7 +58,7 @@ export function MemberDetailDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  const modeles = creators.filter((c) => member.creatorIds.includes(c.id)).map((c) => c.name)
+  const modeles = creators.filter((c) => member.creatorIds.includes(c.id))
   const estChatteur = member.role === 'chatteur'
 
   return (
@@ -89,7 +90,7 @@ export function MemberDetailDialog({
                   <span className="text-muted-foreground">—</span>
                 )}
               </Ligne>
-              <Ligne label="Shift">
+              <Ligne label="Shift principal">
                 {member.shift ? (
                   <ShiftBadge shift={member.shift} />
                 ) : (
@@ -103,11 +104,19 @@ export function MemberDetailDialog({
             {modeles.length ? (
               // `modelColor` : chaque modèle a une teinte STABLE dans toute l'app (colonne
               // Modèles, Tracker, graphes). Un badge gris ici aurait fait de cette fiche le seul
-              // écran où Emma n'est pas de la couleur d'Emma.
-              modeles.map((n) => (
-                <Badge key={n} className={modelColor(n)}>
-                  {n}
-                </Badge>
+              // écran où Emma n'est pas de la couleur d'Emma. À côté, ses PLACEMENTS sur le board
+              // (0110) : les créneaux tenus sur ce modèle, « (HS) » pour ceux marqués heure sup.
+              modeles.map((c) => (
+                <span key={c.id} className="inline-flex items-center gap-1">
+                  <Badge className={modelColor(c.name)}>{c.name}</Badge>
+                  {estChatteur && member.placementsByCreator[c.id]?.length ? (
+                    <span className="text-xs text-muted-foreground">
+                      {member.placementsByCreator[c.id]
+                        .map((p) => SHIFT_LABEL[p.shift] + (p.hs ? ' (HS)' : ''))
+                        .join(', ')}
+                    </span>
+                  ) : null}
+                </span>
               ))
             ) : (
               <span className="text-muted-foreground">aucun</span>

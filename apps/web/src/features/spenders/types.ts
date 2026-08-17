@@ -68,6 +68,12 @@ export interface SpenderRow {
   /** Nombre de relances depuis le dernier reset (0-10+). */
   compteurR: number
   derniereRelanceAt: string | null
+  /**
+   * Nom du profil qui a saisi la dernière relance (toute période, `relances.created_by`) —
+   * affiché à côté de « ✓ fait » sur le tracker (0111). null = jamais relancé, ou auteur
+   * non lisible sous RLS (un chatteur ne lit que son propre profil, 0097).
+   */
+  derniereRelancePar: string | null
   /** Déjà relancé aujourd'hui → grisé (non relançable). */
   grise: boolean
   /** Le fan a reparlé depuis la dernière relance → proposer le reset du compteur. */

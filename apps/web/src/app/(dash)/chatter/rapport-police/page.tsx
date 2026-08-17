@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
-import { startOfMonth, todayParis } from '@glagency/core'
+import { addDays, todayParis } from '@glagency/core'
 import { canWritePolice, requireAccess } from '@/lib/auth'
-import { recentDays, recentMonths } from '@/lib/periods'
+import { resolvePeriod } from '@/lib/period'
+import { DAY_WINDOW } from '@/lib/periods'
 import {
   getReportOptions,
   getPoliceReports,
@@ -13,99 +14,86 @@ import { PoliceReportsSkeleton } from '@/features/police-reports/components/repo
 
 /**
  * Rapport du soir (section Police). Accès = page « Police » (même droit que le Tracker).
- * Piloté par une VUE + une ancre temporelle via l'URL : `?vue=jour` (défaut) cale la page sur un
- * JOUR (`?day=`, formulaire + historique du jour) ; `?vue=mois` la cale sur un MOIS (`?month=`,
- * consultation pure, historique groupé par jour). La bascule d'en-tête (`PeriodToggle`) change de
- * mode. L'écriture est bornée par la RLS `0071` + la garde `requireReporter` des actions ; on masque
- * la saisie pour un lecteur seul, et TOTALEMENT en mode mois (on ne saisit pas un rapport mensuel).
+ * PÉRIODE = datepicker GLOBAL du header (`?from&to`, `resolvePeriod`) — plus de bascule
+ * Jour/Mois locale (2026-08-17, aligné sur le Tracker). La SAISIE porte sa propre date
+ * (datepicker du dialog, fenêtre 14 j) ; l'écriture est bornée par la RLS `0071` + la garde
+ * `requireReporter` des actions ; on masque la saisie pour un lecteur seul.
  */
 export default async function RapportPolicePage({
   searchParams,
 }: {
-  searchParams: Promise<{ vue?: string; day?: string; month?: string }>
+  searchParams: Promise<{ from?: string; to?: string }>
 }) {
   const profile = await requireAccess('police')
-  const { vue: vueParam, day, month } = await searchParams
-  const vue = vueParam === 'mois' ? 'mois' : 'jour'
-
-  const today = todayParis()
-  const days = recentDays(today)
-  const months = recentMonths(today)
-  // Défaut = aujourd'hui ; un `?day=` hors fenêtre est ignoré (empêche un jour arbitraire).
-  const selectedDay = day && days.some((d) => d.day === day) ? day : today
-  // Défaut = mois courant (1er) ; un `?month=` hors fenêtre est ignoré (même garde que `day`).
-  const currentMonth = startOfMonth(today)
-  const selectedMonth = month && months.some((m) => m.month === month) ? month : currentMonth
+  const period = resolvePeriod(await searchParams)
 
   // Droit d'écriture — `canWritePolice` (lib/auth, SOURCE UNIQUE, même garde que le Tracker,
   // miroir de `requireReporter` + RLS `0071`).
   const canWrite = canWritePolice(profile)
 
   // Périmètre modèles par rôle (2026-08-06, comme le Tracker) : résolu UNE fois, partagé en
-  // PROMESSE entre les trois lectures — le shell n'attend pas, chaque service l'attend en interne.
+  // PROMESSE entre les lectures — le shell n'attend pas, chaque service l'attend en interne.
   const scopePromise = getCreatorScope(profile.id, profile.baseRole)
 
-  // Options modèles : consommées par le SEUL formulaire de saisie → même condition que les
-  // chatteurs par modèle (l'audit a relevé le fetch inconditionnel pour un payload conditionnel).
-  const saisieJour = canWrite && vue === 'jour'
-  const optionsPromise = saisieJour ? getReportOptions(scopePromise) : Promise.resolve([])
-  // Jour = rapports du seul jour (`.eq('day', …)`) ; mois = plage du mois (`.gte/.lte`). `day` et
-  // `month` sont mutuellement exclusifs — on ne passe QUE l'ancre du mode actif.
-  const reportsPromise =
-    vue === 'mois'
-      ? getPoliceReports({ month: selectedMonth }, scopePromise)
-      : getPoliceReports({ day: selectedDay }, scopePromise)
-  // Chatteurs par modèle : pré-chargés EN PARALLÈLE des rapports (kickoff sans await), pas en série
-  // après. Utile au seul formulaire de saisie (écrivain en vue jour) ; sinon inutile → {}.
+  // Options modèles + chatteurs par modèle : consommés par le SEUL formulaire de saisie →
+  // chargés pour les écrivains uniquement (l'audit avait relevé le fetch inconditionnel).
+  const optionsPromise = canWrite ? getReportOptions(scopePromise) : Promise.resolve([])
   const chattersByModelPromise: ReturnType<typeof getChattersByModel> =
-    saisieJour ? getChattersByModel(scopePromise) : Promise.resolve({})
+    canWrite ? getChattersByModel(scopePromise) : Promise.resolve({})
+  // Historique de la PÉRIODE affichée.
+  const reportsPromise = getPoliceReports({ from: period.from, to: period.to }, scopePromise)
+  // PRÉ-REMPLISSAGE du formulaire : mes fiches de la FENÊTRE DE SAISIE (14 j), indépendamment de
+  // la période affichée — l'upsert est keyé (auteur, modèle, jour) : sans cette lecture, choisir
+  // au datepicker un jour hors période ÉCRASERAIT à blanc une fiche existante, en silence.
+  const today = todayParis()
+  const prefillPromise = canWrite
+    ? getPoliceReports({ from: addDays(today, -(DAY_WINDOW - 1)), to: today }, scopePromise)
+    : Promise.resolve([])
 
   return (
-    <Suspense fallback={<PoliceReportsSkeleton />}>
-      <Content
-        profileId={profile.id}
-        canWrite={canWrite}
-        vue={vue}
-        day={selectedDay}
-        days={days}
-        month={selectedMonth}
-        months={months}
-        optionsPromise={optionsPromise}
-        reportsPromise={reportsPromise}
-        chattersByModelPromise={chattersByModelPromise}
-      />
-    </Suspense>
+    <div className="flex flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Rapport du soir</h1>
+        <p className="text-sm text-muted-foreground">
+          Chiffres du modèle et suivi individuel des chatters, un rapport par modèle et par soir
+          · {period.label}
+        </p>
+      </div>
+      <Suspense fallback={<PoliceReportsSkeleton />}>
+        <Content
+          profileId={profile.id}
+          canWrite={canWrite}
+          optionsPromise={optionsPromise}
+          reportsPromise={reportsPromise}
+          prefillPromise={prefillPromise}
+          chattersByModelPromise={chattersByModelPromise}
+        />
+      </Suspense>
+    </div>
   )
 }
 
 async function Content({
   profileId,
   canWrite,
-  vue,
-  day,
-  days,
-  month,
-  months,
   optionsPromise,
   reportsPromise,
+  prefillPromise,
   chattersByModelPromise,
 }: {
   profileId: string
   canWrite: boolean
-  vue: 'jour' | 'mois'
-  day: string
-  days: { day: string; label: string }[]
-  month: string
-  months: { month: string; label: string }[]
   optionsPromise: ReturnType<typeof getReportOptions>
   reportsPromise: ReturnType<typeof getPoliceReports>
+  prefillPromise: ReturnType<typeof getPoliceReports>
   chattersByModelPromise: ReturnType<typeof getChattersByModel>
 }) {
-  // Tout EN PARALLÈLE : options + rapports + chatteurs par modèle (formulaire de saisie). Le
+  // Tout EN PARALLÈLE : options + rapports + pré-remplissage + chatteurs par modèle. Le
   // formulaire lit `chattersByModel[modèle]` côté client → aucun round-trip au changement de modèle.
-  const [models, reports, chattersByModel] = await Promise.all([
+  const [models, reports, prefillReports, chattersByModel] = await Promise.all([
     optionsPromise,
     reportsPromise,
+    prefillPromise,
     chattersByModelPromise,
   ])
 
@@ -113,14 +101,10 @@ async function Content({
     <PoliceReportsTemplate
       models={models}
       reports={reports}
+      prefillReports={prefillReports}
       chattersByModel={chattersByModel}
       canWrite={canWrite}
       currentProfileId={profileId}
-      vue={vue}
-      day={day}
-      days={days}
-      month={month}
-      months={months}
     />
   )
 }

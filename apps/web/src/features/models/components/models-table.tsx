@@ -1,13 +1,12 @@
 'use client'
 
 import { type ColumnDef, type Row } from '@tanstack/react-table'
-import { ChevronRight } from 'lucide-react'
 import { TableCell, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { DataTable } from '@/components/data-table/data-table'
+import { ExpandChevron } from '@/components/data-table/expand-chevron'
 import { HeaderInfo } from '@/components/data-table/header-info'
 import { Sortable } from '@/components/data-table/sortable'
-import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { eur, eur2, num, pct } from '@/lib/format'
 import type { ModelRow } from '../types'
@@ -31,13 +30,7 @@ const columns: ColumnDef<ModelRow>[] = [
     header: ({ column }) => <Sortable column={column} label="Modèle" />,
     cell: ({ row }) => (
       <div className="flex items-center gap-2">
-        <ChevronRight
-          className={cn(
-            'size-4 shrink-0 text-muted-foreground transition-transform',
-            row.getIsExpanded() && 'rotate-90',
-            !row.getCanExpand() && 'opacity-0',
-          )}
-        />
+        <ExpandChevron row={row} />
         <Badge className={modelColor(row.original.name)}>{row.original.name}</Badge>
         {row.original.isPrivate && (
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground">privé</span>

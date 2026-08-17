@@ -5,6 +5,7 @@ import { Check, Pencil, Plus } from 'lucide-react'
 import { NewBadge } from '@/components/new-badge'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { HeaderInfo } from '@/components/data-table/header-info'
 import {
   Command,
   CommandEmpty,
@@ -14,7 +15,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { cn } from '@/lib/utils'
-import type { CrmShift } from '@/lib/types/chatters'
+import { SHIFT_LABEL, type CrmShift } from '@/lib/types/chatters'
 
 /**
  * Les deux CELLULES du board d'orga, plus la palette de la grille. Extrait d'`org-table.tsx`
@@ -27,16 +28,17 @@ import type { CrmShift } from '@/lib/types/chatters'
 // illisible à côté de la feuille d'origine) ──────────────────────────────────────────────────
 // Ce qui rendait la feuille lisible : chaque colonne de shift porte sa teinte — on scanne une
 // journée d'un coup d'œil. On garde ce principe, dans le langage de l'app :
-//  • pastilles BLEUES des chatters dans les cases (code couleur des rôles) ;
+//  • pastilles des chatters dans les cases : BLEUES (code couleur des rôles) pour un shift
+//    principal, ROUGES pour une heure sup (0110) ;
 //  • lavis de colonne « heure de la journée » (matin chaud → soir froid) : c'est un FOND, pas
 //    un badge — le code couleur des RÔLES (chatter bleu, encadrement vert, police orange,
 //    modèle violet) reste réservé aux pastilles ;
 //  • la hiérarchie passe par la STRUCTURE, plus par la répétition : une bande par manager, le
 //    sous-manager écrit une seule fois sur ses modèles.
 export const SHIFTS: Record<CrmShift, { label: string; wash: string }> = {
-  matin: { label: 'Matin', wash: 'bg-amber-50/70 dark:bg-amber-950/20' },
-  aprem: { label: 'Après-midi', wash: 'bg-muted/40' },
-  soir: { label: 'Soir', wash: 'bg-indigo-50/70 dark:bg-indigo-950/25' },
+  matin: { label: SHIFT_LABEL.matin, wash: 'bg-amber-50/70 dark:bg-amber-950/20' },
+  aprem: { label: SHIFT_LABEL.aprem, wash: 'bg-muted/40' },
+  soir: { label: SHIFT_LABEL.soir, wash: 'bg-indigo-50/70 dark:bg-indigo-950/25' },
 }
 
 /** Nombre de colonnes du tableau — sert le `colSpan` de la ligne « Ajouter ». */
@@ -48,6 +50,39 @@ export const DIRECT = { id: 'direct', name: 'porté par le manager' }
 export const CHIP_GREEN = 'bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300'
 export const CHIP_VIOLET = 'bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300'
 export const CHIP_BLUE = 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+/** Placement marqué HEURE SUP (0110) — décision Benoit 2026-08-17 : ROUGE = heure sup, BLEU (le bleu
+ *  chatter habituel) = shift principal. Légende au-dessus du tableau (`OrgLegend`). */
+export const CHIP_RED = 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
+
+/** Bleu = placement principal, rouge = heure sup (`hs_shifts`). Vaut pour la case et son popover ;
+ *  le « comment basculer » est dans la légende (ⓘ), pas répété sur chaque pastille. */
+const chipTone = (hs: boolean) => (hs ? CHIP_RED : CHIP_BLUE)
+const chipTitle = (hs: boolean) => (hs ? 'Heure sup' : 'Shift principal')
+
+/** Légende du code couleur — même forme que celle du planning repos (`planning-grid.tsx`), mais
+ *  AU-DESSUS du tableau (demande Benoit 2026-08-17). */
+export function OrgLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
+      <span className="flex items-center gap-1.5">
+        <span className={cn('rounded px-1.5 py-0.5 font-medium', CHIP_BLUE)}>bleu</span>
+        shift principal
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className={cn('rounded px-1.5 py-0.5 font-medium', CHIP_RED)}>rouge</span>
+        heure sup
+      </span>
+      {/* Le « comment » n'est pas une info de tous les jours : le ⓘ de l'app (HeaderInfo), en bleu
+          pour qu'il se remarque. */}
+      <HeaderInfo
+        emphasis
+        side="right"
+        label="Comment basculer entre shift principal et heure sup"
+        text="Ouvre une case, puis clique sur le nom d’une pastille pour la faire passer de shift principal à heure sup (et inversement)."
+      />
+    </div>
+  )
+}
 
 /**
  * Pastille cliquable (admin) qui ouvre une recherche à choix unique. Au repos : AUCUN cadre,
@@ -129,7 +164,8 @@ export function ChipSelect({
 }
 
 /**
- * Cellule de shift : pastilles BLEUES des chatters sur le lavis de la colonne ; le cadre
+ * Cellule de shift : pastilles des chatters sur le lavis de la colonne — BLEU = placement principal,
+ * ROUGE = heure sup (0110, marque éditable : case ouverte → clic sur le nom = bascule) ; le cadre
  * pointillé « + Ajouter » ne s'affiche que sur une case vide (comme le planning repos).
  *
  * ⚠️ DÉFINIE AU NIVEAU MODULE, et ça n'est pas cosmétique. Tant qu'elle vivait à l'intérieur
@@ -144,6 +180,9 @@ export function ShiftCell({
   ids,
   nameById,
   newById,
+  hsOf,
+  onToggleKind,
+  chipFilter,
   options,
   canWrite,
   modelName,
@@ -154,17 +193,25 @@ export function ShiftCell({
   nameById: Map<string, string>
   /** Drapeau « nouvel arrivant » par id (0101) — même provenance que `nameById` : les options. */
   newById: Map<string, { isNew: boolean; arrivedAt: string | null }>
+  /** Ce placement est-il marqué heure sup ? (serveur, override optimiste, ou défaut) — 0110. */
+  hsOf: (id: string) => boolean
+  /** Bascule principal ⇄ heure sup de ce placement (0110). */
+  onToggleKind: (id: string) => void
+  /** Recherche active : seules les pastilles qui passent le filtre sont RENDUES dans la case ; la
+   *  composition réelle (`ids`) reste entière — ouvrir la case montre tout le monde. */
+  chipFilter?: (id: string) => boolean
   options: { id: string; name: string }[]
   canWrite: boolean
   modelName: string
   onChange: (next: string[]) => void
 }) {
-  const chips = ids.map((id) => (
+  const chips = (chipFilter ? ids.filter(chipFilter) : ids).map((id) => (
     <span
       key={id}
+      title={chipTitle(hsOf(id))}
       className={cn(
         'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium',
-        CHIP_BLUE,
+        chipTone(hsOf(id)),
       )}
     >
       {nameById.get(id) ?? '?'}
@@ -219,16 +266,19 @@ export function ShiftCell({
         value={ids}
         labelById={Object.fromEntries(nameById)}
         onChange={onChange}
-        chipClassName={CHIP_BLUE}
+        chipClassName={(id) => chipTone(hsOf(id))}
+        chipTitle={(id) => chipTitle(hsOf(id))}
+        onChipClick={onToggleKind}
         placeholder="Rechercher un chatter…"
         // Avertissement AVANT le choix : cette case n'est pas un simple planning, elle écrit
-        // deux données qui vivent ailleurs (la fiche Membre du chatteur).
+        // une donnée qui vit ailleurs (l'assignation, visible sur la fiche Membre du chatteur).
         note={
           <>
-            Ajouter quelqu’un ici pose son{' '}
-            <strong className="font-medium">shift {SHIFTS[shift].label.toLowerCase()}</strong> et
-            l’assigne au modèle <strong className="font-medium">{modelName}</strong> — les deux
-            changent sur sa fiche Membre.
+            Ajouter quelqu’un ici le place sur{' '}
+            <strong className="font-medium">{modelName}</strong> en{' '}
+            <strong className="font-medium">{SHIFTS[shift].label.toLowerCase()}</strong> (assigné au
+            modèle si besoin) — ses autres cases ne bougent pas. Bleu = shift principal, rouge =
+            heure sup : <strong className="font-medium">clic sur un nom pour basculer</strong>.
           </>
         }
       />

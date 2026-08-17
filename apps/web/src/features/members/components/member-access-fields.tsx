@@ -10,8 +10,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
-import { ROLE_NAME } from '@/lib/roles'
+import { isOrgSectionHead, ROLE_NAME } from '@/lib/roles'
 import type { MemberForm } from '../schema'
 import { ATTACHABLE_ROLES, canBeAttached } from '../types'
 
@@ -111,6 +112,39 @@ export function MemberAccessFields({
             </div>
             )
           }}
+        />
+      )}
+
+      {/* Exclusion de l'AFFICHAGE Organisation (0111) — têtes de section du board uniquement
+          (isOrgSectionHead, source unique partagée avec le filtre du board et les gates des
+          actions). Cas : manager transverse qui a tous les modèles pour tout voir sur le CRM
+          (ex. Jam) → une ligne par modèle sur le board. Affichage pur : le serveur force false
+          pour les autres rôles, droits inchangés. */}
+      {scope === 'chatter' && isOrgSectionHead(roleValue) && (
+        <Controller
+          name="orgExcluded"
+          control={control}
+          render={({ field }) => (
+            <div className="grid gap-1.5">
+              <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Organisation
+              </label>
+              <div className="flex h-9 items-center gap-2">
+                <Checkbox
+                  id="member-org-excluded"
+                  checked={field.value}
+                  disabled={isSubmitting}
+                  onCheckedChange={(v) => field.onChange(v === true)}
+                />
+                <label htmlFor="member-org-excluded" className="text-sm">
+                  Exclure de l&apos;affichage Organisation
+                </label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                N&apos;apparaît plus comme manager sur le board. Droits, pages et modèles inchangés.
+              </p>
+            </div>
+          )}
         />
       )}
     </>

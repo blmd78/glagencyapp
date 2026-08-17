@@ -113,6 +113,32 @@ const fr = (iso: string) => iso.slice(0, 10).split('-').reverse().join('/')
  *  (contrainte élargie en base sans passer ici) doit s'afficher, pas disparaître. */
 const pretty = (dict: Record<string, string>, v: string | null) => (v ? (dict[v] ?? v) : null)
 
+/**
+ * Valeur « modèle · placements » composée par le trigger de `profile_creators` (0110 : les
+ * placements vivent sur l'ASSIGNATION chatter × modèle, plusieurs possibles, chacun principal ou
+ * heure sup) : `Emma · matin` ou `Emma · matin, soir (HS)`. Seul ce qui suit le DERNIER séparateur
+ * est une liste de codes de shift, un code pouvant porter le suffixe ` (HS)` — le nom du modèle
+ * passe tel quel, quoi qu'il contienne. Une valeur sans séparateur (format « code seul » du shift
+ * principal de la personne, ou nom de modèle nu) suit la règle habituelle : traduite si connue,
+ * brute sinon.
+ */
+const HS_SUFFIX = ' (HS)'
+const prettyModelShift = (v: string | null): string | null => {
+  if (!v) return null
+  const sep = v.lastIndexOf(' · ')
+  if (sep === -1) return pretty(SHIFT_LABEL, v)
+  const codes = v
+    .slice(sep + 3)
+    .split(', ')
+    .map((c) =>
+      c.endsWith(HS_SUFFIX)
+        ? `${pretty(SHIFT_LABEL, c.slice(0, -HS_SUFFIX.length))}${HS_SUFFIX}`
+        : pretty(SHIFT_LABEL, c),
+    )
+    .join(', ')
+  return `${v.slice(0, sep)} · ${codes}`
+}
+
 const arrow = (label: string, f: string | null, t: string | null) =>
   f && t ? `${label} : ${f} → ${t}` : t ? `${label} : ${t}` : `${label} retiré${f ? ` (${f})` : ''}`
 
@@ -131,12 +157,12 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
     case 'role':
       return arrow('Rôle', pretty(ROLE_LABEL, from), pretty(ROLE_LABEL, to))
     case 'shift':
-      return arrow('Shift', pretty(SHIFT_LABEL, from), pretty(SHIFT_LABEL, to))
+      return arrow('Shift', prettyModelShift(from), prettyModelShift(to))
     case 'closing':
       return arrow('Closing', from, to)
     // Les deux sens sont des faits distincts, et se lisent mieux nommés qu'avec une flèche vide.
     case 'modele':
-      return to ? `Modèle ${to} ajouté` : `Modèle ${from} retiré`
+      return to ? `Modèle ${prettyModelShift(to)} ajouté` : `Modèle ${prettyModelShift(from)} retiré`
     case 'manager':
       return arrow('Rattachement', from, to)
     case 'pages':

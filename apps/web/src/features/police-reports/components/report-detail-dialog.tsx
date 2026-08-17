@@ -3,8 +3,8 @@
 // Détail d'un rapport en DIALOG, ouvert par le crayon en bout de ligne — remplace l'accordéon
 // de la table (retour Benoit 2026-08-06 : on n'y voyait pas tout d'un coup). Lecture seule :
 // chiffres du soir, alerte, suivi par chatteur (mêmes empilements que la saisie — « A marché »
-// puis « À régler », sans icônes). « Modifier » (si fourni par la table : sa propre fiche, en
-// vue jour) referme ce détail et rouvre la modal de saisie préchargée sur le modèle.
+// puis « À régler », sans icônes). « Modifier » (si fourni par la table : sa propre fiche, soir
+// dans la fenêtre de saisie) referme ce détail et rouvre la modal préchargée sur (modèle, jour).
 
 import { useState } from 'react'
 import { Pencil, TriangleAlert } from 'lucide-react'
@@ -38,8 +38,8 @@ export function ReportDetail({
   onEdit,
 }: {
   report: PoliceReport
-  /** Fourni = « Modifier » affiché (sa propre fiche, vue jour) — referme le détail et rouvre la
-   *  saisie préchargée. */
+  /** Fourni = « Modifier » affiché (sa propre fiche, soir dans la fenêtre de saisie) — referme
+   *  le détail et rouvre la saisie préchargée. */
   onEdit?: () => void
 }) {
   const [open, setOpen] = useState(false)

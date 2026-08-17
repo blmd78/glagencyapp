@@ -96,6 +96,40 @@ describe('memberEventLabel — chaque type produit une phrase lisible', () => {
     expect(memberEventLabel('modele', 'Sarah', null)).toBe('Modèle Sarah retiré')
   })
 
+  // 0110 : les PLACEMENTS vivent sur l'ASSIGNATION (chatter × modèle), plusieurs possibles. Le
+  // trigger compose `<modèle> · <codes séparés par ", ">` ; les codes sont traduits, le nom du
+  // modèle passe tel quel.
+  it('modèle avec placements (0110) : « Emma · matin » → codes traduits, nom conservé', () => {
+    expect(memberEventLabel('modele', null, 'Emma · matin')).toBe('Modèle Emma · Matin ajouté')
+    expect(memberEventLabel('modele', 'Sarah · aprem, soir', null)).toBe(
+      'Modèle Sarah · Après-midi, Soir retiré',
+    )
+  })
+
+  it('placements par modèle (0110) : flèche entre deux listes composées', () => {
+    expect(memberEventLabel('shift', 'Emma · matin', 'Emma · matin, soir')).toBe(
+      'Shift : Emma · Matin → Emma · Matin, Soir',
+    )
+    // Un placement marqué heure sup garde son suffixe, le code est traduit quand même.
+    expect(memberEventLabel('shift', 'Emma · matin, soir (HS)', 'Emma · matin (HS), soir')).toBe(
+      'Shift : Emma · Matin, Soir (HS) → Emma · Matin (HS), Soir',
+    )
+    expect(memberEventLabel('modele', 'Sarah · aprem (HS)', null)).toBe(
+      'Modèle Sarah · Après-midi (HS) retiré',
+    )
+    expect(memberEventLabel('shift', null, 'Emma · soir')).toBe('Shift : Emma · Soir')
+    expect(memberEventLabel('shift', 'Emma · soir', null)).toBe('Shift retiré (Emma · Soir)')
+    // Code inconnu dans la liste : brut, jamais avalé (même règle que le shift seul).
+    expect(memberEventLabel('shift', 'Emma · matin', 'Emma · matin, nuit')).toBe(
+      'Shift : Emma · Matin → Emma · Matin, nuit',
+    )
+    // Un nom de modèle qui contiendrait lui-même le séparateur : seul ce qui suit le DERNIER
+    // séparateur est lu comme des codes.
+    expect(memberEventLabel('shift', null, 'Sam · Léa · aprem')).toBe('Shift : Sam · Léa · Après-midi')
+    // Le shift PRINCIPAL (trigger `profiles`, 0101) garde son format « code seul ».
+    expect(memberEventLabel('shift', 'matin', 'aprem')).toBe('Shift : Matin → Après-midi')
+  })
+
   it('sanction retirée : date en français, clé d’erreur traduite', () => {
     // `from` composé par le trigger 0107 — clé brute traduite ICI (le SQL ne connaît pas
     // les libellés). Miroir exact du format `to_char(occurred_on) (détail — clé)`.

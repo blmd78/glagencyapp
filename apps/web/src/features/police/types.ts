@@ -2,23 +2,14 @@
 // Les motifs de sanction (`POLICE_ERRORS`, `ERROR_LABEL`) vivent dans
 // `lib/types/police-errors.ts` — partagés avec `features/compta` (import cross-feature interdit).
 
+import type { Period } from '@/lib/period'
+
 /** Moments de contrôle (métadonnée optionnelle sur une ligne). */
 export const SHIFTS = ['matin', 'aprem', 'soir'] as const
 
 export interface EntityOption {
   id: string
   name: string
-}
-
-export interface DayChoice {
-  day: string
-  label: string
-}
-
-export interface MonthChoice {
-  /** 1er du mois (YYYY-MM-01). */
-  month: string
-  label: string
 }
 
 /** Une ligne du journal : avertissement (erreur) OU malus (montant décidé). */
@@ -28,35 +19,26 @@ export interface PoliceEntry {
   chatterName: string
   controllerName: string
   kind: 'warning' | 'malus'
+  /** Clé brute du motif (`POLICE_ERRORS`) — pré-remplit le form d'édition. */
+  errorKey: string | null
   errorLabel: string | null
   amountEur: number
   note: string | null
   shift: string | null
-  /** Jour de la faute (YYYY-MM-DD) — affiché par entrée en vue mois (distinguer les jours). */
+  /** Jour de la faute (YYYY-MM-DD) — affiché par entrée (la période peut couvrir plusieurs jours). */
   occurredOn: string
   createdAt: string
 }
 
 export interface PoliceData {
-  /** Mode d'affichage (en-tête) : `jour` (mono-jour) ou `mois` (plage du mois). */
-  vue: 'jour' | 'mois'
-  /** Jour affiché (YYYY-MM-DD). */
-  day: string
-  /** Libellé « lundi 07/07 ». */
-  dayLabel: string
-  /** Mois affiché (1er du mois, YYYY-MM-01). */
-  month: string
-  /** Libellé « juillet 2026 ». */
-  monthLabel: string
-  /** Entrées de la période : du JOUR (mode jour) OU du MOIS (mode mois), plus récent d'abord. */
+  /** Période affichée (`?from&to` du datepicker global, résolue par `resolvePeriod`) — les
+   *  bornes servent aussi au formulaire (signaler une saisie datée HORS période). */
+  period: Period
+  /** Entrées de la période, plus récent d'abord. */
   entries: PoliceEntry[]
-  /** Chatteurs actifs — options des formulaires (saisie masquée en mois). */
+  /** Chatteurs actifs — options du formulaire de saisie. */
   chatterOptions: EntityOption[]
-  /** chatterId → nb d'avertissements récents (fenêtre 30 j, borné au périmètre) — aide la
-   *  décision de malus. Vide en mois. */
+  /** chatterId → nb d'avertissements récents (30 j glissants, borné au périmètre) — aide la
+   *  décision de malus. Vide pour un lecteur seul (la saisie qu'elle alimente est masquée). */
   warningsByChatter: Record<string, number>
-  /** Jours proposés au sélecteur (aujourd'hui + 13 passés). */
-  days: DayChoice[]
-  /** Mois proposés au sélecteur (mois courant + 11 passés). */
-  months: MonthChoice[]
 }

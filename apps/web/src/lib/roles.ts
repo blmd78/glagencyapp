@@ -38,3 +38,12 @@ export const ROLE_TONE: Record<string, string> = {
  * de 0059, ou toute valeur inconnue.
  */
 export const roleLabel = (role: string): string => (ROLE_NAME[role] ?? '').toLowerCase()
+
+/**
+ * Tête de section possible du board Organisation : manager OU admin (certains admins dirigent
+ * une équipe). SOURCE UNIQUE du prédicat — lue par le filtre du board (get-organisation), la
+ * visibilité de la case « Exclure de l'affichage Organisation » (member-access-fields) et les
+ * gates d'écriture d'`org_excluded` (createMember/updateMember). Un gate qui divergerait du
+ * filtre remettrait silencieusement le drapeau à false à l'édition suivante du membre.
+ */
+export const isOrgSectionHead = (role: string) => role === 'manager' || role === 'admin'

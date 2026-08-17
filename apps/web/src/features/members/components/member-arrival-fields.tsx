@@ -83,8 +83,9 @@ export function MemberArrivalFields({
                 Arrivé le
               </label>
               {/* `<Input type="date">` = la saisie de date de ce dialog même (onglet Compta,
-                  `member-pay-form.tsx`) et de Rapports/Insights. Le `Calendar` Radix n'est monté
-                  que pour des PLAGES (`date-range-picker.tsx`) — pas pour un jour unique. */}
+                  `member-pay-form.tsx`) et de Rapports/Insights. Le `Calendar` Radix sert aux
+                  PLAGES (`date-range-picker.tsx`) et au jour de sanction du Tracker
+                  (`police/components/day-picker.tsx`, fenêtre bornée à 14 j). */}
               <Input
                 id="member-arrived-at"
                 type="date"

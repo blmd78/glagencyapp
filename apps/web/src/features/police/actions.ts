@@ -10,7 +10,8 @@ import { createClient } from '@/lib/supabase/server'
 import { canWritePolice, getProfile, type Profile } from '@/lib/auth'
 import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { runAction, noGuard, BusinessError, DENY_WRITE, type ActionResult } from '@/lib/actions'
-import { warningInput, malusInput, updateMalusInput } from './schema'
+import { isDayInWindow } from '@/lib/periods'
+import { warningInput, malusInput, updateEntryInput } from './schema'
 
 /** Contrôle d'écriture Police — `canWritePolice` (lib/auth, SOURCE UNIQUE, miroir RLS 0078) ;
  *  vérifié UNE SEULE FOIS, en tête de handler (patron §4) — refus = BusinessError. */
@@ -112,27 +113,55 @@ export async function addPoliceMalus(raw: unknown): Promise<ActionResult> {
   })
 }
 
-export async function updatePoliceMalus(raw: unknown): Promise<ActionResult> {
+/** Édition COMPLÈTE d'une entrée (dialog pré-rempli, 2026-08-17) : date, chatteur, erreur,
+ *  shift, montant, motif — le `kind` suit le montant comme à la pose. */
+export async function updatePoliceEntry(raw: unknown): Promise<ActionResult> {
   return runAction({
-    schema: updateMalusInput,
+    schema: updateEntryInput,
     input: raw,
     guard: noGuard,
     handler: async (values) => {
       const profile = await requirePoliceProfile()
-      // Périmètre sur l'entrée EXISTANTE : on retrouve son chatteur, puis même règle qu'à la pose.
-      await requireChatterInScope(profile, await chatterOfEntry(values.id))
+      // L'entrée EXISTANTE : périmètre sur SON chatteur + date d'origine (règle de fenêtre).
+      const admin = createAdminClient()
+      const { data: existing, error: exErr } = await admin
+        .from('police_entries')
+        .select('chatter_id, occurred_on')
+        .eq('id', values.id)
+        .maybeSingle()
+      if (exErr) throw new Error(exErr.message)
+      if (!existing) throw new BusinessError('Cette entrée n’existe plus')
+      await requireChatterInScope(profile, existing.chatter_id)
+      // RE-dater est borné à la fenêtre de saisie (miroir de `dayZ`) ; la date D'ORIGINE reste
+      // toujours permise — une sanction vieille de 3 semaines doit rester éditable sans bouger.
+      if (values.day !== existing.occurred_on && !isDayInWindow(values.day))
+        throw new BusinessError('Date hors de la période autorisée')
+      // Cible CHANGÉE : mêmes gardes qu'à la pose (membre chatteur en poste + périmètre).
+      if (values.chatterId !== existing.chatter_id) {
+        await assertChatteurMember(values.chatterId)
+        await requireChatterInScope(profile, values.chatterId)
+      }
+      const isMalus = values.amountEur > 0
       const supabase = await createClient()
       // `.select()` + contrôle : sans lui, un refus RLS (0 ligne) passerait pour un succès et
-      // l'UI dirait « Malus modifié » (audit 2026-08-06) — le refus du rempart doit se voir.
+      // l'UI dirait « Sanction modifiée » (audit 2026-08-06) — le refus du rempart doit se voir.
       const { data, error } = await supabase
         .from('police_entries')
-        .update({ amount_eur: values.amountEur, note: values.note ?? null })
+        .update({
+          chatter_id: values.chatterId,
+          occurred_on: values.day,
+          kind: isMalus ? 'malus' : 'warning',
+          error_key: values.errorKey ?? null,
+          amount_eur: values.amountEur,
+          // Le motif est réservé au malus (le form le désactive ; on n'en garde pas un orphelin).
+          note: isMalus ? (values.note ?? null) : null,
+          shift: values.shift ?? null,
+        })
         .eq('id', values.id)
-        .eq('kind', 'malus')
         .select('id')
         .maybeSingle()
       if (error) throw new Error(error.message)
-      if (!data) throw new BusinessError('Ce malus n’existe plus ou t’est interdit')
+      if (!data) throw new BusinessError('Cette entrée n’existe plus ou t’est interdite')
       revalidatePath('/chatter/police')
     },
   })

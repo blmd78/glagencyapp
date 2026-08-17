@@ -1,4 +1,5 @@
 import { createAdminClient } from '@glagency/db'
+import { isOrgSectionHead } from '@/lib/roles'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
 import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
@@ -6,8 +7,10 @@ import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
 /**
  * Le board d'orga, DÉRIVÉ des données existantes (AUCUNE saisie propre) :
  *   manager → ses sous-managers (rattachement `manager_ids`) → leurs modèles
- *   (`profile_creators`) → les chatters assignés à chaque modèle, groupés par shift
- *   (`profiles.shift`, migration 0100).
+ *   (`profile_creators`) → les chatters assignés à chaque modèle, une pastille par PLACEMENT
+ *   (`profile_creators.shifts`, migration 0110 : plusieurs colonnes de la même ligne possibles,
+ *   Matin sur Emma et Soir sur Léa aussi — une case = exactement les lignes dont `shifts` contient
+ *   ce shift). Bleu = placement principal, rouge = heure sup (`hs_shifts`, marque éditable).
  *
  * Conséquence voulue : tout changement fait dans MEMBRES (assignations, rattachements, shift)
  * se reflète ici automatiquement — et inversement, l'édition des cases du board (actions.ts)
@@ -24,7 +27,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
     fetchAll((f, t) =>
       admin
         .from('profiles')
-        .select('id, display_name, email, role, manager_ids, shift, is_new, arrived_at')
+        .select('id, display_name, email, role, manager_ids, shift, is_new, arrived_at, org_excluded')
         .in('role', ['admin', 'manager', 'sous-manager', 'chatteur'])
         // Les PARTIS (0102) sortent de l'organigramme : il décrit qui travaille ici aujourd'hui.
         // Leurs `profile_creators` ne sont pas supprimées pour autant — elles racontent ce qui
@@ -37,7 +40,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
     fetchAll((f, t) =>
       admin
         .from('profile_creators')
-        .select('profile_id, creator_id')
+        .select('profile_id, creator_id, shifts, hs_shifts')
         .order('profile_id')
         .order('creator_id')
         .range(f, t),
@@ -55,7 +58,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const isShift = (v: string | null | undefined): v is CrmShift =>
     !!v && (CRM_SHIFTS as readonly string[]).includes(v)
 
-  // Modèles par profil et chatters (membres) par modèle.
+  // Modèles par profil (lignes des porteurs) et chatters (membres) par modèle.
   const modelsByProfile = new Map<string, string[]>()
   for (const a of assignRes.data) {
     const arr = modelsByProfile.get(a.profile_id)
@@ -64,24 +67,37 @@ export async function getOrganisation(): Promise<OrganisationData> {
   }
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
   const chatterMembers = profiles.filter((p) => p.role === 'chatteur')
+  const chatterById = new Map(chatterMembers.map((m) => [m.id, m]))
+  // UNE pastille par PLACEMENT (chatter, modèle, shift) — 0110. Le même chatteur peut donc être
+  // Matin ET Soir sur Emma, et Soir sur Léa. `assigned` compte les personnes par modèle (total de
+  // la ligne), `placed` celles qui ont au moins une case (KPI « à placer »).
   const chattersByModel = new Map<string, OrgChatter[]>()
-  let aPlacer = 0
-  for (const m of chatterMembers) {
-    const entry: OrgChatter = {
-      id: m.id,
-      name: nameOf(m),
-      shift: isShift(m.shift) ? m.shift : null,
-      isNew: m.is_new ?? false,
-      arrivedAt: m.arrived_at ?? null,
-    }
-    if (!entry.shift) aPlacer += 1
-    for (const creatorId of modelsByProfile.get(m.id) ?? []) {
-      const arr = chattersByModel.get(creatorId)
+  const assignedByModel = new Map<string, string[]>()
+  const placed = new Set<string>()
+  for (const a of assignRes.data) {
+    const m = chatterById.get(a.profile_id)
+    if (!m) continue // porteur (encadrant), parti, ou rôle non chatteur : pas une pastille
+    const assigned = assignedByModel.get(a.creator_id)
+    if (assigned) assigned.push(m.id)
+    else assignedByModel.set(a.creator_id, [m.id])
+    for (const shift of (a.shifts ?? []).filter(isShift)) {
+      placed.add(m.id)
+      const entry: OrgChatter = {
+        id: m.id,
+        name: nameOf(m),
+        shift,
+        hs: (a.hs_shifts ?? []).includes(shift),
+        isNew: m.is_new ?? false,
+        arrivedAt: m.arrived_at ?? null,
+      }
+      const arr = chattersByModel.get(a.creator_id)
       if (arr) arr.push(entry)
-      else chattersByModel.set(creatorId, [entry])
+      else chattersByModel.set(a.creator_id, [entry])
     }
   }
   for (const arr of chattersByModel.values()) arr.sort((a, b) => a.name.localeCompare(b.name))
+  // « À placer » = aucune case sur le board (assigné sans placement, ou pas assigné du tout).
+  const aPlacer = chatterMembers.filter((m) => !placed.has(m.id)).length
 
   const rowFor = (owner: { id: string; smId: string | null; smName: string | null }, creatorId: string): OrgRow => {
     const all = chattersByModel.get(creatorId) ?? []
@@ -89,7 +105,7 @@ export async function getOrganisation(): Promise<OrganisationData> {
       CrmShift,
       OrgChatter[]
     >
-    for (const c of all) if (c.shift) byShift[c.shift].push(c)
+    for (const c of all) byShift[c.shift].push(c)
     return {
       ownerId: owner.id,
       sousManagerId: owner.smId,
@@ -97,7 +113,8 @@ export async function getOrganisation(): Promise<OrganisationData> {
       creatorId,
       modelName: creatorName.get(creatorId) ?? '?',
       byShift,
-      total: all.length,
+      assignedIds: assignedByModel.get(creatorId) ?? [],
+      total: assignedByModel.get(creatorId)?.length ?? 0,
     }
   }
 
@@ -106,8 +123,15 @@ export async function getOrganisation(): Promise<OrganisationData> {
   // Tête de section = manager OU ADMIN : dans l'agence, certains admins (Axel, Dorian)
   // dirigent une équipe. Un admin sans équipe ni modèle ne crée pas de section (garde plus
   // bas), donc la liste ne se pollue pas.
+  // `org_excluded` (0111, posé dans Membres) : manager TRANSVERSE qui a tous les modèles pour
+  // tout voir sur le CRM (ex. Jam) — c'est un périmètre d'accès, pas de l'organisation, même
+  // logique que les lignes directes d'admin plus bas. Exclu du board : ni section, ni option
+  // manager. Ses modèles ne comptent plus comme couverts (le KPI « sans équipe » redevient
+  // lisible) et ses sous-managers éventuels tombent en « Sans manager ».
+  // `isOrgSectionHead` = source unique du prédicat, partagée avec la checkbox et les gates
+  // d'écriture du drapeau (lib/roles.ts).
   const managers = profiles
-    .filter((p) => p.role === 'manager' || p.role === 'admin')
+    .filter((p) => isOrgSectionHead(p.role) && !p.org_excluded)
     .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
   const sousManagers = profiles.filter((p) => p.role === 'sous-manager')
   const coveredModels = new Set<string>()
@@ -187,14 +211,16 @@ export async function getOrganisation(): Promise<OrganisationData> {
     .map((c) => c.name)
     .sort((a, b) => a.localeCompare(b))
 
-  // TOUS les membres rôle chatteur sont plaçables depuis 0100 : le shift vit sur le membre, plus
-  // sur la fiche MyPuls — un chatteur sans lien n'est plus un angle mort du board.
+  // TOUS les membres rôle chatteur en poste sont plaçables (0100 : plus de dépendance au lien
+  // MyPuls ; 0110 : autant de placements qu'on veut). Le shift PRINCIPAL voyage avec l'option : la
+  // table colore les pastilles (rouge/bleu) sans rien recharger, affichage optimiste compris.
   const chatterOptions = chatterMembers
     .map((m) => ({
       id: m.id,
       name: nameOf(m),
       isNew: m.is_new ?? false,
       arrivedAt: m.arrived_at ?? null,
+      principalShift: isShift(m.shift) ? m.shift : null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
