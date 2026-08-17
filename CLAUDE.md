@@ -47,8 +47,14 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   forms — checklist nouvelle feature) + `docs/guidelines-socle.md` (briques transverses du
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
-  (`/marketing/*`) et `Formation` (`/formation/*`, squelette : Overview placeholder + Membres —
-  la reprise de Good Luck Agency vient ensuite). Une seule source : `config/workspaces.ts`
+  (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency : **catalogue**
+  `training_*` (0113 schéma, 0114 index, 0115 seed généré par
+  `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
+  `features/training-catalog`, Modules en lecture `features/training-modules` (projection
+  publique — jamais `fan_brief`/`expected` côté chatter), droits `frm-suivi` (Overview,
+  encadrement) / `frm-entrainement` (Ma formation, chatter), Modules ouvert aux deux
+  (`NavItem.anyOf`, `requireAccess([...])`) ; Ma formation / Overview sont des placeholders
+  jusqu'aux sessions). Une seule source : `config/workspaces.ts`
   (`WORKSPACES`, type `WorkspaceId`). La face active se déduit du `pathname`
   (`workspaceForPath`) ; la sidebar (`AppSidebar` + `WorkspaceSwitcher`) affiche la nav de
   cette face. Face secondaire = droit de face unique (`marketing`, `formation`) + slugs

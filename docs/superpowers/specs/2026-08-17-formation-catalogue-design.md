@@ -1,6 +1,6 @@
 # Formation — Catalogue (modules, cours, cas) — design
 
-Date : 2026-08-17 · Statut : validé en chat, à relire · Incrément 1 de la face **Formation**.
+Date : 2026-08-17 · Statut : implémenté (PRs 1-6, branche feature/formation-catalogue, 2026-08-17) — à recetter sur l'UAT · Incrément 1 de la face **Formation**.
 
 ## 1. Contexte
 
@@ -357,6 +357,11 @@ app/(dash)/formation/modules/[code]/page.tsx   idem ; notFound() si code inconnu
 - Services : erreurs Supabase thrown → `error.tsx` de la face.
 - `revalidatePath('/formation/catalogue')`, `/formation/modules` (+ `[code]`) après mutation.
 
+**Écart tranché à l'implémentation** : pas de minimum d'axes (le Boss final GLA n'en a aucun —
+notation par étape) ; `saveModule`/`saveCase` (id null = création) ; item Modules en `anyOf`
+sans `slug` (+ `choiceLabel`) ; migration 0114 = index `updated_by` ajoutée en revue (Task 1),
+seed reporté en 0115 (renumérotation, cf. plan).
+
 ## 8. Tests
 
 - `packages/core` n'est pas concerné (pas de logique de domaine ici).
@@ -380,3 +385,14 @@ app/(dash)/formation/modules/[code]/page.tsx   idem ; notFound() si code inconnu
 
 Ordre pensé pour que chaque PR soit visible dans l'app ; 3 → 6 peuvent se relire en une
 seule revue si on préfère.
+
+## 10. Recette UAT (Benoit)
+
+1. `/formation/members` : cocher « Entraînement » à un chatter test, « Suivi » à un
+   encadrant test.
+2. En tant que le chatter : sidebar = Ma formation, Modules ; lire le cours Setting ;
+   onglet Cas ; `/formation/catalogue` inaccessible.
+3. Admin : Catalogue → éditer un cours (aperçu), un cas solo, le défi, le boss ;
+   dupliquer ; désactiver / réactiver ; réordonner ; créer un module vide et un cas dedans.
+4. Prod : les migrations 0113 + 0114 + 0115 partent AVEC la release
+   (`supabase db push --db-url "$DATABASE_URL"`), pas avant.

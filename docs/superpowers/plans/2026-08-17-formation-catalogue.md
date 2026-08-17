@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Migrations : `packages/db/supabase/migrations/NNNN_slug.sql`, séquence contiguë — **0113** schéma, **0114** seed. `text + check`, jamais `create type … enum`. Appliquer avec `cd packages/db && supabase db push --db-url "$DB"` (jamais `supabase link`, jamais `psql -f` sans enregistrement). Pousser sur **UAT** (`DATABASE_URL_UAT`) ; la prod reçoit avec la release. Extraire l'URL avec `grep '^DATABASE_URL_UAT=' .env | cut -d= -f2- | sed 's/^"//; s/"$//'`, jamais `source .env`.
+- Migrations : `packages/db/supabase/migrations/NNNN_slug.sql`, séquence contiguë — **0113** schéma, **0114** index updated_by (ajoutée en cours de route, revue Task 1), **0115** seed. `text + check`, jamais `create type … enum`. Appliquer avec `cd packages/db && supabase db push --db-url "$DB"` (jamais `supabase link`, jamais `psql -f` sans enregistrement). Pousser sur **UAT** (`DATABASE_URL_UAT`) ; la prod reçoit avec la release. Extraire l'URL avec `grep '^DATABASE_URL_UAT=' .env | cut -d= -f2- | sed 's/^"//; s/"$//'`, jamais `source .env`.
 - RLS : appels wrappés `(select public.is_admin())` / `(select public.has_page('formation'))` (0057) ; `create policy` simple ; FK indexées sauf couvertes par un `unique` en tête (0055).
 - Web : `docs/guidelines-standard-feature.md` — `page.tsx` = garde + kickoff sans await + `<Suspense>` ; `loading.tsx` par route ; Template = RSC sans fetch ; services : `const { data, error } = …; if (error) throw new Error(error.message)` ; actions : `runAction` + `noGuard`/`requireAdminProfile()` en tête de handler, `BusinessError` pour tout message français, `revalidatePath` ; forms : RHF + `zodResolver` + `schema.ts` partagé, **`'use no memo'`** dans tout composant qui lit `formState` (React Compiler), Zod v4 (`z.uuid()`, `z.flattenError`), `ActionButton` pour le submit, toasts `sonner`.
 - Frontières ESLint : `lib → features → app`, cross-feature interdit, pas de barrel `index.ts`. Fichiers > 300 lignes → split.
@@ -35,7 +35,7 @@
 
 ```
 packages/db/supabase/migrations/0113_training_catalog.sql       (Task 1)  tables + RLS + index
-packages/db/supabase/migrations/0114_training_catalog_seed.sql  (Task 4)  généré, ne pas éditer à la main
+packages/db/supabase/migrations/0115_training_catalog_seed.sql  (Task 4)  généré, ne pas éditer à la main
 packages/db/scripts/gen-training-seed.mjs                       (Task 3)  formation.json → SQL (CLI + fonctions exportées)
 packages/db/scripts/gen-training-seed.test.mjs                  (Task 3)  node:test
 packages/db/src/types.ts                                        (Task 1)  régénéré
@@ -643,7 +643,7 @@ test('renderSql : un insert par table, dans l’ordre des FK, quotes échappées
   const order = ['training_modules', 'training_module_axes', 'training_module_sections', 'training_cases', 'training_case_messages', 'training_case_arena_slots', 'training_case_boss_fans']
     .map((t) => sql.indexOf(`insert into public.${t} (`))
   assert.ok(order.every((i, k) => i >= 0 && (k === 0 || i > order[k - 1])), `ordre : ${order}`)
-  assert.match(sql, /^-- 0114/)
+  assert.match(sql, /^-- 0115/)
   assert.doesNotMatch(sql, /on conflict/)
 })
 
@@ -668,10 +668,10 @@ Expected: FAIL (`Cannot find module './gen-training-seed.mjs'`).
 `packages/db/scripts/gen-training-seed.mjs` :
 ```js
 // Génère la migration de SEED du catalogue de formation depuis le formation.json de Good Luck
-// Agency (repo axel-vrnl/good-luck-agency). Le SQL émis est L'ARTEFACT (migration 0114) ; ce
+// Agency (repo axel-vrnl/good-luck-agency). Le SQL émis est L'ARTEFACT (migration 0115) ; ce
 // script est commité, ré-exécutable, JAMAIS appelé en prod.
 //   node packages/db/scripts/gen-training-seed.mjs ~/Documents/good-luck-agency/formation.json \
-//     > packages/db/supabase/migrations/0114_training_catalog_seed.sql
+//     > packages/db/supabase/migrations/0115_training_catalog_seed.sql
 // Règles de conversion : spec 2026-08-17-formation-catalogue-design.md §4. Tests : node --test.
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -970,7 +970,7 @@ function insertSql(table, rows) {
 export function renderSql(seed) {
   const c = seed.counts
   return [
-    '-- 0114 — Seed du catalogue de formation (reprise de Good Luck Agency).',
+    '-- 0115 — Seed du catalogue de formation (reprise de Good Luck Agency).',
     '-- GÉNÉRÉ par packages/db/scripts/gen-training-seed.mjs depuis formation.json — NE PAS ÉDITER À LA MAIN',
     '-- (relancer le script). uuid v5 déterministes (namespace fixe) : re-génération = mêmes ids.',
     `-- Comptages : ${c.modules} modules, ${c.axes} axes, ${c.sections} sections, ${c.cases} cas (${c.solo} solo / ${c.arena} défis / ${c.boss} boss),`,
@@ -990,7 +990,7 @@ export function renderSql(seed) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const file = process.argv[2]
   if (!file) {
-    console.error('usage : node gen-training-seed.mjs <formation.json> > 0114_training_catalog_seed.sql')
+    console.error('usage : node gen-training-seed.mjs <formation.json> > 0115_training_catalog_seed.sql')
     process.exit(1)
   }
   const seed = buildSeed(JSON.parse(readFileSync(file, 'utf8')))
@@ -1008,18 +1008,18 @@ Expected: tous PASS, y compris le test sur le `formation.json` réel (`{ modules
 
 ---
 
-### Task 4: Migration `0114_training_catalog_seed.sql` — génération, relecture des cours, push UAT
+### Task 4: Migration `0115_training_catalog_seed.sql` — génération, relecture des cours, push UAT
 
 **Files:**
-- Create: `packages/db/supabase/migrations/0114_training_catalog_seed.sql` (généré)
+- Create: `packages/db/supabase/migrations/0115_training_catalog_seed.sql` (généré)
 
 - [ ] **Step 1: Générer**
 
 ```bash
 node packages/db/scripts/gen-training-seed.mjs ~/Documents/good-luck-agency/formation.json \
-  > packages/db/supabase/migrations/0114_training_catalog_seed.sql
-head -8 packages/db/supabase/migrations/0114_training_catalog_seed.sql
-grep -c "^  (" packages/db/supabase/migrations/0114_training_catalog_seed.sql   # 7+24+10+85+229+25+5 = 385
+  > packages/db/supabase/migrations/0115_training_catalog_seed.sql
+head -8 packages/db/supabase/migrations/0115_training_catalog_seed.sql
+grep -c "^  (" packages/db/supabase/migrations/0115_training_catalog_seed.sql   # 7+24+10+85+229+25+5 = 385
 ```
 
 - [ ] **Step 2: Relire le Markdown des 6 cours**
@@ -1045,7 +1045,7 @@ psql "$DB" -c "select code, left(course_md, 60) from training_modules order by p
 ```
 Attendu : `7 | 24 | 10 | 85 | 229 | 25 | 5` ; `arena 5 / boss 1 / solo 79` ; 6 cours non nuls (`boss` null).
 
-- [ ] **Step 4: Commit** (demander) — `feat(db): 0114 seed du catalogue de formation (7 modules, 85 cas)`
+- [ ] **Step 4: Commit** (demander) — `feat(db): 0115 seed du catalogue de formation (7 modules, 85 cas)`
 
 ---
 
@@ -4097,7 +4097,7 @@ Manuel (UAT) : admin → `/formation/modules` : 7 cartes ; `/formation/modules/s
 
 - [ ] **Step 1: `CLAUDE.md`** — dans le paragraphe « 3 faces du CRM », remplacer « `Formation` (`/formation/*`, squelette : Overview placeholder + Membres — la reprise de Good Luck Agency vient ensuite) » par :
 
-> `Formation` (`/formation/*` — reprise de Good Luck Agency : **catalogue** `training_*` (0113 schéma, 0114 seed généré par `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin `features/training-catalog`, Modules en lecture `features/training-modules` (projection publique — jamais `fan_brief`/`expected` côté chatter), droits `frm-suivi` (Overview, encadrement) / `frm-entrainement` (Ma formation, chatter), Modules ouvert aux deux (`NavItem.anyOf`, `requireAccess([...])`) ; Ma formation / Overview sont des placeholders jusqu'aux sessions)
+> `Formation` (`/formation/*` — reprise de Good Luck Agency : **catalogue** `training_*` (0113 schéma, 0114 index, 0115 seed généré par `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin `features/training-catalog`, Modules en lecture `features/training-modules` (projection publique — jamais `fan_brief`/`expected` côté chatter), droits `frm-suivi` (Overview, encadrement) / `frm-entrainement` (Ma formation, chatter), Modules ouvert aux deux (`NavItem.anyOf`, `requireAccess([...])`) ; Ma formation / Overview sont des placeholders jusqu'aux sessions)
 
 - [ ] **Step 2: Spec** — passer le statut à « implémenté (PRs 1-6) » et ajouter en fin de §7 : « Écart tranché à l'implémentation : pas de minimum d'axes (le Boss final GLA n'en a aucun — notation par étape) ; `saveModule`/`saveCase` (id null = création) ; item Modules en `anyOf` sans `slug` (+ `choiceLabel`) ».
 
@@ -4114,7 +4114,7 @@ DB="$(grep '^DATABASE_URL_UAT=' .env | cut -d= -f2- | sed 's/^"//; s/"$//')"; (c
   1. `/formation/members` : cocher « Entraînement » à un chatter test, « Suivi » à un encadrant test.
   2. En tant que le chatter : sidebar = Ma formation, Modules ; lire le cours Setting ; onglet Cas ; `/formation/catalogue` inaccessible.
   3. Admin : Catalogue → éditer un cours (aperçu), un cas solo, le défi, le boss ; dupliquer ; désactiver / réactiver ; réordonner ; créer un module vide et un cas dedans.
-  4. Prod : la 0113 + 0114 partent AVEC la release (`supabase db push --db-url "$DATABASE_URL"`), pas avant.
+  4. Prod : les 0113 + 0114 + 0115 partent AVEC la release (`supabase db push --db-url "$DATABASE_URL"`), pas avant.
 
 - [ ] **Step 5: Commit** (demander) — `docs(formation): CLAUDE.md + spec — catalogue livré`
 
