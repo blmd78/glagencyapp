@@ -15,7 +15,7 @@ export default async function ChattersPage({
   const profile = await requireAccess('chatters')
   const period = resolvePeriod(await searchParams)
   // Page en LECTURE SEULE depuis 0100 : sa seule édition était le shift, devenu un attribut du
-  // membre (Membres + board Organisation). Plus de `canWrite` à calculer ici.
+  // membre (principal dans Membres, placements sur le board Organisation). Plus de `canWrite` ici.
   // Kickoff SANS await (pattern streaming, spec §2.3) : le shell (h1) s'affiche
   // immédiatement, la table streame dans son boundary quand le RPC répond.
   const data = getChatters(period, { restricted: profile.role !== 'admin' })

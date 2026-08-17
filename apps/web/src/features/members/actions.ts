@@ -41,13 +41,12 @@ const revalidateMembers = () => {
   revalidatePath('/chatter/organisation')
 }
 
-// LE SHIFT N'A PLUS DE HELPER DÉDIÉ (0100). Il vivait sur `chatters.shift` — la fiche MyPuls —
-// ce qui imposait `applyShift` : résoudre le lien, écrire sur l'autre table, et NE RIEN FAIRE
-// pour un encadrant (le formulaire d'un manager portait `shift: null` faute de pouvoir lire la
-// table admin-only, si bien qu'un simple enregistrement de pages effaçait le shift — audit
-// 2026-07-29). Porté par `profiles`, c'est une colonne du membre comme `closing_role` : écrite
-// dans le patch principal de createMember/updateMember, lisible par tout encadrant (0097), et
-// indépendante du lien MyPuls — les chatteurs sans fiche ont enfin un shift.
+// LE SHIFT PRINCIPAL est une colonne du membre (`profiles.shift`, 0100) : écrit dans le patch
+// principal de createMember/updateMember comme `closing_role`, lisible par tout encadrant (0097),
+// indépendant du lien MyPuls. Les PLACEMENTS sur le board (`profile_creators.shifts`, 0110) sont
+// une autre donnée : Membres n'en amorce un qu'à la CRÉATION d'une assignation (au principal),
+// puis n'y touche plus — changer le principal ne déplace personne sur le board (demande Benoit
+// 2026-08-17 : « il reste dans les deux »).
 
 /** Crée le compte auth (email confirmé → OTP direct), le profil, pages + modèles. */
 export async function createMember(raw: unknown): Promise<ActionResult> {
@@ -114,8 +113,8 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // n'est pas setter/closer). Cf. 0077 — attribut porté par le membre, indépendant de chatters.
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
-          // Shift : même règle, et depuis 0100 même TABLE que le closing (il vivait sur la fiche
-          // MyPuls, ce qui le rendait inaccessible aux chatteurs sans lien).
+          // Shift PRINCIPAL : même règle, et depuis 0100 même TABLE que le closing (il vivait sur la
+          // fiche MyPuls, ce qui le rendait inaccessible aux chatteurs sans lien).
           shift: role === 'chatteur' ? values.shift : null,
           // Nouvel arrivant (0101) : même règle de rôle. `arrived_at` ne survit pas à un rôle
           // non-chatteur — un drapeau orphelin sur un manager ne voudrait rien dire.
@@ -148,9 +147,16 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           .eq('role', 'chatteur')
         if (rErr) throw new Error(rErr.message)
       }
-      // Les modèles assignés sont un concept de la face chatteurs uniquement.
+      // Les modèles assignés sont un concept de la face chatteurs uniquement. Nouvelle assignation
+      // d'un chatteur = amorcée d'un placement à son shift principal (0110, cf. syncAssignments).
       if (scope === 'chatter') {
-        const sErr = await syncAssignments(admin, uid, creatorIds, ownScope)
+        const sErr = await syncAssignments(
+          admin,
+          uid,
+          creatorIds,
+          ownScope,
+          role === 'chatteur' ? values.shift : null,
+        )
         if (sErr) throw new Error(sErr)
       }
       revalidateMembers()
@@ -198,7 +204,8 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           // Désignation closing : uniquement pour un chatteur, null sinon (cf. 0077, createMember).
           closing_role: role === 'chatteur' ? closingRole : null,
           closing_team: role === 'chatteur' ? closingTeam : null,
-          // Shift (0100) : attribut du membre, remis à null si la cible cesse d'être chatteur.
+          // Shift PRINCIPAL (0100) : attribut du membre, remis à null si la cible cesse d'être
+          // chatteur. Ses PLACEMENTS (board) ne bougent pas — découplés (0110).
           shift: role === 'chatteur' ? values.shift : null,
           // Nouvel arrivant (0101) : même règle. Décocher le drapeau NE VIDE PAS `arrived_at` —
           // c'est voulu (base du calcul d'ancienneté/turnover) ; seul un changement de rôle
@@ -214,6 +221,16 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         })
         .eq('id', id)
       if (pErr) throw new Error(pErr.message)
+      // Un membre qui CESSE d'être chatteur perd ses PLACEMENTS sur le board (0110 : « toujours {}
+      // pour un encadrant ») — sinon sa ligne, devenue porteuse s'il est promu sous-manager, garderait
+      // des créneaux fantômes qu'un écran non rafraîchi pourrait encore « retirer ».
+      if (role !== 'chatteur') {
+        const { error: shErr } = await admin
+          .from('profile_creators')
+          .update({ shifts: [], hs_shifts: [] })
+          .eq('profile_id', id)
+        if (shErr) throw new Error(shErr.message)
+      }
       // Lien chatteur : uniquement pour un membre role chatteur (miroir du gate closing) — un membre
       // promu manager/police/admin voit son chatter_id remis à null (sinon lien orphelin non réparable).
       // La danse beforeLink/afterLink qui protégeait le shift ici (audit 2026-07-29) a disparu
@@ -245,7 +262,13 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         }
       }
       if (scope === 'chatter') {
-        const sErr = await syncAssignments(admin, id, creatorIds, ownScope)
+        const sErr = await syncAssignments(
+          admin,
+          id,
+          creatorIds,
+          ownScope,
+          role === 'chatteur' ? values.shift : null,
+        )
         if (sErr) throw new Error(sErr)
       }
       revalidateMembers()

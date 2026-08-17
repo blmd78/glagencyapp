@@ -1,4 +1,6 @@
 export * from './domain/types'
+export { planAssignmentSync } from './domain/assignments'
+export type { AssignmentSyncPlan } from './domain/assignments'
 export * from './impersonation/rules'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'

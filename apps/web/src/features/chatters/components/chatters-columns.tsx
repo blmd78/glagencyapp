@@ -75,8 +75,9 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
   },
   {
     // Rôle (setter/closer) et équipe (rouge/bleue) : lus depuis le MEMBRE lié, read-only ici —
-    // édités sur la fiche Membre. Le shift les a rejoints sur le membre en 0100 et s'édite au
-    // même endroit (ou sur le board Organisation) : plus de badge ni de crayon sur cette page.
+    // édités sur la fiche Membre. Le shift a quitté cette table en 0100 (principal sur le membre,
+    // placements sur le board depuis 0110) et s'édite dans Membres ou sur le board Organisation :
+    // plus de badge ni de crayon sur cette page.
     id: 'crm',
     header: 'Closing',
     cell: ({ row }) => (
@@ -177,8 +178,9 @@ const baseColumns: ColumnDef<ChatterRow>[] = [
  * Colonnes de la table chatteurs — LECTURE SEULE depuis 0100.
  *
  * Il y avait ici une 12e colonne d'édition (crayon → dialog `updateChatterCrm`) dont le seul
- * champ était le shift. Le shift ayant rejoint le membre (`profiles.shift`), il s'édite dans
- * Membres et sur le board Organisation : la colonne, son dialog, son action et son schéma ont
+ * champ était le shift. Le shift ayant rejoint le membre (`profiles.shift`, principal ; placements
+ * `profile_creators.shifts` depuis 0110), il s'édite dans Membres et sur le board Organisation :
+ * la colonne, son dialog, son action et son schéma ont
  * été supprimés, et les sous-lignes (`chatters-sub-rows.tsx`) sont passées à 11 cellules.
  */
 export const chattersColumns: ColumnDef<ChatterRow>[] = baseColumns

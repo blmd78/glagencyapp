@@ -43,10 +43,16 @@ export interface Member {
   /** Désignation « closing » du membre (chatteur) — null = pas dans le dispositif. */
   closingRole: CrmRole | null
   closingTeam: CrmTeam | null
-  /** Shift de la fiche chatteur LIÉE (chatters.shift) — null : non lié ou non renseigné. */
+  /** Shift PRINCIPAL du chatteur (`profiles.shift`) — null : pas encore défini (« à placer »).
+   *  Tout placement sur un autre créneau est de l'heure sup (0110). */
   shift: CrmShift | null
+  /** PLACEMENTS sur le board par modèle (`profile_creators.shifts` + `hs_shifts`, 0110) — clé =
+   *  creatorId, valeur = les créneaux tenus sur ce modèle (forme canonique matin → aprem → soir),
+   *  chacun principal ou heure sup. Un modèle assigné sans placement est absent de la map. Lecture
+   *  seule ici : ça se compose (et se bascule) sur le board. */
+  placementsByCreator: Record<string, { shift: CrmShift; hs: boolean }[]>
   /** Drapeau MANUEL « nouvel arrivant » (0101) — chatteurs uniquement, `false` pour les autres
-   *  rôles (le serveur le force, comme `closing_role` et `shift`). */
+   *  rôles (le serveur le force, comme `closing_role`). */
   isNew: boolean
   /** Date d'arrivée réelle dans l'agence ('YYYY-MM-DD'). CONSERVÉE après retrait du drapeau :
    *  c'est la base du calcul d'ancienneté, pas un simple attribut d'affichage. */

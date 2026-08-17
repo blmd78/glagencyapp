@@ -20,8 +20,9 @@ const DEFAULT_FIXED = 0
  * `creators` reste scopé aux modèles du manager — le périmètre qu'il peut assigner.
  * `chatters` (options du lien MyPuls, client admin agence-wide) n'est chargé QUE pour un
  * admin : le champ lien est admin-only (UI + serveur) et un manager ne doit pas recevoir
- * cette liste hors de son périmètre RLS dans son payload. Le SHIFT, lui, ne dépend plus de
- * cette table depuis 0100 (`profiles.shift`) : tout encadrant le lit et l'édite.
+ * cette liste hors de son périmètre RLS dans son payload. Le SHIFT principal, lui, ne dépend plus
+ * de cette table depuis 0100 (`profiles.shift`) : tout encadrant le lit et l'édite ; les
+ * placements (`profile_creators.shifts`, 0110) se lisent avec les assignations.
  *
  * MÊME RÈGLE POUR LES RÉGLAGES DE PAIE (2026-07-28) : `compta_settings` et `compta_primes` ne
  * sont lus que pour un admin. La RLS les laisse LIRE à un manager sur ses rattachés
@@ -59,10 +60,11 @@ export async function getMembers(): Promise<MembersData> {
     ),
     // fetchAll : cap PostgREST silencieux — `profile_creators` grossit avec les membres et leurs
     // modèles assignés. `.order('profile_id').order('creator_id')` = la PK complète (0001).
+    // `shifts` : les PLACEMENTS sur ce modèle (0110) — lus avec l'assignation, sous la même RLS.
     fetchAll((f, t) =>
       supabase
         .from('profile_creators')
-        .select('profile_id, creator_id')
+        .select('profile_id, creator_id, shifts, hs_shifts')
         .order('profile_id')
         .order('creator_id')
         .range(f, t),
@@ -147,15 +149,25 @@ export async function getMembers(): Promise<MembersData> {
   const today = todayParis()
   const defaultEffectiveFrom = mondayOf(today)
   const byProfile = new Map<string, string[]>()
+  // Shift PRINCIPAL = colonne du MEMBRE (`profiles.shift`, 0100) ; PLACEMENTS sur le board =
+  // `profile_creators.shifts` + marque heure sup `hs_shifts` (0110), lus ici pour la fiche détail
+  // (« quel(s) créneau(x) sur quel modèle »). Lecture seule : ça se compose sur le board.
+  const isShift = (v: string | null): v is CrmShift =>
+    !!v && (CRM_SHIFTS as readonly string[]).includes(v)
+  const placementsByProfile = new Map<string, Record<string, { shift: CrmShift; hs: boolean }[]>>()
   for (const l of links ?? []) {
     const arr = byProfile.get(l.profile_id)
     if (arr) arr.push(l.creator_id)
     else byProfile.set(l.profile_id, [l.creator_id])
+    const placements = (l.shifts ?? [])
+      .filter(isShift)
+      .map((shift) => ({ shift, hs: (l.hs_shifts ?? []).includes(shift) }))
+    if (placements.length) {
+      const map = placementsByProfile.get(l.profile_id)
+      if (map) map[l.creator_id] = placements
+      else placementsByProfile.set(l.profile_id, { [l.creator_id]: placements })
+    }
   }
-  // Shift = colonne du MEMBRE depuis 0100 (`profiles.shift`), plus la fiche MyPuls : lisible
-  // par tout encadrant, indépendante du lien. Éditable ici et sur le board Organisation.
-  const isShift = (v: string | null): v is CrmShift =>
-    !!v && (CRM_SHIFTS as readonly string[]).includes(v)
 
   // Résolution « Créé par » : le créateur est un profil de la même liste (0097 : un
   // encadrant voit tout le monde) — créateur supprimé ou colonne pré-0098 → null → « — ».
@@ -187,6 +199,7 @@ export async function getMembers(): Promise<MembersData> {
       closingTeam: (p.closing_team ?? null) as CrmTeam | null,
       chatterId: p.chatter_id ?? '',
       shift: isShift(p.shift) ? p.shift : null,
+      placementsByCreator: placementsByProfile.get(p.id) ?? {},
       isNew: p.is_new ?? false,
       arrivedAt: p.arrived_at ?? null,
       // Les partis ne sont PAS filtrés ici : Membres est le seul écran qui doit pouvoir les

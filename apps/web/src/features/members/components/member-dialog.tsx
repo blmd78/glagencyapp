@@ -200,7 +200,8 @@ export function MemberDialog({
       {/* Désignation closing (setter/closer + équipe) + shift — chatteur uniquement (masqué
           sinon). Placée au-dessus des pages : rôle → désignation → pages/modèles.
           Le shift est ouvert aux encadrants depuis 0100 : porté par `profiles`, il n'est plus
-          tributaire de la table MyPuls admin-only qui imposait de le leur cacher. */}
+          tributaire de la table MyPuls admin-only qui imposait de le leur cacher. Depuis 0110 c'est
+          le shift PRINCIPAL ; les placements (board) vivent sur `profile_creators.shifts`. */}
       <MemberClosingFields control={control} roleValue={roleValue} isSubmitting={isSubmitting} />
 
       <MemberArrivalFields

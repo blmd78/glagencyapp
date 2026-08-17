@@ -39,6 +39,7 @@ export function ComboboxMultiple({
   emptyText = 'Aucun résultat.',
   chipClassName,
   chipTitle,
+  onChipClick,
   extraChips = [],
   note,
 }: {
@@ -54,6 +55,9 @@ export function ComboboxMultiple({
   chipClassName?: string | ((v: string) => string)
   /** Tooltip d'un chip (par valeur). */
   chipTitle?: (v: string) => string | undefined
+  /** Clic sur le LIBELLÉ d'un chip sélectionné (pas sa croix) — ex. board Organisation : bascule
+   *  principal ⇄ heure sup. Absent = le chip n'est pas cliquable. */
+  onChipClick?: (v: string) => void
   extraChips?: ExtraChip[]
   /** Avertissement affiché EN TÊTE du popover, avant tout choix — pour une case dont la
    *  sélection a des effets au-delà d'elle-même (board Organisation : shift + assignation). */
@@ -115,7 +119,20 @@ export function ComboboxMultiple({
                   chipCls(v) ?? 'bg-muted text-foreground',
                 )}
               >
-                {labelOf(v)}
+                {onChipClick ? (
+                  <span
+                    role="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onChipClick(v)
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {labelOf(v)}
+                  </span>
+                ) : (
+                  labelOf(v)
+                )}
                 <span
                   role="button"
                   title="Retirer"

@@ -1,12 +1,13 @@
 'use server'
 
 // Server Actions du board Organisation — ÉDITION EN WRITE-THROUGH : les cases écrivent les
-// VRAIES données (profile_creators = assignation au modèle, profiles.shift depuis 0100),
+// VRAIES données (profile_creators = assignation au modèle + PLACEMENTS `shifts` depuis 0110),
 // jamais une copie — Membres et le board restent une seule vérité.
 //
 // DEUX NIVEAUX DE DROIT, comme le planning repos :
-//  • COMPOSER UNE CASE (saveOrgCell) = admin OU encadrant porteur de la page `organisation`
-//    (miroir de `can_write_page('organisation')` dans le RPC, 0100) ;
+//  • COMPOSER UNE CASE (saveOrgCell) et TYPER UN PLACEMENT (setOrgPlacementKind, principal ⇄
+//    heure sup) = admin OU encadrant porteur de la page `organisation` (miroir de
+//    `can_write_page('organisation')` dans les RPC, 0100/0110) ;
 //  • STRUCTURE (saveOrgRow, deleteOrgRow, moveOrgTeam) = ADMIN seul : ajouter/supprimer une
 //    ligne ou déplacer une équipe réécrit l'organigramme, pas la composition d'un shift.
 
@@ -35,11 +36,11 @@ const cellInput = z.object({
 })
 
 /**
- * Sauvegarde d'une case (modèle × shift) :
- *  - AJOUTÉ   → assigné au modèle (upsert profile_creators) + shift posé sur le MEMBRE ;
- *  - RETIRÉ   → désassigné du modèle SEULEMENT si son shift est encore celui de la case
- *               (un déplacement de shift = retrait d'une case + ajout dans l'autre, dans
- *               n'importe quel ordre : le retrait voit alors un shift différent → no-op).
+ * Sauvegarde d'une case (modèle × shift) — 0110, plus aucun cloisonnement :
+ *  - AJOUTÉ   → placement ajouté sur ce modèle (assignation créée si besoin) ; RIEN d'autre ne
+ *               bouge — ni ses autres colonnes de la ligne, ni ses autres modèles. Sans shift
+ *               principal, la personne hérite de celui-ci ;
+ *  - RETIRÉ   → ce placement retiré ; plus aucun placement sur ce modèle → assignation supprimée.
  *
  * Ouvert aux encadrants porteurs de la page (0100). La garde ci-dessous n'est qu'un MIROIR du
  * `can_write_page('organisation')` que le RPC applique en base — l'enforcement réel est là-bas.
@@ -114,6 +115,44 @@ export async function saveOrgRow(raw: unknown): Promise<ActionResult> {
         if (error.message.includes('org_porteur_invalide'))
           throw new BusinessError('Le porteur d’une ligne doit être un encadrant')
         if (error.message.includes('org_acces_refuse')) throw new BusinessError(DENY_WRITE)
+        throw new Error(error.message)
+      }
+      revalidatePath('/chatter/organisation')
+      revalidatePath('/chatter/members')
+    },
+  })
+}
+
+const kindInput = z.object({
+  creatorId: z.uuid(),
+  chatterId: z.uuid(),
+  shift: z.enum(CRM_SHIFTS),
+  /** true = heure sup (rouge), false = principal (bleu). */
+  hs: z.boolean(),
+})
+
+/**
+ * Type d'un placement — principal ⇄ heure sup (0110). Même droit que la composition d'une case ;
+ * ne crée ni ne retire rien (RPC `set_org_placement_kind`, garde en base).
+ */
+export async function setOrgPlacementKind(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: kindInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (values) => {
+      await requireWriteProfile('organisation')
+      const supabase = await createClient()
+      const { error } = await supabase.rpc('set_org_placement_kind', {
+        p_creator_id: values.creatorId,
+        p_profile_id: values.chatterId,
+        p_shift: values.shift,
+        p_hs: values.hs,
+      })
+      if (error) {
+        if (error.message.includes('org_acces_refuse')) throw new BusinessError(DENY_WRITE)
+        if (error.message.includes('org_placement_inconnu'))
+          throw new BusinessError('Ce placement n’existe plus — recharge la page.')
         throw new Error(error.message)
       }
       revalidatePath('/chatter/organisation')

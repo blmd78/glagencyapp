@@ -4,9 +4,10 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
-import { saveOrgCell } from '../actions'
-import { SHIFTS } from './org-table-cells'
+import { Input } from '@/components/ui/input'
+import { CRM_SHIFTS, isHeureSup, type CrmShift } from '@/lib/types/chatters'
+import { saveOrgCell, setOrgPlacementKind } from '../actions'
+import { COLS, OrgLegend, SHIFTS } from './org-table-cells'
 import { OrgTableRows } from './org-table-rows'
 import { OrgTableDraftRow } from './org-table-draft-row'
 import type { OrgChatter, OrgRow, OrganisationData } from '../types'
@@ -42,12 +43,46 @@ export function OrgTable({
   const [, startCellTransition] = useTransition()
   const [overrides, setOverrides] = useState<Record<string, string[]>>({})
   const [draft, setDraft] = useState<{ manager: string; owner: string } | null>(null)
+  // RECHERCHE d'un chatter (barre au-dessus du tableau) : quand elle est vide, tout est comme avant ;
+  // sinon on ne garde que les lignes où la personne a une case, et dans ces cases sa seule pastille —
+  // « un chatter et tous ses shifts » d'un coup d'œil. Filtre d'AFFICHAGE : ouvrir une case montre
+  // toujours sa composition entière, et les gestes écrivent sur les vraies listes.
+  const [query, setQuery] = useState('')
+  const fold = (v: string) =>
+    v
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+  const q = fold(query.trim())
   const nameById = new Map(data.chatterOptions.map((o) => [o.id, o.name]))
+  const matches = (id: string) => !q || fold(nameById.get(id) ?? '').includes(q)
   // Le drapeau suit exactement le chemin du nom — dérivé des MÊMES options, pour qu'une case n'ait
   // rien à aller chercher ailleurs que dans ce que le service lui a déjà donné.
   const newById = new Map(
     data.chatterOptions.map((o) => [o.id, { isNew: o.isNew, arrivedAt: o.arrivedAt }]),
   )
+  // Shift PRINCIPAL par personne (0110) — même provenance. Ne sert qu'au type PAR DÉFAUT d'un
+  // placement posé de manière optimiste (heure sup si ≠ principal), la règle du serveur.
+  const principalById = new Map(data.chatterOptions.map((o) => [o.id, o.principalShift]))
+  // Marque heure sup par placement (0110) : override optimiste > serveur > défaut. Clé = case + id.
+  const [kindOverrides, setKindOverrides] = useState<Record<string, boolean>>({})
+  const hsOf = (creatorId: string, shift: CrmShift, id: string, server: OrgChatter[]) =>
+    kindOverrides[`${creatorId}:${shift}:${id}`] ??
+    server.find((c) => c.id === id)?.hs ??
+    isHeureSup(principalById.get(id), shift)
+  function toggleKind(creatorId: string, shift: CrmShift, id: string, server: OrgChatter[]) {
+    const key = `${creatorId}:${shift}:${id}`
+    const nextHs = !hsOf(creatorId, shift, id, server)
+    const before = kindOverrides
+    setKindOverrides((p) => ({ ...p, [key]: nextHs }))
+    startCellTransition(async () => {
+      const res = await setOrgPlacementKind({ creatorId, chatterId: id, shift, hs: nextHs })
+      if (!res.success) {
+        setKindOverrides(before)
+        toast.error(res.error)
+      }
+    })
+  }
 
   // LES OVERRIDES NE SONT JAMAIS VIDÉS EN MASSE — exactement comme le planning repos, et c'est
   // ce qui rend l'ajout « à la volée » fluide (retour Benoit 2026-07-30).
@@ -66,28 +101,21 @@ export function OrgTable({
     overrides[`${creatorId}:${shift}`] ?? server.map((c) => c.id)
 
   /**
-   * Total AFFICHÉ d'une ligne. `r.total` compte tous les chatters assignés au modèle, y compris
-   * ceux sans shift (invisibles dans les cases) — on ne peut donc pas le recalculer, seulement
-   * le corriger du delta que les overrides ont introduit : + les personnes désormais affichées
-   * qui ne l'étaient pas côté serveur, − celles qui ont disparu. Nécessaire depuis qu'un commit
-   * ne rafraîchit plus la page : sans ça, le compteur resterait figé sur l'état d'avant le clic.
+   * Total AFFICHÉ d'une ligne = les ASSIGNÉS au modèle, corrigés des gestes non encore renvoyés par
+   * le serveur : + une personne posée qui n'était pas assignée (le serveur va l'assigner), − une
+   * personne qui était placée côté serveur et n'a plus aucune case (son dernier placement retiré →
+   * le serveur la désassigne). Poser quelqu'un DÉJÀ assigné (sans placement, 0110) n'ajoute rien.
+   * Nécessaire depuis qu'un commit ne rafraîchit plus la page.
    */
   const displayedTotal = (r: OrgRow) => {
-    const serverIds = new Set(CRM_SHIFTS.flatMap((sh) => r.byShift[sh].map((c) => c.id)))
+    const assigned = new Set(r.assignedIds)
+    const serverPlaced = new Set(CRM_SHIFTS.flatMap((sh) => r.byShift[sh].map((c) => c.id)))
     const shownIds = new Set(CRM_SHIFTS.flatMap((sh) => cellIds(r.creatorId, sh, r.byShift[sh])))
     let delta = 0
-    for (const id of shownIds) if (!serverIds.has(id)) delta += 1
-    for (const id of serverIds) if (!shownIds.has(id)) delta -= 1
+    for (const id of shownIds) if (!assigned.has(id)) delta += 1
+    for (const id of serverPlaced) if (!shownIds.has(id)) delta -= 1
     return r.total + delta
   }
-
-  // Les 3 cases d'un MODÈLE partagent la même donnée (un chatteur n'a qu'UN shift) : pour
-  // qu'un déplacement s'affiche d'un bloc, il faut pouvoir retirer quelqu'un des deux autres
-  // cases sans attendre le serveur. `byShift` ne dépend que du modèle — deux lignes portant le
-  // même modèle ont donc le même contenu.
-  const byShiftOf = new Map<string, Record<CrmShift, OrgChatter[]>>()
-  for (const s of data.sections)
-    for (const r of s.rows) if (!byShiftOf.has(r.creatorId)) byShiftOf.set(r.creatorId, r.byShift)
 
   // Gestes de STRUCTURE (ajout/déplacement de ligne) : la ligne apparaît ou change de
   // section — `revalidatePath` seul ne repeignait pas l'écran, on force le rafraîchissement.
@@ -109,26 +137,11 @@ export function OrgTable({
     modelName: string,
   ) {
     const addedIds = next.filter((id) => !previous.includes(id))
-    // Affichage optimiste de TOUTE LA LIGNE, d'un seul coup : la case cible reçoit sa nouvelle
-    // composition, et les deux autres cases du modèle perdent les personnes qu'on vient d'y
-    // poser (un chatteur n'a qu'UN shift — le serveur fera exactement ça). Sans ce miroir
-    // complet, un déplacement Matin → Soir affichait la personne DANS LES DEUX cases jusqu'au
-    // rafraîchissement.
+    // Affichage optimiste de LA CASE seule : depuis 0110 un placement n'en déplace aucun autre —
+    // ni les autres colonnes de la ligne (plusieurs shifts sur le même modèle sont libres), ni les
+    // autres modèles. Le serveur fait exactement ça (`save_org_cell` : ajout = ajout).
     const before = overrides
-    setOverrides((p) => {
-      const c = { ...p, [`${creatorId}:${shift}`]: next }
-      if (addedIds.length) {
-        const byShift = byShiftOf.get(creatorId)
-        for (const sh of CRM_SHIFTS) {
-          if (sh === shift) continue
-          const k = `${creatorId}:${sh}`
-          const cur = c[k] ?? (byShift?.[sh] ?? []).map((x) => x.id)
-          const pruned = cur.filter((id) => !addedIds.includes(id))
-          if (pruned.length !== cur.length) c[k] = pruned
-        }
-      }
-      return c
-    })
+    setOverrides((p) => ({ ...p, [`${creatorId}:${shift}`]: next }))
     startCellTransition(async () => {
       const res = await saveOrgCell({ creatorId, shift, chatterIds: next, previousIds: previous })
       if (!res.success) {
@@ -138,19 +151,24 @@ export function OrgTable({
         toast.error(res.error)
         return
       }
-      // On NOMME l'effet réel, parce qu'il déborde de la case : une case du board écrit le
-      // SHIFT du chatteur (partagé par ses autres modèles) et son ASSIGNATION au modèle, qui
-      // est son périmètre d'accès. Le popover l'annonce avant, ce toast le confirme après.
+      // On NOMME l'effet réel, parce qu'il déborde de la case : une case du board écrit
+      // l'ASSIGNATION du chatteur au modèle — son périmètre d'accès — et son PLACEMENT sur ce
+      // shift (0110). Le popover l'annonce avant, ce toast le confirme après.
       const added = addedIds.map((id) => nameById.get(id) ?? '?')
       const removed = previous.filter((id) => !next.includes(id)).map((id) => nameById.get(id) ?? '?')
       if (added.length)
         toast.success(`${added.join(', ')} → ${SHIFTS[shift].label} sur ${modelName}`, {
-          description: 'Shift mis à jour et modèle assigné (visible dans Membres).',
+          description:
+            'Placé sur ce shift, modèle assigné si besoin — ses autres cases ne bougent pas.',
         })
       if (removed.length)
-        toast.success(`${removed.join(', ')} retiré${removed.length > 1 ? 's' : ''} de ${modelName}`, {
-          description: 'Le modèle n’est plus assigné — le shift, lui, est conservé.',
-        })
+        toast.success(
+          `${removed.join(', ')} retiré${removed.length > 1 ? 's' : ''} de ${modelName} · ${SHIFTS[shift].label}`,
+          {
+            description:
+              'Ce placement seulement — sans autre placement sur ce modèle, il n’y est plus assigné.',
+          },
+        )
       // AUCUN `router.refresh()` ICI — c'est ce qui permet d'enchaîner les assignations sans
       // que l'écran se recharge entre deux (comportement du planning repos, dont `commitCell`
       // ne rafraîchit pas non plus : il pose l'override et laisse l'action partir).
@@ -162,9 +180,38 @@ export function OrgTable({
   }
 
 
+  // Lignes visibles : toutes sans recherche ; sinon celles où la personne cherchée a une case
+  // (overrides compris — une pastille qu'on vient de poser compte).
+  const visibleData = q
+    ? {
+        ...data,
+        sections: data.sections
+          .map((s) => ({
+            ...s,
+            rows: s.rows.filter((r) =>
+              CRM_SHIFTS.some((sh) => cellIds(r.creatorId, sh, r.byShift[sh]).some(matches)),
+            ),
+          }))
+          .filter((s) => s.rows.length > 0),
+      }
+    : data
+  const noMatch = q !== '' && visibleData.sections.length === 0
+
   return (
-    // Estompage réservé aux gestes de STRUCTURE (cf. les deux transitions plus haut) : composer
-    // une case n'allume plus ce voile, sinon l'écran devenait inutilisable pour enchaîner.
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Rechercher un chatter…"
+          aria-label="Rechercher un chatter sur le board"
+          className="h-8 w-64 text-sm"
+        />
+        <OrgLegend />
+      </div>
+    {/* Estompage réservé aux gestes de STRUCTURE (cf. les deux transitions plus haut) : composer
+        une case n'allume plus ce voile, sinon l'écran devenait inutilisable pour enchaîner. */}
     <div
       className={cn(
         'overflow-x-auto rounded-xl border transition-opacity',
@@ -189,7 +236,7 @@ export function OrgTable({
         </thead>
         <tbody>
           <OrgTableRows
-            data={data}
+            data={visibleData}
             isAdmin={isAdmin}
             canWrite={canWrite}
             pending={pending}
@@ -199,8 +246,18 @@ export function OrgTable({
             displayedTotal={displayedTotal}
             nameById={nameById}
             newById={newById}
+            hsOf={hsOf}
+            toggleKind={toggleKind}
+            chipFilter={q ? matches : undefined}
           />
-          {isAdmin && (
+          {noMatch && (
+            <tr>
+              <td colSpan={COLS} className="px-3 py-6 text-center text-sm text-muted-foreground">
+                Aucun chatter « {query.trim()} » n’a de case sur le board.
+              </td>
+            </tr>
+          )}
+          {isAdmin && !q && (
             <OrgTableDraftRow
               data={data}
               draft={draft}
@@ -211,6 +268,7 @@ export function OrgTable({
           )}
         </tbody>
       </table>
+    </div>
     </div>
   )
 }

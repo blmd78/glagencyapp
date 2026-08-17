@@ -1744,15 +1744,21 @@ export type Database = {
       profile_creators: {
         Row: {
           creator_id: string
+          hs_shifts: string[]
           profile_id: string
+          shifts: string[]
         }
         Insert: {
           creator_id: string
+          hs_shifts?: string[]
           profile_id: string
+          shifts?: string[]
         }
         Update: {
           creator_id?: string
+          hs_shifts?: string[]
           profile_id?: string
+          shifts?: string[]
         }
         Relationships: [
           {
@@ -2526,11 +2532,24 @@ export type Database = {
         Returns: Json
       }
       repos_data_weeks: { Args: never; Returns: Json }
+      norm_shifts: {
+        Args: { p: string[] }
+        Returns: string[]
+      }
       save_org_cell: {
         Args: {
           p_chatter_ids: string[]
           p_creator_id: string
           p_previous_ids: string[]
+          p_shift: string
+        }
+        Returns: undefined
+      }
+      set_org_placement_kind: {
+        Args: {
+          p_creator_id: string
+          p_hs: boolean
+          p_profile_id: string
           p_shift: string
         }
         Returns: undefined

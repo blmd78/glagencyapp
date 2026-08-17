@@ -54,8 +54,8 @@ export function OrganisationTemplate({
       label: 'À placer',
       value: String(counts.aPlacer),
       deltaPct: null,
-      trendLabel: 'sans shift renseigné',
-      hint: 'à poser dans une case ou dans Membres',
+      trendLabel: 'sans aucune case sur le board',
+      hint: 'à poser dans une case du board',
       accent: counts.aPlacer ? 'border-t-amber-500' : 'border-t-blue-500',
     },
   ]
@@ -63,8 +63,9 @@ export function OrganisationTemplate({
   return (
     <div className="flex flex-col gap-6">
       <p className="-mt-4 text-sm text-muted-foreground">
-        Dérivé de Membres (assignations, rattachements) et des fiches Chatters (shift), à jour
-        en permanence — éditer une case met à jour les assignations et le shift.
+        Dérivé de Membres (assignations, rattachements, shift principal), à jour en permanence —
+        une case = un placement, plusieurs par personne et par modèle si besoin ; ajouter ne retire
+        rien ailleurs.
       </p>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

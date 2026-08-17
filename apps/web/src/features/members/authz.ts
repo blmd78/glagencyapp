@@ -1,7 +1,9 @@
+import { planAssignmentSync } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { isMarketingSlug } from '@/config/workspaces'
 import { getProfile, type Profile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import type { CrmShift } from '@/lib/types/chatters'
 import { ATTACHABLE_ROLES, canBeAttached, type Role } from './types'
 
 /**
@@ -48,29 +50,45 @@ export function mergePages(existing: string[], selected: string[], scope: 'chatt
  * Aligne profile_creators sur `wanted` SANS fenêtre destructrice : upsert des ajouts
  * D'ABORD (idempotent), delete des retraits ENSUITE — un échec au milieu laisse au pire
  * un surplus d'accès temporaire, jamais un membre vidé (qui ne verrait plus rien via la RLS).
+ * QUOI ajouter/retirer est décidé par `planAssignmentSync` (@glagency/core, pur et testé — c'est le
+ * périmètre d'accès du membre qui se joue ici) ; cette fonction ne fait qu'exécuter le plan.
+ *
+ * `seedShift` (0110) : une NOUVELLE assignation d'un chatteur est AMORCÉE avec un placement à son
+ * shift principal — c'est ce que le board montrait avant 0110 (assigné + shift = dans la case), on
+ * ne fait pas perdre ce réflexe à Membres. Les assignations existantes ne sont jamais touchées
+ * (`ignoreDuplicates`) : leurs placements appartiennent au board. null = aucun placement amorcé
+ * (personne sans principal, ou rôle non chatteur).
  */
-export async function syncAssignments(admin: Admin, profileId: string, wanted: string[], scope?: Set<string>): Promise<string | null> {
+export async function syncAssignments(
+  admin: Admin,
+  profileId: string,
+  wanted: string[],
+  scope?: Set<string>,
+  seedShift: CrmShift | null = null,
+): Promise<string | null> {
   const { data: current, error: rErr } = await admin
     .from('profile_creators')
     .select('creator_id')
     .eq('profile_id', profileId)
   if (rErr) return rErr.message
   const have = new Set((current ?? []).map((c) => c.creator_id))
-  const want = new Set(wanted)
+  const { toAdd, toRemove } = planAssignmentSync(have, wanted, scope)
 
-  const toAdd = wanted.filter((id) => !have.has(id))
   if (toAdd.length) {
     const { error } = await admin
       .from('profile_creators')
-      .upsert(toAdd.map((creator_id) => ({ profile_id: profileId, creator_id })), {
-        onConflict: 'profile_id,creator_id',
-        ignoreDuplicates: true,
-      })
+      .upsert(
+        toAdd.map((creator_id) => ({
+          profile_id: profileId,
+          creator_id,
+          shifts: seedShift ? [seedShift] : [],
+        })),
+        { onConflict: 'profile_id,creator_id', ignoreDuplicates: true },
+      )
     if (error) return error.message
   }
   // `scope` (appelant manager) : ne retire que dans SON périmètre — une assignation
   // posée par un admin hors scope est préservée (symétrique de mergePages).
-  const toRemove = [...have].filter((id) => !want.has(id) && (!scope || scope.has(id)))
   if (toRemove.length) {
     const { error } = await admin
       .from('profile_creators')

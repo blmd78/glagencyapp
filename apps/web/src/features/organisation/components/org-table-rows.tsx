@@ -28,6 +28,9 @@ export function OrgTableRows({
   displayedTotal,
   nameById,
   newById,
+  hsOf,
+  toggleKind,
+  chipFilter,
 }: {
   data: OrganisationData
   /** La STRUCTURE (manager, sous-manager, modèle, suppression de ligne) : admin seul. */
@@ -47,6 +50,11 @@ export function OrgTableRows({
   displayedTotal: (r: OrgRow) => number
   nameById: Map<string, string>
   newById: Map<string, { isNew: boolean; arrivedAt: string | null }>
+  /** Marque heure sup d'un placement (serveur / optimiste / défaut) et sa bascule — 0110. */
+  hsOf: (creatorId: string, shift: CrmShift, id: string, server: OrgChatter[]) => boolean
+  toggleKind: (creatorId: string, shift: CrmShift, id: string, server: OrgChatter[]) => void
+  /** Recherche d'un chatter (barre au-dessus du tableau) : filtre des pastilles rendues. */
+  chipFilter?: (id: string) => boolean
 }) {
   return (
     <>
@@ -152,6 +160,9 @@ export function OrgTableRows({
                   ids={cellIds(r.creatorId, shift, r.byShift[shift])}
                   nameById={nameById}
                   newById={newById}
+                  hsOf={(id) => hsOf(r.creatorId, shift, id, r.byShift[shift])}
+                  onToggleKind={(id) => toggleKind(r.creatorId, shift, id, r.byShift[shift])}
+                  chipFilter={chipFilter}
                   options={data.chatterOptions}
                   canWrite={canWrite}
                   modelName={r.modelName}

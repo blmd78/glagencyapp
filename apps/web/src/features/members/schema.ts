@@ -40,7 +40,8 @@ const memberFields = {
   workLink,
   closingRole,
   closingTeam,
-  // Shift (matin/aprem/soir) — écrit sur la FICHE CHATTEUR liée (chatters.shift) au save.
+  // Shift PRINCIPAL (matin/aprem/soir) du chatteur — `profiles.shift`. Les PLACEMENTS sur le board
+  // (`profile_creators.shifts`, 0110) sont indépendants : changer le principal n'en déplace aucun.
   shift: z.enum(CRM_SHIFTS).nullable(),
   // Nouvel arrivant : drapeau MANUEL + date d'arrivée réelle (0101). La date est EXIGÉE quand le
   // drapeau est posé (refine `arrivalWhenNew` plus bas, miroir du check SQL).
