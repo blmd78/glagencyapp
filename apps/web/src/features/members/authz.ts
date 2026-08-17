@@ -130,8 +130,12 @@ export async function requireEditableTarget(
   admin: Admin,
   id: string,
   caller: Profile,
-): Promise<{ error: string } | { role: string }> {
-  const { data: target } = await admin.from('profiles').select('role').eq('id', id).single()
+): Promise<{ error: string } | { role: string; pages: string[] }> {
+  // `pages` remonte avec le rôle (même lecture) : updateMember en a besoin pour fusionner les
+  // faces (mergePages) et vérifier « au moins une page » — les lire ici évite une seconde
+  // requête sur la même ligne, et garantit que ces données de cible ne sont accessibles
+  // qu'APRÈS le contrôle d'éditabilité (pas d'oracle par message d'erreur).
+  const { data: target } = await admin.from('profiles').select('role, pages').eq('id', id).single()
   if (!target) return { error: 'Profil introuvable' }
   if (target.role === 'superadmin') return { error: 'Un propriétaire ne se gère pas depuis cette page' }
   if (target.role === 'admin' && !caller.superadmin) {
@@ -140,7 +144,7 @@ export async function requireEditableTarget(
   if (caller.role !== 'admin' && target.role !== 'chatteur') {
     return { error: 'Un manager ne gère que des comptes chatteurs' }
   }
-  return { role: target.role }
+  return { role: target.role, pages: target.pages ?? [] }
 }
 
 /**
@@ -169,22 +173,20 @@ export type { Role } from './types'
  * Autorise et NORMALISE le rôle + le périmètre modèles d'une mutation selon l'appelant.
  * Partagé create/update pour que ces règles de sécurité soient uniques (un edit divergent
  * ouvrirait un trou). Manager → face chatteurs obligatoire, rôle `chatteur` forcé, modèles
- * bornés à SON périmètre. Rôle `admin` → propriétaires uniquement. Rôle non-admin → au
- * moins une page (re-vérif du refine zod APRÈS forçage : un manager forgeant role:'admin'
- * + pages:[] passerait le refine puis serait forcé chatteur → compte sans page).
- * « Une page » = TOUTES faces confondues : `targetKeptPages` porte celles que la cible GARDE
- * sur l'autre face (lues en base par l'appelant, préservées par mergePages) — un membre
- * 100 % Marketing édité depuis Chatteurs envoie pages:[] légitimement (bug 2026-08-17).
- * Vide à la création (aucune cible encore).
+ * bornés à SON périmètre. Rôle `admin` → propriétaires uniquement.
+ * La règle « au moins une page » ne vit PLUS ici : elle appartient aux appelants, APRÈS ce
+ * forçage de rôle (le `role` retourné) — createMember la vérifie sur la saisie brute,
+ * updateMember sur la FUSION des faces (mergePages), qui exige les pages de la cible et donc
+ * requireEditableTarget d'abord (un membre 100 % Marketing édité depuis Chatteurs envoie
+ * pages:[] légitimement, bug 2026-08-17 ; et un refus dépendant de données de cible AVANT le
+ * contrôle d'éditabilité offrait un oracle par message d'erreur).
  * Retourne `role` effectif et `ownScope` (undefined pour un admin = aucun retrait borné).
  */
 export async function authorizeRoleAndScope(
   caller: Profile,
   scope: 'chatter' | 'marketing',
   requestedRole: Role,
-  pages: string[],
   creatorIds: string[],
-  targetKeptPages: string[] = [],
 ): Promise<{ error: string } | { role: Role; ownScope?: Set<string> }> {
   let role = requestedRole
   let ownScope: Set<string> | undefined
@@ -197,9 +199,6 @@ export async function authorizeRoleAndScope(
   }
   if (role === 'admin' && !caller.superadmin) {
     return { error: 'Seul un propriétaire peut nommer un admin' }
-  }
-  if (role !== 'admin' && pages.length === 0 && targetKeptPages.length === 0) {
-    return { error: 'Saisie invalide (au moins une page requise)' }
   }
   return { role, ownScope }
 }

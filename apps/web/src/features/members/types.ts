@@ -64,7 +64,7 @@ export interface Member {
   leftNote: string | null
   /** Nom du profil qui a acté le départ — null si posé en SQL direct : l'écran affiche « — ». */
   leftByName: string | null
-  /** Exclu de l'AFFICHAGE du board Organisation (0112) — manager transverse qui a tous les
+  /** Exclu de l'AFFICHAGE du board Organisation (0111) — manager transverse qui a tous les
    *  modèles pour tout voir sur le CRM (ex. Jam). Affichage pur : droits, pages et
    *  assignations inchangés (jamais lu par creator-scope/authz). */
   orgExcluded: boolean

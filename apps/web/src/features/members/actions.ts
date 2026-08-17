@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, BusinessError, DENY_STAFF, type ActionResult } from '@/lib/actions'
 import { applyChatterLink } from '@/lib/chatter-link'
+import { isOrgSectionHead } from '@/lib/roles'
 import { readStateCookie } from '@/lib/impersonation/session'
 import {
   authorizeRoleAndScope,
@@ -62,9 +63,15 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
       const { scope, email, displayName, pages, creatorIds, workLink, closingRole, closingTeam, chatterId } =
         values
 
-      const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds)
+      const auth = await authorizeRoleAndScope(caller, scope, values.role, creatorIds)
       if ('error' in auth) throw new BusinessError(auth.error)
       const { role, ownScope } = auth
+      // « Au moins une page » APRÈS le forçage de rôle (cf. authorizeRoleAndScope) : un manager
+      // forgeant role:'admin' + pages:[] passerait le refine zod puis serait forcé chatteur →
+      // compte sans page. À la création, pas d'autre face à fusionner : la saisie EST l'état final.
+      if (role !== 'admin' && pages.length === 0) {
+        throw new BusinessError('Saisie invalide (au moins une page requise)')
+      }
       // Manager : rattachement FORCÉ à lui ; admin : les cibles choisies (validées ci-dessous).
       const managerIds = caller.role !== 'admin' ? [caller.id] : values.managerIds
 
@@ -120,10 +127,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // non-chatteur — un drapeau orphelin sur un manager ne voudrait rien dire.
           is_new: role === 'chatteur' ? values.isNew : false,
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
-          // Exclusion de l'affichage Organisation (0112) : ne concerne que les têtes de
-          // section du board (manager/admin) — false pour les autres rôles, même règle que
-          // `is_new` pour les non-chatteurs.
-          org_excluded: role === 'manager' || role === 'admin' ? values.orgExcluded : false,
+          // Exclusion de l'affichage Organisation (0111) : têtes de section du board
+          // uniquement (isOrgSectionHead, source unique partagée avec le filtre du board) —
+          // false pour les autres rôles, même règle que `is_new` pour les non-chatteurs.
+          org_excluded: isOrgSectionHead(role) ? values.orgExcluded : false,
           // « Créé par » (0098) — l'appelant de la création, jamais réécrit ensuite.
           created_by: caller.id,
           // « Modifié par » (0101) : LU PAR LE TRIGGER D'HISTORIQUE. Cette page écrit en
@@ -181,20 +188,24 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
       const { scope, id, displayName, pages, creatorIds, workLink, managerIds, closingRole, closingTeam, chatterId } =
         values
 
-      const admin = createAdminClient()
-      // Pages ACTUELLES de la cible, lues AVANT l'autorisation (c'est la lecture qui servait
-      // déjà mergePages plus bas, remontée ici) : la re-vérif « au moins une page » doit
-      // compter celles que la cible GARDE sur l'autre face — un membre 100 % Marketing édité
-      // depuis Chatteurs envoie pages:[] légitimement (bug 2026-08-17).
-      // `mergePages(actuelles, [], scope)` = exactement ces pages gardées.
-      const { data: current } = await admin.from('profiles').select('pages').eq('id', id).single()
-      const keptPages = mergePages(current?.pages ?? [], [], scope)
-      const auth = await authorizeRoleAndScope(caller, scope, values.role, pages, creatorIds, keptPages)
+      const auth = await authorizeRoleAndScope(caller, scope, values.role, creatorIds)
       if ('error' in auth) throw new BusinessError(auth.error)
       const { role, ownScope } = auth
 
+      const admin = createAdminClient()
       const target = await requireEditableTarget(admin, id, caller)
       if ('error' in target) throw new BusinessError(target.error)
+      // « Au moins une page » sur ce qui sera RÉELLEMENT écrit : la FUSION des pages actuelles
+      // de la cible (l'autre face, préservée) et de la saisie — un membre 100 % Marketing édité
+      // depuis Chatteurs envoie pages:[] légitimement (bug 2026-08-17). APRÈS
+      // requireEditableTarget, délibérément : ce refus dépend de données de la cible, le rendre
+      // avant l'éditabilité offrait un oracle (sonder les pages d'un profil inéditable à son
+      // message d'erreur). `merged` est validé PUIS écrit tel quel plus bas — pas de re-calcul
+      // divergent possible.
+      const merged = mergePages(target.pages, pages, scope)
+      if (role !== 'admin' && merged.length === 0) {
+        throw new BusinessError('Saisie invalide (au moins une page requise)')
+      }
       // Cf. createMember : on ne valide pas un rattachement qui sera vidé (rôle non rattachable).
       if (canBeAttached(role) && scope === 'chatter' && managerIds.length && caller.role === 'admin') {
         const mErr = await requireManagerTargets(admin, managerIds, role)
@@ -209,7 +220,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         .update({
           display_name: displayName,
           role,
-          pages: mergePages(current?.pages ?? [], pages, scope),
+          pages: merged,
           work_link: workLink,
           // Désignation closing : uniquement pour un chatteur, null sinon (cf. 0077, createMember).
           closing_role: role === 'chatteur' ? closingRole : null,
@@ -222,9 +233,9 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           // l'efface, puisque la personne quitte le dispositif chatteur.
           is_new: role === 'chatteur' ? values.isNew : false,
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
-          // Exclusion de l'affichage Organisation (0112) : cf. createMember — têtes de
-          // section uniquement, false pour les autres rôles.
-          org_excluded: role === 'manager' || role === 'admin' ? values.orgExcluded : false,
+          // Exclusion de l'affichage Organisation (0111) : cf. createMember — têtes de
+          // section uniquement (isOrgSectionHead), false pour les autres rôles.
+          org_excluded: isOrgSectionHead(role) ? values.orgExcluded : false,
           // LU PAR LE TRIGGER D'HISTORIQUE (0101), et écrit AVANT `syncAssignments` plus bas —
           // c'est ce qui permet au trigger de `profile_creators` de retrouver l'auteur d'un
           // changement de modèle malgré le service role. Ne pas déplacer cette écriture après.

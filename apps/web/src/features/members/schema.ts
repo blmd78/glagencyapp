@@ -52,7 +52,7 @@ const memberFields = {
     .nullable(),
   // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
   chatterId: z.uuid().or(z.literal('')),
-  // Exclu de l'AFFICHAGE du board Organisation (0112) : manager transverse qui a tous les modèles
+  // Exclu de l'AFFICHAGE du board Organisation (0111) : manager transverse qui a tous les modèles
   // pour tout voir sur le CRM (ex. Jam) — sans ça, une ligne par modèle. Affichage pur : le serveur
   // le force à false hors manager/admin, et ni creator-scope ni authz ne le lisent.
   orgExcluded: z.boolean(),

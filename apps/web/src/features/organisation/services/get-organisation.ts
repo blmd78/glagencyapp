@@ -1,4 +1,5 @@
 import { createAdminClient } from '@glagency/db'
+import { isOrgSectionHead } from '@/lib/roles'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { CRM_SHIFTS, type CrmShift } from '@/lib/types/chatters'
 import type { OrgChatter, OrgRow, OrgSection, OrganisationData } from '../types'
@@ -122,13 +123,15 @@ export async function getOrganisation(): Promise<OrganisationData> {
   // Tête de section = manager OU ADMIN : dans l'agence, certains admins (Axel, Dorian)
   // dirigent une équipe. Un admin sans équipe ni modèle ne crée pas de section (garde plus
   // bas), donc la liste ne se pollue pas.
-  // `org_excluded` (0112, posé dans Membres) : manager TRANSVERSE qui a tous les modèles pour
+  // `org_excluded` (0111, posé dans Membres) : manager TRANSVERSE qui a tous les modèles pour
   // tout voir sur le CRM (ex. Jam) — c'est un périmètre d'accès, pas de l'organisation, même
   // logique que les lignes directes d'admin plus bas. Exclu du board : ni section, ni option
   // manager. Ses modèles ne comptent plus comme couverts (le KPI « sans équipe » redevient
   // lisible) et ses sous-managers éventuels tombent en « Sans manager ».
+  // `isOrgSectionHead` = source unique du prédicat, partagée avec la checkbox et les gates
+  // d'écriture du drapeau (lib/roles.ts).
   const managers = profiles
-    .filter((p) => (p.role === 'manager' || p.role === 'admin') && !p.org_excluded)
+    .filter((p) => isOrgSectionHead(p.role) && !p.org_excluded)
     .sort((a, b) => nameOf(a).localeCompare(nameOf(b)))
   const sousManagers = profiles.filter((p) => p.role === 'sous-manager')
   const coveredModels = new Set<string>()

@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
-import { ROLE_NAME } from '@/lib/roles'
+import { isOrgSectionHead, ROLE_NAME } from '@/lib/roles'
 import type { MemberForm } from '../schema'
 import { ATTACHABLE_ROLES, canBeAttached } from '../types'
 
@@ -115,11 +115,12 @@ export function MemberAccessFields({
         />
       )}
 
-      {/* Exclusion de l'AFFICHAGE Organisation (0112) — têtes de section du board uniquement
-          (manager/admin, la population de get-organisation). Cas : manager transverse qui a
-          tous les modèles pour tout voir sur le CRM (ex. Jam) → une ligne par modèle sur le
-          board. Affichage pur : le serveur force false pour les autres rôles, droits inchangés. */}
-      {scope === 'chatter' && (roleValue === 'manager' || roleValue === 'admin') && (
+      {/* Exclusion de l'AFFICHAGE Organisation (0111) — têtes de section du board uniquement
+          (isOrgSectionHead, source unique partagée avec le filtre du board et les gates des
+          actions). Cas : manager transverse qui a tous les modèles pour tout voir sur le CRM
+          (ex. Jam) → une ligne par modèle sur le board. Affichage pur : le serveur force false
+          pour les autres rôles, droits inchangés. */}
+      {scope === 'chatter' && isOrgSectionHead(roleValue) && (
         <Controller
           name="orgExcluded"
           control={control}

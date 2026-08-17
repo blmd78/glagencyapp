@@ -1,4 +1,4 @@
-import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
+import { isMarketingSlug, MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
 import type { MemberForm } from '../schema'
 import type { Member } from '../types'
 
@@ -64,9 +64,15 @@ export function memberDefaults({
     arrivedAt: member?.arrivedAt ?? null,
     chatterId: member?.chatterId ?? '',
     orgExcluded: member?.orgExcluded ?? false,
-    // Les pages HORS scope du membre (préservées par mergePages, invisibles de ce form) —
-    // comptées par le refine atLeastOnePage pour ne pas exiger une page de CETTE face à un
-    // membre qui vit sur l'autre. À la création : pas de membre, donc false.
-    hasOtherFacePages: member ? member.pages.some((p) => !scopeSlugs.has(p)) : false,
+    // Les pages que le membre GARDE sur l'autre face (préservées par mergePages, invisibles de
+    // ce form) — comptées par le refine atLeastOnePage pour ne pas exiger une page de CETTE
+    // face à un membre qui vit sur l'autre. Test d'APPARTENANCE DE FACE (isMarketingSlug,
+    // miroir exact du `kept` de mergePages) et PAS `!scopeSlugs.has(p)` : côté marketing, le
+    // drapeau de face 'marketing' n'est pas un choix cochable — il aurait rendu ce booléen
+    // toujours vrai et laissé partir un form sans aucune page (refusé tard et mal par le
+    // serveur). À la création : pas de membre, donc false.
+    hasOtherFacePages: member
+      ? member.pages.some((p) => (scope === 'marketing' ? !isMarketingSlug(p) : isMarketingSlug(p)))
+      : false,
   }
 }

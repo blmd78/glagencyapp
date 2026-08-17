@@ -18,7 +18,7 @@ Un booléen sur le profil + un filtre à l'endroit unique où l'Organisation con
 liste de managers. **Rien d'autre ne change dans l'app** : ni droits, ni périmètre
 modèles, ni autres pages.
 
-### 1. Migration `0112_org_excluded.sql`
+### 1. Migration — fusionnée dans `0111_relance_par.sql` (décision Benoit : une seule migration à passer en prod avec la release ; « 0112 » désigne une autre migration, sans rapport)
 
 ```sql
 alter table profiles
