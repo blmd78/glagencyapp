@@ -1,4 +1,4 @@
-import { isMarketingSlug, MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
+import { pageChoicesFor, slugFace, type WorkspaceId } from '@/config/workspaces'
 import type { MemberForm } from '../schema'
 import type { Member } from '../types'
 
@@ -23,13 +23,11 @@ export function memberDefaults({
   creators,
 }: {
   member?: Member
-  scope: 'chatter' | 'marketing'
+  scope: WorkspaceId
   viewer: 'admin' | 'manager'
   creators: { id: string; name: string }[]
 }): MemberForm {
-  const scopeSlugs = new Set(
-    (scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES).map((c) => c.slug as string),
-  )
+  const scopeSlugs = new Set(pageChoicesFor(scope).map((c) => c.slug as string))
   const creatorSet = new Set(creators.map((c) => c.id))
 
   return {
@@ -66,13 +64,11 @@ export function memberDefaults({
     orgExcluded: member?.orgExcluded ?? false,
     // Les pages que le membre GARDE sur l'autre face (préservées par mergePages, invisibles de
     // ce form) — comptées par le refine atLeastOnePage pour ne pas exiger une page de CETTE
-    // face à un membre qui vit sur l'autre. Test d'APPARTENANCE DE FACE (isMarketingSlug,
-    // miroir exact du `kept` de mergePages) et PAS `!scopeSlugs.has(p)` : côté marketing, le
-    // drapeau de face 'marketing' n'est pas un choix cochable — il aurait rendu ce booléen
-    // toujours vrai et laissé partir un form sans aucune page (refusé tard et mal par le
-    // serveur). À la création : pas de membre, donc false.
-    hasOtherFacePages: member
-      ? member.pages.some((p) => (scope === 'marketing' ? !isMarketingSlug(p) : isMarketingSlug(p)))
-      : false,
+    // face à un membre qui vit sur une autre. Test d'APPARTENANCE DE FACE (slugFace, miroir
+    // exact du `kept` de mergePages) et PAS `!scopeSlugs.has(p)` : sur une face secondaire, le
+    // drapeau de face ('marketing', 'formation') n'est pas un choix cochable — il aurait rendu
+    // ce booléen toujours vrai et laissé partir un form sans aucune page (refusé tard et mal
+    // par le serveur). À la création : pas de membre, donc false.
+    hasOtherFacePages: member ? member.pages.some((p) => slugFace(p) !== scope) : false,
   }
 }

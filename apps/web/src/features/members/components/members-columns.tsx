@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
+import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { RowActions } from './member-row-actions'
 import type { Member } from '../types'
@@ -53,12 +53,12 @@ export function buildMembersColumns({
   creators: { id: string; name: string }[]
   chatters: { id: string; name: string }[]
   managers: { id: string; name: string; role: string }[]
-  scope: 'chatter' | 'marketing'
+  scope: WorkspaceId
   viewer: 'admin' | 'manager'
   superadmin: boolean
 }): ColumnDef<Member>[] {
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
-  const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
+  const choices = pageChoicesFor(scope)
 
   const modelsColumn: ColumnDef<Member>[] = scope === 'chatter' ? [
     {

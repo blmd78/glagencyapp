@@ -1,6 +1,7 @@
 'use client'
 
 import { Controller, type Control } from 'react-hook-form'
+import type { WorkspaceId } from '@/config/workspaces'
 import { ChevronsUpDown } from 'lucide-react'
 import {
   Select,
@@ -30,7 +31,7 @@ export function MemberAccessFields({
   isSubmitting,
 }: {
   control: Control<MemberForm>
-  scope: 'chatter' | 'marketing'
+  scope: WorkspaceId
   roleValue: MemberForm['role']
   superadmin: boolean
   /** Managers rattachables (l'éditée est déjà exclue par l'appelant). */

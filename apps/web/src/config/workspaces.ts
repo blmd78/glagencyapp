@@ -35,6 +35,7 @@ import {
   IdCard,
   ClipboardList,
   Trophy,
+  GraduationCap,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -61,9 +62,12 @@ export interface NavGroup {
   icon: LucideIcon
 }
 
-/** Une « face » du CRM (Chatteurs, Marketing…). Sa nav et son préfixe d'URL lui sont propres. */
+/** Identifiant de face — aussi le `scope` de la page Membres (quelle face gère les droits). */
+export type WorkspaceId = 'chatter' | 'marketing' | 'formation'
+
+/** Une « face » du CRM (Chatteurs, Marketing, Formation). Sa nav et son préfixe d'URL lui sont propres. */
 export interface Workspace {
-  id: 'chatter' | 'marketing'
+  id: WorkspaceId
   label: string
   /** Sous-titre affiché dans le switcher (façon « Enterprise »). */
   subtitle: string
@@ -160,6 +164,20 @@ export const WORKSPACES: Workspace[] = [
       { href: '/marketing/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
     ],
   },
+  {
+    id: 'formation',
+    label: 'Formation',
+    subtitle: 'Entraînement',
+    icon: GraduationCap,
+    basePath: '/formation',
+    // Même patron que Marketing : droit de face UNIQUE `formation` (posé par mergePages dès
+    // qu'une page frm-* est cochée depuis /formation/members), slugs préfixés `frm-`.
+    // Squelette : Overview = placeholder (la reprise de Good Luck Agency vient ensuite).
+    nav: [
+      { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-overview' },
+      { href: '/formation/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
+    ],
+  },
 ]
 
 export const DEFAULT_WORKSPACE = WORKSPACES[0]
@@ -171,7 +189,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-overview'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**
@@ -200,16 +218,43 @@ export const PAGE_CHOICES = (() => {
   return out
 })()
 
+export type PageChoice = { slug: PageSlug; label: string; icon: LucideIcon }
+
+/** Pages cochables d'une face secondaire (slugs explicites, non-admin) — gérées depuis SA page Membres. */
+const facePageChoices = (id: WorkspaceId): PageChoice[] =>
+  (WORKSPACES.find((w) => w.id === id)?.nav ?? [])
+    .filter((n) => !n.adminOnly && n.slug)
+    .map((n) => ({ slug: n.slug as PageSlug, label: n.label, icon: n.icon }))
+
 /** Pages cochables de la FACE MARKETING (slugs mkt-* — gérées depuis /marketing/members). */
-export const MKT_PAGE_CHOICES = (WORKSPACES.find((w) => w.id === 'marketing')?.nav ?? [])
-  .filter((n) => !n.adminOnly && n.slug)
-  .map((n) => ({ slug: n.slug as PageSlug, label: n.label, icon: n.icon }))
+export const MKT_PAGE_CHOICES = facePageChoices('marketing')
+/** Pages cochables de la FACE FORMATION (slugs frm-* — gérées depuis /formation/members). */
+export const FRM_PAGE_CHOICES = facePageChoices('formation')
+
+/** Pages cochables d'un scope Membres — SOURCE UNIQUE des ternaires « quelle liste de cases ». */
+export function pageChoicesFor(scope: WorkspaceId): PageChoice[] {
+  if (scope === 'marketing') return MKT_PAGE_CHOICES
+  if (scope === 'formation') return FRM_PAGE_CHOICES
+  return PAGE_CHOICES
+}
 
 /** Slug d'accès d'un item de nav (slug explicite sinon dérivé de l'href). */
 export const navSlug = (n: NavItem) => n.slug ?? pageSlug(n.href)
 
 /** Un slug appartient-il au périmètre marketing ? (droit de face inclus) */
 export const isMarketingSlug = (slug: string) => slug === 'marketing' || slug.startsWith('mkt-')
+/** Un slug appartient-il au périmètre formation ? (droit de face inclus) */
+export const isFormationSlug = (slug: string) => slug === 'formation' || slug.startsWith('frm-')
+
+/**
+ * Face à laquelle appartient un slug de page (droit de face inclus). Les faces secondaires se
+ * reconnaissent à leur préfixe (mkt-*, frm-*) ; tout le reste est la face chatteurs.
+ */
+export function slugFace(slug: string): WorkspaceId {
+  if (isMarketingSlug(slug)) return 'marketing'
+  if (isFormationSlug(slug)) return 'formation'
+  return 'chatter'
+}
 
 /** Face active déduite de l'URL (fallback : face par défaut). */
 export function workspaceForPath(pathname: string): Workspace {
@@ -246,8 +291,8 @@ export function canAccessNav(item: NavItem, a: NavAccess): boolean {
 }
 
 /**
- * URL d'atterrissage RÉELLE d'un profil = href de sa 1ʳᵉ page de nav autorisée (les 2 faces,
- * dans l'ordre). Résout le slug → vraie route (ex. `crm-spenders` → /chatter/spenders/liste),
+ * URL d'atterrissage RÉELLE d'un profil = href de sa 1ʳᵉ page de nav autorisée (toutes les
+ * faces, dans l'ordre). Résout le slug → vraie route (ex. `crm-spenders` → /chatter/spenders/liste),
  * là où un `/chatter/<slug>` naïf 404. Items `bottom` (Membres, Dashboard-TODO) exclus : des
  * utilitaires, pas une home. `/no-access` si aucune page autorisée (jamais /login : rebond).
  */

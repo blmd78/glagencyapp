@@ -38,6 +38,7 @@ import { canBeAttached } from './types'
 const revalidateMembers = () => {
   revalidatePath('/chatter/members')
   revalidatePath('/marketing/members')
+  revalidatePath('/formation/members')
   // Le board Organisation dérive de Membres (assignations, liens, shifts) : même fraîcheur.
   revalidatePath('/chatter/organisation')
 }

@@ -25,7 +25,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { WORKSPACES, workspaceForPath, canAccessNav, isMarketingSlug, type NavAccess } from '@/config/workspaces'
+import { WORKSPACES, workspaceForPath, canAccessNav, slugFace, type NavAccess } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { useNavTransition } from '@/components/nav-transition-context'
@@ -113,8 +113,10 @@ export function AppSidebar({
   const groups = (active.groups ?? [])
     .map((g) => ({ ...g, items: items.filter((i) => i.group === g.id) }))
     .filter((g) => g.items.length > 0)
+  // Faces proposées dans le switcher : la face chatteurs toujours ; une face secondaire
+  // (Marketing, Formation) seulement si admin ou au moins un slug de cette face accordé.
   const workspaces = WORKSPACES.filter(
-    (w) => isAdmin || w.id !== 'marketing' || (allowedPages ?? []).some(isMarketingSlug),
+    (w) => isAdmin || w.id === 'chatter' || (allowedPages ?? []).some((s) => slugFace(s) === w.id),
   )
 
   const isActivePath = (href: string) => pathname === href || pathname.startsWith(href + '/')

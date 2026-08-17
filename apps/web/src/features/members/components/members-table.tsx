@@ -4,6 +4,7 @@
 // `members-columns.tsx` (split « > 300 lignes », même découpe que le pilote chatters).
 
 import { useState } from 'react'
+import type { WorkspaceId } from '@/config/workspaces'
 import { RotateCcw, Sparkles, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
@@ -23,7 +24,7 @@ export function MembersTable({
   creators: { id: string; name: string }[]
   /** Chatteurs MyPuls sélectionnables pour le lien (champ superadmin uniquement). */
   chatters: { id: string; name: string }[]
-  scope?: 'chatter' | 'marketing'
+  scope?: WorkspaceId
   viewer?: 'admin' | 'manager'
   /** Propriétaire : option rôle Admin + gestion des fiches admin. */
   superadmin?: boolean

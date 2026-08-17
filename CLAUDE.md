@@ -46,11 +46,16 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   + `docs/guidelines-standard-feature.md` (squelette de feature, loading/erreurs/mutations/
   forms — checklist nouvelle feature) + `docs/guidelines-socle.md` (briques transverses du
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
-- **2 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`) et `Marketing`
-  (`/marketing/*`). Une seule source : `config/workspaces.ts` (`WORKSPACES`). La face
-  active se déduit du `pathname` (`workspaceForPath`) ; la sidebar (`AppSidebar` +
-  `WorkspaceSwitcher`) affiche la nav de cette face. Ajouter/remplir une face = éditer
-  `WORKSPACES` + créer les routes sous son `basePath`. Ne pas réintroduire de routes à plat.
+- **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
+  (`/marketing/*`) et `Formation` (`/formation/*`, squelette : Overview placeholder + Membres —
+  la reprise de Good Luck Agency vient ensuite). Une seule source : `config/workspaces.ts`
+  (`WORKSPACES`, type `WorkspaceId`). La face active se déduit du `pathname`
+  (`workspaceForPath`) ; la sidebar (`AppSidebar` + `WorkspaceSwitcher`) affiche la nav de
+  cette face. Face secondaire = droit de face unique (`marketing`, `formation`) + slugs
+  préfixés (`mkt-*`, `frm-*`), `slugFace(slug)` dit à quelle face appartient un slug, la page
+  Membres de chaque face gère SES droits (`scope`, `pageChoicesFor`). Ajouter/remplir une
+  face = éditer `WORKSPACES` + créer les routes sous son `basePath`. Ne pas réintroduire de
+  routes à plat.
 - **To-do personnelle** : 2e onglet de `/chatter/planning` (`?vue=todo`), une liste par
   encadrant (`todos`, RLS `can_write_todo_of`, migrations `0067`/`0068`). Chacun gère la
   sienne ; la hiérarchie peut y déposer une tâche (mêmes règles que le planning). Aucun slug

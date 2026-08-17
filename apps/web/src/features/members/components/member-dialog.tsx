@@ -17,7 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { ActionButton } from '@/components/action-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
+import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
 import { loadMemberEvents } from '../actions-lifecycle'
 import { memberInput, type MemberForm } from '../schema'
@@ -90,7 +90,7 @@ export function MemberDialog({
   open?: boolean
   onOpenChange?: (open: boolean) => void
   /** Face dont on gère les droits — les slugs de l'autre face sont préservés côté serveur. */
-  scope?: 'chatter' | 'marketing'
+  scope?: WorkspaceId
   /** Manager : rôle verrouillé sur user, sélecteurs rôle/rattachement masqués. */
   viewer?: 'admin' | 'manager'
   /** Propriétaire : option rôle Admin (garde serveur en plus du sélecteur). */
@@ -102,7 +102,7 @@ export function MemberDialog({
   // de trigger : Radix le démonte à la sélection), autonome sinon.
   const open = openProp ?? openState
   const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
-  const choices = scope === 'marketing' ? MKT_PAGE_CHOICES : PAGE_CHOICES
+  const choices = pageChoicesFor(scope)
   // Pas d'auto-rattachement (check en base) : on exclut la ligne éditée des options.
   const attachables = managers.filter((m) => m.id !== member?.id)
 

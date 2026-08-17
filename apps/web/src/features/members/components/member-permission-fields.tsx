@@ -1,6 +1,7 @@
 'use client'
 
 import { Controller, type Control } from 'react-hook-form'
+import type { WorkspaceId } from '@/config/workspaces'
 import type { LucideIcon } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
@@ -24,7 +25,7 @@ export function MemberPermissionFields({
   isSubmitting,
 }: {
   control: Control<MemberForm>
-  scope: 'chatter' | 'marketing'
+  scope: WorkspaceId
   roleValue: MemberForm['role']
   choices: { slug: string; label: string; icon: LucideIcon }[]
   creators: { id: string; name: string }[]

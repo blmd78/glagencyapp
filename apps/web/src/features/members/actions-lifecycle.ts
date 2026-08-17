@@ -23,6 +23,7 @@ import type { MemberEvent } from './types'
 const revalidateMembers = () => {
   revalidatePath('/chatter/members')
   revalidatePath('/marketing/members')
+  revalidatePath('/formation/members')
   // Le board Organisation dérive de Membres : un départ l'en retire, même fraîcheur.
   revalidatePath('/chatter/organisation')
 }

@@ -1,4 +1,5 @@
 import { MembersTable } from './components/members-table'
+import type { WorkspaceId } from '@/config/workspaces'
 import { MembersTabs } from './components/members-tabs'
 import { TurnoverView } from './components/turnover-view'
 import { ActivityView } from './components/activity-view'
@@ -39,8 +40,8 @@ export function MembersTemplate({
       }
     | null
   vue?: 'liste' | 'turnover' | 'activite'
-  /** Face dont cette page gère les droits (les droits de l'autre face sont préservés). */
-  scope?: 'chatter' | 'marketing'
+  /** Face dont cette page gère les droits (les droits des autres faces sont préservés). */
+  scope?: WorkspaceId
   /** Manager : gère uniquement SES chatters (rôle user forcé) — défaut admin. */
   viewer?: 'admin' | 'manager'
   /** Propriétaire : peut nommer des admins et gérer les fiches admin. */
@@ -50,8 +51,8 @@ export function MembersTemplate({
     <div className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
         {data.members.length} compte(s)
-        {scope === 'marketing' &&
-          ' · droits du pôle marketing (les droits chatters se gèrent depuis leur face)'}
+        {scope !== 'chatter' &&
+          ` · droits du pôle ${scope} (les droits chatters se gèrent depuis leur face)`}
       </p>
 
       <MembersTable
@@ -65,11 +66,11 @@ export function MembersTemplate({
     </div>
   )
 
-  // La face MARKETING garde la page telle quelle : pas d'onglets (ses effectifs se gèrent depuis
-  // la face chatteurs, un onglet Turnover vide y serait un faux départ de piste). Le `-mt-4`
-  // compense le double gap-6 page/Template, comme avant — l'onglet, lui, a sa TabsList au-dessus
-  // et n'en a pas besoin.
-  if (scope === 'marketing')
+  // Les faces SECONDAIRES (Marketing, Formation) gardent la page telle quelle : pas d'onglets
+  // (les effectifs se gèrent depuis la face chatteurs, un onglet Turnover vide y serait un faux
+  // départ de piste). Le `-mt-4` compense le double gap-6 page/Template, comme avant — l'onglet,
+  // lui, a sa TabsList au-dessus et n'en a pas besoin.
+  if (scope !== 'chatter')
     return <div className="-mt-4 flex flex-col gap-6">{liste}</div>
 
   return (

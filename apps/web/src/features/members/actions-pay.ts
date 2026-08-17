@@ -35,6 +35,7 @@ import { writePaySettings, writePrime, writeRate, deleteRate } from '@/lib/pay-s
 const revalidatePay = () => {
   revalidatePath('/chatter/members')
   revalidatePath('/marketing/members')
+  revalidatePath('/formation/members')
   revalidatePath('/chatter/compta')
 }
 
