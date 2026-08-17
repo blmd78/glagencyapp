@@ -88,16 +88,15 @@ export const getProfile = cache(async (): Promise<Profile | null> => {
 })
 
 /**
- * Garde de page : admin passe toujours ; `user` doit avoir le slug dans profiles.pages.
- * Sans aucune page → /no-access (PAS /login : l'utilisateur est authentifié, le renvoyer
- * au login créerait un rebond infini login ↔ overview).
+ * Garde de page : admin passe toujours ; `user` doit avoir le slug dans profiles.pages —
+ * ou L'UN des slugs si on passe un tableau (ex. Modules : Entraînement OU Suivi, miroir de
+ * `NavItem.anyOf`). Sans aucune page → /no-access (PAS /login : rebond infini sinon).
  */
-export async function requireAccess(slug: PageSlug): Promise<Profile> {
+export async function requireAccess(slug: PageSlug | PageSlug[]): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin' && !profile.pages.includes(slug)) {
-    // Repli sur la 1ʳᵉ page RÉELLE du profil. landingHref résout le slug → vraie route :
-    // un `/chatter/<slug>` naïf 404ait sur crm-spenders / mkt-* / dashboard (LE bug 404).
+  const slugs = Array.isArray(slug) ? slug : [slug]
+  if (profile.role !== 'admin' && !slugs.some((s) => profile.pages.includes(s))) {
     redirect(landingHref(profile))
   }
   return profile
