@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       chatter_alias: {
@@ -971,6 +996,24 @@ export type Database = {
           status?: string
           summary?: Json
           triggered_by?: string
+        }
+        Relationships: []
+      }
+      ingest_session: {
+        Row: {
+          cookie: string
+          id: string
+          refreshed_at: string
+        }
+        Insert: {
+          cookie: string
+          id: string
+          refreshed_at?: string
+        }
+        Update: {
+          cookie?: string
+          id?: string
+          refreshed_at?: string
         }
         Relationships: []
       }
@@ -2413,6 +2456,371 @@ export type Database = {
           },
         ]
       }
+      training_case_arena_slots: {
+        Row: {
+          case_id: string
+          display_name: string
+          id: string
+          position: number
+          ref_case_id: string
+        }
+        Insert: {
+          case_id: string
+          display_name: string
+          id?: string
+          position: number
+          ref_case_id: string
+        }
+        Update: {
+          case_id?: string
+          display_name?: string
+          id?: string
+          position?: number
+          ref_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_arena_slots_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_case_arena_slots_ref_case_id_fkey"
+            columns: ["ref_case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_boss_fans: {
+        Row: {
+          age: number | null
+          budget_cap: number | null
+          case_id: string
+          city: string | null
+          code: string
+          color: string | null
+          derails: string | null
+          id: string
+          job: string | null
+          meet_when: string | null
+          meet_where: string | null
+          name: string
+          nego_threshold: number | null
+          nego_where: string | null
+          opening_message: string
+          persona: string
+          position: number
+        }
+        Insert: {
+          age?: number | null
+          budget_cap?: number | null
+          case_id: string
+          city?: string | null
+          code: string
+          color?: string | null
+          derails?: string | null
+          id?: string
+          job?: string | null
+          meet_when?: string | null
+          meet_where?: string | null
+          name: string
+          nego_threshold?: number | null
+          nego_where?: string | null
+          opening_message: string
+          persona: string
+          position: number
+        }
+        Update: {
+          age?: number | null
+          budget_cap?: number | null
+          case_id?: string
+          city?: string | null
+          code?: string
+          color?: string | null
+          derails?: string | null
+          id?: string
+          job?: string | null
+          meet_when?: string | null
+          meet_where?: string | null
+          name?: string
+          nego_threshold?: number | null
+          nego_where?: string | null
+          opening_message?: string
+          persona?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_boss_fans_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_messages: {
+        Row: {
+          body: string
+          case_id: string
+          id: string
+          position: number
+          speaker: string
+        }
+        Insert: {
+          body: string
+          case_id: string
+          id?: string
+          position: number
+          speaker: string
+        }
+        Update: {
+          body?: string
+          case_id?: string
+          id?: string
+          position?: number
+          speaker?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_messages_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_cases: {
+        Row: {
+          active: boolean
+          code: string
+          context: string
+          created_at: string
+          difficulty: number
+          expected: string | null
+          fan_brief: string | null
+          fan_name: string | null
+          id: string
+          is_sale: boolean
+          kind: string
+          max_turns: number
+          module_id: string
+          objective: string
+          phase: string
+          position: number
+          reaction_max_s: number | null
+          section_id: string | null
+          target_line: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          context: string
+          created_at?: string
+          difficulty: number
+          expected?: string | null
+          fan_brief?: string | null
+          fan_name?: string | null
+          id?: string
+          is_sale?: boolean
+          kind?: string
+          max_turns: number
+          module_id: string
+          objective: string
+          phase?: string
+          position?: number
+          reaction_max_s?: number | null
+          section_id?: string | null
+          target_line?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          context?: string
+          created_at?: string
+          difficulty?: number
+          expected?: string | null
+          fan_brief?: string | null
+          fan_name?: string | null
+          id?: string
+          is_sale?: boolean
+          kind?: string
+          max_turns?: number
+          module_id?: string
+          objective?: string
+          phase?: string
+          position?: number
+          reaction_max_s?: number | null
+          section_id?: string | null
+          target_line?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_cases_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_cases_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "training_module_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_cases_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_module_axes: {
+        Row: {
+          description: string
+          id: string
+          key: string
+          module_id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          description: string
+          id?: string
+          key: string
+          module_id: string
+          name: string
+          position?: number
+        }
+        Update: {
+          description?: string
+          id?: string
+          key?: string
+          module_id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_axes_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_module_sections: {
+        Row: {
+          code: string
+          description: string | null
+          emoji: string | null
+          id: string
+          module_id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          code: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          module_id: string
+          position?: number
+          title: string
+        }
+        Update: {
+          code?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          module_id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_sections_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_modules: {
+        Row: {
+          active: boolean
+          code: string
+          course_md: string | null
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          objective_label: string
+          position: number
+          scoring_notes: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          course_md?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          objective_label?: string
+          position?: number
+          scoring_notes?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          course_md?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          objective_label?: string
+          position?: number
+          scoring_notes?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_modules_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2449,6 +2857,24 @@ export type Database = {
           date: string
         }[]
       }
+      crm_spenders_kpis_json: {
+        Args: { p_alerte?: number; p_models?: string[]; p_seuil?: number }
+        Returns: Json
+      }
+      crm_spenders_page: {
+        Args: {
+          p_alerte?: number
+          p_desc?: boolean
+          p_limit?: number
+          p_models?: string[]
+          p_offset?: number
+          p_search?: string
+          p_seuil?: number
+          p_sort?: string
+          p_view?: string
+        }
+        Returns: Json
+      }
       crm_spenders_tracker: {
         Args: { p_seuil?: number }
         Returns: {
@@ -2472,26 +2898,8 @@ export type Database = {
           username: string
         }[]
       }
-      crm_spenders_page: {
-        Args: {
-          p_seuil?: number
-          p_view?: string
-          p_alerte?: number
-          p_models?: string[]
-          p_search?: string
-          p_sort?: string
-          p_desc?: boolean
-          p_limit?: number
-          p_offset?: number
-        }
-        Returns: Json
-      }
-      crm_spenders_kpis_json: {
-        Args: { p_seuil?: number; p_alerte?: number; p_models?: string[] }
-        Returns: Json
-      }
       crm_spenders_tracker_json: {
-        Args: { p_seuil?: number; p_view?: string; p_alerte?: number }
+        Args: { p_alerte?: number; p_seuil?: number; p_view?: string }
         Returns: Json
       }
       has_page: { Args: { slug: string }; Returns: boolean }
@@ -2525,6 +2933,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      norm_shifts: { Args: { p: string[] }; Returns: string[] }
       overview_report: {
         Args: {
           p_chart_from: string
@@ -2536,24 +2945,11 @@ export type Database = {
         Returns: Json
       }
       repos_data_weeks: { Args: never; Returns: Json }
-      norm_shifts: {
-        Args: { p: string[] }
-        Returns: string[]
-      }
       save_org_cell: {
         Args: {
           p_chatter_ids: string[]
           p_creator_id: string
           p_previous_ids: string[]
-          p_shift: string
-        }
-        Returns: undefined
-      }
-      set_org_placement_kind: {
-        Args: {
-          p_creator_id: string
-          p_hs: boolean
-          p_profile_id: string
           p_shift: string
         }
         Returns: undefined
@@ -2575,6 +2971,15 @@ export type Database = {
           p_day: number
           p_names: string
           p_week_start: string
+        }
+        Returns: undefined
+      }
+      set_org_placement_kind: {
+        Args: {
+          p_creator_id: string
+          p_hs: boolean
+          p_profile_id: string
+          p_shift: string
         }
         Returns: undefined
       }
@@ -2720,6 +3125,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
