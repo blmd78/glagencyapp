@@ -62,31 +62,31 @@ export function CaseFormBoss({
               </div>
               <p className="text-xs text-muted-foreground">Visible du chatter</p>
               <div className="grid gap-2 sm:grid-cols-4">
-                <div className="grid gap-1"><Label className="text-xs">Prénom</Label><Input disabled={disabled} aria-invalid={!!err(i, 'name')} {...register(`fans.${i}.name`)} /><FieldError message={err(i, 'name')} /></div>
-                <div className="grid gap-1"><Label className="text-xs">Âge</Label><Input type="number" min={18} max={99} disabled={disabled} {...register(`fans.${i}.age`)} /><FieldError message={err(i, 'age')} /></div>
-                <div className="grid gap-1"><Label className="text-xs">Métier</Label><Input disabled={disabled} {...register(`fans.${i}.job`)} /><FieldError message={err(i, 'job')} /></div>
-                <div className="grid gap-1"><Label className="text-xs">Ville</Label><Input disabled={disabled} {...register(`fans.${i}.city`)} /><FieldError message={err(i, 'city')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-name`} className="text-xs">Prénom</Label><Input id={`fan-${i}-name`} disabled={disabled} aria-invalid={!!err(i, 'name')} {...register(`fans.${i}.name`)} /><FieldError message={err(i, 'name')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-age`} className="text-xs">Âge</Label><Input id={`fan-${i}-age`} type="number" min={18} max={99} disabled={disabled} {...register(`fans.${i}.age`)} /><FieldError message={err(i, 'age')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-job`} className="text-xs">Métier</Label><Input id={`fan-${i}-job`} disabled={disabled} {...register(`fans.${i}.job`)} /><FieldError message={err(i, 'job')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-city`} className="text-xs">Ville</Label><Input id={`fan-${i}-city`} disabled={disabled} {...register(`fans.${i}.city`)} /><FieldError message={err(i, 'city')} /></div>
               </div>
               <div className="grid gap-2 sm:grid-cols-[8rem_1fr]">
-                <div className="grid gap-1"><Label className="text-xs">Couleur d’onglet</Label><Input placeholder="#ff6b9d" disabled={disabled} {...register(`fans.${i}.color`)} /><FieldError message={err(i, 'color')} /></div>
-                <div className="grid gap-1"><Label className="text-xs">Caractère (une phrase)</Label><Input disabled={disabled} aria-invalid={!!err(i, 'persona')} {...register(`fans.${i}.persona`)} /><FieldError message={err(i, 'persona')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-color`} className="text-xs">Couleur d’onglet</Label><Input id={`fan-${i}-color`} placeholder="#ff6b9d" disabled={disabled} {...register(`fans.${i}.color`)} /><FieldError message={err(i, 'color')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-persona`} className="text-xs">Caractère (une phrase)</Label><Input id={`fan-${i}-persona`} disabled={disabled} aria-invalid={!!err(i, 'persona')} {...register(`fans.${i}.persona`)} /><FieldError message={err(i, 'persona')} /></div>
               </div>
               <div className="grid gap-1">
-                <Label className="text-xs">Son premier message</Label>
-                <Textarea rows={2} disabled={disabled} aria-invalid={!!err(i, 'openingMessage')} {...register(`fans.${i}.openingMessage`)} />
+                <Label htmlFor={`fan-${i}-openingMessage`} className="text-xs">Son premier message</Label>
+                <Textarea id={`fan-${i}-openingMessage`} rows={2} disabled={disabled} aria-invalid={!!err(i, 'openingMessage')} {...register(`fans.${i}.openingMessage`)} />
                 <FieldError message={err(i, 'openingMessage')} />
               </div>
               <p className="text-xs text-muted-foreground">Caché — pilote l’IA, jamais montré au chatter</p>
               <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-1"><Label className="text-xs">Plafond de dépense (€)</Label><Input type="number" min={0} disabled={disabled} {...register(`fans.${i}.budgetCap`)} /><FieldError message={err(i, 'budgetCap')} /></div>
-                <div className="grid gap-1"><Label className="text-xs">Palier où il négocie (€)</Label><Input type="number" min={0} disabled={disabled} {...register(`fans.${i}.negoThreshold`)} /><FieldError message={err(i, 'negoThreshold')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-budgetCap`} className="text-xs">Plafond de dépense (€)</Label><Input id={`fan-${i}-budgetCap`} type="number" min={0} disabled={disabled} {...register(`fans.${i}.budgetCap`)} /><FieldError message={err(i, 'budgetCap')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-negoThreshold`} className="text-xs">Palier où il négocie (€)</Label><Input id={`fan-${i}-negoThreshold`} type="number" min={0} disabled={disabled} {...register(`fans.${i}.negoThreshold`)} /><FieldError message={err(i, 'negoThreshold')} /></div>
               </div>
-              <div className="grid gap-1"><Label className="text-xs">Comment / quand il négocie</Label><Textarea rows={2} disabled={disabled} {...register(`fans.${i}.negoWhere`)} /><FieldError message={err(i, 'negoWhere')} /></div>
+              <div className="grid gap-1"><Label htmlFor={`fan-${i}-negoWhere`} className="text-xs">Comment / quand il négocie</Label><Textarea id={`fan-${i}-negoWhere`} rows={2} disabled={disabled} {...register(`fans.${i}.negoWhere`)} /><FieldError message={err(i, 'negoWhere')} /></div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-1"><Label className="text-xs">Moment de la demande de rencontre</Label><Textarea rows={2} disabled={disabled} {...register(`fans.${i}.meetWhen`)} /><FieldError message={err(i, 'meetWhen')} /></div>
-                <div className="grid gap-1"><Label className="text-xs">Formulation de la demande</Label><Textarea rows={2} disabled={disabled} {...register(`fans.${i}.meetWhere`)} /><FieldError message={err(i, 'meetWhere')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-meetWhen`} className="text-xs">Moment de la demande de rencontre</Label><Textarea id={`fan-${i}-meetWhen`} rows={2} disabled={disabled} {...register(`fans.${i}.meetWhen`)} /><FieldError message={err(i, 'meetWhen')} /></div>
+                <div className="grid gap-1"><Label htmlFor={`fan-${i}-meetWhere`} className="text-xs">Formulation de la demande</Label><Textarea id={`fan-${i}-meetWhere`} rows={2} disabled={disabled} {...register(`fans.${i}.meetWhere`)} /><FieldError message={err(i, 'meetWhere')} /></div>
               </div>
-              <div className="grid gap-1"><Label className="text-xs">Ses déraillements</Label><Textarea rows={2} disabled={disabled} {...register(`fans.${i}.derails`)} /><FieldError message={err(i, 'derails')} /></div>
+              <div className="grid gap-1"><Label htmlFor={`fan-${i}-derails`} className="text-xs">Ses déraillements</Label><Textarea id={`fan-${i}-derails`} rows={2} disabled={disabled} {...register(`fans.${i}.derails`)} /><FieldError message={err(i, 'derails')} /></div>
             </li>
           ))}
         </ul>

@@ -84,6 +84,10 @@ export function CaseDialog({
   // Passage à une sorte multi-conversations : on amorce ce que le superRefine exigera.
   const onKindChange = (k: CaseFormValues['kind']) => {
     setValue('kind', k)
+    // Les items des autres sortes sont validés inconditionnellement → on les vide, sinon submit bloqué sans message.
+    if (k !== 'solo' && getValues('messages').length) setValue('messages', [])
+    if (k !== 'arena' && getValues('slots').length) setValue('slots', [])
+    if (k !== 'boss' && getValues('fans').length) setValue('fans', [])
     if (k !== 'solo' && (getValues('reactionMaxS') === '' || getValues('reactionMaxS') == null)) setValue('reactionMaxS', 120)
     if (k === 'arena' && getValues('slots').length !== 5) setValue('slots', emptySlots())
     if (k === 'boss' && getValues('fans').length === 0) setValue('fans', [emptyFan()])
@@ -92,6 +96,8 @@ export function CaseDialog({
   const soloOptions = module.cases
     .filter((c) => c.kind === 'solo')
     .map((c) => ({ value: c.id, label: `${c.title} (diff. ${c.difficulty})` }))
+
+  const onInvalid = () => toast.error('Formulaire incomplet — vérifie les champs en rouge')
 
   const submit = handleSubmit(async (values) => {
     const res = await saveCase(values)
@@ -106,7 +112,7 @@ export function CaseDialog({
     }
     toast.success(caseItem ? 'Cas modifié' : 'Cas créé')
     onClose()
-  })
+  }, onInvalid)
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !isSubmitting && onClose()}>

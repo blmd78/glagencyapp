@@ -64,7 +64,7 @@ export function CaseFormArena({
                 <FieldError message={errors.slots?.[i]?.refCaseId?.message} />
               </div>
               <div className="grid gap-1">
-                <Input placeholder="Prénom affiché" disabled={disabled} aria-invalid={!!errors.slots?.[i]?.displayName} {...register(`slots.${i}.displayName`)} />
+                <Input placeholder="Prénom affiché" aria-label={`Prénom affiché de la conversation ${i + 1}`} disabled={disabled} aria-invalid={!!errors.slots?.[i]?.displayName} {...register(`slots.${i}.displayName`)} />
                 <FieldError message={errors.slots?.[i]?.displayName?.message} />
               </div>
             </li>
