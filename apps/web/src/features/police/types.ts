@@ -10,17 +10,6 @@ export interface EntityOption {
   name: string
 }
 
-export interface DayChoice {
-  day: string
-  label: string
-}
-
-export interface MonthChoice {
-  /** 1er du mois (YYYY-MM-01). */
-  month: string
-  label: string
-}
-
 /** Une ligne du journal : avertissement (erreur) OU malus (montant décidé). */
 export interface PoliceEntry {
   id: string
@@ -32,31 +21,19 @@ export interface PoliceEntry {
   amountEur: number
   note: string | null
   shift: string | null
-  /** Jour de la faute (YYYY-MM-DD) — affiché par entrée en vue mois (distinguer les jours). */
+  /** Jour de la faute (YYYY-MM-DD) — affiché par entrée (la période peut couvrir plusieurs jours). */
   occurredOn: string
   createdAt: string
 }
 
 export interface PoliceData {
-  /** Mode d'affichage (en-tête) : `jour` (mono-jour) ou `mois` (plage du mois). */
-  vue: 'jour' | 'mois'
-  /** Jour affiché (YYYY-MM-DD). */
-  day: string
-  /** Libellé « lundi 07/07 ». */
-  dayLabel: string
-  /** Mois affiché (1er du mois, YYYY-MM-01). */
-  month: string
-  /** Libellé « juillet 2026 ». */
-  monthLabel: string
-  /** Entrées de la période : du JOUR (mode jour) OU du MOIS (mode mois), plus récent d'abord. */
+  /** Libellé humain de la période affichée (ex. « Juillet 2026 », « 3 juin – 15 juin 2026 »). */
+  periodLabel: string
+  /** Entrées de la période (`?from&to` du datepicker global), plus récent d'abord. */
   entries: PoliceEntry[]
-  /** Chatteurs actifs — options des formulaires (saisie masquée en mois). */
+  /** Chatteurs actifs — options du formulaire de saisie. */
   chatterOptions: EntityOption[]
   /** chatterId → nb d'avertissements récents (fenêtre 30 j, borné au périmètre) — aide la
-   *  décision de malus. Vide en mois. */
+   *  décision de malus. */
   warningsByChatter: Record<string, number>
-  /** Jours proposés au sélecteur (aujourd'hui + 13 passés). */
-  days: DayChoice[]
-  /** Mois proposés au sélecteur (mois courant + 11 passés). */
-  months: MonthChoice[]
 }

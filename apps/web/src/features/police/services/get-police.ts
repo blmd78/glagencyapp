@@ -1,26 +1,18 @@
-import {
-  addDays,
-  endOfMonth,
-  frMonthLong,
-  frWeekdayLong,
-  startOfMonth,
-  todayParis,
-} from '@glagency/core'
+import { addDays, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { recentDays, recentMonths } from '@/lib/periods'
+import type { Period } from '@/lib/period'
 import { getCreatorScope } from '@/lib/services/creator-scope'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { ERROR_LABEL } from '@/lib/types/police-errors'
 import type { PoliceData, PoliceEntry } from '../types'
 
 /**
- * Journal « Police » d'une PÉRIODE — jour (défaut) ou mois — piloté par `vue`.
- * - `jour` : entrées d'un seul jour (`?day=`, défaut aujourd'hui), KPIs du jour — comportement historique.
- * - `mois` : entrées de tout le mois (`?month=`, défaut mois courant), KPIs agrégés sur le mois. Consultation
- *   pure (pas de saisie) → le compteur d'avertissements récents (aide-décision) n'est pas chargé.
+ * Journal « Police » d'une PÉRIODE — pilotée par le datepicker GLOBAL du header (`?from&to`,
+ * résolue en `Period` par la page via `resolvePeriod`, comme Santé/Chatters). Plus de bascule
+ * Jour/Mois locale (retirée 2026-08-17) : KPIs et historique suivent la même plage.
  * RLS : page `police` (0078 — la BASE ne cloisonne pas ; tout porteur de la page lit tout).
- * `chatter_id` désigne désormais un MEMBRE (`profiles`). Noms (chatteur + contrôleur) résolus
+ * `chatter_id` désigne un MEMBRE (`profiles`). Noms (chatteur + contrôleur) résolus
  * via `profiles` (client admin).
  *
  * PÉRIMÈTRE PAR RÔLE (décision Benoit 2026-08-06) : `getCreatorScope` (lib/services, SOURCE
@@ -31,10 +23,8 @@ import type { PoliceData, PoliceEntry } from '../types'
  * appliqué par les actions (`requireChatterInScope`).
  */
 export async function getPolice(
-  { vue, day, month, callerId, callerRole }: {
-    vue: 'jour' | 'mois'
-    day?: string
-    month?: string
+  { period, callerId, callerRole }: {
+    period: Period
     callerId: string
     /** Rôle BRUT (`profiles.baseRole`) — décide du cloisonnement ci-dessus. */
     callerRole: string
@@ -44,56 +34,41 @@ export async function getPolice(
   const admin = createAdminClient()
 
   const today = todayParis()
-  // Fenêtres proposées aux sélecteurs PARTAGÉS (source unique `@/lib/periods`, mêmes libellés que le Rapport).
-  const days = recentDays(today)
-  const months = recentMonths(today)
+  // Fenêtre du compteur d'avertissements récents (aide-décision de la saisie) : les 30 derniers
+  // jours GLISSANTS — indépendante de la période affichée, la saisie date d'aujourd'hui ou presque.
+  const since = addDays(today, -30)
 
   // Périmètre modèles de l'appelant — kické tout de suite, attendu après les fetches.
   const scopePromise = getCreatorScope(callerId, callerRole)
 
-  // Jour : accepté seulement DANS la fenêtre du sélecteur, sinon aujourd'hui — même garde que
-  // le mois ci-dessous et que le Rapport (l'audit 2026-08-06 a relevé la regex seule : un
-  // `?day=2020-01-01` affichait un sélecteur vide et une saisie condamnée d'avance).
-  const selectedDay = day && days.some((d) => d.day === day) ? day : today
-  // Mois : `?month=` accepté seulement s'il est dans la fenêtre, sinon mois courant (même garde que le Rapport).
-  const currentMonth = startOfMonth(today)
-  const selectedMonth = month && months.some((m) => m.month === month) ? month : currentMonth
-
-  const since = addDays(selectedDay, -30)
-  const monthStart = startOfMonth(selectedMonth)
-  const monthEnd = endOfMonth(selectedMonth)
-
-  // Plage des entrées selon le mode : un seul jour (`.eq`) OU tout le mois. `police_entries`
-  // est une table de FAITS (plusieurs entrées/jour/chatteur) → `fetchAll` sur LES DEUX branches
-  // (guidelines-data-loading §2 : jamais de select nu sur une table de faits — le pari « un
-  // jour < 1000 entrées » serait une troncature silencieuse le jour où il tombe). Ordre
-  // DÉTERMINISTE `created_at, id`, requis par la pagination.
-  const entriesQuery = fetchAll((from, to) => {
-    let q = supabase.from('police_entries').select('*')
-    q =
-      vue === 'mois'
-        ? q.gte('occurred_on', monthStart).lte('occurred_on', monthEnd)
-        : q.eq('occurred_on', selectedDay)
-    return q.order('created_at', { ascending: false }).order('id').range(from, to)
-  })
+  // Entrées de la plage [from, to] (bornes incluses). `police_entries` est une table de FAITS
+  // (plusieurs entrées/jour/chatteur) → `fetchAll` (guidelines-data-loading §2 : jamais de select
+  // nu sur une table de faits — le pari « une plage < 1000 entrées » serait une troncature
+  // silencieuse le jour où il tombe). Ordre DÉTERMINISTE `created_at, id`, requis par la pagination.
+  const entriesQuery = fetchAll((from, to) =>
+    supabase
+      .from('police_entries')
+      .select('*')
+      .gte('occurred_on', period.from)
+      .lte('occurred_on', period.to)
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to),
+  )
 
   const [entriesRes, recentWarnsRes, profilesRes, assignRes, scope] = await Promise.all([
     entriesQuery,
-    // Compteur d'avertissements récents : aide la décision de malus dans la SAISIE (mode jour uniquement).
-    // En mois la saisie est masquée → requête inutile, on la saute.
-    vue === 'jour'
-      ? fetchAll((from, to) =>
-          supabase
-            .from('police_entries')
-            .select('chatter_id')
-            .eq('kind', 'warning')
-            .gte('occurred_on', since)
-            .lte('occurred_on', selectedDay)
-            .order('occurred_on', { ascending: false })
-            .order('id')
-            .range(from, to),
-        )
-      : Promise.resolve(null),
+    fetchAll((from, to) =>
+      supabase
+        .from('police_entries')
+        .select('chatter_id')
+        .eq('kind', 'warning')
+        .gte('occurred_on', since)
+        .lte('occurred_on', today)
+        .order('occurred_on', { ascending: false })
+        .order('id')
+        .range(from, to),
+    ),
     // Membres (client admin, `fetchAll` anti-troncature) : résolution des NOMS — chatteur (chatter_id)
     // ET contrôleur (controller_id) sont tous deux des `profiles` — et OPTIONS (role chatteur).
     fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
@@ -105,11 +80,11 @@ export async function getPolice(
     scopePromise,
   ])
   if (entriesRes.error) throw new Error(entriesRes.error.message)
-  if (recentWarnsRes?.error) throw new Error(recentWarnsRes.error.message)
+  if (recentWarnsRes.error) throw new Error(recentWarnsRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (assignRes.error) throw new Error(assignRes.error.message)
   const rows = entriesRes.data
-  const recentWarns = recentWarnsRes?.data
+  const recentWarns = recentWarnsRes.data
   const profileRows = profilesRes.data
   const assignRows = assignRes.data
 
@@ -154,15 +129,9 @@ export async function getPolice(
   }))
 
   return {
-    vue,
-    day: selectedDay,
-    dayLabel: frWeekdayLong(selectedDay),
-    month: selectedMonth,
-    monthLabel: frMonthLong(selectedMonth),
+    periodLabel: period.label,
     entries,
     chatterOptions,
     warningsByChatter,
-    days,
-    months,
   }
 }

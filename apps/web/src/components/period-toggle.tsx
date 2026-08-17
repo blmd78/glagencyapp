@@ -6,7 +6,8 @@ import type { Route } from 'next'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 /**
- * Bascule Jour / Mois PARTAGÉE (Tracker + Rapport du soir) — pilote le MODE d'affichage de la page
+ * Bascule Jour / Mois (Rapport du soir — le Tracker l'a quittée pour le datepicker global,
+ * 2026-08-17) — pilote le MODE d'affichage de la page
  * via l'URL (`?vue=jour|mois`). MÊME idiome que le switch Planning/To-do (`todos-tabs.tsx`) : des
  * `Tabs` dont l'onglet actif vit dans l'URL, écrits en `router.replace(..., { scroll: false })`
  * (pas de `push` : changer de vue n'a pas à empiler une entrée d'historique — guidelines §6).

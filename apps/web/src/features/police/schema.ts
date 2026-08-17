@@ -44,7 +44,10 @@ export const updateMalusInput = z.object({
 })
 
 // ── Schéma du FORM client (ControlPanel) : montant en texte, vide = simple avertissement.
+// `day` : date de la faute choisie au datepicker du dialog (défaut aujourd'hui) — même borne
+// `dayZ` que les entrées d'action (fenêtre 14 j), le calendrier n'offre déjà qu'elle.
 export const controlFormSchema = z.object({
+  day: dayZ,
   chatterId: z.string().min(1, 'Choisis un chatter.'),
   errorKey: z.string().min(1, 'Choisis un type d’erreur.'),
   shift: z.string().optional(),

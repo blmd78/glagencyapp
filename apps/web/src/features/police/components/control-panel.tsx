@@ -3,10 +3,14 @@
 import { useState } from 'react'
 import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { CalendarIcon, Plus } from 'lucide-react'
+import { addDays, frWeekdayLong, todayParis } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
 import { Button } from '@/components/ui/button'
+import { Calendar } from '@/components/ui/calendar'
 import {
   Dialog,
   DialogContent,
@@ -18,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Combobox } from '@/components/ui/combobox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -26,6 +31,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { eur2max } from '@/lib/format'
+import { DAY_WINDOW } from '@/lib/periods'
 import { addPoliceWarning, addPoliceMalus } from '../actions'
 import { controlFormSchema, type ControlForm } from '../schema'
 import { POLICE_ERRORS } from '@/lib/types/police-errors'
@@ -34,11 +40,19 @@ import { SHIFTS, type PoliceData } from '../types'
 /**
  * Saisie d'un contrôle en DIALOG (« Ajouter une sanction ») — la page ne garde que l'historique,
  * la saisie s'ouvre à la demande (demande Benoit 2026-08-06). RHF + Zod, schéma partagé avec le
- * serveur. Chatteur + type d'erreur, puis un champ montant : vide → avertissement ; renseigné →
- * malus (le bouton suit). Le dialog se FERME à l'enregistrement, et s'ouvre toujours VIERGE
- * (reset à l'ouverture — une saisie abandonnée à la croix ne réapparaît pas).
+ * serveur. Date de la faute (datepicker, défaut aujourd'hui — la période affichée n'est qu'un
+ * filtre de consultation), chatteur + type d'erreur, puis un champ montant : vide →
+ * avertissement ; renseigné → malus (le bouton suit). Le dialog se FERME à l'enregistrement, et
+ * s'ouvre toujours VIERGE (reset à l'ouverture — une saisie abandonnée à la croix ne réapparaît pas).
  */
-const CONTROL_DEFAULTS: ControlForm = { chatterId: '', errorKey: '', shift: '', amount: '', note: '' }
+const controlDefaults = (): ControlForm => ({
+  day: todayParis(),
+  chatterId: '',
+  errorKey: '',
+  shift: '',
+  amount: '',
+  note: '',
+})
 
 export function ControlPanel({ data }: { data: PoliceData }) {
   // 'use no memo' : formState de RHF est un Proxy à abonnement — mémoïsé par le React
@@ -54,7 +68,7 @@ export function ControlPanel({ data }: { data: PoliceData }) {
     formState: { errors, isSubmitting },
   } = useForm<ControlForm>({
     resolver: zodResolver(controlFormSchema),
-    defaultValues: CONTROL_DEFAULTS,
+    defaultValues: controlDefaults(),
   })
 
   // Réouverture toujours VIERGE : la saisie abandonnée (croix, ESC, clic dehors) ne doit pas
@@ -64,7 +78,7 @@ export function ControlPanel({ data }: { data: PoliceData }) {
     // Pas de fermeture (croix/ESC/clic dehors) pendant l'envoi — même garde que le Rapport.
     if (!next && isSubmitting) return
     setOpen(next)
-    if (next) reset(CONTROL_DEFAULTS)
+    if (next) reset(controlDefaults())
   }
 
   // useWatch (pas watch) : compatible React Compiler (watch lit ref.current au render).
@@ -79,7 +93,7 @@ export function ControlPanel({ data }: { data: PoliceData }) {
     const res =
       amt > 0
         ? await addPoliceMalus({
-            day: data.day,
+            day: values.day,
             chatterId: values.chatterId,
             errorKey: values.errorKey,
             amountEur: amt,
@@ -87,7 +101,7 @@ export function ControlPanel({ data }: { data: PoliceData }) {
             shift: values.shift || undefined,
           })
         : await addPoliceWarning({
-            day: data.day,
+            day: values.day,
             chatterId: values.chatterId,
             errorKey: values.errorKey,
             shift: values.shift || undefined,
@@ -99,7 +113,7 @@ export function ControlPanel({ data }: { data: PoliceData }) {
     }
     toast.success(amt > 0 ? 'Malus enregistré' : 'Avertissement ajouté')
     // Enregistré → la modal se ferme, vidée (le toast confirme ; rouvrir = repartir de zéro).
-    reset(CONTROL_DEFAULTS)
+    reset(controlDefaults())
     setOpen(false)
   })
 
@@ -114,12 +128,20 @@ export function ControlPanel({ data }: { data: PoliceData }) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Nouvelle sanction</DialogTitle>
-          <DialogDescription>
-            {data.dayLabel} — sans montant, c’est un simple avertissement.
-          </DialogDescription>
+          <DialogDescription>Sans montant, c’est un simple avertissement.</DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          {/* Le chatteur d'abord — l'aide-décision (avert. récents) s'affiche dès le choix. */}
+          {/* La date de la faute d'abord (défaut aujourd'hui) — bornée à la même fenêtre que le
+              serveur (`dayZ`), le calendrier n'offre pas d'autre choix. */}
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs text-muted-foreground">Date</Label>
+            <Controller name="day" control={control} render={({ field }) => <DayPicker field={field} />} />
+            {errors.day && (
+              <p className="text-xs text-red-600 dark:text-red-400">{errors.day.message}</p>
+            )}
+          </div>
+
+          {/* Puis le chatteur — l'aide-décision (avert. récents) s'affiche dès le choix. */}
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs text-muted-foreground">Chatter</Label>
             <Controller
@@ -241,5 +263,43 @@ export function ControlPanel({ data }: { data: PoliceData }) {
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Datepicker mono-date du champ `day` (valeur RHF en `YYYY-MM-DD`) — même fenêtre de 14 jours
+ *  que la borne serveur `dayZ` (`isDayInWindow`) : le calendrier désactive tout le reste.
+ *  `modal` : dans un Dialog Radix, un Popover non modal perd le focus et se ferme mal. */
+function DayPicker({ field }: { field: { value: string; onChange: (value: string) => void } }) {
+  const [open, setOpen] = useState(false)
+  const today = todayParis()
+  const asDate = (day: string) => new Date(`${day}T00:00:00`)
+  return (
+    <Popover open={open} onOpenChange={setOpen} modal>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 justify-start gap-2 text-sm font-normal"
+        >
+          <CalendarIcon className="size-4" />
+          {frWeekdayLong(field.value)}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={asDate(field.value)}
+          onSelect={(d) => {
+            if (!d) return
+            field.onChange(format(d, 'yyyy-MM-dd'))
+            setOpen(false)
+          }}
+          defaultMonth={asDate(field.value)}
+          disabled={{ before: asDate(addDays(today, -(DAY_WINDOW - 1))), after: asDate(today) }}
+          locale={fr}
+          autoFocus
+        />
+      </PopoverContent>
+    </Popover>
   )
 }

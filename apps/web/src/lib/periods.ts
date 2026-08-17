@@ -1,10 +1,11 @@
 import { addDays, addMonths, frMonthLong, frWeekdayLong, startOfMonth, todayParis } from '@glagency/core'
 
 /**
- * Fenêtres de périodes PARTAGÉES par les sélecteurs (Tracker `get-police.ts` + Rapport
- * `rapport-police/page.tsx`) — source unique pour que le sélecteur PARTAGÉ (`UrlSelect`) affiche les
- * mêmes libellés des deux côtés. `addDays`/`addMonths` parsent en UTC-midi (pas de décalage de
- * fuseau) ; `frWeekdayLong`/`frMonthLong` produisent les libellés fr.
+ * Fenêtres de périodes des sélecteurs du Rapport (`rapport-police/page.tsx`) et borne de SAISIE
+ * du Tracker (`features/police/schema.ts` — le datepicker de sanction et `dayZ` partagent
+ * `DAY_WINDOW`/`isDayInWindow` ; ses sélecteurs jour/mois ont laissé place au datepicker global,
+ * 2026-08-17). `addDays`/`addMonths` parsent en UTC-midi (pas de décalage de fuseau) ;
+ * `frWeekdayLong`/`frMonthLong` produisent les libellés fr.
  */
 
 /** Taille de la fenêtre de jours (sélecteur ET bornage serveur des saisies). */
