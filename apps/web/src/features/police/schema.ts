@@ -37,17 +37,32 @@ export const malusInput = z.object({
   shift: shiftZ.optional(),
 })
 
-export const updateMalusInput = z.object({
-  id: uuidZ,
-  amountEur: amountEurZ,
-  note: noteZ,
-})
+/** Édition COMPLÈTE d'une entrée (le crayon rouvre le dialog de saisie pré-rempli — demande
+ *  Benoit 2026-08-17, remplace l'édition partielle montant+note). Le `kind` se déduit du
+ *  montant, comme à la pose (0 → avertissement, > 0 → malus). `day` : FORMAT seul — la règle
+ *  de fenêtre vit dans le handler (la date D'ORIGINE d'une vieille sanction doit rester
+ *  acceptée telle quelle, seule une RE-datation est bornée aux 14 j). */
+export const updateEntryInput = z
+  .object({
+    id: uuidZ,
+    day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
+    chatterId: uuidZ,
+    errorKey: errorKeyZ.optional(),
+    amountEur: amountEurZ,
+    note: noteZ,
+    shift: shiftZ.optional(),
+  })
+  .refine((v) => v.amountEur > 0 || !!v.errorKey, {
+    message: 'Un avertissement doit porter un type d’erreur.',
+    path: ['errorKey'],
+  })
 
-// ── Schéma du FORM client (ControlPanel) : montant en texte, vide = simple avertissement.
-// `day` : date de la faute choisie au datepicker du dialog (défaut aujourd'hui) — même borne
-// `dayZ` que les entrées d'action (fenêtre 14 j), le calendrier n'offre déjà qu'elle.
+// ── Schéma du FORM client (dialog de saisie, création ET édition) : montant en texte, vide =
+// simple avertissement. `day` : FORMAT seul — le calendrier borne déjà la sélection à la
+// fenêtre 14 j, et le serveur re-vérifie (création : `dayZ` strict ; édition : fenêtre sauf
+// date inchangée). Un refine fenêtre ici bloquerait l'édition d'une sanction ancienne.
 export const controlFormSchema = z.object({
-  day: dayZ,
+  day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
   chatterId: z.string().min(1, 'Choisis un chatter.'),
   errorKey: z.string().min(1, 'Choisis un type d’erreur.'),
   shift: z.string().optional(),
@@ -60,10 +75,3 @@ export const controlFormSchema = z.object({
   note: noteZ,
 })
 export type ControlForm = z.infer<typeof controlFormSchema>
-
-// ── Édition inline d'un malus (montant + note).
-export const malusEditFormSchema = z.object({
-  amount: z.string().refine(montantTexteValide, 'Montant invalide (> 0).'),
-  note: noteZ,
-})
-export type MalusEditForm = z.infer<typeof malusEditFormSchema>

@@ -17,14 +17,16 @@ export default async function PolicePage({
   // `resolvePeriod` est la source unique (défaut : mois en cours). Synchrone → le h1 et le
   // sous-titre (libellé de période) s'affichent immédiatement, les données streament dessous.
   const period = resolvePeriod(await searchParams)
-  // Kickoff SANS await (docs/guidelines-data-loading.md §3).
-  // `callerId`/`callerRole` : périmètre par rôle — manager/sous-manager/policier cloisonnés
-  // sur les chatteurs de LEURS modèles, admin/chatteur voient tout (cf. getPolice).
-  const data = getPolice({ period, callerId: profile.id, callerRole: profile.baseRole })
 
   // Droit d'écriture (saisie, édition, suppression) : `canWritePolice` (lib/auth, SOURCE
   // UNIQUE — miroir des gardes d'action et de la RLS). Un chatteur consulte en lecture seule.
+  // Passé aussi à `getPolice` : le compteur d'avertissements récents (aide-décision de la
+  // saisie) n'est chargé que pour les écrivains.
   const canWrite = canWritePolice(profile)
+  // Kickoff SANS await (docs/guidelines-data-loading.md §3).
+  // `callerId`/`callerRole` : périmètre par rôle — manager/sous-manager/policier cloisonnés
+  // sur les chatteurs de LEURS modèles, admin/chatteur voient tout (cf. getPolice).
+  const data = getPolice({ period, callerId: profile.id, callerRole: profile.baseRole, canWrite })
 
   return (
     <div className="flex flex-col gap-6">

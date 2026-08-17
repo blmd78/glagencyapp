@@ -1,9 +1,11 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { eur2max as eur } from '@/lib/format'
-import { ControlPanel } from './control-panel'
+import { SanctionDialog } from './sanction-dialog'
 import { PoliceTable } from './police-table'
 import type { PoliceData, PoliceEntry } from '../types'
 
@@ -44,7 +46,7 @@ export function PoliceView({
 
   return (
     <div className="flex flex-col gap-6">
-      <KpiGrid kpis={policeKpis(entries, data.periodLabel)} accents={POLICE_ACCENTS} />
+      <KpiGrid kpis={policeKpis(entries, data.period.label)} accents={POLICE_ACCENTS} />
 
       {/* Saisie en DIALOG, bouton à GAUCHE (écrivains). La sanction porte SA date (datepicker du
           formulaire, défaut aujourd'hui) — la période affichée n'est qu'un filtre de consultation.
@@ -52,11 +54,20 @@ export function PoliceView({
           le PÉRIMÈTRE par rôle, lui, reste appliqué côté serveur (getPolice). */}
       {canWrite && (
         <div className="flex items-center">
-          <ControlPanel data={data} />
+          <SanctionDialog
+            data={data}
+            trigger={
+              <Button type="button" className="gap-1.5">
+                <Plus className="size-4" />
+                Ajouter une sanction
+              </Button>
+            }
+          />
         </div>
       )}
 
       <PoliceTable
+        data={data}
         entries={entries}
         canWrite={canWrite}
         search={search}

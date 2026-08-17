@@ -9,6 +9,7 @@ import type { Route } from 'next'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { cn } from '@/lib/utils'
+import { parseDay } from '@/lib/period'
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -27,11 +28,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
  *    revalidate, pas de flash) ;
  *  - `router.replace` (pas `push`) -> aucune entrée d'historique parasite.
  */
-function parseDate(value: string | null): Date | undefined {
-  if (!value) return undefined
-  const d = new Date(`${value}T00:00:00`)
-  return Number.isNaN(d.getTime()) ? undefined : d
-}
+// Parseur PARTAGÉ `parseDay` (lib/period.ts) — adapté au `undefined` attendu par react-day-picker.
+const parseDate = (value: string | null): Date | undefined => parseDay(value) ?? undefined
 const toParam = (d: Date) => format(d, 'yyyy-MM-dd')
 
 export function DateRangePicker({ className }: { className?: string }) {

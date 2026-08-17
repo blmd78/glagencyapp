@@ -5,7 +5,8 @@
 // (modèle × soir) : Modèle, puis les CHATTERS SUIVIS en clair (leurs noms — pas un compte),
 // chiffres du soir, alerte (icône), date, auteur. PAS d'accordéon (retiré sur retour Benoit) :
 // le CRAYON en bout de ligne ouvre le rapport complet en dialog (`ReportDetail`), avec
-// « Modifier » quand c'est sa propre fiche en vue jour. Barre d'outils : RECHERCHE LIBRE PAR
+// « Modifier » quand c'est sa propre fiche d'un soir encore dans la fenêtre de saisie (14 j).
+// Barre d'outils : RECHERCHE LIBRE PAR
 // CHATTEUR (les noms vivent dans les lignes, pas dans une colonne → recherche maison, hors
 // DataTable) + SÉLECTEUR PAR MODÈLE. Chercher un chatteur ne garde que les rapports où il
 // apparaît et n'affiche que ses lignes — son évolution soir après soir.
@@ -23,10 +24,12 @@ import { ConfirmDialog } from '@/components/confirm-dialog'
 import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { eur, num } from '@/lib/format'
+import { isDayInWindow } from '@/lib/periods'
 import { modelColor } from '@/lib/model-color'
 import { deletePoliceReport } from '../actions'
 import type { PoliceReport } from '../types'
 import { ReportDetail } from './report-detail-dialog'
+import type { ReportTarget } from './report-form'
 
 // Sentinelle « pas de filtre » — une option à part entière du Combobox (value non vide) pour
 // qu'il affiche son libellé « Tous… » au lieu du placeholder muet.
@@ -66,12 +69,11 @@ function DeleteReport({ report }: { report: PoliceReport }) {
 }
 
 function buildColumns(
-  isMonth: boolean,
   currentProfileId: string,
   /** id → rapport NON filtré : le crayon montre TOUT le rapport, même quand la recherche
    *  chatteur a réduit `lines` pour l'affichage des colonnes (défaut relevé à l'audit). */
   originalById: Map<string, PoliceReport>,
-  onEdit?: (creatorId: string) => void,
+  onEdit?: (target: ReportTarget) => void,
 ): ColumnDef<PoliceReport>[] {
   return [
     {
@@ -131,13 +133,14 @@ function buildColumns(
         ),
     },
     {
-      accessorKey: 'createdAt',
-      header: ({ column }) => <Sortable column={column} label={isMonth ? 'Date' : 'Heure'} />,
+      // Tri par SOIR du rapport (la donnée affichée), heure de saisie en départage — un rapport
+      // antidaté via le datepicker du dialog se classe à SON soir, pas à celui de la saisie.
+      id: 'day',
+      accessorFn: (r) => `${r.day} ${r.createdAt}`,
+      header: ({ column }) => <Sortable column={column} label="Date" />,
       cell: ({ row }) => (
         <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {/* En mois : le jour de rapport d'abord — en jour, l'heure suffit. */}
-          {isMonth ? `${frDayShort(row.original.day)} · ` : ''}
-          {frTimeShort(row.original.createdAt)}
+          {frDayShort(row.original.day)} · {frTimeShort(row.original.createdAt)}
         </span>
       ),
     },
@@ -156,13 +159,15 @@ function buildColumns(
         // Le rapport COMPLET (pas la version aux lignes réduites par la recherche).
         const r = originalById.get(row.original.id) ?? row.original
         const mine = r.authorId === currentProfileId
+        // « Modifier » = re-saisir SA fiche (upsert keyé auteur/modèle/jour) — borné à la
+        // FENÊTRE DE SAISIE (14 j, comme le datepicker et la garde serveur) : un soir plus
+        // ancien se consulte mais ne se re-saisit plus.
+        const editable = mine && !!onEdit && isDayInWindow(r.day)
         return (
           <div className="flex items-center justify-end">
-            {/* Crayon = voir tout le rapport ; « Modifier » dedans quand c'est SA fiche (vue
-                jour) — l'upsert est keyé (auteur, modèle, jour). */}
             <ReportDetail
               report={r}
-              onEdit={mine && onEdit ? () => onEdit(r.creatorId) : undefined}
+              onEdit={editable ? () => onEdit?.({ creatorId: r.creatorId, day: r.day }) : undefined}
             />
             {mine && <DeleteReport report={r} />}
           </div>
@@ -175,26 +180,15 @@ function buildColumns(
 export function ReportTable({
   reports,
   currentProfileId,
-  isMonth,
   onEdit,
 }: {
   reports: PoliceReport[]
   currentProfileId: string
-  isMonth: boolean
-  /** Fourni en vue jour par un écrivain (reports-view) : le crayon propose « Modifier ». */
-  onEdit?: (creatorId: string) => void
+  /** Fourni par un écrivain (reports-view) : le crayon propose « Modifier » (fenêtre 14 j). */
+  onEdit?: (target: ReportTarget) => void
 }) {
   const [modelFilter, setModelFilter] = useState(ALL)
   const [search, setSearch] = useState('')
-  // Changer de vue (jour ↔ mois) remet les filtres à zéro — ajustement PENDANT le rendu (patron
-  // React) : le composant reste monté, un modèle filtré sans rapport dans la nouvelle période
-  // laisserait une table vide avec un Combobox pointant une option disparue (audit).
-  const [sourceVue, setSourceVue] = useState(isMonth)
-  if (sourceVue !== isMonth) {
-    setSourceVue(isMonth)
-    setModelFilter(ALL)
-    setSearch('')
-  }
 
   // Options MODÈLE dérivées des rapports chargés (dédupe) — on ne propose que des modèles qui
   // ont réellement un rapport dans la période (et le périmètre serveur les borne déjà).
@@ -206,6 +200,12 @@ export function ReportTable({
       .sort((a, b) => a.label.localeCompare(b.label, 'fr'))
     return [{ value: ALL, label: 'Tous les modèles' }, ...opts]
   }, [reports])
+
+  // Un changement de période (datepicker global) peut faire disparaître le modèle filtré des
+  // options → table vide avec un Combobox pointant une option fantôme. Remise à zéro PENDANT le
+  // rendu (patron React, remplace l'ancienne garde sur la bascule jour/mois).
+  if (modelFilter !== ALL && !modelOptions.some((o) => o.value === modelFilter))
+    setModelFilter(ALL)
 
   // Sélecteur modèle + recherche chatteur (combinables). Chercher un chatteur ne garde que les
   // rapports où un nom matche, et n'y montre QUE les lignes qui matchent — sa progression soir
@@ -224,19 +224,17 @@ export function ReportTable({
   const originalById = useMemo(() => new Map(reports.map((r) => [r.id, r])), [reports])
 
   const columns = useMemo(
-    () => buildColumns(isMonth, currentProfileId, originalById, onEdit),
-    [isMonth, currentProfileId, originalById, onEdit],
+    () => buildColumns(currentProfileId, originalById, onEdit),
+    [currentProfileId, originalById, onEdit],
   )
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold tracking-tight">
-        {isMonth ? 'Rapports du mois' : 'Rapports du jour'}
-      </h2>
+      <h2 className="text-lg font-semibold tracking-tight">Rapports de la période</h2>
       <DataTable
         data={rows}
         columns={columns}
-        initialSorting={[{ id: 'createdAt', desc: true }]}
+        initialSorting={[{ id: 'day', desc: true }]}
         pageSize={20}
         getRowId={(r) => r.id}
         countLabel={(n) => `${n} rapport(s)`}

@@ -1,10 +1,10 @@
 'use client'
 
 import { type ColumnDef } from '@tanstack/react-table'
-import { ChevronRight } from 'lucide-react'
 import { frDayShort } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { NewBadge } from '@/components/new-badge'
+import { ExpandChevron } from '@/components/data-table/expand-chevron'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { eur2 } from '@/lib/format'
@@ -78,13 +78,7 @@ export function makeComptaColumns({
       header: ({ column }) => <Sortable column={column} label="Chatteur" />,
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <ChevronRight
-            className={cn(
-              'size-4 shrink-0 text-muted-foreground transition-transform',
-              row.getIsExpanded() && 'rotate-90',
-              !row.getCanExpand() && 'opacity-0',
-            )}
-          />
+          <ExpandChevron row={row} />
           <span className="font-medium">{row.original.name}</span>
           {/* Icône et non badge texte : la ligne porte déjà un badge de rôle, un second mot la
               surchargerait. Utile ici — un nouvel arrivant n'a pas le même rendement attendu. */}

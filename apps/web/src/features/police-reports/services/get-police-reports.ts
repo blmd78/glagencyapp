@@ -1,5 +1,4 @@
 import { createAdminClient } from '@glagency/db'
-import { startOfMonth, endOfMonth } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { PoliceReport, ReportOption } from '../types'
@@ -16,7 +15,7 @@ type ScopePromise = Promise<Set<string> | null>
  * potentiellement > 1000 lignes (mois / non filtré) → `fetchAll` (anti-troncature PostgREST).
  */
 export async function getPoliceReports(
-  filter: { creatorId?: string; chatterId?: string; day?: string; month?: string },
+  filter: { creatorId?: string; chatterId?: string; from: string; to: string },
   scopePromise: ScopePromise,
 ): Promise<PoliceReport[]> {
   const supabase = await createClient()
@@ -27,7 +26,7 @@ export async function getPoliceReports(
   // `day desc, id` : requis par la pagination ET utile au regroupement par jour côté historique.
   // Chaîne de `.select()` UNIQUE (littéral) : postgrest-js exige un type littéral pour résoudre
   // l'embed `lines` (sinon fallback silencieux `GenericStringError`, repéré au typecheck).
-  const buildReports = (from?: number, to?: number) => {
+  const buildReports = (from: number, to: number) => {
     let q = supabase
       .from('police_reports')
       .select(
@@ -39,18 +38,16 @@ export async function getPoliceReports(
     // Périmètre par rôle : cumulable avec le filtre modèle explicite (les deux s'ANDent — un
     // `?creatorId=` forgé hors périmètre rend simplement zéro rapport).
     if (scope) q = q.in('creator_id', [...scope])
-    // `day` (mono-jour) et `month` (plage du mois) mutuellement exclusifs (la page n'en passe qu'un).
-    if (filter.day) q = q.eq('day', filter.day)
-    else if (filter.month) q = q.gte('day', startOfMonth(filter.month)).lte('day', endOfMonth(filter.month))
-    if (from !== undefined && to !== undefined) q = q.range(from, to)
-    return q
+    // Plage de jours (bornes incluses) — le `?from&to` du datepicker global (2026-08-17, plus de
+    // modes jour/mois), ou la fenêtre de saisie pour le pré-remplissage du formulaire.
+    return q.gte('day', filter.from).lte('day', filter.to).range(from, to)
   }
 
-  // Jour = borné à une journée → requête simple. Sinon (mois ou non filtré), `police_reports` peut
-  // dépasser 1000 lignes → `fetchAll` pagine (anti-troncature silencieuse PostgREST, guideline
-  // data-loading). Crucial ici : le filtre chatteur est appliqué en JS APRÈS le fetch — sans
-  // pagination, la troncature amputerait des rapports avant même ce filtre.
-  const reportsPromise = filter.day ? buildReports() : fetchAll((from, to) => buildReports(from, to))
+  // Plage multi-jours → `police_reports` peut dépasser 1000 lignes → `fetchAll` pagine
+  // (anti-troncature silencieuse PostgREST, guideline data-loading). Crucial ici : le filtre
+  // chatteur est appliqué en JS APRÈS le fetch — sans pagination, la troncature amputerait des
+  // rapports avant même ce filtre.
+  const reportsPromise = fetchAll((from, to) => buildReports(from, to))
 
   const [reportsRes, creatorsRes, profilesRes] = await Promise.all([
     reportsPromise,

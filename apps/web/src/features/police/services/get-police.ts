@@ -23,11 +23,14 @@ import type { PoliceData, PoliceEntry } from '../types'
  * appliqué par les actions (`requireChatterInScope`).
  */
 export async function getPolice(
-  { period, callerId, callerRole }: {
+  { period, callerId, callerRole, canWrite }: {
     period: Period
     callerId: string
     /** Rôle BRUT (`profiles.baseRole`) — décide du cloisonnement ci-dessus. */
     callerRole: string
+    /** L'appelant voit-il la SAISIE (`canWritePolice`) ? Sinon le compteur d'avertissements
+     *  récents qui l'alimente n'est pas chargé (un lecteur seul n'a pas à le payer). */
+    canWrite: boolean
   },
 ): Promise<PoliceData> {
   const supabase = await createClient()
@@ -35,7 +38,8 @@ export async function getPolice(
 
   const today = todayParis()
   // Fenêtre du compteur d'avertissements récents (aide-décision de la saisie) : les 30 derniers
-  // jours GLISSANTS — indépendante de la période affichée, la saisie date d'aujourd'hui ou presque.
+  // jours GLISSANTS, ancrés sur AUJOURD'HUI (choix assumé : la décision « passer au malus ? » se
+  // prend maintenant, même quand la faute est antidatée via le datepicker du formulaire).
   const since = addDays(today, -30)
 
   // Périmètre modèles de l'appelant — kické tout de suite, attendu après les fetches.
@@ -58,17 +62,22 @@ export async function getPolice(
 
   const [entriesRes, recentWarnsRes, profilesRes, assignRes, scope] = await Promise.all([
     entriesQuery,
-    fetchAll((from, to) =>
-      supabase
-        .from('police_entries')
-        .select('chatter_id')
-        .eq('kind', 'warning')
-        .gte('occurred_on', since)
-        .lte('occurred_on', today)
-        .order('occurred_on', { ascending: false })
-        .order('id')
-        .range(from, to),
-    ),
+    // Compteur réservé aux ÉCRIVAINS : pour un lecteur seul la saisie est masquée → requête
+    // inutile, on la saute (l'audit 2026-08-17 a relevé la branche perdue au passage à la
+    // période globale).
+    canWrite
+      ? fetchAll((from, to) =>
+          supabase
+            .from('police_entries')
+            .select('chatter_id')
+            .eq('kind', 'warning')
+            .gte('occurred_on', since)
+            .lte('occurred_on', today)
+            .order('occurred_on', { ascending: false })
+            .order('id')
+            .range(from, to),
+        )
+      : Promise.resolve(null),
     // Membres (client admin, `fetchAll` anti-troncature) : résolution des NOMS — chatteur (chatter_id)
     // ET contrôleur (controller_id) sont tous deux des `profiles` — et OPTIONS (role chatteur).
     fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
@@ -80,11 +89,11 @@ export async function getPolice(
     scopePromise,
   ])
   if (entriesRes.error) throw new Error(entriesRes.error.message)
-  if (recentWarnsRes.error) throw new Error(recentWarnsRes.error.message)
+  if (recentWarnsRes?.error) throw new Error(recentWarnsRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (assignRes.error) throw new Error(assignRes.error.message)
   const rows = entriesRes.data
-  const recentWarns = recentWarnsRes.data
+  const recentWarns = recentWarnsRes?.data
   const profileRows = profilesRes.data
   const assignRows = assignRes.data
 
@@ -120,6 +129,7 @@ export async function getPolice(
     chatterName: nameById[r.chatter_id] ?? '?',
     controllerName: r.controller_id ? (nameById[r.controller_id] ?? '—') : '—',
     kind: r.kind === 'malus' ? 'malus' : 'warning',
+    errorKey: r.error_key,
     errorLabel: r.error_key ? (ERROR_LABEL[r.error_key] ?? r.error_key) : null,
     amountEur: Number(r.amount_eur),
     note: r.note,
@@ -129,7 +139,7 @@ export async function getPolice(
   }))
 
   return {
-    periodLabel: period.label,
+    period,
     entries,
     chatterOptions,
     warningsByChatter,

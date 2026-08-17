@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { frWeekdayLong } from '@glagency/core'
+import { todayParis } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -14,63 +14,71 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
 import { Stepper } from '@/components/ui/stepper'
 import { ActionButton } from '@/components/action-button'
+import { DayPicker } from '@/components/day-picker'
 import { upsertPoliceReport } from '../actions'
 import { reportInput, type ReportInput, type ReportFormValues } from '../schema'
 import type { PoliceReport, ReportOption } from '../types'
 import { ReportEtapeModele } from './report-etape-modele'
 import { ReportLinesEditor } from './report-lines-editor'
 
+/** Cible d'édition : le crayon d'une ligne précharge SA fiche (modèle + jour). */
+export interface ReportTarget {
+  creatorId: string
+  day: string
+}
+
 // Champs de l'en-tête réellement rendus : un `fieldErrors` serveur sur l'un d'eux est reposé sur
-// son champ ; le reste (ex. `lines` imbriqué, ou `day` qui vient de l'en-tête et n'a plus de champ)
-// retombe sur le message global (leçon audit Membres : jamais d'erreur posée sur un champ invisible).
-const HEADER_FIELDS = ['creatorId', 'ca', 'nonTraitees', 'absents', 'alerte'] as const
+// son champ ; le reste (ex. `lines` imbriqué) retombe sur le message global (leçon audit
+// Membres : jamais d'erreur posée sur un champ invisible).
+const HEADER_FIELDS = ['day', 'creatorId', 'ca', 'nonTraitees', 'absents', 'alerte'] as const
 const isHeaderField = (field: string): field is (typeof HEADER_FIELDS)[number] =>
   (HEADER_FIELDS as readonly string[]).includes(field)
 
 /**
  * Saisie du rapport du soir en DIALOG (« Ajouter un rapport ») — homogène avec le Tracker
- * sanctions (demande Benoit 2026-08-06) : la page ne garde que l'historique, la saisie s'ouvre
- * à la demande. Un modèle (le JOUR vient de l'en-tête, plus de champ date), les chiffres du
- * modèle saisis à la main, puis le suivi chatteur par chatteur. Upsert sur (auteur, modèle,
- * jour) → choisir un modèle déjà saisi RECHARGE sa fiche (pré-remplissage depuis `reports`) au
- * lieu de risquer un écrasement à blanc. Le dialog se FERME à l'enregistrement et s'ouvre
- * toujours VIERGE (règle app-wide du 2026-08-06 : une saisie abandonnée ne réapparaît pas).
- * Schéma zod PARTAGÉ avec le serveur ; un `Combobox`/`Select` passe par `Controller`.
+ * sanctions. Le JOUR se choisit AU DATEPICKER du dialog (2026-08-17, défaut aujourd'hui,
+ * fenêtre 14 j — plus de sélecteur d'en-tête), puis un modèle, les chiffres du soir, et le
+ * suivi chatteur par chatteur. Upsert sur (auteur, modèle, jour) → choisir un (modèle, jour)
+ * déjà saisi RECHARGE sa fiche (pré-remplissage depuis `prefillReports` — MES fiches de la
+ * fenêtre de saisie, indépendantes de la période affichée) au lieu de risquer un écrasement à
+ * blanc. Le dialog se FERME à l'enregistrement et s'ouvre toujours VIERGE (règle app-wide du
+ * 2026-08-06 : une saisie abandonnée ne réapparaît pas). Schéma zod PARTAGÉ avec le serveur.
  */
 export function ReportForm({
   models,
-  reports,
+  prefillReports,
   chattersByModel,
   currentProfileId,
-  day,
   open,
   onOpenChange,
-  initialCreatorId,
+  initialTarget,
 }: {
   models: ReportOption[]
-  reports: PoliceReport[]
+  /** MES rapports de la fenêtre de saisie (14 j) — source du pré-remplissage, quel que soit le
+   *  jour choisi au datepicker (pas les rapports de la période affichée, qui peuvent ne pas la
+   *  couvrir). */
+  prefillReports: PoliceReport[]
   /** Chatteurs pré-chargés par modèle (clé = id du modèle) — peuplent le Combobox chatteur sans
    *  appel serveur au changement de modèle. */
   chattersByModel: Record<string, ReportOption[]>
   /** Rédacteur courant. La fiche est keyée (auteur, modèle, jour) : le pré-remplissage doit
-   *  matcher SON rapport, jamais celui d'un autre auteur du même modèle/soir (cf. useEffect). */
+   *  matcher SON rapport, jamais celui d'un autre auteur du même modèle/soir. */
   currentProfileId: string
-  /** Jour sélectionné dans l'en-tête (`?day=`) — fixe la date du rapport (plus de champ date). */
-  day: string
   /** Ouverture PILOTÉE par le parent (reports-view) : bouton « Ajouter » OU crayon d'une ligne. */
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Modèle préchargé à l'ouverture (crayon → « Modifier ») — null = saisie vierge. */
-  initialCreatorId?: string | null
+  /** Cible préchargée à l'ouverture (crayon → « Modifier ») — null = saisie vierge (aujourd'hui). */
+  initialTarget?: ReportTarget | null
 }) {
   // 'use no memo' : formState de RHF est un Proxy à abonnement — mémoïsé par le React
   // Compiler, isSubmitting/errors gèlent (règle projet, mémoire forms-zod-rhf).
   'use no memo'
   const router = useRouter()
-  // Stepper (demande Benoit) : étape 1 = LE MODÈLE (choix + chiffres du soir), étape 2 = LES
-  // CHATTERS (suivi individuel). Le form est UNIQUE — changer d'étape ne perd rien.
+  // Stepper (demande Benoit) : étape 1 = LE MODÈLE (jour + choix + chiffres du soir), étape 2 =
+  // LES CHATTERS (suivi individuel). Le form est UNIQUE — changer d'étape ne perd rien.
   const [etape, setEtape] = useState<1 | 2>(1)
   // Triple générique (Input, Context, Output) : `reportInput` a des `.default()`/`.transform()`,
   // son type d'ENTRÉE diverge de `ReportInput` (la sortie) — même patron que `todo-dialog`.
@@ -78,7 +86,7 @@ export function ReportForm({
     resolver: zodResolver(reportInput),
     defaultValues: {
       creatorId: '',
-      day,
+      day: todayParis(),
       ca: 0,
       nonTraitees: 0,
       absents: 0,
@@ -97,12 +105,12 @@ export function ReportForm({
     if (open) setEtape(1)
   }
 
-  // LA fiche d'un modèle pour ce soir : celle de MON rapport déjà chargé s'il existe (les 3
-  // clés de l'upsert — auteur, modèle, jour : `reports` contient les rapports de TOUS les
+  // LA fiche d'un (modèle, jour) : celle de MON rapport déjà écrit s'il existe (les 3 clés de
+  // l'upsert — auteur, modèle, jour : `prefillReports` contient les rapports de TOUS les
   // auteurs du périmètre, sans `authorId === currentProfileId` on chargerait — puis écraserait —
-  // celui d'un autre rédacteur), sinon une fiche vierge.
-  const fiche = (id: string): ReportFormValues => {
-    const found = reports.find(
+  // celui d'un autre rédacteur), sinon une fiche vierge datée de ce jour.
+  const fiche = (id: string, day: string): ReportFormValues => {
+    const found = prefillReports.find(
       (r) => r.authorId === currentProfileId && r.creatorId === id && r.day === day,
     )
     return {
@@ -123,32 +131,33 @@ export function ReportForm({
   }
 
   // Reset UNIQUEMENT à la TRANSITION fermé → ouvert (garde `prevOpen`, patron fiche membre) :
-  // vierge par le bouton « Ajouter », préchargé par le crayon (`initialCreatorId`). L'audit
-  // 2026-08-06 a remplacé ici DEUX effets qui se recouvraient — dont un keyé sur l'IDENTITÉ de
-  // `reports`, qui re-resetait le formulaire (saisie comprise) à chaque revalidation serveur.
-  // Le pré-remplissage au CHANGEMENT de modèle vit désormais dans le onChange du Combobox.
+  // vierge daté d'aujourd'hui par le bouton « Ajouter », préchargé par le crayon
+  // (`initialTarget`). Le pré-remplissage au CHANGEMENT de modèle ou de jour vit dans les
+  // onChange des champs (Combobox + DayPicker), pas dans un effet.
   const prevOpen = useRef(false)
   useEffect(() => {
-    if (open && !prevOpen.current) reset(fiche(initialCreatorId ?? ''))
+    if (open && !prevOpen.current)
+      reset(fiche(initialTarget?.creatorId ?? '', initialTarget?.day ?? todayParis()))
     prevOpen.current = open
-    // `fiche` change d'identité à chaque rendu (elle capture `reports`) : la garde prevOpen fait
-    // foi, les deps servent seulement à re-déclencher l'évaluation.
+    // `fiche` change d'identité à chaque rendu (elle capture `prefillReports`) : la garde
+    // prevOpen fait foi, les deps servent seulement à re-déclencher l'évaluation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, initialCreatorId])
+  }, [open, initialTarget])
 
   const handleOpenChange = (next: boolean) => {
     if (!next && isSubmitting) return
     onOpenChange(next)
   }
 
-  // useWatch (pas `watch`) : compatible React Compiler. Le modèle pilote la liste de chatteurs
-  // proposée ; son CHANGEMENT recharge la fiche (onChange du Combobox, plus aucun effet).
+  // useWatch (pas `watch`) : compatible React Compiler. Le (modèle, jour) pilote le
+  // pré-remplissage ; le CHANGEMENT de l'un recharge la fiche (onChange des champs).
   const creatorId = useWatch({ control, name: 'creatorId' })
+  const dayValue = useWatch({ control, name: 'day' })
 
   // Avancer vers l'étape 2 = étape 1 valide (mêmes règles zod que le submit) — partagé entre le
   // bouton « Continuer » et le clic sur la pastille 2 du stepper. Revenir est toujours libre.
   const versChatters = async () => {
-    if (await trigger(['creatorId', 'ca', 'nonTraitees', 'absents', 'alerte'])) setEtape(2)
+    if (await trigger(['day', 'creatorId', 'ca', 'nonTraitees', 'absents', 'alerte'])) setEtape(2)
   }
   const onStepClick = (n: number) => {
     if (n === 1) setEtape(1)
@@ -202,7 +211,7 @@ export function ReportForm({
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Rapport du soir</DialogTitle>
-          <DialogDescription className="capitalize">{frWeekdayLong(day)}</DialogDescription>
+          <DialogDescription>Un rapport par modèle et par soir.</DialogDescription>
         </DialogHeader>
         {/* Stepper visuel (ui/stepper, maison — shadcn n'en a pas d'officiel). Pastille 2
             cliquable avec la même règle de validation que le bouton « Continuer ». */}
@@ -214,50 +223,71 @@ export function ReportForm({
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           {etape === 1 ? (
             <div className="flex flex-col gap-4">
+              {/* Le soir du rapport d'abord (datepicker, défaut aujourd'hui). En changer RECHARGE
+                  la fiche du (modèle, jour) visé — même sémantique que le changement de modèle :
+                  l'upsert est keyé dessus, on ne repart jamais d'une fiche d'un autre soir. */}
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">Soir du</Label>
+                <Controller
+                  name="day"
+                  control={control}
+                  render={({ field }) => (
+                    <DayPicker
+                      field={{
+                        value: field.value,
+                        onChange: (next) => reset(fiche(creatorId ?? '', next)),
+                      }}
+                    />
+                  )}
+                />
+                {errors.day && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{errors.day.message}</p>
+                )}
+              </div>
               <ReportEtapeModele
                 control={control}
                 register={register}
                 errors={errors}
                 models={models}
                 disabled={isSubmitting}
-                onModelChange={(id) => reset(fiche(id))}
+                onModelChange={(id) => reset(fiche(id, dayValue))}
               />
-            <Button
-              type="button"
-              className="self-end"
-              disabled={isSubmitting}
-              onClick={() => void versChatters()}
-            >
-              Continuer — les chatters
-            </Button>
+              <Button
+                type="button"
+                className="self-end"
+                disabled={isSubmitting}
+                onClick={() => void versChatters()}
+              >
+                Continuer — les chatters
+              </Button>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-            {/* Suivi chatteur par chatteur (chatteurs du modèle sélectionné) */}
-            <ReportLinesEditor
-              control={control}
-              register={register}
-              errors={errors}
-              chatterOptions={chatterOptions}
-              newByChatter={newByChatter}
-              modelSelected={!!creatorId}
-              disabled={isSubmitting}
-            />
+              {/* Suivi chatteur par chatteur (chatteurs du modèle sélectionné) */}
+              <ReportLinesEditor
+                control={control}
+                register={register}
+                errors={errors}
+                chatterOptions={chatterOptions}
+                newByChatter={newByChatter}
+                modelSelected={!!creatorId}
+                disabled={isSubmitting}
+              />
 
-            {errors.root && (
-              <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-                {errors.root.message}
-              </p>
-            )}
+              {errors.root && (
+                <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                  {errors.root.message}
+                </p>
+              )}
 
-            <div className="flex items-center justify-between">
-              <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => setEtape(1)}>
-                ← Le modèle
-              </Button>
-              <ActionButton type="submit" pending={isSubmitting}>
-                Enregistrer le rapport
-              </ActionButton>
-            </div>
+              <div className="flex items-center justify-between">
+                <Button type="button" variant="ghost" disabled={isSubmitting} onClick={() => setEtape(1)}>
+                  ← Le modèle
+                </Button>
+                <ActionButton type="submit" pending={isSubmitting}>
+                  Enregistrer le rapport
+                </ActionButton>
+              </div>
             </div>
           )}
         </form>
