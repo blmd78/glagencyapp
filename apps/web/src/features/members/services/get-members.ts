@@ -52,7 +52,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, left_at, left_reason, left_note, left_by, chatter_id, created_at, created_by',
+          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, org_excluded, left_at, left_reason, left_note, left_by, chatter_id, created_at, created_by',
         )
         .order('created_at')
         .order('id')
@@ -202,6 +202,7 @@ export async function getMembers(): Promise<MembersData> {
       placementsByCreator: placementsByProfile.get(p.id) ?? {},
       isNew: p.is_new ?? false,
       arrivedAt: p.arrived_at ?? null,
+      orgExcluded: p.org_excluded ?? false,
       // Les partis ne sont PAS filtrés ici : Membres est le seul écran qui doit pouvoir les
       // afficher (bascule « Voir les anciens »). Les écrans opérationnels, eux, filtrent chez eux.
       leftAt: p.left_at ?? null,

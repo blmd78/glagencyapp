@@ -172,6 +172,10 @@ export type { Role } from './types'
  * bornés à SON périmètre. Rôle `admin` → propriétaires uniquement. Rôle non-admin → au
  * moins une page (re-vérif du refine zod APRÈS forçage : un manager forgeant role:'admin'
  * + pages:[] passerait le refine puis serait forcé chatteur → compte sans page).
+ * « Une page » = TOUTES faces confondues : `targetKeptPages` porte celles que la cible GARDE
+ * sur l'autre face (lues en base par l'appelant, préservées par mergePages) — un membre
+ * 100 % Marketing édité depuis Chatteurs envoie pages:[] légitimement (bug 2026-08-17).
+ * Vide à la création (aucune cible encore).
  * Retourne `role` effectif et `ownScope` (undefined pour un admin = aucun retrait borné).
  */
 export async function authorizeRoleAndScope(
@@ -180,6 +184,7 @@ export async function authorizeRoleAndScope(
   requestedRole: Role,
   pages: string[],
   creatorIds: string[],
+  targetKeptPages: string[] = [],
 ): Promise<{ error: string } | { role: Role; ownScope?: Set<string> }> {
   let role = requestedRole
   let ownScope: Set<string> | undefined
@@ -193,7 +198,7 @@ export async function authorizeRoleAndScope(
   if (role === 'admin' && !caller.superadmin) {
     return { error: 'Seul un propriétaire peut nommer un admin' }
   }
-  if (role !== 'admin' && pages.length === 0) {
+  if (role !== 'admin' && pages.length === 0 && targetKeptPages.length === 0) {
     return { error: 'Saisie invalide (au moins une page requise)' }
   }
   return { role, ownScope }

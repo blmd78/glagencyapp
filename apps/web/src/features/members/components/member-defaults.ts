@@ -63,5 +63,10 @@ export function memberDefaults({
     isNew: member?.isNew ?? false,
     arrivedAt: member?.arrivedAt ?? null,
     chatterId: member?.chatterId ?? '',
+    orgExcluded: member?.orgExcluded ?? false,
+    // Les pages HORS scope du membre (préservées par mergePages, invisibles de ce form) —
+    // comptées par le refine atLeastOnePage pour ne pas exiger une page de CETTE face à un
+    // membre qui vit sur l'autre. À la création : pas de membre, donc false.
+    hasOtherFacePages: member ? member.pages.some((p) => !scopeSlugs.has(p)) : false,
   }
 }

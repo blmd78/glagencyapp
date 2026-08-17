@@ -52,15 +52,27 @@ const memberFields = {
     .nullable(),
   // Lien vers le chatteur MyPuls (''=aucun) — posé uniquement par un admin/superadmin (garde action).
   chatterId: z.uuid().or(z.literal('')),
+  // Exclu de l'AFFICHAGE du board Organisation (0112) : manager transverse qui a tous les modèles
+  // pour tout voir sur le CRM (ex. Jam) — sans ça, une ligne par modèle. Affichage pur : le serveur
+  // le force à false hors manager/admin, et ni creator-scope ni authz ne le lisent.
+  orgExcluded: z.boolean(),
+  // Le membre a-t-il des pages sur L'AUTRE face ? Posé par memberDefaults depuis `member.pages`
+  // (la colonne complète), JAMAIS écrit en base — `mergePages` relit la vérité en base. Ne sert
+  // qu'au refine `atLeastOnePage` : un membre 100 % Marketing édité depuis Chatteurs a un form
+  // `pages: []` (filtré au scope) et se faisait refuser « Coche au moins une page » (bug
+  // 2026-08-17). Garde UX, pas une autorisation : un client menteur ne fabrique qu'un compte
+  // sans page qui atterrit sur /no-access — réparable dans ce même dialog.
+  hasOtherFacePages: z.boolean(),
 }
 
 // Refines partagés (mêmes prédicats, mêmes messages, même path pour les deux schémas).
 const pagesOfScope = (d: { scope: 'chatter' | 'marketing'; pages: string[] }) =>
   d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x))
 // min 1 page SAUF pour un admin (accès à tout) : un compte chatteur/manager sans page
-// serait inutilisable (atterrit sur /no-access).
-const atLeastOnePage = (d: { role: string; pages: string[] }) =>
-  d.role === 'admin' || d.pages.length > 0
+// serait inutilisable (atterrit sur /no-access). « Une page » = sur N'IMPORTE quelle face :
+// le form ne voit que les pages de son scope, `hasOtherFacePages` porte le reste.
+const atLeastOnePage = (d: { role: string; pages: string[]; hasOtherFacePages: boolean }) =>
+  d.role === 'admin' || d.pages.length > 0 || d.hasOtherFacePages
 // Miroir applicatif du check SQL `profiles_is_new_needs_arrived_at` (0101) : un drapeau sans date
 // s'afficherait « nouveau depuis on ne sait quand », donc nouveau pour toujours — et le rappel de
 // retrait à 30 jours ne pourrait jamais se déclencher.
