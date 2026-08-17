@@ -23,6 +23,8 @@ export interface TrackerRow {
   relance_today: boolean | null
   conversion_pending: boolean | null
   archived: boolean
+  /** Auteur (profil) de la dernière relance — 0111. */
+  derniere_relance_par: string | null
 }
 
 /**
@@ -90,6 +92,7 @@ export async function getSpenders(view: SpendersViewKind = 'liste'): Promise<Spe
       chatterTeam: r.assigned_chatter_id ? (closingByChatter.get(r.assigned_chatter_id)?.team ?? null) : null,
       compteurR: r.compteur_r,
       derniereRelanceAt: r.derniere_relance_at,
+      derniereRelancePar: r.derniere_relance_par ?? null,
       grise: r.relance_today ?? false,
       conversionPending: r.conversion_pending ?? false,
       archived: r.archived,

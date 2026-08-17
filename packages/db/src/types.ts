@@ -1794,6 +1794,7 @@ export type Database = {
           left_note: string | null
           left_reason: string | null
           manager_ids: string[]
+          org_excluded: boolean
           pages: string[]
           role: string
           shift: string | null
@@ -1816,6 +1817,7 @@ export type Database = {
           left_note?: string | null
           left_reason?: string | null
           manager_ids?: string[]
+          org_excluded?: boolean
           pages?: string[]
           role?: string
           shift?: string | null
@@ -1838,6 +1840,7 @@ export type Database = {
           left_note?: string | null
           left_reason?: string | null
           manager_ids?: string[]
+          org_excluded?: boolean
           pages?: string[]
           role?: string
           shift?: string | null
@@ -2458,6 +2461,7 @@ export type Database = {
           conversion_pending: boolean
           creator_id: string
           derniere_relance_at: string
+          derniere_relance_par: string
           fan_id: number
           has_unread: boolean
           last_message_at: string

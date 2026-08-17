@@ -65,6 +65,7 @@ function toRows(
       : null,
     compteurR: r.compteur_r,
     derniereRelanceAt: r.derniere_relance_at,
+    derniereRelancePar: r.derniere_relance_par ?? null,
     grise: r.relance_today ?? false,
     conversionPending: r.conversion_pending ?? false,
     archived: r.archived,
