@@ -9,6 +9,13 @@ import { getOverview } from '@/features/training-overview/services/get-overview'
 import type { ChatterDetail, OverviewData } from '@/features/training-overview/types'
 
 /**
+ * Budget de durée des Server Actions de cette route : le re-score admin (`rescoreSession`) d'un
+ * boss lance 5 appels Sonnet (parallèles) — le défaut de 15 s ne suffit pas. À confirmer avec le
+ * plan Vercel (300 s = plafond des fonctions Node sur les plans payants).
+ */
+export const maxDuration = 300
+
+/**
  * Overview encadrant (droit Suivi) : roster de la promo, fiche d'un chatter (`?chatter=`),
  * signalements, et coût IA pour un admin.
  *

@@ -78,7 +78,7 @@ export async function abandonSession(raw: unknown): Promise<ActionResult> {
  * Spec §5 « Interruption » — défi/boss : le chatter revient alors que TOUS ses chronos sont
  * dépassés. Rien n'a été joué depuis, la session n'a plus de sens : threads ouverts `lost/timeout`,
  * session `abandoned`. Le client la déclenche au chargement (cf. `session-view.tsx`), le serveur
- * revérifie tout — même grâce de 2 s que `timeoutThread` / `sendMessage`.
+ * revérifie tout — grâce de 2 s après l'échéance, plus prudent que `timeoutThread`.
  * Le solo en est exclu : un seul chrono, déjà traité par `timeoutThread` (→ `failed`).
  */
 export async function expireSession(raw: unknown): Promise<ActionResult<{ expired: boolean }>> {

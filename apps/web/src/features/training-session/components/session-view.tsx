@@ -44,8 +44,19 @@ export function SessionView({ data }: { data: SessionData }) {
     const open = data.threads.filter((t) => t.status === 'open')
     if (!open.length || !open.every((t) => t.nextDueAt != null && Date.parse(t.nextDueAt) < at - 2000)) return
     expiring.current = true
+    // Course avec `ThreadPanel` : on verrouille tout de suite les threads ouverts dans `firing` pour
+    // que `handleTimeout` ne puisse pas déclencher un `timeoutThread` pendant que `expireSession` est
+    // en vol (ce qui fermerait le dernier thread et provoquerait la notation d'une session que la
+    // spec veut voir abandonnée). Si le serveur refuse l'expiration, on les libère pour laisser la
+    // voie normale du timeout par thread reprendre la main.
+    const openIds = open.map((t) => t.id)
+    for (const id of openIds) firing.current.add(id)
     void expireSession({ sessionId: data.id }).then((r) => {
-      if (r.success && r.data.expired) router.refresh()
+      if (r.success && r.data.expired) {
+        router.refresh()
+        return
+      }
+      for (const id of openIds) firing.current.delete(id)
     })
   }, [data.id, data.kind, data.serverNow, data.threads, router])
 

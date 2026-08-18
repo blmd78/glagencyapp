@@ -13,7 +13,8 @@ import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/trainin
  * déjà notée (scored_at change → le trigger recalcule).
  *
  * Relance après un échec partiel : les threads DÉJÀ notés sont repris tels quels, sans nouvel appel
- * (hors `force`) — un boss dont la 5e notation avait échoué ne repaie pas les 4 premières.
+ * (hors `force`) — relance économique si l'échec survient après les appels ; un échec d'appel
+ * refait tous les appels restants (les appels partent en parallèle, avant toute écriture).
  * Les appels IA des threads restants partent EN PARALLÈLE (un boss = 5 appels Sonnet ; en série la
  * notation frôlait la durée maximale de la fonction) ; les écritures, elles, restent séquentielles.
  */
