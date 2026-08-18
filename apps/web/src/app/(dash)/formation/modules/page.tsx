@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
-import { getModules } from '@/features/training-modules/services/get-modules'
+import { getModules } from '@/lib/services/training-public'
 import { ModulesTemplate } from '@/features/training-modules/ModulesTemplate'
 import { ModulesSkeleton } from '@/features/training-modules/components/modules-skeleton'
 import { SectionFallback } from '@/components/skeletons/route-loading'

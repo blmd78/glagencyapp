@@ -1,6 +1,28 @@
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind } from '@/lib/types/training'
-import type { ModuleDetail } from '../types'
+import type { ModuleDetail, ModuleSummary, PublicCaseRef } from '@/lib/types/training-public'
+
+/** Modules ACTIFS, ordonnés, avec leur nombre de cas actifs (table de référence — select simple). */
+export async function getModules(): Promise<ModuleSummary[]> {
+  const supabase = await createClient()
+  const [mods, cases] = await Promise.all([
+    supabase.from('training_modules').select('id, code, title, emoji, description, course_md').eq('active', true).order('position'),
+    supabase.from('training_cases').select('module_id').eq('active', true),
+  ])
+  if (mods.error) throw new Error(mods.error.message)
+  if (cases.error) throw new Error(cases.error.message)
+  const counts = new Map<string, number>()
+  for (const c of cases.data ?? []) counts.set(c.module_id, (counts.get(c.module_id) ?? 0) + 1)
+  return (mods.data ?? []).map((m) => ({
+    id: m.id,
+    code: m.code,
+    title: m.title,
+    emoji: m.emoji,
+    description: m.description,
+    caseCount: counts.get(m.id) ?? 0,
+    hasCourse: !!m.course_md,
+  }))
+}
 
 /**
  * Un module ACTIF par code, avec ses axes, sections et cas actifs en PROJECTION PUBLIQUE :
@@ -60,4 +82,12 @@ export async function getModule(code: string): Promise<ModuleDetail | null> {
       })),
     })),
   }
+}
+
+/** Tous les cas actifs (id, module_id, kind, title, code du module) — pour la progression par module (Ma formation). */
+export async function getAllCases(): Promise<PublicCaseRef[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('training_cases').select('id, module_id, kind, title, section_id, training_modules!inner(active)').eq('active', true).eq('training_modules.active', true).order('position')
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((c) => ({ id: c.id, moduleId: c.module_id, kind: c.kind as CaseKind, title: c.title, sectionId: c.section_id }))
 }

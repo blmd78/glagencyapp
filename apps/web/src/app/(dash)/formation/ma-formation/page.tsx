@@ -1,20 +1,31 @@
+import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
+import { MeTemplate } from '@/features/training-me/MeTemplate'
+import { MeSkeleton } from '@/features/training-me/components/me-skeleton'
+import { getMe } from '@/features/training-me/services/get-me'
+import type { MeData, MeVue } from '@/features/training-me/types'
 
-// Placeholder « Ma formation » (droit `frm-entrainement`, home du chatter) : garantit la page
-// COCHABLE dans /formation/members et l'atterrissage d'un chatter formation, tant que les
-// sessions d'entraînement (moteur IA) ne sont pas construites. Les cours et cas se lisent
-// déjà dans Modules.
-export default async function MaFormationPage() {
-  await requireAccess('frm-entrainement')
+const VUES: MeVue[] = ['progression', 'historique', 'classement']
+
+/** Ma formation — progression, historique et classement du chatter (droit Entraînement). */
+export default async function MaFormationPage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
+  const [profile, { vue }] = await Promise.all([requireAccess('frm-entrainement'), searchParams])
+  // Pas de `await` ici : la requête part pendant que le squelette s'affiche (streaming).
+  const data = getMe(profile.id)
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ma formation</h1>
-        <p className="text-sm text-muted-foreground">Entraînement</p>
-      </div>
-      <div className="flex h-64 items-center justify-center rounded-xl border border-dashed text-sm text-muted-foreground">
-        Ton entraînement arrive ici — en attendant, les cours et les cas sont dans Modules.
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Ma formation</h1>
+      <Suspense fallback={<MeSkeleton />}>
+        <MeContent
+          data={data}
+          vue={VUES.find((v) => v === vue) ?? 'progression'}
+          myProfileId={profile.id}
+        />
+      </Suspense>
     </div>
   )
+}
+
+async function MeContent({ data, vue, myProfileId }: { data: Promise<MeData>; vue: MeVue; myProfileId: string }) {
+  return <MeTemplate data={await data} vue={vue} myProfileId={myProfileId} />
 }
