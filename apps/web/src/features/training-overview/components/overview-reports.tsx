@@ -97,7 +97,11 @@ function ReportCard({ report, isAdmin }: { report: ReportRow; isAdmin: boolean }
             Résolu
           </ActionButton>
         )}
-        {isAdmin && (
+        {/* Re-noter n'a de sens que sur une session NOTÉE : `scoreSessionById(force)` exige le
+            statut `scored` (lib/services/training-scoring) — sur une session ratée / abandonnée /
+            en cours, le bouton échouerait à tous les coups en invitant à réessayer. Le libellé
+            « non notée » ci-dessus dit déjà pourquoi il n'y a rien à relancer. */}
+        {isAdmin && report.total != null && (
           <ConfirmDialog
             trigger={
               <Button variant="ghost" size="sm">

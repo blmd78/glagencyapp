@@ -4,6 +4,7 @@
 // relancer la notation IA d'une session (admin). Patron §4 des guidelines : `noGuard` +
 // vérification UNE SEULE FOIS en tête de handler, refus = BusinessError.
 
+import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
 import { BusinessError, noGuard, requireAdminProfile, requirePageProfile, runAction, type ActionResult } from '@/lib/actions'
 import { readStateCookie } from '@/lib/impersonation/session'
@@ -57,7 +58,11 @@ export async function rescoreSession(raw: unknown): Promise<ActionResult<{ total
       try {
         res = await scoreSessionById(sessionId, { force: true })
       } catch (err) {
-        // Échec IA (modèle, réseau, session non notable) : message métier, pas un faux positif Sentry.
+        // L'utilisateur reçoit un message métier (pas un `error.message` brut), MAIS la cause reste
+        // technique — modèle IA, réseau, statut inattendu : sans `captureException`, `runAction`
+        // n'enverrait rien à Sentry (une BusinessError n'est jamais rapportée) et une panne de
+        // notation resterait invisible côté admin.
+        Sentry.captureException(err)
         console.error('[training rescore]', err)
         throw new BusinessError('La re-notation a échoué — réessaie dans un instant')
       }

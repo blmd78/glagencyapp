@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { requireAccess } from '@/lib/auth'
 import { OverviewTemplate } from '@/features/training-overview/OverviewTemplate'
@@ -58,6 +59,10 @@ async function OverviewContent({
   isAdmin: boolean
 }) {
   const [data, chatter] = await Promise.all([overview, detail])
+  // Uuid valide mais hors roster (chatter parti, droit Entraînement retiré, id d'un autre profil) :
+  // 404 franc plutôt qu'une fiche vide titrée « — ». Ici et pas dans la page : c'est le roster,
+  // résolu seulement maintenant, qui dit si l'id existe.
+  if (selectedId && !data.roster.some((r) => r.profileId === selectedId)) notFound()
   return (
     <OverviewTemplate
       overview={data}

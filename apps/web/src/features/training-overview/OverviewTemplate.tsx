@@ -27,7 +27,9 @@ export function OverviewTemplate({
   const selectedName = overview.roster.find((r) => r.profileId === selectedId)?.displayName ?? '—'
   return (
     <div className="flex flex-col gap-8">
-      {showPicker && <OverviewPicker roster={overview.roster} selectedId={selectedId} />}
+      {/* Roster vide (personne n'a encore le droit Entraînement) : un sélecteur à une seule entrée
+          « Tous les chatters » n'offre aucun choix — le message du roster suffit. */}
+      {showPicker && overview.roster.length > 0 && <OverviewPicker roster={overview.roster} selectedId={selectedId} />}
       {chatter ? (
         <OverviewChatter detail={chatter} displayName={selectedName} />
       ) : (

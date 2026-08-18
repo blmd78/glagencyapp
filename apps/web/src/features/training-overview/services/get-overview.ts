@@ -40,6 +40,10 @@ export async function getOverview(isAdmin: boolean): Promise<OverviewData> {
     supabase
       .from('training_reports')
       .select('id, session_id, profile_id, message, created_at, resolved_at, training_sessions!inner(total, case_snapshot)')
+      // Non traités D'ABORD (`resolved_at` null), puis du plus récent au plus ancien : la fenêtre
+      // de 100 lignes ne peut jamais faire disparaître un signalement en attente derrière des
+      // traités plus récents.
+      .order('resolved_at', { ascending: true, nullsFirst: true })
       .order('created_at', { ascending: false })
       .limit(100),
     supabase.from('training_cases').select('id', { count: 'exact', head: true }).eq('active', true).neq('kind', 'boss'),

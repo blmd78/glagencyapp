@@ -185,8 +185,8 @@ export const WORKSPACES: Workspace[] = [
     // qu'une page frm-* est cochée depuis /formation/members), slugs préfixés `frm-`.
     // Deux droits : `frm-suivi` (encadrement — Overview) et `frm-entrainement` (chatter — Ma
     // formation). Modules est ouvert aux deux (anyOf). Catalogue = admin (comme Membres).
-    // Ma formation est en service (progression, historique, trophées, classement) ; Overview
-    // reste un placeholder jusqu'au suivi d'équipe.
+    // Les deux sont en service : Ma formation (progression, historique, trophées, classement) et
+    // Overview (roster de la promo, fiche d'un chatter, signalements, coût IA pour un admin).
     nav: [
       { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
