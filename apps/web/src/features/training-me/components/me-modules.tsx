@@ -33,6 +33,11 @@ export function MeModules({ data }: { data: MeData }) {
               : 'Débloqué : 5 conversations en même temps, une seule tentative à la fois.'
             : `Se débloque à ${BOSS_UNLOCK_AVG}/100 de moyenne (actuelle : ${stats.avgTotal == null ? '—' : Math.round(stats.avgTotal)}).`}
         </p>
+        {/* Le boss se joue depuis SON module (avec ses 5 fans) : sans ce lien, un chatter débloqué
+            n'a aucun chemin vers lui depuis Ma formation. */}
+        <Link href="/formation/modules" className="w-fit text-sm hover:underline">
+          Voir les modules
+        </Link>
       </div>
     </section>
   )

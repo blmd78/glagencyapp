@@ -24,7 +24,7 @@ export async function getMe(profileId: string): Promise<MeData> {
   const supabase = await createClient()
   const [statsRes, bestsRes, sessionsRes, rankRes, modules, allCases] = await Promise.all([
     supabase.from('training_profile_stats').select('*').eq('profile_id', profileId).maybeSingle(),
-    supabase.from('training_case_bests').select('case_id, best_total, best_objective, attempts').eq('profile_id', profileId),
+    supabase.from('training_case_bests').select('case_id, best_total, attempts').eq('profile_id', profileId),
     supabase
       .from('training_sessions')
       .select('id, case_id, kind, status, total, objective_reached, started_at, case_snapshot')
@@ -103,6 +103,11 @@ export async function getMe(profileId: string): Promise<MeData> {
 
   const totalCases = nonBoss.length
   const goldCount = nonBoss.filter((c) => (bests.get(c.id)?.bestTotal ?? 0) >= MEDAL_OR).length
+  // Dénominateur AFFICHÉ : `cases_done` (stats DB, source des chiffres de l'en-tête et du
+  // classement) compte TOUS les cas validés un jour, y compris ceux désactivés depuis par un
+  // admin — alors que `totalCases` ne compte que le catalogue actif. Sans ce clamp, l'en-tête
+  // pourrait afficher « 85/84 ». On garde `totalCases` brut pour `allDone` (sinon le trophée
+  // « tout le catalogue » tomberait dès le premier cas validé).
   return {
     stats,
     modules: meModules,
@@ -118,7 +123,7 @@ export async function getMe(profileId: string): Promise<MeData> {
     }),
     ranking,
     myRank: rankIndex >= 0 ? rankIndex + 1 : null,
-    totalCases,
+    totalCases: Math.max(totalCases, stats.casesDone),
     goldCount,
     bossUnlocked: bossUnlocked(avgTotal),
   }

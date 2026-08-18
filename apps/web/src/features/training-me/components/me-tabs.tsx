@@ -16,13 +16,11 @@ export function MeTabs({
   progression,
   historique,
   classement,
-  historyCount,
 }: {
   vue: MeVue
   progression: ReactNode
   historique: ReactNode
   classement: ReactNode
-  historyCount: number
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -41,7 +39,7 @@ export function MeTabs({
     <Tabs value={vue} onValueChange={go} className="flex flex-col gap-6">
       <TabsList className="self-start">
         <TabsTrigger value="progression">Progression</TabsTrigger>
-        <TabsTrigger value="historique">Historique ({historyCount})</TabsTrigger>
+        <TabsTrigger value="historique">Historique</TabsTrigger>
         <TabsTrigger value="classement">Classement</TabsTrigger>
       </TabsList>
       <div data-pending={pending ? '' : undefined} className="data-[pending]:opacity-60 data-[pending]:transition-opacity">

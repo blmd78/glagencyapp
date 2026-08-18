@@ -15,7 +15,8 @@ export default async function MaFormationPage({ searchParams }: { searchParams: 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Ma formation</h1>
-      <Suspense fallback={<MeSkeleton />}>
+      {/* Le `<h1>` est déjà rendu ci-dessus (il ne dépend d'aucune donnée) → squelette sans titre. */}
+      <Suspense fallback={<MeSkeleton withTitle={false} />}>
         <MeContent
           data={data}
           vue={VUES.find((v) => v === vue) ?? 'progression'}

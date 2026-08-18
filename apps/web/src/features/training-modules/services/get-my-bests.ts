@@ -23,7 +23,7 @@ export interface MyBests {
 export async function getMyBests(profileId: string): Promise<MyBests> {
   const supabase = await createClient()
   const [bests, stats] = await Promise.all([
-    supabase.from('training_case_bests').select('case_id, best_total, best_objective, attempts').eq('profile_id', profileId),
+    supabase.from('training_case_bests').select('case_id, best_total, attempts').eq('profile_id', profileId),
     supabase.from('training_profile_stats').select('avg_total').eq('profile_id', profileId).maybeSingle(),
   ])
   if (bests.error) throw new Error(bests.error.message)

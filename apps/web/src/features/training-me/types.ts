@@ -65,6 +65,7 @@ export interface MeData {
   trophies: Trophy[]
   ranking: RankRow[]
   myRank: number | null
+  /** Dénominateur AFFICHÉ des cas validés : catalogue actif hors boss, jamais inférieur à `stats.casesDone`. */
   totalCases: number
   goldCount: number
   bossUnlocked: boolean

@@ -16,7 +16,6 @@ export function MeTemplate({ data, vue, myProfileId }: { data: MeData; vue: MeVu
       <MeHeader data={data} />
       <MeTabs
         vue={vue}
-        historyCount={data.history.length}
         progression={
           <div className="flex flex-col gap-8">
             <MeModules data={data} />
