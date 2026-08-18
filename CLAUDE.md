@@ -59,8 +59,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   dans `training_ai_calls`), **aucun streaming / Route Handler**, Server Actions partout.
   `startSession`, partagé par plusieurs features (Modules, écran de résultat de session), vit en
   `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent
-  `lib/impersonation/actions.ts`. Migrations 0116-0120 poussées **UAT seulement**, à
-  recetter. Droits `frm-suivi` (Overview,
+  `lib/impersonation/actions.ts`. **Écritures des sessions (sessions/threads/messages/signalements)
+  = service-role après vérification de propriété dans les Server Actions ; RLS = lecture
+  (propriétaire, encadrant `frm-suivi`, admin) — 0121.** Migrations 0116-0121 poussées
+  **UAT seulement**, à recetter. Droits `frm-suivi` (Overview,
   encadrement) / `frm-entrainement` (Ma formation, chatter), Modules et session ouverts aux deux
   (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`
   (`WORKSPACES`, type `WorkspaceId`). La face active se déduit du `pathname`

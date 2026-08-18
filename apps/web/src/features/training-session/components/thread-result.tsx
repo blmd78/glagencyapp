@@ -36,7 +36,10 @@ export function ThreadResult({
         </p>
       </header>
       {!lost && thread.score ? (
-        <ScorePanel score={thread.score} objectiveLabel={objectiveLabel} axisMax={kind === 'boss' ? 100 : 25} />
+        // Boss : l'objectif se juge PAR FAN sur le barème du boss (≥ 60), pas sur le libellé du
+        // module (« Rendez-vous obtenu »…) — le module Boss final n'en a d'ailleurs pas de sensé.
+        // `ScorePanel` suffixe « atteint » / « non atteint » : le libellé se lit en conséquence.
+        <ScorePanel score={thread.score} objectiveLabel={kind === 'boss' ? 'Objectif du boss (≥ 60)' : objectiveLabel} axisMax={kind === 'boss' ? 100 : 25} />
       ) : (
         fault && <p className="text-sm text-muted-foreground">{fault.text}</p>
       )}

@@ -3,12 +3,16 @@
 // Démarrer (ou reprendre) une session d'entraînement — PARTAGÉ hors feature (Modules « Jouer »,
 // session « Rejouer », Ma formation « Continuer ») : la frontière ESLint interdit le cross-feature,
 // d'où lib/ (précédent : lib/impersonation/actions.ts). Garde : droit Entraînement (frm-entrainement),
-// refus en impersonation ; RLS = propriétaire. Aucun appel IA ici (les ouvertures sont scriptées).
+// refus en impersonation. Aucun appel IA ici (les ouvertures sont scriptées).
+//
+// LECTURES avec le client utilisateur (RLS) ; ÉCRITURES en service-role (0121 : plus aucune policy
+// d'écriture `authenticated` sur sessions/threads/messages) — `profile_id` vaut toujours celui du
+// profil rendu par la garde ci-dessous, jamais une valeur venue de l'entrée.
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { bossUnlocked } from '@glagency/core'
-import type { Json } from '@glagency/db'
+import { createAdminClient, type Json } from '@glagency/db'
 import { runAction, noGuard, requirePageProfile, BusinessError, type ActionResult } from '@/lib/actions'
 import { readStateCookie } from '@/lib/impersonation/session'
 import { dueAtFrom } from '@/lib/services/training-engine'
@@ -36,6 +40,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
       const profile = await requirePageProfile('frm-entrainement')
       if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
       const supabase = await createClient()
+      const admin = createAdminClient()
       const { data: active, error: aErr } = await supabase
         .from('training_sessions')
         .select('id')
@@ -90,7 +95,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
         moduleTitle: c.training_modules.title,
         moduleCode: c.training_modules.code,
       }
-      const { data: session, error: iErr } = await supabase
+      const { data: session, error: iErr } = await admin
         .from('training_sessions')
         // `case_snapshot` est une colonne jsonb → typée `Json` (union récursive) : un objet
         // d'interface ne lui est pas assignable directement (index signature absente).
@@ -156,7 +161,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
           offsetS: ARENA_OPENING_OFFSETS_S[i] ?? 0,
         }))
       }
-      const { data: threads, error: tErr } = await supabase
+      const { data: threads, error: tErr } = await admin
         .from('training_threads')
         .insert(plan.map((p) => ({ session_id: session.id, position: p.position, fan_name: p.fanName, ref_case_id: p.refCaseId, boss_fan_id: p.bossFanId, max_turns: p.maxTurns })))
         .select('id, position')
@@ -175,11 +180,11 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
         if (last?.speaker === 'fan') dueUpdates.push({ id: threadId, next_due_at: iso(dueAtFrom(visibleAt, kind, c.reaction_max_s)) })
       }
       if (rows.length) {
-        const { error: mErr } = await supabase.from('training_messages').insert(rows)
+        const { error: mErr } = await admin.from('training_messages').insert(rows)
         if (mErr) throw new Error(mErr.message)
       }
       for (const u of dueUpdates) {
-        const { error: dErr } = await supabase.from('training_threads').update({ next_due_at: u.next_due_at }).eq('id', u.id)
+        const { error: dErr } = await admin.from('training_threads').update({ next_due_at: u.next_due_at }).eq('id', u.id)
         if (dErr) throw new Error(dErr.message)
       }
       revalidatePath('/formation/ma-formation')

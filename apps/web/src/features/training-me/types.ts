@@ -61,6 +61,8 @@ export interface MeData {
   stats: MeStats
   modules: MeModule[]
   active: MeSession | null
+  /** « Reprendre où j'en étais » : 1er cas non validé du 1er module incomplet, null si tout est fait. */
+  nextCaseId: string | null
   history: MeSession[]
   trophies: Trophy[]
   ranking: RankRow[]

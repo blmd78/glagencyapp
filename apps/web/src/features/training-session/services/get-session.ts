@@ -1,3 +1,4 @@
+import 'server-only'
 import { createAdminClient } from '@glagency/db'
 import type { ScoreMoment } from '@/lib/ai/schema'
 import { createClient } from '@/lib/supabase/server'

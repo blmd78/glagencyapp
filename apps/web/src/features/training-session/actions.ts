@@ -1,11 +1,15 @@
 'use server'
 
 // Server Action de l'entraînement — envoyer un message dans une session. Garde : droit Entraînement
-// (frm-entrainement), propriétaire de la session (RLS + vérif explicite), refus en impersonation.
+// (frm-entrainement), propriétaire de la session (vérif explicite), refus en impersonation.
 // Le fan (IA) est appelé ici, sans streaming (approche A) ; les secrets sont lus en service-role par
 // lib/services/training-engine ; chaque appel IA est tracé.
+//
+// LECTURES avec le client utilisateur (RLS) ; ÉCRITURES en service-role (0121 : la RLS de
+// sessions/threads/messages est en lecture seule) — TOUJOURS après le contrôle `s.profile_id !==
+// profile.id` ci-dessous, qui est désormais la seule garde du cloisonnement en écriture.
 
-import { revalidatePath } from 'next/cache'
+import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { FAN_MODEL } from '@/lib/ai/client'
@@ -51,14 +55,14 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       // MÊME tolérance que `timeoutThread` — sans elle, un envoi accepté par le client (qui n'a pas
       // encore vu le temps écoulé) pouvait être rejeté ici pour quelques centièmes de latence.
       if (t.next_due_at && now.getTime() > new Date(t.next_due_at).getTime() + 2000) {
-        const { error: lErr } = await supabase
+        const { error: lErr } = await admin
           .from('training_threads')
           .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
           .eq('id', t.id)
           .eq('status', 'open')
         if (lErr) throw new Error(lErr.message)
         if (kind === 'solo') {
-          const { error: fErr } = await supabase
+          const { error: fErr } = await admin
             .from('training_sessions')
             .update({ status: 'failed', ended_at: now.toISOString() })
             .eq('id', s.id)
@@ -67,7 +71,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
           // Défi/boss : ce thread perdu pouvait être le dernier ouvert → la session se termine.
           await closeSessionIfNoOpenThread(supabase, s.id, now.toISOString())
         }
-        revalidatePath(`/formation/session/${s.id}`)
+        revalidateSession(s.id)
         throw new BusinessError('Trop lent — ce fan est parti')
       }
 
@@ -81,7 +85,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       // Un média verrouillé est un message À PART ENTIÈRE : le texte éventuel est ignoré
       // (l'UI n'envoie que le média), le corps stocké décrit le média (check SQL : body non vide).
       const body = d.mediaPrice != null ? `Média verrouillé — ${d.mediaPrice} €` : d.body
-      const { data: mine, error: iErr } = await supabase
+      const { data: mine, error: iErr } = await admin
         .from('training_messages')
         .insert({ session_id: s.id, thread_id: t.id, position: nextPos, speaker: 'chatter', body, media_price: d.mediaPrice, visible_at: now.toISOString() })
         .select('id, position, visible_at')
@@ -106,13 +110,13 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         // il resterait sans réponse et le renvoi empilerait deux messages du chatter) et on rouvre
         // une fenêtre de chrono COMPLÈTE — sans ça, une panne survenue près de l'échéance faisait
         // perdre le thread au réessai (le chatter payait notre indisponibilité).
-        // `.select('id')` : une suppression qui ne retire RIEN (RLS, ligne déjà partie) doit se voir
+        // `.select('id')` : une suppression qui ne retire RIEN (ligne déjà partie) doit se voir
         // dans les logs — sans ça le message resterait orphelin, en silence.
-        const { data: deleted, error: delErr } = await supabase.from('training_messages').delete().eq('id', mine.id).select('id')
+        const { data: deleted, error: delErr } = await admin.from('training_messages').delete().eq('id', mine.id).select('id')
         if (delErr) console.error('[training fan] message non retiré', delErr.message)
         else if (!deleted.length) console.error('[training fan] message non retiré (aucune ligne)', mine.id)
         if (t.next_due_at) {
-          const { error: dueErr } = await supabase
+          const { error: dueErr } = await admin
             .from('training_threads')
             .update({ next_due_at: dueAtFrom(new Date(), kind, snap.reactionMaxS).toISOString() })
             .eq('id', t.id)
@@ -120,6 +124,10 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
           if (dueErr) console.error('[training fan] chrono non réarmé', dueErr.message)
         }
         await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: FAN_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
+        // Sentry AVANT le BusinessError : `runAction` ne capture QUE les erreurs techniques, et on
+        // rend ici un message métier — sans ça, une panne du fournisseur IA n'existait que dans les
+        // logs de la fonction (et dans training_ai_calls), jamais dans les alertes.
+        Sentry.captureException(err)
         console.error('[training fan]', err)
         // Revalidation AVANT de rendre l'erreur : le prochain rafraîchissement doit voir le message
         // retiré et le chrono réarmé, sinon le client rejoue un état périmé.
@@ -131,7 +139,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       // `body` du fan borné à 1000 (check SQL) ; jamais vide (fan.ts retombe sur '😒').
       const fanBody = reply.text.slice(0, 1000)
       const visibleAt = new Date(now.getTime() + revealDelayMs(kind))
-      const { data: fanRow, error: fErr } = await supabase
+      const { data: fanRow, error: fErr } = await admin
         .from('training_messages')
         .insert({ session_id: s.id, thread_id: t.id, position: nextPos + 1, speaker: 'fan', body: fanBody, visible_at: visibleAt.toISOString() })
         .select('id, position, visible_at')
@@ -146,7 +154,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       const nextDueAt = status === 'open' ? dueAtFrom(visibleAt, kind, snap.reactionMaxS).toISOString() : null
       // `.eq('status', 'open')` : entre la lecture du thread et ici, `timeoutThread` (autre onglet,
       // chrono du client) a pu le marquer `lost` — un envoi en vol ne doit pas le RESSUSCITER.
-      const { data: updated, error: uErr } = await supabase
+      const { data: updated, error: uErr } = await admin
         .from('training_threads')
         .update({ turns_used: turnsUsed, status, lost_reason: lost ? reply.faultCode : null, next_due_at: nextDueAt })
         .eq('id', t.id)
@@ -156,7 +164,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       if (!updated.length) {
         // Course perdue : le thread est déjà clos. On retire la réponse du fan qu'on venait d'écrire
         // (elle n'appartient à aucun tour valide) et on rend l'état réel au chatter.
-        const { error: dErr } = await supabase.from('training_messages').delete().eq('id', fanRow.id)
+        const { error: dErr } = await admin.from('training_messages').delete().eq('id', fanRow.id)
         if (dErr) console.error('[training fan] réponse non retirée', dErr.message)
         revalidateSession(s.id)
         throw new BusinessError('Cette conversation est terminée')
@@ -166,14 +174,14 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       let sessionStatus: SendResult['sessionStatus'] = 'active'
       let sessionEnded = false
       if (kind === 'solo' && lost) {
-        const { error: sErr } = await supabase.from('training_sessions').update({ status: 'failed', ended_at: now.toISOString() }).eq('id', s.id)
+        const { error: sErr } = await admin.from('training_sessions').update({ status: 'failed', ended_at: now.toISOString() }).eq('id', s.id)
         if (sErr) throw new Error(sErr.message)
         sessionStatus = 'failed'
         sessionEnded = true
       } else {
         sessionEnded = await closeSessionIfNoOpenThread(supabase, s.id, now.toISOString())
       }
-      revalidatePath(`/formation/session/${s.id}`)
+      revalidateSession(s.id)
       return { chatter, fan, thread: { status, lostReason: lost ? reply.faultCode : null, turnsUsed, nextDueAt }, sessionStatus, sessionEnded, serverNow: new Date().toISOString() }
     },
   })

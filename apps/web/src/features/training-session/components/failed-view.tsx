@@ -12,11 +12,17 @@ export function FailedView({ data, viewerIsOwner }: { data: SessionData; viewerI
   const s = data.snapshot
 
   if (data.status === 'abandoned') {
+    // Deux façons d'arriver ici : l'abandon volontaire, et l'EXPIRATION (spec §5 — défi/boss dont
+    // tous les chronos étaient dépassés au retour, cf. `expireSession` : tous les threads sont
+    // alors `lost/timeout`). Un abandon volontaire laisse les threads tels quels.
+    const expired = data.threads.length > 0 && data.threads.every((t) => t.status === 'lost' && t.lostReason === 'timeout')
     return (
       <div className="flex flex-col items-center gap-4 rounded-xl border p-10 text-center">
-        <h1 className="text-xl font-semibold">Session abandonnée</h1>
+        <h1 className="text-xl font-semibold">{expired ? 'La session a expiré' : 'Session abandonnée'}</h1>
         <p className="text-sm text-muted-foreground">
-          Tu as quitté avant la fin — cette session ne compte pas. Retente quand tu veux.
+          {expired
+            ? 'Tous les chronos étaient dépassés à ton retour — rien n’a été noté.'
+            : 'Tu as quitté avant la fin — cette session ne compte pas. Retente quand tu veux.'}
         </p>
         <ResultActions data={data} viewerIsOwner={viewerIsOwner} />
       </div>

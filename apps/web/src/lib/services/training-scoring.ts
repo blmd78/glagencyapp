@@ -10,8 +10,12 @@ import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/trainin
  * Notation d'une session TERMINÉE : un appel structuré par thread `done` (les `lost` valent 0,
  * sans appel), scores + axes écrits en service-role, total = moyenne des threads, statut `scored`
  * (→ trigger 0118 : bests + stats). `force` (admin, rescore) : réécrit les scores d'une session
- * déjà notée (scored_at change → le trigger recalcule). Idempotent : upsert par thread — un
- * échec en cours peut se relancer.
+ * déjà notée (scored_at change → le trigger recalcule).
+ *
+ * Relance après un échec partiel : les threads DÉJÀ notés sont repris tels quels, sans nouvel appel
+ * (hors `force`) — un boss dont la 5e notation avait échoué ne repaie pas les 4 premières.
+ * Les appels IA des threads restants partent EN PARALLÈLE (un boss = 5 appels Sonnet ; en série la
+ * notation frôlait la durée maximale de la fonction) ; les écritures, elles, restent séquentielles.
  */
 export async function scoreSessionById(sessionId: string, opts: { force?: boolean } = {}): Promise<{ total: number }> {
   const admin = createAdminClient()
@@ -56,52 +60,87 @@ export async function scoreSessionById(sessionId: string, opts: { force?: boolea
   if (fErr) throw new Error(fErr.message)
   const fanById = new Map((fans ?? []).map((f) => [f.id, f]))
 
-  const totals: { total: number; objective: boolean }[] = []
-  for (const t of [...s.training_threads].sort((a, b) => a.position - b.position)) {
-    let r: ScoreResult
+  const ordered = [...s.training_threads].sort((a, b) => a.position - b.position)
+
+  // Threads DÉJÀ notés : repris tels quels (aucun appel, aucune écriture) — une relance après un
+  // échec partiel ne repaie pas ce qui était noté. `force` remet tout à plat : c'est le sens du
+  // rescore admin.
+  const { data: done, error: exErr } = opts.force
+    ? { data: [], error: null }
+    : await admin.from('training_thread_scores').select('thread_id, total, objective_reached').in('thread_id', ordered.map((t) => t.id))
+  if (exErr) throw new Error(exErr.message)
+  const keep = new Map((done ?? []).map((r) => [r.thread_id, { total: r.total, objective: r.objective_reached }]))
+
+  // 1) Préparation : note synthétique des threads perdus (0, sans appel) et fabrication des appels
+  // IA. Le contexte de notation est résolu ICI, hors du try : un fan ou un cas introuvable est un
+  // défaut d'INTÉGRITÉ des données, pas un échec du modèle — le tracer en appel IA raté créerait
+  // une ligne fantôme dans training_ai_calls (coût et fiabilité faussés).
+  const scores = new Map<string, ScoreResult>()
+  const pending: { threadId: string; call: () => Promise<ScoreResult> }[] = []
+  for (const t of ordered) {
+    if (keep.has(t.id)) continue
     if (t.status === 'lost') {
       const reason = (t.lost_reason ?? 'timeout') as FaultCode | 'timeout'
       const label = FAULT_LABELS[reason] ?? FAULT_LABELS.timeout
-      r = {
+      scores.set(t.id, {
         total: 0, objectiveReached: false, capped: false, comment: `${label.title}. ${label.text}`, moments: [], axes: [],
         usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, model: '',
-      }
+      })
+      continue
+    }
+    const history: HistoryMessage[] = (msgs ?? [])
+      .filter((m) => m.thread_id === t.id)
+      .map((m) => ({ speaker: m.speaker as HistoryMessage['speaker'], body: m.body, mediaPrice: m.media_price }))
+    const transcript = formatTranscript(history)
+    if (kind === 'boss') {
+      const f = t.boss_fan_id ? fanById.get(t.boss_fan_id) : undefined
+      if (!f) throw new Error('fan du boss introuvable')
+      const sec = Array.isArray(f.training_boss_fan_secrets) ? f.training_boss_fan_secrets[0] : f.training_boss_fan_secrets
+      const system = bossScoreSystemPrompt({
+        name: f.name, persona: f.persona, budgetCap: sec?.budget_cap ?? null, negoWhere: sec?.nego_where ?? null, meetWhen: sec?.meet_when ?? null,
+      })
+      pending.push({ threadId: t.id, call: () => scoreBossThread({ system, transcript }) })
     } else {
-      const history: HistoryMessage[] = (msgs ?? [])
-        .filter((m) => m.thread_id === t.id)
-        .map((m) => ({ speaker: m.speaker as HistoryMessage['speaker'], body: m.body, mediaPrice: m.media_price }))
-      const transcript = formatTranscript(history)
-      // Le contexte de notation est résolu HORS du try : un fan ou un cas introuvable est un défaut
-      // d'INTÉGRITÉ des données, pas un échec du modèle — le tracer en appel IA raté créerait une
-      // ligne fantôme dans training_ai_calls (coût et fiabilité faussés).
-      let call: () => Promise<ScoreResult>
-      if (kind === 'boss') {
-        const f = t.boss_fan_id ? fanById.get(t.boss_fan_id) : undefined
-        if (!f) throw new Error('fan du boss introuvable')
-        const sec = Array.isArray(f.training_boss_fan_secrets) ? f.training_boss_fan_secrets[0] : f.training_boss_fan_secrets
-        const system = bossScoreSystemPrompt({
-          name: f.name, persona: f.persona, budgetCap: sec?.budget_cap ?? null, negoWhere: sec?.nego_where ?? null, meetWhen: sec?.meet_when ?? null,
-        })
-        call = () => scoreBossThread({ system, transcript })
-      } else {
-        const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
-        if (!c) throw new Error('cas de notation introuvable')
-        const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
-        const system = scoreSystemPrompt({
-          scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
-        })
-        call = () => scoreThread({ system, transcript, axes })
-      }
+      const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
+      if (!c) throw new Error('cas de notation introuvable')
+      const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
+      const system = scoreSystemPrompt({
+        scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
+      })
+      pending.push({ threadId: t.id, call: () => scoreThread({ system, transcript, axes }) })
+    }
+  }
+
+  // 2) Appels IA EN PARALLÈLE (un boss = 5 appels Sonnet ; en série la notation frôlait la durée
+  // maximale de la fonction). Chaque échec est tracé AVANT de relancer (miroir de sendMessage) —
+  // sans ça, un incident de notation était invisible dans training_ai_calls, donc absent du
+  // coût/fiabilité. `Promise.all` propage le premier échec ; les autres appels terminent leur
+  // trace, et la relance repartira des seuls threads non notés.
+  const results = await Promise.all(
+    pending.map(async ({ threadId, call }) => {
+      let r: ScoreResult
       try {
         r = await call()
       } catch (err) {
-        // Notation ratée : tracée AVANT de relancer (miroir de sendMessage) — sans ça, un incident
-        // de notation était invisible dans training_ai_calls, donc absent du coût/fiabilité.
-        await logAiCall(admin, { sessionId, threadId: t.id, kind: 'score', model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
+        await logAiCall(admin, { sessionId, threadId, kind: 'score', model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
         throw err
       }
-      await logAiCall(admin, { sessionId, threadId: t.id, kind: 'score', model: r.model, usage: r.usage, latencyMs: r.latencyMs, ok: true })
+      await logAiCall(admin, { sessionId, threadId, kind: 'score', model: r.model, usage: r.usage, latencyMs: r.latencyMs, ok: true })
+      return { threadId, r }
+    }),
+  )
+  for (const { threadId, r } of results) scores.set(threadId, r)
+
+  // 3) Écritures, dans l'ordre des conversations.
+  const totals: { total: number; objective: boolean }[] = []
+  for (const t of ordered) {
+    const previous = keep.get(t.id)
+    if (previous) {
+      totals.push(previous)
+      continue
     }
+    const r = scores.get(t.id)
+    if (!r) throw new Error('notation manquante')
     const { error: uErr } = await admin.from('training_thread_scores').upsert(
       {
         thread_id: t.id, total: r.total, objective_reached: r.objectiveReached, capped: r.capped, comment: r.comment,

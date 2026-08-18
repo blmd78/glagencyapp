@@ -12,6 +12,11 @@ export const SCORE_MODEL = 'claude-sonnet-5'
 
 let client: Anthropic | null = null
 export function anthropic(): Anthropic {
+  // Fail-fast, comme `createAdminClient` : sans clé, le SDK part quand même et échoue en 401 après
+  // deux réessais — le chatter voyait « le fan n'a pas répondu » au lieu d'une erreur de config.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY manquante (cf. .env.example à la racine — à poser dans apps/web/.env.local et sur Vercel)')
+  }
   if (!client) client = new Anthropic({ maxRetries: 2, timeout: 20_000 })
   return client
 }

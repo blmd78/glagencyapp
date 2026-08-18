@@ -19,9 +19,21 @@ const requiredInt = (min: number, max: number) =>
   z.coerce.number({ error: 'Nombre requis' }).int('Nombre entier').min(min, `Minimum ${min}`).max(max, `Maximum ${max}`)
 
 // ---------- Module ----------
+/**
+ * Clés que la notation utilise déjà pour SES champs (schéma de sortie du modèle, lib/ai/schema) :
+ * un axe qui porterait l'une d'elles entrerait en collision avec le total, l'objectif, le plafond,
+ * les moments ou le commentaire.
+ */
+const RESERVED_AXIS_KEYS = ['total', 'objectif_atteint', 'plafond', 'moments', 'commentaire']
+
 export const axisInput = z.object({
   existingId: z.uuid().nullable(), // null = nouvel axe (diff par id côté action). Pas `id` : useFieldArray réserve cette clé
-  key: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{2,30}$/, 'Clé : 2 à 30 caractères, minuscules / chiffres / _'),
+  key: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_]{2,30}$/, 'Clé : 2 à 30 caractères, minuscules / chiffres / _')
+    .refine((k) => !RESERVED_AXIS_KEYS.includes(k), 'Clé réservée par la notation'),
   name: required(60, 'Nom requis'),
   description: required(2000, 'Description requise'),
 })

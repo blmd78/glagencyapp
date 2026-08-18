@@ -1,10 +1,16 @@
 'use server'
 
-// Fin de session / notation / chrono écoulé / signalement. Même garde que actions.ts (droit
-// Entraînement, propriétaire, pas d'impersonation — helpers dans actions-shared.ts). La notation
-// vit dans lib/services/training-scoring (partagée avec le rescore admin de l'Overview).
+// Fin de session / expiration / notation / chrono écoulé / signalement. Même garde que actions.ts
+// (droit Entraînement, propriétaire, pas d'impersonation — helpers dans actions-shared.ts). La
+// notation vit dans lib/services/training-scoring (partagée avec le rescore admin de l'Overview).
+//
+// LECTURES avec le client utilisateur (RLS) ; ÉCRITURES en service-role (0121 : la RLS de
+// sessions/threads/messages/signalements est en lecture seule) — toujours après `requireOwnSession`
+// (ou la vérif `s.profile_id !== profile.id` de `timeoutThread`).
 
 import { revalidatePath } from 'next/cache'
+import * as Sentry from '@sentry/nextjs'
+import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
@@ -18,26 +24,27 @@ export async function endSession(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ sessionId }) => {
-      const { supabase, s } = await requireOwnSession(sessionId)
+      const { s } = await requireOwnSession(sessionId)
       if (s.status !== 'active') throw new BusinessError('Cette session est déjà terminée')
+      const admin = createAdminClient()
       // Un thread JAMAIS joué (0 tour) ne part pas à la notation : `lost`/`abandon` vaut 0 sans
       // appel IA (scoreSessionById n'appelle le modèle que sur les threads joués) — un défi où le
       // chatter n'a ouvert qu'une conv ne facture pas 4 notations de transcriptions vides.
-      const { error: aErr } = await supabase
+      const { error: aErr } = await admin
         .from('training_threads')
         .update({ status: 'lost', lost_reason: 'abandon', next_due_at: null })
         .eq('session_id', sessionId)
         .eq('status', 'open')
         .eq('turns_used', 0)
       if (aErr) throw new Error(aErr.message)
-      const { error: tErr } = await supabase
+      const { error: tErr } = await admin
         .from('training_threads')
         .update({ status: 'done', next_due_at: null })
         .eq('session_id', sessionId)
         .eq('status', 'open')
       if (tErr) throw new Error(tErr.message)
       if (!s.ended_at) {
-        const { error } = await supabase.from('training_sessions').update({ ended_at: new Date().toISOString() }).eq('id', sessionId)
+        const { error } = await admin.from('training_sessions').update({ ended_at: new Date().toISOString() }).eq('id', sessionId)
         if (error) throw new Error(error.message)
       }
       revalidateSession(sessionId)
@@ -52,16 +59,64 @@ export async function abandonSession(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ sessionId }) => {
-      const { supabase, s } = await requireOwnSession(sessionId)
+      const { s } = await requireOwnSession(sessionId)
       if (s.status !== 'active') throw new BusinessError('Cette session est déjà terminée')
-      const { error } = await supabase
+      const admin = createAdminClient()
+      const { error } = await admin
         .from('training_sessions')
         .update({ status: 'abandoned', ended_at: new Date().toISOString() })
         .eq('id', sessionId)
       if (error) throw new Error(error.message)
-      const { error: tErr } = await supabase.from('training_threads').update({ next_due_at: null }).eq('session_id', sessionId)
+      const { error: tErr } = await admin.from('training_threads').update({ next_due_at: null }).eq('session_id', sessionId)
       if (tErr) throw new Error(tErr.message)
       revalidateSession(sessionId)
+    },
+  })
+}
+
+/**
+ * Spec §5 « Interruption » — défi/boss : le chatter revient alors que TOUS ses chronos sont
+ * dépassés. Rien n'a été joué depuis, la session n'a plus de sens : threads ouverts `lost/timeout`,
+ * session `abandoned`. Le client la déclenche au chargement (cf. `session-view.tsx`), le serveur
+ * revérifie tout — même grâce de 2 s que `timeoutThread` / `sendMessage`.
+ * Le solo en est exclu : un seul chrono, déjà traité par `timeoutThread` (→ `failed`).
+ */
+export async function expireSession(raw: unknown): Promise<ActionResult<{ expired: boolean }>> {
+  return runAction({
+    schema: sessionIdInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ sessionId }) => {
+      const { supabase, s } = await requireOwnSession(sessionId)
+      if (s.status !== 'active' || s.kind === 'solo') return { expired: false }
+      const { data: threads, error } = await supabase
+        .from('training_threads')
+        .select('id, next_due_at')
+        .eq('session_id', sessionId)
+        .eq('status', 'open')
+      if (error) throw new Error(error.message)
+      if (!threads.length) return { expired: false }
+      const cutoff = Date.now() - 2000
+      // TOUS les threads ouverts doivent être dépassés : un seul chrono encore valide (ou sans
+      // chrono armé — ouverture finissant par le chatter) et la session reste jouable.
+      if (!threads.every((t) => t.next_due_at != null && Date.parse(t.next_due_at) < cutoff)) return { expired: false }
+
+      const admin = createAdminClient()
+      const now = new Date().toISOString()
+      const { error: tErr } = await admin
+        .from('training_threads')
+        .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
+        .eq('session_id', sessionId)
+        .eq('status', 'open')
+      if (tErr) throw new Error(tErr.message)
+      const { error: sErr } = await admin
+        .from('training_sessions')
+        .update({ status: 'abandoned', ended_at: now })
+        .eq('id', sessionId)
+        .eq('status', 'active')
+      if (sErr) throw new Error(sErr.message)
+      revalidateSession(sessionId)
+      return { expired: true }
     },
   })
 }
@@ -79,6 +134,9 @@ export async function scoreSession(raw: unknown): Promise<ActionResult<{ total: 
       try {
         res = await scoreSessionById(sessionId)
       } catch (err) {
+        // Sentry AVANT le BusinessError : `runAction` ne capture que les erreurs techniques et on
+        // rend ici un message métier — même règle que le rescore de l'Overview.
+        Sentry.captureException(err)
         console.error('[training score]', err)
         throw new BusinessError('La notation a échoué — relance-la dans un instant')
       }
@@ -116,8 +174,9 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
         return { sessionStatus: s.status, sessionEnded: await closeSessionIfNoOpenThread(supabase, s.id, new Date().toISOString()) }
       }
       if (!t.next_due_at || Date.now() < new Date(t.next_due_at).getTime() - 2000) throw new BusinessError('Le temps n’est pas écoulé')
+      const admin = createAdminClient()
       const now = new Date().toISOString()
-      const { error: lErr } = await supabase
+      const { error: lErr } = await admin
         .from('training_threads')
         .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
         .eq('id', t.id)
@@ -125,7 +184,7 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
       let sessionStatus = 'active'
       let sessionEnded = false
       if (s.kind === 'solo') {
-        const { error: fErr } = await supabase.from('training_sessions').update({ status: 'failed', ended_at: now }).eq('id', s.id)
+        const { error: fErr } = await admin.from('training_sessions').update({ status: 'failed', ended_at: now }).eq('id', s.id)
         if (fErr) throw new Error(fErr.message)
         sessionStatus = 'failed'
         sessionEnded = true
@@ -150,7 +209,10 @@ export async function reportScore(raw: unknown): Promise<ActionResult> {
       const { data: existing, error: eErr } = await supabase.from('training_reports').select('id').eq('session_id', sessionId).maybeSingle()
       if (eErr) throw new Error(eErr.message)
       if (existing) throw new BusinessError('Cette note est déjà signalée')
-      const { error } = await supabase.from('training_reports').insert({ session_id: sessionId, profile_id: profile.id, message })
+      const { error } = await createAdminClient().from('training_reports').insert({ session_id: sessionId, profile_id: profile.id, message })
+      // 23505 : deux envois concurrents ont passé la vérification ci-dessus — l'index unique 0121
+      // tranche, et le message reste métier.
+      if (error?.code === '23505') throw new BusinessError('Cette note est déjà signalée')
       if (error) throw new Error(error.message)
       revalidateSession(sessionId)
       revalidatePath('/formation/overview')

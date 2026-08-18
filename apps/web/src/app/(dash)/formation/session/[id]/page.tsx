@@ -6,6 +6,13 @@ import type { SessionData } from '@/features/training-session/types'
 import { getSession } from '@/features/training-session/services/get-session'
 import { requireAccess } from '@/lib/auth'
 
+/**
+ * Budget de durée des Server Actions de cette route : la notation d'un boss lance 5 appels Sonnet
+ * (parallèles) — le défaut de 15 s ne suffit pas. À confirmer avec le plan Vercel (300 s = plafond
+ * des fonctions Node sur les plans payants).
+ */
+export const maxDuration = 300
+
 /** Une session d'entraînement — jouer (propriétaire) ou relire (encadrant Suivi, admin). 404 si inconnue / hors RLS. */
 export default async function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const [profile, { id }] = await Promise.all([requireAccess(['frm-entrainement', 'frm-suivi']), params])

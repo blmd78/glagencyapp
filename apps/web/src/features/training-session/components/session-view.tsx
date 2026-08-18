@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { sendMessage } from '../actions'
-import { timeoutThread } from '../actions-lifecycle'
+import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
 import type { SessionData, SessionThread } from '../types'
 import { SessionHeader } from './session-header'
@@ -28,10 +28,26 @@ export function SessionView({ data }: { data: SessionData }) {
   const [timeoutFailed, setTimeoutFailed] = useState<Set<string>>(new Set())
   const { scoring, error: scoreError, run: runScoring } = useScoring(data.id)
   const firing = useRef(new Set<string>())
+  const expiring = useRef(false)
 
   useEffect(() => {
     if (ended) void runScoring()
   }, [ended, runScoring])
+
+  // Spec §5 « Interruption » — défi/boss : le chatter revient et TOUS ses chronos sont dépassés.
+  // Une seule tentative, AU CHARGEMENT (l'horloge serveur du rendu fait foi ; pendant la partie les
+  // chronos sont traités thread par thread par `handleTimeout`). Le serveur revérifie tout ; s'il
+  // refuse, on n'insiste pas — l'affichage reste jouable.
+  useEffect(() => {
+    if (expiring.current || data.kind === 'solo') return
+    const at = Date.parse(data.serverNow)
+    const open = data.threads.filter((t) => t.status === 'open')
+    if (!open.length || !open.every((t) => t.nextDueAt != null && Date.parse(t.nextDueAt) < at - 2000)) return
+    expiring.current = true
+    void expireSession({ sessionId: data.id }).then((r) => {
+      if (r.success && r.data.expired) router.refresh()
+    })
+  }, [data.id, data.kind, data.serverNow, data.threads, router])
 
   const patch = useCallback((threadId: string, f: (t: SessionThread) => SessionThread) => {
     setThreads((ts) => ts.map((t) => (t.id === threadId ? f(t) : t)))

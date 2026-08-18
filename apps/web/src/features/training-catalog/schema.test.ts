@@ -61,4 +61,12 @@ describe('moduleForm', () => {
     expect(moduleForm.safeParse({ ...mod, axes: [a, a] }).success).toBe(false)
     expect(moduleForm.safeParse({ ...mod, axes: [{ ...a, key: 'Clé accentuée' }] }).success).toBe(false)
   })
+  it('refuse une clé d’axe réservée par la notation (casse et espaces normalisés d’abord)', () => {
+    const a = { existingId: null, key: 'k1', name: 'N', description: 'd' }
+    for (const key of ['total', 'objectif_atteint', 'plafond', 'moments', 'commentaire']) {
+      expect(moduleForm.safeParse({ ...mod, axes: [{ ...a, key }] }).success).toBe(false)
+    }
+    expect(moduleForm.safeParse({ ...mod, axes: [{ ...a, key: ' Total ' }] }).success).toBe(false)
+    expect(moduleForm.safeParse({ ...mod, axes: [{ ...a, key: 'total_ventes' }] }).success).toBe(true)
+  })
 })

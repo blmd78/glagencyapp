@@ -25,6 +25,18 @@ export async function getModules(): Promise<ModuleSummary[]> {
 }
 
 /**
+ * Modules ACTIFS, ordonnés, RÉDUITS à leur identité (id, code, titre, emoji) — pour « Ma
+ * formation », qui n'affiche que des cartes de progression. `getModules()` rapatriait `course_md`
+ * (jusqu'à 50 000 caractères par module) pour n'en garder qu'un booléen : inutile ici.
+ */
+export async function getModuleRefs(): Promise<{ id: string; code: string; title: string; emoji: string | null }[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('training_modules').select('id, code, title, emoji').eq('active', true).order('position')
+  if (error) throw new Error(error.message)
+  return data ?? []
+}
+
+/**
  * Un module ACTIF par code, avec ses axes, sections et cas actifs en PROJECTION PUBLIQUE :
  * colonnes visibles uniquement (jamais fan_brief / expected / scoring_notes ni les champs cachés
  * des fans du boss — un RSC les enverrait au navigateur du chatter). null = inconnu ou inactif.

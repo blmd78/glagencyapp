@@ -40,7 +40,12 @@ export function ThreadPanel({
   useEffect(() => {
     if (expired) onTimeout(thread.id)
   }, [expired, onTimeout, thread.id])
-  const canWrite = thread.status === 'open' && !pendingFan && !expired && last?.speaker !== 'chatter' && thread.turnsUsed < thread.maxTurns
+  // OUVERTURE (aucun tour joué) : un cas dont le script se termine par une ligne du chatter — ex. la
+  // créatrice relance après un blanc — reste JOUABLE. Sans cette exception, `last?.speaker !==
+  // 'chatter'` verrouillait le composer dès l'arrivée et le cas était injouable (aucun chrono armé
+  // non plus, puisque l'ouverture ne finit pas par le fan : le chrono démarre à sa première réponse).
+  const opening = thread.turnsUsed === 0
+  const canWrite = thread.status === 'open' && !pendingFan && !expired && (opening || last?.speaker !== 'chatter') && thread.turnsUsed < thread.maxTurns
   const lost = thread.status === 'lost' ? (FAULT_LABELS[(thread.lostReason ?? 'timeout') as FaultCode | 'timeout'] ?? FAULT_LABELS.timeout) : null
 
   return (

@@ -1,14 +1,16 @@
 import Link from 'next/link'
 import type { Route } from 'next'
+import { PlayButton } from '@/components/training/play-button'
 import { Button } from '@/components/ui/button'
 import type { MeData } from '../types'
 
 /**
- * En-tête de Ma formation : la reprise d'une session en cours (s'il y en a une), puis les quatre
- * chiffres qui résument l'entraînement, et les trophées gagnés en une ligne.
+ * En-tête de Ma formation : la reprise d'une session en cours (s'il y en a une) — sinon « Reprendre »
+ * sur le prochain cas à faire (spec §6) —, puis les quatre chiffres qui résument l'entraînement, et
+ * les trophées gagnés en une ligne.
  */
 export function MeHeader({ data }: { data: MeData }) {
-  const { stats, active, totalCases, trophies, myRank, ranking } = data
+  const { stats, active, nextCaseId, totalCases, trophies, myRank, ranking } = data
   const earned = trophies.filter((t) => t.earned).length
   const rank = myRank == null ? null : `${myRank === 1 ? '1er' : `${myRank}e`} sur ${ranking.length}`
   return (
@@ -23,6 +25,12 @@ export function MeHeader({ data }: { data: MeData }) {
           <Button asChild size="sm">
             <Link href={`/formation/session/${active.id}` as Route}>Continuer</Link>
           </Button>
+        </div>
+      )}
+      {!active && nextCaseId && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3">
+          <p className="text-sm font-medium">Reprendre où j’en étais</p>
+          <PlayButton caseId={nextCaseId} label="Reprendre" />
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

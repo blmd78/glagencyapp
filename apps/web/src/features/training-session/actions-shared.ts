@@ -3,6 +3,7 @@
 // depuis le client.
 
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@glagency/db'
 import { BusinessError, requirePageProfile } from '@/lib/actions'
 import { readStateCookie } from '@/lib/impersonation/session'
 import { createClient } from '@/lib/supabase/server'
@@ -14,13 +15,18 @@ export async function requireTrainee() {
   return profile
 }
 
-/** `requireTrainee` + la session doit appartenir à l'appelant (RLS + vérif explicite). */
+/**
+ * `requireTrainee` + la session doit appartenir à l'appelant. Depuis 0121 la RLS de
+ * `training_sessions` est en LECTURE SEULE : cette vérification explicite (`profile_id` lu avec le
+ * client utilisateur) est ce qui autorise les écritures service-role qui suivent — elle doit
+ * toujours précéder le moindre `admin.from(...)`.
+ */
 export async function requireOwnSession(sessionId: string) {
   const profile = await requireTrainee()
   const supabase = await createClient()
   const { data: s, error } = await supabase
     .from('training_sessions')
-    .select('id, profile_id, status, ended_at, case_id')
+    .select('id, profile_id, status, ended_at, case_id, kind')
     .eq('id', sessionId)
     .maybeSingle()
   if (error) throw new Error(error.message)
@@ -38,6 +44,8 @@ export type Db = Awaited<ReturnType<typeof createClient>>
  * déjà été : l'état rendu au client est « session terminée », pas « je l'ai fermée ».
  * `.is('ended_at', null)` rend l'écriture IDEMPOTENTE : un appel tardif (deuxième onglet, retry)
  * ne repousse jamais l'heure de fin déjà enregistrée.
+ * Lecture avec le client de l'appelant (RLS), écriture en service-role (0121) — les trois appelants
+ * ont vérifié la propriété de `sessionId` juste avant.
  */
 export async function closeSessionIfNoOpenThread(supabase: Db, sessionId: string, nowIso: string): Promise<boolean> {
   const { data: open, error } = await supabase
@@ -48,7 +56,7 @@ export async function closeSessionIfNoOpenThread(supabase: Db, sessionId: string
     .limit(1)
   if (error) throw new Error(error.message)
   if (open?.length) return false
-  const { error: eErr } = await supabase
+  const { error: eErr } = await createAdminClient()
     .from('training_sessions')
     .update({ ended_at: nowIso })
     .eq('id', sessionId)

@@ -1,5 +1,5 @@
 import { MEDAL_OR, bossUnlocked, computeTrophies, effectiveStreak, medalFor, moduleProgress, todayParis } from '@glagency/core'
-import { getAllCases, getModules } from '@/lib/services/training-public'
+import { getAllCases, getModuleRefs } from '@/lib/services/training-public'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot } from '@/lib/types/training'
 import type { MeData, MeModule, MeSession, RankRow } from '../types'
@@ -32,7 +32,7 @@ export async function getMe(profileId: string): Promise<MeData> {
       .order('started_at', { ascending: false })
       .limit(50),
     supabase.rpc('training_ranking'),
-    getModules(),
+    getModuleRefs(),
     getAllCases(),
   ])
   if (statsRes.error) throw new Error(statsRes.error.message)
@@ -101,6 +101,12 @@ export async function getMe(profileId: string): Promise<MeData> {
   }))
   const rankIndex = ranking.findIndex((r) => r.profileId === profileId)
 
+  // « Reprendre où j'en étais » (spec §6) : 1er cas non validé (aucun meilleur résultat) du 1er
+  // module incomplet — modules dans l'ordre du catalogue, cas dans l'ordre du module. null quand
+  // tout est validé (ou quand le catalogue est vide) : l'en-tête n'affiche alors pas le bouton.
+  const nextCaseId: string | null =
+    meModules.find((m) => m.progress.total > 0 && m.progress.done < m.progress.total)?.cases.find((c) => c.best == null)?.id ?? null
+
   const totalCases = nonBoss.length
   const goldCount = nonBoss.filter((c) => (bests.get(c.id)?.bestTotal ?? 0) >= MEDAL_OR).length
   // Dénominateur AFFICHÉ : `cases_done` (stats DB, source des chiffres de l'en-tête et du
@@ -112,6 +118,7 @@ export async function getMe(profileId: string): Promise<MeData> {
     stats,
     modules: meModules,
     active: sessions.find((x) => x.status === 'active') ?? null,
+    nextCaseId,
     history: sessions,
     trophies: computeTrophies({
       casesDone: stats.casesDone,
