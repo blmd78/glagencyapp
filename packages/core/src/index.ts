@@ -97,3 +97,16 @@ export {
   type RateSpan,
 } from './compta/rates'
 export { rankSetters, type SetterRank, type SetterScaleRow } from './compta/setter-rank'
+export {
+  MEDAL_OR,
+  MEDAL_ARGENT,
+  MEDAL_BRONZE,
+  BOSS_UNLOCK_AVG,
+  medalFor,
+  bossUnlocked,
+  moduleProgress,
+  TROPHIES,
+  computeTrophies,
+  effectiveStreak,
+} from './training/rules'
+export type { Medal, ModuleProgress, Trophy, TrophyInput } from './training/rules'
