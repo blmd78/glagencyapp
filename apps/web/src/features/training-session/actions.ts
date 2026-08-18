@@ -14,7 +14,7 @@ import { logAiCall } from '@/lib/ai/log'
 import { buildFanSystem, dueAtFrom, revealDelayMs } from '@/lib/services/training-engine'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot, MessageSpeaker } from '@/lib/types/training'
-import { closeSessionIfNoOpenThread, requireTrainee } from './actions-shared'
+import { closeSessionIfNoOpenThread, requireTrainee, revalidateSession } from './actions-shared'
 import { sendInput } from './schema'
 import type { SendResult, SessionMessage } from './types'
 
@@ -55,6 +55,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
           .from('training_threads')
           .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
           .eq('id', t.id)
+          .eq('status', 'open')
         if (lErr) throw new Error(lErr.message)
         if (kind === 'solo') {
           const { error: fErr } = await supabase
@@ -105,17 +106,24 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         // il resterait sans réponse et le renvoi empilerait deux messages du chatter) et on rouvre
         // une fenêtre de chrono COMPLÈTE — sans ça, une panne survenue près de l'échéance faisait
         // perdre le thread au réessai (le chatter payait notre indisponibilité).
-        const { error: delErr } = await supabase.from('training_messages').delete().eq('id', mine.id)
+        // `.select('id')` : une suppression qui ne retire RIEN (RLS, ligne déjà partie) doit se voir
+        // dans les logs — sans ça le message resterait orphelin, en silence.
+        const { data: deleted, error: delErr } = await supabase.from('training_messages').delete().eq('id', mine.id).select('id')
         if (delErr) console.error('[training fan] message non retiré', delErr.message)
+        else if (!deleted.length) console.error('[training fan] message non retiré (aucune ligne)', mine.id)
         if (t.next_due_at) {
           const { error: dueErr } = await supabase
             .from('training_threads')
             .update({ next_due_at: dueAtFrom(new Date(), kind, snap.reactionMaxS).toISOString() })
             .eq('id', t.id)
+            .eq('status', 'open')
           if (dueErr) console.error('[training fan] chrono non réarmé', dueErr.message)
         }
         await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: FAN_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
         console.error('[training fan]', err)
+        // Revalidation AVANT de rendre l'erreur : le prochain rafraîchissement doit voir le message
+        // retiré et le chrono réarmé, sinon le client rejoue un état périmé.
+        revalidateSession(s.id)
         throw new BusinessError('Le fan n’a pas répondu — réessaie')
       }
       await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: reply.model, usage: reply.usage, latencyMs: reply.latencyMs, ok: reply.ok })
@@ -136,11 +144,23 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       const done = !lost && turnsUsed >= t.max_turns
       const status = lost ? 'lost' : done ? 'done' : 'open'
       const nextDueAt = status === 'open' ? dueAtFrom(visibleAt, kind, snap.reactionMaxS).toISOString() : null
-      const { error: uErr } = await supabase
+      // `.eq('status', 'open')` : entre la lecture du thread et ici, `timeoutThread` (autre onglet,
+      // chrono du client) a pu le marquer `lost` — un envoi en vol ne doit pas le RESSUSCITER.
+      const { data: updated, error: uErr } = await supabase
         .from('training_threads')
         .update({ turns_used: turnsUsed, status, lost_reason: lost ? reply.faultCode : null, next_due_at: nextDueAt })
         .eq('id', t.id)
+        .eq('status', 'open')
+        .select('id')
       if (uErr) throw new Error(uErr.message)
+      if (!updated.length) {
+        // Course perdue : le thread est déjà clos. On retire la réponse du fan qu'on venait d'écrire
+        // (elle n'appartient à aucun tour valide) et on rend l'état réel au chatter.
+        const { error: dErr } = await supabase.from('training_messages').delete().eq('id', fanRow.id)
+        if (dErr) console.error('[training fan] réponse non retirée', dErr.message)
+        revalidateSession(s.id)
+        throw new BusinessError('Cette conversation est terminée')
+      }
 
       // Fin de session ? solo perdu → failed ; tous les threads finis → ended_at (la notation suit).
       let sessionStatus: SendResult['sessionStatus'] = 'active'

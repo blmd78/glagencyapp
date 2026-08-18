@@ -34,7 +34,10 @@ export type Db = Awaited<ReturnType<typeof createClient>>
  * Défi/boss : dès qu'aucun thread n'est plus `open`, la session est TERMINÉE (`ended_at`) — la
  * notation suit. Une seule implémentation pour les trois chemins qui peuvent fermer le dernier
  * thread : envoi réussi, timeout constaté à l'envoi, chrono écoulé signalé par le client.
- * Rend `true` si la session vient d'être fermée (ou l'était déjà, faute de thread ouvert).
+ * Rend `true` dès qu'aucun thread n'est ouvert — qu'on vienne de poser `ended_at` ou qu'il l'ait
+ * déjà été : l'état rendu au client est « session terminée », pas « je l'ai fermée ».
+ * `.is('ended_at', null)` rend l'écriture IDEMPOTENTE : un appel tardif (deuxième onglet, retry)
+ * ne repousse jamais l'heure de fin déjà enregistrée.
  */
 export async function closeSessionIfNoOpenThread(supabase: Db, sessionId: string, nowIso: string): Promise<boolean> {
   const { data: open, error } = await supabase
@@ -45,7 +48,11 @@ export async function closeSessionIfNoOpenThread(supabase: Db, sessionId: string
     .limit(1)
   if (error) throw new Error(error.message)
   if (open?.length) return false
-  const { error: eErr } = await supabase.from('training_sessions').update({ ended_at: nowIso }).eq('id', sessionId)
+  const { error: eErr } = await supabase
+    .from('training_sessions')
+    .update({ ended_at: nowIso })
+    .eq('id', sessionId)
+    .is('ended_at', null)
   if (eErr) throw new Error(eErr.message)
   return true
 }

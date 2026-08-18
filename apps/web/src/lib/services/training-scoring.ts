@@ -71,29 +71,29 @@ export async function scoreSessionById(sessionId: string, opts: { force?: boolea
         .filter((m) => m.thread_id === t.id)
         .map((m) => ({ speaker: m.speaker as HistoryMessage['speaker'], body: m.body, mediaPrice: m.media_price }))
       const transcript = formatTranscript(history)
+      // Le contexte de notation est résolu HORS du try : un fan ou un cas introuvable est un défaut
+      // d'INTÉGRITÉ des données, pas un échec du modèle — le tracer en appel IA raté créerait une
+      // ligne fantôme dans training_ai_calls (coût et fiabilité faussés).
+      let call: () => Promise<ScoreResult>
+      if (kind === 'boss') {
+        const f = t.boss_fan_id ? fanById.get(t.boss_fan_id) : undefined
+        if (!f) throw new Error('fan du boss introuvable')
+        const sec = Array.isArray(f.training_boss_fan_secrets) ? f.training_boss_fan_secrets[0] : f.training_boss_fan_secrets
+        const system = bossScoreSystemPrompt({
+          name: f.name, persona: f.persona, budgetCap: sec?.budget_cap ?? null, negoWhere: sec?.nego_where ?? null, meetWhen: sec?.meet_when ?? null,
+        })
+        call = () => scoreBossThread({ system, transcript })
+      } else {
+        const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
+        if (!c) throw new Error('cas de notation introuvable')
+        const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
+        const system = scoreSystemPrompt({
+          scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
+        })
+        call = () => scoreThread({ system, transcript, axes })
+      }
       try {
-        if (kind === 'boss') {
-          const f = t.boss_fan_id ? fanById.get(t.boss_fan_id) : undefined
-          if (!f) throw new Error('fan du boss introuvable')
-          const sec = Array.isArray(f.training_boss_fan_secrets) ? f.training_boss_fan_secrets[0] : f.training_boss_fan_secrets
-          r = await scoreBossThread({
-            system: bossScoreSystemPrompt({
-              name: f.name, persona: f.persona, budgetCap: sec?.budget_cap ?? null, negoWhere: sec?.nego_where ?? null, meetWhen: sec?.meet_when ?? null,
-            }),
-            transcript,
-          })
-        } else {
-          const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
-          if (!c) throw new Error('cas de notation introuvable')
-          const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
-          r = await scoreThread({
-            system: scoreSystemPrompt({
-              scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
-            }),
-            transcript,
-            axes,
-          })
-        }
+        r = await call()
       } catch (err) {
         // Notation ratée : tracée AVANT de relancer (miroir de sendMessage) — sans ça, un incident
         // de notation était invisible dans training_ai_calls, donc absent du coût/fiabilité.
