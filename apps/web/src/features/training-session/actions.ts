@@ -14,7 +14,7 @@ import { logAiCall } from '@/lib/ai/log'
 import { buildFanSystem, dueAtFrom, revealDelayMs } from '@/lib/services/training-engine'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot, MessageSpeaker } from '@/lib/types/training'
-import { requireTrainee } from './actions-shared'
+import { closeSessionIfNoOpenThread, requireTrainee } from './actions-shared'
 import { sendInput } from './schema'
 import type { SendResult, SessionMessage } from './types'
 
@@ -47,8 +47,10 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       const snap = s.case_snapshot as unknown as CaseSnapshot
       const now = new Date()
 
-      // Chrono (autorité serveur) : trop tard → thread perdu, solo → session ratée.
-      if (t.next_due_at && now.getTime() > new Date(t.next_due_at).getTime()) {
+      // Chrono (autorité serveur) : trop tard → thread perdu, solo → session ratée. Grâce de 2 s,
+      // MÊME tolérance que `timeoutThread` — sans elle, un envoi accepté par le client (qui n'a pas
+      // encore vu le temps écoulé) pouvait être rejeté ici pour quelques centièmes de latence.
+      if (t.next_due_at && now.getTime() > new Date(t.next_due_at).getTime() + 2000) {
         const { error: lErr } = await supabase
           .from('training_threads')
           .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
@@ -60,6 +62,9 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
             .update({ status: 'failed', ended_at: now.toISOString() })
             .eq('id', s.id)
           if (fErr) throw new Error(fErr.message)
+        } else {
+          // Défi/boss : ce thread perdu pouvait être le dernier ouvert → la session se termine.
+          await closeSessionIfNoOpenThread(supabase, s.id, now.toISOString())
         }
         revalidatePath(`/formation/session/${s.id}`)
         throw new BusinessError('Trop lent — ce fan est parti')
@@ -80,10 +85,13 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         .insert({ session_id: s.id, thread_id: t.id, position: nextPos, speaker: 'chatter', body, media_price: d.mediaPrice, visible_at: now.toISOString() })
         .select('id, position, visible_at')
         .single()
+      // 23505 sur `unique (thread_id, position)` = double soumission (double-clic, reprise réseau) :
+      // message métier, pas une erreur technique.
+      if (iErr?.code === '23505') throw new BusinessError('Message déjà envoyé')
       if (iErr) throw new Error(iErr.message)
       const chatter: SessionMessage = { id: mine.id, threadId: t.id, position: mine.position, speaker: 'chatter', body, mediaPrice: d.mediaPrice, visibleAt: mine.visible_at }
 
-      // Le fan (IA). Échec réseau/API → message métier, le message du chatter reste (le tour n'est pas consommé).
+      // Le fan (IA). Échec réseau/API → message métier ET tour annulé (cf. le catch ci-dessous).
       const system = await buildFanSystem(admin, { kind, caseId: s.case_id, refCaseId: t.ref_case_id, bossFanId: t.boss_fan_id, fanName: t.fan_name, isSale: snap.isSale })
       const hist = [
         ...(history ?? []).map((m) => ({ speaker: m.speaker as MessageSpeaker, body: m.body, mediaPrice: m.media_price })),
@@ -93,6 +101,19 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       try {
         reply = await replyAsFan({ system, history: hist, maxTokens: kind === 'boss' ? 260 : 200 })
       } catch (err) {
+        // Panne IA : le tour est ANNULÉ, pas subi. On retire le message qu'on vient d'écrire (sinon
+        // il resterait sans réponse et le renvoi empilerait deux messages du chatter) et on rouvre
+        // une fenêtre de chrono COMPLÈTE — sans ça, une panne survenue près de l'échéance faisait
+        // perdre le thread au réessai (le chatter payait notre indisponibilité).
+        const { error: delErr } = await supabase.from('training_messages').delete().eq('id', mine.id)
+        if (delErr) console.error('[training fan] message non retiré', delErr.message)
+        if (t.next_due_at) {
+          const { error: dueErr } = await supabase
+            .from('training_threads')
+            .update({ next_due_at: dueAtFrom(new Date(), kind, snap.reactionMaxS).toISOString() })
+            .eq('id', t.id)
+          if (dueErr) console.error('[training fan] chrono non réarmé', dueErr.message)
+        }
         await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: FAN_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
         console.error('[training fan]', err)
         throw new BusinessError('Le fan n’a pas répondu — réessaie')
@@ -130,13 +151,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         sessionStatus = 'failed'
         sessionEnded = true
       } else {
-        const { data: open, error: oErr } = await supabase.from('training_threads').select('id').eq('session_id', s.id).eq('status', 'open').limit(1)
-        if (oErr) throw new Error(oErr.message)
-        if (!open?.length) {
-          const { error: eErr } = await supabase.from('training_sessions').update({ ended_at: now.toISOString() }).eq('id', s.id)
-          if (eErr) throw new Error(eErr.message)
-          sessionEnded = true
-        }
+        sessionEnded = await closeSessionIfNoOpenThread(supabase, s.id, now.toISOString())
       }
       revalidatePath(`/formation/session/${s.id}`)
       return { chatter, fan, thread: { status, lostReason: lost ? reply.faultCode : null, turnsUsed, nextDueAt }, sessionStatus, sessionEnded, serverNow: new Date().toISOString() }

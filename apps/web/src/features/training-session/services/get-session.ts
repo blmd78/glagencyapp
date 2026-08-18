@@ -7,7 +7,8 @@ import type { SessionData, SessionThread } from '../types'
 /**
  * Une session (RLS : propriétaire, encadrant, admin) : threads + messages + scores + signalement en
  * 3 requêtes. `expected` (secret) n'est lu — en service-role — QUE si la session est notée (révélé
- * après coup, comme GLA) et pour un solo. `previousBest` = meilleur total du chatter sur ce cas.
+ * après coup, comme GLA) et pour un solo. `previousBest` = meilleur total des AUTRES sessions
+ * notées du chatter sur ce cas (record à battre) — jamais la session affichée.
  */
 export async function getSession(id: string): Promise<SessionData | null> {
   const supabase = await createClient()
@@ -27,11 +28,19 @@ export async function getSession(id: string): Promise<SessionData | null> {
     .eq('session_id', id)
     .order('position')
   if (mErr) throw new Error(mErr.message)
+  // Record PRÉCÉDENT : meilleur total des AUTRES sessions notées du même couple (profil, cas).
+  // `training_case_bests` ne convient pas — son trigger l'a déjà mis à jour avec la session qu'on
+  // affiche, donc « record battu ? » aurait toujours été faux (le record valait la note du jour).
   const { data: best, error: bErr } = await supabase
-    .from('training_case_bests')
-    .select('best_total')
+    .from('training_sessions')
+    .select('total')
     .eq('profile_id', s.profile_id)
     .eq('case_id', s.case_id)
+    .eq('status', 'scored')
+    .neq('id', s.id)
+    .not('total', 'is', null)
+    .order('total', { ascending: false })
+    .limit(1)
     .maybeSingle()
   if (bErr) throw new Error(bErr.message)
 
@@ -100,7 +109,7 @@ export async function getSession(id: string): Promise<SessionData | null> {
     endedAt: s.ended_at,
     threads,
     expected,
-    previousBest: best?.best_total ?? null,
+    previousBest: best?.total ?? null,
     report: report ? { id: report.id, resolvedAt: report.resolved_at } : null,
     serverNow: new Date().toISOString(),
   }

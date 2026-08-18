@@ -1,8 +1,9 @@
 import 'server-only'
 import { createAdminClient } from '@glagency/db'
+import { SCORE_MODEL } from '@/lib/ai/client'
 import { logAiCall } from '@/lib/ai/log'
 import { bossScoreSystemPrompt, formatTranscript, scoreSystemPrompt, type HistoryMessage } from '@/lib/ai/prompts'
-import { scoreBossThread, scoreThread, type ScoreResult } from '@/lib/ai/score'
+import { BOSS_PASS, scoreBossThread, scoreThread, type ScoreResult } from '@/lib/ai/score'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 
 /**
@@ -37,15 +38,17 @@ export async function scoreSessionById(sessionId: string, opts: { force?: boolea
   const scoringNotes = modSecrets?.scoring_notes ?? null
 
   // Contexte de notation par cas (solo : le cas ; défi : chaque solo rejoué), secrets compris.
-  const caseIds = kind === 'arena'
-    ? [...new Set(s.training_threads.map((t) => t.ref_case_id).filter((x): x is string => !!x))]
-    : [s.case_id]
-  const { data: cases, error: cErr } = await admin
-    .from('training_cases')
-    .select('id, context, objective, target_line, training_case_secrets(expected)')
-    .in('id', caseIds)
+  // Le boss ne note PAS sur un cas (barème en 6 étapes, contexte porté par le fan) → aucune requête.
+  const caseIds = kind === 'boss'
+    ? []
+    : kind === 'arena'
+      ? [...new Set(s.training_threads.map((t) => t.ref_case_id).filter((x): x is string => !!x))]
+      : [s.case_id]
+  const { data: cases, error: cErr } = caseIds.length
+    ? await admin.from('training_cases').select('id, context, objective, target_line, training_case_secrets(expected)').in('id', caseIds)
+    : { data: [], error: null }
   if (cErr) throw new Error(cErr.message)
-  const caseById = new Map(cases.map((c) => [c.id, c]))
+  const caseById = new Map((cases ?? []).map((c) => [c.id, c]))
   const bossFanIds = s.training_threads.map((t) => t.boss_fan_id).filter((x): x is string => !!x)
   const { data: fans, error: fErr } = bossFanIds.length
     ? await admin.from('training_case_boss_fans').select('id, name, persona, training_boss_fan_secrets(budget_cap, nego_where, meet_when)').in('id', bossFanIds)
@@ -68,27 +71,34 @@ export async function scoreSessionById(sessionId: string, opts: { force?: boolea
         .filter((m) => m.thread_id === t.id)
         .map((m) => ({ speaker: m.speaker as HistoryMessage['speaker'], body: m.body, mediaPrice: m.media_price }))
       const transcript = formatTranscript(history)
-      if (kind === 'boss') {
-        const f = t.boss_fan_id ? fanById.get(t.boss_fan_id) : undefined
-        if (!f) throw new Error('fan du boss introuvable')
-        const sec = Array.isArray(f.training_boss_fan_secrets) ? f.training_boss_fan_secrets[0] : f.training_boss_fan_secrets
-        r = await scoreBossThread({
-          system: bossScoreSystemPrompt({
-            name: f.name, persona: f.persona, budgetCap: sec?.budget_cap ?? null, negoWhere: sec?.nego_where ?? null, meetWhen: sec?.meet_when ?? null,
-          }),
-          transcript,
-        })
-      } else {
-        const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
-        if (!c) throw new Error('cas de notation introuvable')
-        const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
-        r = await scoreThread({
-          system: scoreSystemPrompt({
-            scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
-          }),
-          transcript,
-          axes,
-        })
+      try {
+        if (kind === 'boss') {
+          const f = t.boss_fan_id ? fanById.get(t.boss_fan_id) : undefined
+          if (!f) throw new Error('fan du boss introuvable')
+          const sec = Array.isArray(f.training_boss_fan_secrets) ? f.training_boss_fan_secrets[0] : f.training_boss_fan_secrets
+          r = await scoreBossThread({
+            system: bossScoreSystemPrompt({
+              name: f.name, persona: f.persona, budgetCap: sec?.budget_cap ?? null, negoWhere: sec?.nego_where ?? null, meetWhen: sec?.meet_when ?? null,
+            }),
+            transcript,
+          })
+        } else {
+          const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
+          if (!c) throw new Error('cas de notation introuvable')
+          const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
+          r = await scoreThread({
+            system: scoreSystemPrompt({
+              scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
+            }),
+            transcript,
+            axes,
+          })
+        }
+      } catch (err) {
+        // Notation ratée : tracée AVANT de relancer (miroir de sendMessage) — sans ça, un incident
+        // de notation était invisible dans training_ai_calls, donc absent du coût/fiabilité.
+        await logAiCall(admin, { sessionId, threadId: t.id, kind: 'score', model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
+        throw err
       }
       await logAiCall(admin, { sessionId, threadId: t.id, kind: 'score', model: r.model, usage: r.usage, latencyMs: r.latencyMs, ok: true })
     }
@@ -111,7 +121,10 @@ export async function scoreSessionById(sessionId: string, opts: { force?: boolea
     totals.push({ total: r.total, objective: r.objectiveReached })
   }
   const total = totals.length ? Math.round(totals.reduce((n, x) => n + x.total, 0) / totals.length) : 0
-  const objective = totals.length > 0 && totals.every((x) => x.objective)
+  // Objectif de la SESSION. Boss (spec §4) : réussi si la MOYENNE des 5 fans atteint 60 — exiger
+  // les 5 (`every`) rendait l'examen final quasi impossible et contredisait la règle du barème.
+  // Solo/défi : l'objectif du cas doit être atteint sur CHAQUE conversation.
+  const objective = kind === 'boss' ? totals.length > 0 && total >= BOSS_PASS : totals.length > 0 && totals.every((x) => x.objective)
   // status + total + objective + scored_at posés ENSEMBLE : c'est cet UPDATE qui déclenche le
   // trigger 0118 (when new.status = 'scored' and scored_at distinct) → bests + stats à jour.
   const { error: sErr } = await admin

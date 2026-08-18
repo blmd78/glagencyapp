@@ -8,10 +8,10 @@ import { revalidatePath } from 'next/cache'
 import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
-import { requireOwnSession, requireTrainee, revalidateSession } from './actions-shared'
+import { closeSessionIfNoOpenThread, requireOwnSession, requireTrainee, revalidateSession } from './actions-shared'
 import { reportInput, sessionIdInput, threadIdInput } from './schema'
 
-/** « Terminer » : ferme les threads ouverts (done), pose ended_at — la notation est appelée ensuite par le client. */
+/** « Terminer » : ferme les threads ouverts, pose ended_at — la notation est appelée ensuite par le client. */
 export async function endSession(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: sessionIdInput,
@@ -20,6 +20,16 @@ export async function endSession(raw: unknown): Promise<ActionResult> {
     handler: async ({ sessionId }) => {
       const { supabase, s } = await requireOwnSession(sessionId)
       if (s.status !== 'active') throw new BusinessError('Cette session est déjà terminée')
+      // Un thread JAMAIS joué (0 tour) ne part pas à la notation : `lost`/`abandon` vaut 0 sans
+      // appel IA (scoreSessionById n'appelle le modèle que sur les threads joués) — un défi où le
+      // chatter n'a ouvert qu'une conv ne facture pas 4 notations de transcriptions vides.
+      const { error: aErr } = await supabase
+        .from('training_threads')
+        .update({ status: 'lost', lost_reason: 'abandon', next_due_at: null })
+        .eq('session_id', sessionId)
+        .eq('status', 'open')
+        .eq('turns_used', 0)
+      if (aErr) throw new Error(aErr.message)
       const { error: tErr } = await supabase
         .from('training_threads')
         .update({ status: 'done', next_due_at: null })
@@ -100,7 +110,11 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
       const s = t?.training_sessions
       if (!t || !s || s.profile_id !== profile.id) throw new BusinessError('Session introuvable')
       if (s.status !== 'active') return { sessionStatus: s.status, sessionEnded: true }
-      if (t.status !== 'open') return { sessionStatus: s.status, sessionEnded: false }
+      // Thread déjà fermé (course avec un envoi, ou deux onglets) : rien à marquer, mais on rend
+      // l'état RÉEL de la session — un `false` en dur laissait le client sur une session terminée.
+      if (t.status !== 'open') {
+        return { sessionStatus: s.status, sessionEnded: await closeSessionIfNoOpenThread(supabase, s.id, new Date().toISOString()) }
+      }
       if (!t.next_due_at || Date.now() < new Date(t.next_due_at).getTime() - 2000) throw new BusinessError('Le temps n’est pas écoulé')
       const now = new Date().toISOString()
       const { error: lErr } = await supabase
@@ -116,13 +130,7 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
         sessionStatus = 'failed'
         sessionEnded = true
       } else {
-        const { data: open, error: oErr } = await supabase.from('training_threads').select('id').eq('session_id', s.id).eq('status', 'open').limit(1)
-        if (oErr) throw new Error(oErr.message)
-        if (!open?.length) {
-          const { error: eErr } = await supabase.from('training_sessions').update({ ended_at: now }).eq('id', s.id)
-          if (eErr) throw new Error(eErr.message)
-          sessionEnded = true
-        }
+        sessionEnded = await closeSessionIfNoOpenThread(supabase, s.id, now)
       }
       revalidateSession(s.id)
       return { sessionStatus, sessionEnded }

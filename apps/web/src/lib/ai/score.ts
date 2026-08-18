@@ -12,7 +12,9 @@ export type ScoreResult = {
 }
 
 const OBJECTIVE_CAP = 65
-const BOSS_PASS = 60
+/** Boss réussi (spec §4) : note ≥ 60 — par fan ET pour la session (moyenne des fans). Exporté :
+ *  lib/services/training-scoring s'en sert pour l'objectif de la SESSION boss. */
+export const BOSS_PASS = 60
 
 async function callStructured(system: string, transcript: string, schema: Record<string, unknown>) {
   const t0 = Date.now()

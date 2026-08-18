@@ -28,6 +28,28 @@ export async function requireOwnSession(sessionId: string) {
   return { supabase, s, profile }
 }
 
+export type Db = Awaited<ReturnType<typeof createClient>>
+
+/**
+ * Défi/boss : dès qu'aucun thread n'est plus `open`, la session est TERMINÉE (`ended_at`) — la
+ * notation suit. Une seule implémentation pour les trois chemins qui peuvent fermer le dernier
+ * thread : envoi réussi, timeout constaté à l'envoi, chrono écoulé signalé par le client.
+ * Rend `true` si la session vient d'être fermée (ou l'était déjà, faute de thread ouvert).
+ */
+export async function closeSessionIfNoOpenThread(supabase: Db, sessionId: string, nowIso: string): Promise<boolean> {
+  const { data: open, error } = await supabase
+    .from('training_threads')
+    .select('id')
+    .eq('session_id', sessionId)
+    .eq('status', 'open')
+    .limit(1)
+  if (error) throw new Error(error.message)
+  if (open?.length) return false
+  const { error: eErr } = await supabase.from('training_sessions').update({ ended_at: nowIso }).eq('id', sessionId)
+  if (eErr) throw new Error(eErr.message)
+  return true
+}
+
 export const revalidateSession = (id: string) => {
   revalidatePath(`/formation/session/${id}`)
   revalidatePath('/formation/ma-formation')

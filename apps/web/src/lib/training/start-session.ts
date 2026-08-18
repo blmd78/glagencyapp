@@ -16,11 +16,9 @@ import { createClient } from '@/lib/supabase/server'
 import { ARENA_OPENING_OFFSETS_S, type CaseKind, type CaseSnapshot, type MessageSpeaker } from '@/lib/types/training'
 
 const startInput = z.object({ caseId: z.uuid() })
-const ARENA_MAX_TURNS_FALLBACK = 8
-const BOSS_MAX_TURNS_FALLBACK = 32
 
 const iso = (d: Date) => d.toISOString()
-/** GLA seed : `me` = la créatrice = le chatter, `them` = le fan. */
+/** Ouvertures scriptées : `creator` en base (0113) = la créatrice, jouée par le chatter. */
 const speakerOf = (s: string): MessageSpeaker => (s === 'fan' ? 'fan' : 'chatter')
 
 /**
@@ -143,7 +141,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
           fanName: s.display_name,
           refCaseId: s.ref_case_id,
           bossFanId: null,
-          maxTurns: c.max_turns || ARENA_MAX_TURNS_FALLBACK,
+          maxTurns: c.max_turns,
           openings: (refMsgs ?? []).filter((m) => m.case_id === s.ref_case_id).map((m) => ({ speaker: speakerOf(m.speaker), body: m.body })),
           offsetS: ARENA_OPENING_OFFSETS_S[i] ?? 0,
         }))
@@ -153,7 +151,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
           fanName: f.name,
           refCaseId: null,
           bossFanId: f.id,
-          maxTurns: c.max_turns || BOSS_MAX_TURNS_FALLBACK,
+          maxTurns: c.max_turns,
           openings: [{ speaker: 'fan' as const, body: f.opening_message }],
           offsetS: ARENA_OPENING_OFFSETS_S[i] ?? 0,
         }))

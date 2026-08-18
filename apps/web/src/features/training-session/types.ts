@@ -70,7 +70,7 @@ export interface SessionData {
   threads: SessionThread[]
   /** « Ce qui était attendu » — révélé APRÈS notation (solo), sinon null. */
   expected: string | null
-  /** Meilleur total précédent du chatter sur ce cas (record ?), null si première fois. */
+  /** Meilleur total des AUTRES sessions notées du chatter sur ce cas (record à battre), null si première fois. */
   previousBest: number | null
   report: { id: string; resolvedAt: string | null } | null
   /** Horloge serveur (ISO) : les timers client se calent dessus (révélation, chrono). */
