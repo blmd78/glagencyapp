@@ -32,24 +32,32 @@ export function buildScoreJsonSchema(axes: ScoreAxis[]) {
   }
 }
 
+// Les chaînes sont TRONQUÉES (pas rejetées) au-delà de leur longueur max : une notation payante
+// ne doit pas échouer pour un débordement de texte du modèle, seul un type/une clé manquante doit.
+const truncated = (max: number) => z.string().transform((s) => s.slice(0, max))
 export const momentZod = z.object({
-  cite: z.string().max(500),
+  cite: truncated(500),
   type: z.enum(['good', 'bad']),
-  probleme: z.string().max(500),
-  indice: z.string().max(500),
+  probleme: truncated(500),
+  indice: truncated(500),
 })
 export type ScoreMoment = z.infer<typeof momentZod>
 
+/** Une note d'axe hors [0, 25] est CLAMPÉE (pas rejetée) : seul un type non-numérique fait échouer. */
+const clampedAxisScore = z.number().transform((n) => Math.max(0, Math.min(25, Math.round(n))))
+
 export function buildScoreZod(axes: ScoreAxis[]) {
   const shape: Record<string, z.ZodTypeAny> = {}
-  for (const a of axes) shape[a.key] = z.number().int().min(0).max(25)
+  for (const a of axes) shape[a.key] = clampedAxisScore
   return z.object({
     ...shape,
     total: z.number().int().min(0).max(100),
     objectif_atteint: z.boolean(),
     plafond: z.number().int().min(0).max(100).optional(),
-    moments: z.array(momentZod).max(3),
-    commentaire: z.string().max(1500),
+    // Le modèle peut renvoyer plus de 3 moments malgré le schéma structuré : on tronque plutôt
+    // que de rejeter toute la notation pour un débordement de tableau.
+    moments: z.array(momentZod).transform((arr) => arr.slice(0, 3)),
+    commentaire: truncated(1500),
   })
 }
 
@@ -69,13 +77,15 @@ export const bossScoreJsonSchema = {
 }
 // Clés écrites à la main (pas de Object.fromEntries) : TS ne propage pas les littéraux de BOSS_STEPS
 // à travers un spread généré dynamiquement, et scoreBossThread indexe parsed[s.key] statiquement.
+// Une note d'étape hors [0, 100] est CLAMPÉE (pas rejetée), null (étape non jouée) traverse intact.
+const clampedStepScore = z.number().nullable().transform((n) => (n === null ? null : Math.max(0, Math.min(100, Math.round(n)))))
 export const bossScoreZod = z.object({
-  setting: z.number().int().min(0).max(100).nullable(),
-  transition: z.number().int().min(0).max(100).nullable(),
-  sexting: z.number().int().min(0).max(100).nullable(),
-  rencontre: z.number().int().min(0).max(100).nullable(),
-  nego: z.number().int().min(0).max(100).nullable(),
-  relationnel: z.number().int().min(0).max(100).nullable(),
+  setting: clampedStepScore,
+  transition: clampedStepScore,
+  sexting: clampedStepScore,
+  rencontre: clampedStepScore,
+  nego: clampedStepScore,
+  relationnel: clampedStepScore,
   note: z.number().int().min(0).max(100),
-  commentaire: z.string().max(2000),
+  commentaire: truncated(2000),
 })

@@ -16,16 +16,22 @@ const BOSS_PASS = 60
 
 async function callStructured(system: string, transcript: string, schema: Record<string, unknown>) {
   const t0 = Date.now()
-  const res = await anthropic().messages.create({
-    model: SCORE_MODEL,
-    max_tokens: 1500,
-    thinking: { type: 'adaptive' },
-    output_config: { effort: 'low', format: { type: 'json_schema', schema } },
-    system,
-    messages: [{ role: 'user', content: `Transcription de la conversation :\n\n${transcript}` }],
-  })
+  const res = await anthropic().messages.create(
+    {
+      model: SCORE_MODEL,
+      // 2500 : les tokens de réflexion adaptative comptent DANS max_tokens (c'est un plafond, pas
+      // une dépense) — 1500 coupait parfois la sortie structurée avant le JSON final.
+      max_tokens: 2500,
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'low', format: { type: 'json_schema', schema } },
+      system,
+      messages: [{ role: 'user', content: `Transcription de la conversation :\n\n${transcript}` }],
+    },
+    { timeout: 60_000 },
+  )
   const latencyMs = Date.now() - t0
   if (res.stop_reason === 'refusal') throw new Error('Notation refusée par le modèle')
+  if (res.stop_reason === 'max_tokens') throw new Error('Notation tronquée (max_tokens)')
   const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('')
   const usage: AiUsage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, cacheReadTokens: res.usage.cache_read_input_tokens ?? 0 }
   return { json: JSON.parse(text) as unknown, usage, latencyMs, model: res.model }
