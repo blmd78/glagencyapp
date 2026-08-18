@@ -2590,6 +2590,48 @@ export type Database = {
           },
         ]
       }
+      training_case_bests: {
+        Row: {
+          attempts: number
+          best_objective: boolean
+          best_total: number
+          case_id: string
+          last_at: string
+          profile_id: string
+        }
+        Insert: {
+          attempts?: number
+          best_objective?: boolean
+          best_total: number
+          case_id: string
+          last_at: string
+          profile_id: string
+        }
+        Update: {
+          attempts?: number
+          best_objective?: boolean
+          best_total?: number
+          case_id?: string
+          last_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_bests_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_case_bests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_case_boss_fans: {
         Row: {
           age: number | null
@@ -2984,6 +3026,56 @@ export type Database = {
             foreignKeyName: "training_modules_updated_by_fkey"
             columns: ["updated_by"]
             isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_profile_stats: {
+        Row: {
+          active_days: number
+          avg_total: number | null
+          boss_best: number | null
+          boss_done: boolean
+          cases_done: number
+          last_active_day: string | null
+          last_session_at: string | null
+          points: number
+          profile_id: string
+          streak_days: number
+          updated_at: string
+        }
+        Insert: {
+          active_days?: number
+          avg_total?: number | null
+          boss_best?: number | null
+          boss_done?: boolean
+          cases_done?: number
+          last_active_day?: string | null
+          last_session_at?: string | null
+          points?: number
+          profile_id: string
+          streak_days?: number
+          updated_at?: string
+        }
+        Update: {
+          active_days?: number
+          avg_total?: number | null
+          boss_best?: number | null
+          boss_done?: boolean
+          cases_done?: number
+          last_active_day?: string | null
+          last_session_at?: string | null
+          points?: number
+          profile_id?: string
+          streak_days?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_profile_stats_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -3399,6 +3491,62 @@ export type Database = {
           p_profile_id: string
           p_shift: string
         }
+        Returns: undefined
+      }
+      training_ai_cost: {
+        Args: { p_since: string }
+        Returns: {
+          cache_read_tokens: number
+          calls: number
+          day: string
+          input_tokens: number
+          kind: string
+          model: string
+          output_tokens: number
+        }[]
+      }
+      training_axis_profile: {
+        Args: { p_profile: string }
+        Returns: {
+          avg_score: number
+          axis_key: string
+          axis_name: string
+          n: number
+        }[]
+      }
+      training_overview_roster: {
+        Args: never
+        Returns: {
+          arrived_at: string
+          avg_total: number
+          boss_best: number
+          boss_done: boolean
+          cases_done: number
+          display_name: string
+          is_new: boolean
+          last_session_at: string
+          models: string[]
+          points: number
+          profile_id: string
+          sessions_scored: number
+          streak_days: number
+        }[]
+      }
+      training_ranking: {
+        Args: never
+        Returns: {
+          avg_total: number
+          boss_done: boolean
+          cases_done: number
+          display_name: string
+          is_new: boolean
+          points: number
+          profile_id: string
+          streak_days: number
+        }[]
+      }
+      training_refresh_stats: {
+        Args: { p_at: string; p_case: string; p_profile: string }
         Returns: undefined
       }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
