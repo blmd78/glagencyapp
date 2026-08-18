@@ -225,6 +225,15 @@ Les lignes **inactives** restent lisibles par la RLS ; le **filtrage `active`** 
 dans les services de lecture chatter (une page Modules ne montre que l'actif), le
 Catalogue admin voit tout.
 
+**Limite connue (revue finale 2026-08-17)** : la RLS est **par ligne**, pas par colonne — un
+membre ayant le droit de face `formation` peut lire `fan_brief`, `expected`, `scoring_notes`
+et les champs cachés des fans du boss via l'API PostgREST directe (token en cookie, clé
+publishable côté client). La projection publique de `features/training-modules` protège
+l'UI, pas la donnée. Tolérable pour ce premier incrément (triche à l'entraînement, ni argent
+ni données clients), **à durcir avec le moteur IA** (incrément sessions) : table
+`training_case_secrets` (fan_brief, expected, scoring_notes, champs cachés des fans) en RLS
+`is_admin()`, lue par le moteur côté serveur — migration dédiée.
+
 ## 4. Seed (migration `0115_training_catalog_seed.sql`)
 
 Généré par `packages/db/scripts/gen-training-seed.mjs <chemin/formation.json>` (stdout →

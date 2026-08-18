@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import { cn } from '@/lib/utils'
-import { duplicateCase, moveCase, toggleCase } from '../actions'
+import { duplicateCase, moveCase, toggleCase } from '../actions-cases'
 import type { CatalogCase, CatalogModule } from '../types'
 
 /**

@@ -51,7 +51,9 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `training_*` (0113 schéma, 0114 index, 0115 seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
-  publique — jamais `fan_brief`/`expected` côté chatter), droits `frm-suivi` (Overview,
+  publique — jamais `fan_brief`/`expected` côté chatter — projection APPLICATIVE seulement :
+  la RLS 0113 est par ligne, durcissement `training_case_secrets` prévu avec le moteur IA),
+  droits `frm-suivi` (Overview,
   encadrement) / `frm-entrainement` (Ma formation, chatter), Modules ouvert aux deux
   (`NavItem.anyOf`, `requireAccess([...])`) ; Ma formation / Overview sont des placeholders
   jusqu'aux sessions). Une seule source : `config/workspaces.ts`
