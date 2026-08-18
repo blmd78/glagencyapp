@@ -1690,8 +1690,8 @@ export async function getSession(id: string): Promise<SessionData | null> {
 
 // Démarrer (ou reprendre) une session d'entraînement — PARTAGÉ hors feature (Modules « Jouer »,
 // session « Rejouer », Ma formation « Continuer ») : la frontière ESLint interdit le cross-feature,
-// d'où lib/ (précédent : lib/impersonation/actions.ts). Garde : droit Entraînement, pas d'impersonation. Garde : droit Entraînement (frm-entrainement),
-// propriétaire de la session (RLS + vérif explicite), refus en impersonation. Le fan (IA) est
+// d'où lib/ (précédent : lib/impersonation/actions.ts). Garde : droit Entraînement (frm-entrainement),
+// refus en impersonation ; RLS = propriétaire. Aucun appel IA ici (les ouvertures sont scriptées).
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
