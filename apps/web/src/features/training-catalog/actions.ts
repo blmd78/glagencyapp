@@ -34,7 +34,6 @@ export async function saveModule(raw: unknown): Promise<ActionResult<{ code: str
         description: d.description,
         objective_label: d.objectiveLabel,
         course_md: d.courseMd,
-        scoring_notes: d.scoringNotes,
         ...stampBy(admin.id),
       }
       let moduleId: string
@@ -67,6 +66,11 @@ export async function saveModule(raw: unknown): Promise<ActionResult<{ code: str
           if (iErr) throw new Error(iErr.message)
           moduleId = created.id
         }
+        // Secrets (table admin, RLS `*_admin`) : le client session d'un admin passe.
+        const { error: sErr } = await supabase
+          .from('training_module_secrets')
+          .upsert({ module_id: moduleId, scoring_notes: d.scoringNotes }, { onConflict: 'module_id' })
+        if (sErr) throw new Error(sErr.message)
         await syncAxes(supabase, moduleId, d.axes)
         await syncSections(supabase, moduleId, d.sections)
       } finally {

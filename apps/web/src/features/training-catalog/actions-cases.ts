@@ -56,8 +56,6 @@ export async function saveCase(raw: unknown): Promise<ActionResult> {
         objective: d.objective,
         target_line: d.targetLine,
         fan_name: solo ? d.fanName : null,
-        fan_brief: solo ? d.fanBrief : null,
-        expected: solo ? d.expected : null,
         ...stampBy(admin.id),
       }
       let caseId: string
@@ -90,6 +88,16 @@ export async function saveCase(raw: unknown): Promise<ActionResult> {
             .single()
           if (iErr) throw new Error(iErr.message)
           caseId = created.id
+        }
+        // Secrets (table admin) : solo → brief + attendu obligatoires (Zod) ; autres sortes → ligne supprimée.
+        if (solo) {
+          const { error: secErr } = await supabase
+            .from('training_case_secrets')
+            .upsert({ case_id: caseId, fan_brief: d.fanBrief, expected: d.expected }, { onConflict: 'case_id' })
+          if (secErr) throw new Error(secErr.message)
+        } else {
+          const { error: secErr } = await supabase.from('training_case_secrets').delete().eq('case_id', caseId)
+          if (secErr) throw new Error(secErr.message)
         }
         await insertChildren(supabase, caseId, d)
       } finally {
@@ -178,7 +186,10 @@ export async function duplicateCase(raw: unknown): Promise<ActionResult> {
       const { data: src, error } = await supabase
         .from('training_cases')
         // `!case_id` : deux FK de arena_slots vers training_cases → indice obligatoire (PGRST201).
-        .select('*, training_case_messages(*), training_case_arena_slots!case_id(*), training_case_boss_fans(*)')
+        // Secrets (table admin) inclus : recopiés eux aussi ci-dessous.
+        .select(
+          '*, training_case_messages(*), training_case_arena_slots!case_id(*), training_case_boss_fans(*, training_boss_fan_secrets(*)), training_case_secrets(fan_brief, expected)',
+        )
         .eq('id', id)
         .maybeSingle()
       if (error) throw new Error(error.message)
@@ -209,8 +220,6 @@ export async function duplicateCase(raw: unknown): Promise<ActionResult> {
             objective: src.objective,
             target_line: src.target_line,
             fan_name: src.fan_name,
-            fan_brief: src.fan_brief,
-            expected: src.expected,
             position: (last?.position ?? -10) + 10,
             active: false,
             ...stampBy(admin.id),
@@ -219,6 +228,13 @@ export async function duplicateCase(raw: unknown): Promise<ActionResult> {
           .single()
         if (iErr) throw new Error(iErr.message)
         const caseId = created.id
+        // Secrets du cas (table admin) : recopiés seulement s'il y en avait (solo).
+        if (src.training_case_secrets) {
+          const { error: e } = await supabase
+            .from('training_case_secrets')
+            .insert({ case_id: caseId, fan_brief: src.training_case_secrets.fan_brief, expected: src.training_case_secrets.expected })
+          if (e) throw new Error(e.message)
+        }
         if (src.training_case_messages.length) {
           const { error: e } = await supabase.from('training_case_messages').insert(
             src.training_case_messages.map((m) => ({ case_id: caseId, position: m.position, speaker: m.speaker, body: m.body })),
@@ -232,27 +248,40 @@ export async function duplicateCase(raw: unknown): Promise<ActionResult> {
           if (e) throw new Error(e.message)
         }
         if (src.training_case_boss_fans.length) {
-          const { error: e } = await supabase.from('training_case_boss_fans').insert(
-            src.training_case_boss_fans.map((f) => ({
-              case_id: caseId,
-              position: f.position,
-              code: f.code,
-              name: f.name,
-              age: f.age,
-              job: f.job,
-              city: f.city,
-              color: f.color,
-              persona: f.persona,
-              opening_message: f.opening_message,
-              budget_cap: f.budget_cap,
-              nego_threshold: f.nego_threshold,
-              nego_where: f.nego_where,
-              meet_when: f.meet_when,
-              meet_where: f.meet_where,
-              derails: f.derails,
-            })),
-          )
+          const { data: createdFans, error: e } = await supabase
+            .from('training_case_boss_fans')
+            .insert(
+              src.training_case_boss_fans.map((f) => ({
+                case_id: caseId,
+                position: f.position,
+                code: f.code,
+                name: f.name,
+                age: f.age,
+                job: f.job,
+                city: f.city,
+                color: f.color,
+                persona: f.persona,
+                opening_message: f.opening_message,
+              })),
+            )
+            .select('id, code')
           if (e) throw new Error(e.message)
+          // Secrets des fans (table admin) : associés par code — unique dans le cas.
+          const byCode = new Map(src.training_case_boss_fans.map((f) => [f.code, f.training_boss_fan_secrets]))
+          const secrets = (createdFans ?? []).map((row) => {
+            const s = byCode.get(row.code)
+            return {
+              fan_id: row.id,
+              budget_cap: s?.budget_cap ?? null,
+              nego_threshold: s?.nego_threshold ?? null,
+              nego_where: s?.nego_where ?? null,
+              meet_when: s?.meet_when ?? null,
+              meet_where: s?.meet_where ?? null,
+              derails: s?.derails ?? null,
+            }
+          })
+          const { error: sErr } = await supabase.from('training_boss_fan_secrets').insert(secrets)
+          if (sErr) throw new Error(sErr.message)
         }
       } finally {
         revalidateCatalog()

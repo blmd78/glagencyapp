@@ -4,6 +4,10 @@
 //   node packages/db/scripts/gen-training-seed.mjs ~/Documents/good-luck-agency/formation.json \
 //     > packages/db/supabase/migrations/0115_training_catalog_seed.sql
 // Règles de conversion : spec 2026-08-17-formation-catalogue-design.md §4. Tests : node --test.
+// NOTE : génère la migration 0115 pour le SCHÉMA 0113 (colonnes fan_brief/expected/scoring_notes/
+// champs cachés dans les tables principales). Depuis 0116 ces colonnes vivent dans
+// training_*_secrets : ne pas rejouer ce script sur un schéma ≥ 0116 (il resterait à adapter —
+// YAGNI tant que le contenu GLA n'est pas ré-importé).
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { pathToFileURL } from 'node:url'

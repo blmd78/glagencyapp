@@ -49,15 +49,17 @@ export async function insertChildren(supabase: Db, caseId: string, d: CaseInput)
         color: f.color,
         persona: f.persona,
         opening_message: f.openingMessage,
-        budget_cap: f.budgetCap,
-        nego_threshold: f.negoThreshold,
-        nego_where: f.negoWhere,
-        meet_when: f.meetWhen,
-        meet_where: f.meetWhere,
-        derails: f.derails,
       }
     })
-    const { error } = await supabase.from('training_case_boss_fans').insert(rows)
+    const { data: created, error } = await supabase.from('training_case_boss_fans').insert(rows).select('id, code')
     if (error) throw new Error(error.message)
+    // Secrets (table admin) : associés au fan créé par `code` — unique dans ce cas (uniqueSlug ci-dessus).
+    const bySlug = new Map(d.fans.map((f, i) => [rows[i].code, f]))
+    const secrets = (created ?? []).map((row) => {
+      const f = bySlug.get(row.code)!
+      return { fan_id: row.id, budget_cap: f.budgetCap, nego_threshold: f.negoThreshold, nego_where: f.negoWhere, meet_when: f.meetWhen, meet_where: f.meetWhere, derails: f.derails }
+    })
+    const { error: sErr } = await supabase.from('training_boss_fan_secrets').insert(secrets)
+    if (sErr) throw new Error(sErr.message)
   }
 }
