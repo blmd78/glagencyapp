@@ -1,0 +1,116 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { sendMessage } from '../actions'
+import { timeoutThread } from '../actions-lifecycle'
+import type { ComposerInput } from '../schema'
+import type { SessionData, SessionThread } from '../types'
+import { SessionHeader } from './session-header'
+import { ThreadPanel } from './thread-panel'
+import { ThreadTabs } from './thread-tabs'
+import { useNow } from './use-now'
+import { useScoring } from './use-scoring'
+
+/**
+ * Session ACTIVE : état local des threads (messages, statut, chrono) alimenté par les retours des
+ * actions ; horloge alignée serveur ; fin de session → notation → refresh (le RSC affiche le résultat).
+ * Une seule conversation en solo ; onglets en défi / boss.
+ */
+export function SessionView({ data }: { data: SessionData }) {
+  const router = useRouter()
+  const now = useNow(data.serverNow)
+  const [threads, setThreads] = useState<SessionThread[]>(data.threads)
+  const [current, setCurrent] = useState(data.threads[0]?.id ?? '')
+  const [ended, setEnded] = useState(!!data.endedAt)
+  const { scoring, error: scoreError, run: runScoring } = useScoring(data.id)
+  const firing = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (ended) void runScoring()
+  }, [ended, runScoring])
+
+  const patch = useCallback((threadId: string, f: (t: SessionThread) => SessionThread) => {
+    setThreads((ts) => ts.map((t) => (t.id === threadId ? f(t) : t)))
+  }, [])
+  // `string` et non `SessionStatus` : `timeoutThread` rend un statut non typé (`string`).
+  const onSessionEnd = useCallback(
+    (status: string) => {
+      if (status === 'failed') router.refresh()
+      else setEnded(true)
+    },
+    [router],
+  )
+
+  const handleSend = async (threadId: string, input: ComposerInput): Promise<boolean> => {
+    const r = await sendMessage({ threadId, ...input })
+    if (!r.success) {
+      toast.error(r.error)
+      // Le serveur a pu réarmer le chrono (panne IA) ou fermer le thread (trop lent, course) :
+      // on resynchronise plutôt que de rejouer un état périmé. Le texte saisi reste (return false).
+      if (r.error.startsWith('Trop lent') || r.error.includes('terminée') || r.error.includes('a pas répondu')) router.refresh()
+      return false
+    }
+    const d = r.data
+    patch(threadId, (t) => ({
+      ...t,
+      messages: [...t.messages, d.chatter, ...(d.fan ? [d.fan] : [])],
+      status: d.thread.status,
+      lostReason: d.thread.lostReason,
+      turnsUsed: d.thread.turnsUsed,
+      nextDueAt: d.thread.nextDueAt,
+    }))
+    if (d.sessionEnded) onSessionEnd(d.sessionStatus)
+    return true
+  }
+
+  const handleTimeout = useCallback(
+    async (threadId: string) => {
+      if (firing.current.has(threadId)) return
+      firing.current.add(threadId)
+      const r = await timeoutThread({ threadId })
+      if (!r.success) {
+        firing.current.delete(threadId)
+        return
+      }
+      patch(threadId, (t) => ({ ...t, status: 'lost', lostReason: 'timeout', nextDueAt: null }))
+      if (r.data.sessionEnded) onSessionEnd(r.data.sessionStatus)
+    },
+    [onSessionEnd, patch],
+  )
+
+  if (ended) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border p-10 text-center">
+        <p className="text-sm text-muted-foreground">{scoring ? 'Notation en cours…' : 'Session terminée'}</p>
+        {scoreError && (
+          <>
+            <p className="text-sm">{scoreError}</p>
+            <Button size="sm" onClick={() => void runScoring()}>
+              Relancer la notation
+            </Button>
+          </>
+        )}
+      </div>
+    )
+  }
+  const thread = threads.find((t) => t.id === current) ?? threads[0]
+  return (
+    <div className="flex flex-col gap-4">
+      <SessionHeader data={data} threads={threads} onEnded={() => setEnded(true)} />
+      {threads.length > 1 && <ThreadTabs threads={threads} current={thread.id} now={now} onSelect={setCurrent} />}
+      {thread && (
+        <ThreadPanel
+          key={thread.id}
+          thread={thread}
+          kind={data.kind}
+          now={now}
+          onSend={(v) => handleSend(thread.id, v)}
+          onTimeout={handleTimeout}
+        />
+      )}
+    </div>
+  )
+}

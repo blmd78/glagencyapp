@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { requireAccess } from '@/lib/auth'
+import { hasPageAccess, requireAccess } from '@/lib/auth'
 import { getModule } from '@/features/training-modules/services/get-module'
 import { ModuleTemplate } from '@/features/training-modules/ModuleTemplate'
 import { ModuleSkeleton } from '@/features/training-modules/components/module-skeleton'
@@ -14,18 +14,20 @@ export default async function ModulePage({
   params: Promise<{ code: string }>
   searchParams: Promise<{ vue?: string }>
 }) {
-  const [, { code }, { vue }] = await Promise.all([requireAccess(['frm-entrainement', 'frm-suivi']), params, searchParams])
+  const [profile, { code }, { vue }] = await Promise.all([requireAccess(['frm-entrainement', 'frm-suivi']), params, searchParams])
+  // « Jouer » n'appartient qu'au droit Entraînement — un encadrant Suivi seul lit les cas.
+  const canPlay = hasPageAccess(profile, 'frm-entrainement')
   // Le h1 est le titre du module → il streame avec la donnée (pas de h1 immédiat séparable).
   // `modulePromise`, pas `module` : ce nom est réservé (CommonJS) — eslint(@next/next/no-assign-module-variable).
   const modulePromise = getModule(code)
   return (
     <Suspense fallback={<ModuleSkeleton />}>
-      <ModuleContent module={modulePromise} vue={vue === 'cas' ? 'cas' : 'cours'} />
+      <ModuleContent module={modulePromise} vue={vue === 'cas' ? 'cas' : 'cours'} canPlay={canPlay} />
     </Suspense>
   )
 }
 
-async function ModuleContent({ module, vue }: { module: Promise<ModuleDetail | null>; vue: ModuleVue }) {
+async function ModuleContent({ module, vue, canPlay }: { module: Promise<ModuleDetail | null>; vue: ModuleVue; canPlay: boolean }) {
   const m = await module
   if (!m) notFound()
   return (
@@ -34,7 +36,7 @@ async function ModuleContent({ module, vue }: { module: Promise<ModuleDetail | n
         {m.emoji && <span aria-hidden>{m.emoji}</span>}
         {m.title}
       </h1>
-      <ModuleTemplate module={m} vue={vue} />
+      <ModuleTemplate module={m} vue={vue} canPlay={canPlay} />
     </div>
   )
 }

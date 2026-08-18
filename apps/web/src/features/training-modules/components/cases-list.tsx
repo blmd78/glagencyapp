@@ -1,3 +1,4 @@
+import { PlayButton } from '@/components/training/play-button'
 import { Badge } from '@/components/ui/badge'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { ModuleDetail, PublicCase } from '../types'
@@ -7,8 +8,9 @@ import type { ModuleDetail, PublicCase } from '../types'
  * section (dans l'ordre du module), puis par position ; les cas sans section sous « Autres cas »
  * s'il y a des sections, à plat sinon ; le défi simultané en dernier, à part ; un module Boss =
  * son cas boss avec ses fans côté visible. Zéro badge de progression, zéro médaille.
+ * `canPlay` = droit Entraînement : un encadrant Suivi seul voit les cas SANS bouton « Jouer ».
  */
-export function CasesList({ module }: { module: ModuleDetail }) {
+export function CasesList({ module, canPlay }: { module: ModuleDetail; canPlay: boolean }) {
   const solos = module.cases.filter((c) => c.kind === 'solo')
   const arenas = module.cases.filter((c) => c.kind === 'arena')
   const bosses = module.cases.filter((c) => c.kind === 'boss')
@@ -38,7 +40,7 @@ export function CasesList({ module }: { module: ModuleDetail }) {
             </div>
           )}
           <ul className="flex flex-col gap-2">
-            {g.cases.map((c) => <CaseRow key={c.id} c={c} />)}
+            {g.cases.map((c) => <CaseRow key={c.id} c={c} canPlay={canPlay} />)}
           </ul>
         </section>
       ))}
@@ -46,7 +48,7 @@ export function CasesList({ module }: { module: ModuleDetail }) {
         <section className="flex flex-col gap-3">
           <h3 className="text-base font-semibold">Défi simultané</h3>
           <ul className="flex flex-col gap-2">
-            {arenas.map((c) => <CaseRow key={c.id} c={c} />)}
+            {arenas.map((c) => <CaseRow key={c.id} c={c} canPlay={canPlay} />)}
           </ul>
         </section>
       )}
@@ -56,6 +58,8 @@ export function CasesList({ module }: { module: ModuleDetail }) {
           <p className="text-sm text-muted-foreground">
             {c.bossFans.length} fans en parallèle · {c.maxTurns} messages max par fan{c.reactionMaxS ? ` · ${c.reactionMaxS} s pour répondre` : ''}
           </p>
+          {/* Le verrou « 60/100 de moyenne » est appliqué par `startSession` → toast métier. */}
+          {canPlay && <PlayButton caseId={c.id} label="Affronter le boss" className="w-fit" />}
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {c.bossFans.map((f) => (
               <li key={f.id} className="rounded-lg border p-3 text-sm">
@@ -75,12 +79,13 @@ export function CasesList({ module }: { module: ModuleDetail }) {
   )
 }
 
-function CaseRow({ c }: { c: PublicCase }) {
+function CaseRow({ c, canPlay }: { c: PublicCase; canPlay: boolean }) {
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-sm">
       <span className="font-medium">{c.title}</span>
       {c.phase && <span className="text-muted-foreground">{c.phase}</span>}
       <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+        {canPlay && <PlayButton caseId={c.id} />}
         {c.kind !== 'solo' && <Badge variant="secondary">{CASE_KIND_LABELS[c.kind]}</Badge>}
         {c.isSale && <Badge variant="outline">vente</Badge>}
         <span className="tabular-nums">diff. {c.difficulty}/10</span>
