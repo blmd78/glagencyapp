@@ -52,11 +52,17 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
   publique — jamais `fan_brief`/`expected` côté chatter — projection APPLICATIVE seulement :
-  la RLS 0113 est par ligne, durcissement `training_case_secrets` prévu avec le moteur IA),
-  droits `frm-suivi` (Overview,
-  encadrement) / `frm-entrainement` (Ma formation, chatter), Modules ouvert aux deux
-  (`NavItem.anyOf`, `requireAccess([...])`) ; Ma formation / Overview sont des placeholders
-  jusqu'aux sessions). Une seule source : `config/workspaces.ts`
+  la RLS 0113 est par ligne, secrets durcis en tables admin-only `training_case_secrets` /
+  `training_module_secrets` / `training_boss_fan_secrets`, 0116). **Entraînement** :
+  sessions/threads/messages/scores/signalements/`training_ai_calls` (0117), stats/classement
+  (0118-0120) — moteur IA en `lib/ai/` uniquement (fan Haiku 4.5, notation Sonnet 5, tracé
+  dans `training_ai_calls`), **aucun streaming / Route Handler**, Server Actions partout.
+  `startSession`, partagé par 3 features (Modules, session, Ma formation), vit en
+  `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent
+  `lib/impersonation/actions.ts`. Migrations 0116-0120 poussées **UAT seulement**, à
+  recetter. Droits `frm-suivi` (Overview,
+  encadrement) / `frm-entrainement` (Ma formation, session, chatter), Modules ouvert aux deux
+  (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`
   (`WORKSPACES`, type `WorkspaceId`). La face active se déduit du `pathname`
   (`workspaceForPath`) ; la sidebar (`AppSidebar` + `WorkspaceSwitcher`) affiche la nav de
   cette face. Face secondaire = droit de face unique (`marketing`, `formation`) + slugs

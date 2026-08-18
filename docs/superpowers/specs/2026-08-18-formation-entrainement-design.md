@@ -1,6 +1,7 @@
 # Formation — Entraînement (moteur IA, sessions, progression, overview) — design
 
-Date : 2026-08-18 · Statut : validé en chat, à relire · Incrément 2 de la face **Formation**
+Date : 2026-08-18 · Statut : implémenté sur `feature/formation-catalogue`, migrations
+0116-0120 UAT seulement, à recetter · Incrément 2 de la face **Formation**
 (après le Catalogue, spec `2026-08-17-formation-catalogue-design.md`, branche
 `feature/formation-catalogue` — on continue sur la même branche, rien n'est mergé).
 

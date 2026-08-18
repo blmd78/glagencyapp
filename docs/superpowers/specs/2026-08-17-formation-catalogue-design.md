@@ -234,6 +234,10 @@ ni données clients), **à durcir avec le moteur IA** (incrément sessions) : ta
 `training_case_secrets` (fan_brief, expected, scoring_notes, champs cachés des fans) en RLS
 `is_admin()`, lue par le moteur côté serveur — migration dédiée.
 
+**Fait** : secrets déplacés en tables admin-only dans la migration `0116`
+(`training_case_secrets`, `training_module_secrets`, `training_boss_fan_secrets`) — voir
+`docs/superpowers/specs/2026-08-18-formation-entrainement-design.md`.
+
 ## 4. Seed (migration `0115_training_catalog_seed.sql`)
 
 Généré par `packages/db/scripts/gen-training-seed.mjs <chemin/formation.json>` (stdout →
