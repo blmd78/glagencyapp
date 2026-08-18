@@ -33,6 +33,12 @@ describe('schéma de notation (module)', () => {
     delete missingAxis.naturel
     expect(z.safeParse(missingAxis).success).toBe(false)
   })
+  it('`total` hors bornes traverse (recalculé côté serveur) : une notation payante ne rate pas sur une addition du modèle', () => {
+    const z = buildScoreZod(axes)
+    const ok = { naturel: 20, lecture: 15, total: 35, objectif_atteint: true, moments: [], commentaire: 'c' }
+    expect(z.safeParse({ ...ok, total: 140 }).success).toBe(true)
+    expect(z.safeParse({ ...ok, total: 87.5 }).success).toBe(true)
+  })
 })
 
 describe('schéma de notation (boss)', () => {
@@ -45,5 +51,8 @@ describe('schéma de notation (boss)', () => {
     const clamped = bossScoreZod.safeParse({ setting: 150, transition: null, sexting: null, rencontre: null, nego: null, relationnel: null, note: 70, commentaire: 'c' })
     expect(clamped.success).toBe(true)
     expect(clamped.data?.setting).toBe(100)
+
+    // `note` : recalculée par scoreBossThread → hors bornes, elle traverse quand même.
+    expect(bossScoreZod.safeParse({ setting: 70, transition: null, sexting: null, rencontre: null, nego: null, relationnel: null, note: 140, commentaire: 'c' }).success).toBe(true)
   })
 })

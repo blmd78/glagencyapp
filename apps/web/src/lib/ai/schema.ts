@@ -51,7 +51,10 @@ export function buildScoreZod(axes: ScoreAxis[]) {
   for (const a of axes) shape[a.key] = clampedAxisScore
   return z.object({
     ...shape,
-    total: z.number().int().min(0).max(100),
+    // `total` et `plafond` sont RECALCULÉS côté serveur (scoreThread : somme des axes + plafond) :
+    // la valeur du modèle n'est jamais utilisée telle quelle → aucune borne, une notation PAYANTE
+    // ne doit pas échouer parce que le modèle a mal additionné.
+    total: z.number(),
     objectif_atteint: z.boolean(),
     plafond: z.number().int().min(0).max(100).optional(),
     // Le modèle peut renvoyer plus de 3 moments malgré le schéma structuré : on tronque plutôt
@@ -86,6 +89,8 @@ export const bossScoreZod = z.object({
   rencontre: clampedStepScore,
   nego: clampedStepScore,
   relationnel: clampedStepScore,
-  note: z.number().int().min(0).max(100),
+  // `note` : recalculée par scoreBossThread (moyenne des étapes jouées) → non bornée ici, même
+  // raison que `total` ci-dessus.
+  note: z.number(),
   commentaire: truncated(2000),
 })
