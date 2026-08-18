@@ -25,6 +25,7 @@ export function SessionView({ data }: { data: SessionData }) {
   const [threads, setThreads] = useState<SessionThread[]>(data.threads)
   const [current, setCurrent] = useState(data.threads[0]?.id ?? '')
   const [ended, setEnded] = useState(!!data.endedAt)
+  const [timeoutFailed, setTimeoutFailed] = useState<Set<string>>(new Set())
   const { scoring, error: scoreError, run: runScoring } = useScoring(data.id)
   const firing = useRef(new Set<string>())
 
@@ -35,11 +36,16 @@ export function SessionView({ data }: { data: SessionData }) {
   const patch = useCallback((threadId: string, f: (t: SessionThread) => SessionThread) => {
     setThreads((ts) => ts.map((t) => (t.id === threadId ? f(t) : t)))
   }, [])
-  // `string` et non `SessionStatus` : `timeoutThread` rend un statut non typé (`string`).
+  // `string` et non `SessionStatus` : `timeoutThread` rend un statut non typé (`string`). Un statut
+  // encore `active` veut dire que LE thread qu'on vient de traiter a clos la session côté serveur
+  // (ended_at posé, pas encore notée) : on note côté client. Tout autre statut (`scored`, `failed`,
+  // `abandoned`…) veut dire que la session était déjà résolue — potentiellement par un autre onglet —
+  // et que le serveur refuserait une notation côté client : on se contente de refetch (router.refresh)
+  // pour afficher l'état réel, sans boucle de relance.
   const onSessionEnd = useCallback(
     (status: string) => {
-      if (status === 'failed') router.refresh()
-      else setEnded(true)
+      if (status === 'active') setEnded(true)
+      else router.refresh()
     },
     [router],
   )
@@ -72,13 +78,31 @@ export function SessionView({ data }: { data: SessionData }) {
       firing.current.add(threadId)
       const r = await timeoutThread({ threadId })
       if (!r.success) {
-        firing.current.delete(threadId)
+        // On garde le thread dans `firing` : l'effet de `ThreadPanel` ne rappelle pas tout seul
+        // (pas de boucle de refresh). L'affordance « Réessayer » relance explicitement via
+        // `handleRetryTimeout`.
+        toast.error(r.error)
+        setTimeoutFailed((s) => new Set(s).add(threadId))
         return
       }
       patch(threadId, (t) => ({ ...t, status: 'lost', lostReason: 'timeout', nextDueAt: null }))
       if (r.data.sessionEnded) onSessionEnd(r.data.sessionStatus)
     },
     [onSessionEnd, patch],
+  )
+
+  const handleRetryTimeout = useCallback(
+    (threadId: string) => {
+      setTimeoutFailed((s) => {
+        if (!s.has(threadId)) return s
+        const next = new Set(s)
+        next.delete(threadId)
+        return next
+      })
+      firing.current.delete(threadId)
+      void handleTimeout(threadId)
+    },
+    [handleTimeout],
   )
 
   if (ended) {
@@ -109,6 +133,8 @@ export function SessionView({ data }: { data: SessionData }) {
           now={now}
           onSend={(v) => handleSend(thread.id, v)}
           onTimeout={handleTimeout}
+          timeoutFailed={timeoutFailed.has(thread.id)}
+          onRetryTimeout={handleRetryTimeout}
         />
       )}
     </div>

@@ -2,25 +2,34 @@
 
 import { useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 import type { ComposerInput } from '../schema'
 import type { SessionThread } from '../types'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
 
-/** Une conversation : messages révélés, chrono, composer. Chrono écoulé → `onTimeout` (le serveur tranche). */
+/**
+ * Une conversation : messages révélés, chrono, composer. Chrono écoulé → `onTimeout` (le serveur
+ * tranche). Si `timeoutThread` échoue (`timeoutFailed`), pas de relance automatique — le composer
+ * reste désactivé et une affordance « Réessayer » appelle `onRetryTimeout`.
+ */
 export function ThreadPanel({
   thread,
   kind,
   now,
   onSend,
   onTimeout,
+  timeoutFailed,
+  onRetryTimeout,
 }: {
   thread: SessionThread
   kind: CaseKind
   now: number
   onSend: (v: ComposerInput) => Promise<boolean>
   onTimeout: (threadId: string) => void
+  timeoutFailed: boolean
+  onRetryTimeout: (threadId: string) => void
 }) {
   const visible = thread.messages.filter((m) => Date.parse(m.visibleAt) <= now)
   const pendingFan = thread.messages.some((m) => m.speaker === 'fan' && Date.parse(m.visibleAt) > now)
@@ -62,7 +71,17 @@ export function ThreadPanel({
           Conversation terminée{kind === 'solo' ? '' : ' — passe à une autre'}.
         </p>
       ) : (
-        <Composer disabled={!canWrite} onSend={onSend} />
+        <>
+          {expired && timeoutFailed && (
+            <div className="flex items-center gap-2 border-t px-4 py-2 text-sm text-muted-foreground">
+              <span>Le chrono n’a pas pu être validé.</span>
+              <Button size="sm" variant="outline" onClick={() => onRetryTimeout(thread.id)}>
+                Réessayer
+              </Button>
+            </div>
+          )}
+          <Composer disabled={!canWrite} onSend={onSend} />
+        </>
       )}
     </section>
   )
