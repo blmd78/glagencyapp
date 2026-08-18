@@ -107,7 +107,8 @@ create table public.training_sessions (
   case_id            uuid not null references public.training_cases(id) on delete restrict,
   module_id          uuid not null references public.training_modules(id) on delete restrict,
   kind               text not null check (kind in ('solo','arena','boss')),
-  status             text not null default 'active' check (status in ('active','scored','abandoned')),
+  status             text not null default 'active' check (status in ('active','scored','failed','abandoned')),
+                                       -- failed = solo éliminé (faute grave du chatter détectée par le fan, ou chrono) : non noté
   case_snapshot      jsonb not null,   -- PARTIE VISIBLE seulement : code, title, phase, difficulty,
                                        -- context, objective, objectiveLabel, targetLine, maxTurns,
                                        -- reactionMaxS, isSale (jamais fan_brief/expected)
@@ -131,6 +132,8 @@ create table public.training_threads (
   boss_fan_id   uuid references public.training_case_boss_fans(id) on delete restrict,
   fan_name      text not null,
   status        text not null default 'open' check (status in ('open','done','lost')),
+  lost_reason   text check (lost_reason is null or lost_reason ~ '^(timeout|[a-z_]{2,20})$'),
+                                    -- 'timeout' (chrono) ou le code de faute émis par le fan ([[ELIM:code]])
   turns_used    smallint not null default 0,
   max_turns     smallint not null,
   next_due_at   timestamptz,       -- chrono : réponse attendue avant (défi/boss)
@@ -262,10 +265,18 @@ Les gardes applicatives miroir : `requirePageProfile('frm-entrainement')` pour j
   `ANTHROPIC_API_KEY` (à ajouter à l'env web local + Vercel ; existe à la racine), `maxRetries: 2`,
   `timeout: 20_000` ms. Côté serveur uniquement (`server-only`).
 - **Fan** (`replyAsFan`) : `claude-haiku-4-5`, `max_tokens` 200 (boss 260), pas de `thinking`,
-  système = **règles fixes** (reprises de GLA : mémoire infaillible, ton SMS, ne jamais dire IA,
-  suivre/refroidir selon le naturel) + **le cas** (contexte, `fan_brief` lu dans
-  `training_case_secrets` — ou fan du boss : persona + secrets `budget_cap`… ) + prénom ; messages =
-  l'historique complet du thread (SMS ≈ 2 k tokens max). Le prompt est trop court pour le cache
+  système = **transposition fidèle des prompts GLA** (`formation_bot_system` / `formation_boss_bot_system` :
+  fiction entre adultes, règle de personnage absolue, règles de sécurité, prénom, consigne du fan
+  lue dans `training_case_secrets` — ou fan du boss : persona + secrets `budget_cap`/paliers/négo/
+  rencontre/dérives —, style SMS, mémoire infaillible, section MÉDIAS PAYANTS si `is_sale`, et les
+  **fautes graves** : le fan peut terminer sa réponse par un token `[[ELIM:code]]` — codes GLA
+  `interro`, `froid`, `brutal`, `saut`, `spam`, `gratuit`, `remise_prev`, `abandon`, `renc_date`,
+  `force_stop`, `brushoff`, `revente` — que le serveur **retire du texte** et transforme en
+  élimination du thread (`lost`, `lost_reason` = code) ; libellés FR des fautes repris de GLA
+  (`BOSS_FAULTS`) dans `lib/types/training.ts`) ; messages = l'historique complet du thread
+  (SMS ≈ 2 k tokens max) au format GLA (`to_messages_formation` : fan = assistant, chatter =
+  user, tours consécutifs fusionnés, média → `[MEDIA VERROUILLE - X€]`, premier tour user
+  « (début de la conversation) » si besoin). Le prompt est trop court pour le cache
   Haiku (minimum 4 096 tokens sur ce modèle) — sans conséquence : ~0,03 $ la session solo.
   Refus (`stop_reason: 'refusal'`, possible sur du sexting) → réponse de repli neutre (« … »)
   insérée, `training_ai_calls.ok = false`, jamais de crash.
@@ -302,17 +313,24 @@ jusqu'au 31/08) : solo ≈ 0,03 $ (fan) + 0,02-0,03 $ (note) ; défi ≈ 5× ; b
   messages d'ouverture (`visible_at` échelonnés en défi/boss : 0 s, +20 s, +45 s, +75 s, +110 s) ;
   redirige.
 - **Jouer** (feuille client) : contexte + objectif (libellé du module) en tête ; fil ; saisie +
-  bouton **média verrouillé** (prix €) ; `tour n / max` ; **Terminer**. `sendMessage(threadId,
-  { body } | { mediaPrice })` : garde propriétaire + thread `open` + tour disponible + **chrono**
-  (défi/boss : `now ≤ next_due_at`, sinon thread → `lost`, `BusinessError` « Trop tard — ce fan
-  est parti ») ; insère le message chatter ; appelle le fan ; insère sa réponse avec
+  bouton **média verrouillé** (prix €) ; `tour n / max` ; **chrono** de réponse affiché ;
+  **Terminer**. `sendMessage(threadId, { body } | { mediaPrice })` : garde propriétaire + thread
+  `open` + tour disponible + **chrono** (`now ≤ next_due_at` ; solo : **60 s** après chaque
+  réponse du fan — constante `SOLO_REACTION_S`, comme GLA `TRAIN_LIMIT_MS` ; défi/boss :
+  `reaction_max_s` du cas ; dépassé → thread `lost` (`timeout`), `BusinessError` « Trop lent —
+  ce fan est parti ») ; insère le message chatter ; appelle le fan ; si la réponse porte
+  `[[ELIM:code]]` → token retiré, réponse insérée, thread `lost` (`lost_reason` = code) ; sinon
+  insère sa réponse avec
   `visible_at = now` (solo) ou `now + aléa(30-120 s)` (défi/boss) et `next_due_at = visible_at +
   reaction_max_s` ; `turns_used += 1` ; dernier tour → thread `done`. Renvoie les 2 messages
   (+ `visible_at`) : le client affiche le message chatter tout de suite (optimiste), « … » pendant
   l'appel, puis le fan (solo) ou programme la révélation (défi/boss, timer local ; à la révélation
   le compte à rebours démarre). Fin auto quand tous les threads sont `done`/`lost` ; **Terminer**
   = `endSession` (les threads `open` deviennent `done`) ; **Abandonner** = `abandonSession`
-  (`abandoned`, non noté).
+  (`abandoned`, non noté). **Solo éliminé** (timeout ou faute) → session `failed`, écran « Raté »
+  (⏱️ Temps écoulé / 💀 Le fan t'a lâché + libellé et explication de la faute, « Recommencer »,
+  « Retour ») — non noté, la conversation reste consultable ; défi/boss : le thread `lost` reste
+  affiché figé, les autres continuent.
 - **Noter** `scoreSession(sessionId)` : garde propriétaire + session terminée non notée ; par thread
   `done` un appel (`lost` = 0) ; écrit scores + axes ; `total` = moyenne des threads ;
   `objective_reached` = tous les threads notés objectif atteint (défi/boss) ; statut `scored` →
@@ -363,7 +381,8 @@ retouche.
 - **Features** : `training-catalog` (retouché : secrets), `training-modules` (retouché : Jouer +
   médaille), `training-session`, `training-me`, `training-overview` ; partagé : `lib/ai/`
   (`client.ts`, `prompts.ts`, `schema.ts`, `fan.ts`, `score.ts`), `lib/types/training.ts`
-  (élargi : `SessionStatus`, `ThreadStatus`, `Speaker` étendu…), `@glagency/core/training`
+  (élargi : `SessionStatus`, `ThreadStatus`, `FAULT_LABELS` — 12 codes + timeout, textes GLA —,
+  `SOLO_REACTION_S`), `@glagency/core/training`
   (médailles, points, streak, trophées, déblocage boss). Routes : `/formation/session/[id]`,
   `/formation/ma-formation`, `/formation/overview` — `loading.tsx` partout, `error.tsx` de la face.
 - **Patrons** : page = garde + kickoff sans await + `<Suspense>` ; Template RSC ; feuilles client ;
