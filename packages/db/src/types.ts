@@ -2456,6 +2456,44 @@ export type Database = {
           },
         ]
       }
+      training_boss_fan_secrets: {
+        Row: {
+          budget_cap: number | null
+          derails: string | null
+          fan_id: string
+          meet_when: string | null
+          meet_where: string | null
+          nego_threshold: number | null
+          nego_where: string | null
+        }
+        Insert: {
+          budget_cap?: number | null
+          derails?: string | null
+          fan_id: string
+          meet_when?: string | null
+          meet_where?: string | null
+          nego_threshold?: number | null
+          nego_where?: string | null
+        }
+        Update: {
+          budget_cap?: number | null
+          derails?: string | null
+          fan_id?: string
+          meet_when?: string | null
+          meet_where?: string | null
+          nego_threshold?: number | null
+          nego_where?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_boss_fan_secrets_fan_id_fkey"
+            columns: ["fan_id"]
+            isOneToOne: true
+            referencedRelation: "training_case_boss_fans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_case_arena_slots: {
         Row: {
           case_id: string
@@ -2498,57 +2536,39 @@ export type Database = {
       training_case_boss_fans: {
         Row: {
           age: number | null
-          budget_cap: number | null
           case_id: string
           city: string | null
           code: string
           color: string | null
-          derails: string | null
           id: string
           job: string | null
-          meet_when: string | null
-          meet_where: string | null
           name: string
-          nego_threshold: number | null
-          nego_where: string | null
           opening_message: string
           persona: string
           position: number
         }
         Insert: {
           age?: number | null
-          budget_cap?: number | null
           case_id: string
           city?: string | null
           code: string
           color?: string | null
-          derails?: string | null
           id?: string
           job?: string | null
-          meet_when?: string | null
-          meet_where?: string | null
           name: string
-          nego_threshold?: number | null
-          nego_where?: string | null
           opening_message: string
           persona: string
           position: number
         }
         Update: {
           age?: number | null
-          budget_cap?: number | null
           case_id?: string
           city?: string | null
           code?: string
           color?: string | null
-          derails?: string | null
           id?: string
           job?: string | null
-          meet_when?: string | null
-          meet_where?: string | null
           name?: string
-          nego_threshold?: number | null
-          nego_where?: string | null
           opening_message?: string
           persona?: string
           position?: number
@@ -2595,6 +2615,32 @@ export type Database = {
           },
         ]
       }
+      training_case_secrets: {
+        Row: {
+          case_id: string
+          expected: string | null
+          fan_brief: string | null
+        }
+        Insert: {
+          case_id: string
+          expected?: string | null
+          fan_brief?: string | null
+        }
+        Update: {
+          case_id?: string
+          expected?: string | null
+          fan_brief?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_secrets_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_cases: {
         Row: {
           active: boolean
@@ -2602,8 +2648,6 @@ export type Database = {
           context: string
           created_at: string
           difficulty: number
-          expected: string | null
-          fan_brief: string | null
           fan_name: string | null
           id: string
           is_sale: boolean
@@ -2626,8 +2670,6 @@ export type Database = {
           context: string
           created_at?: string
           difficulty: number
-          expected?: string | null
-          fan_brief?: string | null
           fan_name?: string | null
           id?: string
           is_sale?: boolean
@@ -2650,8 +2692,6 @@ export type Database = {
           context?: string
           created_at?: string
           difficulty?: number
-          expected?: string | null
-          fan_brief?: string | null
           fan_name?: string | null
           id?: string
           is_sale?: boolean
@@ -2727,6 +2767,29 @@ export type Database = {
           },
         ]
       }
+      training_module_secrets: {
+        Row: {
+          module_id: string
+          scoring_notes: string | null
+        }
+        Insert: {
+          module_id: string
+          scoring_notes?: string | null
+        }
+        Update: {
+          module_id?: string
+          scoring_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_secrets_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: true
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_module_sections: {
         Row: {
           code: string
@@ -2776,7 +2839,6 @@ export type Database = {
           id: string
           objective_label: string
           position: number
-          scoring_notes: string | null
           title: string
           updated_at: string
           updated_by: string | null
@@ -2791,7 +2853,6 @@ export type Database = {
           id?: string
           objective_label?: string
           position?: number
-          scoring_notes?: string | null
           title: string
           updated_at?: string
           updated_by?: string | null
@@ -2806,7 +2867,6 @@ export type Database = {
           id?: string
           objective_label?: string
           position?: number
-          scoring_notes?: string | null
           title?: string
           updated_at?: string
           updated_by?: string | null
