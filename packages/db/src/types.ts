@@ -2456,6 +2456,63 @@ export type Database = {
           },
         ]
       }
+      training_ai_calls: {
+        Row: {
+          cache_read_tokens: number
+          created_at: string
+          id: string
+          input_tokens: number
+          kind: string
+          latency_ms: number
+          model: string
+          ok: boolean
+          output_tokens: number
+          session_id: string
+          thread_id: string | null
+        }
+        Insert: {
+          cache_read_tokens?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          kind: string
+          latency_ms?: number
+          model: string
+          ok?: boolean
+          output_tokens?: number
+          session_id: string
+          thread_id?: string | null
+        }
+        Update: {
+          cache_read_tokens?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          kind?: string
+          latency_ms?: number
+          model?: string
+          ok?: boolean
+          output_tokens?: number
+          session_id?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_ai_calls_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_ai_calls_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_boss_fan_secrets: {
         Row: {
           budget_cap: number | null
@@ -2732,6 +2789,57 @@ export type Database = {
           },
         ]
       }
+      training_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          media_price: number | null
+          position: number
+          session_id: string
+          speaker: string
+          thread_id: string
+          visible_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position: number
+          session_id: string
+          speaker: string
+          thread_id: string
+          visible_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position?: number
+          session_id?: string
+          speaker?: string
+          thread_id?: string
+          visible_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_module_axes: {
         Row: {
           description: string
@@ -2877,6 +2985,256 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_reports: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          profile_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          profile_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          profile_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_reports_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_reports_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_reports_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_sessions: {
+        Row: {
+          case_id: string
+          case_snapshot: Json
+          ended_at: string | null
+          id: string
+          kind: string
+          module_id: string
+          objective_reached: boolean | null
+          profile_id: string
+          scored_at: string | null
+          started_at: string
+          status: string
+          total: number | null
+        }
+        Insert: {
+          case_id: string
+          case_snapshot: Json
+          ended_at?: string | null
+          id?: string
+          kind: string
+          module_id: string
+          objective_reached?: boolean | null
+          profile_id: string
+          scored_at?: string | null
+          started_at?: string
+          status?: string
+          total?: number | null
+        }
+        Update: {
+          case_id?: string
+          case_snapshot?: Json
+          ended_at?: string | null
+          id?: string
+          kind?: string
+          module_id?: string
+          objective_reached?: boolean | null
+          profile_id?: string
+          scored_at?: string | null
+          started_at?: string
+          status?: string
+          total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_sessions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_sessions_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_thread_axis_scores: {
+        Row: {
+          axis_key: string
+          axis_name: string
+          score: number
+          thread_id: string
+        }
+        Insert: {
+          axis_key: string
+          axis_name: string
+          score: number
+          thread_id: string
+        }
+        Update: {
+          axis_key?: string
+          axis_name?: string
+          score?: number
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_thread_axis_scores_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_thread_scores: {
+        Row: {
+          capped: boolean
+          comment: string
+          moments: Json
+          objective_reached: boolean
+          scored_at: string
+          thread_id: string
+          total: number
+        }
+        Insert: {
+          capped?: boolean
+          comment: string
+          moments?: Json
+          objective_reached: boolean
+          scored_at?: string
+          thread_id: string
+          total: number
+        }
+        Update: {
+          capped?: boolean
+          comment?: string
+          moments?: Json
+          objective_reached?: boolean
+          scored_at?: string
+          thread_id?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_thread_scores_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_threads: {
+        Row: {
+          boss_fan_id: string | null
+          fan_name: string
+          id: string
+          lost_reason: string | null
+          max_turns: number
+          next_due_at: string | null
+          position: number
+          ref_case_id: string | null
+          session_id: string
+          status: string
+          turns_used: number
+        }
+        Insert: {
+          boss_fan_id?: string | null
+          fan_name: string
+          id?: string
+          lost_reason?: string | null
+          max_turns: number
+          next_due_at?: string | null
+          position: number
+          ref_case_id?: string | null
+          session_id: string
+          status?: string
+          turns_used?: number
+        }
+        Update: {
+          boss_fan_id?: string | null
+          fan_name?: string
+          id?: string
+          lost_reason?: string | null
+          max_turns?: number
+          next_due_at?: string | null
+          position?: number
+          ref_case_id?: string | null
+          session_id?: string
+          status?: string
+          turns_used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_threads_boss_fan_id_fkey"
+            columns: ["boss_fan_id"]
+            isOneToOne: false
+            referencedRelation: "training_case_boss_fans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_threads_ref_case_id_fkey"
+            columns: ["ref_case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_threads_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
             referencedColumns: ["id"]
           },
         ]
