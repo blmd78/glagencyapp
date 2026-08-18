@@ -30,10 +30,10 @@ features/<f>/
   le consomme aussi ; `ChatterRow`/`ChattersData` vivent dans `lib/types/chatters.ts`.
 - **Une Server Action déclenchée par ≥ 2 features** suit la même règle : elle vit en `lib/`,
   pas dans une des features. Précédent : `lib/impersonation/actions.ts`. Exemple récent :
-  `lib/training/start-session.ts` (`startSession`, appelée depuis Modules, la session et Ma
-  formation) avec un composant client partagé `components/training/play-button.tsx` — la
-  frontière ESLint cross-feature interdirait sinon qu'une feature importe l'action d'une
-  autre.
+  `lib/training/start-session.ts` (`startSession`, partagée par plusieurs features — Modules,
+  écran de résultat de session) avec un composant client partagé
+  `components/training/play-button.tsx` — la frontière ESLint cross-feature interdirait sinon
+  qu'une feature importe l'action d'une autre.
 - **Frontières enforced par ESLint** (`import-x/no-restricted-paths`,
   `apps/web/eslint.config.mjs`) : `lib → features → app`, cross-feature interdit, personne
   n'importe `app/`. Violation = erreur de lint, pas une convention informelle.

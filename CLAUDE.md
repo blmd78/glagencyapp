@@ -57,11 +57,11 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   sessions/threads/messages/scores/signalements/`training_ai_calls` (0117), stats/classement
   (0118-0120) — moteur IA en `lib/ai/` uniquement (fan Haiku 4.5, notation Sonnet 5, tracé
   dans `training_ai_calls`), **aucun streaming / Route Handler**, Server Actions partout.
-  `startSession`, partagé par 3 features (Modules, session, Ma formation), vit en
+  `startSession`, partagé par plusieurs features (Modules, écran de résultat de session), vit en
   `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent
   `lib/impersonation/actions.ts`. Migrations 0116-0120 poussées **UAT seulement**, à
   recetter. Droits `frm-suivi` (Overview,
-  encadrement) / `frm-entrainement` (Ma formation, session, chatter), Modules ouvert aux deux
+  encadrement) / `frm-entrainement` (Ma formation, chatter), Modules et session ouverts aux deux
   (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`
   (`WORKSPACES`, type `WorkspaceId`). La face active se déduit du `pathname`
   (`workspaceForPath`) ; la sidebar (`AppSidebar` + `WorkspaceSwitcher`) affiche la nav de
