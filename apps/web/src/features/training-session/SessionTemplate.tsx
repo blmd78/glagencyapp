@@ -1,4 +1,5 @@
-import { SessionOutcome } from './components/session-outcome'
+import { FailedView } from './components/failed-view'
+import { ResultView } from './components/result-view'
 import { SessionView } from './components/session-view'
 import type { SessionData } from './types'
 
@@ -6,5 +7,6 @@ import type { SessionData } from './types'
 export function SessionTemplate({ data, viewerIsOwner }: { data: SessionData; viewerIsOwner: boolean }) {
   if (data.status === 'active' && viewerIsOwner) return <SessionView data={data} />
   if (data.status === 'active') return <p className="text-sm text-muted-foreground">Session en cours (lecture seule).</p>
-  return <SessionOutcome data={data} />
+  if (data.status === 'scored') return <ResultView data={data} viewerIsOwner={viewerIsOwner} />
+  return <FailedView data={data} viewerIsOwner={viewerIsOwner} /> // failed | abandoned
 }

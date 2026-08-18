@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { cn } from '@/lib/utils'
 import type { SessionMessage } from '../types'
+import { MessageBubble } from './message-bubble'
 
 /**
  * Les messages RÉVÉLÉS d'une conversation (le filtre `visibleAt` est fait par `ThreadPanel`) :
@@ -31,14 +31,7 @@ export function MessageList({
       )}
       {messages.map((m) => (
         <li key={m.id} className={m.speaker === 'fan' ? 'self-start' : 'self-end'}>
-          <p
-            className={cn(
-              'max-w-[46ch] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap',
-              m.speaker === 'fan' ? 'bg-muted' : 'bg-primary text-primary-foreground',
-            )}
-          >
-            {m.mediaPrice != null ? `🔒 Média verrouillé — ${m.mediaPrice} €` : m.body}
-          </p>
+          <MessageBubble message={m} />
         </li>
       ))}
       {pendingFan && (
