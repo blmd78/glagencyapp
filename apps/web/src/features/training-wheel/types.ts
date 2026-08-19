@@ -35,18 +35,15 @@ export interface MySpin {
 }
 
 /**
- * Tout ce que la page Roue affiche pour UN chatter. `canSpin` = un ticket est là, tout de suite ;
- * `eligible` = la RPC dit « tu y as droit » mais le ticket n'existe pas encore (attribution
- * paresseuse : le client appelle `claimTicket()` au montage).
+ * Tout ce que la page Roue affiche pour UN chatter. `eligible` = la RPC dit « tu y as droit » mais
+ * le ticket n'existe pas encore (attribution paresseuse : le client appelle `claimTicket()` au
+ * montage). Le droit de tourner lui-même (`canSpin` côté page) vient de `hasPageAccess`, pas d'ici.
  */
 export interface WheelData {
   config: WheelConfig
   ticket: WheelTicket | null
   eligible: boolean
-  /** Lundi de la dernière semaine complète — sert la copie « classement de la semaine du … ». */
-  lastWeek: string
   mySpins: MySpin[]
-  canSpin: boolean
 }
 
 /** Une ligne de l'historique encadrant (`paidAt` = versement, branché plus tard côté compta). */

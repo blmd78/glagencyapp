@@ -1,6 +1,6 @@
 # Formation — incrément 3 : Roue des récompenses (design)
 
-**Statut** : implémenté sur `feature/formation-catalogue` (0122-0123 UAT seulement), à recetter.
+**Statut** : implémenté sur `feature/formation-catalogue` (0122-0124 UAT seulement), à recetter.
 **Précédents** : `2026-08-17-formation-catalogue-design.md` (incrément 1),
 `2026-08-18-formation-entrainement-design.md` (incrément 2 — sessions, classement, Ma formation, Overview).
 
@@ -44,6 +44,9 @@ classement, notifications, sons.
   un ticket non utilisé existe déjà (pas de cumul) ; une seule attribution par (profil, semaine)
   (index unique). L'attribution est **paresseuse** : la page Roue affiche l'éligibilité, et le client
   appelle `claimTicket()` au montage si éligible sans ticket ; le serveur revérifie et insère. Pas de cron.
+- **Éligibilité non réclamée sous 7 jours** (pas d'ouverture de la page Roue pendant la semaine
+  suivante) est perdue — pastille visible toute la semaine ; « offrir un tour » à la main = v2
+  (ruling contrôleur, à confirmer par Benoit).
 - **Tirage** : `spinWheel({ ticketId })` → ticket du chatter, non utilisé → tirage pondéré (`crypto`) de
   la roue (secteur `lose` ou non), puis du coffre si gagnant → `used_at` posé, ligne `training_wheel_spins`
   écrite (Raté compris : `won = false`, pas de lot). Un « Raté » **consomme** le ticket (c'est le

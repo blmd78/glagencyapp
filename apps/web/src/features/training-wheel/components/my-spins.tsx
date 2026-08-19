@@ -1,4 +1,4 @@
-import { frDateNumeric, frDateTimeParis } from '@glagency/core'
+import { frDateTimeParis, wheelWeekLabel } from '@glagency/core'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { eur } from '@/lib/format'
 import type { MySpin } from '../types'
@@ -30,7 +30,7 @@ export function MySpins({ spins }: { spins: MySpin[] }) {
               {spins.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className="tabular-nums text-muted-foreground">{frDateTimeParis(s.spunAt)}</TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">{frDateNumeric(s.week)}</TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">{wheelWeekLabel(s.week)}</TableCell>
                   <TableCell className={s.won ? 'font-medium' : 'text-muted-foreground'}>
                     {s.won ? (s.prizeLabel ?? s.sectorLabel) : 'Raté'}
                   </TableCell>

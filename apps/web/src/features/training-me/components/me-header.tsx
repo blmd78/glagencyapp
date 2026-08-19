@@ -2,7 +2,14 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { PlayButton } from '@/components/training/play-button'
 import { Button } from '@/components/ui/button'
-import type { MeData } from '../types'
+import type { MeData, RankScope } from '../types'
+
+/** Étiquette du scope affiché — sans elle, « 3e sur 6 » semblait toujours porter sur le classement global. */
+const SCOPE_LABEL: Record<RankScope, string> = {
+  semaine: 'cette semaine',
+  'semaine-derniere': 'semaine dernière',
+  global: 'global',
+}
 
 /**
  * En-tête de Ma formation : la reprise d'une session en cours (s'il y en a une) — sinon « Reprendre »
@@ -44,7 +51,7 @@ export function MeHeader({ data }: { data: MeData }) {
       </div>
       <p className="text-sm text-muted-foreground">
         Trophées gagnés : {earned}/{trophies.length}
-        {rank && ` · Classement : ${rank}`}
+        {rank && ` · Classement (${SCOPE_LABEL[rankingScope]}) : ${rank}`}
       </p>
     </div>
   )

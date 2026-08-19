@@ -1,4 +1,3 @@
-import { lastCompletedWeek, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { toPrizes, toSectors } from '../mappers'
 import type { MySpin, WheelData } from '../types'
@@ -8,9 +7,9 @@ import type { MySpin, WheelData } from '../types'
  * 4 lectures PARALLÈLES sous RLS (client utilisateur) — `training_wheel_tickets` / `_spins` sont
  * lisibles « moi ou encadrant frm-suivi », la config par toute la face Formation.
  *
- * `canSpin` = un ticket non utilisé existe ; `eligible` = la RPC dit 1 SANS ticket en base, donc le
- * chatter est top 3 de la semaine passée mais n'a pas encore réclamé — le client appellera
- * `claimTicket()` au montage (attribution paresseuse, aucun cron).
+ * `eligible` = la RPC dit 1 SANS ticket en base, donc le chatter est top 3 de la semaine passée
+ * mais n'a pas encore réclamé — le client appellera `claimTicket()` au montage (attribution
+ * paresseuse, aucun cron).
  */
 export async function getWheel(profileId: string): Promise<WheelData> {
   const supabase = await createClient()
@@ -56,8 +55,6 @@ export async function getWheel(profileId: string): Promise<WheelData> {
     config: { title: cfg.data.title, sectors: toSectors(cfg.data.sectors), prizes: toPrizes(cfg.data.prizes) },
     ticket,
     eligible: !ticket && Number(pending.data ?? 0) === 1,
-    lastWeek: lastCompletedWeek(todayParis()),
     mySpins,
-    canSpin: !!ticket,
   }
 }

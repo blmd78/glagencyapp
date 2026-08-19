@@ -1,10 +1,8 @@
+import { WHEEL_TOP_N } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import type { MeData, RankRow, WeeklyRankRow } from '../types'
-
-/** Top 3 = éligible à un tour de roue (`training_last_week`, migration 0122). */
-const WEEKLY_TOP_N = 3
 
 /**
  * Classement de l'équipe (semaine en cours, dernière semaine complète ou global — sélecteur
@@ -78,7 +76,7 @@ function WeeklyTable({ rows, myProfileId }: { rows: WeeklyRankRow[]; myProfileId
             {rows.map((r, i) => (
               <TableRow
                 key={r.profileId}
-                className={cn(i < WEEKLY_TOP_N && 'font-medium', r.profileId === myProfileId && 'bg-muted/40 font-medium')}
+                className={cn(i < WHEEL_TOP_N && 'font-medium', r.profileId === myProfileId && 'bg-muted/40 font-medium')}
               >
                 <TableCell className="tabular-nums text-muted-foreground">{i + 1}</TableCell>
                 <TableCell>{r.displayName}</TableCell>

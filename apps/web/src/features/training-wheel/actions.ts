@@ -87,10 +87,20 @@ export async function claimTicket(): Promise<ActionResult<{ ticketId: string | n
         .insert({ profile_id: profile.id, week, reason: `Top ${rank + 1} — ${wheelWeekLabel(week)}` })
         .select('id')
         .single()
-      // 23505 : soit `unique (profile_id, week)` (déjà attribué et joué), soit l'index unique
-      // « un seul ticket non utilisé » de 0123 (course avec un autre onglet). Dans les deux cas
-      // c'est un état normal, pas une erreur technique.
-      if (iErr?.code === '23505') return { ticketId: null }
+      if (iErr?.code === '23505') {
+        // 23505 : soit `unique (profile_id, week)` (déjà attribué et joué), soit l'index unique
+        // « un seul ticket non utilisé » de 0123 (course avec un autre onglet — celui qui perd
+        // l'insert re-sélectionne le ticket que l'autre onglet vient de créer). Le client se
+        // rafraîchit dès qu'il reçoit un id de ticket ; `null` seulement si vraiment déjà joué.
+        const { data: race, error: rErr } = await supabase
+          .from('training_wheel_tickets')
+          .select('id')
+          .eq('profile_id', profile.id)
+          .is('used_at', null)
+          .limit(1)
+        if (rErr) throw new Error(rErr.message)
+        return { ticketId: race[0]?.id ?? null }
+      }
       if (iErr) throw new Error(iErr.message)
 
       revalidateWheel()

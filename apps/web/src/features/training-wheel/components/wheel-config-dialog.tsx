@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -64,8 +64,13 @@ export function WheelConfigDialog({ config }: { config: WheelConfig }) {
     resolver: zodResolver(wheelConfigForm),
     defaultValues: toForm(config),
   })
+  // `prevOpen` : on ne réinitialise qu'à la TRANSITION fermé → ouvert, jamais sur un changement de
+  // `config` pendant que le dialog est déjà ouvert — un `revalidatePath` ailleurs (ex. un autre
+  // admin qui enregistre) changeait l'identité de `config` et effaçait la saisie en cours.
+  const prevOpen = useRef(false)
   useEffect(() => {
-    if (open) reset(toForm(config))
+    if (open && !prevOpen.current) reset(toForm(config))
+    prevOpen.current = open
   }, [open, config, reset])
 
   const sectors = useFieldArray({ control, name: 'sectors' })
