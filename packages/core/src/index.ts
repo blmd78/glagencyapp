@@ -43,7 +43,6 @@ export {
   frMonthLong,
   daysBetween,
   daysBetweenParis,
-  weekLabel,
   currentWeekStart,
   lastWeekStart,
   lastFullWeekStartFrom,
@@ -110,3 +109,12 @@ export {
   effectiveStreak,
 } from './training/rules'
 export type { Medal, ModuleProgress, Trophy, TrophyInput } from './training/rules'
+export {
+  pickWeighted,
+  lastCompletedWeek,
+  weekLabel,
+  WHEEL_TOP_N,
+  WHEEL_DEFAULT_SECTORS,
+  WHEEL_DEFAULT_PRIZES,
+} from './training/wheel'
+export type { WheelSector, WheelPrize } from './training/wheel'

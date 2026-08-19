@@ -68,6 +68,8 @@ export const EVENT_KINDS = [
   'sanction',
   // Rapport du soir SUPPRIMÉ par son auteur (trigger delete 0107) — posé sur SA timeline.
   'rapport',
+  // Gain à la roue (trigger 0122) — `to_value` déjà lisible.
+  'recompense',
 ] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
@@ -203,6 +205,10 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
       if (!date) return `Rapport du soir supprimé (${from})`
       return `Rapport du soir du ${fr(date)} supprimé (${modele})`
     }
+    // `to` composé par le trigger 0122 (« Roue : 10 € — Top 2 — semaine du 11/08 »/« Roue : Raté
+    // — … ») : déjà lisible, aucun parsing à faire ici.
+    case 'recompense':
+      return to ?? 'Récompense'
     case 'sortie': {
       if (!to) return 'Départ annulé (réactivé)'
       // `to` = '2026-08-15 (vire)', composé par le trigger. Parsé par REGEX et non par index : un
