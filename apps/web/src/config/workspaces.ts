@@ -39,6 +39,7 @@ import {
   BookOpen,
   Library,
   PlayCircle,
+  Gift,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -190,6 +191,9 @@ export const WORKSPACES: Workspace[] = [
     nav: [
       { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
+      // Sans `slug` propre (anyOf) : pas une case cochable à part dans Membres — le droit
+      // vient déjà de Suivi/Entraînement, comme Modules juste après.
+      { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-entrainement', 'frm-suivi'] },
       { href: '/formation/modules', label: 'Modules', icon: Library, anyOf: ['frm-entrainement', 'frm-suivi'] },
       { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, bottom: true },
       { href: '/formation/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },

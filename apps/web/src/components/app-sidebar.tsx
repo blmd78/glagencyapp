@@ -32,10 +32,11 @@ import { useNavTransition } from '@/components/nav-transition-context'
 import { prefetchFull, withPeriod } from '@/lib/nav'
 
 /**
- * Badge « à traiter » : lit la promesse du layout via use() sous Suspense — le compteur
- * streame APRÈS le shell au lieu de bloquer le premier octet de toutes les pages.
+ * Badge compteur générique : lit la promesse du layout via use() sous Suspense — le compteur
+ * streame APRÈS le shell au lieu de bloquer le premier octet de toutes les pages. Partagé par
+ * Insights (« à traiter ») et Roue (« tour disponible »).
  */
-function InsightsBadge({ promise }: { promise: Promise<number> }) {
+function CountBadge({ promise }: { promise: Promise<number> }) {
   const count = use(promise)
   return count > 0 ? <SidebarMenuBadge>{count}</SidebarMenuBadge> : null
 }
@@ -54,6 +55,7 @@ export function AppSidebar({
   isManager,
   allowedPages,
   insightsCountPromise,
+  wheelPendingPromise,
   workLink = '',
   impersonating = false,
 }: {
@@ -67,6 +69,8 @@ export function AppSidebar({
   allowedPages?: string[]
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
   insightsCountPromise?: Promise<number>
+  /** Tour de roue disponible (badge streamé, cf. `insightsCountPromise`). */
+  wheelPendingPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
   workLink?: string
   /** Consultation « en tant que » active (Task 9) — bascule le logout de NavUser. */
@@ -235,7 +239,12 @@ export function AppSidebar({
         </SidebarMenuButton>
         {item.href.endsWith('/insights') && insightsCountPromise && (
           <Suspense fallback={null}>
-            <InsightsBadge promise={insightsCountPromise} />
+            <CountBadge promise={insightsCountPromise} />
+          </Suspense>
+        )}
+        {item.href.endsWith('/roue') && wheelPendingPromise && (
+          <Suspense fallback={null}>
+            <CountBadge promise={wheelPendingPromise} />
           </Suspense>
         )}
       </SidebarMenuItem>
