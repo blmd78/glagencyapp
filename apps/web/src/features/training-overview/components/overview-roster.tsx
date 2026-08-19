@@ -17,8 +17,7 @@ function lastSeen(iso: string | null): string {
 
 /**
  * Le roster de la promo : un chatter par ligne, nouveaux d'abord puis par nom (ordre de la RPC
- * 0119). Non cloisonné par modèle — qui a le droit Suivi voit toute la formation (spec §7) ;
- * la colonne « Modèles » sert de repère, pas de filtre.
+ * 0119). Non cloisonné par modèle — qui a le droit Suivi voit toute la formation (spec §7).
  *
  * Le nom porte le lien vers la fiche (`?chatter=`) plutôt que la ligne entière : une `<tr>` ne
  * peut pas être un lien en HTML, et un handler de clic sur la ligne ferait de ce tableau une
@@ -42,7 +41,6 @@ export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; to
             <TableHeader>
               <TableRow>
                 <TableHead>Chatter</TableHead>
-                <TableHead>Modèles</TableHead>
                 <TableHead className="w-24 text-right">Cas</TableHead>
                 <TableHead className="w-24 text-right">Moyenne</TableHead>
                 <TableHead className="w-20 text-right">Points</TableHead>
@@ -66,7 +64,6 @@ export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; to
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">{r.models.length > 0 ? r.models.join(', ') : '—'}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {r.casesDone}/{Math.max(totalCases, r.casesDone)}
                   </TableCell>
