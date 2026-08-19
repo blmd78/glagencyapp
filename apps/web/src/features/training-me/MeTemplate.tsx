@@ -2,6 +2,7 @@ import { MeHeader } from './components/me-header'
 import { MeHistory } from './components/me-history'
 import { MeModules } from './components/me-modules'
 import { MeRanking } from './components/me-ranking'
+import { MeRankingSelect } from './components/me-ranking-select'
 import { MeTabs } from './components/me-tabs'
 import { MeTrophies } from './components/me-trophies'
 import type { MeData, MeVue } from './types'
@@ -23,7 +24,12 @@ export function MeTemplate({ data, vue, myProfileId }: { data: MeData; vue: MeVu
           </div>
         }
         historique={<MeHistory sessions={data.history} />}
-        classement={<MeRanking ranking={data.ranking} myProfileId={myProfileId} />}
+        classement={
+          <div className="flex flex-col gap-4">
+            <MeRankingSelect scope={data.rankingScope} />
+            <MeRanking data={data} myProfileId={myProfileId} />
+          </div>
+        }
       />
     </div>
   )

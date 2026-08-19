@@ -10,9 +10,12 @@ import type { MeData } from '../types'
  * les trophées gagnés en une ligne.
  */
 export function MeHeader({ data }: { data: MeData }) {
-  const { stats, active, nextCaseId, totalCases, trophies, myRank, ranking } = data
+  const { stats, active, nextCaseId, totalCases, trophies, myRank, rankingScope, ranking, weeklyRanking } = data
   const earned = trophies.filter((t) => t.earned).length
-  const rank = myRank == null ? null : `${myRank === 1 ? '1er' : `${myRank}e`} sur ${ranking.length}`
+  // `myRank` porte sur la vue de classement COURANTE (semaine / semaine dernière / global,
+  // `me-ranking-select.tsx`) : le dénominateur suit la même liste, jamais `ranking` en dur.
+  const rankTotal = rankingScope === 'global' ? ranking.length : (weeklyRanking?.length ?? 0)
+  const rank = myRank == null ? null : `${myRank === 1 ? '1er' : `${myRank}e`} sur ${rankTotal}`
   return (
     <div className="flex flex-col gap-4">
       {active && (

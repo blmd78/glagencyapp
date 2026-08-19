@@ -1,15 +1,55 @@
-import { MEDAL_OR, bossUnlocked, computeTrophies, effectiveStreak, medalFor, moduleProgress, todayParis } from '@glagency/core'
+import { bossUnlocked, computeTrophies, effectiveStreak, lastCompletedWeek, medalFor, MEDAL_OR, mondayOf, moduleProgress, todayParis } from '@glagency/core'
 import { getAllCases, getModuleRefs } from '@/lib/services/training-public'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot } from '@/lib/types/training'
-import type { MeData, MeModule, MeSession, RankRow } from '../types'
+import type { MeData, MeModule, MeSession, RankRow, RankScope, WeeklyRankRow } from '../types'
 
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
 const numOrNull = (v: number | string | null | undefined): number | null => (v == null ? null : Number(v))
 
 /**
+ * UNE SEULE RPC de classement selon le scope : `training_ranking` (global) ou
+ * `training_weekly_ranking` (semaine en cours / dernière semaine complète). `myRank` = index du
+ * visiteur dans la vue chargée (pas forcément le classement global).
+ */
+async function fetchRanking(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  profileId: string,
+  scope: RankScope,
+): Promise<Pick<MeData, 'ranking' | 'weeklyRanking' | 'myRank'>> {
+  if (scope === 'global') {
+    const res = await supabase.rpc('training_ranking')
+    if (res.error) throw new Error(res.error.message)
+    const ranking: RankRow[] = (res.data ?? []).map((r) => ({
+      profileId: r.profile_id,
+      displayName: r.display_name,
+      points: r.points,
+      casesDone: r.cases_done,
+      avgTotal: numOrNull(r.avg_total),
+      bossDone: r.boss_done,
+      streakDays: r.streak_days,
+      isNew: r.is_new,
+    }))
+    const idx = ranking.findIndex((r) => r.profileId === profileId)
+    return { ranking, weeklyRanking: null, myRank: idx >= 0 ? idx + 1 : null }
+  }
+  const week = scope === 'semaine' ? mondayOf(todayParis()) : lastCompletedWeek(todayParis())
+  const res = await supabase.rpc('training_weekly_ranking', { p_week: week })
+  if (res.error) throw new Error(res.error.message)
+  const weeklyRanking: WeeklyRankRow[] = (res.data ?? []).map((r) => ({
+    profileId: r.profile_id,
+    displayName: r.display_name,
+    points: r.points,
+    casesDone: r.cases_done,
+    avgTotal: numOrNull(r.avg_total),
+  }))
+  const idx = weeklyRanking.findIndex((r) => r.profileId === profileId)
+  return { ranking: [], weeklyRanking, myRank: idx >= 0 ? idx + 1 : null }
+}
+
+/**
  * Tout « Ma formation » en 6 lectures parallèles (RLS visiteur) : ses stats, ses meilleurs
- * résultats, ses 50 dernières sessions, le classement (RPC `training_ranking`, noms + agrégats),
+ * résultats, ses 50 dernières sessions, le classement (`scope` — noms + agrégats, UNE RPC),
  * le catalogue des modules et celui des cas actifs.
  *
  * `.eq('profile_id', profileId)` explicite partout : les policies de `training_case_bests` /
@@ -20,9 +60,9 @@ const numOrNull = (v: number | string | null | undefined): number | null => (v =
  * `effectiveStreak` le remet à 0 si le dernier jour actif est antérieur à hier (Paris). La RPC
  * du classement, elle, renvoie déjà la valeur effective (0119).
  */
-export async function getMe(profileId: string): Promise<MeData> {
+export async function getMe(profileId: string, scope: RankScope): Promise<MeData> {
   const supabase = await createClient()
-  const [statsRes, bestsRes, sessionsRes, rankRes, modules, allCases] = await Promise.all([
+  const [statsRes, bestsRes, sessionsRes, rank, modules, allCases] = await Promise.all([
     supabase.from('training_profile_stats').select('*').eq('profile_id', profileId).maybeSingle(),
     supabase.from('training_case_bests').select('case_id, best_total, attempts').eq('profile_id', profileId),
     supabase
@@ -31,14 +71,13 @@ export async function getMe(profileId: string): Promise<MeData> {
       .eq('profile_id', profileId)
       .order('started_at', { ascending: false })
       .limit(50),
-    supabase.rpc('training_ranking'),
+    fetchRanking(supabase, profileId, scope),
     getModuleRefs(),
     getAllCases(),
   ])
   if (statsRes.error) throw new Error(statsRes.error.message)
   if (bestsRes.error) throw new Error(bestsRes.error.message)
   if (sessionsRes.error) throw new Error(sessionsRes.error.message)
-  if (rankRes.error) throw new Error(rankRes.error.message)
 
   const bests = new Map((bestsRes.data ?? []).map((b) => [b.case_id, { bestTotal: b.best_total, attempts: b.attempts }]))
   const s = statsRes.data
@@ -89,18 +128,6 @@ export async function getMe(profileId: string): Promise<MeData> {
     }
   })
 
-  const ranking: RankRow[] = (rankRes.data ?? []).map((r) => ({
-    profileId: r.profile_id,
-    displayName: r.display_name,
-    points: r.points,
-    casesDone: r.cases_done,
-    avgTotal: numOrNull(r.avg_total),
-    bossDone: r.boss_done,
-    streakDays: r.streak_days,
-    isNew: r.is_new,
-  }))
-  const rankIndex = ranking.findIndex((r) => r.profileId === profileId)
-
   // « Reprendre où j'en étais » (spec §6) : 1er cas non validé (aucun meilleur résultat) du 1er
   // module incomplet — modules dans l'ordre du catalogue, cas dans l'ordre du module. null quand
   // tout est validé (ou quand le catalogue est vide) : l'en-tête n'affiche alors pas le bouton.
@@ -128,8 +155,10 @@ export async function getMe(profileId: string): Promise<MeData> {
       allDone: totalCases > 0 && stats.casesDone >= totalCases,
       bossDone: stats.bossDone,
     }),
-    ranking,
-    myRank: rankIndex >= 0 ? rankIndex + 1 : null,
+    rankingScope: scope,
+    ranking: rank.ranking,
+    weeklyRanking: rank.weeklyRanking,
+    myRank: rank.myRank,
     totalCases: Math.max(totalCases, stats.casesDone),
     goldCount,
     bossUnlocked: bossUnlocked(avgTotal),

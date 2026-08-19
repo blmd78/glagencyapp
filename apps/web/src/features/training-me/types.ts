@@ -57,6 +57,22 @@ export interface RankRow {
   isNew: boolean
 }
 
+/** Classement HEBDO (RPC `training_weekly_ranking`) : mêmes agrégats que `RankRow`, sans boss ni série. */
+export interface WeeklyRankRow {
+  profileId: string
+  displayName: string
+  points: number
+  casesDone: number
+  avgTotal: number | null
+}
+
+/**
+ * `semaine` = semaine en cours (lundi courant) ; `semaine-derniere` = dernière semaine COMPLÈTE —
+ * celle qui détermine les tickets de roue (`training_last_week()`, migration 0122) ; `global` =
+ * classement toutes périodes (`training_ranking`).
+ */
+export type RankScope = 'semaine' | 'semaine-derniere' | 'global'
+
 export interface MeData {
   stats: MeStats
   modules: MeModule[]
@@ -65,7 +81,13 @@ export interface MeData {
   nextCaseId: string | null
   history: MeSession[]
   trophies: Trophy[]
+  /** Scope actuellement chargé — UNE seule RPC de classement par requête (jamais les deux). */
+  rankingScope: RankScope
+  /** Classement global : peuplé seulement quand `rankingScope === 'global'`, `[]` sinon. */
   ranking: RankRow[]
+  /** Classement hebdo : peuplé seulement quand `rankingScope !== 'global'`, `null` sinon. */
+  weeklyRanking: WeeklyRankRow[] | null
+  /** Rang du visiteur dans la vue COURANTE (`rankingScope`), pas toujours le classement global. */
   myRank: number | null
   /** Dénominateur AFFICHÉ des cas validés : catalogue actif hors boss, jamais inférieur à `stats.casesDone`. */
   totalCases: number
