@@ -61,7 +61,12 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent
   `lib/impersonation/actions.ts`. **Écritures des sessions (sessions/threads/messages/signalements)
   = service-role après vérification de propriété dans les Server Actions ; RLS = lecture
-  (propriétaire, encadrant `frm-suivi`, admin) — 0121.** Migrations 0116-0121 poussées
+  (propriétaire, encadrant `frm-suivi`, admin) — 0121.** Roue des récompenses
+  (`/formation/roue`, incr. 3, 0122-0123 UAT) : ticket = top 3 du classement hebdo
+  (`training_weekly_ranking`, points de la semaine), tirage serveur (`pickWeighted`), gains
+  stockés (`training_wheel_spins`, € nullable, `paid_at` pour la compta plus tard), config
+  admin 1 ligne, journal `member_events` kind `recompense` ; écritures service-role, RLS
+  lecture. Migrations 0116-0123 poussées
   **UAT seulement**, à recetter. Droits `frm-suivi` (Overview,
   encadrement) / `frm-entrainement` (Ma formation, chatter), Modules et session ouverts aux deux
   (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`

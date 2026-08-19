@@ -1,7 +1,6 @@
 # Formation — incrément 3 : Roue des récompenses (design)
 
-**Statut** : validé en chat le 2026-08-19 (Benoit), à implémenter sur `feature/formation-catalogue`
-(migration **0122**, UAT seulement, prod avec la release).
+**Statut** : implémenté sur `feature/formation-catalogue` (0122-0123 UAT seulement), à recetter.
 **Précédents** : `2026-08-17-formation-catalogue-design.md` (incrément 1),
 `2026-08-18-formation-entrainement-design.md` (incrément 2 — sessions, classement, Ma formation, Overview).
 
