@@ -3,14 +3,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
+import type { WheelSector } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
 import { claimTicket, spinWheel } from '../actions'
-import type { SpinResult, WheelData } from '../types'
+import type { SpinResult, WheelTicket } from '../types'
 import { WheelResult } from './wheel-result'
 import { sectorAngles, WheelSvg } from './wheel-svg'
 
 /** Durée de la transition CSS de `WheelSvg` (4,8 s) + une marge pour l'arrêt franc. */
 const SPIN_MS = 4900
+/**
+ * Une Server Action ne REJETTE que sur un échec de transport (réseau coupé, id d'action périmé
+ * après un déploiement) — jamais sur une erreur métier, que `runAction` rend en `success: false`.
+ * Sans ce filet, la phase resterait bloquée sur « claiming »/« spinning » et le bouton tournerait
+ * indéfiniment.
+ */
+const TRANSPORT_KO = 'Connexion perdue — recharge la page'
 
 type Phase = 'idle' | 'claiming' | 'spinning' | 'reveal' | 'done'
 
@@ -18,31 +26,53 @@ type Phase = 'idle' | 'claiming' | 'spinning' | 'reveal' | 'done'
  * Le tirage est décidé par le SERVEUR (`spinWheel`) : ici on anime la roue jusqu'au secteur
  * renvoyé, puis on révèle le lot. Aucune lib — rotation CSS sur le SVG, carte de résultat en
  * `animate-in` (tw-animate-css).
+ *
+ * Props MINIMALES (pas le `WheelData` entier) : « Mes gains » peut porter 50 tirages, ils n'ont
+ * rien à faire dans la charge RSC sérialisée vers le client.
  */
-export function WheelSpinner({ data }: { data: WheelData }) {
+export function WheelSpinner({
+  sectors,
+  ticket: serverTicket,
+  eligible,
+}: {
+  sectors: WheelSector[]
+  ticket: WheelTicket | null
+  eligible: boolean
+}) {
   const router = useRouter()
   const [rotation, setRotation] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
   const [result, setResult] = useState<SpinResult | null>(null)
   // Le ticket vient des PROPS (re-rendues à chaque `router.refresh()`) et pas d'un état copié :
-  // un `useState(data.ticket)` resterait figé à `null` après la réclamation. `spent` = consommé
+  // un `useState(serverTicket)` resterait figé à `null` après la réclamation. `spent` = consommé
   // ICI, le temps que le rafraîchissement serveur arrive.
   const [spent, setSpent] = useState(false)
-  const ticket = spent ? null : data.ticket
+  const ticket = spent ? null : serverTicket
   const claimed = useRef(false)
   const timer = useRef<number | null>(null)
 
   // Éligible sans ticket → réclamer UNE fois au montage (le serveur revérifie le top 3), puis
   // rafraîchir : le ticket redescend par les props.
   useEffect(() => {
-    if (!data.eligible || data.ticket || claimed.current) return
+    if (!eligible || serverTicket || claimed.current) return
     claimed.current = true
     setPhase('claiming')
-    void claimTicket().then((r) => {
-      setPhase('idle')
-      if (r.success && r.data.ticketId) router.refresh()
-    })
-  }, [data.eligible, data.ticket, router])
+    void (async () => {
+      try {
+        const r = await claimTicket()
+        // Refus métier (impersonation, droit retiré) : le dire, plutôt qu'un « Ton tour arrive… »
+        // qui ne viendrait jamais.
+        if (!r.success) toast.error(r.error)
+        else if (r.data.ticketId) router.refresh()
+      } catch {
+        toast.error(TRANSPORT_KO)
+      } finally {
+        // `claimed` reste à `true` : on ne boucle pas sur une réclamation qui échoue. Un
+        // rechargement (ou un `router.refresh()`) remonte le composant et retentera.
+        setPhase('idle')
+      }
+    })()
+  }, [eligible, serverTicket, router])
 
   // Le timer de révélation ne doit pas survivre au démontage (navigation pendant la rotation).
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
@@ -50,7 +80,16 @@ export function WheelSpinner({ data }: { data: WheelData }) {
   const spin = async () => {
     if (!ticket || phase !== 'idle') return
     setPhase('spinning')
-    const r = await spinWheel({ ticketId: ticket.id })
+    let r: Awaited<ReturnType<typeof spinWheel>>
+    try {
+      r = await spinWheel({ ticketId: ticket.id })
+    } catch {
+      // Le ticket a PEUT-ÊTRE été consommé côté serveur : rafraîchir pour repartir de l'état vrai.
+      toast.error(TRANSPORT_KO)
+      setPhase('idle')
+      router.refresh()
+      return
+    }
     if (!r.success) {
       toast.error(r.error)
       setPhase('idle')
@@ -58,7 +97,7 @@ export function WheelSpinner({ data }: { data: WheelData }) {
       return
     }
     setResult(r.data)
-    const angles = sectorAngles(data.config.sectors)
+    const angles = sectorAngles(sectors)
     const a = angles.find((x) => x.index === r.data.sectorIndex) ?? angles[0]
     if (!a) {
       // Config sans aucun poids > 0 : le serveur aurait throw avant d'en arriver là.
@@ -80,13 +119,13 @@ export function WheelSpinner({ data }: { data: WheelData }) {
 
   const hint = ticket
     ? `Un tour disponible — ${ticket.reason}`
-    : data.eligible
+    : eligible
       ? 'Ton tour arrive…'
       : 'Termine dans le top 3 du classement de la semaine pour gagner un tour.'
 
   return (
     <section className="flex flex-col items-center gap-5">
-      <WheelSvg sectors={data.config.sectors} rotation={rotation} spinning={phase === 'spinning'} />
+      <WheelSvg sectors={sectors} rotation={rotation} spinning={phase === 'spinning'} />
       <ActionButton
         type="button"
         onClick={() => void spin()}

@@ -117,7 +117,6 @@ export function WheelConfigDialog({ config }: { config: WheelConfig }) {
               <div className="flex flex-col gap-6">
                 <fieldset className="flex flex-col gap-3">
                   <legend className="text-sm font-medium">Secteurs de la roue</legend>
-                  <FieldError message={errors.sectors?.message ?? errors.sectors?.root?.message} />
                   <ul className="flex flex-col gap-2">
                     {sectors.fields.map((f, i) => (
                       <li key={f.id} className="flex flex-col gap-1">
@@ -167,6 +166,9 @@ export function WheelConfigDialog({ config }: { config: WheelConfig }) {
                       </li>
                     ))}
                   </ul>
+                  {/* Erreur de refine (au moins un secteur gagnant de poids > 0) : SOUS la liste
+                      qu'elle concerne — c'est la liste entiere qui est en cause, pas une ligne. */}
+                  <FieldError message={errors.sectors?.message ?? errors.sectors?.root?.message} />
                   <div className="flex gap-2">
                     <Button type="button" variant="outline" size="sm" disabled={isSubmitting} onClick={() => sectors.append({ label: 'Cadeau', weight: '10', lose: false })}>
                       <Plus className="size-4" /> Cadeau
@@ -180,7 +182,6 @@ export function WheelConfigDialog({ config }: { config: WheelConfig }) {
                 <fieldset className="flex flex-col gap-3">
                   <legend className="text-sm font-medium">Lots du coffre</legend>
                   <p className="text-xs text-muted-foreground">Montant vide = lot non monétaire (ex. « Day off supplémentaire »).</p>
-                  <FieldError message={errors.prizes?.message ?? errors.prizes?.root?.message} />
                   <ul className="flex flex-col gap-2">
                     {prizes.fields.map((f, i) => (
                       <li key={f.id} className="flex flex-col gap-1">
@@ -230,6 +231,8 @@ export function WheelConfigDialog({ config }: { config: WheelConfig }) {
                       </li>
                     ))}
                   </ul>
+                  {/* Idem : au moins un lot de poids > 0. */}
+                  <FieldError message={errors.prizes?.message ?? errors.prizes?.root?.message} />
                   <Button type="button" variant="outline" size="sm" className="self-start" disabled={isSubmitting} onClick={() => prizes.append({ label: '', weight: '10', amountEur: '' })}>
                     <Plus className="size-4" /> Lot
                   </Button>

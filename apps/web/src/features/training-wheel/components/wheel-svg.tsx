@@ -53,8 +53,15 @@ const polar = (r: number, deg: number): [number, number] => {
   return [CX + r * Math.cos(a), CY + r * Math.sin(a)]
 }
 
-/** Un secteur fin ne peut pas porter un gros libellé — et sous 7° il n'en porte aucun. */
-const fontSize = (span: number) => (span < 20 ? 7 : span < 40 ? 9 : 12)
+/**
+ * Un secteur fin ne peut pas porter un gros libellé — et sous 7° il n'en porte aucun. Le libellé
+ * étant RADIAL (il court le long du rayon), c'est sa HAUTEUR qui doit tenir dans l'ouverture du
+ * secteur : à 0,58 R l'arc mesure ≈ 1 px par degré, d'où le plafond à 9 px.
+ */
+const fontSize = (span: number) => (span < 20 ? 8 : 9)
+
+/** Rayon où se pose le libellé : assez rentré pour qu'un libellé long ne déborde pas de la jante. */
+const LABEL_R = 0.58
 
 export function WheelSvg({
   sectors,
@@ -95,8 +102,17 @@ export function WheelSvg({
           const mid = (a0 + a1) / 2
           const [x0, y0] = polar(R, a0)
           const [x1, y1] = polar(R, a1)
-          const [lx, ly] = polar(R * 0.6, mid)
+          const [lx, ly] = polar(R * LABEL_R, mid)
           const fill = s.lose ? LOSE_COLOR : COLORS[index % COLORS.length]
+          // Libellé RADIAL (il court du moyeu vers la jante) et non tangentiel : un texte tangentiel
+          // se retrouve tête en bas dès que le secteur passe sous l'horizontale.
+          // `rotate()` en SVG tourne dans le sens horaire (y vers le bas) et `polar` pose le point à
+          // l'angle standard `mid − 90` : c'est exactement l'inclinaison à donner au texte.
+          // Il devient tête en bas quand la direction de lecture part vers la gauche, soit
+          // cos(mid − 90) < 0, soit `mid` dans (180°, 360°) → on le retourne de 180° (`mid + 90`).
+          // Config par défaut : « Cadeau » (mid 144°, bas-droite) reste normal ; « Raté » (mid 324°,
+          // haut-gauche) est retourné. Les deux se lisent.
+          const tilt = mid > 180 ? mid + 90 : mid - 90
           return (
             <g key={index}>
               {single ? (
@@ -118,7 +134,7 @@ export function WheelSvg({
                   fontWeight={700}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  transform={`rotate(${mid.toFixed(1)},${lx.toFixed(2)},${ly.toFixed(2)})`}
+                  transform={`rotate(${tilt.toFixed(1)},${lx.toFixed(2)},${ly.toFixed(2)})`}
                   style={{ pointerEvents: 'none' }}
                 >
                   {s.label.slice(0, 16)}
