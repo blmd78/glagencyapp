@@ -9,12 +9,17 @@ import type { WheelPrize, WheelSector } from '@glagency/core'
  * colonne `training_wheel_spins.amount_eur`) ↔ `amountEur` (TS).
  */
 
-const sectorRow = z.object({ label: z.string(), weight: z.number(), lose: z.boolean() })
+// Les bornes reprennent EXACTEMENT celles de `schema.ts` : ce sont des invariants de la donnée,
+// pas du formulaire. Un poids décimal glissé à la main en SQL ferait throw `randomInt(0, n)` au
+// moment du tirage (n non entier) ; un montant négatif passerait la lecture puis échouerait sur le
+// `check (amount_eur >= 0)` de 0122 — APRÈS la consommation du ticket. Mieux vaut refuser ici.
+const weight = z.number().int().min(0)
+const sectorRow = z.object({ label: z.string(), weight, lose: z.boolean() })
 const prizeRow = z.object({
   label: z.string(),
-  weight: z.number(),
+  weight,
   // clé absente = lot non monétaire (tolérance : la seed 0122 écrit toujours `null` explicitement)
-  amount_eur: z.number().nullable().default(null),
+  amount_eur: z.number().min(0).nullable().default(null),
 })
 
 const CONFIG_KO = 'Configuration de la roue invalide — corrige-la dans « Configurer »'

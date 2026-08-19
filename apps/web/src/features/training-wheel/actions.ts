@@ -30,7 +30,11 @@ import type { SpinResult } from './types'
 const IMPERSONATION_MSG = 'Action indisponible en consultation (mode « en tant que »)'
 const ALREADY_USED = 'Ce tour a déjà été utilisé'
 
-/** La pastille du compteur vit dans le layout de la face Formation — d'où le second chemin. */
+/**
+ * La pastille de la sidebar est rendue par `app/(dash)/layout.tsx` : le second chemin invalide la
+ * CHAÎNE DE LAYOUTS du sous-arbre `/formation` (mode `'layout'`), sans quoi le compteur resterait
+ * figé après un tour joué.
+ */
 const revalidateWheel = () => {
   revalidatePath('/formation/roue')
   revalidatePath('/formation', 'layout')
@@ -146,7 +150,16 @@ export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>>
         // `check (won or amount_eur is null)` (0123) : un Raté ne porte JAMAIS de montant.
         amount_eur: won && prize ? prize.item.amountEur : null,
       })
-      if (sErr) throw new Error(sErr.message)
+      if (sErr) {
+        // COMPENSATION : un ticket ne doit jamais être brûlé sans tirage enregistré. L'insert et
+        // l'update ne sont pas dans la même transaction (deux appels PostgREST) — si le tirage
+        // échoue, on rend le ticket pour que le chatter puisse rejouer. L'échec de la compensation
+        // n'est que journalisé : il ne doit JAMAIS masquer l'erreur d'origine (celle qui part en
+        // Sentry via `runAction`).
+        const { error: cErr } = await admin.from('training_wheel_tickets').update({ used_at: null }).eq('id', t.id)
+        if (cErr) console.error('[roue] ticket non rendu après échec du tirage', t.id, cErr.message)
+        throw new Error(sErr.message)
+      }
 
       revalidateWheel()
       return {
