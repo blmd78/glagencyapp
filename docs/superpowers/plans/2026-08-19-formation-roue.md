@@ -352,7 +352,7 @@ export const weekLabel = (monday: string): string => `semaine du ${monday.slice(
 - Produces (schema) : `wheelConfigForm`, `WheelConfigInput`, `spinInput { ticketId }`.
 - Produces (services) : `getWheel(profileId): Promise<WheelData>`, `getWheelHistory(): Promise<WheelHistory>`.
 - Produces (actions) : `claimTicket() → ActionResult<{ ticketId: string | null }>`, `spinWheel(raw) → ActionResult<SpinResult>`, `saveWheelConfig(raw) → ActionResult`.
-- Consumes : Task 1 (tables/RPC), Task 2 (`pickWeighted`, `lastCompletedWeek`, `weekLabel`, `WHEEL_TOP_N`, types), `requirePageProfile`, `requireAdminProfile`, `readStateCookie`, `createAdminClient`, `todayParis`.
+- Consumes : Task 1 (tables/RPC), Task 2 (`pickWeighted`, `lastCompletedWeek`, `wheelWeekLabel`, `WHEEL_TOP_N`, types), `requirePageProfile`, `requireAdminProfile`, `readStateCookie`, `createAdminClient`, `todayParis`.
 
 - [ ] **Step 1: `schema.ts` + test**
 
@@ -429,7 +429,7 @@ export async function getWheel(profileId: string): Promise<WheelData> {
 import { revalidatePath } from 'next/cache'
 import { randomInt } from 'node:crypto'
 import { createAdminClient } from '@glagency/db'
-import { lastCompletedWeek, pickWeighted, todayParis, weekLabel, WHEEL_TOP_N, type WheelPrize, type WheelSector } from '@glagency/core'
+import { lastCompletedWeek, pickWeighted, todayParis, wheelWeekLabel, WHEEL_TOP_N, type WheelPrize, type WheelSector } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { runAction, noGuard, requirePageProfile, requireAdminProfile, BusinessError, type ActionResult } from '@/lib/actions'
 import { readStateCookie } from '@/lib/impersonation/session'
@@ -458,7 +458,7 @@ export async function claimTicket(): Promise<ActionResult<{ ticketId: string | n
     if (rank < 0 || rank >= WHEEL_TOP_N || Number(rows![rank].points) <= 0) return { ticketId: null }
     const admin = createAdminClient()
     const { data: t, error: iErr } = await admin.from('training_wheel_tickets')
-      .insert({ profile_id: profile.id, week, reason: `Top ${rank + 1} — ${weekLabel(week)}` })
+      .insert({ profile_id: profile.id, week, reason: `Top ${rank + 1} — ${wheelWeekLabel(week)}` })
       .select('id').single()
     if (iErr) {
       if (iErr.code === '23505') return { ticketId: null }   // déjà attribué pour cette semaine (et utilisé)
@@ -637,6 +637,6 @@ export function WheelSpinner({ data }: { data: WheelData }) {
 
 **Couverture spec** : §2 règles (semaine, points, ticket paresseux, tirage, config, pastille) → T1 (RPC/last_week), T2 (règles pures), T3 (actions), T5 (pastille) ✓ ; §3 modèle → T1 ✓ ; §4 feature/UI/sidebar/classement → T3, T4, T5, T6 ✓ ; §5 sécurité/perf/tests → transversal (Global Constraints), T2/T3 tests ✓ ; §6 recette → message de fin ✓. `member_events` `recompense` → T1 (SQL) + T2 (core) ✓.
 
-**Types** : `WheelSector`/`WheelPrize` (core) ← T3 types/services/actions ← T4 (`WheelSvg`, dialog) ✓ ; `SpinResult { sectorIndex, sectorLabel, won, prize }` (T3) ← `WheelSpinner` (T4) ✓ ; `sectorAngles` (T4 `wheel-svg`) ← `wheel-spinner` ✓ ; RPC `training_weekly_ranking(p_week)` (T1) ← `claimTicket` (T3), `get-me` (T6) ✓ ; `training_wheel_pending(p_profile)` (T1) ← `get-wheel` (T3), `wheel-pending.ts` (T5) ✓ ; `pickWeighted(items, rand)` (T2) ← `spinWheel` (T3) ✓ ; `lastCompletedWeek`/`weekLabel`/`WHEEL_TOP_N` (T2) ← T3/T6 ✓.
+**Types** : `WheelSector`/`WheelPrize` (core) ← T3 types/services/actions ← T4 (`WheelSvg`, dialog) ✓ ; `SpinResult { sectorIndex, sectorLabel, won, prize }` (T3) ← `WheelSpinner` (T4) ✓ ; `sectorAngles` (T4 `wheel-svg`) ← `wheel-spinner` ✓ ; RPC `training_weekly_ranking(p_week)` (T1) ← `claimTicket` (T3), `get-me` (T6) ✓ ; `training_wheel_pending(p_profile)` (T1) ← `get-wheel` (T3), `wheel-pending.ts` (T5) ✓ ; `pickWeighted(items, rand)` (T2) ← `spinWheel` (T3) ✓ ; `lastCompletedWeek`/`wheelWeekLabel`/`WHEEL_TOP_N` (T2) ← T3/T6 ✓.
 
 **Placeholders** : aucun ; les composants décrits en prose (T4 steps 3-6, T5, T6) portent contenu, données, actions et états.
