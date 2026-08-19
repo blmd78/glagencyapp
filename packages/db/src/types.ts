@@ -3331,6 +3331,150 @@ export type Database = {
           },
         ]
       }
+      training_wheel_config: {
+        Row: {
+          id: number
+          prizes: Json
+          sectors: Json
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          prizes: Json
+          sectors: Json
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          prizes?: Json
+          sectors?: Json
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_wheel_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_wheel_spins: {
+        Row: {
+          amount_eur: number | null
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          prize_label: string | null
+          profile_id: string
+          sector_label: string
+          spun_at: string
+          ticket_id: string
+          week: string
+          won: boolean
+        }
+        Insert: {
+          amount_eur?: number | null
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          prize_label?: string | null
+          profile_id: string
+          sector_label: string
+          spun_at?: string
+          ticket_id: string
+          week: string
+          won: boolean
+        }
+        Update: {
+          amount_eur?: number | null
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          prize_label?: string | null
+          profile_id?: string
+          sector_label?: string
+          spun_at?: string
+          ticket_id?: string
+          week?: string
+          won?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_wheel_spins_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_spins_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_spins_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "training_wheel_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_wheel_tickets: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          profile_id: string
+          reason: string
+          used_at: string | null
+          week: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          profile_id: string
+          reason: string
+          used_at?: string | null
+          week: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          profile_id?: string
+          reason?: string
+          used_at?: string | null
+          week?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_wheel_tickets_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_tickets_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3514,6 +3658,7 @@ export type Database = {
           n: number
         }[]
       }
+      training_last_week: { Args: never; Returns: string }
       training_overview_roster: {
         Args: never
         Returns: {
@@ -3549,6 +3694,17 @@ export type Database = {
         Args: { p_at: string; p_case: string; p_profile: string }
         Returns: undefined
       }
+      training_weekly_ranking: {
+        Args: { p_week: string }
+        Returns: {
+          avg_total: number
+          cases_done: number
+          display_name: string
+          points: number
+          profile_id: string
+        }[]
+      }
+      training_wheel_pending: { Args: { p_profile: string }; Returns: number }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {
