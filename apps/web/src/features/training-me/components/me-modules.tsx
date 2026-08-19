@@ -1,6 +1,7 @@
 import { BOSS_UNLOCK_AVG } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
+import { ChevronRight } from 'lucide-react'
 import { MedalBadge } from '@/components/training/medal-badge'
 import type { MeData, MeModule } from '../types'
 
@@ -45,28 +46,37 @@ export function MeModules({ data }: { data: MeData }) {
 
 function ModuleCard({ m }: { m: MeModule }) {
   const { progress } = m
+  // Toute la carte est le lien (même affordance que la liste Modules : fond au survol + chevron) :
+  // le titre seul souligné au hover ne se lisait pas comme « clique ici pour jouer ».
   return (
-    <li className="flex flex-col gap-3 rounded-xl border p-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <Link href={`/formation/modules/${m.code}?vue=cas` as Route} className="text-base font-semibold hover:underline">
-          {m.emoji && <span aria-hidden className="mr-2">{m.emoji}</span>}
-          {m.title}
-        </Link>
-        <span className="text-sm tabular-nums text-muted-foreground">
-          {progress.done}/{progress.total} cas · moy. {progress.avg ?? '—'} · {progress.points} pts
-        </span>
-      </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress.pct)}%` }} />
-      </div>
-      <ul className="flex flex-wrap gap-2">
-        {m.cases.map((c) => (
-          <li key={c.id} className="flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs">
-            <span>{c.title}</span>
-            {c.best == null ? <span className="text-muted-foreground">—</span> : <MedalBadge best={c.best} />}
-          </li>
-        ))}
-      </ul>
+    <li>
+      <Link
+        href={`/formation/modules/${m.code}?vue=cas` as Route}
+        className="group flex flex-col gap-3 rounded-xl border p-4 transition-colors hover:bg-accent"
+      >
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-base font-semibold">
+            {m.emoji && <span aria-hidden className="mr-2">{m.emoji}</span>}
+            {m.title}
+          </span>
+          <span className="flex items-center gap-2 text-sm tabular-nums text-muted-foreground">
+            {progress.done}/{progress.total} cas · moy. {progress.avg ?? '—'} · {progress.points} pts
+            <ChevronRight aria-hidden className="size-4 opacity-0 transition-opacity group-hover:opacity-100" />
+          </span>
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress.pct)}%` }} />
+        </div>
+        <ul className="flex flex-wrap gap-2">
+          {m.cases.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs">
+              <span>{c.title}</span>
+              {c.best == null ? <span className="text-muted-foreground">—</span> : <MedalBadge best={c.best} />}
+            </li>
+          ))}
+        </ul>
+        <span className="text-xs text-muted-foreground group-hover:text-foreground">Ouvrir le module et jouer un cas →</span>
+      </Link>
     </li>
   )
 }
