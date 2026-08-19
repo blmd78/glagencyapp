@@ -19,7 +19,10 @@ export interface WheelTicket {
   createdAt: string
 }
 
-/** Un tirage de l'utilisateur courant (`prizeLabel`/`amountEur` null si Raté). */
+/**
+ * Un tirage de l'utilisateur courant (`prizeLabel`/`amountEur` null si Raté). `paidAt` = versement
+ * (branché plus tard côté compta) — le chatter voit « payé » ou « à venir » sur SES gains.
+ */
 export interface MySpin {
   id: string
   week: string
@@ -28,6 +31,7 @@ export interface MySpin {
   won: boolean
   prizeLabel: string | null
   amountEur: number | null
+  paidAt: string | null
 }
 
 /**

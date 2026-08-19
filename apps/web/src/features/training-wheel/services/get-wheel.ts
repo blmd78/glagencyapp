@@ -25,7 +25,7 @@ export async function getWheel(profileId: string): Promise<WheelData> {
       .limit(1),
     supabase
       .from('training_wheel_spins')
-      .select('id, week, spun_at, sector_label, won, prize_label, amount_eur')
+      .select('id, week, spun_at, sector_label, won, prize_label, amount_eur, paid_at')
       .eq('profile_id', profileId)
       .order('spun_at', { ascending: false })
       .limit(50),
@@ -49,6 +49,7 @@ export async function getWheel(profileId: string): Promise<WheelData> {
     prizeLabel: s.prize_label,
     // `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number().
     amountEur: s.amount_eur == null ? null : Number(s.amount_eur),
+    paidAt: s.paid_at,
   }))
 
   return {
