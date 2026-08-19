@@ -45,4 +45,4 @@ export function pickWeighted<T extends { weight: number }>(items: T[], rand: (ma
 export const lastCompletedWeek = (today: string): string => addDays(mondayOf(today), -7)
 
 /** « semaine du 10/08 » */
-export const weekLabel = (monday: string): string => `semaine du ${monday.slice(8, 10)}/${monday.slice(5, 7)}`
+export const wheelWeekLabel = (monday: string): string => `semaine du ${monday.slice(8, 10)}/${monday.slice(5, 7)}`

@@ -43,6 +43,7 @@ export {
   frMonthLong,
   daysBetween,
   daysBetweenParis,
+  weekLabel,
   currentWeekStart,
   lastWeekStart,
   lastFullWeekStartFrom,
@@ -112,7 +113,7 @@ export type { Medal, ModuleProgress, Trophy, TrophyInput } from './training/rule
 export {
   pickWeighted,
   lastCompletedWeek,
-  weekLabel,
+  wheelWeekLabel,
   WHEEL_TOP_N,
   WHEEL_DEFAULT_SECTORS,
   WHEEL_DEFAULT_PRIZES,

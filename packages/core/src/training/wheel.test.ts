@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lastCompletedWeek, pickWeighted, weekLabel, WHEEL_DEFAULT_PRIZES, WHEEL_DEFAULT_SECTORS, WHEEL_TOP_N } from './wheel'
+import { lastCompletedWeek, pickWeighted, wheelWeekLabel, WHEEL_DEFAULT_PRIZES, WHEEL_DEFAULT_SECTORS, WHEEL_TOP_N } from './wheel'
 
 describe('pickWeighted', () => {
   const items = [{ label: 'a', weight: 80 }, { label: 'b', weight: 0 }, { label: 'c', weight: 20 }]
@@ -26,7 +26,7 @@ describe('semaines', () => {
     expect(lastCompletedWeek('2026-08-17')).toBe('2026-08-10')   // lundi → semaine passée
     expect(lastCompletedWeek('2026-08-16')).toBe('2026-08-03')   // dimanche
   })
-  it('weekLabel', () => { expect(weekLabel('2026-08-10')).toBe('semaine du 10/08') })
+  it('wheelWeekLabel', () => { expect(wheelWeekLabel('2026-08-10')).toBe('semaine du 10/08') })
 })
 
 describe('défauts GLA (en euros)', () => {
