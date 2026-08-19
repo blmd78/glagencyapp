@@ -97,15 +97,17 @@ export function AppSidebar({
   // chaque re-rendu de la sidebar et l'effet du sweep se relançait en permanence.
   const pagesKey = (allowedPages ?? []).join(',')
   const period = `${searchParams.get('from') ?? ''}|${searchParams.get('to') ?? ''}`
-  const items = useMemo(() => {
-    const access: NavAccess = {
+  // Partagé avec le switcher (home d'une face = 1ʳᵉ entrée ACCESSIBLE, cf. `workspaceHome`).
+  const access = useMemo<NavAccess>(
+    () => ({
       isAdmin: !!isAdmin,
       isSuperadmin: !!isSuperadmin,
       isManager: !!isManager,
       pages: new Set(pagesKey ? pagesKey.split(',') : []),
-    }
-    return active.nav.filter((item) => canAccessNav(item, access))
-  }, [active, isAdmin, isSuperadmin, isManager, pagesKey])
+    }),
+    [isAdmin, isSuperadmin, isManager, pagesKey],
+  )
+  const items = useMemo(() => active.nav.filter((item) => canAccessNav(item, access)), [active, access])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —
   // un groupe sans item visible disparaît.
   const directTop = items.filter((i) => !i.group && !i.bottom)
@@ -243,7 +245,7 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <WorkspaceSwitcher workspaces={workspaces} active={active} />
+        <WorkspaceSwitcher workspaces={workspaces} active={active} access={access} />
       </SidebarHeader>
 
       <SidebarContent>

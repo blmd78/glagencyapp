@@ -282,18 +282,25 @@ export function workspaceForPath(pathname: string): Workspace {
   )
 }
 
-/** Home d'une face = sa 1ʳᵉ entrée de nav, sinon son basePath. */
-export function workspaceHome(w: Workspace): Route {
-  // Fallback défensif (basePath seul n'est pas une page réelle) → cast.
-  return w.nav[0]?.href ?? (w.basePath as Route)
-}
-
 /** Contexte d'accès : booléens de rôle + slugs de pages autorisés (Set pour lookup O(1)). */
 export interface NavAccess {
   isAdmin: boolean
   isSuperadmin: boolean
   isManager: boolean
   pages: Set<string>
+}
+
+/**
+ * Home d'une face POUR UN PROFIL = sa 1ʳᵉ entrée de nav accessible (items `bottom` exclus,
+ * même règle que `landingHref`), sinon son basePath. Dépend des droits, pas seulement de la face :
+ * nav[0] de Formation est Overview (frm-suivi), un chatter avec le seul droit Entraînement y
+ * serait rebondi par `requireAccess` vers sa face chatteurs — en boucle depuis le switcher
+ * (bug 2026-08-19). Idem Marketing (nav[0] = mkt-overview).
+ */
+export function workspaceHome(w: Workspace, access: NavAccess): Route {
+  const first = w.nav.find((item) => !item.bottom && canAccessNav(item, access))
+  // Fallback défensif (basePath seul n'est pas une page réelle, mais l'index de face existe) → cast.
+  return first?.href ?? (w.basePath as Route)
 }
 
 /**

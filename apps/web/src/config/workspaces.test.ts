@@ -6,6 +6,7 @@ import {
   PAGE_SLUGS,
   slugFace,
   WORKSPACES,
+  workspaceHome,
   type NavAccess,
 } from './workspaces'
 
@@ -57,5 +58,16 @@ describe('face Formation — droits', () => {
     expect(
       landingHref({ role: 'chatteur', superadmin: false, manager: false, pages: ['frm-entrainement', 'formation'] }),
     ).toBe('/formation/ma-formation')
+  })
+
+  // Bug 2026-08-19 : le switcher envoyait TOUJOURS sur nav[0] (Overview = frm-suivi) → un chatter
+  // avec le seul droit Entraînement était rebondi par requireAccess vers sa face chatteurs, en
+  // boucle. La home d'une face dépend des droits, comme landingHref.
+  it('la home de la face dépend des droits (switcher)', () => {
+    expect(workspaceHome(formation, user(['frm-entrainement', 'formation']))).toBe('/formation/ma-formation')
+    expect(workspaceHome(formation, user(['frm-suivi', 'formation']))).toBe('/formation/overview')
+    expect(workspaceHome(formation, { ...user([]), isAdmin: true })).toBe('/formation/overview')
+    // Aucune page de la face (droit de face seul) → basePath, jamais une page qui rebondit.
+    expect(workspaceHome(formation, user(['formation']))).toBe('/formation')
   })
 })

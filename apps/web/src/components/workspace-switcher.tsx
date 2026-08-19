@@ -15,16 +15,19 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { type Workspace, workspaceHome } from '@/config/workspaces'
+import { type NavAccess, type Workspace, workspaceHome } from '@/config/workspaces'
 import { withPeriod } from '@/lib/nav'
 
-/** Switcher de face (Chatteurs / Marketing) en tête de sidebar — façon team-switcher. */
+/** Switcher de face (Chatteurs / Marketing / Formation) en tête de sidebar — façon team-switcher. */
 export function WorkspaceSwitcher({
   workspaces,
   active,
+  access,
 }: {
   workspaces: Workspace[]
   active: Workspace
+  /** Droits du profil : la home d'une face = sa 1ʳᵉ page ACCESSIBLE, pas nav[0] (qui rebondirait). */
+  access: NavAccess
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -32,7 +35,7 @@ export function WorkspaceSwitcher({
   const ActiveIcon = active.icon
 
   // Conserve la période du header (`?from&to`) en changeant de face.
-  const goTo = (w: Workspace) => router.push(withPeriod(workspaceHome(w), searchParams))
+  const goTo = (w: Workspace) => router.push(withPeriod(workspaceHome(w, access), searchParams))
 
   return (
     <SidebarMenu>
