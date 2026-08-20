@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getProfile, hasPageAccess } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
 import { getWheelPending } from '@/lib/services/wheel-pending'
+import { getRecruitPending } from '@/lib/services/recruit-pending'
 import { ImpersonationBanner } from '@/features/impersonation/components/impersonation-banner'
 import { getImpersonationState } from '@/features/impersonation/services/read-state'
 import { AppSidebar } from '@/components/app-sidebar'
@@ -50,6 +51,12 @@ async function DashDynamic({ children }: { children: ReactNode }) {
   const wheelPendingPromise = hasPageAccess(profile, 'frm-entrainement')
     ? getWheelPending(profile.id).catch(() => 0)
     : Promise.resolve(0)
+  // Idem pour la pastille « Recrutement », mais gate ADMIN (l'item de nav est `adminOnly` sans
+  // slug — le recrutement ne s'attribue pas page par page). `role === 'admin'` couvre le
+  // superadmin (cf. getProfile). La RPC s'auto-restreint de toute façon ; ce test évite juste
+  // l'aller-retour inutile à chaque hard load d'un non-admin.
+  const recruitPendingPromise =
+    profile.role === 'admin' ? getRecruitPending().catch(() => 0) : Promise.resolve(0)
   // Chargé UNE fois (peut rediriger si expiré/tripwire — cf. `getImpersonationState`) puis
   // partagé : `.active` au NavUser (sidebar), l'objet complet au bandeau. Ne pas dupliquer
   // l'appel — pendant une consultation active il fait un aller-retour DB à chaque navigation.
@@ -66,6 +73,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
         allowedPages={profile.pages}
         insightsCountPromise={insightsCountPromise}
         wheelPendingPromise={wheelPendingPromise}
+        recruitPendingPromise={recruitPendingPromise}
         workLink={profile.workLink}
         impersonating={impersonationState.active}
       />

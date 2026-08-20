@@ -40,6 +40,9 @@ import {
   Library,
   PlayCircle,
   Gift,
+  UserSearch,
+  Settings2,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -188,14 +191,28 @@ export const WORKSPACES: Workspace[] = [
     // formation). Modules est ouvert aux deux (anyOf). Catalogue = admin (comme Membres).
     // Les deux sont en service : Ma formation (progression, historique, trophées, classement) et
     // Overview (roster de la promo, fiche d'un chatter, signalements, coût IA pour un admin).
+    //
+    // UN SEUL sous-onglet, « Configuration » : les deux écrans de RÉGLAGE de la face (Catalogue
+    // des modules, Config du test de recrutement) sont admin-only et ne se consultent pas au
+    // quotidien — les ranger ensemble sort deux entrées du flux de travail (Overview, Ma
+    // formation, Roue, Recrutement, Modules) sans les cacher.
+    groups: [{ id: 'config', label: 'Configuration', icon: Settings2 }],
     nav: [
       { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
       // Sans `slug` propre (anyOf) : pas une case cochable à part dans Membres — le droit
       // vient déjà de Suivi/Entraînement, comme Modules juste après.
       { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-entrainement', 'frm-suivi'] },
+      // Dossiers du test de recrutement public (/postuler) — `adminOnly` SANS slug : le
+      // recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables recruit_*),
+      // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de
+      // `facePageChoices` ci-dessous). Item DIRECT, seul à porter une pastille sur cette face.
+      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
       { href: '/formation/modules', label: 'Modules', icon: Library, anyOf: ['frm-entrainement', 'frm-suivi'] },
-      { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, bottom: true },
+      // Sous-onglet « Configuration » : les items de groupe sont rendus dans le CORPS de la
+      // sidebar — donc jamais `bottom` (Catalogue l'était quand il était direct).
+      { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, group: 'config' },
+      { href: '/formation/recrutement/config', label: 'Config du test', icon: SlidersHorizontal, adminOnly: true, group: 'config' },
       { href: '/formation/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
     ],
   },

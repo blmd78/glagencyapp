@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import type { FieldErrors, UseFormRegister } from 'react-hook-form'
 import { Input } from '@/components/ui/input'
 import type { MemberForm } from '../schema'
@@ -12,20 +13,33 @@ import type { MemberForm } from '../schema'
  *
  * `register` plutôt que `control` : ce sont des `<input>` non contrôlés, contrairement aux
  * `Select`/cases à cocher des autres blocs qui passent par `Controller`.
+ *
+ * Le champ e-mail expose en plus un `onEmailBlur` + un `emailNotice` : c'est le dialog qui va
+ * chercher le dossier de recrutement de cet e-mail et compose l'encart — ce composant reste
+ * bête, il ne fait que placer les deux au bon endroit.
  */
 export function MemberIdentityFields({
   register,
   errors,
   emailLocked,
   isSubmitting,
+  onEmailBlur,
+  emailNotice,
 }: {
   register: UseFormRegister<MemberForm>
   errors: FieldErrors<MemberForm>
   /** Édition : l'email n'est plus modifiable (identifiant du compte auth). */
   emailLocked: boolean
   isSubmitting: boolean
+  /** Notifié APRÈS le `onBlur` de RHF (validation d'abord) — création seulement, cf. dialog. */
+  onEmailBlur?: (email: string) => void
+  /** Encart sous le champ (dossier de recrutement trouvé) — le dialog décide de son contenu. */
+  emailNotice?: ReactNode
 }) {
   'use no memo'
+  // `register` rend son propre `onBlur` : on le garde et on chaîne le nôtre APRÈS (le spread
+  // serait sinon écrasé par la prop qui le suit, et le champ ne se validerait plus au blur).
+  const emailField = register('email')
   return (
     <>
       <div className="grid gap-1.5">
@@ -36,11 +50,16 @@ export function MemberIdentityFields({
           type="email"
           placeholder="prenom@exemple.fr"
           disabled={emailLocked || isSubmitting}
-          {...register('email')}
+          {...emailField}
+          onBlur={(e) => {
+            emailField.onBlur(e)
+            onEmailBlur?.(e.target.value)
+          }}
         />
         {errors.email && (
           <p className="text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>
         )}
+        {emailNotice}
       </div>
       <div className="grid gap-1.5">
         <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

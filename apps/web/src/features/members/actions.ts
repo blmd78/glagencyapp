@@ -15,6 +15,7 @@ import {
   requireManagerTargets,
   syncAssignments,
 } from './authz'
+import { attachRecruitCandidate } from './recruit-link'
 import { memberInput, memberUpdateInput } from './schema'
 import { canBeAttached } from './types'
 
@@ -170,6 +171,16 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           role === 'chatteur' ? values.shift : null,
         )
         if (sErr) throw new Error(sErr)
+      }
+      // Le nouveau membre sort-il du test de recrutement public ? Rattachement du dossier par
+      // e-mail (`recruit_candidates.profile_id`, 0125) — NON BLOQUANT par construction : le compte
+      // est déjà créé, un échec ici n'est qu'un « devenu membre » manquant sur la fiche candidat
+      // (Sentry, rien à l'écran). Toutes les faces sont concernées : un candidat peut être
+      // embauché chatteur comme VA.
+      if (await attachRecruitCandidate(admin, email, uid)) {
+        // Mode 'layout' : la fiche candidat ET la pastille de la sidebar (rendue par le layout de
+        // `(dash)`) vivent sous /formation — mêmes raisons que `revalidateRecruit`.
+        revalidatePath('/formation', 'layout')
       }
       revalidateMembers()
     },

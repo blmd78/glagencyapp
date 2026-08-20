@@ -34,7 +34,7 @@ import { prefetchFull, withPeriod } from '@/lib/nav'
 /**
  * Badge compteur générique : lit la promesse du layout via use() sous Suspense — le compteur
  * streame APRÈS le shell au lieu de bloquer le premier octet de toutes les pages. Partagé par
- * Insights (« à traiter ») et Roue (« tour disponible »).
+ * Insights (« à traiter »), Roue (« tour disponible ») et Recrutement (« dossiers nouveaux »).
  */
 function CountBadge({ promise }: { promise: Promise<number> }) {
   const count = use(promise)
@@ -56,6 +56,7 @@ export function AppSidebar({
   allowedPages,
   insightsCountPromise,
   wheelPendingPromise,
+  recruitPendingPromise,
   workLink = '',
   impersonating = false,
 }: {
@@ -71,6 +72,8 @@ export function AppSidebar({
   insightsCountPromise?: Promise<number>
   /** Tour de roue disponible (badge streamé, cf. `insightsCountPromise`). */
   wheelPendingPromise?: Promise<number>
+  /** Dossiers de recrutement à traiter (badge streamé, admin — cf. `insightsCountPromise`). */
+  recruitPendingPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
   workLink?: string
   /** Consultation « en tant que » active (Task 9) — bascule le logout de NavUser. */
@@ -245,6 +248,13 @@ export function AppSidebar({
         {item.href.endsWith('/roue') && wheelPendingPromise && (
           <Suspense fallback={null}>
             <CountBadge promise={wheelPendingPromise} />
+          </Suspense>
+        )}
+        {/* `/formation/recrutement/config` n'est PAS concerné : c'est un item de groupe, rendu
+            par `SidebarMenuSub` plus bas — `renderDirect` ne le voit jamais. */}
+        {item.href.endsWith('/recrutement') && recruitPendingPromise && (
+          <Suspense fallback={null}>
+            <CountBadge promise={recruitPendingPromise} />
           </Suspense>
         )}
       </SidebarMenuItem>

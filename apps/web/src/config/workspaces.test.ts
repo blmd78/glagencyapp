@@ -48,6 +48,27 @@ describe('face Formation — droits', () => {
     expect(canAccessNav(item('/formation/catalogue'), { ...user([]), isAdmin: true })).toBe(true)
   })
 
+  it('Recrutement et Config du test sont adminOnly, et sans slug cochable', () => {
+    for (const href of ['/formation/recrutement', '/formation/recrutement/config']) {
+      expect(canAccessNav(item(href), user(['frm-suivi', 'frm-entrainement']))).toBe(false)
+      expect(canAccessNav(item(href), { ...user([]), isAdmin: true })).toBe(true)
+      expect(item(href).slug).toBeUndefined()
+    }
+    // Le filtre de `facePageChoices` (adminOnly + slug) doit continuer de les ignorer.
+    expect(pageChoicesFor('formation').map((c) => c.slug)).toEqual(['frm-suivi', 'frm-entrainement'])
+  })
+
+  // Le sous-onglet est rendu dans le CORPS de la sidebar (`SidebarMenuSub`) : un item de groupe
+  // encore marqué `bottom` serait simplement invisible (app-sidebar.tsx sépare les deux listes).
+  it('le sous-onglet Configuration range Catalogue + Config du test, aucun en bottom', () => {
+    expect(formation.groups?.map((g) => g.id)).toEqual(['config'])
+    const inGroup = formation.nav.filter((n) => n.group === 'config')
+    expect(inGroup.map((n) => n.href)).toEqual(['/formation/catalogue', '/formation/recrutement/config'])
+    expect(inGroup.some((n) => n.bottom)).toBe(false)
+    // Recrutement reste un item DIRECT — c'est lui qui porte la pastille (`renderDirect`).
+    expect(item('/formation/recrutement').group).toBeUndefined()
+  })
+
   it('les cases cochables de la face = 2 droits, libellés Suivi / Entraînement, sans doublon', () => {
     const choices = pageChoicesFor('formation')
     expect(choices.map((c) => c.slug)).toEqual(['frm-suivi', 'frm-entrainement'])

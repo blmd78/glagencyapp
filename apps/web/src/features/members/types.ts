@@ -165,3 +165,17 @@ export const ATTACHABLE_ROLES: Record<Role, readonly string[]> = {
 
 /** Ce rôle peut-il porter un rattachement ? (dérivé de la source unique ci-dessus) */
 export const canBeAttached = (role: Role) => ATTACHABLE_ROLES[role].length > 0
+
+/**
+ * Écho du test de recrutement pour un e-mail saisi à la CRÉATION d'un membre (`recruit-link.ts`,
+ * `checkRecruitByEmail`). Trois champs, pas un de plus : le dialog Membres annonce « a passé le
+ * test le … — X/100 », le détail (mesures, transcription, motif de refus) reste sur la page
+ * Recrutement, seule habilitée à le montrer.
+ */
+export interface RecruitCheck {
+  /** Horodatage de création du dossier = fin du test (ISO). */
+  testedAt: string
+  /** Note globale sur 100. */
+  global: number
+  passed: boolean
+}
