@@ -119,3 +119,17 @@ export {
   WHEEL_DEFAULT_PRIZES,
 } from './training/wheel'
 export type { WheelSector, WheelPrize } from './training/wheel'
+export {
+  RECRUIT_DEFAULTS,
+  pickQiQuestions,
+  gradeQi,
+  computeVerdict,
+} from './recruit/rules'
+export type {
+  QiVariant,
+  QiSlot,
+  QiQuestion,
+  RecruitConfig,
+  Verdict,
+  VerdictInput,
+} from './recruit/rules'
