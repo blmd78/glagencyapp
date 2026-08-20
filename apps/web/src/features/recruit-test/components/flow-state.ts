@@ -1,0 +1,116 @@
+// État du parcours `/postuler` tel qu'il SURVIT à un rechargement de page, et son accès au
+// stockage du navigateur. Module sans composant (voisin des hooks `use-*.ts` de
+// `training-session/components/`) : il porte la forme persistée, donc les deux types que
+// `TestFlow` et l'étape chat se partagent.
+//
+// POURQUOI persister : `startAttempt` est plafonné à 5 tentatives par IP et par 24 h. Un candidat
+// qui recharge, qui perd le réseau ou qui revient sur la page ne doit PAS brûler une tentative —
+// la reprise est donc la règle, et `startAttempt` n'est appelé que s'il n'y a rien à reprendre.
+//
+// Ce qui n'est PAS ici : le verdict final (il n'a pas à survivre — le test est joué), et surtout
+// aucun élément de barème (la correction QI, les seuils et les notes restent serveur).
+
+import { z } from 'zod'
+import type { QiQuestion } from '@glagency/core'
+
+/** Clé de session : le parcours en cours. Effacée à l'écran final. */
+const FLOW_KEY = 'recrutement'
+/** Clé PERSISTANTE (localStorage) : identifie le navigateur pour la blocklist « un seul essai ». */
+const DEVICE_KEY = 'recrutement-device'
+
+/** Un message de la conversation avec le client IA, côté affichage. */
+export type ChatMessage = {
+  speaker: 'candidat' | 'client'
+  body: string
+  /** Renseigné quand le message est un média verrouillé envoyé par le candidat. */
+  mediaPrice?: number
+}
+
+/** Les étapes qui ont une tentative derrière elles (l'intro et l'écran final n'en ont pas). */
+export type FlowStep = 'qi' | 'typing' | 'connection' | 'bot' | 'identity'
+
+export type FlowState = {
+  attemptId: string
+  step: FlowStep
+  persona: string
+  /** Les 5 questions tirées par le serveur — SANS la bonne réponse. */
+  qi: QiQuestion[]
+  typingText: string
+  qiTimer: number
+  botMessages: number
+  answers: (number | null)[]
+  chat: ChatMessage[]
+}
+
+// Le sessionStorage est éditable à la main : ce qu'on relit est du JSON hostile, pas notre état.
+// Une forme invalide n'est pas rattrapable (on ne sait pas où en est le candidat) → on efface et
+// on repart de l'intro, ce qui est sans risque : la tentative abandonnée reste côté serveur.
+const storedFlow = z.object({
+  attemptId: z.uuid(),
+  step: z.enum(['qi', 'typing', 'connection', 'bot', 'identity']),
+  persona: z.string(),
+  qi: z.array(z.object({ slot: z.string(), q: z.string(), opts: z.array(z.string()) })),
+  typingText: z.string(),
+  qiTimer: z.number(),
+  botMessages: z.number(),
+  answers: z.array(z.number().nullable()),
+  chat: z.array(
+    z.object({
+      speaker: z.enum(['candidat', 'client']),
+      body: z.string(),
+      mediaPrice: z.number().optional(),
+    }),
+  ),
+})
+
+/** Parcours en cours, ou `null` (rien de stocké, stockage indisponible, ou contenu corrompu). */
+export function readFlow(): FlowState | null {
+  try {
+    const raw = sessionStorage.getItem(FLOW_KEY)
+    if (!raw) return null
+    const parsed = storedFlow.safeParse(JSON.parse(raw))
+    if (!parsed.success) {
+      sessionStorage.removeItem(FLOW_KEY)
+      return null
+    }
+    return parsed.data
+  } catch {
+    // Navigation privée / stockage bloqué : le test reste jouable, il ne survivra juste pas à un
+    // rechargement.
+    return null
+  }
+}
+
+export function writeFlow(flow: FlowState): void {
+  try {
+    sessionStorage.setItem(FLOW_KEY, JSON.stringify(flow))
+  } catch {
+    /* stockage indisponible — sans effet sur le déroulé */
+  }
+}
+
+export function clearFlow(): void {
+  try {
+    sessionStorage.removeItem(FLOW_KEY)
+  } catch {
+    /* idem */
+  }
+}
+
+/**
+ * Identifiant de navigateur : posé une fois, gardé (localStorage) — c'est lui qui alimente la
+ * blocklist « un seul essai ». Charset UUID = compatible avec le `regex` de `startAttemptInput`.
+ * Stockage indisponible → un UUID neuf à chaque visite : le test reste jouable, seul le blocage
+ * par navigateur devient inopérant (l'e-mail et le Discord le rattrapent à la soumission).
+ */
+export function deviceId(): string {
+  const fresh = crypto.randomUUID()
+  try {
+    const existing = localStorage.getItem(DEVICE_KEY)
+    if (existing) return existing
+    localStorage.setItem(DEVICE_KEY, fresh)
+  } catch {
+    /* stockage bloqué — on rend l'identifiant volatil ci-dessous */
+  }
+  return fresh
+}
