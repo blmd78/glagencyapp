@@ -73,7 +73,9 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
           </Badge>
           {candidate.repeat && <Badge variant="outline">2ᵉ passage</Badge>}
           {candidate.isMember && <Badge variant="secondary">devenu membre</Badge>}
-          {candidate.blocked && <Badge variant="outline">bloqué</Badge>}
+          {/* Badge réservé au blocage ADMIN : le blocage automatique de la soumission vise TOUS
+              les candidats du flux nominal, l'afficher ne dirait rien. */}
+          {candidate.blockedByAdmin && <Badge variant="outline">bloqué</Badge>}
         </div>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <Meta label="E-mail">{candidate.email}</Meta>
@@ -82,7 +84,16 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
         </dl>
       </div>
 
-      <CandidateActions candidate={candidate} />
+      <CandidateActions
+        candidate={{
+          id: candidate.id,
+          firstName: candidate.firstName,
+          lastName: candidate.lastName,
+          status: candidate.status,
+          blockedByAdmin: candidate.blockedByAdmin,
+          hasBlocklistLines: candidate.hasBlocklistLines,
+        }}
+      />
 
       {/* Verdict FIGÉ à la soumission : c'est ce que le candidat a lu à l'écran, il ne bouge pas si
           un seuil change ensuite. La raison est qualitative (jamais un chiffre) — GLA. */}

@@ -100,12 +100,38 @@ export interface AttemptMeta {
   startedAt: string
 }
 
+/**
+ * État de blocage d'un candidat — DEUX booléens, parce que `recruit_blocklist` mélange deux
+ * choses très différentes :
+ * - le blocage AUTOMATIQUE posé par `submitCandidate` à chaque soumission (device + e-mail +
+ *   Discord, `created_by` null) : c'est l'anti-repasse « un seul essai », il existe pour 100 %
+ *   des candidats du flux nominal — le signaler comme « bloqué » ne dirait rien ;
+ * - le blocage ADMIN (`created_by` renseigné), qui ajoute l'IP et signifie « celui-là, plus
+ *   jamais ». C'est LUI que la fiche affiche, et lui seul qui rend « Bloquer » inutile.
+ */
+export interface BlockState {
+  /** Au moins une ligne matchante posée par un admin (`created_by` non null). */
+  blockedByAdmin: boolean
+  /** Au moins une ligne matchante, admin OU automatique — ce que « Débloquer » retirerait. */
+  hasBlocklistLines: boolean
+}
+
 /** Dossier complet (`?dossier=<id>`) : la ligne + la tentative + la conversation. */
-export interface CandidateFileData extends CandidateRow {
+export interface CandidateFileData extends CandidateRow, BlockState {
   attempt: AttemptMeta
   messages: TranscriptMessage[]
-  /** Au moins une entrée de `recruit_blocklist` vise ce candidat (device, e-mail, Discord ou IP). */
-  blocked: boolean
+}
+
+/**
+ * Ce dont les COMMANDES de la fiche ont besoin, et rien de plus. `CandidateActions` est une
+ * feuille cliente : lui passer le dossier entier ferait voyager la transcription, le device et
+ * l'IP une seconde fois dans le payload RSC (déjà rendus par la fiche côté serveur).
+ */
+export interface CandidateCommand extends BlockState {
+  id: string
+  firstName: string
+  lastName: string
+  status: CandidateStatus
 }
 
 /** Config du test telle que l'éditeur la manipule (`recruit_config`, ligne unique). */

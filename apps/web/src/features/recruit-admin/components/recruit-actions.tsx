@@ -8,7 +8,7 @@ import { ActionButton } from '@/components/action-button'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { blockCandidate, deleteCandidate, reviewCandidate, unblockCandidate } from '../actions'
-import type { CandidateFileData } from '../types'
+import type { CandidateCommand } from '../types'
 
 /**
  * Bouton « Copier le lien du test ». L'URL est construite au CLIC depuis `window.location.origin` :
@@ -36,9 +36,16 @@ export function CopyTestLink() {
 /**
  * Actions d'un dossier. Valider / Refuser sont RÉVERSIBLES (un clic, pas de confirmation) ; bloquer,
  * débloquer et supprimer passent par une confirmation — les deux premiers décident si quelqu'un
- * pourra repasser le test un jour, le troisième est définitif.
+ * pourra repasser le test un jour, le troisième efface le dossier.
+ *
+ * Bloquer et Débloquer NE SONT PAS exclusifs, parce que la blocklist mélange deux choses : le
+ * blocage AUTOMATIQUE posé à chaque soumission (anti-repasse, `created_by` null) et le blocage
+ * ADMIN. Le cas nominal — un candidat qui vient de passer le test — affiche donc LES DEUX :
+ * « Bloquer » (qui ajoute l'IP et marque la décision d'agence) et « Débloquer » (qui l'autorise à
+ * repasser le test). Ne prend que les champs dont il se sert : le dossier entier ferait voyager la
+ * transcription et l'IP une seconde fois dans le payload RSC.
  */
-export function CandidateActions({ candidate }: { candidate: CandidateFileData }) {
+export function CandidateActions({ candidate }: { candidate: CandidateCommand }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const fullName = `${candidate.firstName} ${candidate.lastName}`
@@ -80,20 +87,7 @@ export function CandidateActions({ candidate }: { candidate: CandidateFileData }
         <X className="size-4" /> Refuser
       </ActionButton>
 
-      {candidate.blocked ? (
-        <ConfirmDialog
-          trigger={
-            <Button type="button" size="sm" variant="outline">
-              <Unlock className="size-4" /> Débloquer
-            </Button>
-          }
-          title={`Débloquer ${fullName} ?`}
-          description="Retire toutes les entrées de la liste de blocage qui le visent (navigateur, e-mail, Discord, IP). Il pourra repasser le test."
-          confirmLabel="Débloquer"
-          destructive={false}
-          onConfirm={confirmed(() => unblockCandidate({ id: candidate.id }), 'Candidat débloqué')}
-        />
-      ) : (
+      {!candidate.blockedByAdmin && (
         <ConfirmDialog
           trigger={
             <Button type="button" size="sm" variant="outline">
@@ -101,10 +95,24 @@ export function CandidateActions({ candidate }: { candidate: CandidateFileData }
             </Button>
           }
           title={`Bloquer ${fullName} ?`}
-          description="Ajoute son navigateur, son e-mail, son Discord et son IP à la liste de blocage. L’IP peut être partagée (4G, box familiale) : d’autres candidats derrière la même connexion seront bloqués aussi."
+          description="Ajoute son navigateur, son e-mail, son Discord et son IP à la liste de blocage — c’est la décision d’agence « celui-là, plus jamais ». L’IP peut être partagée (4G, box familiale) : d’autres candidats derrière la même connexion seront bloqués aussi."
           confirmLabel="Bloquer"
           destructive={false}
           onConfirm={confirmed(() => blockCandidate({ id: candidate.id }), 'Candidat bloqué')}
+        />
+      )}
+      {candidate.hasBlocklistLines && (
+        <ConfirmDialog
+          trigger={
+            <Button type="button" size="sm" variant="outline">
+              <Unlock className="size-4" /> Autoriser à repasser
+            </Button>
+          }
+          title={`Autoriser ${fullName} à repasser le test ?`}
+          description="Retire les entrées de la liste de blocage qui le visent — celle posée automatiquement à sa soumission (un seul essai) comme un éventuel blocage manuel. Son prochain dossier sera marqué « 2ᵉ passage »."
+          confirmLabel="Débloquer"
+          destructive={false}
+          onConfirm={confirmed(() => unblockCandidate({ id: candidate.id }), 'Candidat débloqué')}
         />
       )}
 
@@ -115,7 +123,7 @@ export function CandidateActions({ candidate }: { candidate: CandidateFileData }
           </Button>
         }
         title={`Supprimer le dossier de ${fullName} ?`}
-        description="Le dossier (identité, scores, verdict) est effacé définitivement. La conversation et le coût IA de la tentative restent, ainsi que la liste de blocage — débloque-le AVANT si tu veux qu’il repasse le test."
+        description="Supprime le dossier candidat (identité, scores, verdict). La tentative et sa transcription sont conservées — elles portent le coût IA —, ainsi que l’éventuel blocage : autorise-le à repasser AVANT si c’est ce que tu veux."
         confirmLabel="Supprimer"
         onConfirm={async () => {
           const res = await deleteCandidate({ id: candidate.id })

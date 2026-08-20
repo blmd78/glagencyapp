@@ -104,14 +104,20 @@ export async function blockCandidate(raw: unknown): Promise<ActionResult> {
 }
 
 /**
- * Déblocage : retire TOUTES les entrées de la liste qui visent ce candidat — celle posée
- * automatiquement à la soumission (device + e-mail + Discord) comme celles posées à la main par un
- * admin (IP comprise). Sans quoi « Débloquer » ne débloquerait rien : il suffit d'UNE entrée qui
- * matche pour que l'entrée du test soit refusée.
+ * Déblocage : retire les entrées de la liste qui visent ce candidat — celle posée
+ * automatiquement à la soumission (device + e-mail + Discord, `created_by` null) comme celles
+ * posées à la main par un admin. C'est le chemin documenté pour autoriser quelqu'un à REPASSER
+ * le test : il suffit d'UNE entrée qui matche pour que l'entrée du test soit refusée.
  *
- * Quatre `delete` séparés, jamais un `.or()` : ces valeurs viennent du navigateur du candidat, les
+ * Des `delete` séparés, jamais un `.or()` : ces valeurs viennent du navigateur du candidat, les
  * concaténer dans la chaîne de filtre PostgREST serait injectable (cf. `recruit-test/shared.ts`).
- * Effet de bord assumé : deux candidats qui partagent un device (poste commun) ou une IP se
+ *
+ * L'IP est traitée à part, et RESTREINTE aux lignes « IP seule ». Une ligne de blocage admin porte
+ * device + e-mail + Discord + IP : la supprimer parce que son IP matche effacerait le blocage
+ * ENTIER d'un tiers derrière la même IP publique (CGNAT, box familiale, 4G) — pas seulement son
+ * volet réseau. La ligne admin du candidat qu'on débloque, elle, porte SON e-mail : elle part déjà
+ * par le `delete` sur `email`. Ne restent visées ici que les lignes purement réseau.
+ * Effet de bord qui subsiste, assumé : deux candidats qui partagent un device (poste commun) se
  * débloquent ensemble — c'est le pendant exact du blocage, qui les bloque déjà ensemble.
  */
 export async function unblockCandidate(raw: unknown): Promise<ActionResult> {
@@ -123,16 +129,25 @@ export async function unblockCandidate(raw: unknown): Promise<ActionResult> {
       await requireRecruitAdmin()
       const admin = createAdminClient()
       const t = await loadBlockTargets(admin, id)
-      const targets: [ 'device' | 'email' | 'discord' | 'ip', string | null ][] = [
+      const identity: ['device' | 'email' | 'discord', string | null][] = [
         ['device', t.device],
         ['email', t.email],
         ['discord', t.discord],
-        ['ip', t.ip],
       ]
       try {
-        for (const [column, value] of targets) {
+        for (const [column, value] of identity) {
           if (!value) continue
           const { error } = await admin.from('recruit_blocklist').delete().eq(column, value)
+          if (error) throw new Error(error.message)
+        }
+        if (t.ip) {
+          const { error } = await admin
+            .from('recruit_blocklist')
+            .delete()
+            .eq('ip', t.ip)
+            .is('email', null)
+            .is('device', null)
+            .is('discord', null)
           if (error) throw new Error(error.message)
         }
       } finally {

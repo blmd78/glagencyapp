@@ -73,6 +73,16 @@ describe('configForm — banque QI', () => {
 })
 
 describe('configForm — seuils et textes', () => {
+  it('refuse un champ VIDÉ au lieu de l’enregistrer à 0 (z.coerce.number parse \'\' en 0)', () => {
+    // Le piège porte sur les deux seuils dont 0 est une valeur légitime : vider « Score global
+    // minimum » désactiverait tout refus au global, sans le moindre message.
+    expect(configForm.safeParse(config({ globalThreshold: '' })).success).toBe(false)
+    expect(configForm.safeParse(config({ qiMin: '   ' })).success).toBe(false)
+    expect(configForm.safeParse(config({ botMessages: '' })).success).toBe(false)
+    // Idem pour la bonne réponse d'une variante (radio non coché ⇒ null côté RHF).
+    expect(configForm.safeParse(config({ qiBank: [slot({ variants: [variant({ a: '' })] }), ...bank(4)] })).success).toBe(false)
+  })
+
   it('borne chaque seuil', () => {
     expect(configForm.safeParse(config({ botMessages: '0' })).success).toBe(false)
     expect(configForm.safeParse(config({ botMessages: '51' })).success).toBe(false)

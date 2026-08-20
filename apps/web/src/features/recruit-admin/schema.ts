@@ -9,12 +9,29 @@ import { z } from 'zod'
 //   valeur techniquement acceptable serait absurde à l'usage (ex. `qi_timer` autorise 300 s en
 //   base, on s'arrête à 120 : une question de QI qui laisse 5 minutes ne mesure plus rien).
 
+/**
+ * Entier saisi dans un `<input type="number">` (ou porté par un radio) — donc une CHAÎNE côté
+ * formulaire. Le `min(1)` sur la chaîne AVANT la coercition n'est pas une précaution de style :
+ * `z.coerce.number()` parse `''` en `0`, si bien qu'un champ vidé s'enregistrait en 0 sans la
+ * moindre erreur. Sur `qiMin` et `globalThreshold` (dont le minimum légitime EST 0), un admin qui
+ * vidait « Score global minimum » désactivait silencieusement tout refus au global. Vide = refus.
+ */
 const requiredInt = (min: number, max: number) =>
-  z.coerce
-    .number({ error: 'Nombre requis' })
-    .int('Nombre entier')
-    .min(min, `Minimum ${min}`)
-    .max(max, `Maximum ${max}`)
+  z
+    .string({ error: 'Nombre requis' })
+    .trim()
+    .min(1, 'Nombre requis')
+    // `transform` + `pipe(z.number())` plutôt que `pipe(z.coerce.number())` : l'entrée d'un
+    // schéma coercitif est `unknown`, que Zod v4 refuse de chaîner derrière une sortie `string`.
+    // `z.number()` rejette `NaN` — une saisie non numérique tombe donc sur « Nombre invalide ».
+    .transform((v) => Number(v))
+    .pipe(
+      z
+        .number({ error: 'Nombre invalide' })
+        .int('Nombre entier')
+        .min(min, `Minimum ${min}`)
+        .max(max, `Maximum ${max}`),
+    )
 
 // ---------- Commandes de dossier ----------
 
@@ -39,7 +56,9 @@ const qiVariantForm = z.object({
   opts: z
     .array(z.string().trim().min(1, 'Option vide').max(200, '200 caractères max'))
     .length(4, '4 options par question'),
-  // Le radio « bonne réponse » rend une CHAÎNE ('0'..'3') → coerce.
+  // Le radio « bonne réponse » rend une CHAÎNE ('0'..'3'), et `null` si aucune option n'est
+  // cochée — d'où le refus de la valeur vide (avant, un `null` coercé en 0 désignait
+  // silencieusement la première option comme bonne réponse).
   a: requiredInt(0, 3),
 })
 

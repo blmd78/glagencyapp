@@ -20,12 +20,12 @@ export async function requireRecruitAdmin() {
 }
 
 /**
- * Le mode `'layout'` invalide toute la chaîne de layouts du sous-arbre `/formation` : sans lui, la
- * pastille « dossiers nouveaux » de la sidebar (rendue par `app/(dash)/layout.tsx`) resterait figée
- * après une validation, et la page Config ne verrait pas les seuils changés. Il couvre au passage
- * `/formation/recrutement` et `/formation/recrutement/config`.
+ * UN SEUL appel : le mode `'layout'` invalide toute la chaîne de layouts du sous-arbre
+ * `/formation`, ce qui couvre déjà `/formation/recrutement` et `/formation/recrutement/config`
+ * (un `revalidatePath('/formation/recrutement')` en plus serait redondant). Il faut ce mode et pas
+ * le chemin seul : sans lui, la pastille « dossiers nouveaux » de la sidebar (rendue par
+ * `app/(dash)/layout.tsx`) resterait figée après une validation.
  */
 export const revalidateRecruit = () => {
-  revalidatePath('/formation/recrutement')
   revalidatePath('/formation', 'layout')
 }

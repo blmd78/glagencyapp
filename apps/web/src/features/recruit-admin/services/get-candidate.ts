@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { CandidateFileData, TranscriptMessage } from '../types'
+import type { BlockState, CandidateFileData, TranscriptMessage } from '../types'
 import { toCandidateRow } from './get-candidates'
 
 type Db = Awaited<ReturnType<typeof createClient>>
@@ -31,9 +31,9 @@ export async function getCandidate(id: string): Promise<CandidateFileData | null
   if (!data) return null
 
   const attempt = data.recruit_attempts
-  const [messages, blocked] = await Promise.all([
+  const [messages, block] = await Promise.all([
     loadMessages(supabase, data.attempt_id),
-    isBlocked(supabase, { device: attempt?.device ?? null, email: data.email, discord: data.discord, ip: attempt?.ip ?? null }),
+    readBlockState(supabase, { device: attempt?.device ?? null, email: data.email, discord: data.discord, ip: attempt?.ip ?? null }),
   ])
 
   return {
@@ -51,7 +51,7 @@ export async function getCandidate(id: string): Promise<CandidateFileData | null
       startedAt: attempt?.created_at ?? data.created_at,
     },
     messages,
-    blocked,
+    ...block,
   }
 }
 
@@ -73,28 +73,38 @@ async function loadMessages(supabase: Db, attemptId: string): Promise<Transcript
   }))
 }
 
-/** Une entrée de blocage vise-t-elle ce candidat ? (device, e-mail, Discord ou IP). */
-async function isBlocked(
+/**
+ * Combien de lignes de blocage matchent l'une des colonnes — et lesquelles viennent d'un ADMIN.
+ * La distinction est LE point qui rend la fiche lisible : `submitCandidate` insère une ligne
+ * (device + e-mail + Discord, `created_by` null) à CHAQUE soumission, donc « au moins une ligne
+ * matche » est vrai pour 100 % des candidats du flux nominal et ne veut rien dire. Seul un
+ * `created_by` renseigné est une décision d'agence.
+ *
+ * On lit `created_by` (pas juste `id`) et on borne à 50 lignes par colonne : au-delà, la présence
+ * d'un blocage admin est déjà tranchée ou l'IP est massivement partagée — dans les deux cas la
+ * 51ᵉ ligne ne change pas la réponse.
+ */
+async function readBlockState(
   supabase: Db,
   t: { device: string | null; email: string; discord: string | null; ip: string | null },
-): Promise<boolean> {
-  const hit = (column: 'device' | 'email' | 'discord' | 'ip', value: string | null) => {
-    if (!value) return Promise.resolve(false)
+): Promise<BlockState> {
+  const rows = (column: 'device' | 'email' | 'discord' | 'ip', value: string | null) => {
+    if (!value) return Promise.resolve<(string | null)[]>([])
     return supabase
       .from('recruit_blocklist')
-      .select('id')
+      .select('created_by')
       .eq(column, value)
-      .limit(1)
+      .limit(50)
       .then(({ data, error }) => {
         if (error) throw new Error(error.message)
-        return (data ?? []).length > 0
+        return (data ?? []).map((r) => r.created_by)
       })
   }
-  const results = await Promise.all([
-    hit('device', t.device),
-    hit('email', t.email),
-    hit('discord', t.discord),
-    hit('ip', t.ip),
-  ])
-  return results.some(Boolean)
+  const found = (
+    await Promise.all([rows('device', t.device), rows('email', t.email), rows('discord', t.discord), rows('ip', t.ip)])
+  ).flat()
+  return {
+    blockedByAdmin: found.some((createdBy) => createdBy !== null),
+    hasBlocklistLines: found.length > 0,
+  }
 }
