@@ -48,10 +48,19 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
       const attempt = await loadAttempt(admin, d.attemptId)
       requireInProgress(attempt)
       const config = await readConfig(admin)
+      // Chemin rapide : le compteur suffit dans le cas normal (un tour à la fois).
       if (attempt.bot_replies >= config.botMessages) throw new BusinessError(CHAT_OVER)
 
       const history = await loadHistory(admin, attempt.id)
       const nextPos = (history[history.length - 1]?.position ?? -1) + 1
+      // VRAI plafond, et le seul qui tienne face au pipelining : `bot_replies` est lu puis réécrit
+      // en valeur absolue, donc N appels lancés ensemble lisent tous le même compteur périmé et
+      // passent tous le test ci-dessus. La POSITION, elle, est allouée atomiquement par
+      // `unique (attempt_id, position)` — les messages alternent candidat/client, donc une
+      // conversation complète occupe exactement 2 × bot_messages positions (0..2N-1) : au-delà,
+      // l'insert suivant est refusé ici, ou perd la course sur l'index (23505). C'est ce qui borne
+      // réellement la dépense IA.
+      if (nextPos >= 2 * config.botMessages) throw new BusinessError(CHAT_OVER)
       const body = d.mediaPrice != null ? `[MEDIA VERROUILLE - ${d.mediaPrice}€]` : d.body
       // Inatteignable : le OU EXCLUSIF de `sendToBotInput` garantit l'un des deux. Le garde-fou est
       // là pour que le compilateur le sache SANS cast — un `as string` mentirait si le refine sautait.
@@ -143,8 +152,8 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreResu
       }
 
       // `.is('bot_total', null)` : deux notations concurrentes (double-clic sur « Terminer ») ne
-      // peuvent pas écraser le score de l'autre — la seconde retombera sur la branche idempotente.
-      const { error } = await admin
+      // peuvent pas écraser le score de l'autre.
+      const { data: written, error } = await admin
         .from('recruit_attempts')
         .update({
           orthographe: score.orthographe,
@@ -158,7 +167,17 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreResu
         })
         .eq('id', attempt.id)
         .is('bot_total', null)
+        .select('id')
       if (error) throw new Error(error.message)
+
+      // Course perdue : une autre notation a déjà écrit. Le score qu'on vient de calculer n'existe
+      // NULLE PART en base — le rendre ferait diverger l'écran du candidat du dossier de l'agence.
+      // On relit et on rend la valeur PERSISTÉE, la seule qui servira au verdict.
+      if (written.length === 0) {
+        const persisted = await loadAttempt(admin, attempt.id)
+        if (persisted.bot_total === null) throw new Error(`Notation perdue sur la tentative ${attempt.id}`)
+        return { total: persisted.bot_total }
+      }
 
       return { total: score.total }
     },

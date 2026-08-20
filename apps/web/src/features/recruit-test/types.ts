@@ -2,10 +2,13 @@ import type { QiQuestion } from '@glagency/core'
 
 /**
  * Contrats de retour des Server Actions publiques du test (`/postuler`). Règle qui gouverne tout ce
- * fichier : **rien de secret ne descend au client**. Pas la clé de correction QI (elle reste dans
- * `recruit_attempts.qi_answers`), pas les seuils du verdict (`frappe_min`, `connexion_min`,
- * `qi_min`, `global_threshold`), pas le score global ni les notes du bot — le candidat reçoit une
- * réussite ou une raison QUALITATIVE de refus, comme chez GLA.
+ * fichier : **rien de ce qui permettrait de deviner le barème ne descend au client**. Pas la clé de
+ * correction QI (elle reste dans `recruit_attempts.qi_answers`), pas les seuils du verdict
+ * (`frappe_min`, `connexion_min`, `qi_min`, `global_threshold`), pas le score global, pas le détail
+ * des 4 axes du bot. Le candidat reçoit une réussite ou une raison QUALITATIVE de refus, comme chez
+ * GLA. Deux mesures brutes font exception parce que le parcours en a besoin pour s'afficher —
+ * `QiResult.qiScore` et `ScoreResult.total` : sans le seuil en face, elles ne disent pas si c'est
+ * pris, et l'UI reste libre de ne pas les montrer (GLA ne les montrait pas).
  */
 
 /** Ce dont `TestFlow` a besoin pour dérouler tout le parcours après `startAttempt`. */

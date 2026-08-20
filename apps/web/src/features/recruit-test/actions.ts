@@ -233,12 +233,18 @@ export async function submitCandidate(raw: unknown): Promise<ActionResult<Submit
       if (cErr?.code === '23505') throw new BusinessError(ALREADY_SENT)
       if (cErr) throw new Error(cErr.message)
 
-      // Blocklist : `created_by` null = posée par le test lui-même (pas par un admin). Un échec ici
-      // n'annule PAS le dossier déjà écrit (le candidat serait renvoyé sur un « déjà envoyé »
-      // insoluble) — on trace pour que l'admin puisse bloquer à la main depuis Recrutement.
+      // Blocklist « un seul essai » : device + e-mail (+ Discord), et SURTOUT PAS l'IP. Une IP
+      // n'identifie pas une personne — derrière un CGNAT ou un partage de connexion mobile, le
+      // premier candidat à soumettre condamnerait tous les suivants. Le blocage par IP reste une
+      // décision d'ADMIN (page Recrutement), jamais un effet de bord du test. L'IP de la tentative
+      // reste enregistrée sur `recruit_attempts` (télémétrie + rate-limit), elle n'est juste pas
+      // recopiée ici.
+      // `created_by` null = posée par le test lui-même (pas par un admin). Un échec ici n'annule PAS
+      // le dossier déjà écrit (le candidat serait renvoyé sur un « déjà envoyé » insoluble) — on
+      // trace pour que l'admin puisse bloquer à la main depuis Recrutement.
       const { error: blErr } = await admin
         .from('recruit_blocklist')
-        .insert({ device: attempt.device, email: d.email, discord: d.discord, ip: attempt.ip, reason: 'test passé', created_by: null })
+        .insert({ device: attempt.device, email: d.email, discord: d.discord, reason: 'test passé', created_by: null })
       if (blErr) {
         console.error('[recrutement] blocklist non posée', blErr.message)
         Sentry.captureException(new Error(`Blocklist non posée pour la tentative ${attempt.id} : ${blErr.message}`))
