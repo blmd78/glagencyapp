@@ -116,12 +116,17 @@ export async function readConfig(admin: Admin): Promise<RecruitTestConfig> {
 // Tentative
 // ---------------------------------------------------------------------------------------------
 
+// `created_at` fait partie des colonnes chargées d'office : c'est l'ORIGINE DE TEMPS de la
+// tentative, la seule dont le serveur dispose pour rendre le chrono du QI exécutoire (`saveQi`).
+// Le client, lui, ne fournit aucune horodatation digne de confiance.
 const ATTEMPT_COLS =
-  'id, status, persona, device, ip, qi_score, qi_answers, typing, connection_mbps, bot_replies, input_tokens, output_tokens, orthographe, coherence, relance, vente, bot_total'
+  'id, status, created_at, persona, device, ip, qi_score, qi_answers, typing, connection_mbps, bot_replies, input_tokens, output_tokens, orthographe, coherence, relance, vente, bot_total'
 
 export type Attempt = {
   id: string
   status: string
+  /** Horodatage serveur de la création (timestamptz ISO) — origine du chrono QI. */
+  created_at: string
   persona: string
   device: string
   ip: string | null

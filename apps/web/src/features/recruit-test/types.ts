@@ -2,13 +2,14 @@ import type { QiQuestion } from '@glagency/core'
 
 /**
  * Contrats de retour des Server Actions publiques du test (`/postuler`). Règle qui gouverne tout ce
- * fichier : **rien de ce qui permettrait de deviner le barème ne descend au client**. Pas la clé de
- * correction QI (elle reste dans `recruit_attempts.qi_answers`), pas les seuils du verdict
- * (`frappe_min`, `connexion_min`, `qi_min`, `global_threshold`), pas le score global, pas le détail
- * des 4 axes du bot. Le candidat reçoit une réussite ou une raison QUALITATIVE de refus, comme chez
- * GLA. Deux mesures brutes font exception parce que le parcours en a besoin pour s'afficher —
- * `QiResult.qiScore` et `ScoreResult.total` : sans le seuil en face, elles ne disent pas si c'est
- * pris, et l'UI reste libre de ne pas les montrer (GLA ne les montrait pas).
+ * fichier, SANS exception : **aucun chiffre de notation ne descend au client**. Ni la clé de
+ * correction QI (elle reste dans `recruit_attempts.qi_answers`), ni les seuils du verdict
+ * (`frappe_min`, `connexion_min`, `qi_min`, `global_threshold`), ni le score QI, ni le total du
+ * bot, ni le détail de ses 4 axes. Le candidat reçoit une progression, puis une réussite ou une
+ * raison QUALITATIVE de refus, comme chez GLA.
+ *
+ * Ce que le parcours reçoit à la place, c'est le strict nécessaire pour avancer : « c'est
+ * enregistré », « c'est noté ». Les scores restent en base, où le verdict et l'agence les lisent.
  */
 
 /** Ce dont `TestFlow` a besoin pour dérouler tout le parcours après `startAttempt`. */
@@ -25,23 +26,18 @@ export interface StartedAttempt {
   botMessages: number
 }
 
-/**
- * Score QI corrigé côté serveur. Rendu pour l'état interne du parcours (l'UI décide de l'afficher
- * ou non — GLA ne le montrait pas au candidat).
- */
-export interface QiResult {
-  qiScore: number
-}
-
 /** Un tour de conversation : la réponse du client, et `done` quand le plafond d'échanges est atteint. */
 export interface BotTurn {
   reply: string
   done: boolean
 }
 
-/** Notation du bot — le TOTAL sur 100 seulement (les 4 axes restent côté agence). */
-export interface ScoreResult {
-  total: number
+/**
+ * Notation faite — un accusé, rien d'autre. Le total sur 100 et les 4 axes sont écrits sur la
+ * tentative et ne servent qu'au verdict (`computeVerdict`) et au dossier côté agence.
+ */
+export interface ScoreDone {
+  done: true
 }
 
 /**

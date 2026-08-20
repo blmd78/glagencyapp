@@ -110,6 +110,14 @@ describe('configForm — seuils et textes', () => {
     expect(configForm.safeParse(config({ discordLink: 'https://discord.gg/abc' })).success).toBe(true)
     expect(configForm.safeParse(config({ discordLink: 'discord.gg/abc' })).success).toBe(false)
   })
+
+  it('refuse un lien Discord non http(s) — il finit en href sur la page publique /postuler', () => {
+    // `z.url()` seul les accepte tous les trois : ce sont des URL valides, juste pas des liens.
+    expect(configForm.safeParse(config({ discordLink: 'javascript:alert(1)' })).success).toBe(false)
+    expect(configForm.safeParse(config({ discordLink: 'data:text/html,<script>alert(1)</script>' })).success).toBe(false)
+    expect(configForm.safeParse(config({ discordLink: 'ftp://discord.gg/abc' })).success).toBe(false)
+    expect(configForm.safeParse(config({ discordLink: 'http://discord.gg/abc' })).success).toBe(true)
+  })
 })
 
 describe('reviewInput', () => {

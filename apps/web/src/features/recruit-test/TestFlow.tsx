@@ -8,9 +8,10 @@
 //    et par 24 h ; il n'est donc appelé QUE depuis le bouton « Commencer », et uniquement quand il
 //    n'y a rien à reprendre en `sessionStorage`. Un rechargement, un onglet fermé par erreur ou un
 //    réseau qui saute reprennent la tentative en cours (`components/flow-state.ts`).
-// 2. **Aucun chiffre de barème à l'écran.** `saveQi` rend le score QI et `scoreAttempt` le total du
-//    bot : les deux servent l'état du parcours, PAS l'affichage — GLA ne les montrait pas, nous non
-//    plus. Le candidat ne voit qu'une progression, puis une réussite ou une raison qualitative.
+// 2. **Aucun chiffre de barème à l'écran.** Et pas seulement « pas affiché » : les actions
+//    n'en RENVOIENT plus aucun (`saveQi` et `scoreAttempt` rendent un simple accusé, cf.
+//    `types.ts`). Le candidat ne voit qu'une progression, puis une réussite ou une raison
+//    qualitative — comme chez GLA.
 //
 // Les erreurs d'action se rattrapent sur place (toast + on reste sur l'étape). Seul un refus
 // MÉTIER à l'entrée (`test fermé`, `déjà passé`, `trop de tentatives`) est un cul-de-sac assumé —
@@ -56,6 +57,13 @@ const NO_ATTEMPT = 'Test introuvable — recommence depuis le début.'
  * `next/headers`, donc rien de tout ça n'est importable ici. À garder en phase à la main.
  */
 const BOT_ALREADY_SENT = 'Message déjà envoyé.'
+/**
+ * Même copie manuelle, pour le refus `CHAT_OVER` d'`actions-bot.ts` : le serveur considère la
+ * conversation finie alors que l'écran propose encore d'écrire. Cas réel — l'admin baisse
+ * `bot_messages` pendant un test : `flow.botMessages` a été figé au démarrage, l'écran laisse donc
+ * la saisie ouverte et chaque envoi serait refusé, sans autre issue que d'abandonner le test.
+ */
+const BOT_CHAT_OVER = 'La conversation est terminée.'
 
 // « Sommes-nous passés côté navigateur ? » — `useSyncExternalStore` rend le snapshot SERVEUR
 // (`false`) pendant le SSR *et* pendant l'hydratation, puis le snapshot client (`true`). C'est ce
@@ -135,7 +143,6 @@ export function TestFlow() {
         toast.error(res.error)
         return false
       }
-      // `res.data.qiScore` volontairement ignoré : le score ne s'affiche jamais.
       // Plus de question en cours ⇒ plus d'échéance à tenir.
       setFlow((f) => (f ? { ...f, step: 'typing', answers, qiDeadline: null } : f))
       return true
@@ -181,7 +188,6 @@ export function TestFlow() {
       toast.error(res.error)
       return
     }
-    // `res.data.total` volontairement ignoré (cf. règle 2).
     setFlow((f) => (f ? { ...f, step: 'identity' } : f))
   }, [attemptId])
 
@@ -209,6 +215,14 @@ export function TestFlow() {
           setFlow((f) => (f ? { ...f, chat: f.chat.filter((m) => m !== mine) } : f))
         }
         setSending(false)
+        // « La conversation est terminée. » : le serveur ne prendra plus AUCUN message sur cette
+        // tentative. Un toast laisserait le candidat sur un écran de saisie définitivement muet —
+        // on prend donc la même sortie que `done` : notation, puis identité. Pas de toast : rien
+        // n'a échoué de son point de vue, l'épreuve est simplement finie.
+        if (res.error === BOT_CHAT_OVER) {
+          await finishBot()
+          return
+        }
         toast.error(res.error)
         return
       }

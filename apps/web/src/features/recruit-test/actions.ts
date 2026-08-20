@@ -40,9 +40,22 @@ import {
   toQiBank,
   toTyping,
 } from './shared'
-import type { QiResult, StartedAttempt, SubmitResult } from './types'
+import type { StartedAttempt, SubmitResult } from './types'
 
 const ALREADY_SENT = 'Ce test a déjà été envoyé.'
+/** Chrono QI dépassé — refus GÉNÉRIQUE : la fenêtre réelle ne descend pas plus que les seuils. */
+const QI_EXPIRED = 'Temps écoulé — recommence le test.'
+
+/**
+ * Fin de la fenêtre pendant laquelle une correction QI est encore acceptée : 5 questions
+ * (invariant de la banque, cf. `saveQiInput`) × `qi_timer`, plus 120 s de marge — latence, lecture
+ * de la consigne, onglet qui reprend la main. Sans ce calcul SERVEUR, le chrono n'existait que
+ * côté client : horloge du poste, `sessionStorage` éditable ou onglet suspendu rendaient du temps
+ * gratuit sur des questions dont le barème compte pour 30 points du verdict.
+ */
+function qiDeadlineMs(createdAt: string, qiTimer: number): number {
+  return Date.parse(createdAt) + (5 * qiTimer + 120) * 1000
+}
 
 /**
  * Entrée du test. Trois gardes, dans cet ordre : test ouvert (config), « un seul essai »
@@ -97,16 +110,30 @@ export async function startAttempt(raw: unknown): Promise<ActionResult<StartedAt
  * comparés à la clé tirée pour CETTE tentative. `null` (temps écoulé) compte faux, comme GLA.
  * Une seule correction par tentative : le `.is('qi_score', null)` de l'update rend l'écriture
  * atomique — deux appels concurrents ne peuvent pas se départager sur le meilleur score.
+ *
+ * Le CHRONO est vérifié ici aussi (`qiDeadlineMs`) : côté client il ne tient qu'à l'échéance
+ * persistée dans `sessionStorage`, que rien n'empêche de repousser. Le score n'est RIEN rendu au
+ * client (cf. `types.ts`) — il reste en base pour le verdict.
  */
-export async function saveQi(raw: unknown): Promise<ActionResult<QiResult>> {
+export async function saveQi(raw: unknown): Promise<ActionResult<void>> {
   return runAction({
     schema: saveQiInput,
     input: raw,
     guard: noGuard,
-    handler: async (d): Promise<QiResult> => {
+    handler: async (d): Promise<void> => {
       const admin = createAdminClient()
       const attempt = await loadAttempt(admin, d.attemptId)
       requireInProgress(attempt)
+      // REJEU d'une correction DÉJÀ commitée (réponse HTTP perdue, rechargement pendant la
+      // requête) : c'est un succès, et il est servi AVANT le chrono — un rejeu tardif d'un envoi
+      // qui a réussi ne doit pas se transformer en « temps écoulé ». La première correction fait
+      // foi, celle qu'on vient de recevoir est ignorée (anti-rejeu : pas de second passage pour
+      // un meilleur score).
+      if (attempt.qi_score !== null) return
+
+      const config = await readConfig(admin)
+      if (Date.now() > qiDeadlineMs(attempt.created_at, config.qiTimer)) throw new BusinessError(QI_EXPIRED)
+
       const qiScore = gradeQi(toAnswerKey(attempt.qi_answers), d.answers)
       const { data, error } = await admin
         .from('recruit_attempts')
@@ -118,16 +145,14 @@ export async function saveQi(raw: unknown): Promise<ActionResult<QiResult>> {
       if (error) throw new Error(error.message)
       if (data.length === 0) {
         const persisted = await loadAttempt(admin, attempt.id)
-        // Score déjà en base = REJEU (réponse HTTP perdue après le commit, réseau mobile,
-        // rechargement pendant la requête). C'est un succès, pas un cul-de-sac : refuser
-        // enfermerait le candidat sur un « Réessayer » qui ne peut jamais aboutir. On rend la
-        // valeur PERSISTÉE, celle qui servira au verdict — la nouvelle est ignorée (anti-rejeu :
-        // la première correction fait foi, on ne rejoue pas le questionnaire pour un meilleur score).
-        if (persisted.qi_score !== null) return { qiScore: persisted.qi_score }
+        // Score déjà en base = course perdue contre une correction concurrente (double envoi
+        // parti avant que la première réponse revienne). C'est un succès, pas un cul-de-sac :
+        // refuser enfermerait le candidat sur un « Réessayer » qui ne peut jamais aboutir. La
+        // valeur PERSISTÉE, celle qui servira au verdict, est celle de l'autre appel.
+        if (persisted.qi_score !== null) return
         requireInProgress(persisted)
         throw new Error(`Correction QI perdue sur la tentative ${attempt.id}`)
       }
-      return { qiScore }
     },
   })
 }

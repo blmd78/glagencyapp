@@ -68,14 +68,18 @@ const qiSlotForm = z.object({
 })
 
 /**
- * Lien Discord : URL valide OU vide (défaut `''` en base — non renseigné, l'écran final du test
- * n'affiche alors aucun lien). `z.url()` refuserait la chaîne vide, d'où le refine.
+ * Lien Discord : URL **http(s)** OU vide (défaut `''` en base — non renseigné, l'écran final du
+ * test n'affiche alors aucun lien). Le refine porte deux choses que `z.url()` seul ne fait pas :
+ * accepter la chaîne vide, et RESTREINDRE LE PROTOCOLE. `z.url()` valide `javascript:alert(1)` et
+ * `data:text/html,…` — or cette valeur part telle quelle en `href` sur `/postuler`
+ * (`recruit-test/components/step-done.tsx`), page publique servie au candidat reçu. Le champ n'est
+ * éditable que par un admin, mais un `href` exécutable n'a aucune raison de pouvoir exister ici.
  */
 const discordLink = z
   .string()
   .trim()
   .max(300, '300 caractères max')
-  .refine((v) => v === '' || z.url().safeParse(v).success, 'Lien invalide (https://…) ou vide')
+  .refine((v) => v === '' || z.url({ protocol: /^https?$/ }).safeParse(v).success, 'Lien invalide (https://…) ou vide')
 
 export const configForm = z.object({
   open: z.boolean(),

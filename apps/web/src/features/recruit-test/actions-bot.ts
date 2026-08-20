@@ -6,9 +6,10 @@
 // dont l'échec doit être tracé (Sentry) et dont les compteurs de tokens sont tenus à jour.
 //
 // Publiques, donc mêmes règles qu'`actions.ts` : aucune session, tout en service-role, chaque
-// handler recharge la tentative et revérifie son état. Deux plafonds bornent la dépense :
-// `bot_messages` (config, relue à CHAQUE tour — la fermer en cours de test doit prendre effet) et
-// la notation unique par tentative (idempotente).
+// handler recharge la tentative et revérifie son état. Trois choses bornent la dépense, et la
+// config est relue à CHAQUE appel pour qu'elles prennent effet sur les tentatives EN COURS :
+// la case `open` (décocher = plus un appel IA, tout de suite), le plafond `bot_messages`, et la
+// notation unique par tentative (idempotente).
 //
 // La transcription est tenue CÔTÉ SERVEUR (écart assumé vs GLA, spec §1) : l'historique envoyé au
 // modèle vient de `recruit_messages`, jamais du client — pas de conversation forgée pour se faire
@@ -20,12 +21,21 @@ import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/acti
 import type { RecruitPersonaName } from '@/lib/ai/recruit-prompts'
 import { replyAsRecruitBot, scoreRecruitTranscript } from '@/lib/ai/recruit-score'
 import { scoreAttemptInput, sendToBotInput } from './schema'
-import { STEPS_MISSING, loadAttempt, loadHistory, readConfig, requireInProgress } from './shared'
-import type { BotTurn, ScoreResult } from './types'
+import { CLOSED, STEPS_MISSING, loadAttempt, loadHistory, readConfig, requireInProgress } from './shared'
+import type { BotTurn, ScoreDone } from './types'
 
+/**
+ * ⚠️ Littéral DUPLIQUÉ côté client (`TestFlow.tsx`, `BOT_CHAT_OVER`) : c'est à ce message que le
+ * parcours reconnaît « le serveur considère la conversation finie » pour basculer sur la notation
+ * au lieu d'un toast sans issue (cas réel : l'admin baisse `bot_messages` pendant un test). Un
+ * fichier `'use server'` ne peut exporter que des fonctions async — les deux chaînes doivent donc
+ * rester identiques à la main, octet pour octet.
+ */
 const CHAT_OVER = 'La conversation est terminée.'
 const BOT_KO = 'Le client n’a pas répondu — réessaie.'
 const SCORE_KO = 'L’analyse a échoué — réessaie dans un instant.'
+/** Refus GÉNÉRIQUE : on ne dit pas au candidat combien de messages il lui manque. */
+const CHAT_INCOMPLETE = 'La conversation n’est pas terminée.'
 /** Réponse du client bornée : `recruit_messages.body` est du `text` libre, autant ne pas y écrire un pavé. */
 const REPLY_MAX = 1000
 
@@ -48,6 +58,11 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
       const attempt = await loadAttempt(admin, d.attemptId)
       requireInProgress(attempt)
       const config = await readConfig(admin)
+      // Test fermé = coupure IMMÉDIATE de la dépense IA, tentatives en cours comprises (c'est ce
+      // que promet la case « Test ouvert » de la config). Le vérifier à l'entrée seulement
+      // laissait tourner tous les tests déjà commencés — soit, à `bot_messages` près, l'essentiel
+      // du coût. Même message qu'à l'entrée : le candidat n'a pas à distinguer les deux moments.
+      if (!config.open) throw new BusinessError(CLOSED)
       // Chemin rapide : le compteur suffit dans le cas normal (un tour à la fois).
       if (attempt.bot_replies >= config.botMessages) throw new BusinessError(CHAT_OVER)
 
@@ -118,29 +133,41 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
 
 /**
  * Notation de la conversation (un seul appel Sonnet par tentative). Exige que TOUTES les épreuves
- * soient renseignées et qu'il y ait de la matière à noter (au moins un aller-retour), sinon le
- * candidat paierait un appel IA pour une transcription vide.
+ * soient renseignées et que la conversation soit COMPLÈTE, sinon le candidat paierait un appel IA
+ * pour une transcription tronquée — et serait noté sur une épreuve qu'il n'a pas passée.
  *
- * Idempotente : `bot_total` déjà posé → on renvoie le total sans rappeler le modèle. Ce test passe
- * AVANT celui du statut, justement parce qu'une tentative notée n'est plus `en_cours` (un renvoi
- * après un aller-retour réseau doit retomber sur son score, pas sur « test terminé »).
+ * Idempotente : `bot_total` déjà posé → on rend « c'est fait » sans rappeler le modèle. Ce test
+ * passe AVANT celui du statut, justement parce qu'une tentative notée n'est plus `en_cours` (un
+ * renvoi après un aller-retour réseau doit retomber sur un succès, pas sur « test terminé »).
+ * Aucun chiffre ne redescend (cf. `types.ts`).
  */
-export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreResult>> {
+export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreDone>> {
   return runAction({
     schema: scoreAttemptInput,
     input: raw,
     guard: noGuard,
-    handler: async (d): Promise<ScoreResult> => {
+    handler: async (d): Promise<ScoreDone> => {
       const admin = createAdminClient()
       const attempt = await loadAttempt(admin, d.attemptId)
-      if (attempt.bot_total !== null) return { total: attempt.bot_total }
+      if (attempt.bot_total !== null) return { done: true }
       requireInProgress(attempt)
+      const config = await readConfig(admin)
+      // Comme `sendToBot` : test fermé = plus un euro d'IA, y compris sur les tentatives en cours.
+      if (!config.open) throw new BusinessError(CLOSED)
       if (attempt.qi_score === null || attempt.typing === null || attempt.connection_mbps === null) {
         throw new BusinessError(STEPS_MISSING)
       }
 
       const history = await loadHistory(admin, attempt.id)
       if (history.length < 2) throw new BusinessError(STEPS_MISSING)
+      // Conversation COMPLÈTE exigée, comptée EN BASE (transcription serveur) et pas sur
+      // `bot_replies` : ce compteur est lu-puis-réécrit en valeur absolue, donc deux tours
+      // concurrents peuvent le laisser sous-évalué alors que les messages, eux, sont bien là.
+      // Sans ce garde-fou, un appel direct à `scoreAttempt` après un seul message faisait noter
+      // une conversation de 2 lignes sur les mêmes 4 axes qu'une conversation entière — un
+      // raccourci gagnant si la notation est plus indulgente sur peu de matière.
+      const sent = history.filter((m) => m.speaker === 'candidat').length
+      if (sent < config.botMessages) throw new BusinessError(CHAT_INCOMPLETE)
 
       let score
       try {
@@ -171,15 +198,15 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreResu
       if (error) throw new Error(error.message)
 
       // Course perdue : une autre notation a déjà écrit. Le score qu'on vient de calculer n'existe
-      // NULLE PART en base — le rendre ferait diverger l'écran du candidat du dossier de l'agence.
-      // On relit et on rend la valeur PERSISTÉE, la seule qui servira au verdict.
+      // NULLE PART en base — seule la valeur PERSISTÉE servira au verdict. On vérifie donc qu'il y
+      // a bien une notation en base avant de dire au candidat que c'est fait.
       if (written.length === 0) {
         const persisted = await loadAttempt(admin, attempt.id)
         if (persisted.bot_total === null) throw new Error(`Notation perdue sur la tentative ${attempt.id}`)
-        return { total: persisted.bot_total }
+        return { done: true }
       }
 
-      return { total: score.total }
+      return { done: true }
     },
   })
 }
