@@ -1969,6 +1969,307 @@ export type Database = {
           },
         ]
       }
+      recruit_attempts: {
+        Row: {
+          bot_replies: number
+          bot_total: number | null
+          coherence: number | null
+          connection_mbps: number | null
+          created_at: string
+          device: string
+          id: string
+          input_tokens: number
+          ip: string | null
+          orthographe: number | null
+          output_tokens: number
+          persona: string
+          qi_answers: Json | null
+          qi_score: number | null
+          relance: number | null
+          status: string
+          typing: Json | null
+          vente: number | null
+        }
+        Insert: {
+          bot_replies?: number
+          bot_total?: number | null
+          coherence?: number | null
+          connection_mbps?: number | null
+          created_at?: string
+          device: string
+          id?: string
+          input_tokens?: number
+          ip?: string | null
+          orthographe?: number | null
+          output_tokens?: number
+          persona: string
+          qi_answers?: Json | null
+          qi_score?: number | null
+          relance?: number | null
+          status?: string
+          typing?: Json | null
+          vente?: number | null
+        }
+        Update: {
+          bot_replies?: number
+          bot_total?: number | null
+          coherence?: number | null
+          connection_mbps?: number | null
+          created_at?: string
+          device?: string
+          id?: string
+          input_tokens?: number
+          ip?: string | null
+          orthographe?: number | null
+          output_tokens?: number
+          persona?: string
+          qi_answers?: Json | null
+          qi_score?: number | null
+          relance?: number | null
+          status?: string
+          typing?: Json | null
+          vente?: number | null
+        }
+        Relationships: []
+      }
+      recruit_blocklist: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          device: string | null
+          discord: string | null
+          email: string | null
+          id: string
+          ip: string | null
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          device?: string | null
+          discord?: string | null
+          email?: string | null
+          id?: string
+          ip?: string | null
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          device?: string | null
+          discord?: string | null
+          email?: string | null
+          id?: string
+          ip?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_blocklist_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruit_candidates: {
+        Row: {
+          attempt_id: string
+          bot_total: number
+          coherence: number
+          connection_mbps: number
+          created_at: string
+          discord: string | null
+          email: string
+          first_name: string
+          global: number
+          id: string
+          last_name: string
+          orthographe: number
+          passed: boolean
+          profile_id: string | null
+          qi_score: number
+          refusal_reason: string | null
+          refusal_step: string | null
+          relance: number
+          repeat: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          typing_wpm: number
+          vente: number
+        }
+        Insert: {
+          attempt_id: string
+          bot_total: number
+          coherence: number
+          connection_mbps: number
+          created_at?: string
+          discord?: string | null
+          email: string
+          first_name: string
+          global: number
+          id?: string
+          last_name: string
+          orthographe: number
+          passed: boolean
+          profile_id?: string | null
+          qi_score: number
+          refusal_reason?: string | null
+          refusal_step?: string | null
+          relance: number
+          repeat?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          typing_wpm: number
+          vente: number
+        }
+        Update: {
+          attempt_id?: string
+          bot_total?: number
+          coherence?: number
+          connection_mbps?: number
+          created_at?: string
+          discord?: string | null
+          email?: string
+          first_name?: string
+          global?: number
+          id?: string
+          last_name?: string
+          orthographe?: number
+          passed?: boolean
+          profile_id?: string | null
+          qi_score?: number
+          refusal_reason?: string | null
+          refusal_step?: string | null
+          relance?: number
+          repeat?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          typing_wpm?: number
+          vente?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_candidates_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: true
+            referencedRelation: "recruit_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruit_candidates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruit_candidates_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruit_config: {
+        Row: {
+          bot_messages: number
+          connexion_min: number
+          discord_link: string
+          frappe_min: number
+          global_threshold: number
+          id: number
+          open: boolean
+          qi_bank: Json
+          qi_min: number
+          qi_timer: number
+          typing_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bot_messages?: number
+          connexion_min?: number
+          discord_link?: string
+          frappe_min?: number
+          global_threshold?: number
+          id?: number
+          open?: boolean
+          qi_bank: Json
+          qi_min?: number
+          qi_timer?: number
+          typing_text: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bot_messages?: number
+          connexion_min?: number
+          discord_link?: string
+          frappe_min?: number
+          global_threshold?: number
+          id?: number
+          open?: boolean
+          qi_bank?: Json
+          qi_min?: number
+          qi_timer?: number
+          typing_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruit_messages: {
+        Row: {
+          attempt_id: string
+          body: string
+          created_at: string
+          id: string
+          media_price: number | null
+          position: number
+          speaker: string
+        }
+        Insert: {
+          attempt_id: string
+          body: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position: number
+          speaker: string
+        }
+        Update: {
+          attempt_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position?: number
+          speaker?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_messages_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "recruit_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       relances: {
         Row: {
           chatter_id: string | null
@@ -3598,6 +3899,7 @@ export type Database = {
         }
         Returns: Json
       }
+      recruit_pending_count: { Args: never; Returns: number }
       repos_data_weeks: { Args: never; Returns: Json }
       save_org_cell: {
         Args: {
