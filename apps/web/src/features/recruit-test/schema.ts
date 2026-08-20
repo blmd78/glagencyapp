@@ -78,29 +78,31 @@ export const sendToBotInput = z
 export const scoreAttemptInput = z.object({ attemptId })
 
 /**
+ * Bornes de l'identité, SANS normalisation : c'est ce que le formulaire (`components/step-identity`)
+ * valide côté client via `zodResolver`, et la base commune du schéma d'action ci-dessous. Une seule
+ * déclaration pour les deux — un resolver client qui diverge des bornes serveur laisse passer une
+ * saisie que l'action refuse ensuite, sans que le candidat sache pourquoi.
+ */
+export const identityForm = z.object({
+  firstName: z.string().trim().min(1, 'Prénom requis').max(60, '60 caractères max'),
+  lastName: z.string().trim().min(1, 'Nom requis').max(60, '60 caractères max'),
+  // `.trim()` AVANT le format : `z.email()` refuse les espaces de bord (ils font partie de la
+  // chaîne validée), et un candidat qui colle son adresse en amène presque toujours un.
+  email: z.string('Email invalide').trim().pipe(z.email('Email invalide').max(160, '160 caractères max')),
+  discord: z.string().trim().max(60, '60 caractères max'),
+})
+
+/** Valeurs du formulaire d'identité (RHF) — Discord optionnel arrive en chaîne vide, pas en null. */
+export type IdentityFormValues = z.infer<typeof identityForm>
+
+/**
  * Identité — demandée À LA FIN (différence voulue vs GLA, cf. spec §1). E-mail et Discord sont
  * NORMALISÉS ICI (trim + minuscules) : c'est le point de passage unique avant la base, qui refuse
  * désormais toute casse (`check (email = lower(email))`, migration 0126). Discord vide → `null`
  * (le `check` SQL veut 1..60 ou NULL, pas la chaîne vide).
  */
-export const submitCandidateInput = z.object({
+export const submitCandidateInput = identityForm.extend({
   attemptId,
-  firstName: z.string().trim().min(1, 'Prénom requis').max(60, '60 caractères max'),
-  lastName: z.string().trim().min(1, 'Nom requis').max(60, '60 caractères max'),
-  // `.trim()` AVANT le format : `z.email()` refuse les espaces de bord (ils font partie de la
-  // chaîne validée), et un candidat qui colle son adresse en amène presque toujours un.
-  email: z
-    .string('Email invalide')
-    .trim()
-    .pipe(z.email('Email invalide').max(160, '160 caractères max'))
-    .transform((v) => v.toLowerCase()),
-  discord: z
-    .string()
-    .trim()
-    .max(60, '60 caractères max')
-    .optional()
-    .transform((v) => (v ? v.toLowerCase() : null)),
+  email: identityForm.shape.email.transform((v) => v.toLowerCase()),
+  discord: identityForm.shape.discord.optional().transform((v) => (v ? v.toLowerCase() : null)),
 })
-
-/** Entrée du formulaire d'identité (RHF) — Discord optionnel arrive en chaîne vide, pas en null. */
-export type IdentityFormValues = z.input<typeof submitCandidateInput>

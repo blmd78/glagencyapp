@@ -41,6 +41,9 @@ export function StepTyping({
   const [failed, setFailed] = useState(false)
   // Garde-fou contre la double fin (auto-fin ET clic sur le bouton dans le même instant).
   const sent = useRef(false)
+  // Mesure FIGÉE au premier finish : « Réessayer » la rejoue telle quelle. La recalculer ferait
+  // payer au candidat le temps passé en panne réseau (30 s d'attente = un wpm effondré).
+  const measured = useRef<TypingResult | null>(null)
 
   useEffect(() => {
     if (startedAt === null || saving) return
@@ -53,18 +56,30 @@ export function StepTyping({
   const liveMinutes = startedAt === null ? 1 : Math.max(elapsed / 60000, MIN_MINUTES_LIVE)
   const canFinish = value.trim().length >= text.length - NEAR_END
 
-  async function finish() {
-    if (sent.current) return
-    sent.current = true
+  /**
+   * Mesure calculée sur la saisie PASSÉE EN PARAMÈTRE, jamais sur l'état du rendu : l'auto-fin part
+   * de `onInput`, où `value` (donc `typed`/`correct`) date encore du rendu précédent — le dernier
+   * mot tapé, celui qui déclenche justement la fin, y manquerait.
+   */
+  function measure(source: string): TypingResult {
+    const typedNow = split(source)
+    const right = words.reduce((n, w, i) => (typedNow[i] === w ? n + 1 : n), 0)
     const ms = startedAt === null ? 0 : Date.now() - startedAt
     const minutes = Math.max(ms / 60000, MIN_MINUTES_FINAL)
-    setSaving(true)
-    const ok = await onDone({
-      wpm: Math.round(correct / minutes),
+    return {
+      wpm: Math.round(right / minutes),
       // Précision = part des mots RÉELLEMENT tapés qui sont justes (0 saisie ⇒ 0).
-      accuracy: typed.length === 0 ? 0 : Math.round((correct / typed.length) * 1000) / 10,
+      accuracy: typedNow.length === 0 ? 0 : Math.round((right / typedNow.length) * 1000) / 10,
       seconds: Math.max(1, Math.round(ms / 1000)),
-    })
+    }
+  }
+
+  async function finish(source: string) {
+    if (sent.current) return
+    sent.current = true
+    measured.current ??= measure(source)
+    setSaving(true)
+    const ok = await onDone(measured.current)
     setSaving(false)
     if (!ok) {
       sent.current = false
@@ -78,7 +93,7 @@ export function StepTyping({
     if (startedAt === null && next.length > 0) setStartedAt(Date.now())
     if (failed) setFailed(false)
     // Auto-fin GLA : tous les mots saisis ET le texte intégralement recopié.
-    if (split(next).length >= words.length && next.trim().length >= text.length) void finish()
+    if (split(next).length >= words.length && next.trim().length >= text.length) void finish(next)
   }
 
   if (saving) return <p className="py-8 text-center text-sm text-muted-foreground">Enregistrement de ta vitesse…</p>
@@ -131,7 +146,7 @@ export function StepTyping({
         </p>
       )}
 
-      <ActionButton className="w-full" disabled={!canFinish} onClick={() => void finish()}>
+      <ActionButton className="w-full" disabled={!canFinish} onClick={() => void finish(value)}>
         J’ai terminé
       </ActionButton>
     </div>

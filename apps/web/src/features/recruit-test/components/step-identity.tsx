@@ -2,26 +2,17 @@
 
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { ActionButton } from '@/components/action-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { identityForm, type IdentityFormValues } from '../schema'
 
 /**
- * Schéma du FORMULAIRE — miroir de la partie identité de `submitCandidateInput` (`../schema`),
- * sans `attemptId` (il vient de l'état du parcours, pas d'une saisie) ni les normalisations
- * serveur (minuscules, `''` → `null`) qui n'ont rien à faire dans un resolver client. Les bornes
- * sont volontairement IDENTIQUES à celles du serveur : le candidat voit l'erreur avant l'envoi,
- * et l'action revalide de toute façon.
+ * Le resolver est le schéma PARTAGÉ `identityForm` (`../schema`) : mêmes bornes ici et dans
+ * `submitCandidateInput`, qui l'étend avec `attemptId` et les normalisations serveur (minuscules,
+ * `''` → `null`). Le candidat voit donc exactement l'erreur que l'action lui rendrait.
  */
-const identityForm = z.object({
-  firstName: z.string().trim().min(1, 'Prénom requis').max(60, '60 caractères max'),
-  lastName: z.string().trim().min(1, 'Nom requis').max(60, '60 caractères max'),
-  email: z.string().trim().pipe(z.email('Email invalide').max(160, '160 caractères max')),
-  discord: z.string().trim().max(60, '60 caractères max'),
-})
-
-export type IdentityForm = z.infer<typeof identityForm>
+export type IdentityForm = IdentityFormValues
 
 /** Ce que le parent rend quand la soumission échoue (`null` = c'est passé, il prend la main). */
 export type SubmitFailure = { error: string; fieldErrors?: Record<string, string[]> }

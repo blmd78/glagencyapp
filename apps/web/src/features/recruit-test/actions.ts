@@ -9,6 +9,11 @@
 // recharge la tentative et revérifie SON état avant d'écrire (une action ne fait jamais confiance à
 // l'étape précédente), et chaque refus est une `BusinessError` française adressée au candidat.
 //
+// Les trois `save*` sont IDEMPOTENTES (même patron que `scoreAttempt`) : la réponse HTTP peut se
+// perdre APRÈS le commit (réseau mobile, rechargement pendant la requête) et le client rejoue.
+// Un rejeu retombe alors sur la valeur déjà enregistrée — la première écriture fait foi — au lieu
+// d'un refus définitif qui enfermerait le candidat sur un « Réessayer » sans issue.
+//
 // Ce qui reste SERVEUR et ne descend jamais : la clé de correction QI (`recruit_attempts.qi_answers`,
 // posée au tirage), les seuils du verdict, les notes du bot.
 
@@ -111,7 +116,17 @@ export async function saveQi(raw: unknown): Promise<ActionResult<QiResult>> {
         .is('qi_score', null)
         .select('id')
       if (error) throw new Error(error.message)
-      if (data.length === 0) throw new BusinessError('Le test de logique a déjà été enregistré.')
+      if (data.length === 0) {
+        const persisted = await loadAttempt(admin, attempt.id)
+        // Score déjà en base = REJEU (réponse HTTP perdue après le commit, réseau mobile,
+        // rechargement pendant la requête). C'est un succès, pas un cul-de-sac : refuser
+        // enfermerait le candidat sur un « Réessayer » qui ne peut jamais aboutir. On rend la
+        // valeur PERSISTÉE, celle qui servira au verdict — la nouvelle est ignorée (anti-rejeu :
+        // la première correction fait foi, on ne rejoue pas le questionnaire pour un meilleur score).
+        if (persisted.qi_score !== null) return { qiScore: persisted.qi_score }
+        requireInProgress(persisted)
+        throw new Error(`Correction QI perdue sur la tentative ${attempt.id}`)
+      }
       return { qiScore }
     },
   })
@@ -120,6 +135,7 @@ export async function saveQi(raw: unknown): Promise<ActionResult<QiResult>> {
 /**
  * Frappe — déclaratif client, gate caché (fidèle à GLA, écart assumé du plan). On ne peut pas
  * vérifier la mesure ; on borne ce qui est plausible (`saveTypingInput`) et on écrit UNE fois.
+ * Idempotente comme `saveQi` : un rejeu retombe sur la mesure déjà enregistrée.
  */
 export async function saveTyping(raw: unknown): Promise<ActionResult<void>> {
   return runAction({
@@ -138,12 +154,17 @@ export async function saveTyping(raw: unknown): Promise<ActionResult<void>> {
         .is('typing', null)
         .select('id')
       if (error) throw new Error(error.message)
-      if (data.length === 0) throw new BusinessError('Le test de frappe a déjà été enregistré.')
+      if (data.length === 0) {
+        const persisted = await loadAttempt(admin, attempt.id)
+        if (persisted.typing !== null) return
+        requireInProgress(persisted)
+        throw new Error(`Mesure de frappe perdue sur la tentative ${attempt.id}`)
+      }
     },
   })
 }
 
-/** Connexion — même principe que la frappe (mesure client, gate caché). `numeric(7,1)` en base. */
+/** Connexion — même principe que la frappe (mesure client, gate caché, rejeu idempotent). `numeric(7,1)` en base. */
 export async function saveConnection(raw: unknown): Promise<ActionResult<void>> {
   return runAction({
     schema: saveConnectionInput,
@@ -161,7 +182,12 @@ export async function saveConnection(raw: unknown): Promise<ActionResult<void>> 
         .is('connection_mbps', null)
         .select('id')
       if (error) throw new Error(error.message)
-      if (data.length === 0) throw new BusinessError('Le test de connexion a déjà été enregistré.')
+      if (data.length === 0) {
+        const persisted = await loadAttempt(admin, attempt.id)
+        if (persisted.connection_mbps !== null) return
+        requireInProgress(persisted)
+        throw new Error(`Mesure de connexion perdue sur la tentative ${attempt.id}`)
+      }
     },
   })
 }

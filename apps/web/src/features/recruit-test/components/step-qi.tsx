@@ -17,23 +17,28 @@ import { cn } from '@/lib/utils'
 export function StepQi({
   questions,
   timer,
+  deadline,
   initial,
   onAnswer,
   onDone,
 }: {
   questions: QiQuestion[]
   timer: number
+  /**
+   * Échéance ABSOLUE (ms epoch) de la question en cours, tenue par le PARENT et persistée avec les
+   * réponses. Absolue plutôt qu'un décompte : un onglet mis en veille (les timers y sont bridés)
+   * reprend au bon temps restant au lieu de rendre 30 s de sursis. Tenue par le parent plutôt
+   * qu'ici : un état local disparaît au rechargement, et rendait 30 s neuves à volonté.
+   */
+  deadline: number
   /** Réponses déjà données (reprise après rechargement) — l'épreuve redémarre où elle en était. */
   initial: (number | null)[]
-  /** Remonte la liste à chaque réponse, pour qu'un rechargement ne redonne pas de temps. */
+  /** Remonte la liste à chaque réponse : le parent persiste, et pose l'échéance de la suivante. */
   onAnswer: (answers: (number | null)[]) => void
   /** Rend `false` si l'enregistrement a échoué — l'écran propose alors de réessayer. */
   onDone: (answers: (number | null)[]) => Promise<boolean>
 }) {
   const [index, setIndex] = useState(initial.length)
-  // Échéance ABSOLUE plutôt qu'un décompte : un onglet mis en veille (les timers y sont bridés)
-  // reprend au bon temps restant au lieu de rendre 30 s de sursis.
-  const [deadline, setDeadline] = useState(() => Date.now() + timer * 1000)
   const [now, setNow] = useState(() => Date.now())
   const [saving, setSaving] = useState(false)
   // Reprise avec les 5 réponses déjà données : `saveQi` n'était pas passé (panne réseau) —
@@ -59,24 +64,29 @@ export function StepQi({
       if (answers.current.length !== index) return
       const all = [...answers.current, choice]
       answers.current = all
+      // `onAnswer` persiste la liste ET pose l'échéance de la question suivante — les deux états
+      // (le nôtre, celui du parent) partent dans le même lot de rendu, donc jamais de question
+      // affichée avec l'échéance périmée de la précédente.
       onAnswer(all)
       if (all.length >= questions.length) {
         void submit(all)
         return
       }
       setIndex(all.length)
-      setDeadline(Date.now() + timer * 1000)
     },
-    [index, onAnswer, questions.length, submit, timer],
+    [index, onAnswer, questions.length, submit],
   )
 
   // Un seul intervalle pour toute l'épreuve (deps vides) : il ne fait qu'avancer l'horloge, la
-  // remise à zéro du chrono vient de `setDeadline` au changement de question.
+  // remise à zéro du chrono vient de la nouvelle `deadline` posée par le parent.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 200)
     return () => clearInterval(id)
   }, [])
 
+  // Temps écoulé = réponse `null` (compte faux) et on avance. C'est aussi ce qui traite une REPRISE
+  // dont l'échéance est déjà passée : le rechargement ne rend jamais plus de temps qu'il n'en
+  // restait — au pire il coûte la question en cours.
   const remaining = Math.max(0, deadline - now)
   useEffect(() => {
     if (!saving && !failed && remaining <= 0) answer(null)

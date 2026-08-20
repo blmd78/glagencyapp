@@ -7,14 +7,21 @@
 // qui recharge, qui perd le réseau ou qui revient sur la page ne doit PAS brûler une tentative —
 // la reprise est donc la règle, et `startAttempt` n'est appelé que s'il n'y a rien à reprendre.
 //
-// Ce qui n'est PAS ici : le verdict final (il n'a pas à survivre — le test est joué), et surtout
-// aucun élément de barème (la correction QI, les seuils et les notes restent serveur).
+// Le VERDICT final est persisté à part (`RESULT_KEY`) : le parcours, lui, est effacé dès la
+// soumission. Un candidat reçu qui recharge la page doit retrouver son lien Discord — sans ça il
+// tomberait sur « Tu as déjà passé le test », son seul livrable perdu.
+//
+// Ce qui n'est PAS ici : le moindre élément de barème (la correction QI, les seuils et les notes
+// restent serveur) — le verdict stocké est celui que le serveur a déjà rendu, sans chiffre.
 
 import { z } from 'zod'
 import type { QiQuestion } from '@glagency/core'
+import type { SubmitResult } from '../types'
 
 /** Clé de session : le parcours en cours. Effacée à l'écran final. */
 const FLOW_KEY = 'recrutement'
+/** Clé de session : le verdict rendu, pour que l'écran final survive à un rechargement. */
+const RESULT_KEY = 'recrutement-resultat'
 /** Clé PERSISTANTE (localStorage) : identifie le navigateur pour la blocklist « un seul essai ». */
 const DEVICE_KEY = 'recrutement-device'
 
@@ -40,6 +47,12 @@ export type FlowState = {
   botMessages: number
   answers: (number | null)[]
   chat: ChatMessage[]
+  /**
+   * Échéance ABSOLUE (ms epoch) de la question QI en cours — persistée avec les réponses, sinon un
+   * F5 rendrait 30 s neuves à chaque question, autant de fois que voulu. `null` = pas de question
+   * en cours (avant l'épreuve, ou session ouverte avant que ce champ existe).
+   */
+  qiDeadline: number | null
 }
 
 // Le sessionStorage est éditable à la main : ce qu'on relit est du JSON hostile, pas notre état.
@@ -61,6 +74,21 @@ const storedFlow = z.object({
       mediaPrice: z.number().optional(),
     }),
   ),
+  // Absent = session ouverte AVANT le chrono persisté : `null`, et `readFlow` en fabrique une
+  // neuve ci-dessous. Une échéance dans le passé, elle, fait expirer la question en cours.
+  qiDeadline: z.number().nullable().default(null),
+})
+
+/**
+ * Le verdict tel qu'il est relu après un rechargement. Même règle que le parcours : du JSON hostile
+ * jusqu'à preuve du contraire — une forme invalide est effacée, l'écran repart de l'intro (le
+ * serveur, lui, refusera une 2e soumission).
+ */
+const storedResult = z.object({
+  passed: z.boolean(),
+  refusalStep: z.string().nullable(),
+  refusalReason: z.string().nullable(),
+  discordLink: z.string().nullable(),
 })
 
 /** Parcours en cours, ou `null` (rien de stocké, stockage indisponible, ou contenu corrompu). */
@@ -73,7 +101,12 @@ export function readFlow(): FlowState | null {
       sessionStorage.removeItem(FLOW_KEY)
       return null
     }
-    return parsed.data
+    const flow = parsed.data
+    // Session ouverte avant que le chrono soit persisté : on lui accorde une échéance neuve, UNE
+    // fois (elle part en `sessionStorage` au rendu suivant). Sans ça, la question en cours serait
+    // comptée expirée sur un rechargement qui n'a rien de fautif.
+    if (flow.step === 'qi' && flow.qiDeadline === null) flow.qiDeadline = Date.now() + flow.qiTimer * 1000
+    return flow
   } catch {
     // Navigation privée / stockage bloqué : le test reste jouable, il ne survivra juste pas à un
     // rechargement.
@@ -94,6 +127,34 @@ export function clearFlow(): void {
     sessionStorage.removeItem(FLOW_KEY)
   } catch {
     /* idem */
+  }
+}
+
+/** Verdict déjà rendu à ce candidat dans cet onglet, ou `null`. */
+export function readResult(): SubmitResult | null {
+  try {
+    const raw = sessionStorage.getItem(RESULT_KEY)
+    if (!raw) return null
+    const parsed = storedResult.safeParse(JSON.parse(raw))
+    if (!parsed.success) {
+      sessionStorage.removeItem(RESULT_KEY)
+      return null
+    }
+    return parsed.data
+  } catch {
+    return null
+  }
+}
+
+/**
+ * À écrire AVANT `clearFlow()` : entre les deux, un rechargement laisserait le candidat sans
+ * parcours ET sans verdict.
+ */
+export function writeResult(result: SubmitResult): void {
+  try {
+    sessionStorage.setItem(RESULT_KEY, JSON.stringify(result))
+  } catch {
+    /* idem — l'écran final s'affiche, il ne survivra juste pas à un rechargement */
   }
 }
 

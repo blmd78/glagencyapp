@@ -12,19 +12,30 @@
 //    bot : les deux servent l'état du parcours, PAS l'affichage — GLA ne les montrait pas, nous non
 //    plus. Le candidat ne voit qu'une progression, puis une réussite ou une raison qualitative.
 //
-// Les erreurs d'action se rattrapent sur place (toast + on reste sur l'étape), sauf à l'entrée où
-// un refus (`test fermé`, `déjà passé`, `trop de tentatives`) est un cul-de-sac assumé.
+// Les erreurs d'action se rattrapent sur place (toast + on reste sur l'étape). Seul un refus
+// MÉTIER à l'entrée (`test fermé`, `déjà passé`, `trop de tentatives`) est un cul-de-sac assumé —
+// une coupure réseau, elle, reste toujours réessayable (`components/safe-action.ts`).
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
-import type { ActionResult } from '@/lib/actions'
 import { saveConnection, saveQi, saveTyping, startAttempt, submitCandidate } from './actions'
 import { scoreAttempt, sendToBot } from './actions-bot'
-import { clearFlow, deviceId, readFlow, writeFlow, type ChatMessage, type FlowState, type FlowStep } from './components/flow-state'
+import {
+  clearFlow,
+  deviceId,
+  readFlow,
+  readResult,
+  writeFlow,
+  writeResult,
+  type ChatMessage,
+  type FlowState,
+  type FlowStep,
+} from './components/flow-state'
 import { ProgressDots } from './components/progress-dots'
+import { safe } from './components/safe-action'
 import { StepBlocked } from './components/step-blocked'
 import { StepBot } from './components/step-bot'
 import { StepConnection } from './components/step-connection'
@@ -38,20 +49,13 @@ import type { SubmitResult } from './types'
 /** Rang de chaque étape dans « Étape x/5 ». */
 const STEP_INDEX: Record<FlowStep, number> = { qi: 1, typing: 2, connection: 3, bot: 4, identity: 5 }
 
-const OFFLINE = 'Connexion perdue — réessaie.'
 const NO_ATTEMPT = 'Test introuvable — recommence depuis le début.'
-
 /**
- * Un appel de Server Action qui échoue AU RÉSEAU rejette au lieu de rendre un `ActionResult` : sans
- * ce filet, la promesse partirait en rejet non géré et l'écran se figerait sans rien dire.
+ * Copie du refus levé par `sendToBot` sur un 23505 (`actions-bot.ts`) — un fichier `'use server'`
+ * ne peut exporter que des fonctions, et `shared.ts` (où vivent les autres messages) importe
+ * `next/headers`, donc rien de tout ça n'est importable ici. À garder en phase à la main.
  */
-async function safe<T>(run: () => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
-  try {
-    return await run()
-  } catch {
-    return { success: false, error: OFFLINE }
-  }
-}
+const BOT_ALREADY_SENT = 'Message déjà envoyé.'
 
 // « Sommes-nous passés côté navigateur ? » — `useSyncExternalStore` rend le snapshot SERVEUR
 // (`false`) pendant le SSR *et* pendant l'hydratation, puis le snapshot client (`true`). C'est ce
@@ -73,7 +77,11 @@ export function TestFlow() {
   const [restored, setRestored] = useState(false)
   if (hydrated && !restored) {
     setRestored(true)
-    setFlow(readFlow())
+    // Le verdict d'abord : une fois le test soumis, le parcours est effacé et c'est l'écran final
+    // (avec le lien Discord des candidats reçus) qui doit revenir, pas l'intro.
+    const verdict = readResult()
+    if (verdict) setResult(verdict)
+    else setFlow(readFlow())
   }
 
   useEffect(() => {
@@ -85,6 +93,13 @@ export function TestFlow() {
   async function start() {
     const res = await safe(() => startAttempt({ device: deviceId() }))
     if (!res.success) {
+      // Coupure réseau : AUCUNE tentative n'a été créée (et si le serveur en a créé une malgré la
+      // réponse perdue, le plafond de 5/IP/24 h laisse la marge). On reste donc sur l'intro, le
+      // bouton redevient actif — un `StepBlocked` ici serait un cul-de-sac pour une simple panne.
+      if (res.transport) {
+        toast.error(res.error)
+        return
+      }
       setBlocked(res.error)
       return
     }
@@ -99,12 +114,17 @@ export function TestFlow() {
       botMessages: d.botMessages,
       answers: [],
       chat: [],
+      // Chrono de la 1re question : posé ICI, avec le reste du parcours, donc persisté d'emblée.
+      qiDeadline: Date.now() + d.qiTimer * 1000,
     })
   }
 
-  /** Chaque réponse est persistée aussitôt : recharger la page ne rend pas 30 s de plus par question. */
+  /**
+   * Chaque réponse est persistée aussitôt, AVEC l'échéance de la question suivante : le chrono vit
+   * dans l'état persisté et non dans l'étape, sinon un F5 rendrait 30 s neuves à volonté.
+   */
   const recordAnswers = useCallback((answers: (number | null)[]) => {
-    setFlow((f) => (f ? { ...f, answers } : f))
+    setFlow((f) => (f ? { ...f, answers, qiDeadline: Date.now() + f.qiTimer * 1000 } : f))
   }, [])
 
   const finishQi = useCallback(
@@ -116,7 +136,8 @@ export function TestFlow() {
         return false
       }
       // `res.data.qiScore` volontairement ignoré : le score ne s'affiche jamais.
-      setFlow((f) => (f ? { ...f, step: 'typing', answers } : f))
+      // Plus de question en cours ⇒ plus d'échéance à tenir.
+      setFlow((f) => (f ? { ...f, step: 'typing', answers, qiDeadline: null } : f))
       return true
     },
     [attemptId],
@@ -169,7 +190,8 @@ export function TestFlow() {
       if (!attemptId) return
       // Message affiché tout de suite : le serveur met une bonne seconde à répondre. En cas
       // d'échec il ANNULE le tour (le message candidat est retiré en base) — on retire donc
-      // aussi le nôtre, sinon l'écran garderait un message sans réponse.
+      // aussi le nôtre, sinon l'écran garderait un message sans réponse. SAUF sur « déjà
+      // envoyé » : là, le message EST en base (cf. plus bas).
       const mine: ChatMessage =
         input.mediaPrice != null
           ? { speaker: 'candidat', body: `[MEDIA VERROUILLE - ${input.mediaPrice}€]`, mediaPrice: input.mediaPrice }
@@ -179,7 +201,13 @@ export function TestFlow() {
 
       const res = await safe(() => sendToBot({ attemptId, ...input }))
       if (!res.success) {
-        setFlow((f) => (f ? { ...f, chat: f.chat.filter((m) => m !== mine) } : f))
+        // « Message déjà envoyé. » (23505 sur la position) = le message a bien été écrit, c'est
+        // notre renvoi qui est refusé. Le retirer de l'écran ferait disparaître un message qui
+        // existe côté serveur, et que la notation lira. Tous les autres échecs (panne IA, réseau)
+        // annulent le tour côté serveur : là, le rollback est la bonne réponse.
+        if (res.error !== BOT_ALREADY_SENT) {
+          setFlow((f) => (f ? { ...f, chat: f.chat.filter((m) => m !== mine) } : f))
+        }
         setSending(false)
         toast.error(res.error)
         return
@@ -196,7 +224,10 @@ export function TestFlow() {
       if (!attemptId) return { error: NO_ATTEMPT }
       const res = await safe(() => submitCandidate({ attemptId, ...values }))
       if (!res.success) return { error: res.error, fieldErrors: res.fieldErrors }
-      // Le test est joué : plus rien à reprendre, on libère la session.
+      // Le test est joué : plus rien à reprendre, on libère la session. Le VERDICT, lui, est écrit
+      // AVANT — un candidat reçu qui recharge doit retrouver son lien Discord (son seul livrable),
+      // pas un « Tu as déjà passé le test ».
+      writeResult(res.data)
       clearFlow()
       setFlow(null)
       setResult(res.data)
@@ -226,6 +257,11 @@ export function TestFlow() {
         <StepQi
           questions={flow.qi}
           timer={flow.qiTimer}
+          // Une échéance existe TOUJOURS à cette étape : `start` la pose, `recordAnswers` la
+          // renouvelle, `readFlow` en fabrique une pour les sessions ouvertes avant ce champ. Le
+          // repli couvre un état qui ne devrait pas exister, et le fait ÉCHOUER FERMÉ (échéance
+          // dépassée = question en cours perdue) plutôt que d'offrir du temps gratuit.
+          deadline={flow.qiDeadline ?? 0}
           initial={flow.answers}
           onAnswer={recordAnswers}
           onDone={finishQi}
