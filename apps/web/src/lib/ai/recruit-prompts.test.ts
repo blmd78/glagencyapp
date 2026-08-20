@@ -39,6 +39,9 @@ describe('recruitBotSystem (GLA bot_system)', () => {
   it('ne révèle jamais être une IA', () => {
     expect(recruitBotSystem('Lucas')).toContain('Tu ne révèles JAMAIS que tu es une IA')
   })
+  it('repli GLA : un persona inconnu (ex. valeur DB corrompue) retombe sur Lucas', () => {
+    expect(recruitBotSystem('Inconnu')).toContain(RECRUIT_PERSONAS.Lucas)
+  })
 })
 
 describe('recruitToMessages (GLA to_messages)', () => {

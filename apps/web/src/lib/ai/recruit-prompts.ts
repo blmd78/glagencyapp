@@ -21,11 +21,16 @@ export const RECRUIT_PERSONAS: Record<RecruitPersonaName, string> = {
 }
 
 /** GLA `NAMES = list(PERSONAS.keys())` — ordre de rotation. */
-export const RECRUIT_PERSONA_NAMES: RecruitPersonaName[] = ['Lucas', 'Marco', 'David']
+export const RECRUIT_PERSONA_NAMES = ['Lucas', 'Marco', 'David'] as const
 
-/** GLA bot_system(persona_name). */
-export function recruitBotSystem(persona: RecruitPersonaName): string {
-  const desc = RECRUIT_PERSONAS[persona]
+/**
+ * GLA bot_system(persona_name). Paramètre élargi à `string` (Task 4 : le persona vient de la base,
+ * typée `text` côté DB, pas d'un littéral TS) — repli GLA `PERSONAS.get(persona_name,
+ * PERSONAS["Lucas"])` (serveur.py:56) : une valeur inconnue retombe sur Lucas plutôt que
+ * d'interpoler `undefined` dans le prompt.
+ */
+export function recruitBotSystem(persona: string): string {
+  const desc = RECRUIT_PERSONAS[persona as RecruitPersonaName] ?? RECRUIT_PERSONAS.Lucas
   return `Tu joues le rôle d'un ABONNÉ qui discute avec une créatrice de contenu sur la messagerie privée d'une plateforme de contenu adulte (type MYM / OnlyFans). La personne qui te répond est un CANDIDAT qu'on évalue pour devenir chatter dans notre agence : il joue le rôle de la créatrice.
 
 Ton profil : ${desc}
