@@ -2,6 +2,8 @@
 
 **Statut** : validé en chat le 2026-08-20 (Benoit), à implémenter sur `feature/formation-catalogue`
 (migration **0125**, UAT seulement, prod avec la release).
+**Statut (2026-08-20)** : implémenté (commits 1be85f5..0d1e8f2 + fix rounds, migrations
+0125-0126 appliquées UAT), recette UAT à faire.
 **Source** : test de recrutement de Good Luck Agency (`serveur.py` : `PERSONAS`, `bot_system`,
 `SCORE_SYSTEM`, `CAND_SCORE_SCHEMA`, `/api/bot|score|check|candidate|status` ; `index.html` :
 `DEFAULT_CONFIG`, `QI_BANK`, `render.kyc|qi|frappe|connexion|bot`, `finishCandidate`). Extrait de

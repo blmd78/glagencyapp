@@ -67,7 +67,18 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   stockés (`training_wheel_spins`, € nullable, `paid_at` pour la compta plus tard), config
   admin 1 ligne, journal `member_events` kind `recompense` ; écritures service-role, RLS
   lecture. Migrations 0116-0123 poussées
-  **UAT seulement**, à recetter. Droits `frm-suivi` (Overview,
+  **UAT seulement**, à recetter. **Recrutement** (reprise GLA, incr. 4) : page publique
+  `/postuler` (proxy `isPublic`, parcours QI→frappe→connexion→fan IA→identité, anti-triche
+  SERVEUR — clé de correction/tirages/verdict jamais côté client), migrations `0125`
+  (tables `recruit_*` + RPC `recruit_pending_count`) / `0126` (checks lower e-mail). Admin
+  only : `/formation/recrutement` (dossiers, valider/refuser/bloquer/débloquer/supprimer) +
+  `/formation/recrutement/config` (seuils, banque QI 5 slots, texte de frappe normalisé) ;
+  sidebar = item direct Recrutement (badge en attente) + groupe repliable « Configuration »
+  (Catalogue déplacé dedans + Config du test) ; blocage auto (device/email/discord,
+  `created_by` null) ≠ blocage admin (+ IP). Rattachement membre→candidat par e-mail à la
+  création (lookup `recruit_candidates`, non bloquant). Écritures `recruit_*` :
+  service-role après garde admin (comme le reste de la formation depuis 0121). Droits
+  `frm-suivi` (Overview,
   encadrement) / `frm-entrainement` (Ma formation, chatter), Modules et session ouverts aux deux
   (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`
   (`WORKSPACES`, type `WorkspaceId`). La face active se déduit du `pathname`
