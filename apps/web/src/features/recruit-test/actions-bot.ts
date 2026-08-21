@@ -188,10 +188,39 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
       const sent = history.filter((m) => m.speaker === 'candidat').length
       if (sent < attempt.bot_messages) throw new BusinessError(CHAT_INCOMPLETE)
 
+      // RÉSERVATION (CAS) AVANT l'appel payant — cette action est PUBLIQUE (`noGuard`, /postuler
+      // exempté du proxy). Le garde `bot_total !== null` plus haut est lu-puis-agi : N appels
+      // concurrents le passaient tous et payaient tous leur notation Sonnet, dont une seule était
+      // persistée — et le recrutement n'écrit pas dans `training_ai_calls`, donc la dépense
+      // n'apparaissait NULLE PART sauf sur la facture. Le plafond 0115 borne les démarrages, pas
+      // les notations. Même patron que `lib/services/training-scoring.ts`.
+      // Le statut sert de jeton : `submitCandidate` exige déjà `bot_total` non nul (actions.ts),
+      // une soumission tombant dans cette fenêtre reçoit donc un refus métier, jamais un dossier
+      // incomplet.
+      const { data: claimed, error: cErr } = await admin
+        .from('recruit_attempts')
+        .update({ status: 'notee' })
+        .eq('id', attempt.id)
+        .eq('status', 'en_cours')
+        .is('bot_total', null)
+        .select('id')
+      if (cErr) throw new Error(cErr.message)
+      // Aucune ligne : une autre notation est en vol (ou vient d'aboutir). Rejeu = succès, comme le
+      // retour anticipé sur `bot_total !== null` — surtout pas un second appel payant.
+      if (!claimed.length) return
+
       let score
       try {
         score = await scoreRecruitTranscript(history.map((m) => ({ speaker: m.speaker, body: m.body })))
       } catch (err) {
+        // La notation reste relançable : on rend le jeton (best-effort, et seulement si personne
+        // n'a écrit entre-temps) avant de remonter l'échec.
+        const { error: rErr } = await admin
+          .from('recruit_attempts')
+          .update({ status: 'en_cours' })
+          .eq('id', attempt.id)
+          .is('bot_total', null)
+        if (rErr) console.error('[recrutement notation] jeton non rendu', rErr.message)
         Sentry.captureException(err)
         console.error('[recrutement notation]', err)
         throw new BusinessError(SCORE_KO)

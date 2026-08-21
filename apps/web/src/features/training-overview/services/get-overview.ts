@@ -110,7 +110,11 @@ export async function getOverview(isAdmin: boolean): Promise<OverviewData> {
 function estimateUsd(rows: CostRow[]): number {
   let usd = 0
   for (const r of rows) {
-    const price = AI_PRICES[r.model]
+    // Rapprochement par PRÉFIXE : l'API rend un identifiant daté (`claude-haiku-4-5-20251001`),
+    // qu'une correspondance exacte manquait — tout le coût tombait donc à 0 (vérifié sur l'UAT :
+    // 18 appels fan, ~30 000 tokens d'entrée, affichés 0 $). Ajouter la clé datée aurait rouvert
+    // le trou au prochain instantané de modèle.
+    const price = Object.entries(AI_PRICES).find(([k]) => r.model.startsWith(k))?.[1]
     if (!price) continue // modèle hors table de prix → 0 (cf. AI_PRICES)
     const [pIn, pOut] = price
     usd += (r.inputTokens * pIn + r.outputTokens * pOut + r.cacheReadTokens * pIn * CACHE_READ_RATIO) / 1e6
