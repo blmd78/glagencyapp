@@ -91,6 +91,19 @@ export const frDateTimeParis = (iso: string): string =>
     timeZone: 'Europe/Paris',
   })
 
+/**
+ * « 16 juillet 2026 à 14:05 » — date longue + heure courte fr, TZ Europe/Paris explicite (même
+ * piège de TZ serveur que `frDateTimeParis`). Formateur HOISTÉ : il est rendu une fois par ligne
+ * de liste (file des candidats), et un `toLocaleString` à options reconstruit un
+ * `Intl.DateTimeFormat` à chaque appel.
+ */
+const dateTimeLongParis = new Intl.DateTimeFormat('fr-FR', {
+  dateStyle: 'long',
+  timeStyle: 'short',
+  timeZone: 'Europe/Paris',
+})
+export const frDateTimeLongParis = (iso: string): string => dateTimeLongParis.format(new Date(iso))
+
 /** « 12/07 » — jour/mois courts fr d'un timestamptz, fuseau Europe/Paris (même piège de TZ
  *  serveur que `frDateTimeParis` : jamais la TZ de Vercel). */
 export const frDayMonthParis = (iso: string): string =>

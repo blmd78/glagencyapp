@@ -25,17 +25,18 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
-import { WORKSPACES, workspaceForPath, canAccessNav, isMarketingSlug, type NavAccess } from '@/config/workspaces'
+import { WORKSPACES, workspaceForPath, canAccessNav, slugFace, type NavAccess } from '@/config/workspaces'
 import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { useNavTransition } from '@/components/nav-transition-context'
 import { prefetchFull, withPeriod } from '@/lib/nav'
 
 /**
- * Badge « à traiter » : lit la promesse du layout via use() sous Suspense — le compteur
- * streame APRÈS le shell au lieu de bloquer le premier octet de toutes les pages.
+ * Badge compteur générique : lit la promesse du layout via use() sous Suspense — le compteur
+ * streame APRÈS le shell au lieu de bloquer le premier octet de toutes les pages. Partagé par
+ * Insights (« à traiter »), Roue (« tour disponible ») et Recrutement (« dossiers nouveaux »).
  */
-function InsightsBadge({ promise }: { promise: Promise<number> }) {
+function CountBadge({ promise }: { promise: Promise<number> }) {
   const count = use(promise)
   return count > 0 ? <SidebarMenuBadge>{count}</SidebarMenuBadge> : null
 }
@@ -54,6 +55,8 @@ export function AppSidebar({
   isManager,
   allowedPages,
   insightsCountPromise,
+  wheelPendingPromise,
+  recruitPendingPromise,
   workLink = '',
   impersonating = false,
 }: {
@@ -67,6 +70,10 @@ export function AppSidebar({
   allowedPages?: string[]
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
   insightsCountPromise?: Promise<number>
+  /** Tour de roue disponible (badge streamé, cf. `insightsCountPromise`). */
+  wheelPendingPromise?: Promise<number>
+  /** Dossiers de recrutement à traiter (badge streamé, admin — cf. `insightsCountPromise`). */
+  recruitPendingPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
   workLink?: string
   /** Consultation « en tant que » active (Task 9) — bascule le logout de NavUser. */
@@ -97,15 +104,17 @@ export function AppSidebar({
   // chaque re-rendu de la sidebar et l'effet du sweep se relançait en permanence.
   const pagesKey = (allowedPages ?? []).join(',')
   const period = `${searchParams.get('from') ?? ''}|${searchParams.get('to') ?? ''}`
-  const items = useMemo(() => {
-    const access: NavAccess = {
+  // Partagé avec le switcher (home d'une face = 1ʳᵉ entrée ACCESSIBLE, cf. `workspaceHome`).
+  const access = useMemo<NavAccess>(
+    () => ({
       isAdmin: !!isAdmin,
       isSuperadmin: !!isSuperadmin,
       isManager: !!isManager,
       pages: new Set(pagesKey ? pagesKey.split(',') : []),
-    }
-    return active.nav.filter((item) => canAccessNav(item, access))
-  }, [active, isAdmin, isSuperadmin, isManager, pagesKey])
+    }),
+    [isAdmin, isSuperadmin, isManager, pagesKey],
+  )
+  const items = useMemo(() => active.nav.filter((item) => canAccessNav(item, access)), [active, access])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —
   // un groupe sans item visible disparaît.
   const directTop = items.filter((i) => !i.group && !i.bottom)
@@ -113,8 +122,10 @@ export function AppSidebar({
   const groups = (active.groups ?? [])
     .map((g) => ({ ...g, items: items.filter((i) => i.group === g.id) }))
     .filter((g) => g.items.length > 0)
+  // Faces proposées dans le switcher : la face chatteurs toujours ; une face secondaire
+  // (Marketing, Formation) seulement si admin ou au moins un slug de cette face accordé.
   const workspaces = WORKSPACES.filter(
-    (w) => isAdmin || w.id !== 'marketing' || (allowedPages ?? []).some(isMarketingSlug),
+    (w) => isAdmin || w.id === 'chatter' || (allowedPages ?? []).some((s) => slugFace(s) === w.id),
   )
 
   const isActivePath = (href: string) => pathname === href || pathname.startsWith(href + '/')
@@ -231,7 +242,19 @@ export function AppSidebar({
         </SidebarMenuButton>
         {item.href.endsWith('/insights') && insightsCountPromise && (
           <Suspense fallback={null}>
-            <InsightsBadge promise={insightsCountPromise} />
+            <CountBadge promise={insightsCountPromise} />
+          </Suspense>
+        )}
+        {item.href.endsWith('/roue') && wheelPendingPromise && (
+          <Suspense fallback={null}>
+            <CountBadge promise={wheelPendingPromise} />
+          </Suspense>
+        )}
+        {/* `/formation/recrutement/config` n'est PAS concerné : c'est un item de groupe, rendu
+            par `SidebarMenuSub` plus bas — `renderDirect` ne le voit jamais. */}
+        {item.href.endsWith('/recrutement') && recruitPendingPromise && (
+          <Suspense fallback={null}>
+            <CountBadge promise={recruitPendingPromise} />
           </Suspense>
         )}
       </SidebarMenuItem>
@@ -241,7 +264,7 @@ export function AppSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <WorkspaceSwitcher workspaces={workspaces} active={active} />
+        <WorkspaceSwitcher workspaces={workspaces} active={active} access={access} />
       </SidebarHeader>
 
       <SidebarContent>

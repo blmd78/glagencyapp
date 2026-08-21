@@ -44,6 +44,7 @@ describe('vocabulaire', () => {
       'identite',
       'sanction',
       'rapport',
+      'recompense',
     ])
     expect(isEventKind('shift')).toBe(true)
     expect(isEventKind('nimportequoi')).toBe(false)
@@ -151,6 +152,16 @@ describe('memberEventLabel — chaque type produit une phrase lisible', () => {
       'Sanction retirée (nimportequoi)',
     )
     expect(memberEventLabel('sanction', null, null)).toBe('Sanction retirée')
+  })
+
+  it('récompense (roue, 0122) : la valeur composée par le trigger est déjà lisible', () => {
+    expect(memberEventLabel('recompense', null, 'Roue : 10 € — Top 2 — semaine du 11/08')).toBe(
+      'Roue : 10 € — Top 2 — semaine du 11/08',
+    )
+    expect(memberEventLabel('recompense', null, 'Roue : Raté — Top 1 — semaine du 11/08')).toBe(
+      'Roue : Raté — Top 1 — semaine du 11/08',
+    )
+    expect(memberEventLabel('recompense', null, null)).toBe('Récompense')
   })
 
   it('rapport du soir supprimé : date en français, modèle en clair', () => {

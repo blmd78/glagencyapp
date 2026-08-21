@@ -1,6 +1,6 @@
 import { planAssignmentSync } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
-import { isMarketingSlug } from '@/config/workspaces'
+import { slugFace, type WorkspaceId } from '@/config/workspaces'
 import { getProfile, type Profile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { CrmShift } from '@/lib/types/chatters'
@@ -35,14 +35,14 @@ export async function requireCaller(): Promise<Profile | null> {
 }
 
 /**
- * Fusionne les pages : le scope courant remplace SES slugs, ceux de l'autre face sont
- * préservés. Le droit de face `marketing` (utilisé par la RLS has_page) suit : posé dès
- * qu'une page mkt-* est cochée, retiré sinon.
+ * Fusionne les pages : le scope courant remplace SES slugs, ceux des autres faces sont
+ * préservés. Le droit de face (`marketing`, `formation` — utilisé par la RLS has_page) suit :
+ * posé dès qu'une page de la face est cochée, retiré sinon. La face chatteurs n'a pas de droit
+ * de face (ses slugs suffisent).
  */
-export function mergePages(existing: string[], selected: string[], scope: 'chatter' | 'marketing'): string[] {
-  const kept = existing.filter((s) => (scope === 'marketing' ? !isMarketingSlug(s) : isMarketingSlug(s)))
-  const withFace =
-    scope === 'marketing' && selected.length ? [...selected, 'marketing'] : selected
+export function mergePages(existing: string[], selected: string[], scope: WorkspaceId): string[] {
+  const kept = existing.filter((s) => slugFace(s) !== scope)
+  const withFace = scope !== 'chatter' && selected.length ? [...selected, scope] : selected
   return [...new Set([...kept, ...withFace])]
 }
 
@@ -184,7 +184,7 @@ export type { Role } from './types'
  */
 export async function authorizeRoleAndScope(
   caller: Profile,
-  scope: 'chatter' | 'marketing',
+  scope: WorkspaceId,
   requestedRole: Role,
   creatorIds: string[],
 ): Promise<{ error: string } | { role: Role; ownScope?: Set<string> }> {
@@ -212,7 +212,7 @@ export async function authorizeRoleAndScope(
  * false pour un appelant manager en édition (il ne déplace pas un rattachement — la colonne
  * reste préservée).
  */
-export function managerIdsPatch(role: Role, scope: 'chatter' | 'marketing', managerIds: string[], apply: boolean) {
+export function managerIdsPatch(role: Role, scope: WorkspaceId, managerIds: string[], apply: boolean) {
   if (!canBeAttached(role)) return { manager_ids: [] as string[] }
   if (scope === 'chatter' && apply) return { manager_ids: managerIds }
   return {}

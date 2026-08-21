@@ -5,6 +5,7 @@
 // décrivent ce qu'on AFFICHE, ce fichier ce qu'on peut FAIRE.
 
 import { useState } from 'react'
+import type { WorkspaceId } from '@/config/workspaces'
 import { toast } from 'sonner'
 import { Eye, LogOut, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 import { isImpersonatable } from '@glagency/core'
@@ -57,7 +58,7 @@ export function RowActions({
   creators: { id: string; name: string }[]
   chatters: { id: string; name: string }[]
   managers: { id: string; name: string; role: string }[]
-  scope: 'chatter' | 'marketing'
+  scope: WorkspaceId
   viewer: 'admin' | 'manager'
   /** Propriétaire : seul à pouvoir gérer les fiches admin. */
   superadmin: boolean

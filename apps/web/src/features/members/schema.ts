@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MKT_PAGE_CHOICES, PAGE_CHOICES } from '@/config/workspaces'
+import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
 
 // Désignation « closing » portée par le membre (setter/closer + équipe rouge/bleue) — n'a de sens
@@ -9,9 +9,7 @@ const closingTeam = z.enum(CRM_TEAMS).nullable()
 
 // Schéma Zod PARTAGÉ client (form RHF) ↔ serveur (actions safeParse) — source unique.
 // `scope` : quelle face gère les droits — chaque page Membres ne touche QUE ses slugs,
-// ceux de l'autre face sont préservés côté serveur.
-const CHATTER_SLUGS = PAGE_CHOICES.map((p) => p.slug as string)
-const MKT_SLUGS = MKT_PAGE_CHOICES.map((p) => p.slug as string)
+// ceux des autres faces sont préservés côté serveur.
 
 // Lien « outil de travail » (optionnel) : vide ou une URL http(s) — le membre le
 // retrouve dans son menu utilisateur en bas de sidebar.
@@ -25,7 +23,7 @@ const workLink = z
 // champ entre les deux schémas). La création ajoute `email` ; l'édition ajoute `id` (email
 // verrouillé). Mêmes règles, mêmes messages. `scope` est déclaré à part : il se place AVANT
 // email/id dans chaque schéma (ordre des clés = ordre de validation Zod, inchangé).
-const scope = z.enum(['chatter', 'marketing'])
+const scope = z.enum(['chatter', 'marketing', 'formation'] satisfies WorkspaceId[])
 const memberFields = {
   displayName: z.string().trim().min(1, 'Nom requis').max(60),
   // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
@@ -66,8 +64,10 @@ const memberFields = {
 }
 
 // Refines partagés (mêmes prédicats, mêmes messages, même path pour les deux schémas).
-const pagesOfScope = (d: { scope: 'chatter' | 'marketing'; pages: string[] }) =>
-  d.pages.every((x) => (d.scope === 'marketing' ? MKT_SLUGS : CHATTER_SLUGS).includes(x))
+const pagesOfScope = (d: { scope: WorkspaceId; pages: string[] }) => {
+  const allowed = new Set<string>(pageChoicesFor(d.scope).map((p) => p.slug))
+  return d.pages.every((x) => allowed.has(x))
+}
 // min 1 page SAUF pour un admin (accès à tout) : un compte chatteur/manager sans page
 // serait inutilisable (atterrit sur /no-access). « Une page » = sur N'IMPORTE quelle face :
 // le form ne voit que les pages de son scope, `hasOtherFacePages` porte le reste.
