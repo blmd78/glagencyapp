@@ -1,4 +1,4 @@
-// /formation (basePath seul) : jamais lié depuis la nav (workspaceHome = 1ʳᵉ entrée = Overview),
+// /formation (basePath seul) : jamais lié depuis la nav (workspaceHome = 1ʳᵉ entrée ACCESSIBLE, ou ce basePath en dernier recours),
 // mais l'URL doit exister — même filet que /marketing/page.tsx.
 export default function FormationHome() {
   return (

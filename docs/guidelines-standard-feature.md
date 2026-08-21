@@ -28,6 +28,12 @@ features/<f>/
   `lib/types/`) — jamais importé cross-feature. Exemple réel : `getChatters` vit dans
   `lib/services/get-chatters.ts` (pas dans `features/chatters/`) parce que `features/insights`
   le consomme aussi ; `ChatterRow`/`ChattersData` vivent dans `lib/types/chatters.ts`.
+- **Une Server Action déclenchée par ≥ 2 features** suit la même règle : elle vit en `lib/`,
+  pas dans une des features. Précédent : `lib/impersonation/actions.ts`. Exemple récent :
+  `lib/training/start-session.ts` (`startSession`, partagée par plusieurs features — Modules,
+  écran de résultat de session) avec un composant client partagé
+  `components/training/play-button.tsx` — la frontière ESLint cross-feature interdirait sinon
+  qu'une feature importe l'action d'une autre.
 - **Frontières enforced par ESLint** (`import-x/no-restricted-paths`,
   `apps/web/eslint.config.mjs`) : `lib → features → app`, cross-feature interdit, personne
   n'importe `app/`. Violation = erreur de lint, pas une convention informelle.
@@ -282,8 +288,13 @@ features/<f>/
   reste **inline dans `actions.ts`** (validation serveur-only mono-usage, aucun resolver client
   à partager) — pas de `schema.ts`. Ne pas forcer RHF ni un `schema.ts` sur ces cas ; commenter
   l'inline en en-tête.
-- **Erreur serveur globale** : `form.setError('root.serverError', { message: res.error })`
-  sur un `ActionResult` en échec, affichée dans un `role="alert"`. Une erreur de **champ**
+- **Erreur serveur globale** : `form.setError('root', { message: res.error })` sur un
+  `ActionResult` en échec, affichée dans un `role="alert"` (lue via `errors.root?.message`).
+  La règle réelle est « pose et lis la MÊME clé » : quelques forms historiques utilisent
+  `'root.serverError'` des deux côtés (reports, compta-debt, member-pay) — cohérents, ne pas
+  les refactorer ; pour un nouveau form, prendre `'root'`.
+  Le doc disait `'root.serverError'` : c'est une clé ENFANT de `root`, que `errors.root.message`
+  ne lit pas — le code, lui, pose bien `'root'` partout depuis Membres. Une erreur de **champ**
   posée par le serveur (`res.fieldErrors`) est effacée dès que le champ repasse la validation
   client — voulu, les erreurs non exprimables côté client (ex. unicité) sont re-mappées à
   chaque submit.

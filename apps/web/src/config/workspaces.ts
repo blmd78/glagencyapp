@@ -36,11 +36,26 @@ import {
   ClipboardList,
   Trophy,
   GraduationCap,
+  BookOpen,
+  Library,
+  PlayCircle,
+  Gift,
+  UserSearch,
+  Settings2,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 export interface NavItem {
   /** Slug d'accès explicite (sinon dérivé du dernier segment de l'href). */
   slug?: string
+  /**
+   * Item visible dès qu'UN de ces slugs est possédé (ex. Modules : Entraînement OU Suivi).
+   * Prend le pas sur `slug`/href dans `canAccessNav`. Sans `slug` → l'item n'est PAS une case
+   * cochable dans Membres (les droits se cochent via les items qui les portent).
+   */
+  anyOf?: PageSlug[]
+  /** Libellé de la CASE à cocher dans Membres quand il diffère du libellé de nav (ex. « Suivi »). */
+  choiceLabel?: string
   href: Route
   label: string
   icon: LucideIcon
@@ -172,9 +187,32 @@ export const WORKSPACES: Workspace[] = [
     basePath: '/formation',
     // Même patron que Marketing : droit de face UNIQUE `formation` (posé par mergePages dès
     // qu'une page frm-* est cochée depuis /formation/members), slugs préfixés `frm-`.
-    // Squelette : Overview = placeholder (la reprise de Good Luck Agency vient ensuite).
+    // Deux droits : `frm-suivi` (encadrement — Overview) et `frm-entrainement` (chatter — Ma
+    // formation). Modules est ouvert aux deux (anyOf). Catalogue = admin (comme Membres).
+    // Les deux sont en service : Ma formation (progression, historique, trophées, classement) et
+    // Overview (roster de la promo, fiche d'un chatter, signalements, coût IA pour un admin).
+    //
+    // UN SEUL sous-onglet, « Configuration » : les deux écrans de RÉGLAGE de la face (Catalogue
+    // des modules, Config du test de recrutement) sont admin-only et ne se consultent pas au
+    // quotidien — les ranger ensemble sort deux entrées du flux de travail (Overview, Ma
+    // formation, Roue, Recrutement, Modules) sans les cacher.
+    groups: [{ id: 'config', label: 'Configuration', icon: Settings2 }],
     nav: [
-      { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-overview' },
+      { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
+      { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
+      // Sans `slug` propre (anyOf) : pas une case cochable à part dans Membres — le droit
+      // vient déjà de Suivi/Entraînement, comme Modules juste après.
+      { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-entrainement', 'frm-suivi'] },
+      // Dossiers du test de recrutement public (/postuler) — `adminOnly` SANS slug : le
+      // recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables recruit_*),
+      // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de
+      // `facePageChoices` ci-dessous). Item DIRECT, seul à porter une pastille sur cette face.
+      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
+      { href: '/formation/modules', label: 'Modules', icon: Library, anyOf: ['frm-entrainement', 'frm-suivi'] },
+      // Sous-onglet « Configuration » : les items de groupe sont rendus dans le CORPS de la
+      // sidebar — donc jamais `bottom` (Catalogue l'était quand il était direct).
+      { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, group: 'config' },
+      { href: '/formation/recrutement/config', label: 'Config du test', icon: SlidersHorizontal, adminOnly: true, group: 'config' },
       { href: '/formation/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
     ],
   },
@@ -189,7 +227,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-overview'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**
@@ -224,7 +262,7 @@ export type PageChoice = { slug: PageSlug; label: string; icon: LucideIcon }
 const facePageChoices = (id: WorkspaceId): PageChoice[] =>
   (WORKSPACES.find((w) => w.id === id)?.nav ?? [])
     .filter((n) => !n.adminOnly && n.slug)
-    .map((n) => ({ slug: n.slug as PageSlug, label: n.label, icon: n.icon }))
+    .map((n) => ({ slug: n.slug as PageSlug, label: n.choiceLabel ?? n.label, icon: n.icon }))
 
 /** Pages cochables de la FACE MARKETING (slugs mkt-* — gérées depuis /marketing/members). */
 export const MKT_PAGE_CHOICES = facePageChoices('marketing')
@@ -265,18 +303,25 @@ export function workspaceForPath(pathname: string): Workspace {
   )
 }
 
-/** Home d'une face = sa 1ʳᵉ entrée de nav, sinon son basePath. */
-export function workspaceHome(w: Workspace): Route {
-  // Fallback défensif (basePath seul n'est pas une page réelle) → cast.
-  return w.nav[0]?.href ?? (w.basePath as Route)
-}
-
 /** Contexte d'accès : booléens de rôle + slugs de pages autorisés (Set pour lookup O(1)). */
 export interface NavAccess {
   isAdmin: boolean
   isSuperadmin: boolean
   isManager: boolean
   pages: Set<string>
+}
+
+/**
+ * Home d'une face POUR UN PROFIL = sa 1ʳᵉ entrée de nav accessible (items `bottom` exclus,
+ * même règle que `landingHref`), sinon son basePath. Dépend des droits, pas seulement de la face :
+ * nav[0] de Formation est Overview (frm-suivi), un chatter avec le seul droit Entraînement y
+ * serait rebondi par `requireAccess` vers sa face chatteurs — en boucle depuis le switcher
+ * (bug 2026-08-19). Idem Marketing (nav[0] = mkt-overview).
+ */
+export function workspaceHome(w: Workspace, access: NavAccess): Route {
+  const first = w.nav.find((item) => !item.bottom && canAccessNav(item, access))
+  // Fallback défensif (basePath seul n'est pas une page réelle, mais l'index de face existe) → cast.
+  return first?.href ?? (w.basePath as Route)
 }
 
 /**
@@ -287,6 +332,7 @@ export function canAccessNav(item: NavItem, a: NavAccess): boolean {
   if (item.superadminOnly && !a.isSuperadmin) return false
   if (a.isAdmin) return true
   if (item.adminOnly) return !!item.managerAccess && a.isManager
+  if (item.anyOf) return item.anyOf.some((s) => a.pages.has(s))
   return a.pages.has(navSlug(item))
 }
 

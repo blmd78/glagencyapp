@@ -20,9 +20,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
 import { loadMemberEvents } from '../actions-lifecycle'
+import { checkRecruitByEmail } from '../actions-recruit'
 import { memberInput, type MemberForm } from '../schema'
 import { memberDefaults } from './member-defaults'
-import type { Member, MemberEvent } from '../types'
+import type { Member, MemberEvent, RecruitCheck } from '../types'
 import { MemberAccessFields } from './member-access-fields'
 import { MemberArrivalFields } from './member-arrival-fields'
 import { MemberChatterLinkField } from './member-chatter-link-field'
@@ -38,6 +39,9 @@ import { MemberPermissionFields } from './member-permission-fields'
 const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages', 'arrivedAt'] as const satisfies readonly (keyof MemberForm)[]
 const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[number] =>
   (DISPLAYED_FIELDS as readonly string[]).includes(field)
+
+/** Hoisté : un `toLocaleDateString` avec options reconstruit un Intl.DateTimeFormat à chaque appel. */
+const FR_DAY = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeZone: 'Europe/Paris' })
 
 /**
  * Dialog Nouveau/Modifier membre (RHF + Zod, schéma partagé avec le serveur). Email (verrouillé
@@ -98,10 +102,27 @@ export function MemberDialog({
 }) {
   'use no memo'
   const [openState, setOpenState] = useState(false)
+  // DOSSIER DE RECRUTEMENT (0125) : à la création, dire si l'e-mail saisi a déjà passé le test
+  // public. PUREMENT INFORMATIF — le rattachement (`recruit_candidates.profile_id`) est fait par
+  // `createMember` côté serveur, qu'on ait affiché l'encart ou non. Déclaré ici, avant `setOpen`
+  // qui le remet à zéro (cf. plus bas pour la lecture elle-même).
+  const [recruitHit, setRecruitHit] = useState<RecruitCheck | null>(null)
+  // Dernier e-mail interrogé : sert à la fois d'anti-doublon (blur sans changement) et de jeton
+  // de course (une réponse qui revient après une nouvelle saisie est jetée).
+  const askedEmail = useRef('')
   // Contrôlé quand `open` est fourni (ouverture depuis un menu déroulant, qui ne peut pas servir
   // de trigger : Radix le démonte à la sélection), autonome sinon.
   const open = openProp ?? openState
-  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenState(v))
+  const setOpen = (v: boolean) => {
+    // L'encart « dossier de recrutement » repart de zéro à chaque bascule — le formulaire, lui,
+    // est réinitialisé par l'effet d'ouverture plus bas. Fait ICI (gestionnaire d'événement) et
+    // pas dans un effet : un setState synchrone dans un effet est refusé par le lint React
+    // Compiler (`react-hooks/set-state-in-effect`), et provoquerait un rendu en cascade. Le
+    // jeton `askedEmail`, lui, est un REF : il se remet à zéro dans l'effet d'ouverture (une
+    // fonction appelée pendant le rendu n'a pas le droit d'y toucher — `react-hooks/refs`).
+    setRecruitHit(null)
+    return onOpenChange ? onOpenChange(v) : setOpenState(v)
+  }
   const choices = pageChoicesFor(scope)
   // Pas d'auto-rattachement (check en base) : on exclut la ligne éditée des options.
   const attachables = managers.filter((m) => m.id !== member?.id)
@@ -131,6 +152,9 @@ export function MemberDialog({
     prevOpen.current = open
     if (!opening) return
     reset(memberDefaults({ member, scope, viewer, creators }))
+    // Même geste pour le jeton du lookup recrutement : sans ça, rouvrir le dialog et resaisir LE
+    // MÊME e-mail serait vu comme un doublon et l'encart ne reviendrait jamais.
+    askedEmail.current = ''
   }, [open, member, scope, viewer, creators, reset])
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
@@ -141,6 +165,30 @@ export function MemberDialog({
   // Commande l'apparition du champ « Arrivé le » (0101) — observé ici, comme `roleValue`, plutôt
   // que dans le composant de champs : un `useWatch` par composant multiplierait les re-rendus.
   const isNewValue = useWatch({ control, name: 'isNew' })
+
+  // Lecture du dossier de recrutement : ADMIN SEULEMENT (l'action lit une table dont la RLS ne
+  // s'ouvre qu'à `is_admin()`) et à la CRÉATION seulement (en édition l'e-mail est verrouillé,
+  // rien à re-vérifier). Déclenchée au BLUR et pas à la frappe : une lecture par e-mail terminé,
+  // pas une par caractère.
+  const canCheckRecruit = !member && viewer === 'admin'
+  const onEmailBlur = async (raw: string) => {
+    const email = raw.trim().toLowerCase()
+    if (email === askedEmail.current) return
+    askedEmail.current = email
+    // Saisie encore incomplète : on n'appelle pas (le schéma zod de l'action refuserait).
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setRecruitHit(null)
+      return
+    }
+    try {
+      const res = await checkRecruitByEmail({ email })
+      if (askedEmail.current !== email) return
+      setRecruitHit(res.success ? res.data : null)
+    } catch {
+      // Échec de transport : l'encart est un bonus, il disparaît sans rien dire.
+      if (askedEmail.current === email) setRecruitHit(null)
+    }
+  }
 
   const submit = handleSubmit(async (values) => {
     // `...values` des DEUX côtés : `memberUpdateInput` ne déclare pas `email` (verrouillé en
@@ -184,6 +232,18 @@ export function MemberDialog({
         errors={errors}
         emailLocked={!!member}
         isSubmitting={isSubmitting}
+        onEmailBlur={canCheckRecruit ? onEmailBlur : undefined}
+        emailNotice={
+          // Constat, jamais une promesse : le rattachement du dossier dépend d'un `profile_id`
+          // encore libre, que cet encart ne connaît pas (et n'a pas à connaître).
+          recruitHit ? (
+            <p className="text-xs text-muted-foreground">
+              A passé le test de recrutement le {FR_DAY.format(new Date(recruitHit.testedAt))} —{' '}
+              <span className="font-medium tabular-nums text-foreground">{recruitHit.global}/100</span>{' '}
+              ({recruitHit.passed ? 'réussi' : 'refusé'}).
+            </p>
+          ) : undefined
+        }
       />
 
       {viewer === 'admin' && (

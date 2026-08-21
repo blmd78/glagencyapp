@@ -1,5 +1,5 @@
-import { PageSkeleton } from '@/components/page-skeleton'
+import { OverviewSkeleton } from '@/features/training-overview/components/overview-skeleton'
 
 export default function Loading() {
-  return <PageSkeleton />
+  return <OverviewSkeleton />
 }

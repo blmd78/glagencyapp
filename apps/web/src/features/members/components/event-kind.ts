@@ -26,6 +26,7 @@ export const KIND_LABEL: Record<EventKind, string> = {
   identite: 'Fiche',
   sanction: 'Sanction',
   rapport: 'Rapport',
+  recompense: 'Récompense',
 }
 
 // Code couleur de l'app, hors STATUS_COLORS : violet = modèles/lien MyPuls, orange = police —
@@ -53,6 +54,9 @@ export const KIND_TONE: Record<EventKind, string> = {
   identite: STATUS_COLORS.neutral,
   sanction: TONE_ORANGE,
   rapport: TONE_ORANGE,
+  // Gain à la roue (0122) : une bonne nouvelle sur la fiche membre — même teinte que les autres
+  // événements positifs (arrivée, rôle/rattachement).
+  recompense: STATUS_COLORS.positive,
 }
 
 /** Colonne « Action » du flux d'activité — la nature de l'opération (`memberEventOp`, domaine).

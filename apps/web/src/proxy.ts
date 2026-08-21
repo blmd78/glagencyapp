@@ -39,7 +39,10 @@ export async function proxy(request: NextRequest) {
   const user = data?.claims ?? null
 
   const { pathname } = request.nextUrl
-  const isPublic = pathname.startsWith('/login') || pathname.startsWith('/auth')
+  // `/postuler` = test de recrutement PUBLIC : le candidat n'a aucune session, ses gardes
+  // vivent dans les Server Actions (test ouvert, blocklist, rate-limit par IP).
+  const isPublic =
+    pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/postuler')
   if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'

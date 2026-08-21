@@ -1,6 +1,6 @@
 # Formation — Catalogue (modules, cours, cas) — design
 
-Date : 2026-08-17 · Statut : validé en chat, à relire · Incrément 1 de la face **Formation**.
+Date : 2026-08-17 · Statut : implémenté (PRs 1-6, branche feature/formation-catalogue, 2026-08-17) — à recetter sur l'UAT · Incrément 1 de la face **Formation**.
 
 ## 1. Contexte
 
@@ -39,7 +39,7 @@ Livrables, dans l'ordre (chacun mergeable) :
 1. **Schéma** : tables du catalogue, RLS, index — migration `0113`.
 2. **Seed** : reprise de **tout** le contenu GLA (7 modules, 10 sections, **85 cas** = 79 solo
    + 5 défis simultanés + 1 boss final, messages d'ouverture, axes de barème, 25 créneaux
-   de défi, 5 fans du boss) — migration `0114`, générée par un script.
+   de défi, 5 fans du boss) — migration `0115`, générée par un script.
 3. **Onglet admin « Catalogue »** (`/formation/catalogue`) : lister / créer / éditer /
    ordonner / activer-désactiver modules, sections, axes, cas (des 3 sortes), messages
    d'ouverture, créneaux de défi, fans du boss.
@@ -225,7 +225,20 @@ Les lignes **inactives** restent lisibles par la RLS ; le **filtrage `active`** 
 dans les services de lecture chatter (une page Modules ne montre que l'actif), le
 Catalogue admin voit tout.
 
-## 4. Seed (migration `0114_training_catalog_seed.sql`)
+**Limite connue (revue finale 2026-08-17)** : la RLS est **par ligne**, pas par colonne — un
+membre ayant le droit de face `formation` peut lire `fan_brief`, `expected`, `scoring_notes`
+et les champs cachés des fans du boss via l'API PostgREST directe (token en cookie, clé
+publishable côté client). La projection publique de `features/training-modules` protège
+l'UI, pas la donnée. Tolérable pour ce premier incrément (triche à l'entraînement, ni argent
+ni données clients), **à durcir avec le moteur IA** (incrément sessions) : table
+`training_case_secrets` (fan_brief, expected, scoring_notes, champs cachés des fans) en RLS
+`is_admin()`, lue par le moteur côté serveur — migration dédiée.
+
+**Fait** : secrets déplacés en tables admin-only dans la migration `0116`
+(`training_case_secrets`, `training_module_secrets`, `training_boss_fan_secrets`) — voir
+`docs/superpowers/specs/2026-08-18-formation-entrainement-design.md`.
+
+## 4. Seed (migration `0115_training_catalog_seed.sql`)
 
 Généré par `packages/db/scripts/gen-training-seed.mjs <chemin/formation.json>` (stdout →
 fichier de migration ; script commité, ré-exécutable, **jamais** appelé en prod — la
@@ -357,6 +370,13 @@ app/(dash)/formation/modules/[code]/page.tsx   idem ; notFound() si code inconnu
 - Services : erreurs Supabase thrown → `error.tsx` de la face.
 - `revalidatePath('/formation/catalogue')`, `/formation/modules` (+ `[code]`) après mutation.
 
+**Écart tranché à l'implémentation** : pas de minimum d'axes (le Boss final GLA n'en a aucun —
+notation par étape) ; 24 axes (comptage réel, pas ~30) ; `saveModule`/`saveCase` (id null =
+création) ; sur `saveCase` en édition, les enfants (messages / créneaux / fans) sont
+remplacés en bloc (rien ne les référence encore ; les sessions stockeront un instantané) ;
+item Modules en `anyOf` sans `slug` (+ `choiceLabel`) ; migration 0114 = index `updated_by`
+ajoutée en revue (Task 1), seed reporté en 0115 (renumérotation, cf. plan).
+
 ## 8. Tests
 
 - `packages/core` n'est pas concerné (pas de logique de domaine ici).
@@ -370,8 +390,9 @@ app/(dash)/formation/modules/[code]/page.tsx   idem ; notFound() si code inconnu
 
 ## 9. Découpage en PRs (détail dans le plan)
 
-1. `0113` schéma + RLS + types générés + slugs (`frm-entrainement`/`frm-suivi`, `anyOf`).
-2. Script de seed + `0114` (revue du Markdown des 6 cours).
+1. `0113` schéma + RLS + types générés + slugs (`frm-entrainement`/`frm-suivi`, `anyOf`)
+   + `0114` index `updated_by` (revue).
+2. Script de seed + `0115` (revue du Markdown des 6 cours).
 3. Catalogue admin — lecture (Template, liste modules, table cas, squelettes, route).
 4. Catalogue admin — écriture modules (dialog + actions + reorder/toggle).
 5. Catalogue admin — écriture cas (dialog des 3 sortes + messages / créneaux / fans + actions
@@ -380,3 +401,14 @@ app/(dash)/formation/modules/[code]/page.tsx   idem ; notFound() si code inconnu
 
 Ordre pensé pour que chaque PR soit visible dans l'app ; 3 → 6 peuvent se relire en une
 seule revue si on préfère.
+
+## 10. Recette UAT (Benoit)
+
+1. `/formation/members` : cocher « Entraînement » à un chatter test, « Suivi » à un
+   encadrant test.
+2. En tant que le chatter : sidebar = Ma formation, Modules ; lire le cours Setting ;
+   onglet Cas ; `/formation/catalogue` inaccessible.
+3. Admin : Catalogue → éditer un cours (aperçu), un cas solo, le défi, le boss ;
+   dupliquer ; désactiver / réactiver ; réordonner ; créer un module vide et un cas dedans.
+4. Prod : les migrations 0113 + 0114 + 0115 partent AVEC la release
+   (`supabase db push --db-url "$DATABASE_URL"`), pas avant.

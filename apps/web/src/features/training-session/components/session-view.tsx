@@ -1,0 +1,169 @@
+'use client'
+
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import type { SessionStatus } from '@/lib/types/training'
+import { sendMessage } from '../actions'
+import { expireSession, timeoutThread } from '../actions-lifecycle'
+import type { ComposerInput } from '../schema'
+import type { SessionData, SessionThread } from '../types'
+import { SessionHeader } from './session-header'
+import { ThreadPanel } from './thread-panel'
+import { ThreadTabs } from './thread-tabs'
+import { useNow } from './use-now'
+import { useScoring } from './use-scoring'
+
+/**
+ * Session ACTIVE : état local des threads (messages, statut, chrono) alimenté par les retours des
+ * actions ; horloge alignée serveur ; fin de session → notation → refresh (le RSC affiche le résultat).
+ * Une seule conversation en solo ; onglets en défi / boss.
+ */
+export function SessionView({ data }: { data: SessionData }) {
+  const router = useRouter()
+  const now = useNow(data.serverNow)
+  const [threads, setThreads] = useState<SessionThread[]>(data.threads)
+  const [current, setCurrent] = useState(data.threads[0]?.id ?? '')
+  const [ended, setEnded] = useState(!!data.endedAt)
+  const [timeoutFailed, setTimeoutFailed] = useState<Set<string>>(new Set())
+  const { scoring, error: scoreError, run: runScoring } = useScoring(data.id)
+  const firing = useRef(new Set<string>())
+  const expiring = useRef(false)
+
+  useEffect(() => {
+    if (ended) void runScoring()
+  }, [ended, runScoring])
+
+  // Spec §5 « Interruption » — défi/boss : le chatter revient et TOUS ses chronos sont dépassés.
+  // Une seule tentative, AU CHARGEMENT (l'horloge serveur du rendu fait foi ; pendant la partie les
+  // chronos sont traités thread par thread par `handleTimeout`). Le serveur revérifie tout ; s'il
+  // refuse, on n'insiste pas — l'affichage reste jouable.
+  useEffect(() => {
+    if (expiring.current || data.kind === 'solo') return
+    const at = Date.parse(data.serverNow)
+    const open = data.threads.filter((t) => t.status === 'open')
+    if (!open.length || !open.every((t) => t.nextDueAt != null && Date.parse(t.nextDueAt) < at - 2000)) return
+    expiring.current = true
+    // Course avec `ThreadPanel` : on verrouille tout de suite les threads ouverts dans `firing` pour
+    // que `handleTimeout` ne puisse pas déclencher un `timeoutThread` pendant que `expireSession` est
+    // en vol (ce qui fermerait le dernier thread et provoquerait la notation d'une session que la
+    // spec veut voir abandonnée). Si le serveur refuse l'expiration, on les libère pour laisser la
+    // voie normale du timeout par thread reprendre la main.
+    const openIds = open.map((t) => t.id)
+    for (const id of openIds) firing.current.add(id)
+    void expireSession({ sessionId: data.id }).then((r) => {
+      if (r.success && r.data.expired) {
+        router.refresh()
+        return
+      }
+      for (const id of openIds) firing.current.delete(id)
+    })
+  }, [data.id, data.kind, data.serverNow, data.threads, router])
+
+  const patch = useCallback((threadId: string, f: (t: SessionThread) => SessionThread) => {
+    setThreads((ts) => ts.map((t) => (t.id === threadId ? f(t) : t)))
+  }, [])
+  // Un statut encore `active` veut dire que LE thread qu'on vient de traiter a clos la session côté
+  // serveur (ended_at posé, pas encore notée) : on note côté client. Tout autre statut (`scored`,
+  // `failed`, `abandoned`…) veut dire que la session était déjà résolue — potentiellement par un
+  // autre onglet — et que le serveur refuserait une notation côté client : on se contente de refetch
+  // (router.refresh) pour afficher l'état réel, sans boucle de relance.
+  const onSessionEnd = useCallback(
+    (status: SessionStatus) => {
+      if (status === 'active') setEnded(true)
+      else router.refresh()
+    },
+    [router],
+  )
+
+  const handleSend = async (threadId: string, input: ComposerInput): Promise<boolean> => {
+    const r = await sendMessage({ threadId, ...input })
+    if (!r.success) {
+      toast.error(r.error)
+      // Le serveur a pu réarmer le chrono (panne IA) ou fermer le thread (trop lent, course) :
+      // on resynchronise plutôt que de rejouer un état périmé. Le texte saisi reste (return false).
+      if (r.error.startsWith('Trop lent') || r.error.includes('terminée') || r.error.includes('a pas répondu')) router.refresh()
+      return false
+    }
+    const d = r.data
+    patch(threadId, (t) => ({
+      ...t,
+      messages: [...t.messages, d.chatter, d.fan],
+      status: d.thread.status,
+      lostReason: d.thread.lostReason,
+      turnsUsed: d.thread.turnsUsed,
+      nextDueAt: d.thread.nextDueAt,
+    }))
+    if (d.sessionEnded) onSessionEnd(d.sessionStatus)
+    return true
+  }
+
+  const handleTimeout = useCallback(
+    async (threadId: string) => {
+      if (firing.current.has(threadId)) return
+      firing.current.add(threadId)
+      const r = await timeoutThread({ threadId })
+      if (!r.success) {
+        // On garde le thread dans `firing` : l'effet de `ThreadPanel` ne rappelle pas tout seul
+        // (pas de boucle de refresh). L'affordance « Réessayer » relance explicitement via
+        // `handleRetryTimeout`.
+        toast.error(r.error)
+        setTimeoutFailed((s) => new Set(s).add(threadId))
+        return
+      }
+      patch(threadId, (t) => ({ ...t, status: 'lost', lostReason: 'timeout', nextDueAt: null }))
+      if (r.data.sessionEnded) onSessionEnd(r.data.sessionStatus)
+    },
+    [onSessionEnd, patch],
+  )
+
+  const handleRetryTimeout = useCallback(
+    (threadId: string) => {
+      setTimeoutFailed((s) => {
+        if (!s.has(threadId)) return s
+        const next = new Set(s)
+        next.delete(threadId)
+        return next
+      })
+      firing.current.delete(threadId)
+      void handleTimeout(threadId)
+    },
+    [handleTimeout],
+  )
+
+  if (ended) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border p-10 text-center">
+        <p className="text-sm text-muted-foreground">{scoring ? 'Notation en cours…' : 'Session terminée'}</p>
+        {scoreError && (
+          <>
+            <p className="text-sm">{scoreError}</p>
+            <Button size="sm" onClick={() => void runScoring()}>
+              Relancer la notation
+            </Button>
+          </>
+        )}
+      </div>
+    )
+  }
+  const thread = threads.find((t) => t.id === current) ?? threads[0]
+  return (
+    <div className="flex flex-col gap-4">
+      <SessionHeader data={data} threads={threads} onEnded={() => setEnded(true)} />
+      {threads.length > 1 && <ThreadTabs threads={threads} current={thread.id} now={now} onSelect={setCurrent} />}
+      {thread && (
+        <ThreadPanel
+          key={thread.id}
+          thread={thread}
+          kind={data.kind}
+          now={now}
+          onSend={(v) => handleSend(thread.id, v)}
+          onTimeout={handleTimeout}
+          timeoutFailed={timeoutFailed.has(thread.id)}
+          onRetryTimeout={handleRetryTimeout}
+        />
+      )}
+    </div>
+  )
+}

@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       chatter_alias: {
@@ -974,6 +999,24 @@ export type Database = {
         }
         Relationships: []
       }
+      ingest_session: {
+        Row: {
+          cookie: string
+          id: string
+          refreshed_at: string
+        }
+        Insert: {
+          cookie: string
+          id: string
+          refreshed_at?: string
+        }
+        Update: {
+          cookie?: string
+          id?: string
+          refreshed_at?: string
+        }
+        Relationships: []
+      }
       insight_states: {
         Row: {
           bilan: Json | null
@@ -1926,6 +1969,325 @@ export type Database = {
           },
         ]
       }
+      recruit_attempts: {
+        Row: {
+          bot_replies: number
+          bot_total: number | null
+          coherence: number | null
+          connection_mbps: number | null
+          created_at: string
+          device: string
+          id: string
+          input_tokens: number
+          ip: string | null
+          orthographe: number | null
+          output_tokens: number
+          persona: string
+          qi_answers: Json | null
+          qi_score: number | null
+          relance: number | null
+          status: string
+          typing: Json | null
+          vente: number | null
+        }
+        Insert: {
+          bot_replies?: number
+          bot_total?: number | null
+          coherence?: number | null
+          connection_mbps?: number | null
+          created_at?: string
+          device: string
+          id?: string
+          input_tokens?: number
+          ip?: string | null
+          orthographe?: number | null
+          output_tokens?: number
+          persona: string
+          qi_answers?: Json | null
+          qi_score?: number | null
+          relance?: number | null
+          status?: string
+          typing?: Json | null
+          vente?: number | null
+        }
+        Update: {
+          bot_replies?: number
+          bot_total?: number | null
+          coherence?: number | null
+          connection_mbps?: number | null
+          created_at?: string
+          device?: string
+          id?: string
+          input_tokens?: number
+          ip?: string | null
+          orthographe?: number | null
+          output_tokens?: number
+          persona?: string
+          qi_answers?: Json | null
+          qi_score?: number | null
+          relance?: number | null
+          status?: string
+          typing?: Json | null
+          vente?: number | null
+        }
+        Relationships: []
+      }
+      recruit_blocklist: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          device: string | null
+          discord: string | null
+          email: string | null
+          id: string
+          ip: string | null
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          device?: string | null
+          discord?: string | null
+          email?: string | null
+          id?: string
+          ip?: string | null
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          device?: string | null
+          discord?: string | null
+          email?: string | null
+          id?: string
+          ip?: string | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_blocklist_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruit_candidates: {
+        Row: {
+          age: number | null
+          attempt_id: string
+          bot_total: number
+          coherence: number
+          connection_mbps: number
+          created_at: string
+          discord: string | null
+          email: string
+          first_name: string
+          global: number
+          id: string
+          last_name: string
+          location: string | null
+          orthographe: number
+          passed: boolean
+          phone: string | null
+          profile_id: string | null
+          qi_score: number
+          qi_total: number
+          refusal_reason: string | null
+          refusal_step: string | null
+          relance: number
+          repeat: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          shifts: string[] | null
+          source: string | null
+          status: string
+          typing_wpm: number
+          vente: number
+        }
+        Insert: {
+          age?: number | null
+          attempt_id: string
+          bot_total: number
+          coherence: number
+          connection_mbps: number
+          created_at?: string
+          discord?: string | null
+          email: string
+          first_name: string
+          global: number
+          id?: string
+          last_name: string
+          location?: string | null
+          orthographe: number
+          passed: boolean
+          phone?: string | null
+          profile_id?: string | null
+          qi_score: number
+          qi_total: number
+          refusal_reason?: string | null
+          refusal_step?: string | null
+          relance: number
+          repeat?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          shifts?: string[] | null
+          source?: string | null
+          status?: string
+          typing_wpm: number
+          vente: number
+        }
+        Update: {
+          age?: number | null
+          attempt_id?: string
+          bot_total?: number
+          coherence?: number
+          connection_mbps?: number
+          created_at?: string
+          discord?: string | null
+          email?: string
+          first_name?: string
+          global?: number
+          id?: string
+          last_name?: string
+          location?: string | null
+          orthographe?: number
+          passed?: boolean
+          phone?: string | null
+          profile_id?: string | null
+          qi_score?: number
+          qi_total?: number
+          refusal_reason?: string | null
+          refusal_step?: string | null
+          relance?: number
+          repeat?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          shifts?: string[] | null
+          source?: string | null
+          status?: string
+          typing_wpm?: number
+          vente?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_candidates_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: true
+            referencedRelation: "recruit_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruit_candidates_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recruit_candidates_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruit_config: {
+        Row: {
+          bot_messages: number
+          connexion_min: number
+          discord_link: string
+          frappe_min: number
+          global_threshold: number
+          id: number
+          open: boolean
+          qi_bank: Json
+          qi_min: number
+          qi_timer: number
+          typing_text: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bot_messages?: number
+          connexion_min?: number
+          discord_link?: string
+          frappe_min?: number
+          global_threshold?: number
+          id?: number
+          open?: boolean
+          qi_bank: Json
+          qi_min?: number
+          qi_timer?: number
+          typing_text: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bot_messages?: number
+          connexion_min?: number
+          discord_link?: string
+          frappe_min?: number
+          global_threshold?: number
+          id?: number
+          open?: boolean
+          qi_bank?: Json
+          qi_min?: number
+          qi_timer?: number
+          typing_text?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recruit_messages: {
+        Row: {
+          attempt_id: string
+          body: string
+          created_at: string
+          id: string
+          media_price: number | null
+          position: number
+          speaker: string
+        }
+        Insert: {
+          attempt_id: string
+          body: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position: number
+          speaker: string
+        }
+        Update: {
+          attempt_id?: string
+          body?: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position?: number
+          speaker?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recruit_messages_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "recruit_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       relances: {
         Row: {
           chatter_id: string | null
@@ -2413,6 +2775,1025 @@ export type Database = {
           },
         ]
       }
+      training_ai_calls: {
+        Row: {
+          cache_read_tokens: number
+          created_at: string
+          id: string
+          input_tokens: number
+          kind: string
+          latency_ms: number
+          model: string
+          ok: boolean
+          output_tokens: number
+          session_id: string
+          thread_id: string | null
+        }
+        Insert: {
+          cache_read_tokens?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          kind: string
+          latency_ms?: number
+          model: string
+          ok?: boolean
+          output_tokens?: number
+          session_id: string
+          thread_id?: string | null
+        }
+        Update: {
+          cache_read_tokens?: number
+          created_at?: string
+          id?: string
+          input_tokens?: number
+          kind?: string
+          latency_ms?: number
+          model?: string
+          ok?: boolean
+          output_tokens?: number
+          session_id?: string
+          thread_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_ai_calls_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_ai_calls_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_boss_fan_secrets: {
+        Row: {
+          budget_cap: number | null
+          derails: string | null
+          fan_id: string
+          meet_when: string | null
+          meet_where: string | null
+          nego_threshold: number | null
+          nego_where: string | null
+        }
+        Insert: {
+          budget_cap?: number | null
+          derails?: string | null
+          fan_id: string
+          meet_when?: string | null
+          meet_where?: string | null
+          nego_threshold?: number | null
+          nego_where?: string | null
+        }
+        Update: {
+          budget_cap?: number | null
+          derails?: string | null
+          fan_id?: string
+          meet_when?: string | null
+          meet_where?: string | null
+          nego_threshold?: number | null
+          nego_where?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_boss_fan_secrets_fan_id_fkey"
+            columns: ["fan_id"]
+            isOneToOne: true
+            referencedRelation: "training_case_boss_fans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_arena_slots: {
+        Row: {
+          case_id: string
+          display_name: string
+          id: string
+          position: number
+          ref_case_id: string
+        }
+        Insert: {
+          case_id: string
+          display_name: string
+          id?: string
+          position: number
+          ref_case_id: string
+        }
+        Update: {
+          case_id?: string
+          display_name?: string
+          id?: string
+          position?: number
+          ref_case_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_arena_slots_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_case_arena_slots_ref_case_id_fkey"
+            columns: ["ref_case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_bests: {
+        Row: {
+          attempts: number
+          best_objective: boolean
+          best_total: number
+          case_id: string
+          last_at: string
+          profile_id: string
+        }
+        Insert: {
+          attempts?: number
+          best_objective?: boolean
+          best_total: number
+          case_id: string
+          last_at: string
+          profile_id: string
+        }
+        Update: {
+          attempts?: number
+          best_objective?: boolean
+          best_total?: number
+          case_id?: string
+          last_at?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_bests_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_case_bests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_boss_fans: {
+        Row: {
+          age: number | null
+          case_id: string
+          city: string | null
+          code: string
+          color: string | null
+          id: string
+          job: string | null
+          name: string
+          opening_message: string
+          persona: string
+          position: number
+        }
+        Insert: {
+          age?: number | null
+          case_id: string
+          city?: string | null
+          code: string
+          color?: string | null
+          id?: string
+          job?: string | null
+          name: string
+          opening_message: string
+          persona: string
+          position: number
+        }
+        Update: {
+          age?: number | null
+          case_id?: string
+          city?: string | null
+          code?: string
+          color?: string | null
+          id?: string
+          job?: string | null
+          name?: string
+          opening_message?: string
+          persona?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_boss_fans_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_messages: {
+        Row: {
+          body: string
+          case_id: string
+          id: string
+          position: number
+          speaker: string
+        }
+        Insert: {
+          body: string
+          case_id: string
+          id?: string
+          position: number
+          speaker: string
+        }
+        Update: {
+          body?: string
+          case_id?: string
+          id?: string
+          position?: number
+          speaker?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_messages_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_case_secrets: {
+        Row: {
+          case_id: string
+          expected: string | null
+          fan_brief: string | null
+        }
+        Insert: {
+          case_id: string
+          expected?: string | null
+          fan_brief?: string | null
+        }
+        Update: {
+          case_id?: string
+          expected?: string | null
+          fan_brief?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_case_secrets_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_cases: {
+        Row: {
+          active: boolean
+          code: string
+          context: string
+          created_at: string
+          difficulty: number
+          fan_name: string | null
+          id: string
+          is_sale: boolean
+          kind: string
+          max_turns: number
+          module_id: string
+          objective: string
+          phase: string
+          position: number
+          reaction_max_s: number | null
+          section_id: string | null
+          target_line: string | null
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          context: string
+          created_at?: string
+          difficulty: number
+          fan_name?: string | null
+          id?: string
+          is_sale?: boolean
+          kind?: string
+          max_turns: number
+          module_id: string
+          objective: string
+          phase?: string
+          position?: number
+          reaction_max_s?: number | null
+          section_id?: string | null
+          target_line?: string | null
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          context?: string
+          created_at?: string
+          difficulty?: number
+          fan_name?: string | null
+          id?: string
+          is_sale?: boolean
+          kind?: string
+          max_turns?: number
+          module_id?: string
+          objective?: string
+          phase?: string
+          position?: number
+          reaction_max_s?: number | null
+          section_id?: string | null
+          target_line?: string | null
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_cases_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_cases_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "training_module_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_cases_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          media_price: number | null
+          position: number
+          session_id: string
+          speaker: string
+          thread_id: string
+          visible_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position: number
+          session_id: string
+          speaker: string
+          thread_id: string
+          visible_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          media_price?: number | null
+          position?: number
+          session_id?: string
+          speaker?: string
+          thread_id?: string
+          visible_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_module_axes: {
+        Row: {
+          description: string
+          id: string
+          key: string
+          module_id: string
+          name: string
+          position: number
+        }
+        Insert: {
+          description: string
+          id?: string
+          key: string
+          module_id: string
+          name: string
+          position?: number
+        }
+        Update: {
+          description?: string
+          id?: string
+          key?: string
+          module_id?: string
+          name?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_axes_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_module_secrets: {
+        Row: {
+          module_id: string
+          scoring_notes: string | null
+        }
+        Insert: {
+          module_id: string
+          scoring_notes?: string | null
+        }
+        Update: {
+          module_id?: string
+          scoring_notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_secrets_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: true
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_module_sections: {
+        Row: {
+          code: string
+          description: string | null
+          emoji: string | null
+          id: string
+          module_id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          code: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          module_id: string
+          position?: number
+          title: string
+        }
+        Update: {
+          code?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          module_id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_sections_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_modules: {
+        Row: {
+          active: boolean
+          code: string
+          course_md: string | null
+          created_at: string
+          description: string | null
+          emoji: string | null
+          id: string
+          objective_label: string
+          position: number
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          course_md?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          objective_label?: string
+          position?: number
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          course_md?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          objective_label?: string
+          position?: number
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_modules_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_profile_stats: {
+        Row: {
+          active_days: number
+          avg_total: number | null
+          boss_best: number | null
+          boss_done: boolean
+          cases_done: number
+          last_active_day: string | null
+          last_session_at: string | null
+          points: number
+          profile_id: string
+          streak_days: number
+          updated_at: string
+        }
+        Insert: {
+          active_days?: number
+          avg_total?: number | null
+          boss_best?: number | null
+          boss_done?: boolean
+          cases_done?: number
+          last_active_day?: string | null
+          last_session_at?: string | null
+          points?: number
+          profile_id: string
+          streak_days?: number
+          updated_at?: string
+        }
+        Update: {
+          active_days?: number
+          avg_total?: number | null
+          boss_best?: number | null
+          boss_done?: boolean
+          cases_done?: number
+          last_active_day?: string | null
+          last_session_at?: string | null
+          points?: number
+          profile_id?: string
+          streak_days?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_profile_stats_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_reports: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          profile_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          profile_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          profile_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_reports_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_reports_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_reports_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_sessions: {
+        Row: {
+          case_id: string
+          case_snapshot: Json
+          ended_at: string | null
+          id: string
+          kind: string
+          module_id: string
+          objective_reached: boolean | null
+          profile_id: string
+          scored_at: string | null
+          started_at: string
+          status: string
+          total: number | null
+        }
+        Insert: {
+          case_id: string
+          case_snapshot: Json
+          ended_at?: string | null
+          id?: string
+          kind: string
+          module_id: string
+          objective_reached?: boolean | null
+          profile_id: string
+          scored_at?: string | null
+          started_at?: string
+          status?: string
+          total?: number | null
+        }
+        Update: {
+          case_id?: string
+          case_snapshot?: Json
+          ended_at?: string | null
+          id?: string
+          kind?: string
+          module_id?: string
+          objective_reached?: boolean | null
+          profile_id?: string
+          scored_at?: string | null
+          started_at?: string
+          status?: string
+          total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_sessions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_sessions_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_sessions_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_thread_axis_scores: {
+        Row: {
+          axis_key: string
+          axis_name: string
+          score: number
+          thread_id: string
+        }
+        Insert: {
+          axis_key: string
+          axis_name: string
+          score: number
+          thread_id: string
+        }
+        Update: {
+          axis_key?: string
+          axis_name?: string
+          score?: number
+          thread_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_thread_axis_scores_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_thread_scores: {
+        Row: {
+          capped: boolean
+          comment: string
+          moments: Json
+          objective_reached: boolean
+          scored_at: string
+          thread_id: string
+          total: number
+        }
+        Insert: {
+          capped?: boolean
+          comment: string
+          moments?: Json
+          objective_reached: boolean
+          scored_at?: string
+          thread_id: string
+          total: number
+        }
+        Update: {
+          capped?: boolean
+          comment?: string
+          moments?: Json
+          objective_reached?: boolean
+          scored_at?: string
+          thread_id?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_thread_scores_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: true
+            referencedRelation: "training_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_threads: {
+        Row: {
+          boss_fan_id: string | null
+          fan_name: string
+          id: string
+          lost_reason: string | null
+          max_turns: number
+          next_due_at: string | null
+          position: number
+          ref_case_id: string | null
+          session_id: string
+          status: string
+          turns_used: number
+        }
+        Insert: {
+          boss_fan_id?: string | null
+          fan_name: string
+          id?: string
+          lost_reason?: string | null
+          max_turns: number
+          next_due_at?: string | null
+          position: number
+          ref_case_id?: string | null
+          session_id: string
+          status?: string
+          turns_used?: number
+        }
+        Update: {
+          boss_fan_id?: string | null
+          fan_name?: string
+          id?: string
+          lost_reason?: string | null
+          max_turns?: number
+          next_due_at?: string | null
+          position?: number
+          ref_case_id?: string | null
+          session_id?: string
+          status?: string
+          turns_used?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_threads_boss_fan_id_fkey"
+            columns: ["boss_fan_id"]
+            isOneToOne: false
+            referencedRelation: "training_case_boss_fans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_threads_ref_case_id_fkey"
+            columns: ["ref_case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_threads_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_wheel_config: {
+        Row: {
+          id: number
+          prizes: Json
+          sectors: Json
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          prizes: Json
+          sectors: Json
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          prizes?: Json
+          sectors?: Json
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_wheel_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_wheel_spins: {
+        Row: {
+          amount_eur: number | null
+          id: string
+          paid_at: string | null
+          paid_by: string | null
+          prize_label: string | null
+          profile_id: string
+          sector_label: string
+          spun_at: string
+          ticket_id: string
+          week: string
+          won: boolean
+        }
+        Insert: {
+          amount_eur?: number | null
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          prize_label?: string | null
+          profile_id: string
+          sector_label: string
+          spun_at?: string
+          ticket_id: string
+          week: string
+          won: boolean
+        }
+        Update: {
+          amount_eur?: number | null
+          id?: string
+          paid_at?: string | null
+          paid_by?: string | null
+          prize_label?: string | null
+          profile_id?: string
+          sector_label?: string
+          spun_at?: string
+          ticket_id?: string
+          week?: string
+          won?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_wheel_spins_paid_by_fkey"
+            columns: ["paid_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_spins_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_spins_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: true
+            referencedRelation: "training_wheel_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_wheel_tickets: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          profile_id: string
+          reason: string
+          used_at: string | null
+          week: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          profile_id: string
+          reason: string
+          used_at?: string | null
+          week: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          profile_id?: string
+          reason?: string
+          used_at?: string | null
+          week?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_wheel_tickets_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_tickets_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2449,6 +3830,24 @@ export type Database = {
           date: string
         }[]
       }
+      crm_spenders_kpis_json: {
+        Args: { p_alerte?: number; p_models?: string[]; p_seuil?: number }
+        Returns: Json
+      }
+      crm_spenders_page: {
+        Args: {
+          p_alerte?: number
+          p_desc?: boolean
+          p_limit?: number
+          p_models?: string[]
+          p_offset?: number
+          p_search?: string
+          p_seuil?: number
+          p_sort?: string
+          p_view?: string
+        }
+        Returns: Json
+      }
       crm_spenders_tracker: {
         Args: { p_seuil?: number }
         Returns: {
@@ -2472,26 +3871,8 @@ export type Database = {
           username: string
         }[]
       }
-      crm_spenders_page: {
-        Args: {
-          p_seuil?: number
-          p_view?: string
-          p_alerte?: number
-          p_models?: string[]
-          p_search?: string
-          p_sort?: string
-          p_desc?: boolean
-          p_limit?: number
-          p_offset?: number
-        }
-        Returns: Json
-      }
-      crm_spenders_kpis_json: {
-        Args: { p_seuil?: number; p_alerte?: number; p_models?: string[] }
-        Returns: Json
-      }
       crm_spenders_tracker_json: {
-        Args: { p_seuil?: number; p_view?: string; p_alerte?: number }
+        Args: { p_alerte?: number; p_seuil?: number; p_view?: string }
         Returns: Json
       }
       has_page: { Args: { slug: string }; Returns: boolean }
@@ -2525,6 +3906,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      norm_shifts: { Args: { p: string[] }; Returns: string[] }
       overview_report: {
         Args: {
           p_chart_from: string
@@ -2535,25 +3917,13 @@ export type Database = {
         }
         Returns: Json
       }
+      recruit_pending_count: { Args: never; Returns: number }
       repos_data_weeks: { Args: never; Returns: Json }
-      norm_shifts: {
-        Args: { p: string[] }
-        Returns: string[]
-      }
       save_org_cell: {
         Args: {
           p_chatter_ids: string[]
           p_creator_id: string
           p_previous_ids: string[]
-          p_shift: string
-        }
-        Returns: undefined
-      }
-      set_org_placement_kind: {
-        Args: {
-          p_creator_id: string
-          p_hs: boolean
-          p_profile_id: string
           p_shift: string
         }
         Returns: undefined
@@ -2578,6 +3948,83 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_org_placement_kind: {
+        Args: {
+          p_creator_id: string
+          p_hs: boolean
+          p_profile_id: string
+          p_shift: string
+        }
+        Returns: undefined
+      }
+      training_ai_cost: {
+        Args: { p_since: string }
+        Returns: {
+          cache_read_tokens: number
+          calls: number
+          day: string
+          input_tokens: number
+          kind: string
+          model: string
+          output_tokens: number
+        }[]
+      }
+      training_axis_profile: {
+        Args: { p_profile: string }
+        Returns: {
+          avg_score: number
+          axis_key: string
+          axis_name: string
+          n: number
+        }[]
+      }
+      training_last_week: { Args: never; Returns: string }
+      training_overview_roster: {
+        Args: never
+        Returns: {
+          arrived_at: string
+          avg_total: number
+          boss_best: number
+          boss_done: boolean
+          cases_done: number
+          display_name: string
+          is_new: boolean
+          last_session_at: string
+          models: string[]
+          points: number
+          profile_id: string
+          sessions_scored: number
+          streak_days: number
+        }[]
+      }
+      training_ranking: {
+        Args: never
+        Returns: {
+          avg_total: number
+          boss_done: boolean
+          cases_done: number
+          display_name: string
+          is_new: boolean
+          points: number
+          profile_id: string
+          streak_days: number
+        }[]
+      }
+      training_refresh_stats: {
+        Args: { p_at: string; p_case: string; p_profile: string }
+        Returns: undefined
+      }
+      training_weekly_ranking: {
+        Args: { p_week: string }
+        Returns: {
+          avg_total: number
+          cases_done: number
+          display_name: string
+          points: number
+          profile_id: string
+        }[]
+      }
+      training_wheel_pending: { Args: { p_profile: string }; Returns: number }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {
@@ -2720,6 +4167,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },
