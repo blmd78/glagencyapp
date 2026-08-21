@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { QiQuestion } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
+import {
+  Questionnaire,
+  QuestionnaireChoice,
+  QuestionnaireChoices,
+  QuestionnaireItem,
+  QuestionnaireTitle,
+} from '@/components/ui/questionnaire'
 import { cn } from '@/lib/utils'
 
 /**
@@ -103,19 +110,6 @@ export function StepQi({
     [chosen, index, answer],
   )
 
-  // Raccourcis clavier 1..n (badge sur chaque option — patron Questionnaire shadcn). Ignorés
-  // pendant l'enregistrement / l'écran d'échec, et si un modificateur est tenu (⌘1 = onglet).
-  const optCount = questions[index]?.opts.length ?? 0
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (saving || failed || e.metaKey || e.ctrlKey || e.altKey) return
-      const n = Number(e.key)
-      if (Number.isInteger(n) && n >= 1 && n <= optCount) pick(n - 1)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [saving, failed, optCount, pick])
-
   // Temps écoulé = réponse `null` (compte faux) et on avance. C'est aussi ce qui traite une REPRISE
   // dont l'échéance est déjà passée : le rechargement ne rend jamais plus de temps qu'il n'en
   // restait — au pire il coûte la question en cours.
@@ -137,8 +131,7 @@ export function StepQi({
     )
   }
 
-  const question = questions[index]
-  if (!question) return null
+  if (!questions[index]) return null
   const seconds = Math.ceil(remaining / 1000)
 
   return (
@@ -174,47 +167,37 @@ export function StepQi({
         </div>
       </div>
 
-      <p className="text-lg font-medium">{question.q}</p>
-
-      {/* Lignes façon radio (cercle décoratif : cliquer = répondre DÉFINITIVEMENT et avancer —
-          mécanique GLA, pas de « Suivant » ni de retour). `radiogroup`/`radio` pour l'a11y. */}
-      {/* Lignes = recette OFFICIELLE du composant Questionnaire shadcn (classes
-          `cn-questionnaire-choice` / `-indicator` / `-shortcut` du registry, arrondi aligné sur
-          notre DA) : hover `muted/50`, état choisi = fond `muted` + bordure `primary/40` +
-          indicateur rempli, badge du raccourci clavier à droite. */}
-      <div role="radiogroup" aria-label={question.q} className="flex flex-col gap-3">
-        {question.opts.map((opt, i) => (
-          <button
-            key={`${index}-${opt}`}
-            type="button"
-            role="radio"
-            aria-checked={chosen === i}
-            aria-keyshortcuts={String(i + 1)}
-            className={cn(
-              'flex w-full items-center gap-3 rounded-xl border border-input bg-transparent px-4 py-3.5 text-left text-sm shadow-xs transition-colors focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none dark:bg-input/20',
-              chosen === i ? 'border-primary/40 bg-muted dark:bg-muted' : 'hover:bg-muted/50',
-            )}
-            onClick={() => pick(i)}
-          >
-            <span
-              aria-hidden
-              className={cn(
-                'flex size-4 shrink-0 items-center justify-center rounded-full border border-input dark:bg-input/30',
-                chosen === i && 'border-primary bg-primary dark:bg-primary',
-              )}
-            >
-              {chosen === i && <span className="size-2 rounded-full bg-primary-foreground" />}
-            </span>
-            <span className="flex-1">{opt}</span>
-            <span
-              aria-hidden
-              className="flex size-5 shrink-0 items-center justify-center rounded-md border border-input bg-background font-mono text-[0.625rem] leading-none font-medium text-muted-foreground shadow-xs"
-            >
-              {i + 1}
-            </span>
-          </button>
+      {/* Le VRAI composant Questionnaire shadcn (`@shadcn/react`, wrapper `ui/questionnaire`),
+          en mode CONTRÔLÉ : `item` = notre index (l'avancement reste piloté par `pick` → `answer`,
+          mécanique GLA — clic définitif, pas de Précédent/Passer/Suivant rendus), `checked`
+          contrôlé par le flash de confirmation. Le primitive apporte les touches 1..n
+          (`shortcuts="numbers"`, badge sur chaque option), le fieldset/legend et l'a11y. */}
+      <Questionnaire
+        items={questions.map((_, i) => ({ name: `q${i}` }))}
+        item={`q${index}`}
+        // L'avancement est le nôtre (réponse définitive → question suivante) — jamais celui du form.
+        onItemChange={() => undefined}
+        shortcuts="numbers"
+        onSubmit={(e) => e.preventDefault()}
+      >
+        {questions.map((q, qi) => (
+          <QuestionnaireItem key={qi} name={`q${qi}`}>
+            <QuestionnaireTitle className="text-lg">{q.q}</QuestionnaireTitle>
+            <QuestionnaireChoices>
+              {q.opts.map((opt, i) => (
+                <QuestionnaireChoice
+                  key={i}
+                  value={String(i)}
+                  checked={qi === index && chosen === i}
+                  onChange={() => pick(i)}
+                >
+                  {opt}
+                </QuestionnaireChoice>
+              ))}
+            </QuestionnaireChoices>
+          </QuestionnaireItem>
         ))}
-      </div>
+      </Questionnaire>
 
       <p className="text-center text-xs text-muted-foreground">
         Réponds vite : à la fin du chrono, on passe automatiquement à la question suivante.
