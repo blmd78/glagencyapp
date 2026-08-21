@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       chatter_alias: {
@@ -1971,6 +1946,7 @@ export type Database = {
       }
       recruit_attempts: {
         Row: {
+          bot_messages: number
           bot_replies: number
           bot_total: number | null
           coherence: number | null
@@ -1985,12 +1961,14 @@ export type Database = {
           persona: string
           qi_answers: Json | null
           qi_score: number | null
+          qi_timer: number
           relance: number | null
           status: string
           typing: Json | null
           vente: number | null
         }
         Insert: {
+          bot_messages?: number
           bot_replies?: number
           bot_total?: number | null
           coherence?: number | null
@@ -2005,12 +1983,14 @@ export type Database = {
           persona: string
           qi_answers?: Json | null
           qi_score?: number | null
+          qi_timer?: number
           relance?: number | null
           status?: string
           typing?: Json | null
           vente?: number | null
         }
         Update: {
+          bot_messages?: number
           bot_replies?: number
           bot_total?: number | null
           coherence?: number | null
@@ -2025,6 +2005,7 @@ export type Database = {
           persona?: string
           qi_answers?: Json | null
           qi_score?: number | null
+          qi_timer?: number
           relance?: number | null
           status?: string
           typing?: Json | null
@@ -3918,6 +3899,19 @@ export type Database = {
         Returns: Json
       }
       recruit_pending_count: { Args: never; Returns: number }
+      recruit_start_attempt: {
+        Args: {
+          p_bot_messages: number
+          p_device: string
+          p_ip: string
+          p_max: number
+          p_persona: string
+          p_qi_answers: Json
+          p_qi_timer: number
+          p_window: string
+        }
+        Returns: string
+      }
       repos_data_weeks: { Args: never; Returns: Json }
       save_org_cell: {
         Args: {
@@ -4167,9 +4161,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },

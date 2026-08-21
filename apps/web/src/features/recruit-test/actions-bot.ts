@@ -6,10 +6,14 @@
 // dont l'échec doit être tracé (Sentry) et dont les compteurs de tokens sont tenus à jour.
 //
 // Publiques, donc mêmes règles qu'`actions.ts` : aucune session, tout en service-role, chaque
-// handler recharge la tentative et revérifie son état. Trois choses bornent la dépense, et la
-// config est relue à CHAQUE appel pour qu'elles prennent effet sur les tentatives EN COURS :
-// la case `open` (décocher = plus un appel IA, tout de suite), le plafond `bot_messages`, et la
-// notation unique par tentative (idempotente).
+// handler recharge la tentative et revérifie son état. Trois choses bornent la dépense :
+// la case `open` — relue à CHAQUE appel, pour que décocher coupe les appels IA des tentatives EN
+// COURS, tout de suite —, le plafond de messages, et la notation unique par tentative (idempotente).
+//
+// ⚠️ Le plafond, lui, est celui FIGÉ SUR LA TENTATIVE (`attempt.bot_messages`, 0115), jamais la
+// config du moment : le client verrouille l'envoi sur le nombre qu'on lui a servi au démarrage.
+// Le relire en direct désaccordait les trois (client, plafond d'envoi, exigence de notation) et
+// pouvait enfermer un candidat — sans issue ni remboursement des appels déjà payés.
 //
 // La transcription est tenue CÔTÉ SERVEUR (écart assumé vs GLA, spec §1) : l'historique envoyé au
 // modèle vient de `recruit_messages`, jamais du client — pas de conversation forgée pour se faire
@@ -56,7 +60,7 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
       // du coût. Même message qu'à l'entrée : le candidat n'a pas à distinguer les deux moments.
       if (!config.open) throw new BusinessError(CLOSED)
       // Chemin rapide : le compteur suffit dans le cas normal (un tour à la fois).
-      if (attempt.bot_replies >= config.botMessages) throw new BusinessError(CHAT_OVER)
+      if (attempt.bot_replies >= attempt.bot_messages) throw new BusinessError(CHAT_OVER)
 
       const history = await loadHistory(admin, attempt.id)
       const nextPos = (history[history.length - 1]?.position ?? -1) + 1
@@ -67,7 +71,7 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
       // conversation complète occupe exactement 2 × bot_messages positions (0..2N-1) : au-delà,
       // l'insert suivant est refusé ici, ou perd la course sur l'index (23505). C'est ce qui borne
       // réellement la dépense IA.
-      if (nextPos >= 2 * config.botMessages) throw new BusinessError(CHAT_OVER)
+      if (nextPos >= 2 * attempt.bot_messages) throw new BusinessError(CHAT_OVER)
       const body = d.mediaPrice != null ? mediaLabel(d.mediaPrice) : d.body
       // Inatteignable : le OU EXCLUSIF de `sendToBotInput` garantit l'un des deux. Le garde-fou est
       // là pour que le compilateur le sache SANS cast — un `as string` mentirait si le refine sautait.
@@ -105,6 +109,25 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
       const { error: rErr } = await admin
         .from('recruit_messages')
         .insert({ attempt_id: attempt.id, position: nextPos + 1, speaker: 'client', body: reply.text.slice(0, REPLY_MAX) })
+      // 23505 ICI = un envoi CONCURRENT a pris la position pendant notre appel IA (1-3 s) : le tour
+      // ne nous appartient plus. Sans ce traitement, la réponse payée était jetée sur une erreur
+      // technique, les compteurs de tokens sautés, et le message du candidat RESTAIT — laissant deux
+      // messages candidat consécutifs dans la transcription servie à la notation, et permettant de
+      // doubler le nombre d'appels payés par tentative. On annule donc NOTRE tour en entier.
+      if (rErr?.code === '23505') {
+        const { error: dErr } = await admin.from('recruit_messages').delete().eq('id', mine.id)
+        if (dErr) console.error('[recrutement bot] message non retiré (course)', dErr.message)
+        // Les tokens de l'appel perdu sont quand même comptés : ils ont été facturés.
+        const { error: tErr } = await admin
+          .from('recruit_attempts')
+          .update({
+            input_tokens: attempt.input_tokens + reply.usage.inputTokens,
+            output_tokens: attempt.output_tokens + reply.usage.outputTokens,
+          })
+          .eq('id', attempt.id)
+        if (tErr) console.error('[recrutement bot] tokens non comptés', tErr.message)
+        throw new BusinessError(BOT_ALREADY_SENT)
+      }
       if (rErr) throw new Error(rErr.message)
 
       const botReplies = attempt.bot_replies + 1
@@ -118,7 +141,7 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
         .eq('id', attempt.id)
       if (uErr) throw new Error(uErr.message)
 
-      return { reply: reply.text, done: botReplies >= config.botMessages }
+      return { reply: reply.text, done: botReplies >= attempt.bot_messages }
     },
   })
 }
@@ -158,8 +181,12 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
       // Sans ce garde-fou, un appel direct à `scoreAttempt` après un seul message faisait noter
       // une conversation de 2 lignes sur les mêmes 4 axes qu'une conversation entière — un
       // raccourci gagnant si la notation est plus indulgente sur peu de matière.
+      // Exigence de LA TENTATIVE (colonne figée au démarrage, 0115), pas la config du moment : le
+      // client verrouille l'envoi sur ce même nombre (`flow.botMessages`), donc relever le réglage
+      // en cours de route rendait la conversation impossible à compléter — `CHAT_INCOMPLETE` pour
+      // toujours sur une tentative qui avait déjà payé ses appels IA.
       const sent = history.filter((m) => m.speaker === 'candidat').length
-      if (sent < config.botMessages) throw new BusinessError(CHAT_INCOMPLETE)
+      if (sent < attempt.bot_messages) throw new BusinessError(CHAT_INCOMPLETE)
 
       let score
       try {

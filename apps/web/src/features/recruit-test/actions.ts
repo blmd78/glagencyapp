@@ -31,10 +31,10 @@ import {
   STEPS_MISSING,
   anyBlocklistMatch,
   clientIp,
-  enforceIpRateLimit,
   loadAttempt,
   readConfig,
   requireInProgress,
+  startAttemptRow,
   toAnswerKey,
   toQiBank,
   toTyping,
@@ -126,22 +126,25 @@ export async function startAttempt(raw: unknown): Promise<ActionResult<StartedAt
 
       const ip = await clientIp()
       if (await anyBlocklistMatch(admin, [['device', d.device], ['ip', ip]])) throw new BusinessError(BLOCKED)
-      await enforceIpRateLimit(admin, ip)
 
       const persona = RECRUIT_PERSONA_NAMES[randomInt(0, RECRUIT_PERSONA_NAMES.length)]
       // La clé de correction part en base et n'en ressort jamais : `questions` est déjà expurgée
       // de la bonne réponse par `pickQiQuestions`.
       const { questions, answerKey } = pickQiQuestions(toQiBank(config.qiBankRaw), (n) => randomInt(0, n))
 
-      const { data, error } = await admin
-        .from('recruit_attempts')
-        .insert({ device: d.device, ip, persona, qi_answers: answerKey })
-        .select('id')
-        .single()
-      if (error) throw new Error(error.message)
+      // Plafond par IP + insertion ATOMIQUES (0115), et réglages FIGÉS sur la ligne : ce sont ceux
+      // qu'on sert au client juste en dessous, ce seront ceux que la correction relira.
+      const attemptId = await startAttemptRow(admin, {
+        device: d.device,
+        ip,
+        persona,
+        qiAnswers: answerKey,
+        qiTimer: config.qiTimer,
+        botMessages: config.botMessages,
+      })
 
       return {
-        attemptId: data.id,
+        attemptId,
         persona,
         qi: questions,
         typingText: config.typingText,
@@ -168,8 +171,9 @@ export async function saveQi(raw: unknown): Promise<ActionResult<void>> {
     guard: noGuard,
     handler: async (d): Promise<void> => {
       const admin = createAdminClient()
-      // Deux lectures indépendantes → en parallèle (l'ordre des VÉRIFICATIONS ne change pas).
-      const [attempt, config] = await Promise.all([loadAttempt(admin, d.attemptId), readConfig(admin)])
+      // Plus besoin de la config ici depuis 0115 : le chrono de correction est celui FIGÉ sur la
+      // tentative. Une lecture de moins sur le chemin d'une épreuve chronométrée.
+      const attempt = await loadAttempt(admin, d.attemptId)
       requireInProgress(attempt)
       // REJEU d'une correction DÉJÀ commitée (réponse HTTP perdue, rechargement pendant la
       // requête) : c'est un succès, et il est servi AVANT le chrono — un rejeu tardif d'un envoi
@@ -185,7 +189,10 @@ export async function saveQi(raw: unknown): Promise<ActionResult<void>> {
       // partielle sur un questionnaire qu'on ne peut plus recomposer.
       const answerKey = toAnswerKey(attempt.qi_answers)
       if (d.answers.length !== answerKey.length) throw new BusinessError(QI_MISMATCH)
-      if (Date.now() > qiDeadlineMs(attempt.created_at, config.qiTimer, answerKey.length)) {
+      // Chrono de LA TENTATIVE (colonne figée au tirage, 0115) — surtout pas `config.qiTimer` : un
+      // réglage changé pendant que le candidat joue rejetait celui qui respectait pourtant le
+      // chrono affiché, ou offrait du temps sous lequel les questions n'ont jamais été tirées.
+      if (Date.now() > qiDeadlineMs(attempt.created_at, attempt.qi_timer, answerKey.length)) {
         throw new BusinessError(QI_EXPIRED)
       }
 

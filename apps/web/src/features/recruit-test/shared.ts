@@ -129,7 +129,7 @@ export async function readConfig(admin: Admin): Promise<RecruitTestConfig> {
 // `ip` n'y est PAS : la colonne existe (télémétrie + rate-limit à l'entrée, qui filtre dessus en
 // base) mais aucune action ne la LIT sur la tentative chargée.
 const ATTEMPT_COLS =
-  'id, status, created_at, persona, device, qi_score, qi_answers, typing, connection_mbps, bot_replies, input_tokens, output_tokens, orthographe, coherence, relance, vente, bot_total'
+  'id, status, created_at, persona, device, qi_timer, bot_messages, qi_score, qi_answers, typing, connection_mbps, bot_replies, input_tokens, output_tokens, orthographe, coherence, relance, vente, bot_total'
 
 export type Attempt = {
   id: string
@@ -138,6 +138,9 @@ export type Attempt = {
   created_at: string
   persona: string
   device: string
+  /** Réglages FIGÉS au démarrage (0115) — la correction ne relit jamais la config du moment. */
+  qi_timer: number
+  bot_messages: number
   qi_score: number | null
   qi_answers: unknown
   typing: unknown
@@ -248,18 +251,38 @@ export async function anyBlocklistMatch(
 }
 
 /**
- * Plafond de coût : 5 tentatives par IP sur 24 h glissantes (index `(ip, created_at desc)`, 0125).
- * IP inconnue (dev local, en-tête absent) → pas de limite applicable : on ne veut pas bloquer tous
- * les candidats derrière un `null` commun.
+ * Démarre une tentative SOUS le plafond de coût (5 par IP sur 24 h glissantes) — plafond et
+ * insertion dans la MÊME transaction, sérialisés par IP (`recruit_start_attempt`, 0115).
+ *
+ * L'ancienne version comptait ici puis laissait l'appelant insérer : un TOCTOU sur un endpoint
+ * PUBLIC où chaque tentative ouvre jusqu'à `bot_messages` appels Haiku + un Sonnet — une rafale
+ * concurrente depuis une IP passait donc à travers le plafond qui borne la facture.
+ *
+ * `qiTimer`/`botMessages` sont FIGÉS sur la ligne : la correction ne relira jamais la config du
+ * moment (un réglage changé en cours de tentative rejetait ou enfermait le candidat).
  */
-export async function enforceIpRateLimit(admin: Admin, ip: string | null): Promise<void> {
-  if (!ip) return
-  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString()
-  const { count, error } = await admin
-    .from('recruit_attempts')
-    .select('id', { count: 'exact', head: true })
-    .eq('ip', ip)
-    .gte('created_at', since)
+export async function startAttemptRow(
+  admin: Admin,
+  v: { device: string; ip: string | null; persona: string; qiAnswers: unknown; qiTimer: number; botMessages: number },
+): Promise<string> {
+  const { data, error } = await admin.rpc('recruit_start_attempt', {
+    p_device: v.device,
+    // `p_ip text` est NULLABLE côté SQL (la fonction teste `is not null` pour le cas « IP inconnue »),
+    // mais les types générés ne portent pas la nullabilité des ARGUMENTS de fonction Postgres.
+    p_ip: v.ip as string,
+    p_persona: v.persona,
+    p_qi_answers: v.qiAnswers as never,
+    p_qi_timer: v.qiTimer,
+    p_bot_messages: v.botMessages,
+    p_max: RATE_LIMIT_MAX,
+    p_window: `${RATE_LIMIT_WINDOW_MS} milliseconds`,
+  })
+  // Le plafond est rendu par la fonction en exception applicative : message stable, jamais montré
+  // tel quel (on rend le refus métier français).
+  if (error?.message.includes('RECRUIT_RATE_LIMITED')) throw new BusinessError(RATE_LIMITED)
   if (error) throw new Error(error.message)
-  if ((count ?? 0) >= RATE_LIMIT_MAX) throw new BusinessError(RATE_LIMITED)
+  // `Returns: string | null` côté types générés (toute fonction SQL peut rendre NULL) ; la nôtre
+  // rend toujours l'uuid inséré ou lève — d'où le refus explicite plutôt qu'un cast silencieux.
+  if (typeof data !== 'string') throw new Error('recruit_start_attempt sans identifiant')
+  return data
 }

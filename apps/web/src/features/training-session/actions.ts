@@ -19,7 +19,7 @@ import { buildFanSystem, dueAtFrom, revealDelayMs } from '@/lib/services/trainin
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot, MessageSpeaker } from '@/lib/types/training'
 import { closeSessionIfNoOpenThread, revalidateSession } from './actions-shared'
-import { sendInput } from './schema'
+import { sendInput, threadIdInput } from './schema'
 import type { SendResult, SessionMessage } from './types'
 
 /**
@@ -145,7 +145,12 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         .select('id, position, visible_at')
         .single()
       if (fErr) throw new Error(fErr.message)
-      const fan: SessionMessage = { id: fanRow.id, threadId: t.id, position: fanRow.position, speaker: 'fan', body: fanBody, mediaPrice: null, visibleAt: fanRow.visible_at }
+      // Corps RETENU tant que la révélation n'a pas eu lieu (solo : délai 0 → livré tout de suite ;
+      // défi/boss : 30-120 s). Même règle que `get-session` : sans ça la réponse du fan repartait
+      // dans le retour de l'action, lisible dans l'onglet réseau avant l'armement du chrono.
+      // Le client la réclame à l'échéance via `revealThread`.
+      const fanVisible = visibleAt.getTime() <= now.getTime()
+      const fan: SessionMessage = { id: fanRow.id, threadId: t.id, position: fanRow.position, speaker: 'fan', body: fanVisible ? fanBody : '', mediaPrice: null, visibleAt: fanRow.visible_at }
 
       const turnsUsed = t.turns_used + 1
       const lost = reply.faultCode !== null
@@ -162,10 +167,13 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         .select('id')
       if (uErr) throw new Error(uErr.message)
       if (!updated.length) {
-        // Course perdue : le thread est déjà clos. On retire la réponse du fan qu'on venait d'écrire
-        // (elle n'appartient à aucun tour valide) et on rend l'état réel au chatter.
-        const { error: dErr } = await admin.from('training_messages').delete().eq('id', fanRow.id)
-        if (dErr) console.error('[training fan] réponse non retirée', dErr.message)
+        // Course perdue : le thread est déjà clos. On retire LES DEUX messages qu'on venait d'écrire
+        // (ils n'appartiennent à aucun tour valide) et on rend l'état réel au chatter. Retirer la
+        // seule réponse du fan laissait le message du chatter en fin de transcription d'un thread
+        // fermé : la notation lisait alors une relance à laquelle le fan n'a jamais répondu (et
+        // pouvait la juger éliminatoire). Même discipline de rollback que le catch d'échec IA.
+        const { error: dErr } = await admin.from('training_messages').delete().in('id', [fanRow.id, mine.id])
+        if (dErr) console.error('[training fan] messages non retirés', dErr.message)
         revalidateSession(s.id)
         throw new BusinessError('Cette conversation est terminée')
       }
@@ -183,6 +191,38 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       }
       revalidateSession(s.id)
       return { chatter, fan, thread: { status, lostReason: lost ? reply.faultCode : null, turnsUsed, nextDueAt }, sessionStatus, sessionEnded, serverNow: new Date().toISOString() }
+    },
+  })
+}
+
+/**
+ * Corps des messages d'un thread DÉJÀ RÉVÉLÉS (`visible_at` passé) — pendant de la rétention posée
+ * par `sendMessage` et `get-session` : le texte du fan ne quitte le serveur qu'à l'échéance, jamais
+ * avant. Appelée par le client au moment exact où la bulle doit apparaître.
+ *
+ * Ne rend QUE des corps déjà dus : un appel anticipé (ou forgé) ne renvoie rien plutôt qu'une
+ * erreur — le pire cas est une bulle vide qu'un rafraîchissement remplit. Même garde que les autres
+ * actions de la feature : droit Entraînement, pas d'impersonation, propriétaire du thread.
+ */
+export async function revealThread(raw: unknown): Promise<ActionResult<{ messages: { id: string; body: string }[] }>> {
+  return runAction({
+    schema: threadIdInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ threadId }) => {
+      const profile = await requirePageProfileLive('frm-entrainement')
+      const supabase = await createClient()
+      // Une seule requête : la RLS de `training_messages` n'expose que les siennes, mais le contrôle
+      // explicite du propriétaire reste la règle de la feature (0121) — d'où la jointure sur la session.
+      const { data: rows, error } = await supabase
+        .from('training_messages')
+        .select('id, body, visible_at, training_sessions!inner(profile_id)')
+        .eq('thread_id', threadId)
+        .lte('visible_at', new Date().toISOString())
+        .order('position')
+      if (error) throw new Error(error.message)
+      const mine = (rows ?? []).filter((m) => m.training_sessions?.profile_id === profile.id)
+      return { messages: mine.map((m) => ({ id: m.id, body: m.body })) }
     },
   })
 }

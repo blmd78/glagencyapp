@@ -41,9 +41,20 @@ export async function buildFanSystem(admin: Admin, t: FanThreadRef): Promise<str
   }
   const briefCaseId = t.kind === 'arena' ? t.refCaseId : t.caseId
   if (!briefCaseId) throw new Error('thread défi sans cas de référence')
-  const { data, error } = await admin.from('training_case_secrets').select('fan_brief').eq('case_id', briefCaseId).maybeSingle()
+  // DÉFI : le brief vient du cas REJOUÉ — son `is_sale` aussi. L'appelant passe le `is_sale` du cas
+  // d'arène (son snapshot) : un cas de vente rejoué dans une arène non-vente recevait un brief
+  // « négocie ton média » SANS la section des règles de média payant, donc un fan incapable
+  // d'interpréter les « [MEDIA VERROUILLE - X€] » que le composer autorise pourtant.
+  const [{ data, error }, refCase] = await Promise.all([
+    admin.from('training_case_secrets').select('fan_brief').eq('case_id', briefCaseId).maybeSingle(),
+    t.kind === 'arena'
+      ? admin.from('training_cases').select('is_sale').eq('id', briefCaseId).maybeSingle()
+      : Promise.resolve(null),
+  ])
   if (error) throw new Error(error.message)
-  return fanSystemPrompt({ fanName: t.fanName, fanBrief: data?.fan_brief ?? '', isSale: t.isSale })
+  if (refCase?.error) throw new Error(refCase.error.message)
+  const isSale = t.kind === 'arena' ? (refCase?.data?.is_sale ?? t.isSale) : t.isSale
+  return fanSystemPrompt({ fanName: t.fanName, fanBrief: data?.fan_brief ?? '', isSale })
 }
 
 /** Délai de révélation de la réponse du fan : immédiat en solo, 30-120 s (aléatoire) en défi/boss (GLA). */

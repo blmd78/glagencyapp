@@ -23,6 +23,9 @@ export async function getSession(id: string): Promise<SessionData | null> {
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!s) return null
+  // Une seule horloge pour tout le rendu (cf. `body` plus bas) : deux appels à `Date.now()`
+  // pourraient encadrer une échéance et livrer un message à moitié révélé.
+  const revealNow = Date.now()
   const { data: msgs, error: mErr } = await supabase
     .from('training_messages')
     .select('id, thread_id, position, speaker, body, media_price, visible_at')
@@ -78,7 +81,13 @@ export async function getSession(id: string): Promise<SessionData | null> {
             threadId: m.thread_id,
             position: m.position,
             speaker: m.speaker as MessageSpeaker,
-            body: m.body,
+            // RÉVÉLATION DIFFÉRÉE TENUE PAR LE SERVEUR : un message pas encore visible part SANS son
+            // corps. Le masquage vivait seulement dans `thread-panel`/`thread-tabs` (filtre CSS du
+            // rendu) — le texte du fan voyageait donc dans le payload RSC jusqu'à 2 minutes avant sa
+            // révélation, lisible dans l'onglet réseau : de quoi préparer sa réponse avant que le
+            // chrono de réaction s'arme, sur la mécanique même qui alimente le classement (et la
+            // roue). Le corps est récupéré à l'échéance par `revealThread` (actions.ts).
+            body: Date.parse(m.visible_at) > revealNow ? '' : m.body,
             mediaPrice: m.media_price,
             visibleAt: m.visible_at,
           })),

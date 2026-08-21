@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import type { SessionStatus } from '@/lib/types/training'
-import { sendMessage } from '../actions'
+import { revealThread, sendMessage } from '../actions'
 import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
 import type { SessionData, SessionThread } from '../types'
@@ -64,6 +64,30 @@ export function SessionView({ data }: { data: SessionData }) {
   const patch = useCallback((threadId: string, f: (t: SessionThread) => SessionThread) => {
     setThreads((ts) => ts.map((t) => (t.id === threadId ? f(t) : t)))
   }, [])
+
+  // RÉVÉLATION : le serveur retient le corps des messages non encore visibles (`get-session`,
+  // `sendMessage`) — ils arrivent avec `body: ''`. À l'échéance, on va chercher le texte. Un thread
+  // n'est demandé QU'UNE FOIS (`revealed`), et un échec laisse la bulle vide plutôt que de boucler :
+  // le prochain rendu du serveur (fin de session, rafraîchissement) la remplira.
+  // Garde PAR MESSAGE (pas par thread) : chaque bulle n'est demandée qu'une fois. Une réponse qui
+  // ne ramène pas le corps (décalage d'horloge, échec réseau) laisse la bulle vide jusqu'au prochain
+  // rendu serveur — jamais une rafale d'appels sur le même message.
+  const revealed = useRef(new Set<string>())
+  useEffect(() => {
+    for (const t of threads) {
+      const due = t.messages.filter((m) => m.body === '' && Date.parse(m.visibleAt) <= now && !revealed.current.has(m.id))
+      if (!due.length) continue
+      for (const m of due) revealed.current.add(m.id)
+      void revealThread({ threadId: t.id }).then((r) => {
+        if (!r.success) return
+        const bodies = new Map(r.data.messages.map((m) => [m.id, m.body]))
+        patch(t.id, (th) => ({
+          ...th,
+          messages: th.messages.map((m) => (m.body === '' && bodies.get(m.id) ? { ...m, body: bodies.get(m.id)! } : m)),
+        }))
+      })
+    }
+  }, [threads, now, patch])
   // Un statut encore `active` veut dire que LE thread qu'on vient de traiter a clos la session côté
   // serveur (ended_at posé, pas encore notée) : on note côté client. Tout autre statut (`scored`,
   // `failed`, `abandoned`…) veut dire que la session était déjà résolue — potentiellement par un

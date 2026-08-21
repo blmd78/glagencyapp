@@ -13,7 +13,7 @@ import { revalidatePath } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
-import { scoreSessionById } from '@/lib/services/training-scoring'
+import { ScoringBusyError, scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
 import type { SessionStatus } from '@/lib/types/training'
 import { closeSessionIfNoOpenThread, requireOwnSession, revalidateSession } from './actions-shared'
@@ -39,6 +39,17 @@ export async function endSession(raw: unknown): Promise<ActionResult> {
         .eq('status', 'open')
         .eq('turns_used', 0)
       if (aErr) throw new Error(aErr.message)
+      // Chrono DÉJÀ dépassé (même grâce de 2 s que `expireSession`/`timeoutThread`) : le thread est
+      // perdu par timeout, pas terminé. Sans cette passe, « Terminer » après une expiration non
+      // signalée (onglet hors ligne, timeoutThread en échec) faisait NOTER une manche pourtant
+      // perdue — note et classement hebdo gonflés, et c'est ce classement qui distribue la roue.
+      const { error: xErr } = await admin
+        .from('training_threads')
+        .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
+        .eq('session_id', sessionId)
+        .eq('status', 'open')
+        .lt('next_due_at', new Date(Date.now() - 2000).toISOString())
+      if (xErr) throw new Error(xErr.message)
       const { error: tErr } = await admin
         .from('training_threads')
         .update({ status: 'done', next_due_at: null })
@@ -136,6 +147,10 @@ export async function scoreSession(raw: unknown): Promise<ActionResult<{ total: 
       try {
         res = await scoreSessionById(sessionId)
       } catch (err) {
+        // Course entre deux onglets : l'autre notation est en vol et paiera les appels. Ce n'est pas
+        // une panne — ni Sentry (le bruit serait récurrent : « Terminer » ici + rafraîchissement là),
+        // ni invitation à relancer, ce qui doublerait justement la facture.
+        if (err instanceof ScoringBusyError) throw new BusinessError('Notation déjà en cours — le résultat s’affiche dans un instant')
         // Sentry AVANT le BusinessError : `runAction` ne capture que les erreurs techniques et on
         // rend ici un message métier — même règle que le rescore de l'Overview.
         Sentry.captureException(err)
@@ -181,11 +196,21 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
       if (!t.next_due_at || Date.now() < new Date(t.next_due_at).getTime() - 2000) throw new BusinessError('Le temps n’est pas écoulé')
       const admin = createAdminClient()
       const now = new Date().toISOString()
-      const { error: lErr } = await admin
+      // `.eq('status', 'open')` + `select` = CAS, comme `sendMessage` et `expireSession`. Le thread
+      // lu plus haut a pu être fermé DEPUIS (envoi accepté dans la grâce de 2 s, dont l'appel IA
+      // dure 2-3 s) : sans cette garde on repassait en `lost` un thread que le chatter venait de
+      // terminer DANS LES TEMPS — et un solo partait en `failed`. 0 ligne = on a perdu la course :
+      // on ne marque rien et on rend l'état réel.
+      const { data: lost, error: lErr } = await admin
         .from('training_threads')
         .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
         .eq('id', t.id)
+        .eq('status', 'open')
+        .select('id')
       if (lErr) throw new Error(lErr.message)
+      if (!lost?.length) {
+        return { sessionStatus: status, sessionEnded: await closeSessionIfNoOpenThread(supabase, s.id, now) }
+      }
       let sessionStatus: SessionStatus = 'active'
       let sessionEnded = false
       if (s.kind === 'solo') {

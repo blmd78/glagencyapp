@@ -19,17 +19,78 @@ import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/trainin
  * Les appels IA des threads restants partent EN PARALLÈLE (un boss = 5 appels Sonnet ; en série la
  * notation frôlait la durée maximale de la fonction) ; les écritures, elles, restent séquentielles.
  */
-export async function scoreSessionById(sessionId: string, opts: { force?: boolean } = {}): Promise<{ total: number }> {
-  const admin = createAdminClient()
-  const { data: s, error } = await admin
+/** La session et ses threads — extrait pour que `SessionRow` s'INFÈRE de la requête (pas de type manuscrit). */
+async function fetchSession(admin: Admin, sessionId: string) {
+  const { data, error } = await admin
     .from('training_sessions')
     .select('id, kind, status, case_id, module_id, ended_at, training_threads(id, position, status, lost_reason, ref_case_id, boss_fan_id, fan_name)')
     .eq('id', sessionId)
     .single()
   if (error) throw new Error(error.message)
+  return data
+}
+
+export async function scoreSessionById(sessionId: string, opts: { force?: boolean } = {}): Promise<{ total: number }> {
+  const admin = createAdminClient()
+  const s = await fetchSession(admin, sessionId)
   if (s.status !== 'active' && !(opts.force && s.status === 'scored')) throw new Error(`session non notable (statut ${s.status})`)
   if (!s.ended_at && !opts.force) throw new Error('session non terminée')
   const kind = s.kind as CaseKind
+
+  // RÉSERVATION (CAS) AVANT le moindre appel payant. `scored_at` posé pendant que le statut reste
+  // `active` sert de jeton : le trigger 0113 ne se déclenche que sur `status = 'scored'`, donc
+  // marquer ici ne touche ni les bests ni les stats. Sans ce verrou, la session ouverte dans deux
+  // onglets (ou « Terminer » ici + rafraîchissement là) lançait DEUX fois la série complète de
+  // notations Sonnet — 10 appels payés au lieu de 5 sur un boss, et des lignes training_ai_calls en
+  // double. Le rescore admin (`force`) est délibérément exempté : il re-note une session déjà notée.
+  if (!opts.force) {
+    const { data: claimed, error: cErr } = await admin
+      .from('training_sessions')
+      .update({ scored_at: new Date().toISOString() })
+      .eq('id', sessionId)
+      .eq('status', 'active')
+      .is('scored_at', null)
+      .select('id')
+    if (cErr) throw new Error(cErr.message)
+    if (!claimed.length) throw new ScoringBusyError()
+  }
+  try {
+    return await runScoring(admin, sessionId, s, kind, opts)
+  } catch (err) {
+    // La notation reste RELANÇABLE : on rend le jeton pour que le prochain essai puisse le reprendre.
+    // Best-effort — si cette libération échoue, la session reste `active` avec un `scored_at` posé et
+    // c'est le rescore admin (force) qui débloque ; on le trace plutôt que de masquer l'erreur d'origine.
+    if (!opts.force) {
+      const { error: rErr } = await admin
+        .from('training_sessions')
+        .update({ scored_at: null })
+        .eq('id', sessionId)
+        .eq('status', 'active')
+      if (rErr) console.error('[training score] jeton non rendu', rErr.message)
+    }
+    throw err
+  }
+}
+
+/** Notation déjà en vol pour cette session (deux onglets) — pas une panne : ni Sentry, ni réessai. */
+export class ScoringBusyError extends Error {
+  constructor() {
+    super('Notation déjà en cours')
+    this.name = 'ScoringBusyError'
+  }
+}
+
+type Admin = ReturnType<typeof createAdminClient>
+type SessionRow = Awaited<ReturnType<typeof fetchSession>>
+
+/** Corps de la notation, exécuté sous la réservation posée par `scoreSessionById`. */
+async function runScoring(
+  admin: Admin,
+  sessionId: string,
+  s: SessionRow,
+  kind: CaseKind,
+  opts: { force?: boolean },
+): Promise<{ total: number }> {
 
   const [{ data: msgs, error: mErr }, { data: mod, error: modErr }] = await Promise.all([
     admin.from('training_messages').select('thread_id, position, speaker, body, media_price').eq('session_id', sessionId).order('position'),
