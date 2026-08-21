@@ -75,7 +75,10 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         throw new BusinessError('Trop lent — ce fan est parti')
       }
 
-      const { data: history, error: hErr } = await supabase
+      // Service-role : la table n'est plus lisible par `authenticated` (0117 — le corps du fan
+      // était récupérable via PostgREST avant sa révélation). La propriété de la session vient
+      // d'être vérifiée ci-dessus avec le client de l'appelant : on ne lit que son thread.
+      const { data: history, error: hErr } = await admin
         .from('training_messages')
         .select('id, position, speaker, body, media_price')
         .eq('thread_id', t.id)
@@ -230,10 +233,9 @@ export async function revealThread(raw: unknown): Promise<ActionResult<{ message
     guard: noGuard,
     handler: async ({ threadId }) => {
       const profile = await requirePageProfileLive('frm-entrainement')
-      const supabase = await createClient()
-      // Une seule requête : la RLS de `training_messages` n'expose que les siennes, mais le contrôle
-      // explicite du propriétaire reste la règle de la feature (0121) — d'où la jointure sur la session.
-      const { data: rows, error } = await supabase
+      // Service-role (la table n'est plus lisible par `authenticated`, 0117) + contrôle EXPLICITE du
+      // propriétaire par la jointure sur la session : c'est lui, et lui seul, qui autorise la lecture.
+      const { data: rows, error } = await createAdminClient()
         .from('training_messages')
         .select('id, body, visible_at, training_sessions!inner(profile_id)')
         .eq('thread_id', threadId)

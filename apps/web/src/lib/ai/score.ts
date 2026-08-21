@@ -110,9 +110,14 @@ export async function scoreThread(opts: { system: string; transcript: string; ax
   const axes = opts.axes.map((a) => ({ key: a.key, name: a.name, score: parsedAxes[a.key] }))
   const sum = axes.reduce((n, a) => n + a.score, 0)
   const objectiveReached = parsed.objectif_atteint
-  const cap = objectiveReached ? 100 : OBJECTIVE_CAP
+  // DEUX plafonds, comme GLA : celui demandé par le MODULE via le champ `plafond` (ses consignes de
+  // notation : « contenu gratuit envoyé → 30 », « promesse de réel → 40 »), puis le plafond
+  // d'objectif (65). On garde le plus bas. Sans ça, les plafonnements écrits dans les modules
+  // étaient énoncés au modèle, renvoyés par lui… et jetés avant d'atteindre la note.
+  const moduleCap = parsed.plafond ?? 100
+  const cap = Math.min(objectiveReached ? 100 : OBJECTIVE_CAP, moduleCap)
   return {
-    total: Math.min(sum, cap), objectiveReached, capped: !objectiveReached && sum > OBJECTIVE_CAP,
+    total: Math.min(sum, cap), objectiveReached, capped: sum > cap,
     comment: parsed.commentaire, moments: parsed.moments, axes, usage, latencyMs, model,
   }
 }

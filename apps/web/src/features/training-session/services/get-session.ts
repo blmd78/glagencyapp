@@ -35,7 +35,12 @@ export async function getSession(id: string): Promise<SessionData | null> {
   // Une seule horloge pour tout le rendu (cf. `body` plus bas) : deux appels à `Date.now()`
   // pourraient encadrer une échéance et livrer un message à moitié révélé.
   const revealNow = Date.now()
-  const { data: msgs, error: mErr } = await supabase
+  // Messages lus en SERVICE-ROLE, et c'est délibéré : depuis 0117 la table n'est plus lisible par
+  // `authenticated` (le corps du fan était récupérable en direct via PostgREST pendant les 30-120 s
+  // de révélation). Le contrôle d'accès n'est pas perdu pour autant : la session ci-dessus a été
+  // lue avec le client de l'appelant, donc sous RLS — on ne va chercher ici que les messages d'une
+  // session qu'il a le droit de voir, et la rétention du corps non révélé reste appliquée plus bas.
+  const { data: msgs, error: mErr } = await createAdminClient()
     .from('training_messages')
     .select('id, thread_id, position, speaker, body, media_price, visible_at')
     .eq('session_id', id)

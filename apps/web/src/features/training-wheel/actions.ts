@@ -58,6 +58,14 @@ export async function claimTicket(): Promise<ActionResult<{ ticketId: string | n
       const supabase = await createClient()
       const week = lastCompletedWeek(todayParis())
 
+      // OCTROI GLOBAL (0116) avant de regarder son propre cas : la visite de ce chatter attribue les
+      // tickets de TOUTE la promo pour cette semaine. Sans ça, un top 3 qui n'ouvrait pas la page
+      // perdait son tour en silence — l'octroi était adossé à SA visite. Idempotent, donc rejouable
+      // à chaque montage ; `.catch` : un échec ne doit pas priver le visiteur de SON ticket, qui est
+      // réclamé juste après par le chemin nominal.
+      const { error: gErr } = await createAdminClient().rpc('training_wheel_grant_week', { p_week: week, p_top: WHEEL_TOP_N })
+      if (gErr) console.error('[roue] octroi global impossible', week, gErr.message)
+
       const { data: pending, error: pErr } = await supabase
         .from('training_wheel_tickets')
         .select('id')
@@ -161,8 +169,27 @@ export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>>
         // échoue, on rend le ticket pour que le chatter puisse rejouer. L'échec de la compensation
         // n'est que journalisé : il ne doit JAMAIS masquer l'erreur d'origine (celle qui part en
         // Sentry via `runAction`).
-        const { error: cErr } = await admin.from('training_wheel_tickets').update({ used_at: null }).eq('id', t.id)
-        if (cErr) console.error('[roue] ticket non rendu après échec du tirage', t.id, cErr.message)
+        // COMPENSATION CONDITIONNELLE : on ne rend le ticket QUE si on a la PREUVE qu'aucun tirage
+        // n'existe. La consommation du ticket et l'insertion du tirage sont deux appels distincts —
+        // une réponse perdue (timeout après commit) laisse le tirage en base malgré l'erreur. Rendre
+        // le ticket dans ce cas n'ouvrait pas un 2e paiement (`ticket_id` est unique sur
+        // `training_wheel_spins`) mais enfermait le chatter : ticket rejouable, conflit à chaque
+        // clic, pastille allumée à vie — pour un lot pourtant déjà acquis.
+        const { data: spin, error: chkErr } = await admin
+          .from('training_wheel_spins')
+          .select('id')
+          .eq('ticket_id', t.id)
+          .maybeSingle()
+        if (chkErr) {
+          // Vérification impossible : on laisse le ticket consommé (le doute profite à la caisse ;
+          // un encadrant peut toujours réoffrir un tour).
+          console.error('[roue] tirage non vérifiable, ticket laissé consommé', t.id, chkErr.message)
+        } else if (spin) {
+          console.error('[roue] tirage déjà enregistré, ticket laissé consommé', t.id)
+        } else {
+          const { error: cErr } = await admin.from('training_wheel_tickets').update({ used_at: null }).eq('id', t.id)
+          if (cErr) console.error('[roue] ticket non rendu après échec du tirage', t.id, cErr.message)
+        }
         throw new Error(sErr.message)
       }
 
