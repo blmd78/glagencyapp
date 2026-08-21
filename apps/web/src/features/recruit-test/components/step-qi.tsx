@@ -39,6 +39,9 @@ export function StepQi({
 }) {
   const [index, setIndex] = useState(initial.length)
   const [now, setNow] = useState(() => Date.now())
+  // Option cliquée, affichée « sélectionnée » (point rempli + fond) ~0,3 s avant d'avancer —
+  // le clic reste DÉFINITIF (mécanique GLA), c'est un temps de confirmation purement visuel.
+  const [chosen, setChosen] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   // Reprise avec les 5 réponses déjà données : `saveQi` n'était pas passé (panne réseau) —
   // l'écran ouvre directement sur « Réessayer », sans rejouer le questionnaire.
@@ -83,13 +86,31 @@ export function StepQi({
     return () => clearInterval(id)
   }, [])
 
+  // Clic sur une option : on FIGE le choix (état sélectionné visible), puis on répond après le
+  // temps de confirmation. Nettoyé au démontage — sinon `answer` tirerait sur un composant mort.
+  const flash = useRef<number | null>(null)
+  useEffect(() => () => { if (flash.current !== null) window.clearTimeout(flash.current) }, [])
+  const pick = useCallback(
+    (i: number) => {
+      if (chosen !== null || answers.current.length !== index) return
+      setChosen(i)
+      flash.current = window.setTimeout(() => {
+        setChosen(null)
+        answer(i)
+      }, 300)
+    },
+    [chosen, index, answer],
+  )
+
   // Temps écoulé = réponse `null` (compte faux) et on avance. C'est aussi ce qui traite une REPRISE
   // dont l'échéance est déjà passée : le rechargement ne rend jamais plus de temps qu'il n'en
   // restait — au pire il coûte la question en cours.
   const remaining = Math.max(0, deadline - now)
   useEffect(() => {
-    if (!saving && !failed && remaining <= 0) answer(null)
-  }, [saving, failed, remaining, answer])
+    // `chosen !== null` : une réponse est déjà figée, son temps de confirmation ne doit pas se
+    // faire doubler par le time-out (le clic a eu lieu AVANT la fin du chrono, il compte).
+    if (!saving && !failed && chosen === null && remaining <= 0) answer(null)
+  }, [saving, failed, chosen, remaining, answer])
 
   if (saving) return <p className="py-8 text-center text-sm text-muted-foreground">Enregistrement de tes réponses…</p>
 
@@ -146,11 +167,23 @@ export function StepQi({
             key={`${index}-${opt}`}
             type="button"
             role="radio"
-            aria-checked={false}
-            className="flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left text-sm transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
-            onClick={() => answer(i)}
+            aria-checked={chosen === i}
+            className={cn(
+              'flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none',
+              chosen === i ? 'bg-muted' : 'hover:bg-accent',
+            )}
+            onClick={() => pick(i)}
           >
-            <span aria-hidden className="size-4 shrink-0 rounded-full border" />
+            {/* Cercle radio : anneau + point central quand l'option est figée (état de la réf.). */}
+            <span
+              aria-hidden
+              className={cn(
+                'flex size-4 shrink-0 items-center justify-center rounded-full border',
+                chosen === i && 'border-2 border-foreground',
+              )}
+            >
+              {chosen === i && <span className="size-1.5 rounded-full bg-foreground" />}
+            </span>
             {opt}
           </button>
         ))}

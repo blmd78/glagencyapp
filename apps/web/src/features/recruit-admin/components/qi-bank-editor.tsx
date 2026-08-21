@@ -123,19 +123,26 @@ function QiSlotEditor({
               </div>
               <FieldError message={variantErrors?.q?.message} />
               <p className="text-xs text-muted-foreground">4 options — coche la bonne réponse.</p>
+              {/* Lignes au patron « questionnaire » (même langage que le test côté candidat,
+                  step-qi) : radio DANS la ligne bordée, fond `muted` sur la bonne réponse —
+                  `has-[:checked]` fait tout en CSS, pas d'état React. Le champ perd sa bordure
+                  propre (la ligne est le cadre) ; le focus se lit sur la ligne (`focus-within`). */}
               <div className="grid gap-2 sm:grid-cols-2">
                 {[0, 1, 2, 3].map((k) => (
-                  <div key={k} className="flex items-center gap-2">
+                  <div
+                    key={k}
+                    className="flex items-center gap-3 rounded-xl border pl-3 transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 has-[input[type=radio]:checked]:bg-muted"
+                  >
                     <input
                       type="radio"
-                      className="size-4 accent-primary"
+                      className="size-4 shrink-0 accent-foreground"
                       value={String(k)}
                       disabled={disabled}
                       aria-label={`Bonne réponse : option ${k + 1}`}
                       {...register(`qiBank.${index}.variants.${j}.a`)}
                     />
                     <Input
-                      className="flex-1"
+                      className="flex-1 border-0 bg-transparent px-1 shadow-none focus-visible:ring-0 dark:bg-transparent"
                       placeholder={`Option ${k + 1}`}
                       disabled={disabled}
                       aria-label={`Option ${k + 1}`}
