@@ -1,7 +1,7 @@
 import { frDateTimeParis } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
-import { MedalBadge } from '@/components/training/medal-badge'
+import { ScoreBadge } from '@/components/training/score-badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
@@ -10,9 +10,9 @@ import type { ChatterDetail } from '../types'
 /** Barème d'un axe (solo / défi) — même échelle que le détail de note d'une session. */
 const AXIS_MAX = 25
 
-/** Statut d'une session en clair — une note notée vaut mieux qu'un mot. */
-function statusLabel(status: string, total: number | null): string {
-  if (status === 'scored') return total == null ? 'Notée' : `${total}/100`
+/** Statut d'une session en clair — une session notée affiche sa note (badge), pas un mot. */
+function statusLabel(status: string): string {
+  if (status === 'scored') return 'Notée'
   if (status === 'failed') return 'Raté'
   if (status === 'abandoned') return 'Abandonnée'
   if (status === 'active') return 'En cours'
@@ -86,7 +86,7 @@ export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail
                     </TableCell>
                     <TableCell className="text-muted-foreground">{CASE_KIND_LABELS[b.kind]}</TableCell>
                     <TableCell>
-                      <MedalBadge best={b.bestTotal} />
+                      <ScoreBadge total={b.bestTotal} />
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{b.attempts}</TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">{frDateTimeParis(b.lastAt)}</TableCell>
@@ -123,7 +123,9 @@ export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail
                       <TableCell className="tabular-nums text-muted-foreground">{frDateTimeParis(s.startedAt)}</TableCell>
                       <TableCell className="font-medium">{s.caseTitle}</TableCell>
                       <TableCell className="text-muted-foreground">{CASE_KIND_LABELS[s.kind]}</TableCell>
-                      <TableCell className="tabular-nums">{statusLabel(s.status, s.total)}</TableCell>
+                      <TableCell className="tabular-nums">
+                        {s.status === 'scored' && s.total != null ? <ScoreBadge total={s.total} /> : statusLabel(s.status)}
+                      </TableCell>
                       <TableCell className="text-right">
                         <Link href={`/formation/session/${s.id}` as Route} className="text-sm hover:underline">
                           Voir

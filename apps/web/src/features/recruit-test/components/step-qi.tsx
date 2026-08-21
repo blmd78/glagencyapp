@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { QiQuestion } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /**
@@ -109,13 +108,22 @@ export function StepQi({
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Patron « questionnaire » shadcn (demande du 2026-08-21) : jauge SEGMENTÉE par question
+          (les questions passées + la courante sont pleines), libellé dessous, puis la question et
+          ses options en lignes radio. Le chrono garde sa barre fine à part : deux jauges, deux
+          sens (progression / temps restant), deux épaisseurs. */}
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between text-xs text-muted-foreground">
+        <div className="flex gap-2" aria-hidden>
+          {questions.map((q, i) => (
+            <span key={q.q} className={cn('h-1.5 flex-1 rounded-full', i <= index ? 'bg-primary' : 'bg-muted')} />
+          ))}
+        </div>
+        <div className="flex items-baseline justify-between text-sm text-muted-foreground">
           <span>
             🧠 Logique · question {index + 1} sur {questions.length}
           </span>
           {/* Les 5 dernières secondes passent au rouge (repère GLA). */}
-          <span aria-live="off" className={cn('tabular-nums', seconds <= 5 && 'text-destructive')}>
+          <span aria-live="off" className={cn('text-xs tabular-nums', seconds <= 5 && 'text-destructive')}>
             ⏱ {seconds} s
           </span>
         </div>
@@ -128,19 +136,23 @@ export function StepQi({
         </div>
       </div>
 
-      <p className="text-base font-medium">{question.q}</p>
+      <p className="text-lg font-medium">{question.q}</p>
 
-      <div className="flex flex-col gap-2">
+      {/* Lignes façon radio (cercle décoratif : cliquer = répondre DÉFINITIVEMENT et avancer —
+          mécanique GLA, pas de « Suivant » ni de retour). `radiogroup`/`radio` pour l'a11y. */}
+      <div role="radiogroup" aria-label={question.q} className="flex flex-col gap-3">
         {question.opts.map((opt, i) => (
-          <Button
+          <button
             key={`${index}-${opt}`}
             type="button"
-            variant="outline"
-            className="h-auto w-full justify-start px-4 py-3 text-left text-sm font-normal whitespace-normal"
+            role="radio"
+            aria-checked={false}
+            className="flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left text-sm transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
             onClick={() => answer(i)}
           >
+            <span aria-hidden className="size-4 shrink-0 rounded-full border" />
             {opt}
-          </Button>
+          </button>
         ))}
       </div>
 

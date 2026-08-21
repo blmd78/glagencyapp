@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { CaseKind, CaseSnapshot } from '@/lib/types/training'
+import type { CaseKind } from '@/lib/types/training'
 import type { ChatterDetail } from '../types'
 
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
@@ -26,7 +26,8 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
       .order('last_at', { ascending: false }),
     supabase
       .from('training_sessions')
-      .select('id, kind, status, total, started_at, case_snapshot')
+      // Sous-champ du snapshot (`->>`), pas le jsonb entier — même raison que get-me (payload ×50).
+      .select('id, kind, status, total, started_at, case_title:case_snapshot->>title')
       .eq('profile_id', profileId)
       .order('started_at', { ascending: false })
       .limit(50),
@@ -48,19 +49,17 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
       attempts: b.attempts,
       lastAt: b.last_at,
     })),
-    sessions: (sessionsRes.data ?? []).map((s) => {
-      // Titre du cas depuis le SNAPSHOT (pas de jointure) : il dit ce qui a été joué ce jour-là,
-      // même si le cas a été renommé ou désactivé depuis.
-      const snap = s.case_snapshot as unknown as CaseSnapshot
-      return {
-        id: s.id,
-        caseTitle: snap?.title ?? 'Cas',
-        kind: s.kind as CaseKind,
-        status: s.status,
-        total: s.total,
-        startedAt: s.started_at,
-      }
-    }),
+    // Titre depuis le SNAPSHOT (pas de jointure) : il dit ce qui a été joué ce jour-là, même si
+    // le cas a été renommé ou désactivé depuis. `?? 'Cas'` : `->>` est typé string mais vaut
+    // null à l'exécution sur un snapshot dégénéré.
+    sessions: (sessionsRes.data ?? []).map((s) => ({
+      id: s.id,
+      caseTitle: s.case_title ?? 'Cas',
+      kind: s.kind as CaseKind,
+      status: s.status,
+      total: s.total,
+      startedAt: s.started_at,
+    })),
     axes: (axesRes.data ?? []).map((a) => ({
       key: a.axis_key,
       name: a.axis_name,

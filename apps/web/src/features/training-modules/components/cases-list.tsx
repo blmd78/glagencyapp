@@ -1,5 +1,5 @@
 import { BOSS_UNLOCK_AVG, bossUnlocked } from '@glagency/core'
-import { MedalBadge } from '@/components/training/medal-badge'
+import { ScoreBadge } from '@/components/training/score-badge'
 import { PlayButton } from '@/components/training/play-button'
 import { Badge } from '@/components/ui/badge'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
@@ -73,7 +73,7 @@ export function CasesList({
           <section key={c.id} className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-base font-semibold">{c.title}</h3>
-              <MedalBadge best={best?.bestTotal ?? null} />
+              <ScoreBadge total={best?.bestTotal ?? null} />
             </div>
             <p className="text-sm text-muted-foreground">
               {c.bossFans.length} fans en parallèle · {c.maxTurns} messages max par fan{c.reactionMaxS ? ` · ${c.reactionMaxS} s pour répondre` : ''}
@@ -122,7 +122,7 @@ function CaseRow({ c, canPlay, best }: { c: PublicCase; canPlay: boolean; best: 
       {c.phase && <span className="text-muted-foreground">{c.phase}</span>}
       <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
         {canPlay && <PlayButton caseId={c.id} label={best ? 'Rejouer' : 'Jouer'} />}
-        <MedalBadge best={best?.bestTotal ?? null} />
+        <ScoreBadge total={best?.bestTotal ?? null} />
         {best && best.attempts > 1 && <span className="tabular-nums">× {best.attempts}</span>}
         {c.kind !== 'solo' && <Badge variant="secondary">{CASE_KIND_LABELS[c.kind]}</Badge>}
         {c.isSale && <Badge variant="outline">vente</Badge>}

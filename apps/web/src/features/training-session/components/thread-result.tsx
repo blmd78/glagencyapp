@@ -1,3 +1,4 @@
+import { ScoreBadge } from '@/components/training/score-badge'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 import type { SessionThread } from '../types'
 import { ScorePanel } from './score-panel'
@@ -32,7 +33,7 @@ export function ThreadResult({
           )}
         </div>
         <p className="shrink-0 text-right text-sm font-medium">
-          {fault ? `Perdu — ${fault.title}` : thread.score ? `${thread.score.total}/100` : '—'}
+          {fault ? `Perdu — ${fault.title}` : thread.score ? <ScoreBadge total={thread.score.total} /> : '—'}
         </p>
       </header>
       {!lost && thread.score ? (

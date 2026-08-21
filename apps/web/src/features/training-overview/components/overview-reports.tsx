@@ -7,6 +7,7 @@ import type { Route } from 'next'
 import { frDateTimeParis } from '@glagency/core'
 import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
+import { ScoreBadge } from '@/components/training/score-badge'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { rescoreSession, resolveReport } from '../actions'
@@ -79,7 +80,11 @@ function ReportCard({ report, isAdmin }: { report: ReportRow; isAdmin: boolean }
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium">
           {report.displayName} — {report.caseTitle}
-          <span className="ml-2 tabular-nums text-muted-foreground">{report.total == null ? 'non notée' : `${report.total}/100`}</span>
+          {report.total == null ? (
+            <span className="ml-2 text-muted-foreground">non notée</span>
+          ) : (
+            <ScoreBadge total={report.total} className="ml-2 align-middle" />
+          )}
         </p>
         <p className="text-sm tabular-nums text-muted-foreground">
           {frDateTimeParis(report.createdAt)}

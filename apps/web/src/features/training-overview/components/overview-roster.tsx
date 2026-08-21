@@ -1,6 +1,7 @@
 import { daysBetweenParis, frDateNumeric, frDayMonthParis } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
+import { ScoreBadge } from '@/components/training/score-badge'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { RosterRow } from '../types'
@@ -71,7 +72,8 @@ export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; to
                   <TableCell className="text-right tabular-nums">{r.points}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.streakDays} j</TableCell>
                   <TableCell className="text-center tabular-nums">
-                    {r.bossBest == null ? '—' : `${r.bossBest}${r.bossDone ? ' ✓' : ''}`}
+                    {r.bossBest == null ? '—' : <ScoreBadge total={r.bossBest} />}
+                    {r.bossDone && ' ✓'}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{lastSeen(r.lastSessionAt)}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.sessionsScored}</TableCell>

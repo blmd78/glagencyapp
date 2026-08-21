@@ -1,6 +1,6 @@
-import { medalFor } from '@glagency/core'
+import { ScoreBadge } from '@/components/training/score-badge'
 import { Badge } from '@/components/ui/badge'
-import { CASE_KIND_LABELS, MEDAL_LABELS } from '@/lib/types/training'
+import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { SessionData } from '../types'
 import { ResultActions } from './result-actions'
 import { ScorePanel } from './score-panel'
@@ -8,13 +8,12 @@ import { ThreadResult } from './thread-result'
 import { TranscriptView } from './transcript-view'
 
 /**
- * Session NOTÉE. En-tête : note /100, médaille (texte, badge outline — pas de doré), objectif atteint /
+ * Session NOTÉE. En-tête : note /100, palier en badge coloré (`ScoreBadge`), objectif atteint /
  * plafonné à 65, record vs meilleur précédent. Solo : un ScorePanel + « ce qui était attendu » + transcription.
  * Défi / boss : une carte par conversation (ThreadResult), note globale = moyenne.
  */
 export function ResultView({ data, viewerIsOwner }: { data: SessionData; viewerIsOwner: boolean }) {
   const s = data.snapshot
-  const medal = medalFor(data.total)
   const solo = data.kind === 'solo'
   const single = data.threads[0]
   const improved = data.total != null && data.previousBest != null && data.total > data.previousBest
@@ -27,10 +26,12 @@ export function ResultView({ data, viewerIsOwner }: { data: SessionData; viewerI
       <section className="flex flex-wrap items-end gap-6 rounded-xl border p-6">
         <div>
           <p className="text-5xl font-semibold tabular-nums">{data.total ?? '—'}<span className="text-lg text-muted-foreground">/100</span></p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {medal ? `Médaille ${MEDAL_LABELS[medal]}` : 'À valider (60 minimum)'}
-            {data.previousBest != null && ` · précédent ${data.previousBest}`}
-            {improved && ' · nouveau record'}
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <ScoreBadge total={data.total} />
+            <span>
+              {data.previousBest != null && `précédent ${data.previousBest}`}
+              {improved && ' · nouveau record'}
+            </span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

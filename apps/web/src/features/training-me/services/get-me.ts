@@ -1,7 +1,7 @@
 import { bossUnlocked, computeTrophies, effectiveStreak, lastCompletedWeek, medalFor, MEDAL_OR, mondayOf, moduleProgress, todayParis } from '@glagency/core'
 import { getAllCases, getModuleRefs } from '@/lib/services/training-public'
 import { createClient } from '@/lib/supabase/server'
-import type { CaseKind, CaseSnapshot } from '@/lib/types/training'
+import type { CaseKind } from '@/lib/types/training'
 import type { MeData, MeModule, MeSession, RankRow, RankScope, WeeklyRankRow } from '../types'
 
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
@@ -63,11 +63,17 @@ async function fetchRanking(
 export async function getMe(profileId: string, scope: RankScope): Promise<MeData> {
   const supabase = await createClient()
   const [statsRes, bestsRes, sessionsRes, rank, modules, allCases] = await Promise.all([
-    supabase.from('training_profile_stats').select('*').eq('profile_id', profileId).maybeSingle(),
+    supabase
+      .from('training_profile_stats')
+      .select('cases_done, avg_total, points, boss_best, boss_done, streak_days, last_active_day, active_days, last_session_at')
+      .eq('profile_id', profileId)
+      .maybeSingle(),
     supabase.from('training_case_bests').select('case_id, best_total, attempts').eq('profile_id', profileId),
     supabase
       .from('training_sessions')
-      .select('id, case_id, kind, status, total, objective_reached, started_at, case_snapshot')
+      // Sous-champs du snapshot (`->>`), pas le jsonb entier : il embarque `context`/`objective`
+      // (paragraphes) dont l'historique n'a que faire — ×50 lignes, ça se sentait sur le payload.
+      .select('id, case_id, kind, status, total, objective_reached, started_at, case_title:case_snapshot->>title, module_title:case_snapshot->>moduleTitle')
       .eq('profile_id', profileId)
       .order('started_at', { ascending: false })
       .limit(50),
@@ -111,22 +117,20 @@ export async function getMe(profileId: string, scope: RankScope): Promise<MeData
     }]
   })
 
-  const sessions: MeSession[] = (sessionsRes.data ?? []).map((row) => {
-    // Titre du cas depuis le SNAPSHOT (pas de jointure) : il dit ce qui a été joué ce jour-là,
-    // même si le cas a été renommé ou désactivé depuis.
-    const snap = row.case_snapshot as unknown as CaseSnapshot
-    return {
-      id: row.id,
-      caseId: row.case_id,
-      caseTitle: snap?.title ?? 'Cas',
-      kind: row.kind as CaseKind,
-      status: row.status,
-      total: row.total,
-      objectiveReached: row.objective_reached,
-      startedAt: row.started_at,
-      moduleTitle: snap?.moduleTitle ?? '',
-    }
-  })
+  // Titres depuis le SNAPSHOT (pas de jointure) : ils disent ce qui a été joué ce jour-là,
+  // même si le cas a été renommé ou désactivé depuis. `?? ''` : `->>` est typé string mais
+  // vaut null à l'exécution sur un snapshot dégénéré.
+  const sessions: MeSession[] = (sessionsRes.data ?? []).map((row) => ({
+    id: row.id,
+    caseId: row.case_id,
+    caseTitle: row.case_title ?? 'Cas',
+    kind: row.kind as CaseKind,
+    status: row.status,
+    total: row.total,
+    objectiveReached: row.objective_reached,
+    startedAt: row.started_at,
+    moduleTitle: row.module_title ?? '',
+  }))
 
   // « Reprendre où j'en étais » (spec §6) : 1er cas non validé (aucun meilleur résultat) du 1er
   // module incomplet — modules dans l'ordre du catalogue, cas dans l'ordre du module. null quand

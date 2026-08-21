@@ -19,9 +19,10 @@ export function ProgressDots({ current }: { current: number }) {
       <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
         Étape {current}/{STEP_LABELS.length} · {STEP_LABELS[current - 1]}
       </p>
-      <div className="flex gap-1.5" aria-hidden>
+      {/* Segments épais façon « questionnaire » shadcn — même patron que la jauge du QI. */}
+      <div className="flex gap-2" aria-hidden>
         {STEP_LABELS.map((label, i) => (
-          <span key={label} className={cn('h-1 flex-1 rounded-full', i < current ? 'bg-primary' : 'bg-muted')} />
+          <span key={label} className={cn('h-1.5 flex-1 rounded-full', i < current ? 'bg-primary' : 'bg-muted')} />
         ))}
       </div>
     </div>

@@ -132,7 +132,7 @@ export function WheelSpinner({
         pending={phase === 'spinning' || phase === 'claiming'}
         disabled={!ticket || phase === 'reveal'}
       >
-        Tourner la roue 🎡
+        Tourner la roue
       </ActionButton>
       <p className="text-center text-sm text-muted-foreground">{hint}</p>
       {phase === 'reveal' && result && (

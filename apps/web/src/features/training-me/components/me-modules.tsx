@@ -2,7 +2,7 @@ import { BOSS_UNLOCK_AVG } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { ChevronRight } from 'lucide-react'
-import { MedalBadge } from '@/components/training/medal-badge'
+import { ScoreBadge } from '@/components/training/score-badge'
 import type { MeData, MeModule } from '../types'
 
 /**
@@ -25,7 +25,7 @@ export function MeModules({ data }: { data: MeData }) {
       <div className="flex flex-col gap-2 rounded-xl border p-4">
         <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-base font-semibold">🏆 Boss final</h3>
-          <MedalBadge best={stats.bossBest} />
+          <ScoreBadge total={stats.bossBest} />
         </div>
         <p className="text-sm text-muted-foreground">
           {unlocked
@@ -71,7 +71,7 @@ function ModuleCard({ m }: { m: MeModule }) {
           {m.cases.map((c) => (
             <li key={c.id} className="flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs">
               <span>{c.title}</span>
-              {c.best == null ? <span className="text-muted-foreground">—</span> : <MedalBadge best={c.best} />}
+              {c.best == null ? <span className="text-muted-foreground">—</span> : <ScoreBadge total={c.best} />}
             </li>
           ))}
         </ul>

@@ -1,13 +1,14 @@
 import { frDateTimeParis } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
+import { ScoreBadge } from '@/components/training/score-badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { MeSession } from '../types'
 
-/** Statut d'une session en clair — une note notée vaut mieux qu'un mot. */
+/** Statut d'une session en clair — une session notée affiche sa note (badge), pas un mot. */
 function statusLabel(s: MeSession): string {
-  if (s.status === 'scored') return s.total == null ? 'Notée' : `${s.total}/100`
+  if (s.status === 'scored') return 'Notée'
   if (s.status === 'failed') return 'Raté'
   if (s.status === 'abandoned') return 'Abandonnée'
   if (s.status === 'active') return 'En cours'
@@ -42,7 +43,9 @@ export function MeHistory({ sessions }: { sessions: MeSession[] }) {
                 <TableCell className="font-medium">{s.caseTitle}</TableCell>
                 <TableCell className="text-muted-foreground">{s.moduleTitle || '—'}</TableCell>
                 <TableCell className="text-muted-foreground">{CASE_KIND_LABELS[s.kind]}</TableCell>
-                <TableCell className="tabular-nums">{statusLabel(s)}</TableCell>
+                <TableCell className="tabular-nums">
+                  {s.status === 'scored' && s.total != null ? <ScoreBadge total={s.total} /> : statusLabel(s)}
+                </TableCell>
                 <TableCell className="text-right">
                   {/* `as Route` : typedRoutes n'accepte pas une chaîne interpolée sur un segment dynamique. */}
                   <Link href={`/formation/session/${s.id}` as Route} className="text-sm hover:underline">

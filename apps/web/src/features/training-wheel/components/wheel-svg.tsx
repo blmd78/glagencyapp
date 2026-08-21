@@ -7,13 +7,16 @@ import { cn } from '@/lib/utils'
  * GLA (`drawWheel`) : viewBox 200×200, rayon 98, **0° = le haut** (là où pointe le triangle),
  * angles croissants dans le sens horaire.
  *
- * C'est le SEUL endroit de la feature où des couleurs en dur sont admises (décision du plan : la
- * roue est colorée, tout le reste de la page suit la DA sobre).
+ * DA de l'app, pas celle de GLA (demandes du 2026-08-19/20) : sobre mais « dopamine » — gagner =
+ * VERT (la couleur de l'argent dans l'app), en deux tons alternés ; perdre = `destructive`. Le
+ * reste sur les tokens du thème : séparateurs couleur de fond, pointeur et moyeu `foreground`,
+ * libellés blancs (lisibles sur les deux verts et le rouge, light comme dark). Les verts viennent
+ * de la palette Tailwind v4 (`--color-emerald-*`, émise par `@import "tailwindcss"`).
  */
 
-/** Palette GLA (secteur gagnant), cyclée ; un secteur perdant est toujours rouge. */
-const COLORS = ['#8b5cf6', '#13C57A', '#19d3a2', '#a855f7', '#ffb547', '#6366f1', '#2dd4bf', '#f472b6']
-const LOSE_COLOR = '#ff5d7c'
+/** Deux tons pour les secteurs gagnants, alternés par POSITION parmi les gagnants (pas par index). */
+const WIN_TONES = ['var(--color-emerald-500)', 'var(--color-emerald-600)']
+const LOSE_TONE = 'var(--destructive)'
 const R = 98
 const CX = 100
 const CY = 100
@@ -83,7 +86,7 @@ export function WheelSvg({
     <div className={cn('relative mx-auto aspect-square w-full max-w-[340px]', className)}>
       {/* Pointeur FIXE, hors du <svg> qui tourne : c'est lui qui désigne le secteur à 0°. */}
       <svg aria-hidden="true" viewBox="0 0 24 20" className="absolute -top-1 left-1/2 z-10 w-6 -translate-x-1/2">
-        <path d="M12 20 L0 0 H24 Z" fill="#ffb547" />
+        <path d="M12 20 L0 0 H24 Z" fill="var(--foreground)" />
       </svg>
       <svg
         viewBox="0 0 200 200"
@@ -95,7 +98,7 @@ export function WheelSvg({
           transition: spinning ? 'transform 4.8s cubic-bezier(.15,.75,.2,1)' : 'none',
         }}
       >
-        {angles.map(({ index, a0, a1 }) => {
+        {angles.map(({ index, a0, a1 }, i) => {
           const s = sectors[index]
           if (!s) return null
           const span = a1 - a0
@@ -103,7 +106,10 @@ export function WheelSvg({
           const [x0, y0] = polar(R, a0)
           const [x1, y1] = polar(R, a1)
           const [lx, ly] = polar(R * LABEL_R, mid)
-          const fill = s.lose ? LOSE_COLOR : COLORS[index % COLORS.length]
+          // Alternance comptée sur les gagnants dessinés AVANT celui-ci : deux gagnants voisins
+          // n'ont jamais le même ton, même de part et d'autre d'un secteur perdant.
+          const winsBefore = angles.slice(0, i).filter((a) => !sectors[a.index]?.lose).length
+          const fill = s.lose ? LOSE_TONE : WIN_TONES[winsBefore % WIN_TONES.length]
           // Libellé RADIAL (il court du moyeu vers la jante) et non tangentiel : un texte tangentiel
           // se retrouve tête en bas dès que le secteur passe sous l'horizontale.
           // `rotate()` en SVG tourne dans le sens horaire (y vers le bas) et `polar` pose le point à
@@ -116,13 +122,13 @@ export function WheelSvg({
           return (
             <g key={index}>
               {single ? (
-                <circle cx={CX} cy={CY} r={R} fill={fill} stroke="#0e1016" strokeWidth={1.5} />
+                <circle cx={CX} cy={CY} r={R} fill={fill} />
               ) : (
                 <path
                   d={`M${CX},${CY} L${x0.toFixed(2)},${y0.toFixed(2)} A${R},${R} 0 ${span > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z`}
                   fill={fill}
-                  stroke="#0e1016"
-                  strokeWidth={1.5}
+                  stroke="var(--background)"
+                  strokeWidth={2}
                 />
               )}
               {span > 7 && (
@@ -131,7 +137,7 @@ export function WheelSvg({
                   y={ly.toFixed(2)}
                   fill="#fff"
                   fontSize={fontSize(span)}
-                  fontWeight={700}
+                  fontWeight={600}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   transform={`rotate(${tilt.toFixed(1)},${lx.toFixed(2)},${ly.toFixed(2)})`}
@@ -144,7 +150,7 @@ export function WheelSvg({
           )
         })}
         {/* Moyeu : masque la pointe des secteurs au centre. */}
-        <circle cx={CX} cy={CY} r={15} fill="#0e1016" stroke="#8b5cf6" strokeWidth={4} />
+        <circle cx={CX} cy={CY} r={14} fill="var(--background)" stroke="var(--foreground)" strokeWidth={2} />
       </svg>
     </div>
   )
