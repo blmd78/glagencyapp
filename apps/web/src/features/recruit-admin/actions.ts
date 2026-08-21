@@ -5,7 +5,7 @@
 //
 // Modèle d'écriture de la face Formation depuis 0121, appliqué ici sans exception : la RLS des
 // tables `recruit_*` n'accorde que la LECTURE (`is_admin()`), AUCUNE policy d'écriture — toutes
-// les écritures passent donc par le service-role, APRÈS `requireRecruitAdmin()` (admin + refus
+// les écritures passent donc par le service-role, APRÈS `requireAdminProfileLive()` (admin + refus
 // impersonation). `recruit_config` est la seule à porter en plus une policy d'écriture admin, mais
 // on garde UN seul chemin d'écriture pour toute la feature : deux clients dans un même fichier
 // d'actions est exactement le genre de nuance qu'une relecture rapide rate.
@@ -14,8 +14,8 @@
 // métier = `BusinessError` (message français affiché tel quel), erreur technique = `Error` nue.
 
 import { createAdminClient } from '@glagency/db'
-import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
-import { requireRecruitAdmin, revalidateRecruit } from './actions-shared'
+import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { revalidateRecruit } from './actions-shared'
 import { candidateIdInput, reviewInput } from './schema'
 
 const NOT_FOUND = 'Dossier introuvable'
@@ -56,7 +56,7 @@ export async function reviewCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id, status }) => {
-      const profile = await requireRecruitAdmin()
+      const profile = await requireAdminProfileLive()
       const admin = createAdminClient()
       const { data, error } = await admin
         .from('recruit_candidates')
@@ -85,7 +85,7 @@ export async function blockCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id }) => {
-      const profile = await requireRecruitAdmin()
+      const profile = await requireAdminProfileLive()
       const admin = createAdminClient()
       const t = await loadBlockTargets(admin, id)
       const { error } = await admin.from('recruit_blocklist').insert({
@@ -126,7 +126,7 @@ export async function unblockCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id }) => {
-      await requireRecruitAdmin()
+      await requireAdminProfileLive()
       const admin = createAdminClient()
       const t = await loadBlockTargets(admin, id)
       const identity: ['device' | 'email' | 'discord', string | null][] = [
@@ -171,7 +171,7 @@ export async function deleteCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id }) => {
-      await requireRecruitAdmin()
+      await requireAdminProfileLive()
       const admin = createAdminClient()
       const { data, error } = await admin.from('recruit_candidates').delete().eq('id', id).select('id').maybeSingle()
       if (error) throw new Error(error.message)

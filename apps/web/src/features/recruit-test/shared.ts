@@ -13,15 +13,17 @@ import { z } from 'zod'
 import type { QiSlot, RecruitConfig } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError } from '@/lib/actions'
+import { NO_ATTEMPT } from './types'
 
 export type Admin = ReturnType<typeof createAdminClient>
 
 // Messages de refus — français, adressés au CANDIDAT (jamais un message Supabase brut, jamais un
-// chiffre du barème : les seuils ne descendent pas au client, cf. spec §2).
+// chiffre du barème : les seuils ne descendent pas au client, cf. spec §2). Ceux que le CLIENT doit
+// reconnaître (`NO_ATTEMPT`, `BOT_ALREADY_SENT`, `CHAT_OVER`) vivent dans `types.ts` — le seul
+// module que les deux côtés importent.
 export const CLOSED = 'Le recrutement est fermé pour le moment.'
 export const BLOCKED = 'Tu as déjà passé le test.'
 export const RATE_LIMITED = 'Trop de tentatives depuis ce réseau — réessaie plus tard.'
-export const ATTEMPT_KO = 'Test introuvable — recommence depuis le début.'
 export const ATTEMPT_OVER = 'Ce test est déjà terminé.'
 export const STEPS_MISSING = 'Termine toutes les épreuves d’abord.'
 
@@ -119,8 +121,10 @@ export async function readConfig(admin: Admin): Promise<RecruitTestConfig> {
 // `created_at` fait partie des colonnes chargées d'office : c'est l'ORIGINE DE TEMPS de la
 // tentative, la seule dont le serveur dispose pour rendre le chrono du QI exécutoire (`saveQi`).
 // Le client, lui, ne fournit aucune horodatation digne de confiance.
+// `ip` n'y est PAS : la colonne existe (télémétrie + rate-limit à l'entrée, qui filtre dessus en
+// base) mais aucune action ne la LIT sur la tentative chargée.
 const ATTEMPT_COLS =
-  'id, status, created_at, persona, device, ip, qi_score, qi_answers, typing, connection_mbps, bot_replies, input_tokens, output_tokens, orthographe, coherence, relance, vente, bot_total'
+  'id, status, created_at, persona, device, qi_score, qi_answers, typing, connection_mbps, bot_replies, input_tokens, output_tokens, orthographe, coherence, relance, vente, bot_total'
 
 export type Attempt = {
   id: string
@@ -129,7 +133,6 @@ export type Attempt = {
   created_at: string
   persona: string
   device: string
-  ip: string | null
   qi_score: number | null
   qi_answers: unknown
   typing: unknown
@@ -153,7 +156,7 @@ export type Attempt = {
 export async function loadAttempt(admin: Admin, attemptId: string): Promise<Attempt> {
   const { data, error } = await admin.from('recruit_attempts').select(ATTEMPT_COLS).eq('id', attemptId).maybeSingle()
   if (error) throw new Error(error.message)
-  if (!data) throw new BusinessError(ATTEMPT_KO)
+  if (!data) throw new BusinessError(NO_ATTEMPT)
   return data as Attempt
 }
 
@@ -204,37 +207,32 @@ const RATE_LIMIT_MAX = 5
 const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /**
- * « Un seul essai » (oneAttempt GLA), volet ENTRÉE : device ou IP déjà en liste de blocage.
- * Deux requêtes plutôt qu'un `.or()` : `ip` vient d'un en-tête forgeable et se retrouverait
- * concaténé dans la CHAÎNE de filtre PostgREST — un `.or()` construit ainsi est injectable. Les
- * deux colonnes sont indexées (0125), le coût du second aller-retour est négligeable.
+ * « Un seul essai » (oneAttempt GLA) : au moins une des paires colonne/valeur est déjà en liste de
+ * blocage. Deux volets l'appellent — ENTRÉE (`device` + `ip`, `startAttempt`) et SOUMISSION
+ * (`email` + `discord`, `submitCandidate`).
+ *
+ * Un `eq` SÉPARÉ par paire, jamais un `.or()` : `ip` vient d'un en-tête forgeable et `discord` est
+ * une chaîne libre côté candidat — les concaténer dans la CHAÎNE de filtre PostgREST serait
+ * injectable. Court-circuit au premier match, et une valeur nulle/vide est simplement sautée (on ne
+ * bloque personne sur une IP inconnue ou un Discord non renseigné). `device` et `email` sont
+ * indexés (0125) ; `ip` l'est aussi ; `discord` ne l'est pas — la table reste petite, c'est un seq
+ * scan sans enjeu.
+ *
+ * Les valeurs d'identité arrivent déjà minusculées par `submitCandidateInput` : la base ne stocke
+ * que du minuscule (checks de 0126), une comparaison sur une valeur non normalisée ne matcherait
+ * jamais.
  */
-export async function isBlocked(admin: Admin, t: { device: string; ip: string | null }): Promise<boolean> {
-  const { data: byDevice, error: dErr } = await admin.from('recruit_blocklist').select('id').eq('device', t.device).limit(1)
-  if (dErr) throw new Error(dErr.message)
-  if (byDevice.length > 0) return true
-  if (!t.ip) return false
-  const { data: byIp, error: iErr } = await admin.from('recruit_blocklist').select('id').eq('ip', t.ip).limit(1)
-  if (iErr) throw new Error(iErr.message)
-  return byIp.length > 0
-}
-
-/**
- * « Un seul essai », volet SOUMISSION : e-mail ou Discord déjà en liste de blocage. Mêmes deux
- * requêtes séparées que `isBlocked` — `discord` est une chaîne libre côté candidat, la
- * concaténer dans un `.or()` PostgREST serait injectable. (`email` est indexé par 0125 ; `discord`
- * ne l'est pas — la table reste petite, c'est un seq scan sans enjeu.)
- * Les deux valeurs arrivent déjà minusculées par `submitCandidateInput` : la base ne stocke que du
- * minuscule (checks de 0126), une comparaison sur une valeur non normalisée ne matcherait jamais.
- */
-export async function isIdentityBlocked(admin: Admin, t: { email: string; discord: string | null }): Promise<boolean> {
-  const { data: byEmail, error: eErr } = await admin.from('recruit_blocklist').select('id').eq('email', t.email).limit(1)
-  if (eErr) throw new Error(eErr.message)
-  if (byEmail.length > 0) return true
-  if (!t.discord) return false
-  const { data: byDiscord, error: dErr } = await admin.from('recruit_blocklist').select('id').eq('discord', t.discord).limit(1)
-  if (dErr) throw new Error(dErr.message)
-  return byDiscord.length > 0
+export async function anyBlocklistMatch(
+  admin: Admin,
+  pairs: [column: 'device' | 'ip' | 'email' | 'discord', value: string | null][],
+): Promise<boolean> {
+  for (const [column, value] of pairs) {
+    if (!value) continue
+    const { data, error } = await admin.from('recruit_blocklist').select('id').eq(column, value).limit(1)
+    if (error) throw new Error(error.message)
+    if (data.length > 0) return true
+  }
+  return false
 }
 
 /**

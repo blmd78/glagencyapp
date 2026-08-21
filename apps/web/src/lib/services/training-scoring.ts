@@ -1,9 +1,10 @@
 import 'server-only'
+import { BOSS_PASS } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { SCORE_MODEL } from '@/lib/ai/client'
 import { logAiCall } from '@/lib/ai/log'
 import { bossScoreSystemPrompt, formatTranscript, scoreSystemPrompt, type HistoryMessage } from '@/lib/ai/prompts'
-import { BOSS_PASS, scoreBossThread, scoreThread, type ScoreResult } from '@/lib/ai/score'
+import { scoreBossThread, scoreThread, type ScoreResult } from '@/lib/ai/score'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 
 /**

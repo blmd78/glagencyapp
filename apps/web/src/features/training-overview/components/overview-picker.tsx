@@ -8,7 +8,7 @@ import type { RosterRow } from '../types'
 
 /**
  * « Tous les chatters / <nom> » : la fiche vit dans l'URL (`?chatter=<profileId>`) pour rester
- * partageable (guidelines §6), `router.replace` dans un `startTransition` — patron de `me-tabs.tsx`.
+ * partageable (guidelines §6), `router.replace` dans un `startTransition` — patron de `url-tabs.tsx`.
  * Affiché aux seuls admin / manager / sous-manager : un policier ou un lecteur avec le droit Suivi
  * voit le roster sans sélecteur (la RLS 0117 borne de toute façon la lecture des sessions).
  */

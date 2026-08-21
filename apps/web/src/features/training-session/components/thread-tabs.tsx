@@ -3,6 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import type { SessionThread } from '../types'
+import { ChronoBadge } from './chrono-badge'
 
 /**
  * Les conversations d'un défi / boss, en onglets : à qui c'est le tour (« à toi »), qui écrit
@@ -52,11 +53,7 @@ export function ThreadTabs({
                 <span className="sr-only">{t.fanName} écrit</span>
               </span>
             )}
-            {remaining != null && (
-              <span className={cn('tabular-nums text-xs', remaining <= 10 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground')}>
-                {remaining} s
-              </span>
-            )}
+            {remaining != null && <ChronoBadge seconds={remaining} />}
           </button>
         )
       })}

@@ -11,14 +11,14 @@
 
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@glagency/db'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { FAN_MODEL } from '@/lib/ai/client'
 import { replyAsFan } from '@/lib/ai/fan'
 import { logAiCall } from '@/lib/ai/log'
 import { buildFanSystem, dueAtFrom, revealDelayMs } from '@/lib/services/training-engine'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot, MessageSpeaker } from '@/lib/types/training'
-import { closeSessionIfNoOpenThread, requireTrainee, revalidateSession } from './actions-shared'
+import { closeSessionIfNoOpenThread, revalidateSession } from './actions-shared'
 import { sendInput } from './schema'
 import type { SendResult, SessionMessage } from './types'
 
@@ -33,7 +33,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const profile = await requireTrainee()
+      const profile = await requirePageProfileLive('frm-entrainement')
       const supabase = await createClient()
       const admin = createAdminClient()
       const { data: t, error } = await supabase

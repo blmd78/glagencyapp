@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { clampedAxisScore } from './schema'
 
 /**
  * Schéma de notation du test de recrutement (output_config.format = json_schema) — transposition
@@ -30,11 +31,8 @@ export const recruitScoreJsonSchema = {
   additionalProperties: false as const,
 }
 
-// Une note d'axe hors [0, 25] est CLAMPÉE (pas rejetée) : seul un type non-numérique fait échouer —
-// même règle que lib/ai/schema.ts (clampedAxisScore) : une notation payante ne doit pas rater sur un
-// simple débordement/arrondi du modèle (dérive numérique tolérée).
-const clampedAxisScore = z.number().transform((n) => Math.max(0, Math.min(25, Math.round(n))))
-
+// `clampedAxisScore` vient de lib/ai/schema.ts : mêmes axes sur 25, même règle (hors bornes =
+// clampé, pas rejeté — une notation payante ne doit pas rater sur un débordement/arrondi du modèle).
 export const recruitScoreZod = z.object({
   orthographe: clampedAxisScore,
   coherence: clampedAxisScore,
@@ -44,4 +42,3 @@ export const recruitScoreZod = z.object({
   // scoreRecruitTranscript (pas de champ commentaire dans son contrat de retour).
   commentaire: z.string().optional(),
 })
-export type RecruitScoreParsed = z.infer<typeof recruitScoreZod>

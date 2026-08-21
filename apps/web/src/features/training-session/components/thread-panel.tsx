@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 import type { ComposerInput } from '../schema'
 import type { SessionThread } from '../types'
+import { ChronoBadge } from './chrono-badge'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
 
@@ -60,11 +60,7 @@ export function ThreadPanel({
         <span className="ml-auto tabular-nums text-muted-foreground">
           {thread.turnsUsed}/{thread.maxTurns} tours
         </span>
-        {remaining != null && thread.status === 'open' && (
-          <Badge variant={remaining <= 10 ? 'destructive' : 'secondary'} className="tabular-nums">
-            ⏱ {remaining} s
-          </Badge>
-        )}
+        {remaining != null && thread.status === 'open' && <ChronoBadge seconds={remaining} />}
       </header>
       <MessageList messages={visible} pendingFan={pendingFan} fanName={thread.fanName} />
       {lost ? (

@@ -6,14 +6,15 @@
 
 import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
-import { BusinessError, noGuard, requireAdminProfile, requirePageProfile, runAction, type ActionResult } from '@/lib/actions'
-import { readStateCookie } from '@/lib/impersonation/session'
+import { z } from 'zod'
+import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
-import { rescoreInput, resolveInput } from './schema'
 
-/** Consultation « en tant que » = LECTURE seule : aucune écriture au nom de la personne visitée. */
-const DENY_IMPERSONATION = 'Action indisponible en consultation (mode « en tant que »)'
+// Schémas INLINE (guidelines §5) : ces deux actions n'ont pas de formulaire, un `schema.ts` de
+// feature pour deux `z.object({ … z.uuid() })` n'apportait rien.
+const resolveInput = z.object({ reportId: z.uuid() })
+const rescoreInput = z.object({ sessionId: z.uuid() })
 
 /**
  * « Résolu » : le signalement est traité. `.is('resolved_at', null)` rend l'écriture IDEMPOTENTE —
@@ -26,8 +27,7 @@ export async function resolveReport(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ reportId }) => {
-      const profile = await requirePageProfile('frm-suivi')
-      if (await readStateCookie()) throw new BusinessError(DENY_IMPERSONATION)
+      const profile = await requirePageProfileLive('frm-suivi')
       const supabase = await createClient()
       const { error } = await supabase
         .from('training_reports')
@@ -52,8 +52,7 @@ export async function rescoreSession(raw: unknown): Promise<ActionResult<{ total
     input: raw,
     guard: noGuard,
     handler: async ({ sessionId }) => {
-      await requireAdminProfile()
-      if (await readStateCookie()) throw new BusinessError(DENY_IMPERSONATION)
+      await requireAdminProfileLive()
       let res: { total: number }
       try {
         res = await scoreSessionById(sessionId, { force: true })

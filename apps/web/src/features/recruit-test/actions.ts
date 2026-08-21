@@ -20,7 +20,7 @@
 import { randomInt } from 'node:crypto'
 import * as Sentry from '@sentry/nextjs'
 import { computeVerdict, gradeQi, pickQiQuestions } from '@glagency/core'
-import { createAdminClient } from '@glagency/db'
+import { createAdminClient, type Database } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
 import { RECRUIT_PERSONA_NAMES } from '@/lib/ai/recruit-prompts'
 import { saveConnectionInput, saveQiInput, saveTypingInput, startAttemptInput, submitCandidateInput } from './schema'
@@ -29,22 +29,59 @@ import {
   BLOCKED,
   CLOSED,
   STEPS_MISSING,
+  anyBlocklistMatch,
   clientIp,
   enforceIpRateLimit,
-  isBlocked,
-  isIdentityBlocked,
   loadAttempt,
   readConfig,
   requireInProgress,
   toAnswerKey,
   toQiBank,
   toTyping,
+  type Admin,
+  type Attempt,
 } from './shared'
 import type { StartedAttempt, SubmitResult } from './types'
 
 const ALREADY_SENT = 'Ce test a déjà été envoyé.'
 /** Chrono QI dépassé — refus GÉNÉRIQUE : la fenêtre réelle ne descend pas plus que les seuils. */
 const QI_EXPIRED = 'Temps écoulé — recommence le test.'
+
+/** Les trois colonnes d'épreuve écrites UNE fois par tentative (QI, frappe, connexion). */
+type OnceColumn = 'qi_score' | 'typing' | 'connection_mbps'
+
+/**
+ * Écriture IDEMPOTENTE d'une épreuve : `.eq('status','en_cours').is(col, null)` rend l'update
+ * atomique — deux appels concurrents (double envoi, rejeu après une réponse HTTP perdue) ne peuvent
+ * pas se départager sur la meilleure valeur, la PREMIÈRE écriture fait foi.
+ *
+ * 0 ligne touchée n'est donc pas forcément une erreur : si la valeur est déjà en base, c'est la
+ * course perdue contre l'autre appel — un SUCCÈS du point de vue du candidat (refuser
+ * l'enfermerait sur un « Réessayer » qui ne peut jamais aboutir). Ce n'est une vraie panne que si
+ * rien n'est persisté ET que la tentative est encore ouverte : là on lève, pour que l'épreuve ne
+ * disparaisse pas en silence.
+ */
+async function writeOnce(
+  admin: Admin,
+  attemptId: string,
+  column: OnceColumn,
+  patch: Database['public']['Tables']['recruit_attempts']['Update'],
+  lostLabel: string,
+): Promise<void> {
+  const { data, error } = await admin
+    .from('recruit_attempts')
+    .update(patch)
+    .eq('id', attemptId)
+    .eq('status', 'en_cours')
+    .is(column, null)
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (data.length > 0) return
+  const persisted: Attempt = await loadAttempt(admin, attemptId)
+  if (persisted[column] !== null) return
+  requireInProgress(persisted)
+  throw new Error(`${lostLabel} perdue sur la tentative ${attemptId}`)
+}
 
 /**
  * Fin de la fenêtre pendant laquelle une correction QI est encore acceptée : 5 questions
@@ -78,7 +115,7 @@ export async function startAttempt(raw: unknown): Promise<ActionResult<StartedAt
       if (!config.open) throw new BusinessError(CLOSED)
 
       const ip = await clientIp()
-      if (await isBlocked(admin, { device: d.device, ip })) throw new BusinessError(BLOCKED)
+      if (await anyBlocklistMatch(admin, [['device', d.device], ['ip', ip]])) throw new BusinessError(BLOCKED)
       await enforceIpRateLimit(admin, ip)
 
       const persona = RECRUIT_PERSONA_NAMES[randomInt(0, RECRUIT_PERSONA_NAMES.length)]
@@ -108,8 +145,7 @@ export async function startAttempt(raw: unknown): Promise<ActionResult<StartedAt
 /**
  * QI — la correction est SERVEUR (anti-triche, spec §2) : le client n'envoie que les index choisis,
  * comparés à la clé tirée pour CETTE tentative. `null` (temps écoulé) compte faux, comme GLA.
- * Une seule correction par tentative : le `.is('qi_score', null)` de l'update rend l'écriture
- * atomique — deux appels concurrents ne peuvent pas se départager sur le meilleur score.
+ * Une seule correction par tentative (`writeOnce`).
  *
  * Le CHRONO est vérifié ici aussi (`qiDeadlineMs`) : côté client il ne tient qu'à l'échéance
  * persistée dans `sessionStorage`, que rien n'empêche de repousser. Le score n'est RIEN rendu au
@@ -122,7 +158,8 @@ export async function saveQi(raw: unknown): Promise<ActionResult<void>> {
     guard: noGuard,
     handler: async (d): Promise<void> => {
       const admin = createAdminClient()
-      const attempt = await loadAttempt(admin, d.attemptId)
+      // Deux lectures indépendantes → en parallèle (l'ordre des VÉRIFICATIONS ne change pas).
+      const [attempt, config] = await Promise.all([loadAttempt(admin, d.attemptId), readConfig(admin)])
       requireInProgress(attempt)
       // REJEU d'une correction DÉJÀ commitée (réponse HTTP perdue, rechargement pendant la
       // requête) : c'est un succès, et il est servi AVANT le chrono — un rejeu tardif d'un envoi
@@ -130,29 +167,10 @@ export async function saveQi(raw: unknown): Promise<ActionResult<void>> {
       // foi, celle qu'on vient de recevoir est ignorée (anti-rejeu : pas de second passage pour
       // un meilleur score).
       if (attempt.qi_score !== null) return
-
-      const config = await readConfig(admin)
       if (Date.now() > qiDeadlineMs(attempt.created_at, config.qiTimer)) throw new BusinessError(QI_EXPIRED)
 
       const qiScore = gradeQi(toAnswerKey(attempt.qi_answers), d.answers)
-      const { data, error } = await admin
-        .from('recruit_attempts')
-        .update({ qi_score: qiScore })
-        .eq('id', attempt.id)
-        .eq('status', 'en_cours')
-        .is('qi_score', null)
-        .select('id')
-      if (error) throw new Error(error.message)
-      if (data.length === 0) {
-        const persisted = await loadAttempt(admin, attempt.id)
-        // Score déjà en base = course perdue contre une correction concurrente (double envoi
-        // parti avant que la première réponse revienne). C'est un succès, pas un cul-de-sac :
-        // refuser enfermerait le candidat sur un « Réessayer » qui ne peut jamais aboutir. La
-        // valeur PERSISTÉE, celle qui servira au verdict, est celle de l'autre appel.
-        if (persisted.qi_score !== null) return
-        requireInProgress(persisted)
-        throw new Error(`Correction QI perdue sur la tentative ${attempt.id}`)
-      }
+      await writeOnce(admin, attempt.id, 'qi_score', { qi_score: qiScore }, 'Correction QI')
     },
   })
 }
@@ -171,20 +189,13 @@ export async function saveTyping(raw: unknown): Promise<ActionResult<void>> {
       const admin = createAdminClient()
       const attempt = await loadAttempt(admin, d.attemptId)
       requireInProgress(attempt)
-      const { data, error } = await admin
-        .from('recruit_attempts')
-        .update({ typing: { wpm: d.wpm, accuracy: d.accuracy, seconds: d.seconds } })
-        .eq('id', attempt.id)
-        .eq('status', 'en_cours')
-        .is('typing', null)
-        .select('id')
-      if (error) throw new Error(error.message)
-      if (data.length === 0) {
-        const persisted = await loadAttempt(admin, attempt.id)
-        if (persisted.typing !== null) return
-        requireInProgress(persisted)
-        throw new Error(`Mesure de frappe perdue sur la tentative ${attempt.id}`)
-      }
+      await writeOnce(
+        admin,
+        attempt.id,
+        'typing',
+        { typing: { wpm: d.wpm, accuracy: d.accuracy, seconds: d.seconds } },
+        'Mesure de frappe',
+      )
     },
   })
 }
@@ -199,20 +210,7 @@ export async function saveConnection(raw: unknown): Promise<ActionResult<void>> 
       const admin = createAdminClient()
       const attempt = await loadAttempt(admin, d.attemptId)
       requireInProgress(attempt)
-      const { data, error } = await admin
-        .from('recruit_attempts')
-        .update({ connection_mbps: Math.round(d.mbps * 10) / 10 })
-        .eq('id', attempt.id)
-        .eq('status', 'en_cours')
-        .is('connection_mbps', null)
-        .select('id')
-      if (error) throw new Error(error.message)
-      if (data.length === 0) {
-        const persisted = await loadAttempt(admin, attempt.id)
-        if (persisted.connection_mbps !== null) return
-        requireInProgress(persisted)
-        throw new Error(`Mesure de connexion perdue sur la tentative ${attempt.id}`)
-      }
+      await writeOnce(admin, attempt.id, 'connection_mbps', { connection_mbps: Math.round(d.mbps * 10) / 10 }, 'Mesure de connexion')
     },
   })
 }
@@ -233,20 +231,20 @@ export async function submitCandidate(raw: unknown): Promise<ActionResult<Submit
     guard: noGuard,
     handler: async (d): Promise<SubmitResult> => {
       const admin = createAdminClient()
-      const attempt = await loadAttempt(admin, d.attemptId)
+      // Deux lectures indépendantes → en parallèle (l'ordre des VÉRIFICATIONS ne change pas).
+      const [attempt, config] = await Promise.all([loadAttempt(admin, d.attemptId), readConfig(admin)])
       if (attempt.status === 'soumise') throw new BusinessError(ALREADY_SENT)
       if (attempt.status !== 'notee') {
         throw new BusinessError(attempt.status === 'en_cours' ? STEPS_MISSING : ATTEMPT_OVER)
       }
 
       // « Un seul essai », volet SOUMISSION : e-mail et Discord (device/IP l'ont été à l'entrée).
-      if (await isIdentityBlocked(admin, { email: d.email, discord: d.discord })) throw new BusinessError(BLOCKED)
+      if (await anyBlocklistMatch(admin, [['email', d.email], ['discord', d.discord]])) throw new BusinessError(BLOCKED)
 
       // 2e passage : l'e-mail porte déjà un dossier. On n'interdit pas — on marque, l'agence tranche.
       const { data: previous, error: pErr } = await admin.from('recruit_candidates').select('id').eq('email', d.email).limit(1)
       if (pErr) throw new Error(pErr.message)
 
-      const config = await readConfig(admin)
       const typing = toTyping(attempt.typing)
       const { qi_score: qi, connection_mbps: mbps, orthographe, coherence, relance, vente, bot_total: botTotal } = attempt
       if (qi === null || mbps === null || orthographe === null || coherence === null || relance === null || vente === null || botTotal === null) {
@@ -266,6 +264,11 @@ export async function submitCandidate(raw: unknown): Promise<ActionResult<Submit
         last_name: d.lastName,
         email: d.email,
         discord: d.discord,
+        age: d.age,
+        location: d.location,
+        phone: d.phone,
+        shifts: d.shifts,
+        source: d.source,
         qi_score: qi,
         typing_wpm: typing.wpm,
         connection_mbps: mbps,

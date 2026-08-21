@@ -33,7 +33,7 @@ export function PlayButton({
           }
           if (r.data.resumed) toast.info('Tu as déjà une session en cours — on la reprend')
           // `as Route` : `typedRoutes` n'accepte pas une string interpolée pour un segment dynamique
-          // (même patron que `module-tabs.tsx`).
+          // (même patron que `url-tabs.tsx`).
           router.push(`/formation/session/${r.data.sessionId}` as Route)
         })
       }

@@ -1,6 +1,6 @@
+import { UrlTabs } from '@/components/url-tabs'
 import { CasesList } from './components/cases-list'
 import { CourseView } from './components/course-view'
-import { ModuleTabs } from './components/module-tabs'
 import type { MyBest } from './services/get-my-bests'
 import type { ModuleDetail, ModuleVue } from './types'
 
@@ -22,11 +22,17 @@ export function ModuleTemplate({
   return (
     <div className="flex flex-col gap-6">
       {module.description && <p className="-mt-4 max-w-prose text-sm text-muted-foreground">{module.description}</p>}
-      <ModuleTabs
-        vue={vue}
-        casCount={module.cases.length}
-        cours={<CourseView courseMd={module.courseMd} />}
-        cas={<CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} />}
+      <UrlTabs
+        value={vue}
+        defaultValue="cours"
+        items={[
+          { value: 'cours', label: 'Cours', content: <CourseView courseMd={module.courseMd} /> },
+          {
+            value: 'cas',
+            label: `Cas (${module.cases.length})`,
+            content: <CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} />,
+          },
+        ]}
       />
     </div>
   )

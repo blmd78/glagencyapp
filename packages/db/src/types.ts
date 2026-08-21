@@ -2075,6 +2075,7 @@ export type Database = {
       }
       recruit_candidates: {
         Row: {
+          age: number | null
           attempt_id: string
           bot_total: number
           coherence: number
@@ -2086,8 +2087,10 @@ export type Database = {
           global: number
           id: string
           last_name: string
+          location: string | null
           orthographe: number
           passed: boolean
+          phone: string | null
           profile_id: string | null
           qi_score: number
           refusal_reason: string | null
@@ -2096,11 +2099,14 @@ export type Database = {
           repeat: boolean
           reviewed_at: string | null
           reviewed_by: string | null
+          shifts: string[] | null
+          source: string | null
           status: string
           typing_wpm: number
           vente: number
         }
         Insert: {
+          age?: number | null
           attempt_id: string
           bot_total: number
           coherence: number
@@ -2112,8 +2118,10 @@ export type Database = {
           global: number
           id?: string
           last_name: string
+          location?: string | null
           orthographe: number
           passed: boolean
+          phone?: string | null
           profile_id?: string | null
           qi_score: number
           refusal_reason?: string | null
@@ -2122,11 +2130,14 @@ export type Database = {
           repeat?: boolean
           reviewed_at?: string | null
           reviewed_by?: string | null
+          shifts?: string[] | null
+          source?: string | null
           status?: string
           typing_wpm: number
           vente: number
         }
         Update: {
+          age?: number | null
           attempt_id?: string
           bot_total?: number
           coherence?: number
@@ -2138,8 +2149,10 @@ export type Database = {
           global?: number
           id?: string
           last_name?: string
+          location?: string | null
           orthographe?: number
           passed?: boolean
+          phone?: string | null
           profile_id?: string | null
           qi_score?: number
           refusal_reason?: string | null
@@ -2148,6 +2161,8 @@ export type Database = {
           repeat?: boolean
           reviewed_at?: string | null
           reviewed_by?: string | null
+          shifts?: string[] | null
+          source?: string | null
           status?: string
           typing_wpm?: number
           vente?: number

@@ -2,12 +2,12 @@
 
 import { useFieldArray, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { CaseFormValues, CaseInput } from '../schema'
-import { FieldError } from './field-error'
 
 export const emptyFan = (): CaseFormValues['fans'][number] => ({
   name: '', age: '', job: '', city: '', color: '', persona: '', openingMessage: '',

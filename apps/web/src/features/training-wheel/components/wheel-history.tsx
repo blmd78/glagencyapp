@@ -29,7 +29,7 @@ export function WheelHistory({ history }: { history: WheelHistoryData }) {
                 — {w.count} tirage{w.count > 1 ? 's' : ''}, {eur(w.totalEur)}
               </span>
             </summary>
-            <div className="mt-3 overflow-x-auto rounded-md border">
+            <div className="mt-3 rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>

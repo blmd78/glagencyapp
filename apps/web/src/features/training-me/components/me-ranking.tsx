@@ -21,7 +21,7 @@ function GlobalTable({ rows, myProfileId }: { rows: RankRow[]; myProfileId: stri
     return <p className="text-sm text-muted-foreground">Personne n’a encore de résultat.</p>
   }
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -61,7 +61,7 @@ function WeeklyTable({ rows, myProfileId }: { rows: WeeklyRankRow[]; myProfileId
   }
   return (
     <div className="flex flex-col gap-3">
-      <div className="overflow-x-auto rounded-md border">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>

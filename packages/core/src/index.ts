@@ -34,6 +34,7 @@ export {
   frWeekdayDate,
   frDateNumeric,
   frDateTimeParis,
+  frDateTimeLongParis,
   frDayMonthParis,
   frTimeShort,
   startOfMonth,
@@ -99,37 +100,32 @@ export {
 export { rankSetters, type SetterRank, type SetterScaleRow } from './compta/setter-rank'
 export {
   MEDAL_OR,
-  MEDAL_ARGENT,
   MEDAL_BRONZE,
   BOSS_UNLOCK_AVG,
+  BOSS_PASS,
+  OBJECTIVE_CAP,
   medalFor,
   bossUnlocked,
   moduleProgress,
-  TROPHIES,
   computeTrophies,
   effectiveStreak,
 } from './training/rules'
-export type { Medal, ModuleProgress, Trophy, TrophyInput } from './training/rules'
+export type { Medal, ModuleProgress, Trophy } from './training/rules'
 export {
   pickWeighted,
   lastCompletedWeek,
   wheelWeekLabel,
   WHEEL_TOP_N,
-  WHEEL_DEFAULT_SECTORS,
-  WHEEL_DEFAULT_PRIZES,
 } from './training/wheel'
 export type { WheelSector, WheelPrize } from './training/wheel'
 export {
-  RECRUIT_DEFAULTS,
   pickQiQuestions,
   gradeQi,
   computeVerdict,
 } from './recruit/rules'
 export type {
-  QiVariant,
   QiSlot,
   QiQuestion,
   RecruitConfig,
   Verdict,
-  VerdictInput,
 } from './recruit/rules'

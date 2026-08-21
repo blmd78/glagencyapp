@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { MessageBubble } from '@/components/training/message-bubble'
 import type { SessionMessage } from '../types'
-import { MessageBubble } from './message-bubble'
 
 /**
  * Les messages RÉVÉLÉS d'une conversation (le filtre `visibleAt` est fait par `ThreadPanel`) :

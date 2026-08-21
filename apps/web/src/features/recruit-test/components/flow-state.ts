@@ -15,7 +15,6 @@
 // restent serveur) — le verdict stocké est celui que le serveur a déjà rendu, sans chiffre.
 
 import { z } from 'zod'
-import type { QiQuestion } from '@glagency/core'
 import type { SubmitResult } from '../types'
 
 /** Clé de session : le parcours en cours. Effacée à l'écran final. */
@@ -25,43 +24,19 @@ const RESULT_KEY = 'recrutement-resultat'
 /** Clé PERSISTANTE (localStorage) : identifie le navigateur pour la blocklist « un seul essai ». */
 const DEVICE_KEY = 'recrutement-device'
 
-/** Un message de la conversation avec le client IA, côté affichage. */
-export type ChatMessage = {
-  speaker: 'candidat' | 'client'
-  body: string
-  /** Renseigné quand le message est un média verrouillé envoyé par le candidat. */
-  mediaPrice?: number
-}
-
-/** Les étapes qui ont une tentative derrière elles (l'intro et l'écran final n'en ont pas). */
-export type FlowStep = 'qi' | 'typing' | 'connection' | 'bot' | 'identity'
-
-export type FlowState = {
-  attemptId: string
-  step: FlowStep
-  persona: string
-  /** Les 5 questions tirées par le serveur — SANS la bonne réponse. */
-  qi: QiQuestion[]
-  typingText: string
-  qiTimer: number
-  botMessages: number
-  answers: (number | null)[]
-  chat: ChatMessage[]
-  /**
-   * Échéance ABSOLUE (ms epoch) de la question QI en cours — persistée avec les réponses, sinon un
-   * F5 rendrait 30 s neuves à chaque question, autant de fois que voulu. `null` = pas de question
-   * en cours (avant l'épreuve, ou session ouverte avant que ce champ existe).
-   */
-  qiDeadline: number | null
-}
-
 // Le sessionStorage est éditable à la main : ce qu'on relit est du JSON hostile, pas notre état.
 // Une forme invalide n'est pas rattrapable (on ne sait pas où en est le candidat) → on efface et
 // on repart de l'intro, ce qui est sans risque : la tentative abandonnée reste côté serveur.
+//
+// Ce schéma est la SEULE description de l'état persisté : `FlowState` en est déduit (`z.infer`).
+// Le redéclarer à la main laissait deux formes dériver l'une de l'autre en silence — un champ
+// ajouté au type sans l'être au schéma se serait fait effacer à la relecture, sans erreur.
 const storedFlow = z.object({
   attemptId: z.uuid(),
+  /** Les étapes qui ont une tentative derrière elles (l'intro et l'écran final n'en ont pas). */
   step: z.enum(['qi', 'typing', 'connection', 'bot', 'identity']),
   persona: z.string(),
+  /** Les 5 questions tirées par le serveur — SANS la bonne réponse (`QiQuestion` de core). */
   qi: z.array(z.object({ slot: z.string(), q: z.string(), opts: z.array(z.string()) })),
   typingText: z.string(),
   qiTimer: z.number(),
@@ -71,25 +46,38 @@ const storedFlow = z.object({
     z.object({
       speaker: z.enum(['candidat', 'client']),
       body: z.string(),
+      /** Renseigné quand le message est un média verrouillé envoyé par le candidat. */
       mediaPrice: z.number().optional(),
     }),
   ),
-  // Absent = session ouverte AVANT le chrono persisté : `null`, et `readFlow` en fabrique une
-  // neuve ci-dessous. Une échéance dans le passé, elle, fait expirer la question en cours.
+  /**
+   * Échéance ABSOLUE (ms epoch) de la question QI en cours — persistée avec les réponses, sinon un
+   * F5 rendrait 30 s neuves à chaque question, autant de fois que voulu. `null` = pas de question
+   * en cours (avant l'épreuve). Absent = session ouverte AVANT que ce champ existe : `null`, et
+   * `readFlow` en fabrique une neuve ci-dessous. Une échéance dans le passé, elle, fait expirer la
+   * question en cours.
+   */
   qiDeadline: z.number().nullable().default(null),
 })
+
+export type FlowState = z.infer<typeof storedFlow>
+export type FlowStep = FlowState['step']
+/** Un message de la conversation avec le client IA, côté affichage. */
+export type ChatMessage = FlowState['chat'][number]
 
 /**
  * Le verdict tel qu'il est relu après un rechargement. Même règle que le parcours : du JSON hostile
  * jusqu'à preuve du contraire — une forme invalide est effacée, l'écran repart de l'intro (le
- * serveur, lui, refusera une 2e soumission).
+ * serveur, lui, refusera une 2e soumission). `satisfies z.ZodType<SubmitResult>` : la forme relue
+ * est vérifiée par le compilateur contre le contrat de `submitCandidate`, elle ne peut plus en
+ * diverger sans erreur de build.
  */
 const storedResult = z.object({
   passed: z.boolean(),
   refusalStep: z.string().nullable(),
   refusalReason: z.string().nullable(),
   discordLink: z.string().nullable(),
-})
+}) satisfies z.ZodType<SubmitResult>
 
 /** Parcours en cours, ou `null` (rien de stocké, stockage indisponible, ou contenu corrompu). */
 export function readFlow(): FlowState | null {

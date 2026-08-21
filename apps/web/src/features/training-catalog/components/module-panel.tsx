@@ -20,9 +20,9 @@ export function ModulePanel({
   onEditCase,
 }: {
   module: CatalogModule
-  onEdit?: () => void
-  onCreateCase?: () => void
-  onEditCase?: (c: CatalogCase) => void
+  onEdit: () => void
+  onCreateCase: () => void
+  onEditCase: (c: CatalogCase) => void
 }) {
   const [pending, startTransition] = useTransition()
   const toggle = () =>
@@ -50,16 +50,12 @@ export function ModulePanel({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {onEdit && (
-            <Button type="button" variant="outline" size="sm" onClick={onEdit}>Éditer le module</Button>
-          )}
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>Éditer le module</Button>
           <Button type="button" variant="outline" size="sm" disabled={pending} onClick={toggle}>
             {module.active ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
             {module.active ? 'Désactiver' : 'Activer'}
           </Button>
-          {onCreateCase && (
-            <Button type="button" size="sm" onClick={onCreateCase}>Nouveau cas</Button>
-          )}
+          <Button type="button" size="sm" onClick={onCreateCase}>Nouveau cas</Button>
         </div>
       </div>
       <CasesTable module={module} onEdit={onEditCase} />

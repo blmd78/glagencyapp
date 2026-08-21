@@ -8,6 +8,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { WheelSector } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -17,16 +18,6 @@ import { saveWheelConfig } from '../actions'
 import { wheelConfigForm, type WheelConfigFormValues, type WheelConfigInput } from '../schema'
 import type { WheelConfig } from '../types'
 import { WheelSvg } from './wheel-svg'
-
-/** Message d'erreur de champ — même rendu que les autres dialogs (Membres, Catalogue). */
-function FieldError({ message }: { message?: string }) {
-  if (!message) return null
-  return (
-    <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-      {message}
-    </p>
-  )
-}
 
 /** Un poids saisi (`unknown` : l'input rend une chaîne, Zod coerce) → nombre affichable. */
 const asWeight = (v: unknown) => {

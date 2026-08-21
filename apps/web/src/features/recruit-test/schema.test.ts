@@ -109,6 +109,9 @@ describe('sendToBotInput', () => {
 })
 
 describe('submitCandidateInput', () => {
+  // Profil 0127 valide (âge/localisation/téléphone/shifts/source sont REQUIS depuis leur ajout).
+  const PROFILE = { age: '22', location: 'Paris, France', phone: '06 12 34 56 78', shifts: ['Matin (5h–13h)'], source: 'par un ami' }
+
   it('normalise l’identité : trim partout, e-mail et Discord en MINUSCULES (0126)', () => {
     const r = submitCandidateInput.safeParse({
       attemptId: UUID,
@@ -116,6 +119,7 @@ describe('submitCandidateInput', () => {
       lastName: ' Martin  ',
       email: '  Lea.Martin@Gmail.COM ',
       discord: '  LeaM#1234 ',
+      ...PROFILE,
     })
     expect(r.success).toBe(true)
     if (r.success) {
@@ -124,21 +128,32 @@ describe('submitCandidateInput', () => {
       // sans ce lower(), la blocklist « un seul essai » ne matcherait jamais le 2e passage
       expect(r.data.email).toBe('lea.martin@gmail.com')
       expect(r.data.discord).toBe('leam#1234')
+      // La chaîne du formulaire devient l'entier de la colonne (check 18..99, 0127).
+      expect(r.data.age).toBe(22)
     }
   })
 
+  it('profil 0127 : refuse un mineur (message GLA), un âge non numérique, aucun shift, une source vide', () => {
+    const base = { attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', ...PROFILE }
+    expect(fieldErrors(submitCandidateInput.safeParse({ ...base, age: '17' })).age).toContain('Tu dois être majeur (18 ans ou plus) pour postuler.')
+    expect(submitCandidateInput.safeParse({ ...base, age: 'vingt' }).success).toBe(false)
+    expect(submitCandidateInput.safeParse({ ...base, shifts: [] }).success).toBe(false)
+    expect(submitCandidateInput.safeParse({ ...base, shifts: ['Soir (18h–2h)'] }).success).toBe(false)
+    expect(submitCandidateInput.safeParse({ ...base, source: ' ' }).success).toBe(false)
+  })
+
   it('Discord absent ou vide → null (le check SQL veut 1..60 ou NULL, pas la chaîne vide)', () => {
-    const absent = submitCandidateInput.safeParse({ attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr' })
+    const absent = submitCandidateInput.safeParse({ attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', ...PROFILE })
     expect(absent.success).toBe(true)
     if (absent.success) expect(absent.data.discord).toBeNull()
 
-    const vide = submitCandidateInput.safeParse({ attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', discord: '   ' })
+    const vide = submitCandidateInput.safeParse({ attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', discord: '   ', ...PROFILE })
     expect(vide.success).toBe(true)
     if (vide.success) expect(vide.data.discord).toBeNull()
   })
 
   it('refuse un e-mail invalide, une identité vide ou trop longue, un Discord > 60', () => {
-    const base = { attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr' }
+    const base = { attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', ...PROFILE }
     expect(fieldErrors(submitCandidateInput.safeParse({ ...base, email: 'pas-un-email' })).email).toContain('Email invalide')
     expect(fieldErrors(submitCandidateInput.safeParse({ ...base, firstName: '   ' })).firstName).toContain('Prénom requis')
     expect(fieldErrors(submitCandidateInput.safeParse({ ...base, lastName: '' })).lastName).toContain('Nom requis')

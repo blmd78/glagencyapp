@@ -1,5 +1,5 @@
+import { MessageBubble } from '@/components/training/message-bubble'
 import type { SessionThread } from '../types'
-import { MessageBubble } from './message-bubble'
 
 /**
  * Transcription intégrale d'une conversation TERMINÉE (aucun message caché : contrairement à

@@ -15,7 +15,7 @@ export function MySpins({ spins }: { spins: MySpin[] }) {
       {spins.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aucun tirage pour l’instant.</p>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
+        <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>

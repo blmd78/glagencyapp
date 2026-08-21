@@ -1,4 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk'
+import { OBJECTIVE_CAP } from '@glagency/core'
 import { isFaultCode, type FaultCode, type MessageSpeaker } from '@/lib/types/training'
 
 /**
@@ -166,13 +167,13 @@ BANDES GLOBALES à viser : 90-100 = passage exemplaire (rare) ; 78-89 = bon ; 65
 Tu évalues UNIQUEMENT les messages du chatteur (qui joue la créatrice), jamais ceux du fan. Le style SMS, les fautes d'orthographe, un ton direct ou cru, les emojis, une conversation courte : ce ne sont PAS des fautes (retire 1 point AU MAXIMUM, et seulement si c'est vraiment illisible). La sévérité porte sur la TECHNIQUE, pas sur l'écriture.
 En cas de doute sur un axe, reste EXIGEANT : n'accorde pas le maximum par défaut.
 
-OBJECTIF : détermine si l'objectif concret du cas est RÉELLEMENT atteint (pas juste 'l'esprit'). S'il N'EST PAS atteint, renseigne "plafond": 65 (la note globale ne pourra pas dépasser 65 même si les axes semblent propres).
+OBJECTIF : détermine si l'objectif concret du cas est RÉELLEMENT atteint (pas juste 'l'esprit'). S'il N'EST PAS atteint, renseigne "plafond": ${OBJECTIVE_CAP} (la note globale ne pourra pas dépasser ${OBJECTIVE_CAP} même si les axes semblent propres).
 
 SOIS SYNTHÉTIQUE ET RAPIDE : phrases courtes, va à l'essentiel, ne délaye pas. Chaque champ texte doit rester bref.
 DÉBRIEF = REPRISE DE LA CONVERSATION (le cœur du retour). Tu reprends le fil et tu pointes 2 à 3 MOMENTS PRÉCIS (jamais plus de 3), chacun sur un message DIFFÉRENT du chatteur, en priorité là où il a perdu des points. Pour chaque moment : cite MOT POUR MOT ce qu'il a écrit, dis en une phrase ce qui ne va pas, puis donne un INDICE — une PISTE, le levier ou le principe à activer (ex : 'rebondis sur ce qu'il vient de confier', 'chauffe avant de vendre', 'tiens ton prix sans te justifier'). NE DONNE JAMAIS le message tout fait ni une phrase à copier-coller : il doit trouver la formulation LUI-MÊME. NE RÉPÈTE JAMAIS deux fois le même reproche. Si le passage est très bon, mets moins de moments et souligne un bon coup.
 VÉRIFIE LES FAITS AVANT CHAQUE REPROCHE (règle absolue) : relis mot pour mot les messages du chatteur AVANT de lui reprocher une omission. Ne lui reproche JAMAIS de ne pas avoir fait une chose qu'il a RÉELLEMENT faite. Exemple concret : s'il a écrit le prénom du fan (ex : 'ravie de faire ta connaissance Kevin'), il est INTERDIT de lui reprocher de ne pas avoir repris/réutilisé le prénom — il l'a fait. De même s'il a posé une question, rebondi sur une info, etc. Le champ "probleme" d'un moment doit être STRICTEMENT COHÉRENT avec le texte du champ "cite".
 
-Renseigne le résultat selon le schéma fourni : un entier 0-25 par axe, "total" = la somme des axes (sur 100) en respectant tout plafond applicable, "objectif_atteint", "plafond" (65 si l'objectif n'est pas atteint, sinon omis), "moments" (2 à 3, chaque "cite" DOIT être un vrai extrait d'un message du chatteur (créatrice), jamais une invention ni un message du fan ; "type" = "bad" si ce moment coûte des points, "good" si c'est un bon coup ; "indice" = une PISTE pour corriger si bad, vide si good), "commentaire" (3 phrases MAXIMUM, concises : (1) ce qui a été bien joué, (2) LE point principal à corriger et pourquoi ça compte (effet sur le fan ou la vente) + la PISTE pour progresser (le principe, jamais le message tout fait), (3) une phrase d'encouragement. Ne recopie pas les moments).`
+Renseigne le résultat selon le schéma fourni : un entier 0-25 par axe, "total" = la somme des axes (sur 100) en respectant tout plafond applicable, "objectif_atteint", "plafond" (${OBJECTIVE_CAP} si l'objectif n'est pas atteint, sinon omis), "moments" (2 à 3, chaque "cite" DOIT être un vrai extrait d'un message du chatteur (créatrice), jamais une invention ni un message du fan ; "type" = "bad" si ce moment coûte des points, "good" si c'est un bon coup ; "indice" = une PISTE pour corriger si bad, vide si good), "commentaire" (3 phrases MAXIMUM, concises : (1) ce qui a été bien joué, (2) LE point principal à corriger et pourquoi ça compte (effet sur le fan ou la vente) + la PISTE pour progresser (le principe, jamais le message tout fait), (3) une phrase d'encouragement. Ne recopie pas les moments).`
 }
 
 export type BossScoreContext = { name: string; persona: string; budgetCap: number | null; negoWhere: string | null; meetWhen: string | null }

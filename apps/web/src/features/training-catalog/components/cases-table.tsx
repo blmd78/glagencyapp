@@ -16,7 +16,7 @@ import type { CatalogCase, CatalogModule } from '../types'
  * Actions par ligne : Éditer (dialog, Task 9), Dupliquer (copie inactive en fin de module),
  * Activer/Désactiver, ↑↓. Un solo joué dans un défi refuse la désactivation (message de l'action).
  */
-export function CasesTable({ module, onEdit }: { module: CatalogModule; onEdit?: (c: CatalogCase) => void }) {
+export function CasesTable({ module, onEdit }: { module: CatalogModule; onEdit: (c: CatalogCase) => void }) {
   const [pending, startTransition] = useTransition()
   const sectionTitle = new Map(module.sections.map((s) => [s.id, s.title]))
   const run = (fn: () => Promise<{ success: boolean; error?: string }>, ok?: string) =>
@@ -30,7 +30,7 @@ export function CasesTable({ module, onEdit }: { module: CatalogModule; onEdit?:
     return <p className="text-sm text-muted-foreground">Aucun cas dans ce module.</p>
   }
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -63,11 +63,9 @@ export function CasesTable({ module, onEdit }: { module: CatalogModule; onEdit?:
               <TableCell className="text-center tabular-nums">{c.maxTurns}</TableCell>
               <TableCell>
                 <div className="flex items-center justify-end gap-0.5">
-                  {onEdit && (
-                    <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={`Éditer ${c.title}`} onClick={() => onEdit(c)}>
-                      <Pencil className="size-3.5" />
-                    </Button>
-                  )}
+                  <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={`Éditer ${c.title}`} onClick={() => onEdit(c)}>
+                    <Pencil className="size-3.5" />
+                  </Button>
                   <Button type="button" variant="ghost" size="icon" className="size-7" aria-label={`Dupliquer ${c.title}`} disabled={pending}
                     onClick={() => run(() => duplicateCase({ id: c.id }), 'Cas dupliqué (inactif, en fin de module)')}>
                     <Copy className="size-3.5" />

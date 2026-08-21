@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import type { z } from 'zod'
 import { ActionButton } from '@/components/action-button'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -21,7 +22,6 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { reportScore } from '../actions-lifecycle'
 import { reportInput } from '../schema'
-import { FieldError } from './field-error'
 
 const reportFields = reportInput.pick({ message: true })
 type ReportFields = z.infer<typeof reportFields>

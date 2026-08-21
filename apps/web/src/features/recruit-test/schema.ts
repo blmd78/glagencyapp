@@ -83,6 +83,12 @@ export const scoreAttemptInput = z.object({ attemptId })
  * déclaration pour les deux — un resolver client qui diverge des bornes serveur laisse passer une
  * saisie que l'action refuse ensuite, sans que le candidat sache pourquoi.
  */
+/**
+ * Shifts proposés au candidat — libellés GLA repris tels quels (stockés en clair dans
+ * `recruit_candidates.shifts`, la liste fermée est validée ici, pas en SQL).
+ */
+export const RECRUIT_SHIFTS = ['Matin (5h–13h)', 'Après-midi (13h–21h)', 'Nuit (21h–5h)'] as const
+
 export const identityForm = z.object({
   firstName: z.string().trim().min(1, 'Prénom requis').max(60, '60 caractères max'),
   lastName: z.string().trim().min(1, 'Nom requis').max(60, '60 caractères max'),
@@ -90,6 +96,24 @@ export const identityForm = z.object({
   // chaîne validée), et un candidat qui colle son adresse en amène presque toujours un.
   email: z.string('Email invalide').trim().pipe(z.email('Email invalide').max(160, '160 caractères max')),
   discord: z.string().trim().max(60, '60 caractères max'),
+  // L'âge reste une CHAÎNE ici (RHF ne rend que du texte) — la conversion en nombre vit dans
+  // `submitCandidateInput`. Message du minimum = celui de GLA, mot pour mot.
+  age: z
+    .string()
+    .trim()
+    .min(1, 'Âge requis')
+    .regex(/^\d{1,3}$/, 'Âge invalide')
+    .refine((v) => Number(v) >= 18, 'Tu dois être majeur (18 ans ou plus) pour postuler.')
+    .refine((v) => Number(v) <= 99, 'Âge invalide'),
+  location: z.string().trim().min(2, 'Localisation requise').max(120, '120 caractères max'),
+  phone: z
+    .string()
+    .trim()
+    .min(6, 'Numéro requis')
+    .max(30, '30 caractères max')
+    .regex(/^[+0-9 ().-]+$/, 'Numéro invalide'),
+  shifts: z.array(z.enum(RECRUIT_SHIFTS)).min(1, 'Choisis au moins un shift').max(RECRUIT_SHIFTS.length, 'Trop de shifts'),
+  source: z.string().trim().min(2, 'Dis-nous comment tu as connu l’agence').max(500, '500 caractères max'),
 })
 
 /** Valeurs du formulaire d'identité (RHF) — Discord optionnel arrive en chaîne vide, pas en null. */
@@ -105,4 +129,6 @@ export const submitCandidateInput = identityForm.extend({
   attemptId,
   email: identityForm.shape.email.transform((v) => v.toLowerCase()),
   discord: identityForm.shape.discord.optional().transform((v) => (v ? v.toLowerCase() : null)),
+  // La chaîne validée du formulaire devient l'entier de la colonne `age` (check 18..99, 0127).
+  age: identityForm.shape.age.transform(Number),
 })

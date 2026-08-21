@@ -1,8 +1,9 @@
 import 'server-only'
 import type Anthropic from '@anthropic-ai/sdk'
-import { anthropic, FAN_MODEL, SCORE_MODEL } from './client'
+import { anthropic, FAN_MODEL } from './client'
 import { RECRUIT_SCORE_SYSTEM, recruitBotSystem, recruitToMessages, recruitTranscript, type RecruitHistoryMessage, type RecruitPersonaName } from './recruit-prompts'
 import { recruitScoreJsonSchema, recruitScoreZod } from './recruit-schema'
+import { callStructured } from './score'
 
 export type RecruitUsage = { inputTokens: number; outputTokens: number }
 export type RecruitBotReply = { text: string; usage: RecruitUsage; ok: boolean }
@@ -39,29 +40,22 @@ export type RecruitScoreResult = {
 /**
  * Notation Sonnet structurée — GLA score_json(MODEL_SCORE, SCORE_SYSTEM, …, CAND_SCORE_SCHEMA) /
  * `/api/score` : sortie contrainte par recruitScoreJsonSchema, thinking adaptatif, timeout dédié
- * (une notation ne doit jamais pendre indéfiniment). `total` est RECALCULÉ ici (somme des 4 axes
- * déjà clampés par le Zod), jamais celui du modèle — comme GLA le refait lui-même côté serveur
- * après score_json (`data["total"] = data["orthographe"] + …`).
+ * (une notation ne doit jamais pendre indéfiniment). L'appel lui-même est celui de `lib/ai/score`
+ * (`callStructured`) — même modèle, même plafond de tokens, même timeout que la notation de
+ * l'entraînement ; seuls le système, le schéma et le préfixe du message user diffèrent (le préfixe
+ * est celui de GLA, « Transcription : », gardé mot pour mot). `total` est RECALCULÉ ici (somme des
+ * 4 axes déjà clampés par le Zod), jamais celui du modèle — comme GLA le refait lui-même côté
+ * serveur après score_json (`data["total"] = data["orthographe"] + …`).
  */
 export async function scoreRecruitTranscript(history: RecruitHistoryMessage[]): Promise<RecruitScoreResult> {
-  const res = await anthropic().messages.create(
-    {
-      model: SCORE_MODEL,
-      // 2500 : les tokens de réflexion adaptative comptent DANS max_tokens (plafond, pas dépense) —
-      // cf. lib/ai/score.ts (1500 coupait parfois la sortie structurée avant le JSON final).
-      max_tokens: 2500,
-      thinking: { type: 'adaptive' },
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: recruitScoreJsonSchema } },
-      system: RECRUIT_SCORE_SYSTEM,
-      messages: [{ role: 'user', content: `Transcription :\n\n${recruitTranscript(history)}` }],
-    },
-    { timeout: 60_000 },
+  const { json, usage: full } = await callStructured(
+    RECRUIT_SCORE_SYSTEM,
+    recruitTranscript(history),
+    recruitScoreJsonSchema,
+    'Transcription :',
   )
-  if (res.stop_reason === 'refusal') throw new Error('Notation refusée par le modèle')
-  if (res.stop_reason === 'max_tokens') throw new Error('Notation tronquée (max_tokens)')
-  const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('')
-  const usage: RecruitUsage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens }
-  const parsed = recruitScoreZod.parse(JSON.parse(text) as unknown)
+  const usage: RecruitUsage = { inputTokens: full.inputTokens, outputTokens: full.outputTokens }
+  const parsed = recruitScoreZod.parse(json)
   const total = parsed.orthographe + parsed.coherence + parsed.relance + parsed.vente
   return { orthographe: parsed.orthographe, coherence: parsed.coherence, relance: parsed.relance, vente: parsed.vente, total, usage }
 }

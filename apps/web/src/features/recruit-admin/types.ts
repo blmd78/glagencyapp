@@ -73,9 +73,18 @@ export interface CandidateRow {
   isMember: boolean
 }
 
+/** Compteurs EXACTS de la file (requêtes `count` dédiées — pas dérivés des lignes bornées à 500). */
+export interface RecruitKpis {
+  total: number
+  nouveau: number
+  valide: number
+  refuse: number
+}
+
 export interface CandidatesData {
   rows: CandidateRow[]
   gates: RecruitGates
+  kpis: RecruitKpis
 }
 
 /** Un message de la transcription serveur (`recruit_messages`, ordre = `position`). */
@@ -120,6 +129,15 @@ export interface BlockState {
 export interface CandidateFileData extends CandidateRow, BlockState {
   attempt: AttemptMeta
   messages: TranscriptMessage[]
+  /**
+   * Profil déclaré au formulaire de fin (0127) — `null` sur les dossiers soumis avant l'ajout
+   * de ces questions (la fiche affiche « — »). Fiche uniquement : la file n'en a pas besoin.
+   */
+  age: number | null
+  location: string | null
+  phone: string | null
+  shifts: string[] | null
+  source: string | null
 }
 
 /**

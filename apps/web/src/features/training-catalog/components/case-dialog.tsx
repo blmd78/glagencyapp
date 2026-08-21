@@ -5,6 +5,7 @@ import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -19,19 +20,20 @@ import type { CatalogCase, CatalogModule } from '../types'
 import { CaseFormArena } from './case-form-arena'
 import { CaseFormBoss, emptyFan } from './case-form-boss'
 import { CaseFormSolo } from './case-form-solo'
-import { FieldError } from './field-error'
 
 /** Un Select Radix refuse `value=""` → sentinelle pour « sans section » (guidelines §5, piège). */
 const NONE = 'none'
 
+// Les nombres partent en CHAÎNES : un `<input>` ne rend que du texte, et `requiredInt` refuse le
+// champ VIDÉ (un `0` silencieux) — même parti pris que le dialog de la Roue et la config du test.
 const emptyCase = (moduleId: string): CaseFormValues => ({
-  id: null, moduleId, kind: 'solo', sectionId: null, title: '', phase: '', difficulty: 3, maxTurns: 8, isSale: false,
+  id: null, moduleId, kind: 'solo', sectionId: null, title: '', phase: '', difficulty: '3', maxTurns: '8', isSale: false,
   context: '', objective: '', targetLine: '', fanName: '', fanBrief: '', expected: '', messages: [],
   reactionMaxS: '', slots: [], fans: [],
 })
 const toForm = (c: CatalogCase): CaseFormValues => ({
   id: c.id, moduleId: c.moduleId, kind: c.kind, sectionId: c.sectionId, title: c.title, phase: c.phase,
-  difficulty: c.difficulty, maxTurns: c.maxTurns, isSale: c.isSale, context: c.context, objective: c.objective,
+  difficulty: String(c.difficulty), maxTurns: String(c.maxTurns), isSale: c.isSale, context: c.context, objective: c.objective,
   targetLine: c.targetLine ?? '', fanName: c.fanName ?? '', fanBrief: c.fanBrief ?? '', expected: c.expected ?? '',
   messages: c.messages.map((m) => ({ speaker: m.speaker, body: m.body })),
   reactionMaxS: c.reactionMaxS ?? '',
@@ -88,7 +90,7 @@ export function CaseDialog({
     if (k !== 'solo' && getValues('messages').length) setValue('messages', [])
     if (k !== 'arena' && getValues('slots').length) setValue('slots', [])
     if (k !== 'boss' && getValues('fans').length) setValue('fans', [])
-    if (k !== 'solo' && (getValues('reactionMaxS') === '' || getValues('reactionMaxS') == null)) setValue('reactionMaxS', 120)
+    if (k !== 'solo' && (String(getValues('reactionMaxS')).trim() === '' || getValues('reactionMaxS') == null)) setValue('reactionMaxS', 120)
     if (k === 'arena' && getValues('slots').length !== 5) setValue('slots', emptySlots())
     if (k === 'boss' && getValues('fans').length === 0) setValue('fans', [emptyFan()])
   }

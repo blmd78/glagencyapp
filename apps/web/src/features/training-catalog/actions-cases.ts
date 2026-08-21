@@ -1,13 +1,13 @@
 'use server'
 
 // Server Actions des CAS du Catalogue — split de actions.ts (> 300 lignes) ; mêmes gardes :
-// requireCatalogAdmin en tête de handler, BusinessError, revalidation en finally.
+// requireAdminProfileLive en tête de handler, BusinessError, revalidation en finally.
 
 import { createClient } from '@/lib/supabase/server'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, requireAdminProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { slugify, uniqueSlug } from '@/lib/slug'
 import { caseForm, idInput, moveInput, toggleInput } from './schema'
-import { requireCatalogAdmin, revalidateCatalog, stampBy } from './actions-shared'
+import { revalidateCatalog, stampBy } from './actions-shared'
 import { assertArenaRefs, insertChildren } from './actions-cases-helpers'
 
 // ======================= CAS =======================
@@ -24,7 +24,7 @@ export async function saveCase(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const { data: mod, error: mErr } = await supabase.from('training_modules').select('id').eq('id', d.moduleId).maybeSingle()
       if (mErr) throw new Error(mErr.message)
@@ -114,7 +114,7 @@ export async function toggleCase(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id, active }) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const { data: cur, error } = await supabase.from('training_cases').select('id, kind').eq('id', id).maybeSingle()
       if (error) throw new Error(error.message)
@@ -147,7 +147,7 @@ export async function moveCase(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id, direction }) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const { data: cur, error } = await supabase.from('training_cases').select('id, module_id, position').eq('id', id).maybeSingle()
       if (error) throw new Error(error.message)
@@ -181,7 +181,7 @@ export async function duplicateCase(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id }) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const { data: src, error } = await supabase
         .from('training_cases')

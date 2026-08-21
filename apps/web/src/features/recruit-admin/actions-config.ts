@@ -2,11 +2,11 @@
 
 // Server Action de la CONFIG du test (`/formation/recrutement/config`, admin) — séparée des
 // actions de dossiers pour garder les deux fichiers courts. Même modèle d'écriture : garde
-// explicite (`requireRecruitAdmin`) puis service-role, cf. l'en-tête d'`actions.ts`.
+// explicite (`requireAdminProfileLive`) puis service-role, cf. l'en-tête d'`actions.ts`.
 
 import { createAdminClient } from '@glagency/db'
-import { noGuard, runAction, type ActionResult } from '@/lib/actions'
-import { requireRecruitAdmin, revalidateRecruit } from './actions-shared'
+import { noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { revalidateRecruit } from './actions-shared'
 import { configForm } from './schema'
 
 /**
@@ -27,7 +27,7 @@ export async function saveRecruitConfig(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (c) => {
-      const profile = await requireRecruitAdmin()
+      const profile = await requireAdminProfileLive()
       const admin = createAdminClient()
       const { error } = await admin.from('recruit_config').upsert({
         id: 1,

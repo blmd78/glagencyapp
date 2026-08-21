@@ -6,18 +6,9 @@ export type WheelPrize = { label: string; weight: number; amountEur: number | nu
 
 export const WHEEL_TOP_N = 3
 
-/** Défauts GLA (index.html WHEEL_DEFAULT / CHEST_DEFAULT), montants passés en euros. */
-export const WHEEL_DEFAULT_SECTORS: WheelSector[] = [
-  { label: 'Cadeau', weight: 80, lose: false },
-  { label: 'Raté', weight: 20, lose: true },
-]
-export const WHEEL_DEFAULT_PRIZES: WheelPrize[] = [
-  { label: '5 €', weight: 60, amountEur: 5 },
-  { label: '10 €', weight: 20, amountEur: 10 },
-  { label: 'Day off supplémentaire', weight: 5, amountEur: null },
-  { label: '20 €', weight: 5, amountEur: 20 },
-  { label: 'Donner 5 € à un membre de ton équipe', weight: 10, amountEur: 5 },
-]
+// (Les défauts GLA — roue Cadeau 80 / Raté 20 et les 5 lots du coffre — vivent en base : la seed de
+// la migration 0122 écrit la ligne unique `training_wheel_config`, que l'admin édite ensuite. Les
+// recopier ici en littéraux TS ne servait rien et faisait une seconde source de vérité.)
 
 /**
  * Tirage pondéré : `rand(n)` doit rendre un entier dans [0, n) (côté serveur : crypto.randomInt).

@@ -1,8 +1,9 @@
 'use server'
 
 // Fin de session / expiration / notation / chrono écoulé / signalement. Même garde que actions.ts
-// (droit Entraînement, propriétaire, pas d'impersonation — helpers dans actions-shared.ts). La
-// notation vit dans lib/services/training-scoring (partagée avec le rescore admin de l'Overview).
+// (droit Entraînement + refus d'impersonation via `requirePageProfileLive`, propriétaire via
+// `requireOwnSession` d'actions-shared.ts). La notation vit dans lib/services/training-scoring
+// (partagée avec le rescore admin de l'Overview).
 //
 // LECTURES avec le client utilisateur (RLS) ; ÉCRITURES en service-role (0121 : la RLS de
 // sessions/threads/messages/signalements est en lecture seule) — toujours après `requireOwnSession`
@@ -11,10 +12,11 @@
 import { revalidatePath } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
 import { createAdminClient } from '@glagency/db'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
-import { closeSessionIfNoOpenThread, requireOwnSession, requireTrainee, revalidateSession } from './actions-shared'
+import type { SessionStatus } from '@/lib/types/training'
+import { closeSessionIfNoOpenThread, requireOwnSession, revalidateSession } from './actions-shared'
 import { reportInput, sessionIdInput, threadIdInput } from './schema'
 
 /** « Terminer » : ferme les threads ouverts, pose ended_at — la notation est appelée ensuite par le client. */
@@ -151,13 +153,13 @@ export async function scoreSession(raw: unknown): Promise<ActionResult<{ total: 
  * Chrono écoulé côté client : le serveur VÉRIFIE (next_due_at dépassé, 2 s de grâce) puis marque le
  * thread perdu (`timeout`) ; solo → session `failed` ; défi/boss : plus aucun thread ouvert → ended_at.
  */
-export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessionStatus: string; sessionEnded: boolean }>> {
+export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessionStatus: SessionStatus; sessionEnded: boolean }>> {
   return runAction({
     schema: threadIdInput,
     input: raw,
     guard: noGuard,
     handler: async ({ threadId }) => {
-      const profile = await requireTrainee()
+      const profile = await requirePageProfileLive('frm-entrainement')
       const supabase = await createClient()
       const { data: t, error } = await supabase
         .from('training_threads')
@@ -167,11 +169,14 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
       if (error) throw new Error(error.message)
       const s = t?.training_sessions
       if (!t || !s || s.profile_id !== profile.id) throw new BusinessError('Session introuvable')
-      if (s.status !== 'active') return { sessionStatus: s.status, sessionEnded: true }
+      // `check (status in (…))` sur training_sessions (0117) : la colonne est du `text`, ses valeurs
+      // sont exactement `SessionStatus`.
+      const status = s.status as SessionStatus
+      if (status !== 'active') return { sessionStatus: status, sessionEnded: true }
       // Thread déjà fermé (course avec un envoi, ou deux onglets) : rien à marquer, mais on rend
       // l'état RÉEL de la session — un `false` en dur laissait le client sur une session terminée.
       if (t.status !== 'open') {
-        return { sessionStatus: s.status, sessionEnded: await closeSessionIfNoOpenThread(supabase, s.id, new Date().toISOString()) }
+        return { sessionStatus: status, sessionEnded: await closeSessionIfNoOpenThread(supabase, s.id, new Date().toISOString()) }
       }
       if (!t.next_due_at || Date.now() < new Date(t.next_due_at).getTime() - 2000) throw new BusinessError('Le temps n’est pas écoulé')
       const admin = createAdminClient()
@@ -181,7 +186,7 @@ export async function timeoutThread(raw: unknown): Promise<ActionResult<{ sessio
         .update({ status: 'lost', lost_reason: 'timeout', next_due_at: null })
         .eq('id', t.id)
       if (lErr) throw new Error(lErr.message)
-      let sessionStatus = 'active'
+      let sessionStatus: SessionStatus = 'active'
       let sessionEnded = false
       if (s.kind === 'solo') {
         const { error: fErr } = await admin.from('training_sessions').update({ status: 'failed', ended_at: now }).eq('id', s.id)

@@ -1,5 +1,6 @@
 import 'server-only'
 import type Anthropic from '@anthropic-ai/sdk'
+import { BOSS_PASS, OBJECTIVE_CAP } from '@glagency/core'
 import { anthropic, SCORE_MODEL } from './client'
 import type { AiUsage } from './fan'
 import type { ScoreAxis } from './prompts'
@@ -11,12 +12,25 @@ export type ScoreResult = {
   axes: AxisScore[]; usage: AiUsage; latencyMs: number; model: string
 }
 
-const OBJECTIVE_CAP = 65
-/** Boss réussi (spec §4) : note ≥ 60 — par fan ET pour la session (moyenne des fans). Exporté :
- *  lib/services/training-scoring s'en sert pour l'objectif de la SESSION boss. */
-export const BOSS_PASS = 60
+// `OBJECTIVE_CAP` (plafond 65 quand l'objectif n'est pas atteint) et `BOSS_PASS` (boss réussi à 60)
+// viennent de `@glagency/core` (training/rules) : ce sont des règles du domaine, énoncées AUSSI en
+// prose aux modèles par `prompts.ts` / `schema.ts`.
 
-async function callStructured(system: string, transcript: string, schema: Record<string, unknown>) {
+/**
+ * UN appel de notation structurée — la seule implémentation du projet : l'entraînement (ici) et le
+ * test de recrutement (`recruit-score.ts`) partagent modèle, plafond de tokens, thinking adaptatif,
+ * format contraint et timeout. Seuls le `system`, le schéma et le PRÉFIXE du message user changent
+ * (les prompts sont des transpositions GLA fidèles, on ne les uniformise pas).
+ *
+ * Exportée pour `recruit-score.ts` : deux notations PAYANTES ne doivent pas dériver l'une de
+ * l'autre (un `max_tokens` relevé d'un seul côté ne se verrait que sur la facture).
+ */
+export async function callStructured(
+  system: string,
+  transcript: string,
+  schema: Record<string, unknown>,
+  userPrefix = 'Transcription de la conversation :',
+) {
   const t0 = Date.now()
   const res = await anthropic().messages.create(
     {
@@ -27,7 +41,7 @@ async function callStructured(system: string, transcript: string, schema: Record
       thinking: { type: 'adaptive' },
       output_config: { effort: 'low', format: { type: 'json_schema', schema } },
       system,
-      messages: [{ role: 'user', content: `Transcription de la conversation :\n\n${transcript}` }],
+      messages: [{ role: 'user', content: `${userPrefix}\n\n${transcript}` }],
     },
     { timeout: 60_000 },
   )

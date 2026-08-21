@@ -8,6 +8,10 @@
 // (`training_wheel_config_admin_write`).
 //
 // Le TIRAGE est décidé ici (crypto.randomInt) : le client ne fait qu'animer jusqu'au secteur rendu.
+//
+// Gardes : `requirePageProfileLive('frm-entrainement')` pour le joueur, `requireAdminProfileLive()`
+// pour la config — les deux refusent la consultation « en tant que » (une impersonation ne réclame
+// ni ne joue jamais de l'argent).
 
 import { randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
@@ -20,14 +24,12 @@ import {
   WHEEL_TOP_N,
 } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
-import { BusinessError, noGuard, requireAdminProfile, requirePageProfile, runAction, type ActionResult } from '@/lib/actions'
-import { readStateCookie } from '@/lib/impersonation/session'
+import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/server'
-import { prizesToJson, sectorsToJson, toPrizes, toSectors } from './mappers'
+import { prizesToJson, toPrizes, toSectors } from './mappers'
 import { spinInput, wheelConfigForm } from './schema'
 import type { SpinResult } from './types'
 
-const IMPERSONATION_MSG = 'Action indisponible en consultation (mode « en tant que »)'
 const ALREADY_USED = 'Ce tour a déjà été utilisé'
 
 /**
@@ -38,13 +40,6 @@ const ALREADY_USED = 'Ce tour a déjà été utilisé'
 const revalidateWheel = () => {
   revalidatePath('/formation/roue')
   revalidatePath('/formation', 'layout')
-}
-
-/** Droit Entraînement + pas en « en tant que » (une impersonation ne joue jamais de l'argent). */
-async function requireSpinner() {
-  const profile = await requirePageProfile('frm-entrainement')
-  if (await readStateCookie()) throw new BusinessError(IMPERSONATION_MSG)
-  return profile
 }
 
 /**
@@ -59,7 +54,7 @@ export async function claimTicket(): Promise<ActionResult<{ ticketId: string | n
     input: {},
     guard: noGuard,
     handler: async (): Promise<{ ticketId: string | null }> => {
-      const profile = await requireSpinner()
+      const profile = await requirePageProfileLive('frm-entrainement')
       const supabase = await createClient()
       const week = lastCompletedWeek(todayParis())
 
@@ -116,7 +111,7 @@ export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>>
     input: raw,
     guard: noGuard,
     handler: async ({ ticketId }): Promise<SpinResult> => {
-      const profile = await requireSpinner()
+      const profile = await requirePageProfileLive('frm-entrainement')
       const supabase = await createClient()
       const [ticketRes, cfgRes] = await Promise.all([
         supabase.from('training_wheel_tickets').select('id, profile_id, week, used_at').eq('id', ticketId).maybeSingle(),
@@ -189,15 +184,14 @@ export async function saveWheelConfig(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (c) => {
-      const profile = await requireAdminProfile()
-      if (await readStateCookie()) throw new BusinessError(IMPERSONATION_MSG)
+      const profile = await requireAdminProfileLive()
       // Client UTILISATEUR : `training_wheel_config_admin_write` autorise l'admin — pas besoin du
       // service-role ici, la RLS fait le travail (défense en profondeur gratuite).
       const supabase = await createClient()
       const { error } = await supabase.from('training_wheel_config').upsert({
         id: 1,
         title: c.title,
-        sectors: sectorsToJson(c.sectors),
+        sectors: c.sectors,
         prizes: prizesToJson(c.prizes),
         updated_at: new Date().toISOString(),
         updated_by: profile.id,

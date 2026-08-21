@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeVerdict, gradeQi, pickQiQuestions, RECRUIT_DEFAULTS, type QiSlot } from './rules'
+import { computeVerdict, gradeQi, pickQiQuestions, type QiSlot, type RecruitConfig } from './rules'
 
 const BANK: QiSlot[] = [
   { slot: 'Suite logique', variants: [
@@ -12,18 +12,15 @@ const BANK: QiSlot[] = [
   ] },
 ]
 
-describe('RECRUIT_DEFAULTS', () => {
-  it('reprend les défauts GLA', () => {
-    expect(RECRUIT_DEFAULTS).toEqual({
-      botMessages: 14,
-      qiTimer: 30,
-      frappeMin: 30,
-      connexionMin: 10,
-      qiMin: 3,
-      globalThreshold: 70,
-    })
-  })
-})
+/** Config de référence des tests (les valeurs seedées par 0125 en base). */
+const CONFIG: RecruitConfig = {
+  botMessages: 14,
+  qiTimer: 30,
+  frappeMin: 30,
+  connexionMin: 10,
+  qiMin: 3,
+  globalThreshold: 70,
+}
 
 describe('pickQiQuestions', () => {
   it('tire 1 variante par emplacement, sans la bonne réponse', () => {
@@ -78,7 +75,7 @@ describe('gradeQi', () => {
 
 describe('computeVerdict', () => {
   const okBot = { total: 68, orthographe: 20, coherence: 18, relance: 15, vente: 15 }
-  const base = { qi: 4, wpm: 40, mbps: 20, bot: okBot, config: RECRUIT_DEFAULTS }
+  const base = { qi: 4, wpm: 40, mbps: 20, bot: okBot, config: CONFIG }
 
   it('global = round(qi/5*30 + bot.total/100*70) — exemple qi 4, bot 68 → 24 + 47.6 → 72', () => {
     const v = computeVerdict(base)

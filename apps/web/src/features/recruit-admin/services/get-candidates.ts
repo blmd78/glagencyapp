@@ -1,5 +1,6 @@
+import type { Database } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import type { CandidateRow, CandidatesData, CandidateStatus, RecruitGates } from '../types'
+import type { CandidateRow, CandidatesData, CandidateStatus, RecruitGates, RecruitKpis } from '../types'
 
 /**
  * Borne EXPLICITE de la file des candidats (guidelines-data-loading §2 : jamais de `select` nu —
@@ -18,29 +19,23 @@ const num = (v: number | string | null): number => Number(v ?? 0)
 /** Nouveaux d'abord (c'est la file de traitement), puis du plus récent au plus ancien. */
 const STATUS_RANK: Record<CandidateStatus, number> = { nouveau: 0, valide: 1, refuse: 2 }
 
-export function toCandidateRow(r: {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
-  discord: string | null
-  created_at: string
-  qi_score: number
-  typing_wpm: number
-  connection_mbps: number | string
-  orthographe: number
-  coherence: number
-  relance: number
-  vente: number
-  bot_total: number
-  global: number
-  passed: boolean
-  refusal_step: string | null
-  refusal_reason: string | null
-  repeat: boolean
-  status: string
-  profile_id: string | null
-}): CandidateRow {
+/**
+ * Ce que `toCandidateRow` lit d'une ligne `recruit_candidates` — DÉRIVÉ des types générés (patron
+ * de `training-catalog/services/get-catalog.ts`), avec le seul écart réel : `connection_mbps` est
+ * un `numeric` que supabase-js peut rendre en CHAÎNE selon la version, là où le type généré promet
+ * un `number`.
+ */
+type CandidateCols = Omit<
+  Pick<
+    Database['public']['Tables']['recruit_candidates']['Row'],
+    | 'id' | 'first_name' | 'last_name' | 'email' | 'discord' | 'created_at' | 'qi_score' | 'typing_wpm'
+    | 'connection_mbps' | 'orthographe' | 'coherence' | 'relance' | 'vente' | 'bot_total' | 'global'
+    | 'passed' | 'refusal_step' | 'refusal_reason' | 'repeat' | 'status' | 'profile_id'
+  >,
+  'connection_mbps'
+> & { connection_mbps: number | string }
+
+export function toCandidateRow(r: CandidateCols): CandidateRow {
   return {
     id: r.id,
     firstName: r.first_name,
@@ -77,12 +72,22 @@ export function toCandidateRow(r: {
  */
 export async function getCandidates(): Promise<CandidatesData> {
   const supabase = await createClient()
-  const [candidates, config] = await Promise.all([
+  // Compteurs en HEAD (`count: 'exact'`, aucune ligne rapatriée) : les cartes KPI doivent rester
+  // justes même le jour où la file dépasse `MAX_ROWS` — les dériver des lignes bornées mentirait.
+  const countWhere = (status?: CandidateStatus) => {
+    const q = supabase.from('recruit_candidates').select('id', { count: 'exact', head: true })
+    return status ? q.eq('status', status) : q
+  }
+  const [candidates, config, total, valide, refuse] = await Promise.all([
     supabase.from('recruit_candidates').select(COLS).order('created_at', { ascending: false }).limit(MAX_ROWS),
     supabase.from('recruit_config').select('qi_min, frappe_min, connexion_min, global_threshold').eq('id', 1).maybeSingle(),
+    countWhere(),
+    countWhere('valide'),
+    countWhere('refuse'),
   ])
   if (candidates.error) throw new Error(candidates.error.message)
   if (config.error) throw new Error(config.error.message)
+  for (const c of [total, valide, refuse]) if (c.error) throw new Error(c.error.message)
   if (!config.data) throw new Error('Configuration du test de recrutement introuvable (ligne 1)')
 
   const gates: RecruitGates = {
@@ -93,5 +98,11 @@ export async function getCandidates(): Promise<CandidatesData> {
   }
   const rows = (candidates.data ?? []).map(toCandidateRow)
   rows.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || b.createdAt.localeCompare(a.createdAt))
-  return { rows, gates }
+  const kpis: RecruitKpis = {
+    total: total.count ?? 0,
+    nouveau: Math.max(0, (total.count ?? 0) - (valide.count ?? 0) - (refuse.count ?? 0)),
+    valide: valide.count ?? 0,
+    refuse: refuse.count ?? 0,
+  }
+  return { rows, gates, kpis }
 }

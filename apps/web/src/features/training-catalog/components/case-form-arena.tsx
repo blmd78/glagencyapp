@@ -1,11 +1,11 @@
 'use client'
 
 import { Controller, useFieldArray, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form'
+import { FieldError } from '@/components/field-error'
 import { Combobox, type ComboOption } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { CaseFormValues, CaseInput } from '../schema'
-import { FieldError } from './field-error'
 
 /**
  * Partie DÉFI SIMULTANÉ : délai de réponse max + exactement 5 conversations (chacune rejoue un

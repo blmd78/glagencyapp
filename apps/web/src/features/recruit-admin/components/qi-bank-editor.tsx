@@ -2,11 +2,11 @@
 
 import { useFieldArray, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form'
 import { Plus, Trash2 } from 'lucide-react'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { ConfigFormValues, ConfigInput } from '../schema'
-import { FieldError } from './field-error'
 
 type BankControl = Control<ConfigFormValues, unknown, ConfigInput>
 type BankErrors = FieldErrors<ConfigFormValues>

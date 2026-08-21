@@ -21,8 +21,8 @@ export default async function RecrutementPage({ searchParams }: { searchParams: 
   const selectedId = parsed.success ? parsed.data : null
 
   // Kickoff SANS await : le h1 s'affiche immédiatement, les deux lectures partent en parallèle et
-  // streament dans leur boundary. La file est chargée même quand un dossier est ouvert — elle
-  // porte les seuils courants (gates) et le compteur d'en-tête.
+  // streament dans leur boundary. La file est chargée même quand un dossier est ouvert — la fiche
+  // a besoin des seuils courants (gates) ; les KPIs lus au passage ne sont alors pas rendus.
   const data = getCandidates()
   const candidate = selectedId ? getCandidate(selectedId) : null
 

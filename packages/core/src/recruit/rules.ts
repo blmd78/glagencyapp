@@ -14,15 +14,10 @@ export type RecruitConfig = {
   globalThreshold: number
 }
 
-/** Défauts GLA (`finishCandidate` / config par défaut du test). */
-export const RECRUIT_DEFAULTS: RecruitConfig = {
-  botMessages: 14,
-  qiTimer: 30,
-  frappeMin: 30,
-  connexionMin: 10,
-  qiMin: 3,
-  globalThreshold: 70,
-}
+// (Les défauts GLA de cette config — 14 échanges, 30 s par question, 30 wpm, 10 Mb/s, QI 3/5,
+// global 70 — vivent en base : la seed de la migration 0125 écrit la ligne unique `recruit_config`,
+// que l'admin édite ensuite. Les recopier ici en littéral TS faisait une seconde source de vérité,
+// que rien ne consommait.)
 
 /**
  * Tire 1 variante par emplacement (`rand(n)` doit rendre un entier dans [0, n), côté serveur :

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { requiredInt } from '@/lib/form-fields'
 import { CASE_KINDS, SPEAKERS } from '@/lib/types/training'
 
 // Schémas PARTAGÉS dialogs (RHF + zodResolver) / Server Actions (runAction). Longueurs alignées
@@ -9,14 +10,19 @@ const text = (max: number) => z.string().trim().max(max, `${max} caractères max
 const required = (max: number, msg: string) => text(max).min(1, msg)
 /** Champ texte facultatif : '' → null (colonne nullable). */
 const optionalText = (max: number) => text(max).transform((v) => (v === '' ? null : v)).nullable()
-/** Entier saisi dans un <input type="number"> : '' / NaN / null → null quand facultatif. */
+/**
+ * Entier saisi dans un <input type="number"> : '' / NaN / null → null quand facultatif.
+ * Le vide se teste APRÈS `trim()` : `'  '` (champ effacé au clavier, espace laissé) passait le
+ * `v === ''` puis se faisait coercer en 0 — soit un « facultatif » enregistré à 0 au lieu de null.
+ */
 const optionalInt = (min: number, max: number) =>
   z.preprocess(
-    (v) => (v === '' || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v)) ? null : v),
+    (v) =>
+      (typeof v === 'string' && v.trim() === '') || v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v))
+        ? null
+        : v,
     z.coerce.number({ error: 'Nombre invalide' }).int('Nombre entier').min(min, `Minimum ${min}`).max(max, `Maximum ${max}`).nullable(),
   )
-const requiredInt = (min: number, max: number) =>
-  z.coerce.number({ error: 'Nombre requis' }).int('Nombre entier').min(min, `Minimum ${min}`).max(max, `Maximum ${max}`)
 
 // ---------- Module ----------
 /**
@@ -26,7 +32,7 @@ const requiredInt = (min: number, max: number) =>
  */
 const RESERVED_AXIS_KEYS = ['total', 'objectif_atteint', 'plafond', 'moments', 'commentaire']
 
-export const axisInput = z.object({
+const axisInput = z.object({
   existingId: z.uuid().nullable(), // null = nouvel axe (diff par id côté action). Pas `id` : useFieldArray réserve cette clé
   key: z
     .string()
@@ -37,7 +43,7 @@ export const axisInput = z.object({
   name: required(60, 'Nom requis'),
   description: required(2000, 'Description requise'),
 })
-export const sectionInput = z.object({
+const sectionInput = z.object({
   existingId: z.uuid().nullable(), // null = nouvelle section (code généré du titre)
   title: required(80, 'Titre requis'),
   emoji: optionalText(8),
@@ -62,15 +68,15 @@ export type ModuleFormValues = z.input<typeof moduleForm>
 export type ModuleInput = z.infer<typeof moduleForm>
 
 // ---------- Cas ----------
-export const messageInput = z.object({
+const messageInput = z.object({
   speaker: z.enum(SPEAKERS),
   body: required(1000, 'Message vide'),
 })
-export const arenaSlotInput = z.object({
+const arenaSlotInput = z.object({
   refCaseId: z.uuid('Choisis un cas'),
   displayName: required(30, 'Prénom requis'),
 })
-export const bossFanInput = z.object({
+const bossFanInput = z.object({
   name: required(30, 'Prénom requis'),
   age: optionalInt(18, 99),
   job: optionalText(60),

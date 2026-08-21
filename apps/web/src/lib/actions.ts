@@ -1,6 +1,7 @@
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { getProfile, hasPageAccess, hasWriteAccess, type Profile } from '@/lib/auth'
+import { readStateCookie } from '@/lib/impersonation/session'
 import type { PageSlug } from '@/config/workspaces'
 
 /** Contrat de retour UNIQUE des Server Actions (spec 2026-07-16 §2.5). */
@@ -138,5 +139,33 @@ export async function requireWriteProfile(slug: PageSlug): Promise<Profile> {
 export async function requirePageProfile(slug: PageSlug): Promise<Profile> {
   const profile = await getProfile()
   if (!hasPageAccess(profile, slug)) throw new BusinessError(DENY_PAGE)
+  return profile
+}
+
+/**
+ * Consultation « en tant que » = LECTURE seule : aucune écriture au nom de la personne visitée.
+ * Un admin qui consulte sous l'identité d'un autre a un profil parfaitement valide — c'est le
+ * cookie d'état (`imp_sid`) qui distingue les deux, et rien d'autre.
+ */
+export const DENY_IMPERSONATION = 'Action indisponible en consultation (mode « en tant que »)'
+
+async function denyIfImpersonating(): Promise<void> {
+  if (await readStateCookie()) throw new BusinessError(DENY_IMPERSONATION)
+}
+
+/**
+ * `requireAdminProfile` + refus en « en tant que » — garde des ÉCRITURES admin (Catalogue,
+ * Recrutement, config de la Roue). Une seule requête profil, un seul message de refus.
+ */
+export async function requireAdminProfileLive(): Promise<Profile> {
+  const profile = await requireAdminProfile()
+  await denyIfImpersonating()
+  return profile
+}
+
+/** `requirePageProfile` + refus en « en tant que » (Entraînement, Suivi…). */
+export async function requirePageProfileLive(slug: PageSlug): Promise<Profile> {
+  const profile = await requirePageProfile(slug)
+  await denyIfImpersonating()
   return profile
 }

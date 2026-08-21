@@ -58,13 +58,7 @@ export interface RankRow {
 }
 
 /** Classement HEBDO (RPC `training_weekly_ranking`) : mêmes agrégats que `RankRow`, sans boss ni série. */
-export interface WeeklyRankRow {
-  profileId: string
-  displayName: string
-  points: number
-  casesDone: number
-  avgTotal: number | null
-}
+export type WeeklyRankRow = Pick<RankRow, 'profileId' | 'displayName' | 'points' | 'casesDone' | 'avgTotal'>
 
 /**
  * `semaine` = semaine en cours (lundi courant) ; `semaine-derniere` = dernière semaine COMPLÈTE —

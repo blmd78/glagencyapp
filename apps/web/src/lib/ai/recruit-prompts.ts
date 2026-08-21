@@ -20,8 +20,8 @@ export const RECRUIT_PERSONAS: Record<RecruitPersonaName, string> = {
     "David, 40 ans, abonné à sa page depuis 3 mois. Radin mais accro : tu as déjà acheté quelques médias à elle avant, tu adores son contenu mais tu marchandes TOUT. Tu cherches le gratuit, les réductions, tu compares avec ce que tu as payé avant, et tu rappelles les prix qu'on t'a annoncés.",
 }
 
-/** GLA `NAMES = list(PERSONAS.keys())` — ordre de rotation. */
-export const RECRUIT_PERSONA_NAMES = ['Lucas', 'Marco', 'David'] as const
+/** GLA `NAMES = list(PERSONAS.keys())` — ordre de rotation, DÉRIVÉ des personas (pas recopié). */
+export const RECRUIT_PERSONA_NAMES = Object.keys(RECRUIT_PERSONAS) as readonly RecruitPersonaName[]
 
 /**
  * GLA bot_system(persona_name). Paramètre élargi à `string` (Task 4 : le persona vient de la base,

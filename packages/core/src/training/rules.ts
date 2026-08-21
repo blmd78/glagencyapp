@@ -7,6 +7,15 @@ export const MEDAL_OR = 85
 export const MEDAL_ARGENT = 75
 export const MEDAL_BRONZE = 60
 export const BOSS_UNLOCK_AVG = 60
+/** Boss réussi (spec §4) : note ≥ 60 — par fan ET pour la session (moyenne des fans). */
+export const BOSS_PASS = 60
+/**
+ * « Plafond » GLA : objectif du cas non atteint ⇒ la note globale est plafonnée à 65, même si les
+ * axes semblent propres. Vit ici (et non dans `lib/ai`) parce que DEUX prompts l'énoncent en prose
+ * au modèle (`lib/ai/prompts.ts`, `lib/ai/schema.ts`) et que la notation l'applique ensuite côté
+ * serveur : trois endroits qui doivent bouger ensemble.
+ */
+export const OBJECTIVE_CAP = 65
 
 export type Medal = 'or' | 'argent' | 'bronze'
 

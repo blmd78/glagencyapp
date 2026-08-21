@@ -22,16 +22,8 @@ import type { RecruitPersonaName } from '@/lib/ai/recruit-prompts'
 import { replyAsRecruitBot, scoreRecruitTranscript } from '@/lib/ai/recruit-score'
 import { scoreAttemptInput, sendToBotInput } from './schema'
 import { CLOSED, STEPS_MISSING, loadAttempt, loadHistory, readConfig, requireInProgress } from './shared'
-import type { BotTurn, ScoreDone } from './types'
+import { BOT_ALREADY_SENT, CHAT_OVER, mediaLabel, type BotTurn } from './types'
 
-/**
- * ⚠️ Littéral DUPLIQUÉ côté client (`TestFlow.tsx`, `BOT_CHAT_OVER`) : c'est à ce message que le
- * parcours reconnaît « le serveur considère la conversation finie » pour basculer sur la notation
- * au lieu d'un toast sans issue (cas réel : l'admin baisse `bot_messages` pendant un test). Un
- * fichier `'use server'` ne peut exporter que des fonctions async — les deux chaînes doivent donc
- * rester identiques à la main, octet pour octet.
- */
-const CHAT_OVER = 'La conversation est terminée.'
 const BOT_KO = 'Le client n’a pas répondu — réessaie.'
 const SCORE_KO = 'L’analyse a échoué — réessaie dans un instant.'
 /** Refus GÉNÉRIQUE : on ne dit pas au candidat combien de messages il lui manque. */
@@ -55,9 +47,9 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
     guard: noGuard,
     handler: async (d): Promise<BotTurn> => {
       const admin = createAdminClient()
-      const attempt = await loadAttempt(admin, d.attemptId)
+      // Deux lectures indépendantes → en parallèle (l'ordre des VÉRIFICATIONS, lui, ne change pas).
+      const [attempt, config] = await Promise.all([loadAttempt(admin, d.attemptId), readConfig(admin)])
       requireInProgress(attempt)
-      const config = await readConfig(admin)
       // Test fermé = coupure IMMÉDIATE de la dépense IA, tentatives en cours comprises (c'est ce
       // que promet la case « Test ouvert » de la config). Le vérifier à l'entrée seulement
       // laissait tourner tous les tests déjà commencés — soit, à `bot_messages` près, l'essentiel
@@ -76,7 +68,7 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
       // l'insert suivant est refusé ici, ou perd la course sur l'index (23505). C'est ce qui borne
       // réellement la dépense IA.
       if (nextPos >= 2 * config.botMessages) throw new BusinessError(CHAT_OVER)
-      const body = d.mediaPrice != null ? `[MEDIA VERROUILLE - ${d.mediaPrice}€]` : d.body
+      const body = d.mediaPrice != null ? mediaLabel(d.mediaPrice) : d.body
       // Inatteignable : le OU EXCLUSIF de `sendToBotInput` garantit l'un des deux. Le garde-fou est
       // là pour que le compilateur le sache SANS cast — un `as string` mentirait si le refine sautait.
       if (!body) throw new Error('sendToBot : ni message ni média après validation')
@@ -87,7 +79,7 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
         .select('id')
         .single()
       // 23505 sur `unique (attempt_id, position)` = double soumission (double-clic, reprise réseau).
-      if (iErr?.code === '23505') throw new BusinessError('Message déjà envoyé.')
+      if (iErr?.code === '23505') throw new BusinessError(BOT_ALREADY_SENT)
       if (iErr) throw new Error(iErr.message)
 
       let reply
@@ -141,17 +133,17 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
  * renvoi après un aller-retour réseau doit retomber sur un succès, pas sur « test terminé »).
  * Aucun chiffre ne redescend (cf. `types.ts`).
  */
-export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreDone>> {
+export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
   return runAction({
     schema: scoreAttemptInput,
     input: raw,
     guard: noGuard,
-    handler: async (d): Promise<ScoreDone> => {
+    handler: async (d): Promise<void> => {
       const admin = createAdminClient()
-      const attempt = await loadAttempt(admin, d.attemptId)
-      if (attempt.bot_total !== null) return { done: true }
+      // Deux lectures indépendantes → en parallèle (l'ordre des VÉRIFICATIONS ne change pas).
+      const [attempt, config] = await Promise.all([loadAttempt(admin, d.attemptId), readConfig(admin)])
+      if (attempt.bot_total !== null) return
       requireInProgress(attempt)
-      const config = await readConfig(admin)
       // Comme `sendToBot` : test fermé = plus un euro d'IA, y compris sur les tentatives en cours.
       if (!config.open) throw new BusinessError(CLOSED)
       if (attempt.qi_score === null || attempt.typing === null || attempt.connection_mbps === null) {
@@ -203,10 +195,7 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<ScoreDone
       if (written.length === 0) {
         const persisted = await loadAttempt(admin, attempt.id)
         if (persisted.bot_total === null) throw new Error(`Notation perdue sur la tentative ${attempt.id}`)
-        return { done: true }
       }
-
-      return { done: true }
     },
   })
 }

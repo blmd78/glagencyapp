@@ -1,5 +1,6 @@
 import type { ScoreMoment } from '@/lib/ai/schema'
 import type { CaseKind, CaseSnapshot, MessageSpeaker, SessionStatus, ThreadStatus } from '@/lib/types/training'
+import type { PublicBossFan } from '@/lib/types/training-public'
 
 /**
  * Vue d'une session d'entraînement telle qu'elle traverse le réseau (Server Component → feuille
@@ -32,14 +33,13 @@ export interface ThreadScore {
   axes: AxisScore[]
 }
 
-export interface BossFanPublic {
-  name: string
-  age: number | null
-  job: string | null
-  city: string | null
-  color: string | null
-  persona: string
-}
+/**
+ * Le côté VISIBLE d'un fan du boss — exactement la projection publique du catalogue, sans son `id`
+ * (dans une session, le fan est identifié par son thread ; l'id du fan de référence n'a rien à
+ * faire côté client). Dérivé de `PublicBossFan` pour que l'ajout d'un champ visible ne se fasse
+ * jamais d'un seul côté.
+ */
+export type BossFanPublic = Omit<PublicBossFan, 'id'>
 
 export interface SessionThread {
   id: string
@@ -79,7 +79,8 @@ export interface SessionData {
 
 export interface SendResult {
   chatter: SessionMessage
-  fan: SessionMessage | null
+  /** Le fan répond TOUJOURS quand `sendMessage` réussit (une panne IA annule le tour et lève). */
+  fan: SessionMessage
   thread: { status: ThreadStatus; lostReason: string | null; turnsUsed: number; nextDueAt: string | null }
   sessionStatus: SessionStatus
   sessionEnded: boolean

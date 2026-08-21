@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { OBJECTIVE_CAP } from '@glagency/core'
 import type { ScoreAxis } from './prompts'
 
 /**
@@ -11,7 +12,7 @@ export function buildScoreJsonSchema(axes: ScoreAxis[]) {
   for (const a of axes) properties[a.key] = { type: 'integer', description: `${a.name} — ${a.description} (0 à 25)` }
   properties.total = { type: 'integer', description: 'Somme des axes, sur 100, plafond appliqué' }
   properties.objectif_atteint = { type: 'boolean' }
-  properties.plafond = { type: 'integer', description: '65 si l’objectif n’est pas atteint' }
+  properties.plafond = { type: 'integer', description: `${OBJECTIVE_CAP} si l’objectif n’est pas atteint` }
   properties.moments = {
     type: 'array',
     items: {
@@ -35,7 +36,7 @@ export function buildScoreJsonSchema(axes: ScoreAxis[]) {
 // Les chaînes sont TRONQUÉES (pas rejetées) au-delà de leur longueur max : une notation payante
 // ne doit pas échouer pour un débordement de texte du modèle, seul un type/une clé manquante doit.
 const truncated = (max: number) => z.string().transform((s) => s.slice(0, max))
-export const momentZod = z.object({
+const momentZod = z.object({
   cite: truncated(500),
   type: z.enum(['good', 'bad']),
   probleme: truncated(500),
@@ -43,8 +44,12 @@ export const momentZod = z.object({
 })
 export type ScoreMoment = z.infer<typeof momentZod>
 
-/** Une note d'axe hors [0, 25] est CLAMPÉE (pas rejetée) : seul un type non-numérique fait échouer. */
-const clampedAxisScore = z.number().transform((n) => Math.max(0, Math.min(25, Math.round(n))))
+/**
+ * Une note d'axe hors [0, 25] est CLAMPÉE (pas rejetée) : seul un type non-numérique fait échouer —
+ * une notation PAYANTE ne doit pas rater sur un débordement ou un arrondi du modèle.
+ * Exportée : le test de recrutement note lui aussi 4 axes sur 25 (`lib/ai/recruit-schema.ts`).
+ */
+export const clampedAxisScore = z.number().transform((n) => Math.max(0, Math.min(25, Math.round(n))))
 
 export function buildScoreZod(axes: ScoreAxis[]) {
   const shape: Record<string, z.ZodTypeAny> = {}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import type { SessionStatus } from '@/lib/types/training'
 import { sendMessage } from '../actions'
 import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
@@ -63,14 +64,13 @@ export function SessionView({ data }: { data: SessionData }) {
   const patch = useCallback((threadId: string, f: (t: SessionThread) => SessionThread) => {
     setThreads((ts) => ts.map((t) => (t.id === threadId ? f(t) : t)))
   }, [])
-  // `string` et non `SessionStatus` : `timeoutThread` rend un statut non typé (`string`). Un statut
-  // encore `active` veut dire que LE thread qu'on vient de traiter a clos la session côté serveur
-  // (ended_at posé, pas encore notée) : on note côté client. Tout autre statut (`scored`, `failed`,
-  // `abandoned`…) veut dire que la session était déjà résolue — potentiellement par un autre onglet —
-  // et que le serveur refuserait une notation côté client : on se contente de refetch (router.refresh)
-  // pour afficher l'état réel, sans boucle de relance.
+  // Un statut encore `active` veut dire que LE thread qu'on vient de traiter a clos la session côté
+  // serveur (ended_at posé, pas encore notée) : on note côté client. Tout autre statut (`scored`,
+  // `failed`, `abandoned`…) veut dire que la session était déjà résolue — potentiellement par un
+  // autre onglet — et que le serveur refuserait une notation côté client : on se contente de refetch
+  // (router.refresh) pour afficher l'état réel, sans boucle de relance.
   const onSessionEnd = useCallback(
-    (status: string) => {
+    (status: SessionStatus) => {
       if (status === 'active') setEnded(true)
       else router.refresh()
     },
@@ -89,7 +89,7 @@ export function SessionView({ data }: { data: SessionData }) {
     const d = r.data
     patch(threadId, (t) => ({
       ...t,
-      messages: [...t.messages, d.chatter, ...(d.fan ? [d.fan] : [])],
+      messages: [...t.messages, d.chatter, d.fan],
       status: d.thread.status,
       lostReason: d.thread.lostReason,
       turnsUsed: d.thread.turnsUsed,

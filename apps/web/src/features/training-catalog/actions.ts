@@ -1,17 +1,17 @@
 'use server'
 
 // Server Actions du Catalogue de formation — ADMIN uniquement (contrôle en tête de handler,
-// patron §4 des guidelines : `requireAdminProfile()` UNE fois, refus = BusinessError, jamais de
-// redirect). Client SESSION (`createClient`) : la RLS `*_admin_write` (0113) reste le rempart.
+// patron §4 des guidelines : `requireAdminProfileLive()` UNE fois, refus = BusinessError, jamais
+// de redirect). Client SESSION (`createClient`) : la RLS `*_admin_write` (0113) reste le rempart.
 // Pas de suppression de module ni de cas : on DÉSACTIVE. Refus en impersonation, comme Membres.
-// Actions des CAS : voir actions-cases.ts (split, > 300 lignes) — helpers partagés (garde admin,
-// stamp, revalidation) dans actions-shared.ts.
+// Actions des CAS : voir actions-cases.ts (split, > 300 lignes) — helpers partagés (stamp,
+// revalidation) dans actions-shared.ts.
 
 import { createClient } from '@/lib/supabase/server'
-import { runAction, noGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { runAction, noGuard, requireAdminProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { slugify, uniqueSlug } from '@/lib/slug'
 import { moduleForm, moveInput, toggleInput, type ModuleInput } from './schema'
-import { requireCatalogAdmin, revalidateCatalog, stampBy, type Db } from './actions-shared'
+import { revalidateCatalog, stampBy, type Db } from './actions-shared'
 
 // ======================= MODULES =======================
 
@@ -26,7 +26,7 @@ export async function saveModule(raw: unknown): Promise<ActionResult<{ code: str
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const row = {
         title: d.title,
@@ -163,7 +163,7 @@ export async function toggleModule(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id, active }) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const { data, error } = await supabase
         .from('training_modules')
@@ -185,7 +185,7 @@ export async function moveModule(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id, direction }) => {
-      const admin = await requireCatalogAdmin()
+      const admin = await requireAdminProfileLive()
       const supabase = await createClient()
       const { data: cur, error } = await supabase.from('training_modules').select('id, position').eq('id', id).maybeSingle()
       if (error) throw new Error(error.message)

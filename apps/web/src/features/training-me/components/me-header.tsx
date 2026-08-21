@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { Route } from 'next'
+import { Figure } from '@/components/training/figure'
 import { PlayButton } from '@/components/training/play-button'
 import { Button } from '@/components/ui/button'
 import type { MeData, RankScope } from '../types'
@@ -53,15 +54,6 @@ export function MeHeader({ data }: { data: MeData }) {
         Trophées gagnés : {earned}/{trophies.length}
         {rank && ` · Classement (${SCOPE_LABEL[rankingScope]}) : ${rank}`}
       </p>
-    </div>
-  )
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
     </div>
   )
 }

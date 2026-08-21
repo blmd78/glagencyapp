@@ -2,6 +2,7 @@
 
 import { Controller, useFieldArray, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form'
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -9,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { SPEAKERS, SPEAKER_LABELS } from '@/lib/types/training'
 import type { CaseFormValues, CaseInput } from '../schema'
-import { FieldError } from './field-error'
 
 export type CaseFormProps = {
   control: Control<CaseFormValues, unknown, CaseInput>

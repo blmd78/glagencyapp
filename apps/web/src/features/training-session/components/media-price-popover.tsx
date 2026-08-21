@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
+import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -73,11 +74,7 @@ export function MediaPricePopover({ disabled, onPick }: { disabled: boolean; onP
               Envoyer
             </Button>
           </div>
-          {errors.price && (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-              {errors.price.message}
-            </p>
-          )}
+          <FieldError message={errors.price?.message} />
         </form>
       </PopoverContent>
     </Popover>

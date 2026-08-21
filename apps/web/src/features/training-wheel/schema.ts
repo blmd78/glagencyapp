@@ -1,11 +1,14 @@
 import { z } from 'zod'
+import { requiredInt } from '@/lib/form-fields'
 
 // Schémas PARTAGÉS dialog admin (RHF + zodResolver) / Server Actions (runAction). Zod v4.
 // Longueurs alignées sur les `check` SQL de 0122 (titre 1..60). Les poids sont des ENTIERS :
 // un poids décimal ne casserait rien mathématiquement mais rend les % illisibles, et la config
 // GLA d'origine n'en a jamais eu.
 
-const weight = z.coerce.number({ error: 'Poids requis' }).int('Poids entier').min(0, 'Poids ≥ 0').max(1000, 'Poids ≤ 1000')
+// `requiredInt` et pas `z.coerce.number()` : un poids VIDÉ se coerçait en 0 et s'enregistrait
+// tel quel — le secteur (ou le lot) sortait du tirage sans le moindre message. Vide = refus.
+const weight = requiredInt(0, 1000, { required: 'Poids requis', invalid: 'Poids invalide', integer: 'Poids entier', min: 'Poids ≥ 0', max: 'Poids ≤ 1000' })
 const label = z.string().trim().min(1, 'Libellé requis').max(60, '60 caractères max')
 
 export const sectorForm = z.object({ label, weight, lose: z.boolean() })
@@ -14,8 +17,10 @@ export const prizeForm = z.object({
   label,
   weight,
   // '' → null (champ vide = lot non monétaire, ex. « Day off supplémentaire ») ; sinon € ≥ 0.
+  // Vide testé APRÈS `trim()` : `'  '` (champ effacé, espace laissé) passait le `v === ''` puis
+  // se faisait coercer en 0 — un lot annoncé « non monétaire » valait 0 €.
   amountEur: z.preprocess(
-    (v) => (v === '' || v == null ? null : v),
+    (v) => ((typeof v === 'string' && v.trim() === '') || v == null ? null : v),
     z.coerce.number({ error: 'Montant invalide' }).min(0, 'Montant ≥ 0').max(100000, 'Montant trop élevé').nullable(),
   ),
 })

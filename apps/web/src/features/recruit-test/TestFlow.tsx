@@ -45,25 +45,10 @@ import { StepIdentity, type IdentityForm, type SubmitFailure } from './component
 import { StepIntro } from './components/step-intro'
 import { StepQi } from './components/step-qi'
 import { StepTyping, type TypingResult } from './components/step-typing'
-import type { SubmitResult } from './types'
+import { BOT_ALREADY_SENT, CHAT_OVER, mediaLabel, NO_ATTEMPT, type SubmitResult } from './types'
 
 /** Rang de chaque étape dans « Étape x/5 ». */
 const STEP_INDEX: Record<FlowStep, number> = { qi: 1, typing: 2, connection: 3, bot: 4, identity: 5 }
-
-const NO_ATTEMPT = 'Test introuvable — recommence depuis le début.'
-/**
- * Copie du refus levé par `sendToBot` sur un 23505 (`actions-bot.ts`) — un fichier `'use server'`
- * ne peut exporter que des fonctions, et `shared.ts` (où vivent les autres messages) importe
- * `next/headers`, donc rien de tout ça n'est importable ici. À garder en phase à la main.
- */
-const BOT_ALREADY_SENT = 'Message déjà envoyé.'
-/**
- * Même copie manuelle, pour le refus `CHAT_OVER` d'`actions-bot.ts` : le serveur considère la
- * conversation finie alors que l'écran propose encore d'écrire. Cas réel — l'admin baisse
- * `bot_messages` pendant un test : `flow.botMessages` a été figé au démarrage, l'écran laisse donc
- * la saisie ouverte et chaque envoi serait refusé, sans autre issue que d'abandonner le test.
- */
-const BOT_CHAT_OVER = 'La conversation est terminée.'
 
 // « Sommes-nous passés côté navigateur ? » — `useSyncExternalStore` rend le snapshot SERVEUR
 // (`false`) pendant le SSR *et* pendant l'hydratation, puis le snapshot client (`true`). C'est ce
@@ -200,7 +185,7 @@ export function TestFlow() {
       // envoyé » : là, le message EST en base (cf. plus bas).
       const mine: ChatMessage =
         input.mediaPrice != null
-          ? { speaker: 'candidat', body: `[MEDIA VERROUILLE - ${input.mediaPrice}€]`, mediaPrice: input.mediaPrice }
+          ? { speaker: 'candidat', body: mediaLabel(input.mediaPrice), mediaPrice: input.mediaPrice }
           : { speaker: 'candidat', body: input.body ?? '' }
       setSending(true)
       setFlow((f) => (f ? { ...f, chat: [...f.chat, mine] } : f))
@@ -219,7 +204,7 @@ export function TestFlow() {
         // tentative. Un toast laisserait le candidat sur un écran de saisie définitivement muet —
         // on prend donc la même sortie que `done` : notation, puis identité. Pas de toast : rien
         // n'a échoué de son point de vue, l'épreuve est simplement finie.
-        if (res.error === BOT_CHAT_OVER) {
+        if (res.error === CHAT_OVER) {
           await finishBot()
           return
         }

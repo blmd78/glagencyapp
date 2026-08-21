@@ -14,7 +14,7 @@ const OPTIONS: { value: RankScope; label: string }[] = [
 
 /**
  * Bascule le classement affiché dans l'onglet Classement — `?vue=classement&classement=<scope>`,
- * défaut `semaine` non écrit dans l'URL (patron de `me-tabs.tsx`). `router.replace` dans un
+ * défaut `semaine` non écrit dans l'URL (patron de `url-tabs.tsx`). `router.replace` dans un
  * `startTransition` : le serveur relance `getMe` avec la nouvelle RPC (une seule à la fois).
  */
 export function MeRankingSelect({ scope }: { scope: RankScope }) {

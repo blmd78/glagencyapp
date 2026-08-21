@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { ActionButton } from '@/components/action-button'
+import { MessageBubble } from '@/components/training/message-bubble'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { cn } from '@/lib/utils'
+import { sendToBotInput } from '../schema'
 import type { ChatMessage } from './flow-state'
 
 /** Prix par défaut du média verrouillé (valeur GLA du panneau 📸). */
@@ -42,9 +43,11 @@ export function StepBot({
 
   const sent = chat.filter((m) => m.speaker === 'candidat').length
   const over = sent >= botMessages
-  // Bornes de `sendToBotInput` : un prix entier entre 1 et 10 000 €.
+  // Bornes du serveur, LUES sur le schéma (`sendToBotInput`) plutôt que réécrites ici : un prix
+  // hors bornes serait de toute façon refusé par l'action, autant griser le bouton avec la MÊME
+  // règle. (`Number('')` vaut 0 et `Number('x')` vaut NaN : les deux échouent le schéma.)
   const priceValue = Number(price)
-  const priceOk = Number.isInteger(priceValue) && priceValue >= 1 && priceValue <= 10_000
+  const priceOk = sendToBotInput.shape.mediaPrice.safeParse(priceValue).success
 
   useEffect(() => {
     // `nearest` : on descend le fil de discussion, sans faire sauter la page entière.
@@ -84,16 +87,12 @@ export function StepBot({
             Le client arrive… c’est à toi d’engager la conversation. Tu joues la créatrice.
           </p>
         )}
+        {/* Même bulle que la session d'entraînement (`components/training/message-bubble`) : le
+            vocabulaire du test (client / candidat) est traduit en celui de la bulle (fan / chatter). */}
         {chat.map((message, i) => (
-          <p
-            key={i}
-            className={cn(
-              'max-w-[46ch] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap',
-              message.speaker === 'client' ? 'bg-muted' : 'self-end bg-primary text-primary-foreground',
-            )}
-          >
-            {message.mediaPrice != null ? `🔒 Média verrouillé — ${message.mediaPrice} €` : message.body}
-          </p>
+          <div key={i} className={message.speaker === 'client' ? 'self-start' : 'self-end'}>
+            <MessageBubble message={{ ...message, speaker: message.speaker === 'client' ? 'fan' : 'chatter' }} />
+          </div>
         ))}
         {sending && <p className="text-xs text-muted-foreground">en train d’écrire…</p>}
         <div ref={bottom} />
@@ -121,6 +120,9 @@ export function StepBot({
               value={body}
               disabled={sending}
               placeholder="Écris ta réponse…"
+              // Même plafond que `sendToBotInput.body` : sans ça, la borne serveur était MUETTE —
+              // le candidat écrivait un message de 600 signes et se prenait un refus à l'envoi.
+              maxLength={500}
               className="min-h-0 flex-1"
               onChange={(e) => setBody(e.target.value)}
               onKeyDown={(e) => {

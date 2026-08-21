@@ -13,8 +13,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { bossUnlocked } from '@glagency/core'
 import { createAdminClient, type Json } from '@glagency/db'
-import { runAction, noGuard, requirePageProfile, BusinessError, type ActionResult } from '@/lib/actions'
-import { readStateCookie } from '@/lib/impersonation/session'
+import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { dueAtFrom } from '@/lib/services/training-engine'
 import { createClient } from '@/lib/supabase/server'
 import { ARENA_OPENING_OFFSETS_S, type CaseKind, type CaseSnapshot, type MessageSpeaker } from '@/lib/types/training'
@@ -37,8 +36,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
     input: raw,
     guard: noGuard,
     handler: async ({ caseId }) => {
-      const profile = await requirePageProfile('frm-entrainement')
-      if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
+      const profile = await requirePageProfileLive('frm-entrainement')
       const supabase = await createClient()
       const admin = createAdminClient()
       const { data: active, error: aErr } = await supabase

@@ -83,6 +83,19 @@ describe('configForm — seuils et textes', () => {
     expect(configForm.safeParse(config({ qiBank: [slot({ variants: [variant({ a: '' })] }), ...bank(4)] })).success).toBe(false)
   })
 
+  it('reparse SA PROPRE SORTIE (le client envoie à l’action les valeurs déjà transformées)', () => {
+    // `zodResolver` rend à `handleSubmit` les valeurs TRANSFORMÉES (des NOMBRES) : c'est cet objet
+    // que `ConfigForm` envoie à `saveRecruitConfig`, qui revalide avec LE MÊME schéma. Un
+    // `requiredInt` qui n'accepterait que des chaînes rejetterait donc sa propre sortie côté
+    // serveur — « Saisie invalide » à l'enregistrement, sans que rien n'explique pourquoi.
+    const first = configForm.safeParse(config())
+    expect(first.success).toBe(true)
+    if (!first.success) return
+    const second = configForm.safeParse(first.data)
+    expect(second.success).toBe(true)
+    if (second.success) expect(second.data).toEqual(first.data)
+  })
+
   it('borne chaque seuil', () => {
     expect(configForm.safeParse(config({ botMessages: '0' })).success).toBe(false)
     expect(configForm.safeParse(config({ botMessages: '51' })).success).toBe(false)

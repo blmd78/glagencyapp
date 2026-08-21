@@ -21,7 +21,7 @@ export function ModulesList({
 }: {
   modules: CatalogModule[]
   selectedId: string | null
-  onCreate?: () => void
+  onCreate: () => void
 }) {
   const [pending, startTransition] = useTransition()
   const move = (id: string, direction: 'up' | 'down') =>
@@ -61,11 +61,9 @@ export function ModulesList({
           </li>
         ))}
       </ul>
-      {onCreate && (
-        <Button type="button" variant="outline" size="sm" className="self-start" onClick={onCreate}>
-          <Plus className="size-4" /> Nouveau module
-        </Button>
-      )}
+      <Button type="button" variant="outline" size="sm" className="self-start" onClick={onCreate}>
+        <Plus className="size-4" /> Nouveau module
+      </Button>
     </nav>
   )
 }

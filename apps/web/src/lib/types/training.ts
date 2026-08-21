@@ -16,12 +16,12 @@ export type Speaker = (typeof SPEAKERS)[number]
 export const SPEAKER_LABELS: Record<Speaker, string> = { creator: 'Créatrice', fan: 'Fan' }
 
 // ---------- Entraînement (incrément 2) ----------
-export const SESSION_STATUSES = ['active', 'scored', 'failed', 'abandoned'] as const
-export type SessionStatus = (typeof SESSION_STATUSES)[number]
-export const THREAD_STATUSES = ['open', 'done', 'lost'] as const
-export type ThreadStatus = (typeof THREAD_STATUSES)[number]
-export const MESSAGE_SPEAKERS = ['chatter', 'fan'] as const
-export type MessageSpeaker = (typeof MESSAGE_SPEAKERS)[number]
+// Miroirs des `check` SQL de 0117. Des unions de littéraux et non des tableaux `as const` : rien ne
+// les parcourt à l'exécution (aucun `<Select>` ne les propose, la valeur vient toujours de la base
+// ou du serveur) — le tableau n'existait que pour dériver le type.
+export type SessionStatus = 'active' | 'scored' | 'failed' | 'abandoned'
+export type ThreadStatus = 'open' | 'done' | 'lost'
+export type MessageSpeaker = 'chatter' | 'fan'
 
 /** Chrono de réponse en SOLO (GLA TRAIN_LIMIT_MS = 60 s) ; défi/boss = reaction_max_s du cas. */
 export const SOLO_REACTION_S = 60
@@ -31,7 +31,7 @@ export const ARENA_REVEAL_MAX_S = 120
 export const ARENA_OPENING_OFFSETS_S = [0, 20, 45, 75, 110] as const
 
 /** Codes de faute grave émis par le fan (`[[ELIM:code]]`, GLA) → thread perdu. */
-export const FAULT_CODES = ['interro', 'froid', 'brutal', 'saut', 'spam', 'gratuit', 'remise_prev', 'abandon', 'renc_date', 'force_stop', 'brushoff', 'revente'] as const
+const FAULT_CODES = ['interro', 'froid', 'brutal', 'saut', 'spam', 'gratuit', 'remise_prev', 'abandon', 'renc_date', 'force_stop', 'brushoff', 'revente'] as const
 export type FaultCode = (typeof FAULT_CODES)[number]
 export const isFaultCode = (s: string): s is FaultCode => (FAULT_CODES as readonly string[]).includes(s)
 /** Libellés GLA (BOSS_FAULTS + timeout) — affichés sur l'écran « Raté » et sur un thread perdu. */

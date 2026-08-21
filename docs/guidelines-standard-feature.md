@@ -288,8 +288,13 @@ features/<f>/
   reste **inline dans `actions.ts`** (validation serveur-only mono-usage, aucun resolver client
   à partager) — pas de `schema.ts`. Ne pas forcer RHF ni un `schema.ts` sur ces cas ; commenter
   l'inline en en-tête.
-- **Erreur serveur globale** : `form.setError('root.serverError', { message: res.error })`
-  sur un `ActionResult` en échec, affichée dans un `role="alert"`. Une erreur de **champ**
+- **Erreur serveur globale** : `form.setError('root', { message: res.error })` sur un
+  `ActionResult` en échec, affichée dans un `role="alert"` (lue via `errors.root?.message`).
+  La règle réelle est « pose et lis la MÊME clé » : quelques forms historiques utilisent
+  `'root.serverError'` des deux côtés (reports, compta-debt, member-pay) — cohérents, ne pas
+  les refactorer ; pour un nouveau form, prendre `'root'`.
+  Le doc disait `'root.serverError'` : c'est une clé ENFANT de `root`, que `errors.root.message`
+  ne lit pas — le code, lui, pose bien `'root'` partout depuis Membres. Une erreur de **champ**
   posée par le serveur (`res.fieldErrors`) est effacée dès que le champ repasse la validation
   client — voulu, les erreurs non exprimables côté client (ex. unicité) sont re-mappées à
   chaque submit.

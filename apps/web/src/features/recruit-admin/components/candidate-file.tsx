@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
+import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type RecruitGates } from '../types'
 import { CandidateActions, CopyValue } from './recruit-actions'
-
-const FR_FULL = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Paris' })
 
 /** Une mesure d'épreuve avec son seuil : vert si le gate passe, rouge sinon. */
 function Measure({ label, value, min, ok }: { label: string; value: string; min: string; ok: boolean }) {
@@ -80,7 +79,12 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <Meta label="E-mail">{candidate.email}</Meta>
           <Meta label="Discord">{candidate.discord ?? '—'}</Meta>
-          <Meta label="Reçu le">{FR_FULL.format(new Date(candidate.createdAt))}</Meta>
+          <Meta label="Téléphone">{candidate.phone ?? '—'}</Meta>
+          <Meta label="Âge">{candidate.age !== null ? `${candidate.age} ans` : '—'}</Meta>
+          <Meta label="Localisation">{candidate.location ?? '—'}</Meta>
+          <Meta label="Shifts souhaités">{candidate.shifts?.length ? candidate.shifts.join(' · ') : '—'}</Meta>
+          <Meta label="A connu l’agence via">{candidate.source ?? '—'}</Meta>
+          <Meta label="Reçu le">{frDateTimeLongParis(candidate.createdAt)}</Meta>
         </dl>
       </div>
 
@@ -157,7 +161,7 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-medium text-muted-foreground">Tentative</h3>
         <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-          <Meta label="Commencée le">{FR_FULL.format(new Date(attempt.startedAt))}</Meta>
+          <Meta label="Commencée le">{frDateTimeLongParis(attempt.startedAt)}</Meta>
           <Meta label="État">{ATTEMPT_STATUS_LABELS[attempt.status] ?? attempt.status}</Meta>
           <Meta label="Navigateur">
             <span className="font-mono text-xs">{attempt.device}</span>

@@ -9,10 +9,11 @@ import type { WheelPrize, WheelSector } from '@glagency/core'
  * colonne `training_wheel_spins.amount_eur`) ↔ `amountEur` (TS).
  */
 
-// Les bornes reprennent EXACTEMENT celles de `schema.ts` : ce sont des invariants de la donnée,
-// pas du formulaire. Un poids décimal glissé à la main en SQL ferait throw `randomInt(0, n)` au
-// moment du tirage (n non entier) ; un montant négatif passerait la lecture puis échouerait sur le
-// `check (amount_eur >= 0)` de 0122 — APRÈS la consommation du ticket. Mieux vaut refuser ici.
+// Bornes STRUCTURELLES seulement (entier ≥ 0, montant ≥ 0) — pas celles de `schema.ts`, qui borne
+// en plus le formulaire (poids ≤ 1000, montant ≤ 100 000, libellé 1..60). Ce qu'on refuse ici, ce
+// sont les valeurs qui casseraient le TIRAGE ou l'écriture : un poids décimal glissé à la main en
+// SQL ferait throw `randomInt(0, n)` (n non entier) ; un montant négatif passerait la lecture puis
+// échouerait sur le `check (amount_eur >= 0)` de 0122 — APRÈS la consommation du ticket.
 const weight = z.number().int().min(0)
 const sectorRow = z.object({ label: z.string(), weight, lose: z.boolean() })
 const prizeRow = z.object({
@@ -36,12 +37,11 @@ export function toPrizes(json: unknown): WheelPrize[] {
   return parsed.data.map((p) => ({ label: p.label, weight: p.weight, amountEur: p.amount_eur }))
 }
 
-/** Sens écriture : `amountEur` → `amount_eur` (le jsonb reste dans le format documenté par 0122). */
+/**
+ * Sens écriture : `amountEur` → `amount_eur` (le jsonb reste dans le format documenté par 0122).
+ * Pas de `sectorsToJson` symétrique : les secteurs n'ont AUCUN renommage — `WheelSector` a déjà
+ * exactement la forme du jsonb, il part tel quel.
+ */
 export function prizesToJson(prizes: WheelPrize[]): { label: string; weight: number; amount_eur: number | null }[] {
   return prizes.map((p) => ({ label: p.label, weight: p.weight, amount_eur: p.amountEur }))
-}
-
-/** Symétrique de `toSectors` — pas de renommage, mais le même point de passage unique. */
-export function sectorsToJson(sectors: WheelSector[]): { label: string; weight: number; lose: boolean }[] {
-  return sectors.map((s) => ({ label: s.label, weight: s.weight, lose: s.lose }))
 }

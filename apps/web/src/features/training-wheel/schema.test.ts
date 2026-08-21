@@ -59,6 +59,16 @@ describe('wheelConfigForm', () => {
     expect(fieldErrors(r).prizes).toContain('Il faut au moins un lot avec un poids > 0')
   })
 
+  it('refuse un poids VIDÉ au lieu de l’enregistrer à 0 (z.coerce.number parse \'\' en 0)', () => {
+    // Le bug : vider le poids d'un secteur (ou d'un lot) le sortait du tirage EN SILENCE — 0 est
+    // une valeur légitime ici, rien ne distinguait « poids nul voulu » de « champ effacé ».
+    expect(wheelConfigForm.safeParse({ ...base, sectors: [{ label: 'Cadeau', weight: '', lose: false }] }).success).toBe(false)
+    expect(wheelConfigForm.safeParse({ ...base, prizes: [{ label: '5 €', weight: '   ', amountEur: '5' }] }).success).toBe(false)
+    // Un montant vide, LUI, reste légitime (lot non monétaire) — y compris avec des espaces.
+    const r = wheelConfigForm.safeParse({ ...base, prizes: [{ label: 'Day off', weight: '5', amountEur: '  ' }] })
+    expect(r.success && r.data.prizes[0].amountEur).toBeNull()
+  })
+
   it('refuse un poids négatif, un poids décimal et un montant négatif', () => {
     expect(wheelConfigForm.safeParse({ ...base, sectors: [{ label: 'Cadeau', weight: '-1', lose: false }] }).success).toBe(false)
     expect(wheelConfigForm.safeParse({ ...base, sectors: [{ label: 'Cadeau', weight: '1.5', lose: false }] }).success).toBe(false)

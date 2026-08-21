@@ -1,4 +1,5 @@
 import { frDateNumeric } from '@glagency/core'
+import { Figure } from '@/components/training/figure'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { dec2, int } from '@/lib/format'
 import { COST_WINDOW_DAYS, type CostRow } from '../types'
@@ -58,7 +59,7 @@ export function OverviewCost({ rows, estimatedUsd }: { rows: CostRow[]; estimate
 
 function CostTable({ rows }: { rows: CostRow[] }) {
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
@@ -85,15 +86,6 @@ function CostTable({ rows }: { rows: CostRow[] }) {
           ))}
         </TableBody>
       </Table>
-    </div>
-  )
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
     </div>
   )
 }

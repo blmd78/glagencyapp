@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { ActionButton } from '@/components/action-button'
+import { FieldError } from '@/components/field-error'
 import { Textarea } from '@/components/ui/textarea'
 import { composerForm, type ComposerInput } from '../schema'
 import { MediaPricePopover } from './media-price-popover'
@@ -55,16 +56,13 @@ export function Composer({ disabled, onSend }: { disabled: boolean; onSend: (v: 
         }}
       />
       <div className="flex items-center gap-2">
-        {errors.body && (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-            {errors.body.message}
-          </p>
-        )}
-        <span className="ml-auto" />
-        <MediaPricePopover disabled={busy} onPick={(p) => void sendMedia(p)} />
-        <ActionButton type="submit" size="sm" pending={isSubmitting || sendingMedia} disabled={disabled}>
-          Envoyer
-        </ActionButton>
+        <FieldError message={errors.body?.message} />
+        <div className="ml-auto flex items-center gap-2">
+          <MediaPricePopover disabled={busy} onPick={(p) => void sendMedia(p)} />
+          <ActionButton type="submit" size="sm" pending={isSubmitting || sendingMedia} disabled={disabled}>
+            Envoyer
+          </ActionButton>
+        </div>
       </div>
     </form>
   )

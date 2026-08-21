@@ -4,25 +4,18 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
-import { BusinessError, requirePageProfile } from '@/lib/actions'
-import { readStateCookie } from '@/lib/impersonation/session'
+import { BusinessError, requirePageProfileLive } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/server'
 
-/** Droit Entraînement + pas en « en tant que » — une seule requête profil. */
-export async function requireTrainee() {
-  const profile = await requirePageProfile('frm-entrainement')
-  if (await readStateCookie()) throw new BusinessError('Action indisponible en consultation (mode « en tant que »)')
-  return profile
-}
-
 /**
- * `requireTrainee` + la session doit appartenir à l'appelant. Depuis 0121 la RLS de
+ * `requirePageProfileLive('frm-entrainement')` (droit Entraînement + refus en « en tant que ») +
+ * la session doit appartenir à l'appelant. Depuis 0121 la RLS de
  * `training_sessions` est en LECTURE SEULE : cette vérification explicite (`profile_id` lu avec le
  * client utilisateur) est ce qui autorise les écritures service-role qui suivent — elle doit
  * toujours précéder le moindre `admin.from(...)`.
  */
 export async function requireOwnSession(sessionId: string) {
-  const profile = await requireTrainee()
+  const profile = await requirePageProfileLive('frm-entrainement')
   const supabase = await createClient()
   const { data: s, error } = await supabase
     .from('training_sessions')

@@ -1,9 +1,9 @@
+import { UrlTabs } from '@/components/url-tabs'
 import { MySpins } from './components/my-spins'
 import { WheelConfigDialog } from './components/wheel-config-dialog'
 import { WheelHistory } from './components/wheel-history'
 import { WheelSpinner } from './components/wheel-spinner'
 import { WheelSvg } from './components/wheel-svg'
-import { WheelTabs } from './components/wheel-tabs'
 import type { WheelData, WheelHistory as WheelHistoryData, WheelVue } from './types'
 
 /**
@@ -50,7 +50,18 @@ export function WheelTemplate({
         </div>
         {isAdmin && <WheelConfigDialog config={data.config} />}
       </div>
-      {history ? <WheelTabs vue={vue} roue={roue} historique={<WheelHistory history={history} />} /> : roue}
+      {history ? (
+        <UrlTabs
+          value={vue}
+          defaultValue="roue"
+          items={[
+            { value: 'roue', label: 'Roue', content: roue },
+            { value: 'historique', label: 'Historique', content: <WheelHistory history={history} /> },
+          ]}
+        />
+      ) : (
+        roue
+      )}
     </div>
   )
 }
