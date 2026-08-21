@@ -1,10 +1,10 @@
 // Génère la migration de SEED du catalogue de formation depuis le formation.json de Good Luck
-// Agency (repo axel-vrnl/good-luck-agency). Le SQL émis est L'ARTEFACT (migration 0115) ; ce
+// Agency (repo axel-vrnl/good-luck-agency). Le SQL émis est L'ARTEFACT (section seed de la migration consolidée 0113_formation.sql, ex-0115) ; ce
 // script est commité, ré-exécutable, JAMAIS appelé en prod.
 //   node packages/db/scripts/gen-training-seed.mjs ~/Documents/good-luck-agency/formation.json \
-//     > packages/db/supabase/migrations/0115_training_catalog_seed.sql
+//     puis coller la sortie dans la section [ex-0115] de supabase/migrations/0113_formation.sql
 // Règles de conversion : spec 2026-08-17-formation-catalogue-design.md §4. Tests : node --test.
-// NOTE : génère la migration 0115 pour le SCHÉMA 0113 (colonnes fan_brief/expected/scoring_notes/
+// NOTE : génère le seed pour le SCHÉMA du catalogue (section [ex-0113]) (colonnes fan_brief/expected/scoring_notes/
 // champs cachés dans les tables principales). Depuis 0116 ces colonnes vivent dans
 // training_*_secrets : ne pas rejouer ce script sur un schéma ≥ 0116 (il resterait à adapter —
 // YAGNI tant que le contenu GLA n'est pas ré-importé).
@@ -305,7 +305,7 @@ function insertSql(table, rows) {
 export function renderSql(seed) {
   const c = seed.counts
   return [
-    '-- 0115 — Seed du catalogue de formation (reprise de Good Luck Agency).',
+    '-- Seed du catalogue de formation (reprise de Good Luck Agency, ex-migration 0115).',
     '-- GÉNÉRÉ par packages/db/scripts/gen-training-seed.mjs depuis formation.json — NE PAS ÉDITER À LA MAIN',
     '-- (relancer le script). uuid v5 déterministes (namespace fixe) : re-génération = mêmes ids.',
     `-- Comptages : ${c.modules} modules, ${c.axes} axes, ${c.sections} sections, ${c.cases} cas (${c.solo} solo / ${c.arena} défis / ${c.boss} boss),`,
@@ -325,7 +325,7 @@ export function renderSql(seed) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const file = process.argv[2]
   if (!file) {
-    console.error('usage : node gen-training-seed.mjs <formation.json> > 0115_training_catalog_seed.sql')
+    console.error('usage : node gen-training-seed.mjs <formation.json> (sortie = section seed de 0113_formation.sql)')
     process.exit(1)
   }
   const seed = buildSeed(JSON.parse(readFileSync(file, 'utf8')))

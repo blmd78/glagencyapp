@@ -62,7 +62,7 @@ export type WeeklyRankRow = Pick<RankRow, 'profileId' | 'displayName' | 'points'
 
 /**
  * `semaine` = semaine en cours (lundi courant) ; `semaine-derniere` = dernière semaine COMPLÈTE —
- * celle qui détermine les tickets de roue (`training_last_week()`, migration 0122) ; `global` =
+ * celle qui détermine les tickets de roue (`training_last_week()`, migration 0113_formation) ; `global` =
  * classement toutes périodes (`training_ranking`).
  */
 export type RankScope = 'semaine' | 'semaine-derniere' | 'global'

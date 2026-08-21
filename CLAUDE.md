@@ -47,37 +47,37 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   forms — checklist nouvelle feature) + `docs/guidelines-socle.md` (briques transverses du
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
-  (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency : **catalogue**
-  `training_*` (0113 schéma, 0114 index, 0115 seed généré par
+  (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
+  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127, UAT alignée
+  par `migration repair`, prod encore à 0112 — prochaine migration = 0114) : **catalogue**
+  `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
   publique — jamais `fan_brief`/`expected` côté chatter — projection APPLICATIVE seulement :
-  la RLS 0113 est par ligne, secrets durcis en tables admin-only `training_case_secrets` /
-  `training_module_secrets` / `training_boss_fan_secrets`, 0116). **Entraînement** :
-  sessions/threads/messages/scores/signalements/`training_ai_calls` (0117), stats/classement
-  (0118-0120) — moteur IA en `lib/ai/` uniquement (fan Haiku 4.5, notation Sonnet 5, tracé
+  la RLS du catalogue est par ligne, secrets durcis en tables admin-only `training_case_secrets` /
+  `training_module_secrets` / `training_boss_fan_secrets`). **Entraînement** :
+  sessions/threads/messages/scores/signalements/`training_ai_calls`, stats/classement — moteur IA en `lib/ai/` uniquement (fan Haiku 4.5, notation Sonnet 5, tracé
   dans `training_ai_calls`), **aucun streaming / Route Handler**, Server Actions partout.
   `startSession`, partagé par plusieurs features (Modules, écran de résultat de session), vit en
   `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent
   `lib/impersonation/actions.ts`. **Écritures des sessions (sessions/threads/messages/signalements)
   = service-role après vérification de propriété dans les Server Actions ; RLS = lecture
-  (propriétaire, encadrant `frm-suivi`, admin) — 0121.** Roue des récompenses
-  (`/formation/roue`, incr. 3, 0122-0123 UAT) : ticket = top 3 du classement hebdo
+  (propriétaire, encadrant `frm-suivi`, admin).** Roue des récompenses
+  (`/formation/roue`, incr. 3) : ticket = top 3 du classement hebdo
   (`training_weekly_ranking`, points de la semaine), tirage serveur (`pickWeighted`), gains
   stockés (`training_wheel_spins`, € nullable, `paid_at` pour la compta plus tard), config
   admin 1 ligne, journal `member_events` kind `recompense` ; écritures service-role, RLS
-  lecture. Migrations 0116-0123 poussées
+  lecture. Poussé
   **UAT seulement**, à recetter. **Recrutement** (reprise GLA, incr. 4) : page publique
   `/postuler` (proxy `isPublic`, parcours QI→frappe→connexion→fan IA→identité, anti-triche
-  SERVEUR — clé de correction/tirages/verdict jamais côté client), migrations `0125`
-  (tables `recruit_*` + RPC `recruit_pending_count`) / `0126` (checks lower e-mail). Admin
+  SERVEUR — clé de correction/tirages/verdict jamais côté client), tables `recruit_*` + RPC `recruit_pending_count`, e-mails en lower (check), profil candidat au formulaire de fin. Admin
   only : `/formation/recrutement` (dossiers, valider/refuser/bloquer/débloquer/supprimer) +
   `/formation/recrutement/config` (seuils, banque QI 5 slots, texte de frappe normalisé) ;
   sidebar = item direct Recrutement (badge en attente) + groupe repliable « Configuration »
   (Catalogue déplacé dedans + Config du test) ; blocage auto (device/email/discord,
   `created_by` null) ≠ blocage admin (+ IP). Rattachement membre→candidat par e-mail à la
   création (lookup `recruit_candidates`, non bloquant). Écritures `recruit_*` :
-  service-role après garde admin (comme le reste de la formation depuis 0121). Droits
+  service-role après garde admin (comme le reste de la formation). Droits
   `frm-suivi` (Overview,
   encadrement) / `frm-entrainement` (Ma formation, chatter), Modules et session ouverts aux deux
   (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`

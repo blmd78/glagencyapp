@@ -164,7 +164,7 @@ export async function loadAttempt(admin: Admin, attemptId: string): Promise<Atte
  * Toute épreuve ne s'écrit que sur une tentative encore ouverte (notée ou soumise = plus rien ne
  * bouge).
  *
- * ⚠️ Note pour la page Recrutement (T6) : le statut `abandonnee` existe en base (0125) mais AUCUNE
+ * ⚠️ Note pour la page Recrutement (T6) : le statut `abandonnee` existe en base (0113_formation) mais AUCUNE
  * action ne le pose aujourd'hui — un candidat qui ferme l'onglet laisse sa tentative en `en_cours`
  * pour toujours. Le compte des tentatives « en cours » n'est donc PAS un compte de candidats
  * actifs : côté admin, il faut soit filtrer sur `created_at` récent, soit un job de nettoyage qui

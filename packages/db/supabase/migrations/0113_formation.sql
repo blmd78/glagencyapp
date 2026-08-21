@@ -1,3 +1,217 @@
+-- 0113 — FACE FORMATION COMPLÈTE (consolidation du 2026-08-21, commit de fusion).
+-- Fusion ORDONNÉE des 15 migrations du chantier Formation (ex-0113 → ex-0127), appliquées
+-- une à une sur l'UAT pendant le développement puis consolidées AVANT toute release prod
+-- (la prod s'arrêtait à 0112 — ce fichier est la première et unique migration Formation
+-- qu'elle verra). Le contenu de chaque section est le fichier d'origine, inchangé, dans
+-- l'ordre d'application : les sections correctrices (ex-0119, ex-0123, ex-0126) corrigent
+-- donc les sections qui les précèdent, comme sur l'UAT.
+--
+-- Périmètre : catalogue training_* + seed généré (gen-training-seed.mjs), secrets admin-only,
+-- sessions/threads/messages/scores/signalements + IA, stats/classement, durcissement RLS
+-- écriture (service-role), roue des récompenses, test de recrutement public + profil candidat.
+
+
+-- ============================================================================
+-- [ex-0113] 0113_training_catalog.sql
+-- ============================================================================
+
+-- 0113 — Catalogue de formation (reprise de Good Luck Agency) : modules, axes du barème,
+-- sections, cas (solo / défi simultané / boss), messages d'ouverture, créneaux de défi, fans
+-- du boss. Spec : docs/superpowers/specs/2026-08-17-formation-catalogue-design.md §3.
+--
+-- Lecture : quiconque a le droit de face `formation` (posé par mergePages dès qu'une page
+-- frm-* est cochée) ou admin ; `has_page` exige left_at is null (0102). Écriture : admin
+-- uniquement (le Catalogue est adminOnly). Les lignes inactives restent lisibles : le filtre
+-- `active` est applicatif (pages Modules) — le Catalogue admin voit tout.
+-- Pas de trigger updated_at (convention repo : posé par les actions) ; pas de created_by
+-- (donnée d'équipe, l'audit = updated_by) ; pas de jsonb (structure connue) ; pas d'enum.
+
+create table public.training_modules (
+  id              uuid primary key default gen_random_uuid(),
+  code            text not null unique check (code ~ '^[a-z0-9_-]{2,40}$'),
+  title           text not null check (length(title) between 1 and 80),
+  emoji           text check (emoji is null or length(emoji) <= 8),
+  description     text,
+  objective_label text not null default 'Objectif',
+  course_md       text,
+  scoring_notes   text,
+  position        integer not null default 0,
+  active          boolean not null default true,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  updated_by      uuid references public.profiles(id) on delete set null
+);
+
+create table public.training_module_axes (
+  id          uuid primary key default gen_random_uuid(),
+  module_id   uuid not null references public.training_modules(id) on delete cascade,
+  key         text not null check (key ~ '^[a-z0-9_]{2,30}$'),
+  name        text not null check (length(name) between 1 and 60),
+  description text not null,
+  position    integer not null default 0,
+  unique (module_id, key)
+);
+
+create table public.training_module_sections (
+  id          uuid primary key default gen_random_uuid(),
+  module_id   uuid not null references public.training_modules(id) on delete cascade,
+  code        text not null check (code ~ '^[a-z0-9_-]{2,40}$'),
+  title       text not null check (length(title) between 1 and 80),
+  emoji       text check (emoji is null or length(emoji) <= 8),
+  description text,
+  position    integer not null default 0,
+  unique (module_id, code)
+);
+
+-- Trois sortes de cas (GLA : cas « normal », `arena` = défi simultané, `boss_mode`) :
+--   solo  : une conversation contre un fan — fan_name / fan_brief / expected obligatoires
+--   arena : 5 conversations en parallèle, chacune rejoue un cas SOLO du module sous un autre
+--           prénom (training_case_arena_slots)
+--   boss  : 5 tunnels complets contre 5 fans riches (training_case_boss_fans)
+create table public.training_cases (
+  id             uuid primary key default gen_random_uuid(),
+  module_id      uuid not null references public.training_modules(id) on delete cascade,
+  section_id     uuid references public.training_module_sections(id) on delete set null,
+  code           text not null unique check (code ~ '^[a-z0-9_-]{2,40}$'),
+  kind           text not null default 'solo' check (kind in ('solo', 'arena', 'boss')),
+  title          text not null check (length(title) between 1 and 80),
+  phase          text not null default '',
+  difficulty     smallint not null check (difficulty between 1 and 10),
+  -- messages max du chatter : par conversation (solo/arena) ou par fan (boss).
+  -- GLA : tours_max (solo), ARENA_CAP=8 (arena), 32 (boss).
+  max_turns      smallint not null check (max_turns between 1 and 50),
+  -- délai de réponse max en secondes (arena/boss) — GLA reaction_max_s
+  reaction_max_s smallint check (reaction_max_s between 10 and 600),
+  is_sale        boolean not null default false,
+  context        text not null,
+  objective      text not null,
+  target_line    text,
+  fan_name       text check (fan_name is null or length(fan_name) between 1 and 30),
+  fan_brief      text,        -- consigne du fan pour l'IA (jamais affichée au chatter)
+  expected       text,        -- « ce qui était attendu » — révélé APRÈS la session
+  position       integer not null default 0,
+  active         boolean not null default true,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  updated_by     uuid references public.profiles(id) on delete set null,
+  constraint training_cases_solo_fields check (
+    case when kind = 'solo'
+      then fan_name is not null and fan_brief is not null and expected is not null
+      else fan_name is null and fan_brief is null
+    end
+  ),
+  constraint training_cases_reaction_kind check ((kind = 'solo') = (reaction_max_s is null))
+);
+-- section_id du même module : vérifié CÔTÉ ACTION (une incohérence n'aurait qu'un effet d'affichage).
+
+-- Défi simultané : chaque créneau rejoue un cas SOLO du même module (vérifié côté action).
+create table public.training_case_arena_slots (
+  id           uuid primary key default gen_random_uuid(),
+  case_id      uuid not null references public.training_cases(id) on delete cascade,
+  position     integer not null,
+  -- restrict : on ne supprime pas un solo référencé (on ne supprime d'ailleurs jamais de cas)
+  ref_case_id  uuid not null references public.training_cases(id) on delete restrict,
+  display_name text not null check (length(display_name) between 1 and 30),
+  unique (case_id, position)
+);
+
+-- Boss final : un fan riche par tunnel. Visibles du chatter : name, age, job, city, color,
+-- persona. Cachés (pilotent l'IA) : budget_cap, nego_*, meet_*, derails.
+create table public.training_case_boss_fans (
+  id              uuid primary key default gen_random_uuid(),
+  case_id         uuid not null references public.training_cases(id) on delete cascade,
+  position        integer not null,
+  code            text not null check (code ~ '^[a-z0-9_-]{2,30}$'),
+  name            text not null check (length(name) between 1 and 30),
+  age             smallint check (age between 18 and 99),
+  job             text,
+  city            text,
+  color           text check (color ~ '^#[0-9a-fA-F]{6}$'),
+  persona         text not null,
+  opening_message text not null,
+  budget_cap      integer check (budget_cap >= 0),
+  nego_threshold  integer check (nego_threshold >= 0),
+  nego_where      text,
+  meet_when       text,
+  meet_where      text,
+  derails         text,
+  unique (case_id, position),
+  unique (case_id, code)
+);
+
+-- Messages d'ouverture (GLA seed) — la conversation « déjà entamée » à l'arrivée du chatter.
+create table public.training_case_messages (
+  id        uuid primary key default gen_random_uuid(),
+  case_id   uuid not null references public.training_cases(id) on delete cascade,
+  position  integer not null,
+  speaker   text not null check (speaker in ('creator', 'fan')),
+  body      text not null check (length(body) between 1 and 1000),
+  unique (case_id, position)
+);
+
+-- Index (FK non couvertes par un unique en tête).
+create index training_cases_module_position_idx on public.training_cases (module_id, position);
+create index training_cases_section_idx on public.training_cases (section_id);
+create index training_case_arena_slots_ref_idx on public.training_case_arena_slots (ref_case_id);
+-- axes/sections (module_id, …), messages/slots/fans (case_id, …) : couverts par leur unique.
+
+alter table public.training_modules enable row level security;
+alter table public.training_module_axes enable row level security;
+alter table public.training_module_sections enable row level security;
+alter table public.training_cases enable row level security;
+alter table public.training_case_messages enable row level security;
+alter table public.training_case_arena_slots enable row level security;
+alter table public.training_case_boss_fans enable row level security;
+
+create policy training_modules_read on public.training_modules for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_modules_admin_write on public.training_modules for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create policy training_module_axes_read on public.training_module_axes for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_module_axes_admin_write on public.training_module_axes for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create policy training_module_sections_read on public.training_module_sections for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_module_sections_admin_write on public.training_module_sections for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create policy training_cases_read on public.training_cases for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_cases_admin_write on public.training_cases for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create policy training_case_messages_read on public.training_case_messages for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_case_messages_admin_write on public.training_case_messages for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create policy training_case_arena_slots_read on public.training_case_arena_slots for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_case_arena_slots_admin_write on public.training_case_arena_slots for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+create policy training_case_boss_fans_read on public.training_case_boss_fans for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_case_boss_fans_admin_write on public.training_case_boss_fans for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+-- ============================================================================
+-- [ex-0114] 0114_training_updated_by_idx.sql
+-- ============================================================================
+
+-- 0114 — Index des FK `updated_by` du catalogue de formation (oubli de 0113, relevé en revue).
+-- Convention repo (0055) : toute FK est indexée sauf couverture par un unique en tête —
+-- `updated_by → profiles(id) on delete set null` doit l'être (comme todos 0069, compta 0084/0085).
+create index training_modules_updated_by_idx on public.training_modules (updated_by);
+create index training_cases_updated_by_idx on public.training_cases (updated_by);
+
+-- ============================================================================
+-- [ex-0115] 0115_training_catalog_seed.sql
+-- ============================================================================
+
 -- 0115 — Seed du catalogue de formation (reprise de Good Luck Agency).
 -- GÉNÉRÉ par packages/db/scripts/gen-training-seed.mjs depuis formation.json — NE PAS ÉDITER À LA MAIN
 -- (relancer le script). uuid v5 déterministes (namespace fixe) : re-génération = mêmes ids.
@@ -673,3 +887,1197 @@ insert into public.training_case_boss_fans (id, case_id, position, code, name, a
   ('ac3aa219-9e12-585a-a7be-7d65bfe7c05f', '5f4cd404-728a-54dd-ba89-14a944fc5c86', 20, 'julien', 'Julien', 52, 'comptable', 'Nantes', '#9a6bff', 'Affectif, seul depuis son divorce, il se raconte. Cherche une vraie connexion.', 'bonsoir toi 🙂 ça fait du bien de parler à quelqu''un ce soir', 150, 60, 'sur le 60€, un peu de résistance affective (« tu me fais payer pour ça ? »)', 'pendant le relationnel final', 'après les ventes, quand ça devient tendre : « on pourrait se rencontrer un jour toi et moi »', '2 fois en setting (il déballe sa vie, son divorce), 1 fois pendant le sexting'),
   ('a1718b85-6e8a-5d5d-a7e7-e8b8962e2750', '5f4cd404-728a-54dd-ba89-14a944fc5c86', 30, 'marc', 'Marc', 41, 'cadre', 'Paris', '#ffb02e', 'Pressé, il veut aller au but, zappe le blabla. Du budget mais impatient.', 'salut, bon tu proposes quoi concrètement ?', 500, 150, 'sur le gros palier 150€ (« 150 c''est beaucoup, faut voir »)', 'pendant le relationnel final', 'à la fin, une fois calmé : « bon et dans la vraie vie, on se croise quand ? »', 'il va trop vite dès le setting (veut sauter la qualif), puis digresse 2 fois pendant le sexting'),
   ('95347dbe-52e4-5813-8195-747f2933bdf0', '5f4cd404-728a-54dd-ba89-14a944fc5c86', 40, 'alex', 'Alex', 38, 'commercial', 'Paris', '#ff3b52', 'Négociateur pro, il teste tout, doute de tout. Le fan le plus dur du lot.', 'salut, on va voir ce que tu vaux 😏', 500, 500, 'sur le tout dernier média à 500€ (il marchande jusqu''au bout)', 'direct, en plein sexting', 'il pousse tôt pour du réel, pour te déstabiliser', 'partout : il doute en setting, casse une transition, digresse 2 fois en sexting');
+
+-- ============================================================================
+-- [ex-0116] 0116_training_secrets.sql
+-- ============================================================================
+
+-- 0116 — Secrets du catalogue de formation en tables ADMIN SEUL (revue finale du Catalogue,
+-- 2026-08-18). La RLS 0113 est par ligne : tout membre ayant le droit de face `formation`
+-- pouvait lire fan_brief / expected / scoring_notes / champs cachés des fans via PostgREST.
+-- On DÉPLACE ces colonnes dans trois tables miroirs lisibles/écrites par les admins seulement ;
+-- le moteur IA (lib/ai, serveur) les lit avec le client service-role. Données recopiées puis
+-- colonnes sources supprimées (la 0115 — seed — reste telle quelle : c'est cette migration qui
+-- transporte ses données).
+
+create table public.training_case_secrets (
+  case_id   uuid primary key references public.training_cases(id) on delete cascade,
+  fan_brief text,   -- consigne du fan pour l'IA (solo) — jamais montrée au chatter
+  expected  text    -- « ce qui était attendu » (solo) — révélé APRÈS la notation
+);
+create table public.training_module_secrets (
+  module_id     uuid primary key references public.training_modules(id) on delete cascade,
+  scoring_notes text  -- consigne de notation transmise à l'IA
+);
+create table public.training_boss_fan_secrets (
+  fan_id         uuid primary key references public.training_case_boss_fans(id) on delete cascade,
+  budget_cap     integer check (budget_cap >= 0),
+  nego_threshold integer check (nego_threshold >= 0),
+  nego_where     text,
+  meet_when      text,
+  meet_where     text,
+  derails        text
+);
+
+-- Copie des données (0113 + seed 0115).
+insert into public.training_case_secrets (case_id, fan_brief, expected)
+select id, fan_brief, expected from public.training_cases
+where fan_brief is not null or expected is not null;
+insert into public.training_module_secrets (module_id, scoring_notes)
+select id, scoring_notes from public.training_modules where scoring_notes is not null;
+insert into public.training_boss_fan_secrets (fan_id, budget_cap, nego_threshold, nego_where, meet_when, meet_where, derails)
+select id, budget_cap, nego_threshold, nego_where, meet_when, meet_where, derails
+from public.training_case_boss_fans;
+
+-- Colonnes sources : le check solo référençait fan_brief/expected → recréé sur fan_name seul
+-- (fan_brief/expected restent obligatoires pour un solo CÔTÉ ACTION, cf. Zod caseForm).
+alter table public.training_cases drop constraint training_cases_solo_fields;
+alter table public.training_cases drop column fan_brief, drop column expected;
+alter table public.training_cases add constraint training_cases_solo_fields
+  check ((kind = 'solo') = (fan_name is not null));
+alter table public.training_modules drop column scoring_notes;
+alter table public.training_case_boss_fans
+  drop column budget_cap, drop column nego_threshold, drop column nego_where,
+  drop column meet_when, drop column meet_where, drop column derails;
+
+alter table public.training_case_secrets enable row level security;
+alter table public.training_module_secrets enable row level security;
+alter table public.training_boss_fan_secrets enable row level security;
+
+create policy training_case_secrets_admin on public.training_case_secrets for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+create policy training_module_secrets_admin on public.training_module_secrets for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+create policy training_boss_fan_secrets_admin on public.training_boss_fan_secrets for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+
+-- ============================================================================
+-- [ex-0117] 0117_training_sessions.sql
+-- ============================================================================
+
+-- 0117 — Entraînement : sessions (un cas joué), threads (1 solo / 5 défi / 5 boss), messages,
+-- notation par thread + par axe, signalements, traçabilité des appels IA.
+-- Spec : docs/superpowers/specs/2026-08-18-formation-entrainement-design.md §3.2, §3.4.
+-- RLS : le chatter voit/écrit SES sessions ; encadrants (has_page('frm-suivi'), admin inclus) lisent tout
+-- (Overview non cloisonné, décidé 2026-08-18) ; scores et ai_calls s'écrivent en service-role
+-- depuis les Server Actions (aucune policy d'écriture authenticated). `session_id` est
+-- dénormalisé sur training_messages : RLS à un niveau + index direct (table la plus lue).
+
+create table public.training_sessions (
+  id                uuid primary key default gen_random_uuid(),
+  profile_id        uuid not null references public.profiles(id) on delete cascade,
+  case_id           uuid not null references public.training_cases(id) on delete restrict,
+  module_id         uuid not null references public.training_modules(id) on delete restrict,
+  kind              text not null check (kind in ('solo', 'arena', 'boss')),
+  status            text not null default 'active' check (status in ('active', 'scored', 'failed', 'abandoned')),
+  -- PARTIE VISIBLE du cas au moment joué : { code, title, phase, difficulty, context, objective,
+  -- objectiveLabel, targetLine, maxTurns, reactionMaxS, isSale, moduleCode, moduleTitle } — jamais de secret.
+  case_snapshot     jsonb not null,
+  total             smallint check (total between 0 and 100),
+  objective_reached boolean,
+  started_at        timestamptz not null default now(),
+  ended_at          timestamptz,
+  scored_at         timestamptz
+);
+create index training_sessions_profile_started_idx on public.training_sessions (profile_id, started_at desc);
+create index training_sessions_case_idx on public.training_sessions (case_id);
+create index training_sessions_module_idx on public.training_sessions (module_id);
+create index training_sessions_scored_idx on public.training_sessions (scored_at desc) where status = 'scored';
+-- une seule session ACTIVE par chatter
+create unique index training_sessions_one_active_idx on public.training_sessions (profile_id) where status = 'active';
+
+create table public.training_threads (
+  id           uuid primary key default gen_random_uuid(),
+  session_id   uuid not null references public.training_sessions(id) on delete cascade,
+  position     smallint not null,
+  ref_case_id  uuid references public.training_cases(id) on delete restrict,        -- défi : le solo rejoué
+  boss_fan_id  uuid references public.training_case_boss_fans(id) on delete restrict, -- boss : le fan
+  fan_name     text not null check (length(fan_name) between 1 and 30),
+  status       text not null default 'open' check (status in ('open', 'done', 'lost')),
+  lost_reason  text check (lost_reason is null or lost_reason ~ '^(timeout|[a-z_]{2,20})$'),
+  turns_used   smallint not null default 0 check (turns_used >= 0),
+  max_turns    smallint not null check (max_turns between 1 and 50),
+  next_due_at  timestamptz,   -- chrono : le chatter doit répondre avant (null = pas de chrono en cours)
+  unique (session_id, position)
+);
+create index training_threads_ref_case_idx on public.training_threads (ref_case_id);
+create index training_threads_boss_fan_idx on public.training_threads (boss_fan_id);
+
+create table public.training_messages (
+  id          uuid primary key default gen_random_uuid(),
+  session_id  uuid not null references public.training_sessions(id) on delete cascade,
+  thread_id   uuid not null references public.training_threads(id) on delete cascade,
+  position    smallint not null,
+  speaker     text not null check (speaker in ('chatter', 'fan')),
+  body        text not null check (length(body) between 1 and 1000),
+  media_price integer check (media_price is null or media_price between 1 and 10000),
+  visible_at  timestamptz not null default now(),   -- révélation différée (défi/boss)
+  created_at  timestamptz not null default now(),
+  unique (thread_id, position)
+);
+create index training_messages_session_idx on public.training_messages (session_id);
+
+create table public.training_thread_scores (
+  thread_id         uuid primary key references public.training_threads(id) on delete cascade,
+  total             smallint not null check (total between 0 and 100),
+  objective_reached boolean not null,
+  capped            boolean not null default false,
+  comment           text not null,
+  moments           jsonb not null default '[]'::jsonb,
+  scored_at         timestamptz not null default now()
+);
+create table public.training_thread_axis_scores (
+  thread_id uuid not null references public.training_threads(id) on delete cascade,
+  axis_key  text not null,
+  axis_name text not null,
+  score     smallint not null check (score between 0 and 100),   -- 0-25 pour les axes de module, 0-100 pour les étapes du boss
+  primary key (thread_id, axis_key)
+);
+
+create table public.training_reports (
+  id          uuid primary key default gen_random_uuid(),
+  session_id  uuid not null references public.training_sessions(id) on delete cascade,
+  profile_id  uuid not null references public.profiles(id) on delete cascade,
+  message     text not null check (length(message) between 1 and 2000),
+  created_at  timestamptz not null default now(),
+  resolved_at timestamptz,
+  resolved_by uuid references public.profiles(id) on delete set null
+);
+create index training_reports_session_idx on public.training_reports (session_id);
+create index training_reports_profile_idx on public.training_reports (profile_id);
+create index training_reports_resolved_by_idx on public.training_reports (resolved_by);
+create index training_reports_open_idx on public.training_reports (created_at desc) where resolved_at is null;
+
+create table public.training_ai_calls (
+  id                uuid primary key default gen_random_uuid(),
+  session_id        uuid not null references public.training_sessions(id) on delete cascade,
+  thread_id         uuid references public.training_threads(id) on delete set null,
+  kind              text not null check (kind in ('fan', 'score')),
+  model             text not null,
+  input_tokens      integer not null default 0,
+  output_tokens     integer not null default 0,
+  cache_read_tokens integer not null default 0,
+  latency_ms        integer not null default 0,
+  ok                boolean not null default true,
+  created_at        timestamptz not null default now()
+);
+create index training_ai_calls_session_idx on public.training_ai_calls (session_id);
+create index training_ai_calls_thread_idx on public.training_ai_calls (thread_id);
+create index training_ai_calls_created_idx on public.training_ai_calls (created_at desc);
+
+alter table public.training_sessions enable row level security;
+alter table public.training_threads enable row level security;
+alter table public.training_messages enable row level security;
+alter table public.training_thread_scores enable row level security;
+alter table public.training_thread_axis_scores enable row level security;
+alter table public.training_reports enable row level security;
+alter table public.training_ai_calls enable row level security;
+
+-- Sessions : propriétaire, encadrant, admin lisent ; propriétaire écrit ; admin peut mettre à jour (rescore).
+-- « Encadrant » = has_page('frm-suivi') (droit Overview de la face Formation, admin inclus) — PAS is_manager()
+-- (rôle manager seul) : un sous-manager ou un policier à qui on donne Suivi doit lire les sessions (spec §7).
+create policy training_sessions_read on public.training_sessions for select to authenticated
+  using (profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')));
+create policy training_sessions_insert on public.training_sessions for insert to authenticated
+  with check (profile_id = (select auth.uid()));
+create policy training_sessions_update on public.training_sessions for update to authenticated
+  using (profile_id = (select auth.uid()) or (select public.is_admin()))
+  with check (profile_id = (select auth.uid()) or (select public.is_admin()));
+
+-- Threads : héritent de la session (exists — même patron que police_report_lines, 0071).
+create policy training_threads_read on public.training_threads for select to authenticated
+  using (exists (select 1 from public.training_sessions s where s.id = session_id
+                 and (s.profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')))));
+create policy training_threads_write on public.training_threads for all to authenticated
+  using (exists (select 1 from public.training_sessions s where s.id = session_id
+                 and (s.profile_id = (select auth.uid()) or (select public.is_admin()))))
+  with check (exists (select 1 from public.training_sessions s where s.id = session_id
+                 and (s.profile_id = (select auth.uid()) or (select public.is_admin()))));
+
+-- Messages : session_id dénormalisé → un seul niveau.
+create policy training_messages_read on public.training_messages for select to authenticated
+  using (exists (select 1 from public.training_sessions s where s.id = session_id
+                 and (s.profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')))));
+create policy training_messages_write on public.training_messages for all to authenticated
+  using (exists (select 1 from public.training_sessions s where s.id = session_id
+                 and (s.profile_id = (select auth.uid()) or (select public.is_admin()))))
+  with check (exists (select 1 from public.training_sessions s where s.id = session_id
+                 and (s.profile_id = (select auth.uid()) or (select public.is_admin()))));
+
+-- Scores : lecture via thread → session ; AUCUNE écriture authenticated (service-role depuis scoreSession).
+create policy training_thread_scores_read on public.training_thread_scores for select to authenticated
+  using (exists (select 1 from public.training_threads t join public.training_sessions s on s.id = t.session_id
+                 where t.id = thread_id
+                 and (s.profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')))));
+create policy training_thread_axis_scores_read on public.training_thread_axis_scores for select to authenticated
+  using (exists (select 1 from public.training_threads t join public.training_sessions s on s.id = t.session_id
+                 where t.id = thread_id
+                 and (s.profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')))));
+
+-- Signalements : auteur + encadrants lisent ; auteur crée ; encadrant/admin résout.
+create policy training_reports_read on public.training_reports for select to authenticated
+  using (profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')));
+create policy training_reports_insert on public.training_reports for insert to authenticated
+  with check (profile_id = (select auth.uid()));
+create policy training_reports_update on public.training_reports for update to authenticated
+  using ((select public.has_page('frm-suivi')))
+  with check ((select public.has_page('frm-suivi')));
+
+-- Appels IA : admin lit ; écriture service-role uniquement.
+create policy training_ai_calls_admin_read on public.training_ai_calls for select to authenticated
+  using ((select public.is_admin()));
+
+-- ============================================================================
+-- [ex-0118] 0118_training_stats.sql
+-- ============================================================================
+
+-- 0118 — Agrégats de progression PRÉ-CALCULÉS (perf : Ma formation / Overview / classement lisent
+-- 1-2 lignes au lieu de rejouer les sessions comme GLA), maintenus par trigger à chaque notation ;
+-- RPC de lecture (points faibles par axe, coût IA, classement, roster overview).
+-- Règles (spec §6) : médailles/points/moyenne = SUR LES MEILLEURS totaux par cas, HORS boss ;
+-- boss_best/boss_done à part (réussi = objectif atteint = note ≥ 60) ; streak = jours consécutifs
+-- Europe/Paris avec ≥ 1 notation.
+
+create table public.training_case_bests (
+  profile_id     uuid not null references public.profiles(id) on delete cascade,
+  case_id        uuid not null references public.training_cases(id) on delete cascade,
+  best_total     smallint not null check (best_total between 0 and 100),
+  best_objective boolean not null default false,
+  attempts       integer not null default 1 check (attempts >= 1),
+  last_at        timestamptz not null,
+  primary key (profile_id, case_id)
+);
+create index training_case_bests_case_idx on public.training_case_bests (case_id);
+
+create table public.training_profile_stats (
+  profile_id      uuid primary key references public.profiles(id) on delete cascade,
+  cases_done      integer not null default 0,
+  avg_total       numeric(5,2),
+  points          integer not null default 0,
+  boss_best       smallint,
+  boss_done       boolean not null default false,
+  active_days     integer not null default 0,
+  streak_days     integer not null default 0,
+  last_active_day date,
+  last_session_at timestamptz,
+  updated_at      timestamptz not null default now()
+);
+
+alter table public.training_case_bests enable row level security;
+alter table public.training_profile_stats enable row level security;
+-- Lecture : bests = propriétaire / encadrant / admin ; stats = tout membre Formation (classement =
+-- agrégats, jamais de contenu). AUCUNE écriture authenticated : trigger security definer.
+create policy training_case_bests_read on public.training_case_bests for select to authenticated
+  using (profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')));
+create policy training_profile_stats_read on public.training_profile_stats for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+
+-- Recalcul DEPUIS LES SESSIONS (pas incrémental) : une re-notation à la baisse est prise en compte.
+create or replace function public.training_refresh_stats(p_profile uuid, p_case uuid, p_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_kind text;
+  v_day date := (p_at at time zone 'Europe/Paris')::date;
+  v_last date;
+  v_streak integer;
+  v_active integer;
+begin
+  select kind into v_kind from training_cases where id = p_case;
+
+  -- 1) meilleur résultat du couple (profil, cas) depuis les sessions notées
+  insert into training_case_bests (profile_id, case_id, best_total, best_objective, attempts, last_at)
+  select p_profile, p_case, max(total), bool_or(objective_reached), count(*), max(scored_at)
+  from training_sessions
+  where profile_id = p_profile and case_id = p_case and status = 'scored'
+  on conflict (profile_id, case_id) do update
+    set best_total = excluded.best_total, best_objective = excluded.best_objective,
+        attempts = excluded.attempts, last_at = excluded.last_at;
+
+  -- 2) stats du profil depuis ses bests (≤ ~90 lignes)
+  select last_active_day, streak_days, active_days into v_last, v_streak, v_active
+  from training_profile_stats where profile_id = p_profile;
+  if v_last is null or v_last < v_day - 1 then v_streak := 1; v_active := coalesce(v_active, 0) + 1;
+  elsif v_last = v_day - 1 then v_streak := coalesce(v_streak, 0) + 1; v_active := coalesce(v_active, 0) + 1;
+  else v_streak := coalesce(v_streak, 1); v_active := coalesce(v_active, 1);   -- même jour
+  end if;
+
+  insert into training_profile_stats (profile_id, cases_done, avg_total, points, boss_best, boss_done,
+                                      active_days, streak_days, last_active_day, last_session_at, updated_at)
+  select p_profile,
+         count(*) filter (where c.kind <> 'boss'),
+         avg(b.best_total) filter (where c.kind <> 'boss'),
+         coalesce(sum(b.best_total) filter (where c.kind <> 'boss'), 0),
+         max(b.best_total) filter (where c.kind = 'boss'),
+         coalesce(bool_or(b.best_objective) filter (where c.kind = 'boss'), false),
+         v_active, v_streak, greatest(coalesce(v_last, v_day), v_day), p_at, now()
+  from training_case_bests b join training_cases c on c.id = b.case_id
+  where b.profile_id = p_profile
+  on conflict (profile_id) do update
+    set cases_done = excluded.cases_done, avg_total = excluded.avg_total, points = excluded.points,
+        boss_best = excluded.boss_best, boss_done = excluded.boss_done,
+        active_days = excluded.active_days, streak_days = excluded.streak_days,
+        last_active_day = excluded.last_active_day, last_session_at = excluded.last_session_at, updated_at = now();
+end;
+$$;
+revoke execute on function public.training_refresh_stats(uuid, uuid, timestamptz) from public, anon, authenticated;
+
+create or replace function public.training_on_session_scored()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  perform training_refresh_stats(new.profile_id, new.case_id, coalesce(new.scored_at, now()));
+  return null;
+end;
+$$;
+drop trigger if exists trg_training_session_scored on public.training_sessions;
+create trigger trg_training_session_scored
+  after update of status, scored_at on public.training_sessions
+  for each row
+  when (new.status = 'scored' and (old.status is distinct from 'scored' or old.scored_at is distinct from new.scored_at))
+  execute function public.training_on_session_scored();
+
+-- RPC lecture. INVOKER : bornées par la RLS de l'appelant.
+create or replace function public.training_axis_profile(p_profile uuid)
+returns table (axis_key text, axis_name text, avg_score numeric, n integer)
+language sql stable security invoker set search_path = public, pg_temp
+as $$
+  select a.axis_key, a.axis_name, round(avg(a.score), 1), count(*)::integer
+  from training_thread_axis_scores a
+  join training_threads t on t.id = a.thread_id
+  join training_sessions s on s.id = t.session_id
+  where s.profile_id = p_profile and s.status = 'scored' and s.kind <> 'boss'
+  group by a.axis_key, a.axis_name
+  order by avg(a.score) asc;
+$$;
+
+create or replace function public.training_ai_cost(p_since timestamptz)
+returns table (day date, model text, kind text, calls integer, input_tokens bigint, output_tokens bigint, cache_read_tokens bigint)
+language sql stable security invoker set search_path = public, pg_temp
+as $$
+  select (created_at at time zone 'Europe/Paris')::date, model, kind, count(*)::integer,
+         sum(input_tokens), sum(output_tokens), sum(cache_read_tokens)
+  from training_ai_calls
+  where created_at >= p_since
+  group by 1, 2, 3
+  order by 1 desc, 2, 3;
+$$;
+
+-- DEFINER : la RLS de profiles (profiles_self_admin_or_team_read) ne laisse pas un chatter/manager
+-- lire tous les noms ; ces deux RPC ne renvoient que nom + agrégats, jamais de contenu.
+create or replace function public.training_ranking()
+returns table (profile_id uuid, display_name text, points integer, cases_done integer, avg_total numeric, boss_done boolean, streak_days integer, is_new boolean)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select s.profile_id, coalesce(p.display_name, p.email, '—'), s.points, s.cases_done, s.avg_total, s.boss_done, s.streak_days, coalesce(p.is_new, false)
+  from training_profile_stats s
+  join profiles p on p.id = s.profile_id
+  where p.left_at is null
+    and ((select public.is_admin()) or (select public.has_page('formation')))
+  order by s.points desc, s.avg_total desc nulls last;
+$$;
+
+create or replace function public.training_overview_roster()
+returns table (profile_id uuid, display_name text, is_new boolean, arrived_at date, models text[],
+               cases_done integer, avg_total numeric, points integer, boss_best smallint, boss_done boolean,
+               streak_days integer, last_session_at timestamptz, sessions_scored integer)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select p.id, coalesce(p.display_name, p.email, '—'), coalesce(p.is_new, false), p.arrived_at,
+         coalesce((select array_agg(c.name order by c.name) from profile_creators pc join creators c on c.id = pc.creator_id where pc.profile_id = p.id), '{}'),
+         coalesce(s.cases_done, 0), s.avg_total, coalesce(s.points, 0), s.boss_best, coalesce(s.boss_done, false),
+         coalesce(s.streak_days, 0), s.last_session_at,
+         (select count(*)::integer from training_sessions ts where ts.profile_id = p.id and ts.status = 'scored')
+  from profiles p
+  left join training_profile_stats s on s.profile_id = p.id
+  where p.left_at is null and p.role = 'chatteur' and 'frm-entrainement' = any(p.pages)
+    and (select public.has_page('frm-suivi'))
+  order by coalesce(p.is_new, false) desc, p.display_name;
+$$;
+
+-- ============================================================================
+-- [ex-0119] 0119_training_stats_fixes.sql
+-- ============================================================================
+
+-- 0119 — Corrections post-revue de 0118 (findings importants acceptés par le contrôleur).
+-- 0118 est déjà appliquée ET enregistrée sur UAT : cette migration ne fait que
+-- `create or replace` les fonctions concernées (mêmes signatures, mêmes security/search_path).
+--
+-- 1) training_refresh_stats : `total is not null` ajouté au recalcul du meilleur (attempts
+--    compte les mêmes lignes que best_total) ; coalesce sur best_objective/last_at (colonnes
+--    nullables de training_sessions) pour ne jamais violer leur NOT NULL ; active_days
+--    recalculé DEPUIS LES FAITS (jours distincts Europe/Paris avec ≥ 1 notation valide) au
+--    lieu d'un compteur incrémental qui pouvait dériver en silence ; last_session_at repris
+--    comme last_active_day (greatest(coalesce(existant, p_at), p_at), jamais de retour en
+--    arrière) ; v_kind (déclaré, jamais utilisé) supprimé.
+-- 2) training_ranking / training_overview_roster : plus de fallback e-mail dans display_name
+--    (fuite d'adresse dans une RPC security definer lisible par tout chatter) ; streak_days
+--    renvoyé devient la valeur EFFECTIVE (0 si le dernier jour actif est antérieur à hier
+--    Paris) — training_profile_stats.streak_days, lui, reste la valeur brute « au dernier
+--    jour actif » (cf. commentaire de colonne ci-dessous).
+-- 3) Grants explicites sur les 4 RPC de lecture : execute retiré à public/anon, ré-accordé à
+--    authenticated seul (agrégats/noms uniquement, jamais de contenu, mais pas d'appel anonyme).
+
+comment on column public.training_profile_stats.streak_days is
+$cmt$valeur au dernier jour actif — lire via la règle "effectif" (last_active_day ≥ hier Paris), sinon 0$cmt$;
+
+comment on trigger trg_training_session_scored on public.training_sessions is
+$cmt$trigger UPDATE-only : toujours créer la session en 'active' puis la passer 'scored' en posant scored_at (re-notation = nouveau scored_at)$cmt$;
+
+create or replace function public.training_refresh_stats(p_profile uuid, p_case uuid, p_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_day date := (p_at at time zone 'Europe/Paris')::date;
+  v_last date;
+  v_streak integer;
+  v_active integer;
+  v_last_session_at timestamptz;
+begin
+  -- 1) meilleur résultat du couple (profil, cas) depuis les sessions notées AVEC une note
+  -- (total is not null) : attempts compte les mêmes lignes que best_total ; coalesce sur
+  -- best_objective/last_at pour ne jamais violer leur NOT NULL si ces colonnes nullables de
+  -- training_sessions sont vides sur la ligne courante.
+  insert into training_case_bests (profile_id, case_id, best_total, best_objective, attempts, last_at)
+  select p_profile, p_case, max(total), coalesce(bool_or(objective_reached), false), count(*), coalesce(max(scored_at), p_at)
+  from training_sessions
+  where profile_id = p_profile and case_id = p_case and status = 'scored' and total is not null
+  on conflict (profile_id, case_id) do update
+    set best_total = excluded.best_total, best_objective = excluded.best_objective,
+        attempts = excluded.attempts, last_at = excluded.last_at;
+
+  -- 2) streak (incrémental — lu via la règle « effectif » côté RPC, cf. training_ranking /
+  -- training_overview_roster) + reprise de last_session_at existant.
+  select last_active_day, streak_days, last_session_at into v_last, v_streak, v_last_session_at
+  from training_profile_stats where profile_id = p_profile;
+  if v_last is null or v_last < v_day - 1 then v_streak := 1;
+  elsif v_last = v_day - 1 then v_streak := coalesce(v_streak, 0) + 1;
+  else v_streak := coalesce(v_streak, 1);   -- même jour
+  end if;
+
+  -- active_days recalculé DEPUIS LES FAITS (jours distincts Europe/Paris avec ≥ 1 notation
+  -- valide) : plus un compteur incrémental qui pouvait dériver en silence.
+  select count(distinct (scored_at at time zone 'Europe/Paris')::date) into v_active
+  from training_sessions
+  where profile_id = p_profile and status = 'scored' and total is not null;
+
+  -- 3) stats du profil depuis ses bests (≤ ~90 lignes)
+  insert into training_profile_stats (profile_id, cases_done, avg_total, points, boss_best, boss_done,
+                                      active_days, streak_days, last_active_day, last_session_at, updated_at)
+  select p_profile,
+         count(*) filter (where c.kind <> 'boss'),
+         avg(b.best_total) filter (where c.kind <> 'boss'),
+         coalesce(sum(b.best_total) filter (where c.kind <> 'boss'), 0),
+         max(b.best_total) filter (where c.kind = 'boss'),
+         coalesce(bool_or(b.best_objective) filter (where c.kind = 'boss'), false),
+         v_active, v_streak, greatest(coalesce(v_last, v_day), v_day),
+         greatest(coalesce(v_last_session_at, p_at), p_at), now()
+  from training_case_bests b join training_cases c on c.id = b.case_id
+  where b.profile_id = p_profile
+  on conflict (profile_id) do update
+    set cases_done = excluded.cases_done, avg_total = excluded.avg_total, points = excluded.points,
+        boss_best = excluded.boss_best, boss_done = excluded.boss_done,
+        active_days = excluded.active_days, streak_days = excluded.streak_days,
+        last_active_day = excluded.last_active_day, last_session_at = excluded.last_session_at, updated_at = now();
+end;
+$$;
+
+-- DEFINER : la RLS de profiles (profiles_self_admin_or_team_read) ne laisse pas un chatter/manager
+-- lire tous les noms ; ces deux RPC ne renvoient que nom + agrégats, jamais de contenu (plus d'e-mail
+-- en repli), et le streak est la valeur EFFECTIVE (0 si le dernier jour actif est antérieur à hier).
+create or replace function public.training_ranking()
+returns table (profile_id uuid, display_name text, points integer, cases_done integer, avg_total numeric, boss_done boolean, streak_days integer, is_new boolean)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select s.profile_id, coalesce(p.display_name, '—'), s.points, s.cases_done, s.avg_total, s.boss_done,
+         case when s.last_active_day >= (now() at time zone 'Europe/Paris')::date - 1 then s.streak_days else 0 end,
+         coalesce(p.is_new, false)
+  from training_profile_stats s
+  join profiles p on p.id = s.profile_id
+  where p.left_at is null
+    and ((select public.is_admin()) or (select public.has_page('formation')))
+  order by s.points desc, s.avg_total desc nulls last;
+$$;
+
+create or replace function public.training_overview_roster()
+returns table (profile_id uuid, display_name text, is_new boolean, arrived_at date, models text[],
+               cases_done integer, avg_total numeric, points integer, boss_best smallint, boss_done boolean,
+               streak_days integer, last_session_at timestamptz, sessions_scored integer)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select p.id, coalesce(p.display_name, '—'), coalesce(p.is_new, false), p.arrived_at,
+         coalesce((select array_agg(c.name order by c.name) from profile_creators pc join creators c on c.id = pc.creator_id where pc.profile_id = p.id), '{}'),
+         coalesce(s.cases_done, 0), s.avg_total, coalesce(s.points, 0), s.boss_best, coalesce(s.boss_done, false),
+         case when s.last_active_day >= (now() at time zone 'Europe/Paris')::date - 1 then s.streak_days else 0 end,
+         s.last_session_at,
+         (select count(*)::integer from training_sessions ts where ts.profile_id = p.id and ts.status = 'scored')
+  from profiles p
+  left join training_profile_stats s on s.profile_id = p.id
+  where p.left_at is null and p.role = 'chatteur' and 'frm-entrainement' = any(p.pages)
+    and (select public.has_page('frm-suivi'))
+  order by coalesce(p.is_new, false) desc, p.display_name;
+$$;
+
+-- Grants explicites : execute retiré à public/anon (pas d'appel anonyme), ré-accordé à authenticated.
+revoke execute on function public.training_axis_profile(uuid), public.training_ai_cost(timestamptz),
+                          public.training_ranking(), public.training_overview_roster()
+  from public, anon;
+grant execute on function public.training_axis_profile(uuid), public.training_ai_cost(timestamptz),
+                        public.training_ranking(), public.training_overview_roster()
+  to authenticated;
+
+-- ============================================================================
+-- [ex-0120] 0120_training_ranking_chatteurs.sql
+-- ============================================================================
+
+-- 0120 — Classement de la formation : limité aux CHATTEURS (revue de Ma formation).
+-- 0119 est déjà appliquée ET enregistrée sur UAT : on ne la réécrit pas, on `create or replace`
+-- `training_ranking()` à l'identique (même signature, même retour, même security definer /
+-- search_path, mêmes gardes is_admin() / has_page('formation')) en ajoutant `p.role = 'chatteur'`.
+--
+-- Pourquoi : la fonction renvoyait TOUT profil ayant une ligne de stats — un admin, un manager ou
+-- un policier qui teste un cas pour vérifier le moteur apparaissait dans le classement des
+-- chatteurs et faussait le rang de chacun. Même critère de population que
+-- `training_overview_roster()` côté encadrement (chatteur avec le droit Entraînement) — ici on
+-- s'arrête au rôle : un chatteur qui perd le droit garde son historique dans le classement.
+create or replace function public.training_ranking()
+returns table (profile_id uuid, display_name text, points integer, cases_done integer, avg_total numeric, boss_done boolean, streak_days integer, is_new boolean)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select s.profile_id, coalesce(p.display_name, '—'), s.points, s.cases_done, s.avg_total, s.boss_done,
+         case when s.last_active_day >= (now() at time zone 'Europe/Paris')::date - 1 then s.streak_days else 0 end,
+         coalesce(p.is_new, false)
+  from training_profile_stats s
+  join profiles p on p.id = s.profile_id
+  where p.left_at is null
+    and p.role = 'chatteur'
+    and ((select public.is_admin()) or (select public.has_page('formation')))
+  order by s.points desc, s.avg_total desc nulls last;
+$$;
+
+-- ============================================================================
+-- [ex-0121] 0121_training_write_hardening.sql
+-- ============================================================================
+
+-- 0121 — Entraînement : durcissement du MODÈLE D'ÉCRITURE (revue finale de l'incrément 2).
+--
+-- Constat de la revue : les policies d'écriture « propriétaire » de 0117 donnaient au chatter un
+-- accès PostgREST direct à ses propres lignes — donc bien plus que ce que l'UI propose :
+--   * `training_sessions_update` acceptait N'IMPORTE QUELLE colonne → un chatter pouvait poser
+--     lui-même `status = 'scored'`, `total = 100`, `scored_at = now()` ; le trigger 0118 propageait
+--     ensuite le faux score dans training_case_bests, training_profile_stats et le classement ;
+--   * `training_threads_write` / `training_messages_write` (`for all`) laissaient forger ou
+--     supprimer des messages, remettre `turns_used` à 0, repousser `next_due_at` (chrono infini).
+--
+-- Décision : le modèle d'écriture devient celui, déjà en place, des scores et des appels IA —
+-- TOUTES les écritures passent par les Server Actions en service-role, APRÈS la vérification
+-- explicite de propriété (`profile_id = auth.uid()` lue avec le client utilisateur) ; la RLS de
+-- ces tables devient de la LECTURE SEULE pour `authenticated`. Seul l'admin garde un UPDATE direct
+-- sur les sessions (re-notation depuis l'Overview).
+--
+-- Aussi ici : (a) `training_refresh_stats` ne touche plus aux « meilleurs » quand le recalcul ne
+-- trouve aucune session notée avec une note (l'agrégat rendait une ligne à `max(total) = null`,
+-- soit une violation du NOT NULL de `training_case_bests.best_total`) ; (b) unicité applicative du
+-- signalement (un par session) portée en base.
+
+-- ---------- 1) RLS : plus aucune écriture `authenticated` sur sessions / threads / messages ----------
+drop policy training_sessions_insert on public.training_sessions;
+drop policy training_sessions_update on public.training_sessions;
+drop policy training_threads_write on public.training_threads;
+drop policy training_messages_write on public.training_messages;
+drop policy training_reports_insert on public.training_reports;
+
+-- L'admin conserve l'UPDATE direct des sessions (rescore) ; le reste (lecture propriétaire /
+-- encadrant `frm-suivi` / admin) est inchangé — cf. les policies `*_read` de 0117.
+create policy training_sessions_update_admin on public.training_sessions for update to authenticated
+  using ((select public.is_admin()))
+  with check ((select public.is_admin()));
+
+-- ---------- 2) training_refresh_stats : ne jamais écrire un « meilleur » sans note ----------
+-- `create or replace` à l'identique de 0119 (même signature, même security definer / search_path),
+-- au détail près du garde `v_attempts > 0` : l'agrégat `max(total) / count(*)` rend TOUJOURS une
+-- ligne, même quand aucune session ne correspond (max = null, count = 0) — l'upsert écrasait alors
+-- un meilleur existant avec un total null (NOT NULL violé, notation en erreur).
+create or replace function public.training_refresh_stats(p_profile uuid, p_case uuid, p_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_day date := (p_at at time zone 'Europe/Paris')::date;
+  v_last date;
+  v_streak integer;
+  v_active integer;
+  v_last_session_at timestamptz;
+  v_attempts integer;
+begin
+  -- 1) meilleur résultat du couple (profil, cas) depuis les sessions notées AVEC une note
+  -- (total is not null) : attempts compte les mêmes lignes que best_total ; coalesce sur
+  -- best_objective/last_at pour ne jamais violer leur NOT NULL si ces colonnes nullables de
+  -- training_sessions sont vides sur la ligne courante. Aucune session notée → on ne touche à rien.
+  select count(*) into v_attempts
+  from training_sessions
+  where profile_id = p_profile and case_id = p_case and status = 'scored' and total is not null;
+
+  if v_attempts > 0 then
+    insert into training_case_bests (profile_id, case_id, best_total, best_objective, attempts, last_at)
+    select p_profile, p_case, max(total), coalesce(bool_or(objective_reached), false), count(*), coalesce(max(scored_at), p_at)
+    from training_sessions
+    where profile_id = p_profile and case_id = p_case and status = 'scored' and total is not null
+    on conflict (profile_id, case_id) do update
+      set best_total = excluded.best_total, best_objective = excluded.best_objective,
+          attempts = excluded.attempts, last_at = excluded.last_at;
+  end if;
+
+  -- 2) streak (incrémental — lu via la règle « effectif » côté RPC, cf. training_ranking /
+  -- training_overview_roster) + reprise de last_session_at existant.
+  select last_active_day, streak_days, last_session_at into v_last, v_streak, v_last_session_at
+  from training_profile_stats where profile_id = p_profile;
+  if v_last is null or v_last < v_day - 1 then v_streak := 1;
+  elsif v_last = v_day - 1 then v_streak := coalesce(v_streak, 0) + 1;
+  else v_streak := coalesce(v_streak, 1);   -- même jour
+  end if;
+
+  -- active_days recalculé DEPUIS LES FAITS (jours distincts Europe/Paris avec ≥ 1 notation
+  -- valide) : plus un compteur incrémental qui pouvait dériver en silence.
+  select count(distinct (scored_at at time zone 'Europe/Paris')::date) into v_active
+  from training_sessions
+  where profile_id = p_profile and status = 'scored' and total is not null;
+
+  -- 3) stats du profil depuis ses bests (≤ ~90 lignes)
+  insert into training_profile_stats (profile_id, cases_done, avg_total, points, boss_best, boss_done,
+                                      active_days, streak_days, last_active_day, last_session_at, updated_at)
+  select p_profile,
+         count(*) filter (where c.kind <> 'boss'),
+         avg(b.best_total) filter (where c.kind <> 'boss'),
+         coalesce(sum(b.best_total) filter (where c.kind <> 'boss'), 0),
+         max(b.best_total) filter (where c.kind = 'boss'),
+         coalesce(bool_or(b.best_objective) filter (where c.kind = 'boss'), false),
+         v_active, v_streak, greatest(coalesce(v_last, v_day), v_day),
+         greatest(coalesce(v_last_session_at, p_at), p_at), now()
+  from training_case_bests b join training_cases c on c.id = b.case_id
+  where b.profile_id = p_profile
+  on conflict (profile_id) do update
+    set cases_done = excluded.cases_done, avg_total = excluded.avg_total, points = excluded.points,
+        boss_best = excluded.boss_best, boss_done = excluded.boss_done,
+        active_days = excluded.active_days, streak_days = excluded.streak_days,
+        last_active_day = excluded.last_active_day, last_session_at = excluded.last_session_at, updated_at = now();
+end;
+$$;
+
+-- ---------- 3) Un signalement par session ----------
+-- `reportScore` vérifiait déjà l'absence d'un signalement existant, mais deux envois concurrents
+-- (double-clic, deux onglets) passaient tous les deux — et `get-session` n'en lit qu'un.
+create unique index training_reports_session_uidx on public.training_reports (session_id);
+
+-- ============================================================================
+-- [ex-0122] 0122_training_wheel.sql
+-- ============================================================================
+
+-- 0122 — Roue des récompenses (incrément 3 formation) : config (1 ligne), tickets hebdo, tirages.
+-- Spec : docs/superpowers/specs/2026-08-19-formation-roue-design.md.
+-- Écritures = service-role depuis les Server Actions (comme 0121) ; RLS = lecture (moi / encadrant
+-- frm-suivi / admin) ; config lisible par toute la face Formation, modifiable par l'admin.
+-- Montants en EUROS ; un lot non monétaire (day off) a amount_eur null.
+
+create table public.training_wheel_config (
+  id          smallint primary key default 1 check (id = 1),
+  title       text not null default 'Roue de la chance' check (length(title) between 1 and 60),
+  -- [{ "label": "Cadeau", "weight": 80, "lose": false }, { "label": "Raté", "weight": 20, "lose": true }]
+  sectors     jsonb not null,
+  -- [{ "label": "5 €", "weight": 60, "amount_eur": 5 }, …]  (amount_eur null = non monétaire)
+  prizes      jsonb not null,
+  updated_at  timestamptz not null default now(),
+  updated_by  uuid references public.profiles(id) on delete set null
+);
+create index training_wheel_config_updated_by_idx on public.training_wheel_config (updated_by);
+insert into public.training_wheel_config (id, sectors, prizes) values (
+  1,
+  '[{"label":"Cadeau","weight":80,"lose":false},{"label":"Raté","weight":20,"lose":true}]'::jsonb,
+  '[{"label":"5 €","weight":60,"amount_eur":5},{"label":"10 €","weight":20,"amount_eur":10},{"label":"Day off supplémentaire","weight":5,"amount_eur":null},{"label":"20 €","weight":5,"amount_eur":20},{"label":"Donner 5 € à un membre de ton équipe","weight":10,"amount_eur":5}]'::jsonb
+);
+
+create table public.training_wheel_tickets (
+  id          uuid primary key default gen_random_uuid(),
+  profile_id  uuid not null references public.profiles(id) on delete cascade,
+  week        date not null,                       -- lundi de la semaine récompensée (classement de cette semaine-là)
+  reason      text not null check (length(reason) between 1 and 120),   -- « Top 2 — semaine du 11/08 » / « Offert par … »
+  granted_by  uuid references public.profiles(id) on delete set null,   -- null = classement (système)
+  created_at  timestamptz not null default now(),
+  used_at     timestamptz,
+  unique (profile_id, week)
+);
+create index training_wheel_tickets_pending_idx on public.training_wheel_tickets (profile_id) where used_at is null;
+create index training_wheel_tickets_granted_by_idx on public.training_wheel_tickets (granted_by);
+
+create table public.training_wheel_spins (
+  id           uuid primary key default gen_random_uuid(),
+  profile_id   uuid not null references public.profiles(id) on delete cascade,
+  ticket_id    uuid not null unique references public.training_wheel_tickets(id) on delete cascade,
+  week         date not null,
+  spun_at      timestamptz not null default now(),
+  sector_label text not null,
+  won          boolean not null,
+  prize_label  text,                                          -- null si Raté
+  amount_eur   numeric(8,2) check (amount_eur is null or amount_eur >= 0),
+  paid_at      timestamptz,                                   -- compta, plus tard
+  paid_by      uuid references public.profiles(id) on delete set null,
+  check (won = (prize_label is not null))
+);
+create index training_wheel_spins_profile_idx on public.training_wheel_spins (profile_id, spun_at desc);
+create index training_wheel_spins_week_idx on public.training_wheel_spins (week desc);
+create index training_wheel_spins_paid_by_idx on public.training_wheel_spins (paid_by);
+
+alter table public.training_wheel_config enable row level security;
+alter table public.training_wheel_tickets enable row level security;
+alter table public.training_wheel_spins enable row level security;
+
+create policy training_wheel_config_read on public.training_wheel_config for select to authenticated
+  using ((select public.is_admin()) or (select public.has_page('formation')));
+create policy training_wheel_config_admin_write on public.training_wheel_config for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+create policy training_wheel_tickets_read on public.training_wheel_tickets for select to authenticated
+  using (profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')));
+create policy training_wheel_spins_read on public.training_wheel_spins for select to authenticated
+  using (profile_id = (select auth.uid()) or (select public.has_page('frm-suivi')));
+-- Aucune policy d'écriture authenticated sur tickets/spins : service-role depuis les actions.
+
+-- ── Journal du membre : une ligne « recompense » par tirage ────────────────────────────────
+alter table public.member_events drop constraint member_events_kind_check;
+alter table public.member_events add constraint member_events_kind_check
+  check (kind in ('creation','role','shift','closing','modele','manager','pages','nouveau',
+                  'arrivee','sortie','lien','identite','sanction','rapport','recompense'));
+
+create or replace function public.training_wheel_spin_journal()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_reason text;
+  v_by     uuid;
+begin
+  select t.reason, t.granted_by into v_reason, v_by from training_wheel_tickets t where t.id = new.ticket_id;
+  -- to_value lisible sans jointure : « Roue : 10 € — Top 2 — semaine du 11/08 » / « Roue : Raté — … »
+  insert into member_events (profile_id, created_by, kind, to_value)
+  values (new.profile_id, v_by, 'recompense',
+          'Roue : ' || case when new.won then coalesce(new.prize_label, 'cadeau') else 'Raté' end
+          || ' — ' || coalesce(v_reason, ''));
+  return new;
+end;
+$$;
+revoke all on function public.training_wheel_spin_journal() from public;
+create trigger trg_training_wheel_spin_journal
+  after insert on public.training_wheel_spins
+  for each row execute function public.training_wheel_spin_journal();
+
+-- ── Semaine passée (lundi), heure de Paris ────────────────────────────────────────────────
+create or replace function public.training_last_week()
+returns date
+language sql stable security invoker set search_path = public, pg_temp
+as $$
+  select (date_trunc('week', ((now() at time zone 'Europe/Paris')::date)::timestamp)::date - 7);
+$$;
+
+-- ── Classement DE LA SEMAINE : Σ par cas (hors boss) du meilleur total obtenu dans la semaine ──
+create or replace function public.training_weekly_ranking(p_week date)
+returns table (profile_id uuid, display_name text, points integer, cases_done integer, avg_total numeric)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  with bounds as (
+    select (p_week::timestamp at time zone 'Europe/Paris') as t0,
+           ((p_week + 7)::timestamp at time zone 'Europe/Paris') as t1
+  ),
+  best as (
+    select s.profile_id, s.case_id, max(s.total) as best_total, min(s.scored_at) as first_at
+    from training_sessions s
+    join training_cases c on c.id = s.case_id
+    cross join bounds b
+    where s.status = 'scored' and s.total is not null and c.kind <> 'boss'
+      and s.scored_at >= b.t0 and s.scored_at < b.t1
+    group by s.profile_id, s.case_id
+  )
+  select b.profile_id, coalesce(p.display_name, '—'), sum(b.best_total)::integer, count(*)::integer,
+         round(avg(b.best_total), 2)
+  from best b
+  join profiles p on p.id = b.profile_id
+  where p.left_at is null and p.role = 'chatteur'
+    and ((select public.is_admin()) or (select public.has_page('formation')))
+  group by b.profile_id, p.display_name
+  order by 3 desc, 5 desc, min(b.first_at) asc;
+$$;
+
+-- ── Pastille sidebar / éligibilité : 1 = ticket non utilisé OU top 3 de la semaine passée non réclamé ──
+create or replace function public.training_wheel_pending(p_profile uuid)
+returns integer
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select case
+    when not (p_profile = (select auth.uid()) or (select public.has_page('frm-suivi'))) then 0
+    when exists (select 1 from training_wheel_tickets t where t.profile_id = p_profile and t.used_at is null) then 1
+    when exists (select 1 from training_wheel_tickets t where t.profile_id = p_profile and t.week = public.training_last_week()) then 0
+    when exists (
+      select 1
+      from public.training_weekly_ranking(public.training_last_week()) with ordinality as r(profile_id, display_name, points, cases_done, avg_total, rn)
+      where r.profile_id = p_profile and r.points > 0 and r.rn <= 3
+    ) then 1
+    else 0
+  end;
+$$;
+
+revoke execute on function public.training_last_week() from public, anon;
+revoke execute on function public.training_weekly_ranking(date) from public, anon;
+revoke execute on function public.training_wheel_pending(uuid) from public, anon;
+grant execute on function public.training_last_week() to authenticated;
+grant execute on function public.training_weekly_ranking(date) to authenticated;
+grant execute on function public.training_wheel_pending(uuid) to authenticated;
+
+-- ============================================================================
+-- [ex-0123] 0123_training_wheel_one_pending.sql
+-- ============================================================================
+
+-- 0123 — Correctif de revue sur 0122 (roue des récompenses).
+-- 0122 est déjà appliquée ET enregistrée sur UAT : on ne la réécrit pas.
+--
+-- 1) `training_wheel_tickets_pending_idx` n'était qu'un index PARTIEL non-unique : rien
+--    n'empêchait en base plusieurs tickets non utilisés pour la même personne, alors que la
+--    règle métier est « un seul ticket non utilisé par personne » (même précédent que
+--    `training_sessions_one_active_idx`, 0117 : une seule session ACTIVE par chatter). On
+--    remplace par un index UNIQUE partiel du même nom que l'invariant qu'il porte.
+-- 2) Durcissement symétrique côté tirages : un « Raté » ne doit jamais porter de montant —
+--    `check (won = (prize_label is not null))` (0122) garantit déjà prize_label, on ajoute la
+--    même garde sur amount_eur.
+
+drop index if exists public.training_wheel_tickets_pending_idx;
+create unique index training_wheel_tickets_one_pending_idx on public.training_wheel_tickets (profile_id) where used_at is null;
+alter table public.training_wheel_spins add constraint training_wheel_spins_amount_won_check check (won or amount_eur is null);
+
+-- ============================================================================
+-- [ex-0124] 0124_training_wheel_eligibility.sql
+-- ============================================================================
+
+-- 0124 — Roue des récompenses : classement hebdo réservé aux chatters ayant le droit Entraînement.
+-- Revue finale de l'incrément 3 : `training_weekly_ranking` (0122) omettait le filtre
+-- `'frm-entrainement' = any(p.pages)` que `training_overview_roster` applique déjà (0118/0119) —
+-- un chatter qui perd le droit Entraînement restait classé, et donc éligible à un ticket. Même
+-- garde ajoutée à `training_wheel_pending` : un profil sans ce droit (admin, encadrant sans
+-- Entraînement) ne doit JAMAIS déclencher l'agrégat de classement hebdo — la pastille sidebar
+-- appelle cette RPC à chaque rendu du layout `/formation`.
+
+create or replace function public.training_weekly_ranking(p_week date)
+returns table (profile_id uuid, display_name text, points integer, cases_done integer, avg_total numeric)
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  with bounds as (
+    select (p_week::timestamp at time zone 'Europe/Paris') as t0,
+           ((p_week + 7)::timestamp at time zone 'Europe/Paris') as t1
+  ),
+  best as (
+    select s.profile_id, s.case_id, max(s.total) as best_total, min(s.scored_at) as first_at
+    from training_sessions s
+    join training_cases c on c.id = s.case_id
+    cross join bounds b
+    where s.status = 'scored' and s.total is not null and c.kind <> 'boss'
+      and s.scored_at >= b.t0 and s.scored_at < b.t1
+    group by s.profile_id, s.case_id
+  )
+  select b.profile_id, coalesce(p.display_name, '—'), sum(b.best_total)::integer, count(*)::integer,
+         round(avg(b.best_total), 2)
+  from best b
+  join profiles p on p.id = b.profile_id
+  where p.left_at is null and p.role = 'chatteur' and 'frm-entrainement' = any(p.pages)
+    and ((select public.is_admin()) or (select public.has_page('formation')))
+  group by b.profile_id, p.display_name
+  order by 3 desc, 5 desc, min(b.first_at) asc;
+$$;
+
+-- ── Pastille sidebar / éligibilité : 1 = ticket non utilisé OU top 3 de la semaine passée non réclamé ──
+create or replace function public.training_wheel_pending(p_profile uuid)
+returns integer
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select case
+    when not exists (
+      select 1 from profiles pp
+      where pp.id = p_profile and pp.left_at is null and pp.role = 'chatteur' and 'frm-entrainement' = any(pp.pages)
+    ) then 0
+    when not (p_profile = (select auth.uid()) or (select public.has_page('frm-suivi'))) then 0
+    when exists (select 1 from training_wheel_tickets t where t.profile_id = p_profile and t.used_at is null) then 1
+    when exists (select 1 from training_wheel_tickets t where t.profile_id = p_profile and t.week = public.training_last_week()) then 0
+    when exists (
+      select 1
+      from public.training_weekly_ranking(public.training_last_week()) with ordinality as r(profile_id, display_name, points, cases_done, avg_total, rn)
+      where r.profile_id = p_profile and r.points > 0 and r.rn <= 3
+    ) then 1
+    else 0
+  end;
+$$;
+
+revoke execute on function public.training_weekly_ranking(date) from public, anon;
+revoke execute on function public.training_wheel_pending(uuid) from public, anon;
+grant execute on function public.training_weekly_ranking(date) to authenticated;
+grant execute on function public.training_wheel_pending(uuid) to authenticated;
+
+-- ============================================================================
+-- [ex-0125] 0125_recruit_test.sql
+-- ============================================================================
+
+-- 0125 — Test de recrutement public (reprise Good Luck Agency) : config (1 ligne, défauts +
+-- banque QI + texte de frappe GLA), tentatives techniques, messages de la conversation IA,
+-- dossiers candidats, liste de blocage. Spec : docs/superpowers/specs/2026-08-20-formation-
+-- recrutement-design.md §3.
+--
+-- Le candidat n'a AUCUNE session : la page /postuler est publique, toutes les écritures passent
+-- par createAdminClient() (service-role) depuis les Server Actions publiques — RLS n'accorde
+-- donc que de la LECTURE, réservée à is_admin() (recrutement = admin seulement, cf. spec §1).
+-- Aucune policy anon ni authenticated non-admin : l'anon key ne lit rien, un profil non-admin
+-- authentifié non plus.
+
+create table public.recruit_config (
+  id             smallint primary key default 1 check (id = 1),
+  open           boolean not null default true,
+  bot_messages   smallint not null default 14 check (bot_messages between 1 and 50),
+  qi_timer       smallint not null default 30 check (qi_timer between 5 and 300),
+  frappe_min     smallint not null default 30 check (frappe_min >= 0),
+  connexion_min  smallint not null default 10 check (connexion_min >= 0),
+  qi_min         smallint not null default 3 check (qi_min between 0 and 5),
+  global_threshold smallint not null default 70 check (global_threshold between 0 and 100),
+  discord_link   text not null default '',
+  -- texte fixe recopié à l'épreuve de frappe (GLA render.frappe, TXT).
+  typing_text    text not null,
+  -- banque QI : [{ "slot": "<thème>", "variants": [{ "q", "opts": [4], "a": <index bonne réponse> }] }]
+  -- une variante tirée au hasard par emplacement à chaque tentative ; la bonne réponse (`a`) ne
+  -- descend jamais au client (cf. recruit_attempts.qi_answers).
+  qi_bank        jsonb not null,
+  updated_at     timestamptz not null default now(),
+  updated_by     uuid references public.profiles(id) on delete set null
+);
+create index recruit_config_updated_by_idx on public.recruit_config (updated_by);
+
+insert into public.recruit_config (id, typing_text, qi_bank) values (
+  1,
+  'le chatting est un metier ou la rapidite et la qualite comptent beaucoup un bon chatter sait engager la conversation creer du lien et donner envie a son interlocuteur de continuer a discuter avec lui chaque jour tout en restant naturel et souriant',
+  '[
+    {"slot":"Suite logique","variants":[
+      {"q":"Quelle est la suite : 2, 4, 8, 16, … ?","opts":["24","32","30","18"],"a":1},
+      {"q":"Quelle est la suite : 3, 6, 9, 12, … ?","opts":["13","15","16","14"],"a":1}
+    ]},
+    {"slot":"Intrus","variants":[
+      {"q":"Trouve l''intrus :","opts":["pomme","banane","carotte","cerise"],"a":2},
+      {"q":"Trouve l''intrus :","opts":["lundi","mars","mercredi","vendredi"],"a":1}
+    ]},
+    {"slot":"Raisonnement","variants":[
+      {"q":"Pierre est plus grand que Paul mais plus petit que Jacques. Qui est le plus petit ?","opts":["Jacques","Paul","Pierre","On ne peut pas savoir"],"a":1},
+      {"q":"Main est à gant ce que pied est à…","opts":["chaussette","chaussure","jambe","sol"],"a":1}
+    ]},
+    {"slot":"Lecture du client","variants":[
+      {"q":"Un client répond juste « ok. » avec un point. Ça traduit plutôt…","opts":["de la joie","de la froideur / un désintérêt","de l''excitation","une question"],"a":1},
+      {"q":"Un client écrit « je m''ennuie ce soir… ». La meilleure réaction ?","opts":["répondre « ok »","lui poser une question pour le faire parler","changer de sujet","ne rien répondre"],"a":1}
+    ]},
+    {"slot":"Vente","variants":[
+      {"q":"« J''ai trop envie de toi, tu me proposes quoi ? »","opts":["« Viens chez moi »","Entretenir le désir + rediriger vers du contenu privé","« Je suis occupée, plus tard »","« Désolée, je ne fais pas ça »"],"a":1},
+      {"q":"« Tout gratuit, sinon je me désabonne. »","opts":["Tout envoyer pour le garder","Refuser avec le sourire + proposer une petite offre","« Au revoir alors »","L''ignorer"],"a":1}
+    ]}
+  ]'::jsonb
+);
+
+-- Tentative technique : créée dès l'entrée sur /postuler (device + IP, pour le rate-limit et le
+-- coût IA visible même sur les abandons), avant toute identité. Statuts : en_cours → notee (bot
+-- scoré) → soumise (dossier créé) ; abandonnee = jamais soumise.
+create table public.recruit_attempts (
+  id               uuid primary key default gen_random_uuid(),
+  device           text not null,
+  ip               text,
+  persona          text not null,
+  status           text not null default 'en_cours'
+                     check (status in ('en_cours', 'notee', 'soumise', 'abandonnee')),
+  -- QI : score serveur (0-5) + clé de correction posée au tirage (slot/variante/bonne réponse
+  -- pour CETTE tentative) — comparée aux réponses envoyées par le client, ne descend JAMAIS au
+  -- client (aucune policy anon/authenticated ne lit cette table).
+  qi_score         smallint check (qi_score between 0 and 5),
+  qi_answers       jsonb,
+  -- { wpm, accuracy, seconds } — déclaratif client (comme GLA), gate caché.
+  typing           jsonb,
+  connection_mbps  numeric(7,1) check (connection_mbps is null or connection_mbps >= 0),
+  bot_replies      int not null default 0 check (bot_replies >= 0),
+  input_tokens     int not null default 0 check (input_tokens >= 0),
+  output_tokens    int not null default 0 check (output_tokens >= 0),
+  orthographe      smallint check (orthographe between 0 and 25),
+  coherence        smallint check (coherence between 0 and 25),
+  relance          smallint check (relance between 0 and 25),
+  vente            smallint check (vente between 0 and 25),
+  bot_total        smallint check (bot_total between 0 and 100),
+  created_at       timestamptz not null default now()
+);
+-- Rate-limit (5 tentatives / IP / 24h) : couvert par le premier index (ip en tête).
+create index recruit_attempts_ip_created_at_idx on public.recruit_attempts (ip, created_at desc);
+create index recruit_attempts_created_at_idx on public.recruit_attempts (created_at desc);
+
+-- Transcription de la conversation fan IA, tenue CÔTÉ SERVEUR (pas de transcription forgée par
+-- le client). speaker 'candidat' = le chatter testé, 'client' = le bot (persona GLA).
+create table public.recruit_messages (
+  id           uuid primary key default gen_random_uuid(),
+  attempt_id   uuid not null references public.recruit_attempts(id) on delete cascade,
+  position     smallint not null check (position >= 0),
+  speaker      text not null check (speaker in ('candidat', 'client')),
+  body         text not null,
+  -- prix € d'un média verrouillé envoyé par le candidat (mécanique GLA [MEDIA VERROUILLE - X€]).
+  media_price  numeric(8,2) check (media_price is null or media_price >= 0),
+  created_at   timestamptz not null default now(),
+  unique (attempt_id, position)
+);
+-- attempt_id couvert par l'unique (attempt_id, position) en tête.
+
+-- Dossier candidat, créé UNIQUEMENT à la soumission finale (identité à la fin, cf. spec §1) —
+-- toutes les mesures sont donc connues et figées à la création (snapshot de la tentative notée).
+create table public.recruit_candidates (
+  id                uuid primary key default gen_random_uuid(),
+  attempt_id        uuid not null unique references public.recruit_attempts(id) on delete cascade,
+  first_name        text not null check (length(first_name) between 1 and 60),
+  last_name         text not null check (length(last_name) between 1 and 60),
+  -- stockée en minuscules par l'app (normalisation avant écriture, cf. blocklist).
+  email             text not null,
+  discord           text check (discord is null or length(discord) between 1 and 60),
+  qi_score          smallint not null check (qi_score between 0 and 5),
+  typing_wpm        smallint not null check (typing_wpm >= 0),
+  connection_mbps   numeric(7,1) not null check (connection_mbps >= 0),
+  orthographe       smallint not null check (orthographe between 0 and 25),
+  coherence         smallint not null check (coherence between 0 and 25),
+  relance           smallint not null check (relance between 0 and 25),
+  vente             smallint not null check (vente between 0 and 25),
+  bot_total         smallint not null check (bot_total between 0 and 100),
+  global            smallint not null check (global between 0 and 100),
+  passed            boolean not null,
+  -- raison qualitative de refus (épreuve la plus faible, jamais les chiffres — GLA finishCandidate).
+  refusal_step      text,
+  refusal_reason    text,
+  -- e-mail déjà porteur d'un dossier à la soumission (2e passage, cf. blocklist oneAttempt).
+  repeat            boolean not null default false,
+  status            text not null default 'nouveau' check (status in ('nouveau', 'valide', 'refuse')),
+  profile_id        uuid references public.profiles(id) on delete set null,
+  reviewed_by       uuid references public.profiles(id) on delete set null,
+  reviewed_at       timestamptz,
+  created_at        timestamptz not null default now(),
+  constraint recruit_candidates_refusal_consistency
+    check (passed = (refusal_step is null and refusal_reason is null))
+);
+-- attempt_id déjà indexé par l'unique en tête.
+create index recruit_candidates_email_idx on public.recruit_candidates (email);
+create index recruit_candidates_status_nouveau_idx on public.recruit_candidates (created_at desc)
+  where status = 'nouveau';
+create index recruit_candidates_profile_id_idx on public.recruit_candidates (profile_id);
+create index recruit_candidates_reviewed_by_idx on public.recruit_candidates (reviewed_by);
+
+-- Un seul essai (oneAttempt GLA) : device + e-mail (+ Discord) rejoignent cette liste à la
+-- soumission ; device/IP vérifiés à l'ENTRÉE du test, e-mail/Discord à la SOUMISSION.
+create table public.recruit_blocklist (
+  id          uuid primary key default gen_random_uuid(),
+  device      text,
+  -- stocké en minuscules par l'app.
+  email       text,
+  discord     text,
+  ip          text,
+  reason      text,
+  created_by  uuid references public.profiles(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  constraint recruit_blocklist_has_target
+    check (device is not null or email is not null or discord is not null or ip is not null)
+);
+create index recruit_blocklist_device_idx on public.recruit_blocklist (device);
+create index recruit_blocklist_email_idx on public.recruit_blocklist (email);
+create index recruit_blocklist_ip_idx on public.recruit_blocklist (ip);
+create index recruit_blocklist_created_by_idx on public.recruit_blocklist (created_by);
+
+alter table public.recruit_config enable row level security;
+alter table public.recruit_attempts enable row level security;
+alter table public.recruit_messages enable row level security;
+alter table public.recruit_candidates enable row level security;
+alter table public.recruit_blocklist enable row level security;
+
+create policy recruit_config_read on public.recruit_config for select to authenticated
+  using ((select public.is_admin()));
+create policy recruit_config_admin_write on public.recruit_config for all to authenticated
+  using ((select public.is_admin())) with check ((select public.is_admin()));
+create policy recruit_attempts_read on public.recruit_attempts for select to authenticated
+  using ((select public.is_admin()));
+create policy recruit_messages_read on public.recruit_messages for select to authenticated
+  using ((select public.is_admin()));
+create policy recruit_candidates_read on public.recruit_candidates for select to authenticated
+  using ((select public.is_admin()));
+create policy recruit_blocklist_read on public.recruit_blocklist for select to authenticated
+  using ((select public.is_admin()));
+-- Aucune autre policy : ni anon (le test public n'a pas de session), ni authenticated non-admin.
+-- Toutes les écritures (candidat public + actions admin de la page Recrutement) passent par
+-- createAdminClient() côté serveur, hors RLS.
+
+-- Badge sidebar (item « Recrutement », admin seulement) : nombre de dossiers 'nouveau'.
+create or replace function public.recruit_pending_count()
+returns integer
+language sql stable security definer set search_path = public, pg_temp
+as $$
+  select case
+    when (select public.is_admin()) then (select count(*)::integer from recruit_candidates where status = 'nouveau')
+    else 0
+  end;
+$$;
+revoke execute on function public.recruit_pending_count() from public, anon;
+grant execute on function public.recruit_pending_count() to authenticated;
+
+-- ============================================================================
+-- [ex-0126] 0126_recruit_email_lower.sql
+-- ============================================================================
+
+-- 0126 — Recrutement : e-mails et Discord normalisés en base (check lower).
+--
+-- Revue de 0125 : `recruit_candidates.email`/`recruit_blocklist.email` (et `discord`) sont en
+-- `text` simple, avec pour seule garantie un commentaire « stocké en minuscules par l'app ».
+-- La blocklist est le garde-fou anti-triche (un seul essai, e-mail + Discord ajoutés à la
+-- soumission) : un `lower()` oublié dans une future Server Action laisserait passer un doublon
+-- SILENCIEUSEMENT (ex: `Nom@Gmail.com` vs `nom@gmail.com` ne matchent jamais dans la blocklist).
+-- Précédent repo : `citext` sur `profiles.email`. Ici on garde `text` (décidé en 0125) mais on
+-- fait respecter la normalisation par un `check` — toute écriture avec de la casse échoue au
+-- lieu de s'insérer silencieusement.
+alter table public.recruit_candidates
+  add constraint recruit_candidates_email_lower_check check (email = lower(email));
+alter table public.recruit_candidates
+  add constraint recruit_candidates_discord_lower_check check (discord is null or discord = lower(discord));
+
+alter table public.recruit_blocklist
+  add constraint recruit_blocklist_email_lower_check check (email is null or email = lower(email));
+alter table public.recruit_blocklist
+  add constraint recruit_blocklist_discord_lower_check check (discord is null or discord = lower(discord));
+
+-- ============================================================================
+-- [ex-0127] 0127_recruit_candidate_profile.sql
+-- ============================================================================
+
+-- 0127 — profil candidat étendu (questions du formulaire GLA reprises le 2026-08-21) :
+-- âge, localisation, téléphone, shifts souhaités, « comment tu as connu l'agence ».
+-- Posées à la FIN avec l'identité (écart voulu vs GLA, spec §1) → colonnes sur recruit_candidates.
+-- NULLABLE : les dossiers soumis avant cette migration n'en ont pas (la fiche affiche « — »).
+-- Les valeurs de `shifts` sont validées côté action (liste fermée applicative) — pas de check SQL
+-- d'appartenance pour laisser l'admin faire évoluer les libellés sans migration.
+
+alter table public.recruit_candidates
+  add column age int check (age is null or age between 18 and 99),
+  add column location text check (location is null or char_length(location) between 2 and 120),
+  add column phone text check (phone is null or char_length(phone) between 6 and 30),
+  add column shifts text[] check (shifts is null or array_length(shifts, 1) between 1 and 10),
+  add column source text check (source is null or char_length(source) between 2 and 500);
+
+comment on column public.recruit_candidates.age is 'Âge déclaré (majeur exigé par le formulaire).';
+comment on column public.recruit_candidates.location is 'Localisation déclarée (ville, pays — texte libre).';
+comment on column public.recruit_candidates.phone is 'Numéro de téléphone déclaré (texte libre, format non imposé).';
+comment on column public.recruit_candidates.shifts is 'Shifts souhaités (libellés GLA : Matin (5h–13h) / Après-midi (13h–21h) / Nuit (21h–5h)).';
+comment on column public.recruit_candidates.source is 'Comment le candidat a connu l''agence (texte libre).';

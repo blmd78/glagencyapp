@@ -108,7 +108,7 @@ test('renderSql : un insert par table, dans l’ordre des FK, quotes échappées
   const order = ['training_modules', 'training_module_axes', 'training_module_sections', 'training_cases', 'training_case_messages', 'training_case_arena_slots', 'training_case_boss_fans']
     .map((t) => sql.indexOf(`insert into public.${t} (`))
   assert.ok(order.every((i, k) => i >= 0 && (k === 0 || i > order[k - 1])), `ordre : ${order}`)
-  assert.match(sql, /^-- 0115/)
+  assert.match(sql, /^-- Seed du catalogue/)
   assert.doesNotMatch(sql, /on conflict/)
 })
 
