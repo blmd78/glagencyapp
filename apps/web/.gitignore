@@ -2,3 +2,5 @@
 # OpenNext / Cloudflare
 .open-next/
 .wrangler/
+.vercel
+.env*
