@@ -14,7 +14,7 @@ import { MediaPricePopover } from './media-price-popover'
  * verrouillé — un média est un message À PART ENTIÈRE (choisir le prix l'envoie tout de suite,
  * le texte en cours n'est pas consommé), miroir de `sendMessage` qui ignore le corps saisi.
  */
-export function Composer({ disabled, onSend }: { disabled: boolean; onSend: (v: ComposerInput) => Promise<boolean> }) {
+export function Composer({ disabled, allowMedia, onSend }: { disabled: boolean; allowMedia: boolean; onSend: (v: ComposerInput) => Promise<boolean> }) {
   'use no memo'
   const [sendingMedia, setSendingMedia] = useState(false)
   const {
@@ -58,7 +58,9 @@ export function Composer({ disabled, onSend }: { disabled: boolean; onSend: (v: 
       <div className="flex items-center gap-2">
         <FieldError message={errors.body?.message} />
         <div className="ml-auto flex items-center gap-2">
-          <MediaPricePopover disabled={busy} onPick={(p) => void sendMedia(p)} />
+          {/* GLA n'autorise le média payant que sur un cas de VENTE : ailleurs, le prompt du fan n'a
+              pas la section MÉDIAS PAYANTS et il répondrait à côté. */}
+          {allowMedia && <MediaPricePopover disabled={busy} onPick={(p) => void sendMedia(p)} />}
           <ActionButton type="submit" size="sm" pending={isSubmitting || sendingMedia} disabled={disabled}>
             Envoyer
           </ActionButton>

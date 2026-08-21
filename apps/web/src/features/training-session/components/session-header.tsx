@@ -84,8 +84,11 @@ export function SessionHeader({
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground">{s.objectiveLabel}</p>
+            {/* Pas de « ligne cible » ici : c'est la réponse attendue RÉSERVÉE AU CORRECTEUR (elle
+                n'entre que dans le prompt de notation). GLA la gardait côté serveur sans jamais la
+                montrer au joueur — l'afficher donne la correction avant l'exercice. */}
             <p className="whitespace-pre-wrap">{s.objective}</p>
-            {s.targetLine && <p className="mt-1 italic text-muted-foreground">{s.targetLine}</p>}
+
           </div>
         </div>
       </details>

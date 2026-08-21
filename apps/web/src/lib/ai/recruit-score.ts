@@ -3,7 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { anthropic, FAN_MODEL } from './client'
 import { RECRUIT_SCORE_SYSTEM, recruitBotSystem, recruitToMessages, recruitTranscript, type RecruitHistoryMessage, type RecruitPersonaName } from './recruit-prompts'
 import { recruitScoreJsonSchema, recruitScoreZod } from './recruit-schema'
-import { callStructured } from './score'
+import { billedParse, callStructured } from './score'
 
 export type RecruitUsage = { inputTokens: number; outputTokens: number }
 export type RecruitBotReply = { text: string; usage: RecruitUsage; ok: boolean }
@@ -48,14 +48,16 @@ export type RecruitScoreResult = {
  * serveur après score_json (`data["total"] = data["orthographe"] + …`).
  */
 export async function scoreRecruitTranscript(history: RecruitHistoryMessage[]): Promise<RecruitScoreResult> {
-  const { json, usage: full } = await callStructured(
+  const { json, usage: full, latencyMs, model } = await callStructured(
     RECRUIT_SCORE_SYSTEM,
     recruitTranscript(history),
     recruitScoreJsonSchema,
     'Transcription :',
   )
   const usage: RecruitUsage = { inputTokens: full.inputTokens, outputTokens: full.outputTokens }
-  const parsed = recruitScoreZod.parse(json)
+  // Même règle qu'à l'entraînement : un JSON arrivé puis jugé illisible a été FACTURÉ — l'erreur
+  // porte la consommation pour que l'appelant puisse la compter.
+  const parsed = billedParse(() => recruitScoreZod.parse(json), { usage: full, latencyMs, model })
   const total = parsed.orthographe + parsed.coherence + parsed.relance + parsed.vente
   return { orthographe: parsed.orthographe, coherence: parsed.coherence, relance: parsed.relance, vente: parsed.vente, total, usage }
 }

@@ -112,7 +112,7 @@ async function runScoring(
       ? [...new Set(s.training_threads.map((t) => t.ref_case_id).filter((x): x is string => !!x))]
       : [s.case_id]
   const { data: cases, error: cErr } = caseIds.length
-    ? await admin.from('training_cases').select('id, context, objective, target_line, training_case_secrets(expected)').in('id', caseIds)
+    ? await admin.from('training_cases').select('id, context, objective, target_line, training_modules(code), training_case_secrets(expected)').in('id', caseIds)
     : { data: [], error: null }
   if (cErr) throw new Error(cErr.message)
   const caseById = new Map((cases ?? []).map((c) => [c.id, c]))
@@ -167,8 +167,12 @@ async function runScoring(
       const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
       if (!c) throw new Error('cas de notation introuvable')
       const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
+      // Module du cas NOTÉ — en défi c'est celui du solo REJOUÉ, pas celui de l'arène : les deux
+      // clauses de fin de GLA (Négociation, clémence du défi) se décident là-dessus.
+      const mod = Array.isArray(c.training_modules) ? c.training_modules[0] : c.training_modules
       const system = scoreSystemPrompt({
         scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
+        moduleCode: mod?.code ?? '', isArena: kind === 'arena',
       })
       pending.push({ threadId: t.id, call: () => scoreThread({ system, transcript, axes }) })
     }

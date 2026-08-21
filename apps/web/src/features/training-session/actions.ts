@@ -82,6 +82,25 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         .order('position')
       if (hErr) throw new Error(hErr.message)
       const nextPos = (history?.[history.length - 1]?.position ?? -1) + 1
+      // GARDE SERVEUR du média payant — l'UI n'est qu'optimiste (convention du projet). GLA ne
+      // l'autorise que sur un cas de VENTE : ailleurs, le prompt du fan n'a PAS la section MÉDIAS
+      // PAYANTS (`buildFanSystem` n'injecte `MEDIA_SECTION` que si `is_sale`), donc le fan répond à
+      // côté et la transcription fausse la notation. Boss : toujours permis (son prompt porte ses
+      // paliers de prix). Défi : c'est le `is_sale` du solo REJOUÉ qui compte, comme pour le prompt.
+      if (d.mediaPrice != null && kind !== 'boss') {
+        let mediaAllowed = snap.isSale
+        if (kind === 'arena' && t.ref_case_id) {
+          const { data: refCase, error: rcErr } = await supabase
+            .from('training_cases')
+            .select('is_sale')
+            .eq('id', t.ref_case_id)
+            .maybeSingle()
+          if (rcErr) throw new Error(rcErr.message)
+          mediaAllowed = refCase?.is_sale ?? snap.isSale
+        }
+        if (!mediaAllowed) throw new BusinessError('Le média payant n’a pas cours sur ce cas')
+      }
+
       // Un média verrouillé est un message À PART ENTIÈRE : le texte éventuel est ignoré
       // (l'UI n'envoie que le média), le corps stocké décrit le média (check SQL : body non vide).
       const body = d.mediaPrice != null ? `Média verrouillé — ${d.mediaPrice} €` : d.body
