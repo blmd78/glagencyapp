@@ -46,6 +46,12 @@ import type { StartedAttempt, SubmitResult } from './types'
 const ALREADY_SENT = 'Ce test a déjà été envoyé.'
 /** Chrono QI dépassé — refus GÉNÉRIQUE : la fenêtre réelle ne descend pas plus que les seuils. */
 const QI_EXPIRED = 'Temps écoulé — recommence le test.'
+/**
+ * Le nombre de réponses envoyées ne correspond pas au questionnaire tiré pour cette tentative.
+ * Générique EXPRÈS : le message ne dit ni combien de questions on attendait, ni pourquoi (banque
+ * éditée entre-temps sur un vieil onglet, ou envoi forgé) — c'est la même règle que les seuils.
+ */
+const QI_MISMATCH = 'Réponses incomplètes — recommence le test.'
 
 /** Les trois colonnes d'épreuve écrites UNE fois par tentative (QI, frappe, connexion). */
 type OnceColumn = 'qi_score' | 'typing' | 'connection_mbps'
@@ -84,14 +90,18 @@ async function writeOnce(
 }
 
 /**
- * Fin de la fenêtre pendant laquelle une correction QI est encore acceptée : 5 questions
- * (invariant de la banque, cf. `saveQiInput`) × `qi_timer`, plus 120 s de marge — latence, lecture
- * de la consigne, onglet qui reprend la main. Sans ce calcul SERVEUR, le chrono n'existait que
- * côté client : horloge du poste, `sessionStorage` éditable ou onglet suspendu rendaient du temps
- * gratuit sur des questions dont le barème compte pour 30 points du verdict.
+ * Fin de la fenêtre pendant laquelle une correction QI est encore acceptée : `questions` ×
+ * `qi_timer`, plus 120 s de marge — latence, lecture de la consigne, onglet qui reprend la main.
+ * Sans ce calcul SERVEUR, le chrono n'existait que côté client : horloge du poste, `sessionStorage`
+ * éditable ou onglet suspendu rendaient du temps gratuit sur des questions dont le barème compte
+ * pour 30 points du verdict.
+ *
+ * `questions` est le N de LA TENTATIVE (longueur de sa clé de correction), jamais la taille de la
+ * banque du jour : un admin qui ajoute des questions pendant qu'un candidat joue ne doit ni lui
+ * offrir du temps, ni lui en retirer.
  */
-function qiDeadlineMs(createdAt: string, qiTimer: number): number {
-  return Date.parse(createdAt) + (5 * qiTimer + 120) * 1000
+function qiDeadlineMs(createdAt: string, qiTimer: number, questions: number): number {
+  return Date.parse(createdAt) + (questions * qiTimer + 120) * 1000
 }
 
 /**
@@ -167,9 +177,19 @@ export async function saveQi(raw: unknown): Promise<ActionResult<void>> {
       // foi, celle qu'on vient de recevoir est ignorée (anti-rejeu : pas de second passage pour
       // un meilleur score).
       if (attempt.qi_score !== null) return
-      if (Date.now() > qiDeadlineMs(attempt.created_at, config.qiTimer)) throw new BusinessError(QI_EXPIRED)
 
-      const qiScore = gradeQi(toAnswerKey(attempt.qi_answers), d.answers)
+      // La clé de correction de CETTE tentative fait foi, pas la banque du jour : elle donne le
+      // nombre de questions réellement servies, donc le chrono ET le nombre de réponses attendues.
+      // Une longueur différente = un envoi qui ne correspond pas au questionnaire tiré (vieil
+      // onglet dont la banque a changé, ou payload forgé) : refus générique, pas de correction
+      // partielle sur un questionnaire qu'on ne peut plus recomposer.
+      const answerKey = toAnswerKey(attempt.qi_answers)
+      if (d.answers.length !== answerKey.length) throw new BusinessError(QI_MISMATCH)
+      if (Date.now() > qiDeadlineMs(attempt.created_at, config.qiTimer, answerKey.length)) {
+        throw new BusinessError(QI_EXPIRED)
+      }
+
+      const qiScore = gradeQi(answerKey, d.answers)
       await writeOnce(admin, attempt.id, 'qi_score', { qi_score: qiScore }, 'Correction QI')
     },
   })
@@ -250,8 +270,14 @@ export async function submitCandidate(raw: unknown): Promise<ActionResult<Submit
       if (qi === null || mbps === null || orthographe === null || coherence === null || relance === null || vente === null || botTotal === null) {
         throw new BusinessError(STEPS_MISSING)
       }
+      // Barème de la logique = le questionnaire RÉELLEMENT servi (longueur de la clé de
+      // correction), pas la banque du jour : un admin qui ajoute une question pendant la
+      // conversation ne doit pas changer le verdict d'un test déjà passé. Le total part aussi en
+      // base (`qi_total`) pour que la fiche affiche « 4/5 » et non « 4 » sur un dénominateur perdu.
+      const qiTotal = toAnswerKey(attempt.qi_answers).length
       const verdict = computeVerdict({
         qi,
+        qiTotal,
         wpm: typing.wpm,
         mbps,
         bot: { total: botTotal, orthographe, coherence, relance, vente },
@@ -270,6 +296,7 @@ export async function submitCandidate(raw: unknown): Promise<ActionResult<Submit
         shifts: d.shifts,
         source: d.source,
         qi_score: qi,
+        qi_total: qiTotal,
         typing_wpm: typing.wpm,
         connection_mbps: mbps,
         orthographe,

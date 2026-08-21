@@ -57,17 +57,22 @@ const CONFIG_KO = 'Configuration du test de recrutement invalide'
  * `training-wheel/mappers.ts`) : la colonne est typée `Json`, un `as unknown as QiSlot[]` serait un
  * mensonge au compilateur — une banque éditée à la main en SQL ferait planter le tirage plus loin,
  * sans message. On valide la forme UNE FOIS, ici.
- * Les cardinalités sont des invariants, pas des préférences : 4 options (les réponses envoyées sont
- * bornées 0..3 par `saveQiInput`) et 5 emplacements (le verdict calcule `qi/5*30`, et la base
- * contraint `qi_score between 0 and 5`). Une banque d'une autre taille est une config CASSÉE →
- * erreur technique (Sentry + message générique), pas un refus métier adressé au candidat.
+ * Les cardinalités sont des invariants, pas des préférences : 4 options par variante (les réponses
+ * envoyées sont bornées 0..3 par `saveQiInput`) et 1 à 20 emplacements (le nombre d'emplacements
+ * est LIBRE — le verdict pondère `qi/N*30` avec le N de la tentative — mais une banque vide ne
+ * tirerait aucune question et la base contraint `qi_score between 0 and 20`, 0114). Une banque hors
+ * de ces bornes est une config CASSÉE → erreur technique (Sentry + message générique), pas un refus
+ * métier adressé au candidat.
  */
 const qiVariantRow = z.object({
   q: z.string().min(1),
   opts: z.array(z.string()).length(4),
   a: z.number().int().min(0).max(3),
 })
-const qiBankRows = z.array(z.object({ slot: z.string().min(1), variants: z.array(qiVariantRow).min(1) })).length(5)
+const qiBankRows = z
+  .array(z.object({ slot: z.string().min(1), variants: z.array(qiVariantRow).min(1) }))
+  .min(1)
+  .max(20)
 
 export function toQiBank(json: unknown): QiSlot[] {
   const parsed = qiBankRows.safeParse(json)
@@ -174,9 +179,16 @@ export function requireInProgress(attempt: Attempt): void {
   if (attempt.status !== 'en_cours') throw new BusinessError(ATTEMPT_OVER)
 }
 
-/** Clé de correction QI posée au tirage (`pickQiQuestions`) — jsonb, jamais renvoyée au client. */
+/**
+ * Clé de correction QI posée au tirage (`pickQiQuestions`) — jsonb, jamais renvoyée au client.
+ *
+ * Sa LONGUEUR est la source de vérité du nombre de questions de la tentative : la banque de config
+ * peut changer pendant qu'un candidat joue, sa correction, son chrono et son verdict restent ceux
+ * du questionnaire qu'on lui a réellement servi. D'où les bornes 1..20 ici (les mêmes que la
+ * banque) et jamais une longueur figée.
+ */
 export function toAnswerKey(json: unknown): number[] {
-  const parsed = z.array(z.number().int()).length(5).safeParse(json)
+  const parsed = z.array(z.number().int()).min(1).max(20).safeParse(json)
   if (!parsed.success) throw new Error('Clé de correction QI illisible sur cette tentative')
   return parsed.data
 }

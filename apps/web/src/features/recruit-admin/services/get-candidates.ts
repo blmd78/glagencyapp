@@ -11,7 +11,7 @@ import type { CandidateRow, CandidatesData, CandidateStatus, RecruitGates, Recru
 const MAX_ROWS = 500
 
 const COLS =
-  'id, first_name, last_name, email, discord, created_at, qi_score, typing_wpm, connection_mbps, orthographe, coherence, relance, vente, bot_total, global, passed, refusal_step, refusal_reason, repeat, status, profile_id'
+  'id, first_name, last_name, email, discord, created_at, qi_score, qi_total, typing_wpm, connection_mbps, orthographe, coherence, relance, vente, bot_total, global, passed, refusal_step, refusal_reason, repeat, status, profile_id'
 
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
 const num = (v: number | string | null): number => Number(v ?? 0)
@@ -28,9 +28,9 @@ const STATUS_RANK: Record<CandidateStatus, number> = { nouveau: 0, valide: 1, re
 type CandidateCols = Omit<
   Pick<
     Database['public']['Tables']['recruit_candidates']['Row'],
-    | 'id' | 'first_name' | 'last_name' | 'email' | 'discord' | 'created_at' | 'qi_score' | 'typing_wpm'
-    | 'connection_mbps' | 'orthographe' | 'coherence' | 'relance' | 'vente' | 'bot_total' | 'global'
-    | 'passed' | 'refusal_step' | 'refusal_reason' | 'repeat' | 'status' | 'profile_id'
+    | 'id' | 'first_name' | 'last_name' | 'email' | 'discord' | 'created_at' | 'qi_score' | 'qi_total'
+    | 'typing_wpm' | 'connection_mbps' | 'orthographe' | 'coherence' | 'relance' | 'vente' | 'bot_total'
+    | 'global' | 'passed' | 'refusal_step' | 'refusal_reason' | 'repeat' | 'status' | 'profile_id'
   >,
   'connection_mbps'
 > & { connection_mbps: number | string }
@@ -44,6 +44,7 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
     discord: r.discord,
     createdAt: r.created_at,
     qiScore: r.qi_score,
+    qiTotal: r.qi_total,
     typingWpm: r.typing_wpm,
     connectionMbps: num(r.connection_mbps),
     orthographe: r.orthographe,

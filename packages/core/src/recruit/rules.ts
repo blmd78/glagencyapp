@@ -58,6 +58,13 @@ export type Verdict = {
 
 export type VerdictInput = {
   qi: number
+  /**
+   * Nombre de questions de logique de CETTE tentative (taille de la banque au tirage, 1..20). Il
+   * est passé plutôt que déduit d'une constante : la banque est éditable pendant qu'un candidat
+   * joue, et une tentative doit être corrigée avec SON barème (la longueur de sa clé de
+   * correction), pas avec la banque du jour.
+   */
+  qiTotal: number
   wpm: number
   mbps: number
   bot: { total: number; orthographe: number; coherence: number; relance: number; vente: number }
@@ -66,7 +73,8 @@ export type VerdictInput = {
 
 /**
  * Verdict GLA (`finishCandidate`) : gates cachés (frappe → connexion → QI) puis
- * `global = round(qi/5*30 + bot.total/100*70)` contre le seuil. La raison de refus est
+ * `global = round(qi/qiTotal*30 + bot.total/100*70)` contre le seuil — la logique pèse 30 points
+ * quel que soit le nombre de questions, chacune valant donc 30/qiTotal. La raison de refus est
  * qualitative (jamais les chiffres) : le nom du premier gate en échec, ou — si tout passe sauf
  * le global — l'axe du bot le plus faible (départage GLA : orthographe → vente → relance →
  * défaut cohérence). Réussite → `refusalStep`/`refusalReason` null.
@@ -76,7 +84,10 @@ export function computeVerdict(i: VerdictInput): Verdict {
   const gateFrappe = wpm >= config.frappeMin
   const gateConn = mbps >= config.connexionMin
   const qiOk = qi >= config.qiMin
-  const global = Math.round((qi / 5) * 30 + (bot.total / 100) * 70)
+  // `Math.max(1, …)` : un total à 0 (banque vide impossible en pratique — 1 minimum côté config et
+  // côté schémas) rendrait `NaN`, donc un `global` non stockable en base. On échoue plutôt sur un
+  // barème borné que sur une valeur qui casse l'insertion du dossier.
+  const global = Math.round((qi / Math.max(1, i.qiTotal)) * 30 + (bot.total / 100) * 70)
   const passed = gateFrappe && gateConn && qiOk && global >= config.globalThreshold
 
   if (passed) return { global, passed, refusalStep: null, refusalReason: null }

@@ -75,14 +75,33 @@ describe('gradeQi', () => {
 
 describe('computeVerdict', () => {
   const okBot = { total: 68, orthographe: 20, coherence: 18, relance: 15, vente: 15 }
-  const base = { qi: 4, wpm: 40, mbps: 20, bot: okBot, config: CONFIG }
+  const base = { qi: 4, qiTotal: 5, wpm: 40, mbps: 20, bot: okBot, config: CONFIG }
 
-  it('global = round(qi/5*30 + bot.total/100*70) — exemple qi 4, bot 68 → 24 + 47.6 → 72', () => {
+  it('global = round(qi/qiTotal*30 + bot.total/100*70) — exemple qi 4/5, bot 68 → 24 + 47.6 → 72', () => {
     const v = computeVerdict(base)
     expect(v.global).toBe(72)
     expect(v.passed).toBe(true)
     expect(v.refusalStep).toBeNull()
     expect(v.refusalReason).toBeNull()
+  })
+
+  it('la logique pèse 30 points quel que soit le nombre de questions (30/N par question)', () => {
+    // Banque à 3 questions : chacune vaut 10 points. 2/3 → 20 + 47,6 = 67,6 → 68.
+    expect(computeVerdict({ ...base, qi: 2, qiTotal: 3 }).global).toBe(68)
+    // Banque à 10 questions : chacune vaut 3 points. 7/10 → 21 + 47,6 = 68,6 → 69.
+    expect(computeVerdict({ ...base, qi: 7, qiTotal: 10 }).global).toBe(69)
+    // Un sans-faute vaut 30, que la banque en compte 3, 5 ou 10 — le barème est une PROPORTION.
+    const sansFaute = [3, 5, 10].map((n) => computeVerdict({ ...base, qi: n, qiTotal: n }).global)
+    expect(sansFaute).toEqual([78, 78, 78])
+    // Zéro pointé vaut 0 point de logique, quelle que soit la taille de la banque.
+    expect(computeVerdict({ ...base, qi: 0, qiTotal: 10 }).global).toBe(48)
+  })
+
+  it('le gate QI reste `qi >= qiMin` — sur une banque de 3, un qiMin de 3 n’accepte que le sans-faute', () => {
+    // Le seuil est un NOMBRE de bonnes réponses, pas une proportion : c'est `configForm` qui
+    // garantit `qiMin <= nombre de questions` (sinon aucun candidat ne passerait jamais).
+    expect(computeVerdict({ ...base, qi: 2, qiTotal: 3 }).refusalStep).toBe('Test de logique')
+    expect(computeVerdict({ ...base, qi: 3, qiTotal: 3 }).passed).toBe(true)
   })
 
   it('gate frappe prioritaire sur tout le reste', () => {

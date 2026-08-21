@@ -14,7 +14,8 @@ import {
 // contrats qui portent une règle métier ou une garantie de sécurité :
 //   - la normalisation d'identité (blocklist « un seul essai » : un e-mail non minusculé ne
 //     matcherait JAMAIS, cf. 0126) ;
-//   - les 5 réponses QI exactement (invariant du verdict `qi/5*30`) ;
+//   - les bornes des réponses QI (1..20 : le nombre de questions est réglable, l'ÉGALITÉ avec la
+//     clé de correction de la tentative est vérifiée côté serveur, cf. `actions.ts`) ;
 //   - le OU EXCLUSIF message / média du bot ;
 //   - les bornes (device, wpm, mbps, prix) qui empêchent une valeur forgée d'arriver en base.
 
@@ -41,16 +42,18 @@ describe('startAttemptInput', () => {
 })
 
 describe('saveQiInput', () => {
-  it('accepte 5 réponses, `null` compris (non répondu = faux)', () => {
+  it('accepte un nombre LIBRE de réponses (1..20), `null` compris (non répondu = faux)', () => {
     const r = saveQiInput.safeParse({ attemptId: UUID, answers: [0, 1, null, 3, 2] })
     expect(r.success).toBe(true)
     if (r.success) expect(r.data.answers).toEqual([0, 1, null, 3, 2])
+    // une banque à 1 question et une banque à 20 sont toutes les deux configurables
+    expect(saveQiInput.safeParse({ attemptId: UUID, answers: [2] }).success).toBe(true)
+    expect(saveQiInput.safeParse({ attemptId: UUID, answers: Array.from({ length: 20 }, () => 0) }).success).toBe(true)
   })
 
-  it('refuse une longueur différente de 5 (invariant du verdict qi/5)', () => {
-    expect(fieldErrors(saveQiInput.safeParse({ attemptId: UUID, answers: [0, 1, 2, 3] })).answers).toContain('Il faut 5 réponses')
-    expect(saveQiInput.safeParse({ attemptId: UUID, answers: [0, 1, 2, 3, 0, 1] }).success).toBe(false)
-    expect(saveQiInput.safeParse({ attemptId: UUID, answers: [] }).success).toBe(false)
+  it('refuse une liste vide ou au-delà de 20 (l’égalité avec la clé de la tentative est vérifiée serveur)', () => {
+    expect(fieldErrors(saveQiInput.safeParse({ attemptId: UUID, answers: [] })).answers).toContain('Réponses invalides')
+    expect(saveQiInput.safeParse({ attemptId: UUID, answers: Array.from({ length: 21 }, () => 0) }).success).toBe(false)
   })
 
   it('refuse un index hors des 4 options, décimal, ou un attemptId non UUID', () => {

@@ -47,7 +47,7 @@ export interface StartedAttempt {
   attemptId: string
   /** Prénom du persona client (Lucas / Marco / David) — affiché en tête du chat. */
   persona: string
-  /** 5 questions tirées, SANS la bonne réponse. */
+  /** Les questions tirées (1 à 20 selon la banque), SANS la bonne réponse. */
   qi: QiQuestion[]
   typingText: string
   /** Secondes par question (config `qi_timer`). */

@@ -27,17 +27,18 @@ const attemptId = z.uuid('Tentative introuvable')
 export const startAttemptInput = z.object({ device })
 
 /**
- * QI : EXACTEMENT 5 réponses (une par emplacement de la banque), `null` = non répondu (le temps
- * est écoulé) et compte faux, comme GLA. Le 5 est un invariant de tout le test, pas un choix de
- * formulaire : le verdict calcule `qi/5*30` (`computeVerdict`) et la base contraint
- * `qi_score between 0 and 5` (0125) — la banque de config est donc validée à 5 emplacements elle
- * aussi (cf. `shared.ts`). Chaque réponse est l'INDEX de l'option choisie (4 options → 0..3).
+ * QI : une réponse par emplacement de la banque, `null` = non répondu (le temps est écoulé) et
+ * compte faux, comme GLA. Le nombre de questions est LIBRE (1 à 20, réglé par la config) : ce
+ * schéma ne borne donc que la plage — l'égalité exacte est vérifiée CÔTÉ SERVEUR contre la clé de
+ * correction de LA tentative (`actions.ts`), la seule source de vérité si la banque a changé entre
+ * le tirage et l'envoi. Chaque réponse est l'INDEX de l'option choisie (4 options → 0..3).
  */
 export const saveQiInput = z.object({
   attemptId,
   answers: z
     .array(z.number().int('Réponse invalide').min(0, 'Réponse invalide').max(3, 'Réponse invalide').nullable())
-    .length(5, 'Il faut 5 réponses'),
+    .min(1, 'Réponses invalides')
+    .max(20, 'Réponses invalides'),
 })
 
 /**

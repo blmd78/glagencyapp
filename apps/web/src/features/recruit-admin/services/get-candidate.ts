@@ -11,7 +11,7 @@ type Db = Awaited<ReturnType<typeof createClient>>
 const MAX_MESSAGES = 200
 
 const CANDIDATE_COLS =
-  'id, first_name, last_name, email, discord, age, location, phone, shifts, source, created_at, qi_score, typing_wpm, connection_mbps, orthographe, coherence, relance, vente, bot_total, global, passed, refusal_step, refusal_reason, repeat, status, profile_id, attempt_id, recruit_attempts(status, persona, device, ip, bot_replies, input_tokens, output_tokens, created_at)'
+  'id, first_name, last_name, email, discord, age, location, phone, shifts, source, created_at, qi_score, qi_total, typing_wpm, connection_mbps, orthographe, coherence, relance, vente, bot_total, global, passed, refusal_step, refusal_reason, repeat, status, profile_id, attempt_id, recruit_attempts(status, persona, device, ip, bot_replies, input_tokens, output_tokens, created_at)'
 
 /**
  * Dossier complet d'un candidat (`?dossier=<id>`) : la ligne, la tentative technique qui l'a

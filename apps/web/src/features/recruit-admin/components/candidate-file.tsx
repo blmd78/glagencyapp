@@ -123,10 +123,13 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
           Épreuves <span className="font-normal">(seuils actuels — un dossier ancien a été jugé avec ceux de son époque)</span>
         </h3>
         <div className="grid gap-3 sm:grid-cols-3">
+          {/* Le dénominateur vient du dossier (nombre de questions de SA tentative) ; le minimum,
+              lui, est le seuil COURANT — un nombre de bonnes réponses, sans dénominateur, parce
+              qu'il s'applique à une banque dont la taille a pu changer depuis. */}
           <Measure
             label="Test de logique"
-            value={`${candidate.qiScore}/5`}
-            min={`${gates.qiMin}/5`}
+            value={`${candidate.qiScore}/${candidate.qiTotal}`}
+            min={`${gates.qiMin}`}
             ok={candidate.qiScore >= gates.qiMin}
           />
           <Measure

@@ -11,8 +11,9 @@ import { configForm } from './schema'
 
 /**
  * Enregistre la ligne unique `recruit_config` (id = 1). Tout est validé/normalisé par `configForm`
- * (le MÊME schéma que le resolver du formulaire) : 5 emplacements de QI, 4 options par variante,
- * bonne réponse dans [0,3], seuils bornés, texte de frappe minusculé et espaces compactés.
+ * (le MÊME schéma que le resolver du formulaire) : 1 à 20 emplacements de QI, 4 options par
+ * variante, bonne réponse dans [0,3], `qiMin` au plus égal au nombre de questions, seuils bornés,
+ * texte de frappe minusculé et espaces compactés.
  *
  * `upsert` plutôt qu'`update` : la ligne est seedée par 0125, mais un `update` sur une base où
  * elle manquerait échouerait en silence (0 ligne touchée, aucune erreur).

@@ -62,13 +62,19 @@ const discordLink = z
   .max(300, '300 caractères max')
   .refine((v) => v === '' || z.url({ protocol: /^https?$/ }).safeParse(v).success, 'Lien invalide (https://…) ou vide')
 
-export const configForm = z.object({
+/** Plafond d'emplacements de la banque QI — repris par le `check (qi_total between 1 and 20)` de 0114. */
+export const QI_BANK_MAX = 20
+
+const configFields = z.object({
   open: z.boolean(),
   botMessages: requiredInt(1, 50),
   qiTimer: requiredInt(5, 120),
   frappeMin: requiredInt(1, 200),
   connexionMin: requiredInt(1, 1000),
-  qiMin: requiredInt(0, 5),
+  // Le maximum RÉEL de `qiMin` est le nombre d'emplacements de la banque — un seuil au-dessus
+  // refuserait tout le monde. Il ne peut pas s'écrire ici (le champ ne connaît pas `qiBank`) :
+  // c'est le `superRefine` en bas de ce module qui le porte. 20 = plafond absolu de la banque.
+  qiMin: requiredInt(0, 20),
   globalThreshold: requiredInt(0, 100),
   discordLink,
   /**
@@ -82,8 +88,32 @@ export const configForm = z.object({
     .max(2000, '2000 caractères max')
     .transform((v) => v.trim().toLowerCase().replace(/\s+/g, ' '))
     .pipe(z.string().min(50, 'Texte trop court (50 caractères minimum)')),
-  /** EXACTEMENT 5 emplacements : le verdict calcule `qi/5×30` et la base contraint `qi_score` 0..5. */
-  qiBank: z.array(qiSlotForm).length(5, 'Exactement 5 emplacements de question'),
+  /**
+   * De 1 à 20 emplacements — l'admin en ajoute et en retire librement. Le nombre N n'est PAS une
+   * constante du test : le verdict pondère `qi/N×30` avec le N de la tentative (longueur de sa clé
+   * de correction, `recruit_attempts.qi_answers`), et la base contraint `qi_score between 0 and 20`
+   * (0114). Le plancher de 1 est réel : une banque vide ferait un tirage sans question.
+   */
+  qiBank: z
+    .array(qiSlotForm)
+    .min(1, 'Au moins une question')
+    .max(QI_BANK_MAX, `${QI_BANK_MAX} questions max`),
+})
+
+/**
+ * Validation CROISÉE : le seuil de logique est un NOMBRE de bonnes réponses, pas une proportion —
+ * un `qiMin` supérieur au nombre de questions refuserait mécaniquement tous les candidats, sans
+ * que rien ne l'explique côté agence. L'erreur est posée sur `qiMin` (c'est lui qu'on corrige :
+ * retirer une question ne doit pas rendre la banque fautive).
+ */
+export const configForm = configFields.superRefine((v, ctx) => {
+  if (v.qiMin > v.qiBank.length) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['qiMin'],
+      message: `Le minimum ne peut pas dépasser le nombre de questions (${v.qiBank.length}).`,
+    })
+  }
 })
 
 /** Entrée du formulaire (les inputs HTML rendent des chaînes) — type de `useForm`. */

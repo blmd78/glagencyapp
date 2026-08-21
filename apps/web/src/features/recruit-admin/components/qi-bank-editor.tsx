@@ -6,7 +6,7 @@ import { FieldError } from '@/components/field-error'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { ConfigFormValues, ConfigInput } from '../schema'
+import { QI_BANK_MAX, type ConfigFormValues, type ConfigInput } from '../schema'
 
 type BankControl = Control<ConfigFormValues, unknown, ConfigInput>
 type BankErrors = FieldErrors<ConfigFormValues>
@@ -14,12 +14,21 @@ type BankRegister = UseFormRegister<ConfigFormValues>
 
 /** Variante vide prête à remplir — 4 options, bonne réponse sur la première. */
 const emptyVariant = () => ({ q: '', opts: ['', '', '', ''], a: '0' })
+/** Emplacement vide : un thème à nommer et une première variante. */
+const emptySlot = () => ({ slot: '', variants: [emptyVariant()] })
 
 /**
- * Banque de questions du QI : 5 EMPLACEMENTS FIXES (le verdict calcule `qi/5×30`, la base contraint
- * `qi_score` 0..5 — on n'en ajoute ni n'en retire), chacun avec une ou plusieurs VARIANTES. À chaque
- * tentative, une variante est tirée au hasard par emplacement : plusieurs variantes = deux candidats
- * côte à côte n'ont pas le même questionnaire.
+ * Banque de questions du QI : de 1 à 20 EMPLACEMENTS, chacun avec une ou plusieurs VARIANTES. À
+ * chaque tentative, une variante est tirée au hasard par emplacement : plusieurs variantes = deux
+ * candidats côte à côte n'ont pas le même questionnaire.
+ *
+ * Le nombre d'emplacements est libre parce que le barème est une PROPORTION : la logique pèse
+ * 30 points du verdict quel que soit N, chaque question valant 30/N. Une tentative déjà commencée
+ * garde SON N (la longueur de sa clé de correction) — ajouter ou retirer une question ici ne
+ * perturbe pas un candidat en train de jouer.
+ *
+ * Pas de confirmation sur « retirer » : c'est un formulaire, rien n'est perdu tant que
+ * « Enregistrer » n'est pas cliqué (recharger la page rend la banque en base).
  *
  * La bonne réponse est un radio par variante — elle ne descend JAMAIS au client du test (le tirage
  * l'extrait côté serveur, `pickQiQuestions`).
@@ -36,18 +45,41 @@ export function QiBankEditor({
   disabled?: boolean
 }) {
   'use no memo'
+  const { fields, append, remove } = useFieldArray({ control, name: 'qiBank' })
+
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Label>Banque de questions (5 emplacements)</Label>
+        <Label>Banque de questions ({fields.length} {fields.length > 1 ? 'emplacements' : 'emplacement'})</Label>
         <p className="text-xs text-muted-foreground">
           Une variante tirée au hasard par emplacement à chaque tentative. La bonne réponse reste côté serveur.
         </p>
       </div>
       <FieldError message={errors.qiBank?.message ?? errors.qiBank?.root?.message} />
-      {Array.from({ length: 5 }, (_, i) => (
-        <QiSlotEditor key={i} index={i} control={control} register={register} errors={errors} disabled={disabled} />
+      {fields.map((f, i) => (
+        <QiSlotEditor
+          key={f.id}
+          index={i}
+          control={control}
+          register={register}
+          errors={errors}
+          disabled={disabled}
+          onRemove={() => remove(i)}
+          // Une banque vide ne pourrait plus tirer la moindre question : le dernier emplacement
+          // n'est pas retirable (le schéma le refuserait de toute façon, autant l'éviter).
+          canRemove={fields.length > 1}
+        />
       ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="self-start"
+        disabled={disabled || fields.length >= QI_BANK_MAX}
+        onClick={() => append(emptySlot())}
+      >
+        <Plus className="size-4" /> Ajouter une question
+      </Button>
     </div>
   )
 }
@@ -59,12 +91,17 @@ function QiSlotEditor({
   register,
   errors,
   disabled,
+  onRemove,
+  canRemove,
 }: {
   index: number
   control: BankControl
   register: BankRegister
   errors: BankErrors
   disabled?: boolean
+  onRemove: () => void
+  /** `false` sur le dernier emplacement : le bouton reste visible, désactivé (comme les variantes). */
+  canRemove: boolean
 }) {
   'use no memo'
   const { fields, append, remove } = useFieldArray({ control, name: `qiBank.${index}.variants` })
@@ -86,9 +123,22 @@ function QiSlotEditor({
           />
           <FieldError message={slotErrors?.slot?.message} />
         </div>
-        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => append(emptyVariant())}>
-          <Plus className="size-4" /> Variante
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => append(emptyVariant())}>
+            <Plus className="size-4" /> Variante
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 text-muted-foreground"
+            aria-label={`Retirer l’emplacement ${index + 1}`}
+            disabled={disabled || !canRemove}
+            onClick={onRemove}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+        </div>
       </div>
       <FieldError message={slotErrors?.variants?.message ?? slotErrors?.variants?.root?.message} />
 
@@ -131,7 +181,7 @@ function QiSlotEditor({
                 {[0, 1, 2, 3].map((k) => (
                   <div
                     key={k}
-                    className="flex items-center gap-3 rounded-xl border pl-3 transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 has-[input[type=radio]:checked]:bg-muted"
+                    className="flex items-center gap-3 rounded-xl border border-input pl-3 transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 has-[input[type=radio]:checked]:border-primary/40 has-[input[type=radio]:checked]:bg-muted"
                   >
                     <input
                       type="radio"

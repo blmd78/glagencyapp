@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { saveRecruitConfig } from '../actions-config'
-import { configForm, type ConfigFormValues, type ConfigInput } from '../schema'
+import { configForm, QI_BANK_MAX, type ConfigFormValues, type ConfigInput } from '../schema'
 import type { RecruitConfigData } from '../types'
 import { QiBankEditor } from './qi-bank-editor'
 
@@ -143,10 +143,10 @@ export function ConfigForm({ config }: { config: RecruitConfigData }) {
 
           <fieldset className="grid gap-4 sm:grid-cols-2">
             <legend className="mb-2 text-sm font-medium">Seuils du verdict (jamais montrés au candidat)</legend>
-            <NumberField name="qiMin" label="Logique minimum (sur 5)" hint="0 à 5. En dessous, refus — sans dire le chiffre." min={0} max={5} disabled={isSubmitting} error={errors.qiMin?.message} register={register} />
+            <NumberField name="qiMin" label="Logique minimum (bonnes réponses)" hint="Ne peut pas dépasser le nombre de questions de la banque (onglet Test). En dessous, refus — sans dire le chiffre." min={0} max={QI_BANK_MAX} disabled={isSubmitting} error={errors.qiMin?.message} register={register} />
             <NumberField name="frappeMin" label="Frappe minimum (mots/min)" hint="1 à 200. Mesure déclarée par le navigateur du candidat." min={1} max={200} disabled={isSubmitting} error={errors.frappeMin?.message} register={register} />
             <NumberField name="connexionMin" label="Connexion minimum (Mb/s)" hint="1 à 1000. Mesure déclarée par le navigateur du candidat." min={1} max={1000} disabled={isSubmitting} error={errors.connexionMin?.message} register={register} />
-            <NumberField name="globalThreshold" label="Score global minimum (sur 100)" hint="0 à 100. Global = logique/5×30 + conversation/100×70." min={0} max={100} disabled={isSubmitting} error={errors.globalThreshold?.message} register={register} />
+            <NumberField name="globalThreshold" label="Score global minimum (sur 100)" hint="0 à 100. Global = 30 % le test de logique (quel que soit le nombre de questions) + 70 % la conversation." min={0} max={100} disabled={isSubmitting} error={errors.globalThreshold?.message} register={register} />
           </fieldset>
 
           <div className="grid gap-1.5">

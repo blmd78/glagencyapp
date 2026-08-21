@@ -52,6 +52,12 @@ export interface CandidateRow {
   createdAt: string
   /** Épreuves (gates cachés côté candidat). */
   qiScore: number
+  /**
+   * Nombre de questions de logique de SA tentative (`qi_total`, figé à la soumission). La banque
+   * est réglable de 1 à 20 : sans ce dénominateur, un « 4 » ne voudrait plus rien dire une fois la
+   * banque changée. Un dossier ancien garde donc son barème d'époque.
+   */
+  qiTotal: number
   typingWpm: number
   connectionMbps: number
   /** 4 axes de la conversation IA, sur 25 chacun. */
@@ -61,7 +67,7 @@ export interface CandidateRow {
   vente: number
   /** Total de la conversation sur 100 (somme des 4 axes). */
   botTotal: number
-  /** Score global sur 100 figé à la soumission (`qi/5×30 + bot/100×70`). */
+  /** Score global sur 100 figé à la soumission (`qi/qiTotal×30 + bot/100×70`). */
   global: number
   passed: boolean
   refusalStep: string | null

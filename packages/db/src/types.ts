@@ -2093,6 +2093,7 @@ export type Database = {
           phone: string | null
           profile_id: string | null
           qi_score: number
+          qi_total: number
           refusal_reason: string | null
           refusal_step: string | null
           relance: number
@@ -2124,6 +2125,7 @@ export type Database = {
           phone?: string | null
           profile_id?: string | null
           qi_score: number
+          qi_total: number
           refusal_reason?: string | null
           refusal_step?: string | null
           relance: number
@@ -2155,6 +2157,7 @@ export type Database = {
           phone?: string | null
           profile_id?: string | null
           qi_score?: number
+          qi_total?: number
           refusal_reason?: string | null
           refusal_step?: string | null
           relance?: number

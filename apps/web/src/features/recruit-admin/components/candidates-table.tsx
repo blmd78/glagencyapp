@@ -108,7 +108,9 @@ export function CandidatesTable({ rows, gates }: { rows: CandidateRow[]; gates: 
               </TableCell>
               <TableCell className="text-sm whitespace-nowrap">
                 <div className="flex gap-x-3">
-                  <Gate value={`${c.qiScore}/5`} ok={c.qiScore >= gates.qiMin} unit="QI" />
+                  {/* Dénominateur = le nombre de questions de SA tentative (la banque est
+                      réglable), pas celui de la banque du jour. */}
+                  <Gate value={`${c.qiScore}/${c.qiTotal}`} ok={c.qiScore >= gates.qiMin} unit="QI" />
                   <Gate value={String(c.typingWpm)} ok={c.typingWpm >= gates.frappeMin} unit="mots/min" />
                   <Gate value={String(c.connectionMbps)} ok={c.connectionMbps >= gates.connexionMin} unit="Mb/s" />
                 </div>

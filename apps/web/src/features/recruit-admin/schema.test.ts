@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import { configForm, reviewInput } from './schema'
 
 // Ce que ce fichier protège : `configForm` est le SEUL endroit qui garantit que la banque de
-// questions restera consommable par le test public. Une banque à 4 emplacements, une variante à
-// 3 options ou une bonne réponse hors bornes ne casserait rien à l'enregistrement — elle ferait
-// planter le TIRAGE (`toQiBank` de recruit-test THROW) ou afficherait une option vide au candidat,
-// des heures plus tard, sans que personne relie la panne à l'édition de config.
+// questions restera consommable par le test public. Une banque VIDE (ou à 21 emplacements), une
+// variante à 3 options ou une bonne réponse hors bornes ne casserait rien à l'enregistrement —
+// elle ferait planter le TIRAGE (`toQiBank` de recruit-test THROW) ou afficherait une option vide
+// au candidat, des heures plus tard, sans que personne relie la panne à l'édition de config.
+// Depuis la banque à taille libre (1..20), le troisième invariant est CROISÉ : un `qiMin` au-dessus
+// du nombre de questions refuserait tout le monde en silence.
 // Le second invariant testé est la NORMALISATION du texte de frappe : l'écran de frappe compare
 // la saisie du candidat au texte normalisé — stocker une majuscule fausserait la mesure de wpm.
 
@@ -50,9 +53,35 @@ describe('configForm — banque QI', () => {
     }
   })
 
-  it('exige EXACTEMENT 5 emplacements (le verdict calcule qi/5×30)', () => {
-    expect(configForm.safeParse(config({ qiBank: bank(4) })).success).toBe(false)
-    expect(configForm.safeParse(config({ qiBank: bank(6) })).success).toBe(false)
+  it('accepte une banque de taille libre — 1 emplacement, 20 emplacements', () => {
+    expect(configForm.safeParse(config({ qiBank: bank(1), qiMin: '1' })).success).toBe(true)
+    const r = configForm.safeParse(config({ qiBank: bank(20) }))
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.qiBank).toHaveLength(20)
+    // retrait (5 → 3) et ajout (5 → 6) : les deux passent, c'est tout l'objet de la banque libre
+    expect(configForm.safeParse(config({ qiBank: bank(3) })).success).toBe(true)
+    expect(configForm.safeParse(config({ qiBank: bank(6) })).success).toBe(true)
+  })
+
+  it('refuse une banque vide ou au-delà de 20 emplacements', () => {
+    expect(configForm.safeParse(config({ qiBank: [] })).success).toBe(false)
+    expect(configForm.safeParse(config({ qiBank: bank(21) })).success).toBe(false)
+  })
+
+  it('refuse un qiMin supérieur au nombre de questions (l’erreur porte sur qiMin)', () => {
+    // Sans cette règle croisée, « minimum 5 » sur une banque ramenée à 3 questions refuserait
+    // TOUS les candidats, sans que rien ne l'explique.
+    const r = configForm.safeParse(config({ qiBank: bank(3), qiMin: '4' }))
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(z.flattenError(r.error).fieldErrors.qiMin?.[0]).toBe(
+        'Le minimum ne peut pas dépasser le nombre de questions (3).',
+      )
+    }
+    // égalité acceptée : exiger un sans-faute est un choix légitime
+    expect(configForm.safeParse(config({ qiBank: bank(3), qiMin: '3' })).success).toBe(true)
+    // et le seuil peut monter avec la banque
+    expect(configForm.safeParse(config({ qiBank: bank(12), qiMin: '9' })).success).toBe(true)
   })
 
   it('exige au moins une variante par emplacement', () => {
@@ -101,6 +130,8 @@ describe('configForm — seuils et textes', () => {
     expect(configForm.safeParse(config({ botMessages: '51' })).success).toBe(false)
     expect(configForm.safeParse(config({ qiTimer: '4' })).success).toBe(false)
     expect(configForm.safeParse(config({ qiTimer: '121' })).success).toBe(false)
+    // 21 = au-delà du plafond ABSOLU du champ ; 6 = au-delà de CETTE banque (5 questions).
+    expect(configForm.safeParse(config({ qiMin: '21' })).success).toBe(false)
     expect(configForm.safeParse(config({ qiMin: '6' })).success).toBe(false)
     expect(configForm.safeParse(config({ globalThreshold: '101' })).success).toBe(false)
     expect(configForm.safeParse(config({ frappeMin: '30.5' })).success).toBe(false)

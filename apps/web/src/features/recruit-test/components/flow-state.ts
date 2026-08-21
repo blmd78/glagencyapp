@@ -36,7 +36,7 @@ const storedFlow = z.object({
   /** Les étapes qui ont une tentative derrière elles (l'intro et l'écran final n'en ont pas). */
   step: z.enum(['qi', 'typing', 'connection', 'bot', 'identity']),
   persona: z.string(),
-  /** Les 5 questions tirées par le serveur — SANS la bonne réponse (`QiQuestion` de core). */
+  /** Les questions tirées par le serveur (1 à 20) — SANS la bonne réponse (`QiQuestion` de core). */
   qi: z.array(z.object({ slot: z.string(), q: z.string(), opts: z.array(z.string()) })),
   typingText: z.string(),
   qiTimer: z.number(),

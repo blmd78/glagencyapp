@@ -6,7 +6,10 @@ import { STEP_LABELS } from './progress-dots'
 
 /** Ce que chaque épreuve demande, en une ligne — le candidat sait à quoi s'attendre, jamais comment il est noté. */
 const PITCH: Record<(typeof STEP_LABELS)[number], string> = {
-  'Test de logique': '5 questions, 30 secondes chacune.',
+  // Ni le nombre de questions ni le chrono ne sont écrits ici : les deux viennent de la config
+  // (banque de 1 à 20 questions, `qi_timer`) et cet écran est rendu AVANT `startAttempt` — la
+  // page /postuler est statique, elle ne lit aucune donnée au montage.
+  'Test de logique': 'des questions de logique, chronométrées une par une.',
   'Vitesse de frappe': 'un texte à recopier, le plus vite et le plus juste possible.',
   'Connexion internet': 'une mesure automatique de ton débit.',
   'Conversation avec un client': 'tu joues la créatrice face à un client, en direct.',
