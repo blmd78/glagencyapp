@@ -14,6 +14,7 @@
 // ni ne joue jamais de l'argent).
 
 import { randomInt } from 'node:crypto'
+import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import {
@@ -63,8 +64,13 @@ export async function claimTicket(): Promise<ActionResult<{ ticketId: string | n
       // perdait son tour en silence — l'octroi était adossé à SA visite. Idempotent, donc rejouable
       // à chaque montage ; `.catch` : un échec ne doit pas priver le visiteur de SON ticket, qui est
       // réclamé juste après par le chemin nominal.
-      const { error: gErr } = await createAdminClient().rpc('training_wheel_grant_week', { p_week: week, p_top: WHEEL_TOP_N })
-      if (gErr) console.error('[roue] octroi global impossible', week, gErr.message)
+      // Octroi sur TOUTE la fenêtre ouverte (0118) : rattrape les semaines où personne n'a mis les
+      // pieds sur la face. Ignore volontairement le throttle de `training_wheel_grant_due` — ici on
+      // est sur la page Roue, l'utilisateur attend son tour, il ne doit pas se heurter à « repasse
+      // dans une heure ». Sentry et pas un simple `console.error` : c'est le mécanisme qui
+      // distribue de l'argent, une panne muette voudrait dire « plus aucune récompense ».
+      const { error: gErr } = await createAdminClient().rpc('training_wheel_grant_open_weeks', { p_top: WHEEL_TOP_N })
+      if (gErr) Sentry.captureException(new Error(`[roue] octroi impossible : ${gErr.message}`))
 
       const { data: pending, error: pErr } = await supabase
         .from('training_wheel_tickets')

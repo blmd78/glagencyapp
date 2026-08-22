@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { WHEEL_TOP_N } from '@glagency/core'
 import { toPrizes, toSectors } from '../mappers'
 import type { MySpin, WheelData } from '../types'
 
@@ -17,18 +18,21 @@ export async function getWheel(profileId: string): Promise<WheelData> {
     supabase.from('training_wheel_config').select('title, sectors, prizes').eq('id', 1).single(),
     supabase
       .from('training_wheel_tickets')
+      // TOUS les tours en attente (ils s'ACCUMULENT depuis 0118), du PLUS ANCIEN au plus récent :
+      // c'est l'ordre dans lequel ils ont été gagnés, et la semaine la plus proche de la sortie de
+      // la fenêtre de rattrapage passe en premier. On lisait le plus récent, et un seul.
       .select('id, week, reason, created_at')
       .eq('profile_id', profileId)
       .is('used_at', null)
-      .order('created_at', { ascending: false })
-      .limit(1),
+      .order('week', { ascending: true })
+      .order('created_at', { ascending: true }),
     supabase
       .from('training_wheel_spins')
       .select('id, week, spun_at, sector_label, won, prize_label, amount_eur, paid_at')
       .eq('profile_id', profileId)
       .order('spun_at', { ascending: false })
       .limit(50),
-    supabase.rpc('training_wheel_pending', { p_profile: profileId }),
+    supabase.rpc('training_wheel_pending', { p_profile: profileId, p_top: WHEEL_TOP_N }),
   ])
   // Un `if` par résultat (et pas une boucle) : c'est ce qui NARROW `cfg.data` en non-null pour
   // TypeScript — le type de `.single()` est une union { data, error: null } | { data: null, error }.
@@ -37,8 +41,8 @@ export async function getWheel(profileId: string): Promise<WheelData> {
   if (spins.error) throw new Error(spins.error.message)
   if (pending.error) throw new Error(pending.error.message)
 
-  const t = tickets.data[0]
-  const ticket = t ? { id: t.id, week: t.week, reason: t.reason, createdAt: t.created_at } : null
+  const queue = (tickets.data ?? []).map((t) => ({ id: t.id, week: t.week, reason: t.reason, createdAt: t.created_at }))
+  const ticket = queue[0] ?? null
   const mySpins: MySpin[] = (spins.data ?? []).map((s) => ({
     id: s.id,
     week: s.week,
@@ -54,7 +58,10 @@ export async function getWheel(profileId: string): Promise<WheelData> {
   return {
     config: { title: cfg.data.title, sectors: toSectors(cfg.data.sectors), prizes: toPrizes(cfg.data.prizes) },
     ticket,
-    eligible: !ticket && Number(pending.data ?? 0) === 1,
+    // Nombre de tours à jouer : ceux déjà matérialisés, sinon ce que la RPC dit devoir (une
+    // éligibilité dont l'octroi n'a pas encore tourné).
+    pending: queue.length > 0 ? queue.length : Number(pending.data ?? 0),
+    eligible: queue.length === 0 && Number(pending.data ?? 0) > 0,
     mySpins,
   }
 }

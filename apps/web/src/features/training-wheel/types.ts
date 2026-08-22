@@ -41,7 +41,10 @@ export interface MySpin {
  */
 export interface WheelData {
   config: WheelConfig
+  /** Le PROCHAIN tour à jouer (le plus ancien de la file) — `null` si aucun n'est matérialisé. */
   ticket: WheelTicket | null
+  /** Nombre total de tours à jouer : les tickets s'accumulent (0118), l'écran doit le dire. */
+  pending: number
   eligible: boolean
   mySpins: MySpin[]
 }

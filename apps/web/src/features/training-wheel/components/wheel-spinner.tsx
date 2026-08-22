@@ -33,10 +33,13 @@ type Phase = 'idle' | 'claiming' | 'spinning' | 'reveal' | 'done'
 export function WheelSpinner({
   sectors,
   ticket: serverTicket,
+  pending,
   eligible,
 }: {
   sectors: WheelSector[]
   ticket: WheelTicket | null
+  /** Nombre TOTAL de tours à jouer (ils s'accumulent, 0118) — le prochain est `ticket`. */
+  pending: number
   eligible: boolean
 }) {
   const router = useRouter()
@@ -46,8 +49,12 @@ export function WheelSpinner({
   // Le ticket vient des PROPS (re-rendues à chaque `router.refresh()`) et pas d'un état copié :
   // un `useState(serverTicket)` resterait figé à `null` après la réclamation. `spent` = consommé
   // ICI, le temps que le rafraîchissement serveur arrive.
-  const [spent, setSpent] = useState(false)
-  const ticket = spent ? null : serverTicket
+  // `played` = nombre de tours joués DEPUIS ce montage, le temps que le serveur repasse. Un simple
+  // booléen ne suffit plus depuis que les tours s'accumulent : après en avoir joué un, il en reste
+  // peut-être d'autres — mais le suivant n'est connu qu'au rafraîchissement, d'où le `router.refresh`
+  // de fin de révélation qui ramène la file à jour.
+  const [played, setPlayed] = useState(0)
+  const ticket = played > 0 ? null : serverTicket
   const claimed = useRef(false)
   const timer = useRef<number | null>(null)
 
@@ -113,12 +120,17 @@ export function WheelSpinner({
     const current = ((rotation % 360) + 360) % 360
     const targetMod = ((-target % 360) + 360) % 360
     setRotation(rotation + ((targetMod - current + 360) % 360) + 5 * 360)
-    setSpent(true)
+    setPlayed((n) => n + 1)
     timer.current = window.setTimeout(() => setPhase('reveal'), SPIN_MS)
   }
 
+  // Les tours s'accumulent : on annonce combien il en reste, et on nomme celui qu'on va jouer (le
+  // plus ancien). Le compte diminue au fil des tirages sans attendre le rafraîchissement serveur.
+  const restants = Math.max(0, pending - played)
   const hint = ticket
-    ? `Un tour disponible — ${ticket.reason}`
+    ? restants > 1
+      ? `${restants} tours en attente — on joue « ${ticket.reason} »`
+      : `Un tour disponible — ${ticket.reason}`
     : eligible
       ? 'Ton tour arrive…'
       : 'Termine dans le top 3 du classement de la semaine pour gagner un tour.'

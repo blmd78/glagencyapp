@@ -3637,6 +3637,7 @@ export type Database = {
       training_wheel_config: {
         Row: {
           id: number
+          last_granted_at: string | null
           prizes: Json
           sectors: Json
           title: string
@@ -3645,6 +3646,7 @@ export type Database = {
         }
         Insert: {
           id?: number
+          last_granted_at?: string | null
           prizes: Json
           sectors: Json
           title?: string
@@ -3653,6 +3655,7 @@ export type Database = {
         }
         Update: {
           id?: number
+          last_granted_at?: string | null
           prizes?: Json
           sectors?: Json
           title?: string
@@ -4021,11 +4024,19 @@ export type Database = {
           profile_id: string
         }[]
       }
+      training_wheel_grant_due: { Args: { p_top: number }; Returns: number }
+      training_wheel_grant_open_weeks: {
+        Args: { p_top: number }
+        Returns: number
+      }
       training_wheel_grant_week: {
         Args: { p_top: number; p_week: string }
         Returns: number
       }
-      training_wheel_pending: { Args: { p_profile: string }; Returns: number }
+      training_wheel_pending: {
+        Args: { p_profile: string; p_top?: number }
+        Returns: number
+      }
       training_wheel_ranking_raw: {
         Args: { p_week: string }
         Returns: {
@@ -4034,6 +4045,7 @@ export type Database = {
           rn: number
         }[]
       }
+      training_wheel_weeks_open: { Args: never; Returns: string[] }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {

@@ -4,7 +4,7 @@ import { createAdminClient } from '@glagency/db'
 import { SCORE_MODEL } from '@/lib/ai/client'
 import { logAiCall } from '@/lib/ai/log'
 import { bossScoreSystemPrompt, formatTranscript, scoreSystemPrompt, type HistoryMessage } from '@/lib/ai/prompts'
-import { scoreBossThread, scoreThread, type ScoreResult } from '@/lib/ai/score'
+import { AiCallError, scoreBossThread, scoreThread, type ScoreResult } from '@/lib/ai/score'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 
 /**
@@ -16,8 +16,8 @@ import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/trainin
  * objective_reached.
  *
  * Relance après un échec partiel : les threads DÉJÀ notés sont repris tels quels, sans nouvel appel
- * (hors `force`) — relance économique si l'échec survient après les appels ; un échec d'appel
- * refait tous les appels restants (les appels partent en parallèle, avant toute écriture).
+ * (hors `force`) — et un échec d'appel PERSISTE d'abord les threads dont l'appel a réussi, donc la
+ * relance ne repaie que les threads réellement manquants.
  * Les appels IA des threads restants partent EN PARALLÈLE (un boss = 5 appels Sonnet ; en série la
  * notation frôlait la durée maximale de la fonction) ; les écritures, elles, restent séquentielles.
  */
@@ -84,6 +84,35 @@ export class ScoringBusyError extends Error {
 
 type Admin = ReturnType<typeof createAdminClient>
 type SessionRow = Awaited<ReturnType<typeof fetchSession>>
+
+/**
+ * Écriture de la note d'UN thread (axes puis note). Extraite parce qu'elle sert à DEUX endroits : le
+ * parcours normal et la persistance des appels réussis quand un AUTRE thread a échoué. Les deux
+ * doivent écrire exactement la même chose.
+ *
+ * Ordre volontaire — axes d'abord : la ligne de `training_thread_scores` est le MARQUEUR que la
+ * relance lit pour savoir quoi ne pas repayer. Écrite en dernier, elle ne peut pas exister sans ses
+ * axes ; l'inverse laissait, sur un échec entre les deux, une note reprise pour toujours et amputée
+ * de son détail.
+ */
+async function writeThreadScore(admin: Admin, threadId: string, r: ScoreResult): Promise<void> {
+  const { error: dErr } = await admin.from('training_thread_axis_scores').delete().eq('thread_id', threadId)
+  if (dErr) throw new Error(dErr.message)
+  if (r.axes.length) {
+    const { error: aErr } = await admin
+      .from('training_thread_axis_scores')
+      .insert(r.axes.map((a) => ({ thread_id: threadId, axis_key: a.key, axis_name: a.name, score: a.score })))
+    if (aErr) throw new Error(aErr.message)
+  }
+  const { error: uErr } = await admin.from('training_thread_scores').upsert(
+    {
+      thread_id: threadId, total: r.total, objective_reached: r.objectiveReached, capped: r.capped, comment: r.comment,
+      moments: r.moments, scored_at: new Date().toISOString(),
+    },
+    { onConflict: 'thread_id' },
+  )
+  if (uErr) throw new Error(uErr.message)
+}
 
 /** Corps de la notation, exécuté sous la réservation posée par `scoreSessionById`. */
 async function runScoring(
@@ -181,24 +210,49 @@ async function runScoring(
   }
 
   // 2) Appels IA EN PARALLÈLE (un boss = 5 appels Sonnet ; en série la notation frôlait la durée
-  // maximale de la fonction). Chaque échec est tracé AVANT de relancer (miroir de sendMessage) —
-  // sans ça, un incident de notation était invisible dans training_ai_calls, donc absent du
-  // coût/fiabilité. `Promise.all` propage le premier échec ; les autres appels terminent leur
-  // trace, et la relance repartira des seuls threads non notés.
-  const results = await Promise.all(
+  // maximale de la fonction). `Promise.allSettled`, surtout PAS `Promise.all` : celui-ci rejette au
+  // PREMIER échec et rend la main pendant que les autres appels — DÉJÀ PARTIS, donc DÉJÀ FACTURÉS —
+  // courent encore. Leur `logAiCall` s'exécutait alors après le retour de la fonction, sur une
+  // instance que l'hébergeur peut geler dès la réponse rendue : cette consommation n'était tracée
+  // NULLE PART, alors que la facture, elle, arrive. `allSettled` attend les N appels ET leurs N
+  // traces ; la sémantique pour l'appelant ne bouge pas, le premier échec est relancé à la fin.
+  const settled = await Promise.allSettled(
     pending.map(async ({ threadId, call }) => {
       let r: ScoreResult
       try {
         r = await call()
       } catch (err) {
-        await logAiCall(admin, { sessionId, threadId, kind: 'score', model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
+        // Trace AVANT de relancer (miroir de sendMessage). `AiCallError` = la réponse est ARRIVÉE
+        // puis a été refusée, tronquée ou jugée illisible : elle est FACTURÉE, on enregistre sa
+        // consommation RÉELLE au lieu de 0 — ce sont précisément les notations qu'une relance
+        // repaie. Une panne réseau reste une `Error` nue : rien n'a été facturé, donc 0 token.
+        const billed = err instanceof AiCallError
+          ? { model: err.model, usage: err.usage, latencyMs: err.latencyMs }
+          : { model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0 }
+        await logAiCall(admin, { sessionId, threadId, kind: 'score', ...billed, ok: false })
         throw err
       }
       await logAiCall(admin, { sessionId, threadId, kind: 'score', model: r.model, usage: r.usage, latencyMs: r.latencyMs, ok: true })
       return { threadId, r }
     }),
   )
-  for (const { threadId, r } of results) scores.set(threadId, r)
+  for (const x of settled) if (x.status === 'fulfilled') scores.set(x.value.threadId, x.value.r)
+  const failure = settled.find((x): x is PromiseRejectedResult => x.status === 'rejected')
+  if (failure) {
+    // On PERSISTE les notes des appels qui ont réussi avant de relancer l'échec : sans ça, un échec
+    // sur le 5e fan d'un boss faisait REPAYER les quatre autres à chaque relance (la reprise ne lit
+    // que `training_thread_scores`). Best-effort : l'erreur remontée doit rester CELLE DE L'APPEL —
+    // une écriture ratée ici ne coûte que l'économie de la relance, elle ne doit pas masquer la cause.
+    for (const [threadId, r] of scores) {
+      if (keep.has(threadId)) continue
+      try {
+        await writeThreadScore(admin, threadId, r)
+      } catch (wErr) {
+        console.error('[training score] note partielle non persistée', wErr)
+      }
+    }
+    throw failure.reason
+  }
 
   // 3) Écritures, dans l'ordre des conversations.
   const totals: { total: number; objective: boolean }[] = []
@@ -210,22 +264,7 @@ async function runScoring(
     }
     const r = scores.get(t.id)
     if (!r) throw new Error('notation manquante')
-    const { error: uErr } = await admin.from('training_thread_scores').upsert(
-      {
-        thread_id: t.id, total: r.total, objective_reached: r.objectiveReached, capped: r.capped, comment: r.comment,
-        moments: r.moments, scored_at: new Date().toISOString(),
-      },
-      { onConflict: 'thread_id' },
-    )
-    if (uErr) throw new Error(uErr.message)
-    const { error: dErr } = await admin.from('training_thread_axis_scores').delete().eq('thread_id', t.id)
-    if (dErr) throw new Error(dErr.message)
-    if (r.axes.length) {
-      const { error: aErr } = await admin
-        .from('training_thread_axis_scores')
-        .insert(r.axes.map((a) => ({ thread_id: t.id, axis_key: a.key, axis_name: a.name, score: a.score })))
-      if (aErr) throw new Error(aErr.message)
-    }
+    await writeThreadScore(admin, t.id, r)
     totals.push({ total: r.total, objective: r.objectiveReached })
   }
   const total = totals.length ? Math.round(totals.reduce((n, x) => n + x.total, 0) / totals.length) : 0
