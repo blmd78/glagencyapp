@@ -31,7 +31,7 @@ export function WheelTemplate({
     <div className="flex flex-col gap-8">
       {canSpin ? (
         // Props minimales : le spinner n'a que faire des 50 tirages de « Mes gains ».
-        <WheelSpinner sectors={data.config.sectors} ticket={data.ticket} eligible={data.eligible} />
+        <WheelSpinner sectors={data.config.sectors} ticket={data.ticket} pending={data.pending} eligible={data.eligible} />
       ) : (
         <div className="flex flex-col items-center gap-3">
           <WheelSvg sectors={data.config.sectors} />
