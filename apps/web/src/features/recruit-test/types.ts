@@ -21,6 +21,13 @@ import type { QiQuestion } from '@glagency/core'
 
 /** Tentative inconnue (base purgée, vieil onglet qui rejoue un identifiant) — le parcours repart. */
 export const NO_ATTEMPT = 'Test introuvable — recommence depuis le début.'
+
+/**
+ * Refus « un seul essai » à la soumission. Le CLIENT le reconnaît pour basculer sur le cul-de-sac
+ * (`StepBlocked`) au lieu de laisser le formulaire d'identité ouvert : côté serveur la tentative
+ * est CONSOMMÉE, renvoyer une autre identité ne peut plus aboutir.
+ */
+export const BLOCKED = 'Tu as déjà passé le test.'
 /**
  * Refus levé sur un 23505 (`unique (attempt_id, position)`) : le message EST en base, c'est le
  * RENVOI qui est refusé. Le client s'en sert pour NE PAS retirer de l'écran un message qui existe

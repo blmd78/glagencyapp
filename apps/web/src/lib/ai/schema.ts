@@ -61,7 +61,9 @@ export function buildScoreZod(axes: ScoreAxis[]) {
     // ne doit pas échouer parce que le modèle a mal additionné.
     total: z.number(),
     objectif_atteint: z.boolean(),
-    plafond: z.number().int().min(0).max(100).optional(),
+    // CLAMPÉ (pas rejeté), comme les notes d'axes : une notation PAYANTE ne doit pas échouer parce
+    // que le modèle a renvoyé un plafond hors bornes. Appliqué par `scoreThread`.
+    plafond: z.number().int().transform((n) => Math.min(100, Math.max(0, n))).optional(),
     // Le modèle peut renvoyer plus de 3 moments malgré le schéma structuré : on tronque plutôt
     // que de rejeter toute la notation pour un débordement de tableau.
     moments: z.array(momentZod).transform((arr) => arr.slice(0, 3)),

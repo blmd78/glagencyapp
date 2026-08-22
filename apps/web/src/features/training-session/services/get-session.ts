@@ -17,16 +17,30 @@ export async function getSession(id: string): Promise<SessionData | null> {
     .from('training_sessions')
     // Un seul littéral (pas de `+`) : supabase-js a besoin du type littéral exact pour typer les embeds.
     .select(
-      '*, training_threads(*, training_case_boss_fans(name, age, job, city, color, persona), training_thread_scores(*), training_thread_axis_scores(axis_key, axis_name, score)), training_reports(id, resolved_at)',
+      '*, training_threads(*, training_cases(is_sale), training_case_boss_fans(name, age, job, city, color, persona), training_thread_scores(*), training_thread_axis_scores(axis_key, axis_name, score)), training_reports(id, resolved_at)',
     )
     .eq('id', id)
     .maybeSingle()
   if (error) throw new Error(error.message)
   if (!s) return null
+  // La LIGNE CIBLE est la réponse attendue RÉSERVÉE AU CORRECTEUR : elle n'entre que dans le prompt
+  // de notation (lu directement sur `training_cases`, cf. training-scoring). GLA la gardait côté
+  // serveur et ne l'a jamais montrée au joueur — l'afficher revient à donner la correction avant
+  // l'exercice. `start-session` ne l'écrit plus dans les nouveaux snapshots ; on purge ici ceux
+  // DÉJÀ écrits (sessions en cours et historique). Déclaré AVANT le `.map()` des threads, qui le
+  // consomme pour la garde média.
+  const snapshot = { ...(s.case_snapshot as unknown as CaseSnapshot) }
+  delete (snapshot as { targetLine?: unknown }).targetLine
+
   // Une seule horloge pour tout le rendu (cf. `body` plus bas) : deux appels à `Date.now()`
   // pourraient encadrer une échéance et livrer un message à moitié révélé.
   const revealNow = Date.now()
-  const { data: msgs, error: mErr } = await supabase
+  // Messages lus en SERVICE-ROLE, et c'est délibéré : depuis 0117 la table n'est plus lisible par
+  // `authenticated` (le corps du fan était récupérable en direct via PostgREST pendant les 30-120 s
+  // de révélation). Le contrôle d'accès n'est pas perdu pour autant : la session ci-dessus a été
+  // lue avec le client de l'appelant, donc sous RLS — on ne va chercher ici que les messages d'une
+  // session qu'il a le droit de voir, et la rétention du corps non révélé reste appliquée plus bas.
+  const { data: msgs, error: mErr } = await createAdminClient()
     .from('training_messages')
     .select('id, thread_id, position, speaker, body, media_price, visible_at')
     .eq('session_id', id)
@@ -64,6 +78,8 @@ export async function getSession(id: string): Promise<SessionData | null> {
     .map((t) => {
       const score = Array.isArray(t.training_thread_scores) ? t.training_thread_scores[0] : t.training_thread_scores
       const fan = Array.isArray(t.training_case_boss_fans) ? t.training_case_boss_fans[0] : t.training_case_boss_fans
+      // Cas REJOUÉ d'un thread de défi (`ref_case_id`, seule FK de training_threads vers training_cases).
+      const refCase = Array.isArray(t.training_cases) ? t.training_cases[0] : t.training_cases
       return {
         id: t.id,
         position: t.position,
@@ -74,6 +90,11 @@ export async function getSession(id: string): Promise<SessionData | null> {
         maxTurns: t.max_turns,
         nextDueAt: t.next_due_at,
         bossFan: fan ? { name: fan.name, age: fan.age, job: fan.job, city: fan.city, color: fan.color, persona: fan.persona } : null,
+        // Média payant autorisé sur CETTE conv ? Miroir exact de ce que `buildFanSystem` utilise
+        // pour injecter (ou non) les règles de média payant : boss = toujours (son prompt porte ses
+        // paliers), défi = le `is_sale` du solo REJOUÉ, solo = celui du cas. Envoyer un média hors
+        // de ce cadre atteint un fan dont le prompt n'a pas la section MÉDIAS PAYANTS.
+        isSale: (s.kind as CaseKind) === 'boss' ? true : (refCase?.is_sale ?? snapshot.isSale),
         messages: (msgs ?? [])
           .filter((m) => m.thread_id === t.id)
           .map((m) => ({
@@ -112,7 +133,7 @@ export async function getSession(id: string): Promise<SessionData | null> {
     status: s.status as SessionStatus,
     caseId: s.case_id,
     moduleId: s.module_id,
-    snapshot: s.case_snapshot as unknown as CaseSnapshot,
+    snapshot,
     total: s.total,
     objectiveReached: s.objective_reached,
     startedAt: s.started_at,

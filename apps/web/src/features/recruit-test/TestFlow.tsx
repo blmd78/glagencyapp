@@ -45,7 +45,7 @@ import { StepIdentity, type IdentityForm, type SubmitFailure } from './component
 import { StepIntro } from './components/step-intro'
 import { StepQi } from './components/step-qi'
 import { StepTyping, type TypingResult } from './components/step-typing'
-import { BOT_ALREADY_SENT, CHAT_OVER, mediaLabel, NO_ATTEMPT, type SubmitResult } from './types'
+import { BLOCKED, BOT_ALREADY_SENT, CHAT_OVER, mediaLabel, NO_ATTEMPT, type SubmitResult } from './types'
 
 /** Rang de chaque étape dans « Étape x/5 ». */
 const STEP_INDEX: Record<FlowStep, number> = { qi: 1, typing: 2, connection: 3, bot: 4, identity: 5 }
@@ -222,7 +222,18 @@ export function TestFlow() {
     async (values: IdentityForm): Promise<SubmitFailure | null> => {
       if (!attemptId) return { error: NO_ATTEMPT }
       const res = await safe(() => submitCandidate({ attemptId, ...values }))
-      if (!res.success) return { error: res.error, fieldErrors: res.fieldErrors }
+      if (!res.success) {
+        // Refus « un seul essai » : la tentative est CONSOMMÉE côté serveur, le formulaire n'a plus
+        // rien à donner (ressaisir un autre e-mail ne peut plus aboutir) — cul-de-sac assumé, comme
+        // à l'entrée du test.
+        if (res.error === BLOCKED) {
+          clearFlow()
+          setFlow(null)
+          setBlocked(res.error)
+          return null
+        }
+        return { error: res.error, fieldErrors: res.fieldErrors }
+      }
       // Le test est joué : plus rien à reprendre, on libère la session. Le VERDICT, lui, est écrit
       // AVANT — un candidat reçu qui recharge doit retrouver son lien Discord (son seul livrable),
       // pas un « Tu as déjà passé le test ».

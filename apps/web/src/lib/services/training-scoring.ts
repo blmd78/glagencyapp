@@ -10,8 +10,10 @@ import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/trainin
 /**
  * Notation d'une session TERMINÉE : un appel structuré par thread `done` (les `lost` valent 0,
  * sans appel), scores + axes écrits en service-role, total = moyenne des threads, statut `scored`
- * (→ trigger 0118 : bests + stats). `force` (admin, rescore) : réécrit les scores d'une session
- * déjà notée (scored_at change → le trigger recalcule).
+ * (→ trigger : bests + stats). `force` (admin, rescore) : réécrit les scores d'une session déjà
+ * notée SANS déplacer `scored_at` — la semaine du classement, qui distribue l'argent de la roue,
+ * est bornée dessus (0116). Le trigger se déclenche alors sur le changement de total /
+ * objective_reached.
  *
  * Relance après un échec partiel : les threads DÉJÀ notés sont repris tels quels, sans nouvel appel
  * (hors `force`) — relance économique si l'échec survient après les appels ; un échec d'appel
@@ -23,7 +25,7 @@ import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/trainin
 async function fetchSession(admin: Admin, sessionId: string) {
   const { data, error } = await admin
     .from('training_sessions')
-    .select('id, kind, status, case_id, module_id, ended_at, training_threads(id, position, status, lost_reason, ref_case_id, boss_fan_id, fan_name)')
+    .select('id, kind, status, case_id, module_id, ended_at, scored_at, training_threads(id, position, status, lost_reason, ref_case_id, boss_fan_id, fan_name)')
     .eq('id', sessionId)
     .single()
   if (error) throw new Error(error.message)
@@ -112,7 +114,7 @@ async function runScoring(
       ? [...new Set(s.training_threads.map((t) => t.ref_case_id).filter((x): x is string => !!x))]
       : [s.case_id]
   const { data: cases, error: cErr } = caseIds.length
-    ? await admin.from('training_cases').select('id, context, objective, target_line, training_case_secrets(expected)').in('id', caseIds)
+    ? await admin.from('training_cases').select('id, context, objective, target_line, training_modules(code), training_case_secrets(expected)').in('id', caseIds)
     : { data: [], error: null }
   if (cErr) throw new Error(cErr.message)
   const caseById = new Map((cases ?? []).map((c) => [c.id, c]))
@@ -167,8 +169,12 @@ async function runScoring(
       const c = caseById.get(kind === 'arena' ? (t.ref_case_id ?? '') : s.case_id)
       if (!c) throw new Error('cas de notation introuvable')
       const sec = Array.isArray(c.training_case_secrets) ? c.training_case_secrets[0] : c.training_case_secrets
+      // Module du cas NOTÉ — en défi c'est celui du solo REJOUÉ, pas celui de l'arène : les deux
+      // clauses de fin de GLA (Négociation, clémence du défi) se décident là-dessus.
+      const mod = Array.isArray(c.training_modules) ? c.training_modules[0] : c.training_modules
       const system = scoreSystemPrompt({
         scoringNotes, context: c.context, objective: c.objective, targetLine: c.target_line, expected: sec?.expected ?? null, axes,
+        moduleCode: mod?.code ?? '', isArena: kind === 'arena',
       })
       pending.push({ threadId: t.id, call: () => scoreThread({ system, transcript, axes }) })
     }
@@ -227,11 +233,22 @@ async function runScoring(
   // les 5 (`every`) rendait l'examen final quasi impossible et contredisait la règle du barème.
   // Solo/défi : l'objectif du cas doit être atteint sur CHAQUE conversation.
   const objective = kind === 'boss' ? totals.length > 0 && total >= BOSS_PASS : totals.length > 0 && totals.every((x) => x.objective)
-  // status + total + objective + scored_at posés ENSEMBLE : c'est cet UPDATE qui déclenche le
-  // trigger 0118 (when new.status = 'scored' and scored_at distinct) → bests + stats à jour.
+  // `scored_at` N'EST PAS déplacé par une RE-NOTATION admin : la fenêtre du classement hebdomadaire
+  // — donc l'argent de la roue — est bornée dessus. Re-noter lundi une session jouée vendredi la
+  // sortait d'une semaine DÉJÀ PAYÉE et l'ajoutait à la semaine en cours, où elle pouvait ouvrir un
+  // 2e ticket pour le même travail. Effet voulu en prime : `training_refresh_stats` reçoit le jour
+  // d'ORIGINE, donc un rescore du lendemain ne gonfle plus la série ni les jours actifs.
+  // Le trigger (0116) se déclenche désormais aussi sur un changement de total / objective_reached :
+  // les bests et les stats restent recalculés, y compris pour une re-notation à la baisse.
   const { error: sErr } = await admin
     .from('training_sessions')
-    .update({ status: 'scored', total, objective_reached: objective, scored_at: new Date().toISOString(), ended_at: s.ended_at ?? new Date().toISOString() })
+    .update({
+      status: 'scored',
+      total,
+      objective_reached: objective,
+      scored_at: opts.force ? (s.scored_at ?? new Date().toISOString()) : new Date().toISOString(),
+      ended_at: s.ended_at ?? new Date().toISOString(),
+    })
     .eq('id', sessionId)
   if (sErr) throw new Error(sErr.message)
   return { total }

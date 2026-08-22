@@ -20,6 +20,7 @@
 // bien noter.
 
 import * as Sentry from '@sentry/nextjs'
+import { AiCallError } from '@/lib/ai/score'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
 import type { RecruitPersonaName } from '@/lib/ai/recruit-prompts'
@@ -213,6 +214,22 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
       try {
         score = await scoreRecruitTranscript(history.map((m) => ({ speaker: m.speaker, body: m.body })))
       } catch (err) {
+        // Refus ou troncature : la réponse est ARRIVÉE puis a été jetée — elle est facturée. On la
+        // compte, en relisant d'abord les compteurs (même décalage de plusieurs secondes que la
+        // course perdue : écrire depuis `attempt` écraserait un `sendToBot` terminé entre-temps).
+        if (err instanceof AiCallError) {
+          const fresh = await loadAttempt(admin, attempt.id).catch(() => null)
+          if (fresh) {
+            const { error: tErr } = await admin
+              .from('recruit_attempts')
+              .update({
+                input_tokens: fresh.input_tokens + err.usage.inputTokens,
+                output_tokens: fresh.output_tokens + err.usage.outputTokens,
+              })
+              .eq('id', attempt.id)
+            if (tErr) console.error('[recrutement notation] tokens non comptés', tErr.message)
+          }
+        }
         // La notation reste relançable : on rend le jeton (best-effort, et seulement si personne
         // n'a écrit entre-temps) avant de remonter l'échec.
         const { error: rErr } = await admin
@@ -251,6 +268,17 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
       if (written.length === 0) {
         const persisted = await loadAttempt(admin, attempt.id)
         if (persisted.bot_total === null) throw new Error(`Notation perdue sur la tentative ${attempt.id}`)
+        // Le score est jeté, pas la facture : cet appel Sonnet a bien été payé. On l'ajoute aux
+        // compteurs RELUS À L'INSTANT — pas à ceux chargés avant l'appel, vieux de plusieurs
+        // secondes : un `sendToBot` terminé entre-temps a pu écrire les siens, on les écraserait.
+        const { error: tErr } = await admin
+          .from('recruit_attempts')
+          .update({
+            input_tokens: persisted.input_tokens + score.usage.inputTokens,
+            output_tokens: persisted.output_tokens + score.usage.outputTokens,
+          })
+          .eq('id', attempt.id)
+        if (tErr) console.error('[recrutement notation] tokens non comptés', tErr.message)
       }
     },
   })

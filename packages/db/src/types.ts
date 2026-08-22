@@ -2023,6 +2023,7 @@ export type Database = {
           id: string
           ip: string | null
           reason: string | null
+          source: string
         }
         Insert: {
           created_at?: string
@@ -2033,6 +2034,7 @@ export type Database = {
           id?: string
           ip?: string | null
           reason?: string | null
+          source?: string
         }
         Update: {
           created_at?: string
@@ -2043,6 +2045,7 @@ export type Database = {
           id?: string
           ip?: string | null
           reason?: string | null
+          source?: string
         }
         Relationships: [
           {
@@ -4018,7 +4021,19 @@ export type Database = {
           profile_id: string
         }[]
       }
+      training_wheel_grant_week: {
+        Args: { p_top: number; p_week: string }
+        Returns: number
+      }
       training_wheel_pending: { Args: { p_profile: string }; Returns: number }
+      training_wheel_ranking_raw: {
+        Args: { p_week: string }
+        Returns: {
+          points: number
+          profile_id: string
+          rn: number
+        }[]
+      }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {

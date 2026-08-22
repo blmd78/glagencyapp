@@ -5,14 +5,20 @@ import type { ModuleDetail, ModuleSummary, PublicCaseRef } from '@/lib/types/tra
 /** Modules ACTIFS, ordonnés, avec leur nombre de cas actifs (table de référence — select simple). */
 export async function getModules(): Promise<ModuleSummary[]> {
   const supabase = await createClient()
-  const [mods, cases] = await Promise.all([
-    supabase.from('training_modules').select('id, code, title, emoji, description, course_md').eq('active', true).order('position'),
+  const [mods, withCourse, cases] = await Promise.all([
+    supabase.from('training_modules').select('id, code, title, emoji, description').eq('active', true).order('position'),
+    // `hasCourse` n'est qu'un BOOLÉEN : on demande les ids des modules qui ont un cours plutôt que
+    // de rapatrier `course_md` (~22 Ko aujourd'hui, jusqu'à 50 000 caractères PAR module) à chaque
+    // affichage de la liste. Même raison que `getModuleRefs()` juste en dessous.
+    supabase.from('training_modules').select('id').eq('active', true).not('course_md', 'is', null).neq('course_md', ''),
     supabase.from('training_cases').select('module_id').eq('active', true),
   ])
   if (mods.error) throw new Error(mods.error.message)
+  if (withCourse.error) throw new Error(withCourse.error.message)
   if (cases.error) throw new Error(cases.error.message)
   const counts = new Map<string, number>()
   for (const c of cases.data ?? []) counts.set(c.module_id, (counts.get(c.module_id) ?? 0) + 1)
+  const withCourseIds = new Set((withCourse.data ?? []).map((m) => m.id))
   return (mods.data ?? []).map((m) => ({
     id: m.id,
     code: m.code,
@@ -20,7 +26,7 @@ export async function getModules(): Promise<ModuleSummary[]> {
     emoji: m.emoji,
     description: m.description,
     caseCount: counts.get(m.id) ?? 0,
-    hasCourse: !!m.course_md,
+    hasCourse: withCourseIds.has(m.id),
   }))
 }
 

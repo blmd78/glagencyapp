@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { MEDIA_PRICE_LADDER } from '@/lib/types/training'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
@@ -10,8 +11,9 @@ import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { mediaPriceForm } from '../schema'
 
-/** Prix proposés en un clic (paliers GLA) — la saisie libre reste possible. */
-const QUICK_PRICES = [10, 25, 50, 100]
+// Les paliers vivent dans `lib/types/training` : ce sont EXACTEMENT ceux que le prompt du fan du
+// boss lui apprend à gravir. Proposer d'autres prix pousserait le chatter vers `[[ELIM:saut]]`.
+// La saisie libre reste possible — c'était le seul mode de GLA.
 
 /**
  * « Média 🔒 » : choisir un prix ENVOIE le média — c'est un message à part entière (le texte en
@@ -62,7 +64,7 @@ export function MediaPricePopover({ disabled, onPick }: { disabled: boolean; onP
         >
           <p className="text-sm font-medium">Envoyer un média verrouillé</p>
           <div className="flex flex-wrap gap-2">
-            {QUICK_PRICES.map((p) => (
+            {MEDIA_PRICE_LADDER.map((p) => (
               <Button key={p} type="button" variant="secondary" size="sm" onClick={() => pick(p)}>
                 {p} €
               </Button>

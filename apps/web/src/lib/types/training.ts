@@ -30,6 +30,14 @@ export const ARENA_REVEAL_MIN_S = 30
 export const ARENA_REVEAL_MAX_S = 120
 export const ARENA_OPENING_OFFSETS_S = [0, 20, 45, 75, 110] as const
 
+/**
+ * Paliers de prix d'un média verrouillé (GLA serveur.py:507, `ladder`). SOURCE UNIQUE : le prompt du
+ * fan du boss lui apprend à monter palier par palier sur CETTE échelle (`bossFanSystemPrompt`), et
+ * l'UI ne doit proposer que des prix qu'il connaît — un prix hors échelle déclenche la faute
+ * `[[ELIM:saut]]` (« elle saute des paliers »). Ne pas modifier d'un seul côté.
+ */
+export const MEDIA_PRICE_LADDER = [6, 30, 60, 150, 300, 500] as const
+
 /** Codes de faute grave émis par le fan (`[[ELIM:code]]`, GLA) → thread perdu. */
 const FAULT_CODES = ['interro', 'froid', 'brutal', 'saut', 'spam', 'gratuit', 'remise_prev', 'abandon', 'renc_date', 'force_stop', 'brushoff', 'revente'] as const
 export type FaultCode = (typeof FAULT_CODES)[number]
@@ -57,7 +65,10 @@ export const MEDAL_LABELS = { or: 'Or', argent: 'Argent', bronze: 'Bronze' } as 
 /** Snapshot VISIBLE du cas au moment joué (jsonb `training_sessions.case_snapshot`) — jamais de secret. */
 export interface CaseSnapshot {
   code: string; title: string; phase: string; difficulty: number
-  context: string; objective: string; objectiveLabel: string; targetLine: string | null
+  // `targetLine` (ligne cible) est VOLONTAIREMENT absente : c'est la réponse attendue du
+  // correcteur. Elle est lue directement sur `training_cases` au moment de noter, jamais envoyée au
+  // client. Les snapshots écrits avant ce correctif la portent encore — `get-session` la retire.
+  context: string; objective: string; objectiveLabel: string
   maxTurns: number; reactionMaxS: number | null; isSale: boolean
   moduleTitle: string; moduleCode: string
 }

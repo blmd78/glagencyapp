@@ -6,6 +6,34 @@ import type { AiUsage } from './fan'
 import type { ScoreAxis } from './prompts'
 import { BOSS_STEPS, bossScoreJsonSchema, bossScoreZod, buildScoreJsonSchema, buildScoreZod, type ScoreMoment } from './schema'
 
+/**
+ * Échec d'une notation DÉJÀ FACTURÉE : la réponse du modèle est bien arrivée, puis a été refusée,
+ * tronquée ou jugée illisible. L'erreur transporte la consommation RÉELLE pour que
+ * `training_ai_calls` ne l'enregistre pas à 0 token — ce sont précisément les notations qu'une
+ * relance repaie. Une panne réseau (aucune réponse) reste une `Error` nue : là, rien n'a été facturé.
+ */
+export class AiCallError extends Error {
+  readonly usage: AiUsage
+  readonly latencyMs: number
+  readonly model: string
+  constructor(message: string, billed: { usage: AiUsage; latencyMs: number; model: string }) {
+    super(message)
+    this.name = 'AiCallError'
+    this.usage = billed.usage
+    this.latencyMs = billed.latencyMs
+    this.model = billed.model
+  }
+}
+
+/** Le JSON est arrivé — donc payé : une validation qui échoue doit conserver la consommation. */
+export function billedParse<T>(parse: () => T, billed: { usage: AiUsage; latencyMs: number; model: string }): T {
+  try {
+    return parse()
+  } catch (err) {
+    throw new AiCallError(`Notation invalide : ${err instanceof Error ? err.message : String(err)}`, billed)
+  }
+}
+
 export type AxisScore = { key: string; name: string; score: number }
 export type ScoreResult = {
   total: number; objectiveReached: boolean; capped: boolean; comment: string; moments: ScoreMoment[]
@@ -57,11 +85,15 @@ export async function callStructured(
     { timeout: 60_000 },
   )
   const latencyMs = Date.now() - t0
-  if (res.stop_reason === 'refusal') throw new Error('Notation refusée par le modèle')
-  if (res.stop_reason === 'max_tokens') throw new Error('Notation tronquée (max_tokens)')
-  const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('')
+  // Consommation relevée AVANT les rejets et le parse : l'appel est facturé même quand sa sortie
+  // est inutilisable. La tracer à 0 sous-estimait le coût réel des notations ratées.
   const usage: AiUsage = { inputTokens: res.usage.input_tokens, outputTokens: res.usage.output_tokens, cacheReadTokens: res.usage.cache_read_input_tokens ?? 0 }
-  return { json: JSON.parse(text) as unknown, usage, latencyMs, model: res.model }
+  const billed = { usage, latencyMs, model: res.model }
+  if (res.stop_reason === 'refusal') throw new AiCallError('Notation refusée par le modèle', billed)
+  if (res.stop_reason === 'max_tokens') throw new AiCallError('Notation tronquée (max_tokens)', billed)
+  const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map((b) => b.text).join('')
+  const json = billedParse(() => JSON.parse(text) as unknown, billed)
+  return { json, usage, latencyMs, model: res.model }
 }
 
 /**
@@ -71,16 +103,21 @@ export async function callStructured(
  */
 export async function scoreThread(opts: { system: string; transcript: string; axes: ScoreAxis[] }): Promise<ScoreResult> {
   const { json, usage, latencyMs, model } = await callStructured(opts.system, opts.transcript, buildScoreJsonSchema(opts.axes))
-  const parsed = buildScoreZod(opts.axes).parse(json)
+  const parsed = billedParse(() => buildScoreZod(opts.axes).parse(json), { usage, latencyMs, model })
   // Clés d'axes dynamiques (module DB) : non exprimables statiquement dans le shape Zod généré ;
   // les bornes 0-25 sont déjà revalidées à l'exécution par buildScoreZod ci-dessus.
   const parsedAxes = parsed as unknown as Record<string, number>
   const axes = opts.axes.map((a) => ({ key: a.key, name: a.name, score: parsedAxes[a.key] }))
   const sum = axes.reduce((n, a) => n + a.score, 0)
   const objectiveReached = parsed.objectif_atteint
-  const cap = objectiveReached ? 100 : OBJECTIVE_CAP
+  // DEUX plafonds, comme GLA : celui demandé par le MODULE via le champ `plafond` (ses consignes de
+  // notation : « contenu gratuit envoyé → 30 », « promesse de réel → 40 »), puis le plafond
+  // d'objectif (65). On garde le plus bas. Sans ça, les plafonnements écrits dans les modules
+  // étaient énoncés au modèle, renvoyés par lui… et jetés avant d'atteindre la note.
+  const moduleCap = parsed.plafond ?? 100
+  const cap = Math.min(objectiveReached ? 100 : OBJECTIVE_CAP, moduleCap)
   return {
-    total: Math.min(sum, cap), objectiveReached, capped: !objectiveReached && sum > OBJECTIVE_CAP,
+    total: Math.min(sum, cap), objectiveReached, capped: sum > cap,
     comment: parsed.commentaire, moments: parsed.moments, axes, usage, latencyMs, model,
   }
 }
@@ -88,7 +125,7 @@ export async function scoreThread(opts: { system: string; transcript: string; ax
 /** Notation d'un fan du BOSS : 6 étapes /100 (null = non jouée), note = moyenne des étapes jouées ; réussi si ≥ 60. */
 export async function scoreBossThread(opts: { system: string; transcript: string }): Promise<ScoreResult> {
   const { json, usage, latencyMs, model } = await callStructured(opts.system, opts.transcript, bossScoreJsonSchema)
-  const parsed = bossScoreZod.parse(json)
+  const parsed = billedParse(() => bossScoreZod.parse(json), { usage, latencyMs, model })
   const axes = BOSS_STEPS.flatMap((s) => (parsed[s.key] == null ? [] : [{ key: s.key, name: s.name, score: parsed[s.key] as number }]))
   const total = axes.length ? Math.round(axes.reduce((n, a) => n + a.score, 0) / axes.length) : 0
   return { total, objectiveReached: total >= BOSS_PASS, capped: false, comment: parsed.commentaire, moments: [], axes, usage, latencyMs, model }

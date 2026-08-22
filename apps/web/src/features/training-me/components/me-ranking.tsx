@@ -76,7 +76,10 @@ function WeeklyTable({ rows, myProfileId }: { rows: WeeklyRankRow[]; myProfileId
             {rows.map((r, i) => (
               <TableRow
                 key={r.profileId}
-                className={cn(i < WHEEL_TOP_N && 'font-medium', r.profileId === myProfileId && 'bg-muted/40 font-medium')}
+                // Même condition que les deux portes qui décident réellement (`claimTicket` et
+                // `training_wheel_pending`) : top N ET au moins 1 point. Un 3e à 0 point (défi dont
+                // les 5 conversations ont expiré) n'a PAS de tour — ne pas le lui laisser croire.
+                className={cn(i < WHEEL_TOP_N && r.points > 0 && 'font-medium', r.profileId === myProfileId && 'bg-muted/40 font-medium')}
               >
                 <TableCell className="tabular-nums text-muted-foreground">{i + 1}</TableCell>
                 <TableCell>{r.displayName}</TableCell>
@@ -88,7 +91,7 @@ function WeeklyTable({ rows, myProfileId }: { rows: WeeklyRankRow[]; myProfileId
           </TableBody>
         </Table>
       </div>
-      <p className="text-sm text-muted-foreground">Top 3 de la semaine = un tour de roue.</p>
+      <p className="text-sm text-muted-foreground">Top 3 de la semaine, avec au moins 1 point, = un tour de roue.</p>
     </div>
   )
 }

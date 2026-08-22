@@ -81,7 +81,7 @@ export function ThreadPanel({
               </Button>
             </div>
           )}
-          <Composer disabled={!canWrite} onSend={onSend} />
+          <Composer disabled={!canWrite} allowMedia={thread.isSale} onSend={onSend} />
         </>
       )}
     </section>

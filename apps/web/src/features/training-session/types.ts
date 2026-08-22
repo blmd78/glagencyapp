@@ -51,6 +51,9 @@ export interface SessionThread {
   maxTurns: number
   nextDueAt: string | null
   bossFan: BossFanPublic | null
+  /** Média payant autorisé sur CETTE conv ? Miroir du `is_sale` que `buildFanSystem` utilise pour
+   *  injecter (ou non) les règles de média payant dans le prompt du fan (GLA : `vente`). */
+  isSale: boolean
   messages: SessionMessage[]
   score: ThreadScore | null
 }

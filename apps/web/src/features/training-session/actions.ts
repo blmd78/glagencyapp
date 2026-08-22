@@ -75,13 +75,35 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         throw new BusinessError('Trop lent — ce fan est parti')
       }
 
-      const { data: history, error: hErr } = await supabase
+      // Service-role : la table n'est plus lisible par `authenticated` (0117 — le corps du fan
+      // était récupérable via PostgREST avant sa révélation). La propriété de la session vient
+      // d'être vérifiée ci-dessus avec le client de l'appelant : on ne lit que son thread.
+      const { data: history, error: hErr } = await admin
         .from('training_messages')
         .select('id, position, speaker, body, media_price')
         .eq('thread_id', t.id)
         .order('position')
       if (hErr) throw new Error(hErr.message)
       const nextPos = (history?.[history.length - 1]?.position ?? -1) + 1
+      // GARDE SERVEUR du média payant — l'UI n'est qu'optimiste (convention du projet). GLA ne
+      // l'autorise que sur un cas de VENTE : ailleurs, le prompt du fan n'a PAS la section MÉDIAS
+      // PAYANTS (`buildFanSystem` n'injecte `MEDIA_SECTION` que si `is_sale`), donc le fan répond à
+      // côté et la transcription fausse la notation. Boss : toujours permis (son prompt porte ses
+      // paliers de prix). Défi : c'est le `is_sale` du solo REJOUÉ qui compte, comme pour le prompt.
+      if (d.mediaPrice != null && kind !== 'boss') {
+        let mediaAllowed = snap.isSale
+        if (kind === 'arena' && t.ref_case_id) {
+          const { data: refCase, error: rcErr } = await supabase
+            .from('training_cases')
+            .select('is_sale')
+            .eq('id', t.ref_case_id)
+            .maybeSingle()
+          if (rcErr) throw new Error(rcErr.message)
+          mediaAllowed = refCase?.is_sale ?? snap.isSale
+        }
+        if (!mediaAllowed) throw new BusinessError('Le média payant n’a pas cours sur ce cas')
+      }
+
       // Un média verrouillé est un message À PART ENTIÈRE : le texte éventuel est ignoré
       // (l'UI n'envoie que le média), le corps stocké décrit le média (check SQL : body non vide).
       const body = d.mediaPrice != null ? `Média verrouillé — ${d.mediaPrice} €` : d.body
@@ -211,10 +233,9 @@ export async function revealThread(raw: unknown): Promise<ActionResult<{ message
     guard: noGuard,
     handler: async ({ threadId }) => {
       const profile = await requirePageProfileLive('frm-entrainement')
-      const supabase = await createClient()
-      // Une seule requête : la RLS de `training_messages` n'expose que les siennes, mais le contrôle
-      // explicite du propriétaire reste la règle de la feature (0121) — d'où la jointure sur la session.
-      const { data: rows, error } = await supabase
+      // Service-role (la table n'est plus lisible par `authenticated`, 0117) + contrôle EXPLICITE du
+      // propriétaire par la jointure sur la session : c'est lui, et lui seul, qui autorise la lecture.
+      const { data: rows, error } = await createAdminClient()
         .from('training_messages')
         .select('id, body, visible_at, training_sessions!inner(profile_id)')
         .eq('thread_id', threadId)

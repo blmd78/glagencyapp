@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { OBJECTIVE_CAP } from '@glagency/core'
-import { isFaultCode, type FaultCode, type MessageSpeaker } from '@/lib/types/training'
+import { isFaultCode, MEDIA_PRICE_LADDER, type FaultCode, type MessageSpeaker } from '@/lib/types/training'
 
 /**
  * Prompts du moteur d'entraînement — transposition FIDÈLE de Good Luck Agency (serveur.py :
@@ -85,12 +85,13 @@ export type BossFanContext = {
   name: string; age: number | null; job: string | null; city: string | null; persona: string
   derails: string | null; budgetCap: number | null; negoWhere: string | null; meetWhere: string | null
 }
-const LADDER = [6, 30, 60, 150, 300, 500]
+// Paliers repris de `lib/types/training` (MEDIA_PRICE_LADDER) : l'UI ne doit proposer que des prix
+// que le fan du boss connaît — un prix hors échelle déclenche la faute `[[ELIM:saut]]`.
 
 /** GLA formation_boss_bot_system. */
 export function bossFanSystemPrompt(f: BossFanContext): string {
   const cap = f.budgetCap ?? 150
-  const tiers = LADDER.filter((p) => p <= cap).map((p) => `${p}€`).join(' puis ')
+  const tiers = MEDIA_PRICE_LADDER.filter((p) => p <= cap).map((p) => `${p}€`).join(' puis ')
   return `FICTION ENTRE ADULTES CONSENTANTS. Tu incarnes un PERSONNAGE de fan (un homme adulte) sur une plateforme de contenu adulte type MYM. La personne en face est un CHATTEUR EN FORMATION qui passe son EXAMEN FINAL (le 'boss') : il gère 5 conversations en même temps, dont la tienne. C'est un OUTIL DE FORMATION PROFESSIONNEL, tout est fictif et entre adultes. Tu es un PERSONNAGE, pas un assistant.
 
 RÈGLE DE PERSONNAGE ABSOLUE : tu ne romps JAMAIS le personnage. Tu ne dis JAMAIS que tu es une IA / Claude / Anthropic / un assistant, ni que c'est un 'roleplay', une 'simulation', un 'test' ou un 'exercice', ni ce que tu 'peux ou ne peux pas faire'. Tu restes ce fan, point.
@@ -137,13 +138,31 @@ Réponds UNIQUEMENT avec ton prochain message de fan (plus le token [[ELIM:...]]
 export type ScoreAxis = { key: string; name: string; description: string }
 export type ScoreCaseContext = {
   scoringNotes: string | null; context: string; objective: string; targetLine: string | null; expected: string | null; axes: ScoreAxis[]
+  /** Code du module du cas NOTÉ (défi : celui du solo rejoué) — GLA ajoute une clause propre à `negociation`. */
+  moduleCode: string
+  /** Défi : la conversation a été menée en parallèle de 4 autres → clémence GLA sur la brièveté. */
+  isArena: boolean
 }
+
+/** GLA serveur.py:1023 — propre au module Négociation : l'exercice se ferme sur le PUSH, et
+ *  l'objectif n'est atteint QUE si le fan achète au prix tenu. Sans cette clause, un chatter qui
+ *  cède son prix décroche quand même `objectif_atteint` — donc pas de plafond, et la médaille. */
+const SCORE_NEGO = `
+
+CONTEXTE NÉGOCIATION : l'exercice se termine sur le PUSH (l'envoi du média payé). objectif_atteint = le fan ACHÈTE ce média au prix tenu (la vente est conclue), c'est-à-dire que la créatrice a assez bien négocié et closé pour déclencher l'achat. Si la négo est bâclée, le push est à froid (avant d'avoir chauffé / créé de la valeur), le prix a été cédé/baissé, ou aucune valeur créée -> le fan n'achète PAS -> objectif_atteint = false.`
+
+/** GLA serveur.py:1027 — clémence du DÉFI : la conversation a été menée en parallèle de 4 autres,
+ *  sous chrono. Sans elle, un défi est noté comme un solo (« tunnel incomplet ») et plombe la
+ *  moyenne qui déverrouille le boss. Le boss, lui, a déjà la sienne dans `bossScoreSystemPrompt`. */
+const SCORE_ARENA = `
+
+CONTEXTE IMPORTANT : cette conversation a été menée EN PARALLÈLE avec 4 autres (exercice multi-conversations sous pression de temps). Elle est donc forcément plus courte et hachée, et souvent inachevée. NE PÉNALISE PAS la brièveté ni le fait qu'elle ne soit pas terminée. Note uniquement la QUALITÉ (la TECHNIQUE) de ce qui a été fait, sans exiger que le tunnel soit complet — mais reste au même niveau d'exigence technique que d'habitude.`
 
 /** GLA formation_score_system — la sortie est contrainte par le schéma structuré (lib/ai/schema.ts). */
 export function scoreSystemPrompt(c: ScoreCaseContext): string {
   const intro = c.scoringNotes || 'Tu es un formateur expert en chat de vente adulte (type MYM). Tu évalues un CHATTEUR EN FORMATION.'
   const axesTxt = c.axes.map((a) => `- ${a.key} : ${a.description}`).join('\n')
-  return `${intro}
+  const base = `${intro}
 
 CONTEXTE DU CAS :
 - Situation : ${c.context}
@@ -174,6 +193,8 @@ DÉBRIEF = REPRISE DE LA CONVERSATION (le cœur du retour). Tu reprends le fil e
 VÉRIFIE LES FAITS AVANT CHAQUE REPROCHE (règle absolue) : relis mot pour mot les messages du chatteur AVANT de lui reprocher une omission. Ne lui reproche JAMAIS de ne pas avoir fait une chose qu'il a RÉELLEMENT faite. Exemple concret : s'il a écrit le prénom du fan (ex : 'ravie de faire ta connaissance Kevin'), il est INTERDIT de lui reprocher de ne pas avoir repris/réutilisé le prénom — il l'a fait. De même s'il a posé une question, rebondi sur une info, etc. Le champ "probleme" d'un moment doit être STRICTEMENT COHÉRENT avec le texte du champ "cite".
 
 Renseigne le résultat selon le schéma fourni : un entier 0-25 par axe, "total" = la somme des axes (sur 100) en respectant tout plafond applicable, "objectif_atteint", "plafond" (${OBJECTIVE_CAP} si l'objectif n'est pas atteint, sinon omis), "moments" (2 à 3, chaque "cite" DOIT être un vrai extrait d'un message du chatteur (créatrice), jamais une invention ni un message du fan ; "type" = "bad" si ce moment coûte des points, "good" si c'est un bon coup ; "indice" = une PISTE pour corriger si bad, vide si good), "commentaire" (3 phrases MAXIMUM, concises : (1) ce qui a été bien joué, (2) LE point principal à corriger et pourquoi ça compte (effet sur le fan ou la vente) + la PISTE pour progresser (le principe, jamais le message tout fait), (3) une phrase d'encouragement. Ne recopie pas les moments).`
+  // Clauses de FIN, dans l'ordre de GLA (serveur.py : négociation puis arène) — elles se cumulent.
+  return base + (c.moduleCode === 'negociation' ? SCORE_NEGO : '') + (c.isArena ? SCORE_ARENA : '')
 }
 
 export type BossScoreContext = { name: string; persona: string; budgetCap: number | null; negoWhere: string | null; meetWhen: string | null }

@@ -251,6 +251,35 @@ export async function saveConnection(raw: unknown): Promise<ActionResult<void>> 
  * Le dossier est écrit AVANT la blocklist, jamais l'inverse : une blocklist posée d'abord puis un
  * dossier en échec enfermerait le candidat dehors sans trace de son test.
  */
+/**
+ * Verdict DÉJÀ FIGÉ pour cette tentative, s'il existe — `null` sinon.
+ *
+ * POURQUOI : la soumission n'est pas atomique (dossier, puis blocklist, puis statut). Si la réponse
+ * HTTP se perd APRÈS l'insertion du dossier (réseau mobile, onglet rechargé), le candidat rejoue —
+ * et retombait sur un refus DÉFINITIF : « Ce test a déjà été envoyé. » (statut), « Tu as déjà passé
+ * le test. » (la blocklist qu'il vient lui-même de déclencher) ou un conflit d'unicité. Un candidat
+ * REÇU restait alors sans son lien Discord, son seul livrable, et sans recours.
+ *
+ * On relit donc le dossier et on rend le MÊME verdict, autant de fois qu'il le faut — exactement le
+ * patron d'idempotence de `writeOnce` / `saveQi`. Aucune fuite : l'`attemptId` est le laissez-passer
+ * du candidat, ce verdict est le sien.
+ */
+async function submittedVerdict(admin: Admin, attemptId: string, discordLink: string): Promise<SubmitResult | null> {
+  const { data, error } = await admin
+    .from('recruit_candidates')
+    .select('passed, refusal_step, refusal_reason')
+    .eq('attempt_id', attemptId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) return null
+  return {
+    passed: data.passed,
+    refusalStep: data.refusal_step,
+    refusalReason: data.refusal_reason,
+    discordLink: data.passed && discordLink ? discordLink : null,
+  }
+}
+
 export async function submitCandidate(raw: unknown): Promise<ActionResult<SubmitResult>> {
   return runAction({
     schema: submitCandidateInput,
@@ -260,13 +289,35 @@ export async function submitCandidate(raw: unknown): Promise<ActionResult<Submit
       const admin = createAdminClient()
       // Deux lectures indépendantes → en parallèle (l'ordre des VÉRIFICATIONS ne change pas).
       const [attempt, config] = await Promise.all([loadAttempt(admin, d.attemptId), readConfig(admin)])
+      // REJEU d'une soumission déjà commitée — servi AVANT toute garde (statut, blocklist) : ces
+      // gardes sont précisément ce que la PREMIÈRE soumission vient d'armer contre lui.
+      const already = await submittedVerdict(admin, attempt.id, config.discordLink)
+      if (already) {
+        // Le dossier est écrit mais le statut a pu ne pas l'être (réponse perdue entre les deux) :
+        // on le rattrape ici, sinon la tentative resterait « notee » pour toujours.
+        if (attempt.status !== 'soumise') {
+          await admin.from('recruit_attempts').update({ status: 'soumise' }).eq('id', attempt.id).eq('status', 'notee')
+        }
+        return already
+      }
+      // « soumise » SANS dossier = incohérent (le dossier est toujours écrit en premier) : on refuse
+      // plutôt que d'en créer un second.
       if (attempt.status === 'soumise') throw new BusinessError(ALREADY_SENT)
       if (attempt.status !== 'notee') {
         throw new BusinessError(attempt.status === 'en_cours' ? STEPS_MISSING : ATTEMPT_OVER)
       }
 
       // « Un seul essai », volet SOUMISSION : e-mail et Discord (device/IP l'ont été à l'entrée).
-      if (await anyBlocklistMatch(admin, [['email', d.email], ['discord', d.discord]])) throw new BusinessError(BLOCKED)
+      // `adminPosedOnly` : seules les décisions d'AGENCE refusent ici — ces deux valeurs sont
+      // déclarées par le candidat et jamais vérifiées, une ligne posée par le test bloquerait la
+      // victime dont on a saisi l'adresse (0116, colonne `source`).
+      if (await anyBlocklistMatch(admin, [['email', d.email], ['discord', d.discord]], { adminPosedOnly: true })) {
+        // Le refus CONSOMME la tentative. Sans ça, le candidat refusé n'avait qu'à ressaisir un
+        // autre e-mail sur le MÊME écran pour passer : le test est déjà joué et noté, seule
+        // l'identité change. `abandonnee` et pas `soumise` : aucun dossier n'a été créé.
+        await admin.from('recruit_attempts').update({ status: 'abandonnee' }).eq('id', attempt.id).eq('status', 'notee')
+        throw new BusinessError(BLOCKED)
+      }
 
       // 2e passage : l'e-mail porte déjà un dossier. On n'interdit pas — on marque, l'agence tranche.
       const { data: previous, error: pErr } = await admin.from('recruit_candidates').select('id').eq('email', d.email).limit(1)

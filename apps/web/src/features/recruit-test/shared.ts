@@ -22,7 +22,8 @@ export type Admin = ReturnType<typeof createAdminClient>
 // reconnaître (`NO_ATTEMPT`, `BOT_ALREADY_SENT`, `CHAT_OVER`) vivent dans `types.ts` — le seul
 // module que les deux côtés importent.
 export const CLOSED = 'Le recrutement est fermé pour le moment.'
-export const BLOCKED = 'Tu as déjà passé le test.'
+// `BLOCKED` vit dans `types.ts` : le CLIENT doit le reconnaître pour basculer sur le cul-de-sac.
+export { BLOCKED } from './types'
 export const RATE_LIMITED = 'Trop de tentatives depuis ce réseau — réessaie plus tard.'
 export const ATTEMPT_OVER = 'Ce test est déjà terminé.'
 export const STEPS_MISSING = 'Termine toutes les épreuves d’abord.'
@@ -240,10 +241,19 @@ const RATE_LIMIT_WINDOW_MS = 24 * 60 * 60 * 1000
 export async function anyBlocklistMatch(
   admin: Admin,
   pairs: [column: 'device' | 'ip' | 'email' | 'discord', value: string | null][],
+  opts?: { adminPosedOnly?: boolean },
 ): Promise<boolean> {
   for (const [column, value] of pairs) {
     if (!value) continue
-    const { data, error } = await admin.from('recruit_blocklist').select('id').eq(column, value).limit(1)
+    let q = admin.from('recruit_blocklist').select('id').eq(column, value)
+    // `adminPosedOnly` : ne retenir que les décisions d'ADMIN (`source = 'admin'`, 0116).
+    // POURQUOI : l'e-mail et le pseudo Discord d'un candidat ne sont JAMAIS vérifiés (aucune
+    // confirmation dans le parcours). Une ligne posée par le TEST sur ces colonnes bloquerait donc
+    // la VICTIME dont on a saisi l'adresse, pas le tricheur — et elle ne le découvrirait qu'après
+    // avoir joué tout le test. Le `device`, lui, reste refusé quelle que soit l'origine : c'est
+    // notre identifiant, pas une valeur déclarée.
+    if (opts?.adminPosedOnly) q = q.eq('source', 'admin')
+    const { data, error } = await q.limit(1)
     if (error) throw new Error(error.message)
     if (data.length > 0) return true
   }
