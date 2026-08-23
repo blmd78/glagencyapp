@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { WheelSector } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
+import { playCling, playWheelSpin } from '@/lib/sfx'
 import { claimTicket, spinWheel } from '../actions'
 import type { SpinResult, WheelTicket } from '../types'
 import { WheelResult } from './wheel-result'
@@ -20,7 +21,7 @@ const SPIN_MS = 4900
  */
 const TRANSPORT_KO = 'Connexion perdue — recharge la page'
 
-type Phase = 'idle' | 'claiming' | 'spinning' | 'reveal' | 'done'
+type Phase = 'idle' | 'claiming' | 'spinning' | 'reveal'
 
 /**
  * Le tirage est décidé par le SERVEUR (`spinWheel`) : ici on anime la roue jusqu'au secteur
@@ -47,14 +48,19 @@ export function WheelSpinner({
   const [phase, setPhase] = useState<Phase>('idle')
   const [result, setResult] = useState<SpinResult | null>(null)
   // Le ticket vient des PROPS (re-rendues à chaque `router.refresh()`) et pas d'un état copié :
-  // un `useState(serverTicket)` resterait figé à `null` après la réclamation. `spent` = consommé
-  // ICI, le temps que le rafraîchissement serveur arrive.
-  // `played` = nombre de tours joués DEPUIS ce montage, le temps que le serveur repasse. Un simple
-  // booléen ne suffit plus depuis que les tours s'accumulent : après en avoir joué un, il en reste
-  // peut-être d'autres — mais le suivant n'est connu qu'au rafraîchissement, d'où le `router.refresh`
-  // de fin de révélation qui ramène la file à jour.
-  const [played, setPlayed] = useState(0)
-  const ticket = played > 0 ? null : serverTicket
+  // un `useState(serverTicket)` resterait figé à `null` après la réclamation.
+  //
+  // On mémorise les tickets DÉJÀ JOUÉS ici, par leur id — pas un simple compteur. Un compteur
+  // (« j'ai joué, donc plus de ticket ») ne redescendait jamais : le rafraîchissement ramenait
+  // bien le tour suivant, mais le bouton restait mort et il fallait recharger la page entre chaque
+  // tour. Invisible tant qu'on n'avait qu'un tour par semaine ; bloquant depuis que les trophées
+  // en offrent plusieurs d'affilée (0120).
+  //
+  // Comparer les ids règle les deux besoins à la fois : le ticket consommé reste neutralisé le
+  // temps que le serveur repasse, et un ticket d'id DIFFÉRENT réarme aussitôt le bouton.
+  const [spentIds, setSpentIds] = useState<string[]>([])
+  const played = spentIds.length
+  const ticket = serverTicket && !spentIds.includes(serverTicket.id) ? serverTicket : null
   const claimed = useRef(false)
   const timer = useRef<number | null>(null)
 
@@ -120,8 +126,14 @@ export function WheelSpinner({
     const current = ((rotation % 360) + 360) % 360
     const targetMod = ((-target % 360) + 360) % 360
     setRotation(rotation + ((targetMod - current + 360) % 360) + 5 * 360)
-    setPlayed((n) => n + 1)
-    timer.current = window.setTimeout(() => setPhase('reveal'), SPIN_MS)
+    setSpentIds((ids) => [...ids, ticket.id])
+    // Le cliquet démarre AVEC la rotation et se cale sur sa durée ; le « cling » ponctue l'arrêt,
+    // juste avant que la révélation prenne la main.
+    playWheelSpin(SPIN_MS / 1000)
+    timer.current = window.setTimeout(() => {
+      playCling()
+      setPhase('reveal')
+    }, SPIN_MS)
   }
 
   // Les tours s'accumulent : on annonce combien il en reste, et on nomme celui qu'on va jouer (le
@@ -151,7 +163,10 @@ export function WheelSpinner({
         <WheelResult
           result={result}
           onDone={() => {
-            setPhase('done')
+            // Retour à `idle` (et non un état terminal) : s'il reste des tours, le
+            // `router.refresh()` ramène le ticket suivant et le bouton se réarme tout seul.
+            setPhase('idle')
+            setResult(null)
             router.refresh()
           }}
         />
