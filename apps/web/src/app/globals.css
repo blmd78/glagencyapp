@@ -31,6 +31,13 @@
   --sidebar-accent-foreground: hsl(240 5.9% 10%);
   --sidebar-border: hsl(220 13% 91%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  /* Face Formation — couche « jeu » (XP/niveau en violet, médailles et trophées en or). Deux
+     accents SEULEMENT, et seuls les composants de /formation/* les utilisent : le reste du CRM
+     garde sa palette neutre. */
+  --xp: oklch(0.55 0.2 295);
+  --xp-soft: oklch(0.95 0.03 295);
+  --gold: oklch(0.68 0.15 75);
+  --gold-soft: oklch(0.96 0.05 85);
 }
 
 .dark {
@@ -60,6 +67,10 @@
   --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
   --sidebar-border: hsl(240 3.7% 15.9%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --xp: oklch(0.72 0.17 295);
+  --xp-soft: oklch(0.28 0.07 295);
+  --gold: oklch(0.8 0.14 80);
+  --gold-soft: oklch(0.3 0.06 80);
 }
 
 @theme inline {
@@ -93,6 +104,10 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
+  --color-xp: var(--xp);
+  --color-xp-soft: var(--xp-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
 }
 
 @layer base {
@@ -104,9 +119,46 @@
   }
 }
 
-/* a11y : pas d'animation de skeleton pour prefers-reduced-motion */
+
+/* Barre d'XP de Ma formation : elle se remplit de 0 jusqu'à sa valeur au chargement de la page.
+   `--xp-pct` est posé en style inline par le serveur — la largeur finale est donc correcte même
+   sans animation (impression, `prefers-reduced-motion`, JS coupé). */
+@keyframes xp-fill {
+  from {
+    width: 0;
+  }
+  to {
+    width: var(--xp-pct, 0%);
+  }
+}
+
+.xp-bar {
+  width: var(--xp-pct, 0%);
+  animation: xp-fill 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Jauge de note de l'écran de résultat : l'arc se dessine de 0 jusqu'à la note. Même principe que
+   `.xp-bar` — la valeur finale est posée en style inline, l'animation ne fait que la rejouer. */
+@keyframes gauge-sweep {
+  from {
+    stroke-dashoffset: var(--gauge-c, 0);
+  }
+  to {
+    stroke-dashoffset: var(--gauge-off, 0);
+  }
+}
+
+.gauge-arc {
+  stroke-dashoffset: var(--gauge-off, 0);
+  animation: gauge-sweep 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse {
+    animation: none;
+  }
+  .xp-bar,
+  .gauge-arc {
     animation: none;
   }
 }
