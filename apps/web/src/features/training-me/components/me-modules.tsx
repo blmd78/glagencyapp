@@ -1,8 +1,10 @@
 import { BOSS_UNLOCK_AVG } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Lock } from 'lucide-react'
 import { ScoreBadge } from '@/components/training/score-badge'
+import { Card, CardContent } from '@/components/ui/card'
+import { Progress } from '@/components/ui/progress'
 import type { MeData, MeModule } from '../types'
 
 /**
@@ -11,21 +13,31 @@ import type { MeData, MeModule } from '../types'
  * la progression des modules) : verrouillé sous 60/100 de moyenne, sinon son meilleur essai.
  */
 export function MeModules({ data }: { data: MeData }) {
-  const { modules, stats, bossUnlocked: unlocked } = data
+  const { modules, stats, bossUnlocked: unlocked, totalCases } = data
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold tracking-tight">Modules</h2>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight">
+          <span aria-hidden className="mr-1.5">⚔️</span> Tes modules
+        </h2>
+        <span className="text-sm tabular-nums text-muted-foreground">
+          {stats.casesDone}/{totalCases} cas validés
+        </span>
+      </div>
       {modules.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aucun module disponible pour l’instant.</p>
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-3">
           {modules.map((m) => <ModuleCard key={m.id} m={m} />)}
         </ul>
       )}
-      <div className="flex flex-col gap-2 rounded-xl border p-4">
+      <Card>
+        <CardContent className="flex flex-col gap-2 p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-base font-semibold">🏆 Boss final</h3>
-          <ScoreBadge total={stats.bossBest} />
+          <h3 className="text-base font-semibold">
+            <span aria-hidden className="mr-1.5">🏆</span> Boss final
+          </h3>
+          {unlocked ? <ScoreBadge total={stats.bossBest} /> : <Lock aria-hidden className="size-4 text-muted-foreground" />}
         </div>
         <p className="text-sm text-muted-foreground">
           {unlocked
@@ -39,13 +51,15 @@ export function MeModules({ data }: { data: MeData }) {
         <Link href="/formation/modules" className="w-fit text-sm hover:underline">
           Voir les modules
         </Link>
-      </div>
+        </CardContent>
+      </Card>
     </section>
   )
 }
 
 function ModuleCard({ m }: { m: MeModule }) {
   const { progress } = m
+  const complete = progress.total > 0 && progress.done === progress.total
   // Toute la carte est le lien (même affordance que la liste Modules : fond au survol + chevron) :
   // le titre seul souligné au hover ne se lisait pas comme « clique ici pour jouer ».
   return (
@@ -58,14 +72,22 @@ function ModuleCard({ m }: { m: MeModule }) {
           <span className="text-base font-semibold">
             {m.emoji && <span aria-hidden className="mr-2">{m.emoji}</span>}
             {m.title}
+            {complete && <span aria-hidden className="ml-2">✅</span>}
           </span>
           <span className="flex items-center gap-2 text-sm tabular-nums text-muted-foreground">
             {progress.done}/{progress.total} cas · moy. {progress.avg ?? '—'} · {progress.points} pts
             <ChevronRight aria-hidden className="size-4 opacity-0 transition-opacity group-hover:opacity-100" />
           </span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, progress.pct)}%` }} />
+        <div className="flex items-center gap-3">
+          {/* Vert plein quand c'est bouclé : la couleur seule dit « module terminé » de loin. */}
+          <Progress
+            value={progress.pct}
+            className="flex-1"
+            indicatorClassName={complete ? 'bg-green-600' : 'bg-xp'}
+            label={`${m.title} : ${progress.pct}% des cas validés`}
+          />
+          <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums">{progress.pct}%</span>
         </div>
         <ul className="flex flex-wrap gap-2">
           {m.cases.map((c) => (
