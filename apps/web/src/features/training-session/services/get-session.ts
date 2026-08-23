@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@glagency/db'
 import type { ScoreMoment } from '@/lib/ai/schema'
+import { comboOf } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot, MessageSpeaker, SessionStatus, ThreadStatus } from '@/lib/types/training'
 import type { SessionData, SessionThread } from '../types'
@@ -10,6 +11,10 @@ import type { SessionData, SessionThread } from '../types'
  * 3 requêtes. `expected` (secret) n'est lu — en service-role — QUE si la session est notée (révélé
  * après coup, comme GLA) et pour un solo. `previousBest` = meilleur total des AUTRES sessions
  * notées du chatter sur ce cas (record à battre) — jamais la session affichée.
+ *
+ * Sur une session NOTÉE seulement, deux lectures de plus alimentent l'écran de résultat : la
+ * moyenne générale du propriétaire (« vs ta moyenne ») et ses dernières notes (le « combo »).
+ * Conditionnées au statut : sur une session active ou abandonnée, elles ne serviraient à rien.
  */
 export async function getSession(id: string): Promise<SessionData | null> {
   const supabase = await createClient()
@@ -61,6 +66,28 @@ export async function getSession(id: string): Promise<SessionData | null> {
     .limit(1)
     .maybeSingle()
   if (bErr) throw new Error(bErr.message)
+
+  // « vs ta moyenne » et « combo » : la moyenne du PROPRIÉTAIRE et ses dernières sessions notées.
+  // Les 20 dernières suffisent — un combo se casse au premier échec, il ne remonte jamais si loin.
+  let ownerAvgTotal: number | null = null
+  let combo = 0
+  if (s.status === 'scored') {
+    const [statsRes, recentRes] = await Promise.all([
+      supabase.from('training_profile_stats').select('avg_total').eq('profile_id', s.profile_id).maybeSingle(),
+      supabase
+        .from('training_sessions')
+        .select('objective_reached')
+        .eq('profile_id', s.profile_id)
+        .eq('status', 'scored')
+        .order('started_at', { ascending: false })
+        .limit(20),
+    ])
+    if (statsRes.error) throw new Error(statsRes.error.message)
+    if (recentRes.error) throw new Error(recentRes.error.message)
+    // `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number().
+    ownerAvgTotal = statsRes.data?.avg_total == null ? null : Number(statsRes.data.avg_total)
+    combo = comboOf((recentRes.data ?? []).map((r) => r.objective_reached === true))
+  }
 
   let expected: string | null = null
   if (s.status === 'scored' && s.kind === 'solo') {
@@ -141,6 +168,8 @@ export async function getSession(id: string): Promise<SessionData | null> {
     threads,
     expected,
     previousBest: best?.total ?? null,
+    ownerAvgTotal,
+    combo,
     report: report ? { id: report.id, resolvedAt: report.resolved_at } : null,
     serverNow: new Date().toISOString(),
   }

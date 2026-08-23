@@ -75,6 +75,13 @@ export interface SessionData {
   expected: string | null
   /** Meilleur total des AUTRES sessions notées du chatter sur ce cas (record à battre), null si première fois. */
   previousBest: number | null
+  /**
+   * Moyenne générale du PROPRIÉTAIRE de la session (pas du visiteur) — sert au « ▲ +12 vs ta
+   * moyenne ». Null hors session notée : la comparaison n'a alors rien à comparer.
+   */
+  ownerAvgTotal: number | null
+  /** Cas réussis d'affilée par le propriétaire, session courante incluse (`comboOf`). 0 hors session notée. */
+  combo: number
   report: { id: string; resolvedAt: string | null } | null
   /** Horloge serveur (ISO) : les timers client se calent dessus (révélation, chrono). */
   serverNow: string

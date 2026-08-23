@@ -1,5 +1,6 @@
 import { FAULT_LABELS, type FaultCode } from '@/lib/types/training'
 import type { SessionData } from '../types'
+import { DefeatSound } from './defeat-sound'
 import { ResultActions } from './result-actions'
 import { TranscriptView } from './transcript-view'
 
@@ -35,6 +36,7 @@ export function FailedView({ data, viewerIsOwner }: { data: SessionData; viewerI
 
   return (
     <div className="flex flex-col gap-6">
+      <DefeatSound sessionId={data.id} viewerIsOwner={viewerIsOwner} />
       <div className="flex flex-col items-center gap-3 rounded-xl border p-10 text-center">
         <p className="text-4xl" aria-hidden>
           {reason === 'timeout' ? '⏱️' : '💀'}

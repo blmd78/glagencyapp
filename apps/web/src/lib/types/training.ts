@@ -61,6 +61,8 @@ export const FAULT_LABELS: Record<FaultCode | 'timeout', { title: string; text: 
 
 /** Libellés des médailles (la règle vit dans @glagency/core : medalFor). */
 export const MEDAL_LABELS = { or: 'Or', argent: 'Argent', bronze: 'Bronze' } as const
+/** Le métal en emoji (repères GLA) — au centre de la jauge de résultat, où un mot ne tiendrait pas. */
+export const MEDAL_EMOJI = { or: '🥇', argent: '🥈', bronze: '🥉' } as const
 
 /** Snapshot VISIBLE du cas au moment joué (jsonb `training_sessions.case_snapshot`) — jamais de secret. */
 export interface CaseSnapshot {

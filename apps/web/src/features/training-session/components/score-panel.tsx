@@ -1,10 +1,16 @@
+import { Progress } from '@/components/ui/progress'
+import { scoreColor } from '@/lib/training/score-color'
+import { cn } from '@/lib/utils'
 import type { ThreadScore } from '../types'
 
 /**
  * Détail d'une note (`ThreadScore`) : objectif atteint / plafond, barres par axe (25 par défaut,
  * 100 pour le boss — 6 étapes /100), moments marquants (👍 bon geste / 🔧 point à travailler +
- * indice), commentaire libre. Zéro couleur attitrée hors emoji — même barre `bg-muted`/`bg-foreground`
- * que le reste du produit.
+ * indice), commentaire libre.
+ *
+ * Chaque axe est coloré au MÊME feu tricolore que la jauge de note (`scoreColor`) : sur un écran
+ * de résultat, on doit voir en un coup d'œil QUEL critère a coûté les points, sans lire les
+ * chiffres un par un. Le chiffre reste affiché à côté — la couleur n'est jamais seule porteuse.
  */
 export function ScorePanel({
   score,
@@ -25,19 +31,21 @@ export function ScorePanel({
 
       {score.axes.length > 0 && (
         <div className="flex flex-col gap-2">
-          {score.axes.map((a) => (
-            <div key={a.key} className="flex flex-col gap-1">
-              <p className="flex items-baseline justify-between text-sm">
-                <span>{a.name}</span>
-                <span className="tabular-nums text-muted-foreground">
-                  {a.score}/{axisMax}
-                </span>
-              </p>
-              <div className="h-2 overflow-hidden rounded bg-muted">
-                <div className="h-full rounded bg-foreground" style={{ width: `${Math.min(100, (a.score / axisMax) * 100)}%` }} />
+          {score.axes.map((a) => {
+            const pct = (a.score / axisMax) * 100
+            const color = scoreColor(pct)
+            return (
+              <div key={a.key} className="flex flex-col gap-1">
+                <p className="flex items-baseline justify-between text-sm">
+                  <span>{a.name}</span>
+                  <span className={cn('font-semibold tabular-nums', color.text)}>
+                    {a.score}/{axisMax}
+                  </span>
+                </p>
+                <Progress value={pct} indicatorClassName={color.bg} label={`${a.name} : ${a.score} sur ${axisMax}`} />
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
