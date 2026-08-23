@@ -7,6 +7,31 @@ export type Json =
   | Json[]
 
 export type Database = {
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       chatter_alias: {
@@ -3743,6 +3768,7 @@ export type Database = {
           id: string
           profile_id: string
           reason: string
+          trophy_key: string | null
           used_at: string | null
           week: string
         }
@@ -3752,6 +3778,7 @@ export type Database = {
           id?: string
           profile_id: string
           reason: string
+          trophy_key?: string | null
           used_at?: string | null
           week: string
         }
@@ -3761,6 +3788,7 @@ export type Database = {
           id?: string
           profile_id?: string
           reason?: string
+          trophy_key?: string | null
           used_at?: string | null
           week?: string
         }
@@ -3979,6 +4007,16 @@ export type Database = {
         }[]
       }
       training_last_week: { Args: never; Returns: string }
+      training_module_ranking: {
+        Args: { p_module: string }
+        Returns: {
+          avg_total: number
+          cases_done: number
+          display_name: string
+          points: number
+          profile_id: string
+        }[]
+      }
       training_overview_roster: {
         Args: never
         Returns: {
@@ -4013,6 +4051,10 @@ export type Database = {
       training_refresh_stats: {
         Args: { p_at: string; p_case: string; p_profile: string }
         Returns: undefined
+      }
+      training_trophy_grant: {
+        Args: { p_profile: string; p_trophies: Json }
+        Returns: number
       }
       training_weekly_ranking: {
         Args: { p_week: string }
@@ -4188,6 +4230,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

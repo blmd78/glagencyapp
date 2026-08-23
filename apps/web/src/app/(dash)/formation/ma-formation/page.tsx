@@ -1,5 +1,7 @@
 import { Suspense } from 'react'
+import { after } from 'next/server'
 import { requireAccess } from '@/lib/auth'
+import { grantTrophyTickets } from '@/lib/services/trophy-grant'
 import { MeTemplate } from '@/features/training-me/MeTemplate'
 import { MeSkeleton } from '@/features/training-me/components/me-skeleton'
 import { getMe } from '@/features/training-me/services/get-me'
@@ -34,5 +36,10 @@ export default async function MaFormationPage({
 }
 
 async function MeContent({ data, vue, myProfileId }: { data: Promise<MeData>; vue: MeVue; myProfileId: string }) {
-  return <MeTemplate data={await data} vue={vue} myProfileId={myProfileId} />
+  const resolved = await data
+  // `after()` : l'octroi part APRÈS la réponse — il ne retarde jamais l'affichage, et un échec ne
+  // peut pas casser la page. Le tour gagné apparaît alors dans le badge « roue » de la barre
+  // latérale ; le toast de félicitations, lui, est rendu côté client par `MeCelebrate`.
+  after(() => grantTrophyTickets(myProfileId, resolved.trophies))
+  return <MeTemplate data={resolved} vue={vue} myProfileId={myProfileId} />
 }

@@ -1,4 +1,5 @@
 import { BOSS_UNLOCK_AVG, bossUnlocked } from '@glagency/core'
+import { DifficultyBars } from '@/components/training/difficulty-bars'
 import { ScoreBadge } from '@/components/training/score-badge'
 import { PlayButton } from '@/components/training/play-button'
 import { Badge } from '@/components/ui/badge'
@@ -126,7 +127,7 @@ function CaseRow({ c, canPlay, best }: { c: PublicCase; canPlay: boolean; best: 
         {best && best.attempts > 1 && <span className="tabular-nums">× {best.attempts}</span>}
         {c.kind !== 'solo' && <Badge variant="secondary">{CASE_KIND_LABELS[c.kind]}</Badge>}
         {c.isSale && <Badge variant="outline">vente</Badge>}
-        <span className="tabular-nums">diff. {c.difficulty}/10</span>
+        <DifficultyBars difficulty={c.difficulty} />
         <span className="tabular-nums">{c.maxTurns} msg{c.kind === 'boss' ? '/fan' : ''}</span>
         {c.reactionMaxS && <span className="tabular-nums">{c.reactionMaxS} s</span>}
       </span>

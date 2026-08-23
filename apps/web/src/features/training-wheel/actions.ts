@@ -199,7 +199,12 @@ export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>>
         throw new Error(sErr.message)
       }
 
-      revalidateWheel()
+      // PAS de `revalidateWheel()` ici, volontairement. Une Server Action qui revalide renvoie le
+      // RSC payload rafraîchi AVEC sa réponse : « Mes gains » (juste sous la roue) afficherait donc
+      // le lot ET son montant avant même que la roue ait commencé à tourner — le coffre à ouvrir ne
+      // révélerait plus rien. Le rafraîchissement se fait côté client (`router.refresh()` dans
+      // `onDone` de `WheelSpinner`), c'est-à-dire quand le chatter FERME la révélation : « Mes
+      // gains » et la pastille de la sidebar se mettent alors à jour au bon moment.
       return {
         sectorIndex: sec.index,
         sectorLabel: sec.item.label,

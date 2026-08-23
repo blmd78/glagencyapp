@@ -48,22 +48,25 @@ export function moduleProgress(cases: { id: string; kind: string }[], bests: Map
 }
 
 export type TrophyInput = { casesDone: number; streakDays: number; goldCount: number; modulesComplete: number; allDone: boolean; bossDone: boolean }
-export type Trophy = { key: string; label: string; description: string; earned: boolean }
+export type Trophy = { key: string; label: string; emoji: string; description: string; earned: boolean }
 
-/** Jalons GLA (trophées), dans l'ordre d'affichage. */
-export const TROPHIES: { key: string; label: string; description: string; test: (i: TrophyInput) => boolean }[] = [
-  { key: 'first_case', label: 'Premier pas', description: 'Un premier cas validé', test: (i) => i.casesDone >= 1 },
-  { key: 'streak_3', label: '3 jours d’affilée', description: 'Une notation 3 jours de suite', test: (i) => i.streakDays >= 3 },
-  { key: 'streak_7', label: '7 jours d’affilée', description: 'Une notation 7 jours de suite', test: (i) => i.streakDays >= 7 },
-  { key: 'gold_5', label: '5 Or', description: 'Cinq cas à 85 ou plus', test: (i) => i.goldCount >= 5 },
-  { key: 'gold_15', label: '15 Or', description: 'Quinze cas à 85 ou plus', test: (i) => i.goldCount >= 15 },
-  { key: 'module_complete', label: 'Module complet', description: 'Tous les cas d’un module validés', test: (i) => i.modulesComplete >= 1 },
-  { key: 'all_done', label: 'Tout le catalogue', description: 'Tous les cas validés', test: (i) => i.allDone },
-  { key: 'boss', label: 'Boss final', description: 'Le boss final réussi', test: (i) => i.bossDone },
+/**
+ * Jalons GLA (trophées), dans l’ordre d’affichage — clés, seuils, noms et emojis repris de l’app
+ * d’origine : les chatteurs formés là-bas retrouvent les mêmes trophées sous les mêmes noms.
+ */
+export const TROPHIES: { key: string; label: string; emoji: string; description: string; test: (i: TrophyInput) => boolean }[] = [
+  { key: 'first_case', label: 'Premier pas', emoji: '👣', description: 'Un premier cas validé', test: (i) => i.casesDone >= 1 },
+  { key: 'streak_3', label: 'En feu', emoji: '🔥', description: 'Une notation 3 jours de suite', test: (i) => i.streakDays >= 3 },
+  { key: 'streak_7', label: 'Assidu', emoji: '📅', description: 'Une notation 7 jours de suite', test: (i) => i.streakDays >= 7 },
+  { key: 'gold_5', label: 'Orfèvre', emoji: '🥇', description: 'Cinq cas à 85 ou plus', test: (i) => i.goldCount >= 5 },
+  { key: 'gold_15', label: 'Perfectionniste', emoji: '💎', description: 'Quinze cas à 85 ou plus', test: (i) => i.goldCount >= 15 },
+  { key: 'module_complete', label: 'Module bouclé', emoji: '✅', description: 'Tous les cas d’un module validés', test: (i) => i.modulesComplete >= 1 },
+  { key: 'all_done', label: 'Marathonien', emoji: '🏆', description: 'Tous les cas validés', test: (i) => i.allDone },
+  { key: 'boss', label: 'Boss dompté', emoji: '👑', description: 'Le boss final réussi', test: (i) => i.bossDone },
 ]
 
 export function computeTrophies(input: TrophyInput): Trophy[] {
-  return TROPHIES.map(({ key, label, description, test }) => ({ key, label, description, earned: test(input) }))
+  return TROPHIES.map(({ key, label, emoji, description, test }) => ({ key, label, emoji, description, earned: test(input) }))
 }
 
 /**

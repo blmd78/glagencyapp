@@ -100,6 +100,7 @@ export {
 export { rankSetters, type SetterRank, type SetterScaleRow } from './compta/setter-rank'
 export {
   MEDAL_OR,
+  MEDAL_ARGENT,
   MEDAL_BRONZE,
   BOSS_UNLOCK_AVG,
   BOSS_PASS,
@@ -111,6 +112,21 @@ export {
   effectiveStreak,
 } from './training/rules'
 export type { Medal, ModuleProgress, Trophy } from './training/rules'
+export {
+  LEVEL_XP,
+  xpOf,
+  xpGain,
+  xpLevelOf,
+  RANKS,
+  rankOf,
+  rankTier,
+  nextRank,
+  nextObjective,
+  comboOf,
+  COMBO_MIN,
+} from './training/levels'
+export type { LevelInfo, Rank, NextObjective, ObjectiveKind, ObjectiveInput } from './training/levels'
+export { normalizeCite, matchMomentIndex } from './training/moments'
 export {
   pickWeighted,
   lastCompletedWeek,

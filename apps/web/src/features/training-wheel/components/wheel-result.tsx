@@ -2,64 +2,131 @@
 
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Progress } from '@/components/ui/progress'
+import { bigConfetti } from '@/lib/confetti'
+import { playCreak, playThud, playTroll, playVictory, playWind } from '@/lib/sfx'
 import { eur } from '@/lib/format'
 import type { SpinResult } from '../types'
 
+/** Nombre de clics pour ouvrir le coffre — valeur GLA (`cineChest`, « Clique 10× »). */
+const CLICKS_NEEDED = 10
+
 /**
- * Révélation du résultat, une fois la roue arrêtée. Raté → la carte tout de suite ; gagné → le
- * « coffre » (🎁) puis, 450 ms plus tard, la carte du lot (patron GLA : un temps entre l'arrêt de
- * la roue et l'ouverture). Aucun tirage ici : `result` vient du serveur, ce composant n'affiche.
+ * Révélation du résultat, une fois la roue arrêtée — en overlay, pas sous le bouton : ce moment
+ * mérite tout l'écran. Reprise de la cinématique `cineChest` de l'app Good Luck Agency, ramenée
+ * au design system : `Dialog`, `Progress` et les animations de `tw-animate-css` au lieu de
+ * l'overlay maison et de son système de particules de fumée en canvas.
+ *
+ * Gagné → un coffre qu'il faut marteler 10 fois pour l'ouvrir. Ce n'est pas de la friction
+ * gratuite : l'effort transforme un résultat déjà décidé en quelque chose qu'on arrache. Les
+ * confettis et le jingle tombent à l'ouverture, pas avant.
+ *
+ * Raté → la carte tout de suite, sans cérémonie.
+ *
+ * AUCUN tirage ici : `result` vient du serveur et le gain y est déjà enregistré. Fermer la modale
+ * avant d'avoir fini les 10 clics ne fait donc rien perdre — c'est la porte de sortie pour qui n'a
+ * pas envie de jouer le jeu.
  */
 export function WheelResult({ result, onDone }: { result: SpinResult; onDone: () => void }) {
-  const [chest, setChest] = useState(false)
+  const [clicks, setClicks] = useState(0)
+  const opened = clicks >= CLICKS_NEEDED
+
+  // À l'ouverture de la modale : le vent annonce le coffre, le « troll » sanctionne le raté.
   useEffect(() => {
-    if (!result.won) return
-    const t = window.setTimeout(() => setChest(true), 450)
-    return () => window.clearTimeout(t)
+    if (result.won) playWind()
+    else playTroll()
   }, [result.won])
 
-  if (!result.won) {
-    return (
-      <div role="status" className="flex w-full max-w-sm flex-col items-center gap-2 rounded-xl border p-5 text-center">
-        <span aria-hidden="true" className="text-4xl">
-          😅
-        </span>
-        <p className="text-lg font-semibold">Raté !</p>
-        <p className="text-sm text-muted-foreground">Pas de lot cette fois — retente ta chance la semaine prochaine.</p>
-        <Button type="button" variant="outline" size="sm" className="mt-2" onClick={onDone}>
-          OK
-        </Button>
-      </div>
-    )
-  }
-
-  if (!chest) {
-    // Le coffre : un temps mort volontaire, la carte du lot arrive juste après.
-    return (
-      <div role="status" className="flex w-full max-w-sm flex-col items-center gap-2 p-5 text-center">
-        <span aria-hidden="true" className="animate-in zoom-in-50 text-5xl duration-300">
-          🎁
-        </span>
-        <span className="sr-only">Tu as gagné — ouverture du lot…</span>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!opened) return
+    // Le couvercle cède, PUIS la fanfare : les deux en même temps se mangent.
+    playCreak()
+    bigConfetti()
+    const t = window.setTimeout(playVictory, 700)
+    return () => window.clearTimeout(t)
+  }, [opened])
 
   return (
-    <div
-      role="status"
-      className="flex w-full max-w-sm animate-in flex-col items-center gap-2 rounded-xl border p-5 text-center duration-500 fade-in zoom-in-95"
-    >
-      <span aria-hidden="true" className="text-4xl">
-        🎁
-      </span>
-      <p className="text-sm text-muted-foreground">Tu gagnes</p>
-      <p className="text-lg font-semibold">{result.prize?.label ?? result.sectorLabel}</p>
-      {result.prize?.amountEur != null && <p className="text-2xl font-semibold tabular-nums">{eur(result.prize.amountEur)}</p>}
-      <p className="text-sm text-muted-foreground">Ton gain est enregistré — l’agence te le versera / l’appliquera.</p>
-      <Button type="button" size="sm" className="mt-2" onClick={onDone}>
-        OK
-      </Button>
-    </div>
+    <Dialog open onOpenChange={(next) => !next && onDone()}>
+      <DialogContent className="sm:max-w-[420px]">
+        {!result.won ? (
+          <>
+            <DialogHeader className="items-center text-center">
+              <span aria-hidden className="text-5xl leading-none">😅</span>
+              <DialogTitle className="mt-3">Raté !</DialogTitle>
+              <DialogDescription>Pas de lot cette fois — retente ta chance la semaine prochaine.</DialogDescription>
+            </DialogHeader>
+            <Button type="button" variant="outline" className="w-full" onClick={onDone}>
+              OK
+            </Button>
+          </>
+        ) : !opened ? (
+          <>
+            <DialogHeader className="items-center text-center">
+              <DialogTitle>Tu as gagné quelque chose 👀</DialogTitle>
+              <DialogDescription>
+                Clique {CLICKS_NEEDED}× sur le coffre pour l’ouvrir — {CLICKS_NEEDED - clicks} restant
+                {CLICKS_NEEDED - clicks > 1 ? 's' : ''}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="relative mx-auto">
+              {/* Le halo remplace la fumée en canvas de l'original : même rôle — faire ÉMERGER le
+                  coffre au lieu de l'afficher — en Tailwind pur (flou + pulsation), sans particules. */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 animate-pulse rounded-full bg-gold/30 blur-3xl"
+              />
+              <button
+                type="button"
+                  onClick={() => {
+                  playThud()
+                  setClicks((n) => n + 1)
+                }}
+                aria-label={`Frapper le coffre (${clicks} sur ${CLICKS_NEEDED})`}
+                className="relative rounded-full p-6 transition-transform hover:scale-105 active:scale-95"
+              >
+                {/* Deux animations superposées : l'émergence (une fois, lente) porte le conteneur,
+                    `key={clicks}` rejoue le tressautement à CHAQUE coup. */}
+                <span aria-hidden className="block animate-in fade-in zoom-in-50 duration-1000">
+                  <span key={clicks} className="block animate-in zoom-in-95 text-7xl leading-none duration-150">
+                    🎁
+                  </span>
+                </span>
+              </button>
+            </div>
+            <Progress
+              value={(clicks / CLICKS_NEEDED) * 100}
+              indicatorClassName="bg-gold"
+              label="Ouverture du coffre"
+            />
+          </>
+        ) : (
+          <div className="relative flex animate-in flex-col items-center gap-2 text-center duration-500 fade-in zoom-in-95">
+            {/* Faisceau de lumière derrière le lot — l'équivalent du `light-beam` de l'original. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -top-4 left-1/2 size-40 -translate-x-1/2 rounded-full bg-gold/30 blur-3xl"
+            />
+            <DialogHeader className="items-center text-center">
+              <span aria-hidden className="relative text-6xl leading-none">🎉</span>
+              <DialogTitle className="mt-3">Tu gagnes</DialogTitle>
+              <DialogDescription className="text-lg font-semibold text-foreground">
+                {result.prize?.label ?? result.sectorLabel}
+              </DialogDescription>
+            </DialogHeader>
+            {result.prize?.amountEur != null && (
+              <p className="text-3xl font-semibold tabular-nums">{eur(result.prize.amountEur)}</p>
+            )}
+            <p className="text-sm text-muted-foreground">
+              Ton gain est enregistré — l’agence te le versera / l’appliquera.
+            </p>
+            <Button type="button" className="mt-2 w-full" onClick={onDone}>
+              Revenir à la roue
+            </Button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   )
 }

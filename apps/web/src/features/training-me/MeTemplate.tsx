@@ -1,20 +1,44 @@
+import { rankOf, rankTier, xpLevelOf, xpOf } from '@glagency/core'
 import { UrlTabs } from '@/components/url-tabs'
-import { MeHeader } from './components/me-header'
+import { MeCelebrate } from './components/me-celebrate'
+import { MeHero } from './components/me-hero'
 import { MeHistory } from './components/me-history'
 import { MeModules } from './components/me-modules'
+import { MeNext } from './components/me-next'
+import { MePodium } from './components/me-podium'
 import { MeRanking } from './components/me-ranking'
 import { MeRankingSelect } from './components/me-ranking-select'
 import { MeTrophies } from './components/me-trophies'
 import type { MeData, MeVue } from './types'
 
 /**
- * « Ma formation » : en-tête (reprise + chiffres) toujours visible, puis trois vues —
- * Progression (modules + trophées), Historique, Classement. Server Component, aucun fetch.
+ * « Ma formation ». En-tête de jeu (rang, niveau, XP) et prochain objectif toujours visibles, puis
+ * trois vues — Progression (modules d'un côté, podium et trophées de l'autre), Historique,
+ * Classement. Server Component, aucun fetch.
+ *
+ * XP, niveau et rang se DÉDUISENT des chiffres déjà chargés (`points`, `boss_best`, `avg_total`) :
+ * rien de nouveau n'est lu ni stocké pour la couche jeu.
  */
 export function MeTemplate({ data, vue, myProfileId }: { data: MeData; vue: MeVue; myProfileId: string }) {
+  const level = xpLevelOf(xpOf({ points: data.stats.points, bossBest: data.stats.bossBest })).level
+  const rank = rankOf(data.stats.avgTotal)
+  // Le trophée fait foi pour « tout le catalogue » — une seule règle, jamais recalculée à côté.
+  const allDone = data.trophies.some((t) => t.key === 'all_done' && t.earned)
+
   return (
     <div className="flex flex-col gap-6">
-      <MeHeader data={data} />
+      <MeCelebrate
+        profileId={myProfileId}
+        level={level}
+        rankTier={rankTier(data.stats.avgTotal)}
+        rankName={rank.name}
+        rankEmoji={rank.emoji}
+        allDone={allDone}
+        myRank={data.myRank}
+        trophies={data.trophies.filter((t) => t.earned).map((t) => ({ key: t.key, label: t.label }))}
+      />
+      <MeHero data={data} />
+      <MeNext data={data} />
       <UrlTabs
         value={vue}
         defaultValue="progression"
@@ -23,9 +47,12 @@ export function MeTemplate({ data, vue, myProfileId }: { data: MeData; vue: MeVu
             value: 'progression',
             label: 'Progression',
             content: (
-              <div className="flex flex-col gap-8">
+              <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <MeModules data={data} />
-                <MeTrophies trophies={data.trophies} />
+                <div className="flex flex-col gap-6">
+                  <MePodium data={data} myProfileId={myProfileId} />
+                  <MeTrophies trophies={data.trophies} />
+                </div>
               </div>
             ),
           },
