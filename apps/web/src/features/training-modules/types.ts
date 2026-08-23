@@ -3,4 +3,4 @@
 // de la feature ; `ModuleVue` reste propre à la page module.
 export type { ModuleDetail, ModuleSummary, PublicBossFan, PublicCase } from '@/lib/types/training-public'
 
-export type ModuleVue = 'cours' | 'cas'
+export type ModuleVue = 'cours' | 'cas' | 'classement'
