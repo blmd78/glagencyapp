@@ -9,6 +9,7 @@ import { revealThread, sendMessage } from '../actions'
 import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
 import type { SessionData, SessionThread } from '../types'
+import { SessionContext } from './session-context'
 import { SessionHeader } from './session-header'
 import { ThreadPanel } from './thread-panel'
 import { ThreadTabs } from './thread-tabs'
@@ -175,19 +176,29 @@ export function SessionView({ data }: { data: SessionData }) {
   return (
     <div className="flex flex-col gap-4">
       <SessionHeader data={data} threads={threads} onEnded={() => setEnded(true)} />
-      {threads.length > 1 && <ThreadTabs threads={threads} current={thread.id} now={now} onSelect={setCurrent} />}
-      {thread && (
-        <ThreadPanel
-          key={thread.id}
-          thread={thread}
-          kind={data.kind}
-          now={now}
-          onSend={(v) => handleSend(thread.id, v)}
-          onTimeout={handleTimeout}
-          timeoutFailed={timeoutFailed.has(thread.id)}
-          onRetryTimeout={handleRetryTimeout}
-        />
-      )}
+      {/* Deux colonnes (GLA `render.train`) : la consigne reste sous les yeux, collante, pendant
+          que la conversation défile à droite. */}
+      <div className="gla-trainwrap">
+        <div className="gla-traincol-ctx">
+          <SessionContext snapshot={data.snapshot} />
+        </div>
+        <div className="gla-traincol-chat flex flex-col gap-3">
+          {threads.length > 1 && <ThreadTabs threads={threads} current={thread.id} now={now} onSelect={setCurrent} />}
+          {thread && (
+            <ThreadPanel
+              key={thread.id}
+              thread={thread}
+              kind={data.kind}
+              maxSeconds={data.snapshot.reactionMaxS}
+              now={now}
+              onSend={(v) => handleSend(thread.id, v)}
+              onTimeout={handleTimeout}
+              timeoutFailed={timeoutFailed.has(thread.id)}
+              onRetryTimeout={handleRetryTimeout}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

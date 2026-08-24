@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 import type { ComposerInput } from '../schema'
 import type { SessionThread } from '../types'
-import { ChronoBadge } from './chrono-badge'
+import { FanRing } from './fan-ring'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
 
@@ -17,6 +17,7 @@ import { MessageList } from './message-list'
 export function ThreadPanel({
   thread,
   kind,
+  maxSeconds,
   now,
   onSend,
   onTimeout,
@@ -25,6 +26,8 @@ export function ThreadPanel({
 }: {
   thread: SessionThread
   kind: CaseKind
+  /** Durée du chrono de réponse (`reactionMaxS`), pour la part restante de l'anneau. */
+  maxSeconds: number | null
   now: number
   onSend: (v: ComposerInput) => Promise<boolean>
   onTimeout: (threadId: string) => void
@@ -49,18 +52,28 @@ export function ThreadPanel({
   const lost = thread.status === 'lost' ? (FAULT_LABELS[(thread.lostReason ?? 'timeout') as FaultCode | 'timeout'] ?? FAULT_LABELS.timeout) : null
 
   return (
-    <section className="flex flex-col rounded-xl border">
-      <header className="flex items-center gap-3 border-b px-4 py-2 text-sm">
-        <span className="font-medium">{thread.fanName}</span>
+    <section className="gla-cardbox flex flex-col p-4">
+      {/* En-tête façon messagerie (GLA) : l'avatar du fan cerclé de son chrono, son nom, le point
+          vert « en ligne », et le compte des échanges à droite. */}
+      <header className="mb-3 flex items-center gap-2.5 border-b border-[var(--gla-border)] pb-3 text-sm">
+        <FanRing
+          name={thread.fanName}
+          seconds={thread.status === 'open' ? remaining : null}
+          maxSeconds={maxSeconds}
+        />
+        <span className="font-bold">{thread.fanName}</span>
         {thread.bossFan && (
-          <span className="text-muted-foreground">
+          <span className="text-xs text-[var(--gla-faint)]">
             {[thread.bossFan.age && `${thread.bossFan.age} ans`, thread.bossFan.job, thread.bossFan.city].filter(Boolean).join(' · ')}
           </span>
         )}
-        <span className="ml-auto tabular-nums text-muted-foreground">
-          {thread.turnsUsed}/{thread.maxTurns} tours
+        <span className="inline-flex items-center gap-1.5 text-xs text-[var(--gla-faint)]">
+          <span aria-hidden className="size-[7px] rounded-full bg-[var(--gla-accent)]" />
+          en ligne
         </span>
-        {remaining != null && thread.status === 'open' && <ChronoBadge seconds={remaining} />}
+        <span className="ml-auto tabular-nums text-[var(--gla-muted)]">
+          {thread.turnsUsed}/{thread.maxTurns} échanges
+        </span>
       </header>
       <MessageList messages={visible} pendingFan={pendingFan} fanName={thread.fanName} />
       {lost ? (

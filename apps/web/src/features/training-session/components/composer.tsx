@@ -41,31 +41,39 @@ export function Composer({ disabled, allowMedia, onSend }: { disabled: boolean; 
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-2 border-t p-3">
-      <Textarea
-        {...register('body')}
-        rows={2}
-        placeholder={disabled ? 'En attente…' : 'Ton message…'}
-        disabled={busy}
-        aria-invalid={!!errors.body}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault()
-            void submit()
-          }
-        }}
-      />
-      <div className="flex items-center gap-2">
-        <FieldError message={errors.body?.message} />
-        <div className="ml-auto flex items-center gap-2">
-          {/* GLA n'autorise le média payant que sur un cas de VENTE : ailleurs, le prompt du fan n'a
-              pas la section MÉDIAS PAYANTS et il répondrait à côté. */}
-          {allowMedia && <MediaPricePopover disabled={busy} onPick={(p) => void sendMedia(p)} />}
-          <ActionButton type="submit" size="sm" pending={isSubmitting || sendingMedia} disabled={disabled}>
-            Envoyer
-          </ActionButton>
-        </div>
+    // Barre de saisie sur UNE ligne (GLA) : le média à gauche, le champ qui s'étire, l'envoi à
+    // droite. La disposition en bloc renvoyait le bouton sous le champ et mangeait de la hauteur de
+    // conversation à chaque rendu.
+    <form onSubmit={submit} className="mt-3.5 flex flex-col gap-2">
+      <div className="flex items-end gap-2">
+        {/* GLA n'autorise le média payant que sur un cas de VENTE : ailleurs, le prompt du fan n'a
+            pas la section MÉDIAS PAYANTS et il répondrait à côté. */}
+        {allowMedia && <MediaPricePopover disabled={busy} onPick={(p) => void sendMedia(p)} />}
+        <Textarea
+          {...register('body')}
+          rows={1}
+          className="gla-creply flex-1"
+          placeholder={disabled ? 'En attente…' : 'Écris ta réponse… (Entrée pour envoyer, Maj+Entrée pour un retour à la ligne)'}
+          disabled={busy}
+          aria-invalid={!!errors.body}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              void submit()
+            }
+          }}
+        />
+        <ActionButton
+          type="submit"
+          pending={isSubmitting || sendingMedia}
+          disabled={disabled}
+          className="gla-btn h-12 flex-none border-0 px-5"
+          aria-label="Envoyer"
+        >
+          ➤
+        </ActionButton>
       </div>
+      <FieldError message={errors.body?.message} />
     </form>
   )
 }
