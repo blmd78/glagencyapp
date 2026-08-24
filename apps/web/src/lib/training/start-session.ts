@@ -16,6 +16,7 @@ import { createAdminClient, type Json } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { dueAtFrom } from '@/lib/services/training-engine'
 import { createClient } from '@/lib/supabase/server'
+import { buildCaseSnapshot } from '@/lib/training/case-snapshot'
 import { ARENA_OPENING_OFFSETS_S, type CaseKind, type CaseSnapshot, type MessageSpeaker } from '@/lib/types/training'
 
 const startInput = z.object({ caseId: z.uuid() })
@@ -78,20 +79,10 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
       if (kind === 'arena' && !c.training_case_arena_slots.length) throw new BusinessError('Ce défi n’a aucune conversation configurée — préviens un admin')
       if (kind === 'boss' && !c.training_case_boss_fans.length) throw new BusinessError('Ce boss n’a aucun fan configuré — préviens un admin')
 
-      const snapshot: CaseSnapshot = {
-        code: c.code,
-        title: c.title,
-        phase: c.phase,
-        difficulty: c.difficulty,
-        context: c.context,
-        objective: c.objective,
-        objectiveLabel: c.training_modules.objective_label,
-        maxTurns: c.max_turns,
-        reactionMaxS: c.reaction_max_s,
-        isSale: c.is_sale,
-        moduleTitle: c.training_modules.title,
-        moduleCode: c.training_modules.code,
-      }
+      // Assemblage EXTRAIT en module neutre (`lib/training/case-snapshot.ts`) : la reprise GLA
+      // écrit le même snapshot, et ce fichier-ci est `'use server'` — on ne peut rien en exporter
+      // sans en faire un point d'entrée appelable depuis le navigateur.
+      const snapshot: CaseSnapshot = buildCaseSnapshot(c)
       const { data: session, error: iErr } = await admin
         .from('training_sessions')
         // `case_snapshot` est une colonne jsonb → typée `Json` (union récursive) : un objet

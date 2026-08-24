@@ -1,6 +1,4 @@
 import Link from 'next/link'
-import { Card, CardContent } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { cn } from '@/lib/utils'
 import type { ModulesData } from './services/get-modules-progress'
 
@@ -16,37 +14,33 @@ export function ModulesTemplate({ data }: { data: ModulesData }) {
   const { modules, overall, showProgress } = data
   return (
     <div className="flex flex-col gap-6">
-      <p className="-mt-4 text-sm text-muted-foreground">Un module = un cours à lire, puis des cas à jouer.</p>
+      <p className="-mt-4 text-sm text-[var(--gla-muted)]">Un module = un cours à lire, puis des cas à jouer.</p>
 
       {showProgress && overall.total > 0 && (
-        <Card>
-          <CardContent className="flex flex-col gap-2 p-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <p className="font-semibold">
-                Ta progression — {overall.done}/{overall.total} cas validés
-              </p>
-              <p className="text-sm tabular-nums text-muted-foreground">
+        <section className="gla-obj flex flex-wrap items-center gap-4 px-[18px] py-[14px]">
+          <span aria-hidden className="text-[28px] leading-none">📚</span>
+          <div className="min-w-[200px] flex-1">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.6px] text-[#c4b5fd]">Ta progression</p>
+            <p className="mt-0.5 text-[14.5px] font-bold">
+              {overall.done}/{overall.total} cas validés
+              <span className="ml-2 text-[12px] font-semibold tabular-nums text-[var(--gla-muted)]">
                 {overall.points.toLocaleString('fr-FR')} pts · moy. {overall.avg ?? '—'}
-              </p>
+              </span>
+            </p>
+            <div className="gla-bar mt-2 h-[7px]">
+              <i className="xp-bar" style={{ '--xp-pct': `${overall.pct}%` } as React.CSSProperties} />
             </div>
-            <div className="flex items-center gap-3">
-              <Progress
-                value={overall.pct}
-                animated
-                className="h-2.5 flex-1"
-                indicatorClassName={overall.done === overall.total ? 'bg-green-600' : 'bg-xp'}
-                label="Progression sur tout le catalogue"
-              />
-              <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums">{overall.pct}%</span>
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+          <span className="flex-none text-xl font-extrabold tabular-nums text-[var(--gla-accent)]">{overall.pct}%</span>
+        </section>
       )}
 
       {modules.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucun module disponible pour l’instant.</p>
+        <p className="py-[14px] text-center text-[12.5px] text-[var(--gla-muted)]">
+          Aucun module ne t’a encore été attribué.
+        </p>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {modules.map((m) => {
             const { progress: p } = m
             const complete = showProgress && p.total > 0 && p.done === p.total
@@ -55,28 +49,26 @@ export function ModulesTemplate({ data }: { data: ModulesData }) {
               <li key={m.id}>
                 <Link
                   href={`/formation/modules/${m.code}`}
-                  className={cn(
-                    'flex h-full flex-col gap-2 rounded-lg border bg-card p-4 shadow-sm transition-colors hover:bg-accent',
-                    complete && 'border-green-600/40',
-                  )}
+                  className={cn('gla-card flex h-full flex-col gap-2 p-4', complete && 'border-[var(--gla-accent)]')}
                 >
-                  <span className="flex items-center gap-2 text-base font-semibold">
-                    {m.emoji && <span aria-hidden>{m.emoji}</span>}
+                  <span className="flex items-center gap-2.5 text-sm font-bold">
+                    <span className="gla-tile grid size-11 flex-none place-items-center rounded-[13px] text-[21px]" aria-hidden>
+                      {m.emoji ?? '🎯'}
+                    </span>
                     {m.title}
                     {complete && <span aria-hidden className="ml-auto">✅</span>}
                   </span>
-                  {m.description && <span className="text-sm text-muted-foreground">{m.description}</span>}
+                  {m.description && (
+                    <span className="text-[12px] leading-relaxed text-[var(--gla-muted)]">{m.description}</span>
+                  )}
 
                   <div className="mt-auto flex flex-col gap-1.5 pt-3">
                     {showProgress && p.total > 0 && (
                       <>
-                        <Progress
-                          value={p.pct}
-                          className="h-1.5"
-                          indicatorClassName={complete ? 'bg-green-600' : 'bg-xp'}
-                          label={`${m.title} : ${p.pct}% des cas validés`}
-                        />
-                        <span className="text-xs tabular-nums text-muted-foreground">
+                        <span className="gla-bar block h-[5px]">
+                          <i style={{ width: `${Math.min(100, p.pct)}%` }} />
+                        </span>
+                        <span className="text-[11.5px] tabular-nums text-[var(--gla-muted)]">
                           {started ? (
                             <>
                               {p.done}/{p.total} cas · moy. {p.avg ?? '—'} · {p.points} pts
@@ -88,7 +80,7 @@ export function ModulesTemplate({ data }: { data: ModulesData }) {
                       </>
                     )}
                     {!showProgress && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-[11.5px] text-[var(--gla-muted)]">
                         {m.caseCount} cas{m.hasCourse ? ' · cours' : ''}
                       </span>
                     )}

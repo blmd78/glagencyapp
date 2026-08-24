@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { WheelSector } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { playCling, playWheelSpin } from '@/lib/sfx'
-import { claimTicket, spinWheel } from '../actions'
-import type { SpinResult, WheelTicket } from '../types'
+import { spinWheel } from '../actions'
+import type { SpinResult } from '../types'
+import type { SpinnableChatter } from '../services/get-spinnable-chatters'
 import { WheelResult } from './wheel-result'
 import { sectorAngles, WheelSvg } from './wheel-svg'
 
@@ -16,95 +18,54 @@ const SPIN_MS = 4900
 /**
  * Une Server Action ne REJETTE que sur un échec de transport (réseau coupé, id d'action périmé
  * après un déploiement) — jamais sur une erreur métier, que `runAction` rend en `success: false`.
- * Sans ce filet, la phase resterait bloquée sur « claiming »/« spinning » et le bouton tournerait
- * indéfiniment.
+ * Sans ce filet, la phase resterait bloquée sur « spinning » et le bouton tournerait indéfiniment.
  */
 const TRANSPORT_KO = 'Connexion perdue — recharge la page'
 
-type Phase = 'idle' | 'claiming' | 'spinning' | 'reveal'
+type Phase = 'idle' | 'spinning' | 'reveal'
 
 /**
- * Le tirage est décidé par le SERVEUR (`spinWheel`) : ici on anime la roue jusqu'au secteur
- * renvoyé, puis on révèle le lot. Aucune lib — rotation CSS sur le SVG, carte de résultat en
- * `animate-in` (tw-animate-css).
+ * La roue, côté ENCADRANT : il choisit un chatteur et lance pour lui — en partage d'écran (règle du
+ * 2026-08-24). Il n'y a plus de ticket, donc plus de file d'attente ni d'éligibilité : le tour est
+ * donné, pas gagné.
  *
- * Props MINIMALES (pas le `WheelData` entier) : « Mes gains » peut porter 50 tirages, ils n'ont
- * rien à faire dans la charge RSC sérialisée vers le client.
+ * Le tirage est décidé par le SERVEUR (`spinWheel`) : ici on anime la roue jusqu'au secteur
+ * renvoyé, puis on révèle le lot. Aucune lib — rotation CSS sur le SVG.
  */
-export function WheelSpinner({
-  sectors,
-  ticket: serverTicket,
-  pending,
-  eligible,
-}: {
-  sectors: WheelSector[]
-  ticket: WheelTicket | null
-  /** Nombre TOTAL de tours à jouer (ils s'accumulent, 0118) — le prochain est `ticket`. */
-  pending: number
-  eligible: boolean
-}) {
+export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; chatters: SpinnableChatter[] }) {
   const router = useRouter()
   const [rotation, setRotation] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
   const [result, setResult] = useState<SpinResult | null>(null)
-  // Le ticket vient des PROPS (re-rendues à chaque `router.refresh()`) et pas d'un état copié :
-  // un `useState(serverTicket)` resterait figé à `null` après la réclamation.
-  //
-  // On mémorise les tickets DÉJÀ JOUÉS ici, par leur id — pas un simple compteur. Un compteur
-  // (« j'ai joué, donc plus de ticket ») ne redescendait jamais : le rafraîchissement ramenait
-  // bien le tour suivant, mais le bouton restait mort et il fallait recharger la page entre chaque
-  // tour. Invisible tant qu'on n'avait qu'un tour par semaine ; bloquant depuis que les trophées
-  // en offrent plusieurs d'affilée (0120).
-  //
-  // Comparer les ids règle les deux besoins à la fois : le ticket consommé reste neutralisé le
-  // temps que le serveur repasse, et un ticket d'id DIFFÉRENT réarme aussitôt le bouton.
-  const [spentIds, setSpentIds] = useState<string[]>([])
-  const played = spentIds.length
-  const ticket = serverTicket && !spentIds.includes(serverTicket.id) ? serverTicket : null
-  const claimed = useRef(false)
+  const [forProfileId, setForProfileId] = useState('')
   const timer = useRef<number | null>(null)
-
-  // Éligible sans ticket → réclamer UNE fois au montage (le serveur revérifie le top 3), puis
-  // rafraîchir : le ticket redescend par les props.
-  useEffect(() => {
-    if (!eligible || serverTicket || claimed.current) return
-    claimed.current = true
-    setPhase('claiming')
-    void (async () => {
-      try {
-        const r = await claimTicket()
-        // Refus métier (impersonation, droit retiré) : le dire, plutôt qu'un « Ton tour arrive… »
-        // qui ne viendrait jamais.
-        if (!r.success) toast.error(r.error)
-        else if (r.data.ticketId) router.refresh()
-      } catch {
-        toast.error(TRANSPORT_KO)
-      } finally {
-        // `claimed` reste à `true` : on ne boucle pas sur une réclamation qui échoue. Un
-        // rechargement (ou un `router.refresh()`) remonte le composant et retentera.
-        setPhase('idle')
-      }
-    })()
-  }, [eligible, serverTicket, router])
+  // Verrou SYNCHRONE : `phase` ne vaut 'spinning' qu'au rendu suivant, et le `disabled` du bouton
+  // avec lui. Deux clics dans la même frame passeraient donc tous les deux — soit deux gains
+  // versés pour un double-clic accidentel. Une ref est lue et posée immédiatement.
+  const busy = useRef(false)
 
   // Le timer de révélation ne doit pas survivre au démontage (navigation pendant la rotation).
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
 
+  const cible = chatters.find((c) => c.profileId === forProfileId) ?? null
+
   const spin = async () => {
-    if (!ticket || phase !== 'idle') return
+    if (!cible || phase !== 'idle' || busy.current) return
+    busy.current = true
     setPhase('spinning')
     let r: Awaited<ReturnType<typeof spinWheel>>
     try {
-      r = await spinWheel({ ticketId: ticket.id })
+      r = await spinWheel({ forProfileId: cible.profileId })
     } catch {
-      // Le ticket a PEUT-ÊTRE été consommé côté serveur : rafraîchir pour repartir de l'état vrai.
       toast.error(TRANSPORT_KO)
+      busy.current = false
       setPhase('idle')
       router.refresh()
       return
     }
     if (!r.success) {
       toast.error(r.error)
+      busy.current = false
       setPhase('idle')
       router.refresh()
       return
@@ -114,6 +75,7 @@ export function WheelSpinner({
     const a = angles.find((x) => x.index === r.data.sectorIndex) ?? angles[0]
     if (!a) {
       // Config sans aucun poids > 0 : le serveur aurait throw avant d'en arriver là.
+      busy.current = false
       setPhase('idle')
       router.refresh()
       return
@@ -126,9 +88,7 @@ export function WheelSpinner({
     const current = ((rotation % 360) + 360) % 360
     const targetMod = ((-target % 360) + 360) % 360
     setRotation(rotation + ((targetMod - current + 360) % 360) + 5 * 360)
-    setSpentIds((ids) => [...ids, ticket.id])
-    // Le cliquet démarre AVEC la rotation et se cale sur sa durée ; le « cling » ponctue l'arrêt,
-    // juste avant que la révélation prenne la main.
+    // Le cliquet démarre AVEC la rotation et se cale sur sa durée ; le « cling » ponctue l'arrêt.
     playWheelSpin(SPIN_MS / 1000)
     timer.current = window.setTimeout(() => {
       playCling()
@@ -136,35 +96,51 @@ export function WheelSpinner({
     }, SPIN_MS)
   }
 
-  // Les tours s'accumulent : on annonce combien il en reste, et on nomme celui qu'on va jouer (le
-  // plus ancien). Le compte diminue au fil des tirages sans attendre le rafraîchissement serveur.
-  const restants = Math.max(0, pending - played)
-  const hint = ticket
-    ? restants > 1
-      ? `${restants} tours en attente — on joue « ${ticket.reason} »`
-      : `Un tour disponible — ${ticket.reason}`
-    : eligible
-      ? 'Ton tour arrive…'
-      : 'Termine dans le top 3 du classement de la semaine pour gagner un tour.'
-
   return (
     <section className="flex flex-col items-center gap-5">
+      <div className="flex w-full max-w-sm flex-col gap-1.5">
+        <label htmlFor="wheel-target" className="text-sm font-medium">
+          Pour qui ?
+        </label>
+        <Select value={forProfileId} onValueChange={setForProfileId} disabled={phase !== 'idle'}>
+          <SelectTrigger id="wheel-target">
+            <SelectValue placeholder="Choisis un chatter…" />
+          </SelectTrigger>
+          <SelectContent>
+            {chatters.map((c) => (
+              <SelectItem key={c.profileId} value={c.profileId}>
+                {c.displayName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <WheelSvg sectors={sectors} rotation={rotation} spinning={phase === 'spinning'} />
+
       <ActionButton
         type="button"
         onClick={() => void spin()}
-        pending={phase === 'spinning' || phase === 'claiming'}
-        disabled={!ticket || phase === 'reveal'}
+        pending={phase === 'spinning'}
+        disabled={!cible || phase === 'reveal'}
+        className="gla-btn mt-2 h-12 w-full max-w-[250px] border-0 text-[15px] font-bold"
       >
-        Tourner la roue
+        {cible ? `Tourner pour ${cible.displayName} 🎡` : 'Tourner la roue 🎡'}
       </ActionButton>
-      <p className="text-center text-sm text-muted-foreground">{hint}</p>
+
+      <p className="text-center text-sm text-[var(--gla-faint)]">
+        {chatters.length === 0
+          ? 'Aucun chatter en formation pour l’instant.'
+          : 'Le gain est enregistré au nom du chatter, et ton nom reste sur le tirage.'}
+      </p>
+
       {phase === 'reveal' && result && (
         <WheelResult
           result={result}
+          winnerName={cible?.displayName ?? null}
           onDone={() => {
-            // Retour à `idle` (et non un état terminal) : s'il reste des tours, le
-            // `router.refresh()` ramène le ticket suivant et le bouton se réarme tout seul.
+            // Retour à `idle` : l'encadrant enchaîne sur un autre chatter sans recharger.
+            busy.current = false
             setPhase('idle')
             setResult(null)
             router.refresh()

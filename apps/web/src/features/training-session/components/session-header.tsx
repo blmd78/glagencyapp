@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -9,9 +10,12 @@ import { abandonSession, endSession } from '../actions-lifecycle'
 import type { SessionData, SessionThread } from '../types'
 
 /**
- * En-tête de la session en cours : la consigne (contexte + objectif, repliable — ouverte en solo,
- * repliée en défi/boss où l'écran est déjà chargé) et les deux sorties : « Terminer » (→ notation)
- * et « Abandonner » (→ rien n'est noté). `ConfirmDialog` garde le dialog ouvert sur erreur serveur.
+ * En-tête de la session : le retour vers le module, le titre du cas, et les deux sorties —
+ * « Terminer » (→ notation) et « Abandonner » (→ rien n'est noté). `ConfirmDialog` garde le dialog
+ * ouvert sur erreur serveur.
+ *
+ * La consigne N'EST PLUS ICI : elle vit dans la colonne collante de gauche (`SessionContext`,
+ * structure GLA). Repliée au-dessus du chat, elle était fermée et oubliée dès le premier message.
  */
 export function SessionHeader({
   data,
@@ -45,11 +49,14 @@ export function SessionHeader({
 
   return (
     <div className="flex flex-col gap-3">
+      <Link href="/formation/modules" className="gla-back w-fit">
+        ← Retour aux cas
+      </Link>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">{s.title}</h1>
-          <p className="text-sm text-muted-foreground">
-            {s.moduleTitle} · {CASE_KIND_LABELS[data.kind]} · difficulté {s.difficulty}/10
+          <h1 className="text-xl font-bold tracking-[-0.3px]">{s.title}</h1>
+          <p className="text-sm text-[var(--gla-muted)]">
+            {s.moduleTitle} · {CASE_KIND_LABELS[data.kind]}
             {data.kind !== 'solo' && ` · ${closed}/${threads.length} conversations terminées`}
           </p>
         </div>
@@ -75,23 +82,6 @@ export function SessionHeader({
           />
         </div>
       </div>
-      <details open={data.kind === 'solo'} className="rounded-xl border p-4 text-sm">
-        <summary className="cursor-pointer font-medium">La consigne</summary>
-        <div className="mt-3 flex flex-col gap-3">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Contexte</p>
-            <p className="whitespace-pre-wrap">{s.context}</p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">{s.objectiveLabel}</p>
-            {/* Pas de « ligne cible » ici : c'est la réponse attendue RÉSERVÉE AU CORRECTEUR (elle
-                n'entre que dans le prompt de notation). GLA la gardait côté serveur sans jamais la
-                montrer au joueur — l'afficher donne la correction avant l'exercice. */}
-            <p className="whitespace-pre-wrap">{s.objective}</p>
-
-          </div>
-        </div>
-      </details>
     </div>
   )
 }

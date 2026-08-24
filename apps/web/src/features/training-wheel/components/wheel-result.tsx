@@ -28,7 +28,16 @@ const CLICKS_NEEDED = 10
  * avant d'avoir fini les 10 clics ne fait donc rien perdre — c'est la porte de sortie pour qui n'a
  * pas envie de jouer le jeu.
  */
-export function WheelResult({ result, onDone }: { result: SpinResult; onDone: () => void }) {
+export function WheelResult({
+  result,
+  winnerName,
+  onDone,
+}: {
+  result: SpinResult
+  /** Le chatteur pour qui le tour a été lancé — l'encadrant ne joue pas pour lui-même. */
+  winnerName: string | null
+  onDone: () => void
+}) {
   const [clicks, setClicks] = useState(0)
   const opened = clicks >= CLICKS_NEEDED
 
@@ -55,7 +64,9 @@ export function WheelResult({ result, onDone }: { result: SpinResult; onDone: ()
             <DialogHeader className="items-center text-center">
               <span aria-hidden className="text-5xl leading-none">😅</span>
               <DialogTitle className="mt-3">Raté !</DialogTitle>
-              <DialogDescription>Pas de lot cette fois — retente ta chance la semaine prochaine.</DialogDescription>
+              <DialogDescription>
+                {winnerName ? `Pas de lot pour ${winnerName} cette fois.` : 'Pas de lot cette fois.'}
+              </DialogDescription>
             </DialogHeader>
             <Button type="button" variant="outline" className="w-full" onClick={onDone}>
               OK
@@ -64,7 +75,7 @@ export function WheelResult({ result, onDone }: { result: SpinResult; onDone: ()
         ) : !opened ? (
           <>
             <DialogHeader className="items-center text-center">
-              <DialogTitle>Tu as gagné quelque chose 👀</DialogTitle>
+              <DialogTitle>{winnerName ? `${winnerName} a gagné quelque chose 👀` : 'Gagné 👀'}</DialogTitle>
               <DialogDescription>
                 Clique {CLICKS_NEEDED}× sur le coffre pour l’ouvrir — {CLICKS_NEEDED - clicks} restant
                 {CLICKS_NEEDED - clicks > 1 ? 's' : ''}
@@ -110,7 +121,7 @@ export function WheelResult({ result, onDone }: { result: SpinResult; onDone: ()
             />
             <DialogHeader className="items-center text-center">
               <span aria-hidden className="relative text-6xl leading-none">🎉</span>
-              <DialogTitle className="mt-3">Tu gagnes</DialogTitle>
+              <DialogTitle className="mt-3">{winnerName ? `${winnerName} gagne` : 'Gagné'}</DialogTitle>
               <DialogDescription className="text-lg font-semibold text-foreground">
                 {result.prize?.label ?? result.sectorLabel}
               </DialogDescription>
@@ -119,7 +130,7 @@ export function WheelResult({ result, onDone }: { result: SpinResult; onDone: ()
               <p className="text-3xl font-semibold tabular-nums">{eur(result.prize.amountEur)}</p>
             )}
             <p className="text-sm text-muted-foreground">
-              Ton gain est enregistré — l’agence te le versera / l’appliquera.
+              Le gain est enregistré — l’agence le versera / l’appliquera.
             </p>
             <Button type="button" className="mt-2 w-full" onClick={onDone}>
               Revenir à la roue

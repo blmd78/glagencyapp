@@ -88,5 +88,3 @@ export interface MeData {
   goldCount: number
   bossUnlocked: boolean
 }
-
-export type MeVue = 'progression' | 'historique' | 'classement'

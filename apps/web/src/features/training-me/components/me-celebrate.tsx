@@ -134,7 +134,8 @@ export function MeCelebrate({ profileId, level, rankTier, rankName, rankEmoji, a
 
   return (
     <Dialog open onOpenChange={() => setShown(null)}>
-      <DialogContent className="sm:max-w-[420px]">
+      {/* `gla` : portail sur <body>, hors du conteneur de la page (cf. me-trophies). */}
+      <DialogContent className="gla sm:max-w-[420px]">
         <DialogHeader className="items-center text-center">
           <span aria-hidden className="text-6xl leading-none">{shown === 'done' ? '🏆' : rankEmoji}</span>
           <DialogTitle className="mt-3 text-2xl">

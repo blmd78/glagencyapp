@@ -7,16 +7,19 @@ import { cn } from '@/lib/utils'
  * GLA (`drawWheel`) : viewBox 200×200, rayon 98, **0° = le haut** (là où pointe le triangle),
  * angles croissants dans le sens horaire.
  *
- * DA de l'app, pas celle de GLA (demandes du 2026-08-19/20) : sobre mais « dopamine » — gagner =
- * VERT (la couleur de l'argent dans l'app), en deux tons alternés ; perdre = `destructive`. Le
- * reste sur les tokens du thème : séparateurs couleur de fond, pointeur et moyeu `foreground`,
- * libellés blancs (lisibles sur les deux verts et le rouge, light comme dark). Les verts viennent
- * de la palette Tailwind v4 (`--color-emerald-*`, émise par `@import "tailwindcss"`).
+ * COULEURS de GLA (`wheelColors`), reprises telles quelles : la roue tourne dans les huit teintes
+ * de l'original (violet, verts, ambre, indigo, rose), et un secteur perdant est TOUJOURS rose-rouge
+ * quel que soit son rang. Les deux verts sobres qu'on avait avant (décision du 2026-08-19) sont
+ * abandonnés : la demande du 2026-08-24 est une reprise fidèle, et une roue bicolore ne « tourne »
+ * pas à l'œil — c'est l'alternance de teintes qui donne la sensation de vitesse.
+ *
+ * Séparateurs, pointeur et moyeu sur les couleurs GLA en dur (`#0e1016`, `--gla-warning`,
+ * `--gla-accent`) : cette roue ne vit que sur la face Formation.
  */
 
-/** Deux tons pour les secteurs gagnants, alternés par POSITION parmi les gagnants (pas par index). */
-const WIN_TONES = ['var(--color-emerald-500)', 'var(--color-emerald-600)']
-const LOSE_TONE = 'var(--destructive)'
+/** Les huit teintes de `wheelColors`, dans l'ordre — un secteur prend celle de son INDEX. */
+const TONES = ['#8b5cf6', '#13C57A', '#19d3a2', '#a855f7', '#ffb547', '#6366f1', '#2dd4bf', '#f472b6']
+const LOSE_TONE = '#ff5d7c'
 const R = 98
 const CX = 100
 const CY = 100
@@ -84,10 +87,15 @@ export function WheelSvg({
   const single = angles.length === 1
   return (
     <div className={cn('relative mx-auto aspect-square w-full max-w-[340px]', className)}>
-      {/* Pointeur FIXE, hors du <svg> qui tourne : c'est lui qui désigne le secteur à 0°. */}
-      <svg aria-hidden="true" viewBox="0 0 24 20" className="absolute -top-1 left-1/2 z-10 w-6 -translate-x-1/2">
-        <path d="M12 20 L0 0 H24 Z" fill="var(--foreground)" />
-      </svg>
+      {/* Pointeur FIXE, hors du <svg> qui tourne : c'est lui qui désigne le secteur à 0°. Le ▼
+          ambre de GLA, avec son ombre portée. */}
+      <span
+        aria-hidden
+        className="absolute -top-2.5 left-1/2 z-[3] -translate-x-1/2 text-[34px] leading-none text-[#ffb547]"
+        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,.6))' }}
+      >
+        ▼
+      </span>
       <svg
         viewBox="0 0 200 200"
         role="img"
@@ -96,6 +104,8 @@ export function WheelSvg({
         style={{
           transform: `rotate(${rotation}deg)`,
           transition: spinning ? 'transform 4.8s cubic-bezier(.15,.75,.2,1)' : 'none',
+          // La lueur violette sous la roue (GLA) : c'est elle qui la détache du fond.
+          filter: 'drop-shadow(0 12px 34px rgba(139,92,246,.45))',
         }}
       >
         {angles.map(({ index, a0, a1 }, i) => {
@@ -106,10 +116,9 @@ export function WheelSvg({
           const [x0, y0] = polar(R, a0)
           const [x1, y1] = polar(R, a1)
           const [lx, ly] = polar(R * LABEL_R, mid)
-          // Alternance comptée sur les gagnants dessinés AVANT celui-ci : deux gagnants voisins
-          // n'ont jamais le même ton, même de part et d'autre d'un secteur perdant.
-          const winsBefore = angles.slice(0, i).filter((a) => !sectors[a.index]?.lose).length
-          const fill = s.lose ? LOSE_TONE : WIN_TONES[winsBefore % WIN_TONES.length]
+          // Teinte par INDEX du secteur (GLA `wheelColors(i)`), et non par rang parmi les gagnants :
+          // c'est ce qui fait que deux configurations différentes ne se ressemblent pas.
+          const fill = s.lose ? LOSE_TONE : TONES[index % TONES.length]
           // Libellé RADIAL (il court du moyeu vers la jante) et non tangentiel : un texte tangentiel
           // se retrouve tête en bas dès que le secteur passe sous l'horizontale.
           // `rotate()` en SVG tourne dans le sens horaire (y vers le bas) et `polar` pose le point à
@@ -127,8 +136,8 @@ export function WheelSvg({
                 <path
                   d={`M${CX},${CY} L${x0.toFixed(2)},${y0.toFixed(2)} A${R},${R} 0 ${span > 180 ? 1 : 0} 1 ${x1.toFixed(2)},${y1.toFixed(2)} Z`}
                   fill={fill}
-                  stroke="var(--background)"
-                  strokeWidth={2}
+                  stroke="#0e1016"
+                  strokeWidth={1.5}
                 />
               )}
               {span > 7 && (
@@ -137,7 +146,7 @@ export function WheelSvg({
                   y={ly.toFixed(2)}
                   fill="#fff"
                   fontSize={fontSize(span)}
-                  fontWeight={600}
+                  fontWeight={700}
                   textAnchor="middle"
                   dominantBaseline="middle"
                   transform={`rotate(${tilt.toFixed(1)},${lx.toFixed(2)},${ly.toFixed(2)})`}
@@ -149,8 +158,8 @@ export function WheelSvg({
             </g>
           )
         })}
-        {/* Moyeu : masque la pointe des secteurs au centre. */}
-        <circle cx={CX} cy={CY} r={14} fill="var(--background)" stroke="var(--foreground)" strokeWidth={2} />
+        {/* Moyeu : masque la pointe des secteurs au centre. Cerclé de vert et lumineux (GLA). */}
+        <circle cx={CX} cy={CY} r={12} fill="#262b3b" stroke="#13C57A" strokeWidth={4} />
       </svg>
     </div>
   )

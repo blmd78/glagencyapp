@@ -70,6 +70,9 @@ export const EVENT_KINDS = [
   'rapport',
   // Gain à la roue (trigger 0122) — `to_value` déjà lisible.
   'recompense',
+  // Ancienne plateforme Good Luck Agency : rattachement, reprise d'historique, détachement,
+  // libération de l'identifiant (trigger 0123). SURTOUT PAS `'lien'`, qui est le lien MyPuls.
+  'formation',
 ] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
@@ -209,6 +212,10 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
     // — … ») : déjà lisible, aucun parsing à faire ici.
     case 'recompense':
       return to ?? 'Récompense'
+    // `to`/`from` composés par le trigger 0123 (« Ancienne plateforme : historique repris de
+    // Axel93 — 214 sessions ») : déjà lisibles, aucun parsing à faire ici.
+    case 'formation':
+      return to ?? from ?? 'Ancienne plateforme'
     case 'sortie': {
       if (!to) return 'Départ annulé (réactivé)'
       // `to` = '2026-08-15 (vire)', composé par le trigger. Parsé par REGEX et non par index : un

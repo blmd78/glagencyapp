@@ -23,6 +23,7 @@ import { computeVerdict, gradeQi, pickQiQuestions } from '@glagency/core'
 import { createAdminClient, type Database } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
 import { RECRUIT_PERSONA_NAMES } from '@/lib/ai/recruit-prompts'
+import { clientIp } from '@/lib/http/client-ip'
 import { saveConnectionInput, saveQiInput, saveTypingInput, startAttemptInput, submitCandidateInput } from './schema'
 import {
   ATTEMPT_OVER,
@@ -30,7 +31,6 @@ import {
   CLOSED,
   STEPS_MISSING,
   anyBlocklistMatch,
-  clientIp,
   loadAttempt,
   readConfig,
   requireInProgress,

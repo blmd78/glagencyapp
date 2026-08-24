@@ -4,9 +4,12 @@ import { cn } from '@/lib/utils'
 import type { ThreadScore } from '../types'
 
 /**
- * Détail d'une note (`ThreadScore`) : objectif atteint / plafond, barres par axe (25 par défaut,
- * 100 pour le boss — 6 étapes /100), moments marquants (👍 bon geste / 🔧 point à travailler +
- * indice), commentaire libre.
+ * « Note par critère » (GLA) : une barre par axe, colorée au feu tricolore.
+ *
+ * Le COMMENTAIRE du correcteur et les MOMENTS marquants n'y sont plus : le premier a sa propre
+ * carte « Débrief du coach », les seconds sont collés aux messages qui les ont provoqués
+ * (`AnnotatedTranscript`). C'est le découpage de `render.trainResult`, et il vaut mieux que notre
+ * bloc unique : une remarque perdue au milieu des barres ne se lit pas.
  *
  * Chaque axe est coloré au MÊME feu tricolore que la jauge de note (`scoreColor`) : sur un écran
  * de résultat, on doit voir en un coup d'œil QUEL critère a coûté les points, sans lire les
@@ -14,20 +17,15 @@ import type { ThreadScore } from '../types'
  */
 export function ScorePanel({
   score,
-  objectiveLabel,
   axisMax = 25,
 }: {
   score: ThreadScore
-  objectiveLabel: string
   /** 25 (solo / défi) ou 100 (boss, étape /100). */
   axisMax?: 25 | 100
 }) {
   return (
-    <div className="flex flex-col gap-4 rounded-xl border p-4">
-      <p className="text-sm text-muted-foreground">
-        {score.objectiveReached ? `${objectiveLabel} atteint` : `${objectiveLabel} non atteint`}
-        {score.capped && ' · plafonné à 65'}
-      </p>
+    <section className="gla-cardbox p-5">
+      <h3 className="mb-3 text-[15px] font-bold">Note par critère</h3>
 
       {score.axes.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -49,21 +47,6 @@ export function ScorePanel({
         </div>
       )}
 
-      {score.moments.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {score.moments.map((m, i) => (
-            <li key={i} className="rounded-lg border p-3 text-sm">
-              <p>
-                {m.type === 'good' ? '👍' : '🔧'} « {m.cite} »
-              </p>
-              <p className="mt-1 text-muted-foreground">{m.probleme}</p>
-              <p className="mt-1 text-muted-foreground">Indice : {m.indice}</p>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {score.comment && <p className="whitespace-pre-line text-sm">{score.comment}</p>}
-    </div>
+    </section>
   )
 }

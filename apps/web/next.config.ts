@@ -18,6 +18,9 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   // Packages workspace consommés en TS source → transpilés par Next.
   transpilePackages: ['@glagency/core', '@glagency/db'],
+  // `pg` (client Postgres de la reprise Good Luck Agency) charge des binaires natifs optionnels et
+  // résout des modules à l'exécution : bundlé par Turbopack, il casse. Laissé externe côté serveur.
+  serverExternalPackages: ['pg'],
   // CSRF des Server Actions = check Origin===Host par défaut de Next (same-origin, fonctionne sur
   // Vercel prod ET preview). On épingle en plus le domaine prod (belt-and-suspenders ; le same-origin
   // reste autorisé → ne casse pas les preview).

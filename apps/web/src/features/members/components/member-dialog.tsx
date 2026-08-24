@@ -20,9 +20,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
 import { loadMemberEvents } from '../actions-lifecycle'
+import { loadLegacyState } from '../actions-legacy'
 import { checkRecruitByEmail } from '../actions-recruit'
 import { memberInput, type MemberForm } from '../schema'
 import { memberDefaults } from './member-defaults'
+import type { LegacyAdminState } from '../legacy-link'
 import type { Member, MemberEvent, RecruitCheck } from '../types'
 import { MemberAccessFields } from './member-access-fields'
 import { MemberArrivalFields } from './member-arrival-fields'
@@ -30,6 +32,7 @@ import { MemberChatterLinkField } from './member-chatter-link-field'
 import { MemberClosingFields } from './member-closing-fields'
 import { MemberHistoryTab } from './member-history-tab'
 import { MemberIdentityFields } from './member-identity-fields'
+import { MemberLegacyFields } from './member-legacy-fields'
 import { MemberPayForm, MemberPayPlaceholder } from './member-pay-form'
 import { MemberPermissionFields } from './member-permission-fields'
 
@@ -162,6 +165,9 @@ export function MemberDialog({
   // Historique (0101) : chargé quand on ARRIVE sur l'onglet, via `onValueChange` ci-dessous —
   // un événement, pas un effet (patron `useMemberPanel`, partagé avec les piles de noms).
   const { panel: historyPanel, open: loadHistory } = useMemberPanel<MemberEvent[]>(loadMemberEvents)
+  // Reprise Good Luck Agency (D7) : même patron que l'historique — la lecture (rattachement +
+  // tentatives échouées) ne part qu'en arrivant sur l'onglet, jamais à l'ouverture du dialog.
+  const { panel: legacyPanel, open: loadLegacy } = useMemberPanel<LegacyAdminState>(loadLegacyState)
   // Commande l'apparition du champ « Arrivé le » (0101) — observé ici, comme `roleValue`, plutôt
   // que dans le composant de champs : un `useWatch` par composant multiplierait les re-rendus.
   const isNewValue = useWatch({ control, name: 'isNew' })
@@ -224,6 +230,13 @@ export function MemberDialog({
   // TOUS les membres dès que l'appelant est admin — un membre existant sans `pay` n'est donc pas
   // atteignable ici, le repli sur le placeholder ne sert qu'à la création.
   const showPayTab = viewer === 'admin' && roleValue === 'chatteur'
+
+  // Onglet « Ancienne plateforme » (reprise Good Luck Agency, D7) : ADMIN STRICT et membre EXISTANT
+  // — il n'y a rien à rattacher à quelqu'un qui n'a pas encore d'id. Un onglet plutôt qu'un bloc
+  // dans le formulaire Général : ses cinq gestes (rattacher / resynchroniser / détacher / libérer /
+  // débloquer) sont indépendants d'« Enregistrer », et un `<form>` imbriqué dans un autre est
+  // invalide en HTML. Même parti pris que l'onglet Compta, admin-seul lui aussi.
+  const showLegacyTab = viewer === 'admin' && !!member
 
   const generalForm = (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -333,11 +346,13 @@ export function MemberDialog({
               // Une seule lecture par ouverture de dialog : `panel.id` retient déjà ce membre.
               if (v === 'historique' && member && historyPanel?.id !== member.id)
                 loadHistory(member.id)
+              if (v === 'ancienne' && member && legacyPanel?.id !== member.id) loadLegacy(member.id)
             }}
           >
             <TabsList>
               <TabsTrigger value="general">Général</TabsTrigger>
               {showPayTab && <TabsTrigger value="compta">Compta</TabsTrigger>}
+              {showLegacyTab && <TabsTrigger value="ancienne">Ancienne plateforme</TabsTrigger>}
               {member && <TabsTrigger value="historique">Historique</TabsTrigger>}
             </TabsList>
             <TabsContent value="general">{generalForm}</TabsContent>
@@ -348,6 +363,15 @@ export function MemberDialog({
                 ) : (
                   <MemberPayPlaceholder />
                 )}
+              </TabsContent>
+            )}
+            {showLegacyTab && member && (
+              <TabsContent value="ancienne">
+                <MemberLegacyFields
+                  profileId={member.id}
+                  panel={legacyPanel}
+                  reload={() => void loadLegacy(member.id)}
+                />
               </TabsContent>
             )}
             {member && (

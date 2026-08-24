@@ -4,7 +4,6 @@ import { addDays, mondayOf } from '../domain/dates'
 export type WheelSector = { label: string; weight: number; lose: boolean }
 export type WheelPrize = { label: string; weight: number; amountEur: number | null }
 
-export const WHEEL_TOP_N = 3
 
 // (Les défauts GLA — roue Cadeau 80 / Raté 20 et les 5 lots du coffre — vivent en base : la seed de
 // la migration 0122 écrit la ligne unique `training_wheel_config`, que l'admin édite ensuite. Les

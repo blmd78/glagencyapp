@@ -8,7 +8,6 @@
 // dupliquées dans plusieurs actions (identité réseau, config, état de la tentative) : les écrire
 // une fois ici évite qu'une action en oublie une.
 
-import { headers } from 'next/headers'
 import { z } from 'zod'
 import type { QiSlot, RecruitConfig } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
@@ -28,24 +27,6 @@ export const RATE_LIMITED = 'Trop de tentatives depuis ce réseau — réessaie 
 export const ATTEMPT_OVER = 'Ce test est déjà terminé.'
 export const STEPS_MISSING = 'Termine toutes les épreuves d’abord.'
 
-/**
- * IP de l'appelant, pour le rate-limit d'entrée (et la blocklist IP, qui reste une décision
- * d'admin). Vercel pose `x-real-ip` (valeur unique) et `x-forwarded-for` (liste) sur chaque requête
- * entrante ; en local, sans proxy, aucun des deux n'existe → `null`, et les gardes qui dépendent de
- * l'IP se neutralisent d'elles-mêmes (on ne bloque personne sur une IP inconnue).
- * Même avec l'en-tête le plus fiable, cette valeur reste indicative : elle borne un abus
- * opportuniste (le vrai plafond de coût reste `bot_messages` + le test fermable en un clic), pas un
- * attaquant déterminé.
- */
-export async function clientIp(): Promise<string | null> {
-  const h = await headers()
-  // Valeur unique posée par la plateforme d'abord (`x-real-ip`) : la liste `x-forwarded-for` peut
-  // être concaténée avec des valeurs ENTRANTES forgées par le client, dont la première position.
-  // XFF ne sert que de repli (autre proxy en amont), et on n'en garde que la première entrée.
-  const real = h.get('x-real-ip')?.trim()
-  if (real) return real
-  return h.get('x-forwarded-for')?.split(',')[0]?.trim() || null
-}
 
 // ---------------------------------------------------------------------------------------------
 // Configuration (recruit_config, ligne unique)

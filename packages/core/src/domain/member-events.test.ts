@@ -45,6 +45,7 @@ describe('vocabulaire', () => {
       'sanction',
       'rapport',
       'recompense',
+      'formation',
     ])
     expect(isEventKind('shift')).toBe(true)
     expect(isEventKind('nimportequoi')).toBe(false)
@@ -162,6 +163,19 @@ describe('memberEventLabel — chaque type produit une phrase lisible', () => {
       'Roue : Raté — Top 1 — semaine du 11/08',
     )
     expect(memberEventLabel('recompense', null, null)).toBe('Récompense')
+  })
+
+  it('ancienne plateforme (reprise GLA, 0123) : la valeur du trigger est déjà lisible', () => {
+    expect(memberEventLabel('formation', null, 'Ancienne plateforme : historique repris de Axel93 — 214 sessions')).toBe(
+      'Ancienne plateforme : historique repris de Axel93 — 214 sessions',
+    )
+    // Un détachement n'a qu'un `from` — la phrase reste lisible, et `memberEventOp` en fait bien
+    // une « suppression ».
+    expect(memberEventLabel('formation', 'Ancienne plateforme : détaché de Axel93', null)).toBe(
+      'Ancienne plateforme : détaché de Axel93',
+    )
+    expect(memberEventOp('Ancienne plateforme : détaché de Axel93', null)).toBe('suppression')
+    expect(memberEventLabel('formation', null, null)).toBe('Ancienne plateforme')
   })
 
   it('rapport du soir supprimé : date en français, modèle en clair', () => {

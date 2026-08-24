@@ -200,9 +200,10 @@ export const WORKSPACES: Workspace[] = [
     nav: [
       { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
-      // Sans `slug` propre (anyOf) : pas une case cochable à part dans Membres — le droit
-      // vient déjà de Suivi/Entraînement, comme Modules juste après.
-      { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-entrainement', 'frm-suivi'] },
+      // Réservée à l'ENCADREMENT depuis la règle du 2026-08-24 : c'est le manager qui fait tourner
+      // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il
+      // apprend son gain de vive voix. Pas de `slug` propre : le droit vient de Suivi.
+      { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-suivi'] },
       // Dossiers du test de recrutement public (/postuler) — `adminOnly` SANS slug : le
       // recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables recruit_*),
       // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de

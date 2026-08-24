@@ -1,5 +1,6 @@
 import { Podium } from '@/components/training/podium'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { RankList } from '@/components/training/rank-list'
+import { ModuleRankModal } from './module-rank-modal'
 import type { ModuleRankRow } from '../services/get-module-ranking'
 
 /**
@@ -12,38 +13,36 @@ import type { ModuleRankRow } from '../services/get-module-ranking'
 export function ModulePodium({ rows, myProfileId }: { rows: ModuleRankRow[]; myProfileId: string }) {
   if (rows.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-1 p-5 text-center text-sm text-muted-foreground">
-          <span aria-hidden className="text-3xl opacity-50">🏆</span>
-          <p>Personne n’a encore marqué de points sur ce module.</p>
-          <p className="font-semibold text-foreground">Sois le premier 🔥</p>
-        </CardContent>
-      </Card>
+      <section className="gla-panel px-2 py-[14px] text-center text-[12.5px] leading-relaxed text-[var(--gla-muted)]">
+        <div aria-hidden className="text-[30px] opacity-50">🏆</div>
+        Personne n’a encore marqué de points sur ce module.
+        <br />
+        <b className="text-[var(--gla-accent)]">Sois le premier 🔥</b>
+      </section>
     )
   }
   const myIndex = rows.findIndex((r) => r.profileId === myProfileId)
   return (
-    <Card>
-      <CardHeader className="pb-4">
-        <CardTitle className="text-base">
-          <span aria-hidden className="mr-1.5">🏆</span> Top 3 du module
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        <Podium rows={rows} myProfileId={myProfileId} />
-        <p className="border-t border-dashed pt-3 text-center text-xs font-medium text-muted-foreground">
-          {myIndex < 0 ? (
-            'Joue un cas de ce module pour entrer au classement'
-          ) : myIndex > 2 ? (
-            <>
-              Toi : <span className="font-bold text-foreground">#{myIndex + 1}</span> —{' '}
-              {rows[myIndex]?.points.toLocaleString('fr-FR')} pts
-            </>
-          ) : (
-            'Tu es sur le podium 🔥'
-          )}
-        </p>
-      </CardContent>
-    </Card>
+    <section className="gla-panel">
+      <h2 className="mb-[14px] flex items-center gap-2 text-[15px] font-bold">
+        <span aria-hidden>🏆</span> Top 3 du module
+      </h2>
+      <Podium rows={rows} myProfileId={myProfileId} />
+      <p className="flex items-center justify-center gap-2 border-t border-dashed border-[var(--gla-border)] pt-1 text-[12px] font-semibold text-[var(--gla-muted)]">
+        {myIndex < 0 ? (
+          'Joue un cas de ce module pour entrer au classement'
+        ) : myIndex > 2 ? (
+          <>
+            Toi : <b className="text-white">#{myIndex + 1}</b> — {rows[myIndex]?.points.toLocaleString('fr-FR')} pts
+          </>
+        ) : (
+          'Tu es sur le podium 🔥'
+        )}
+      </p>
+      {/* `RankList` est rendu ICI, côté serveur, et passé en children : seul son HTML traverse. */}
+      <ModuleRankModal>
+        <RankList rows={rows} myProfileId={myProfileId} />
+      </ModuleRankModal>
+    </section>
   )
 }

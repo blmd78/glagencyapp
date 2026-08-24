@@ -13,17 +13,26 @@ import type { SessionThread } from '../types'
  * points » juste dessous, le bon geste en vert.
  *
  * L'appariement (`matchMomentIndex`, domaine pur et testé) est nécessairement approximatif : le
- * correcteur cite le message sans toujours le recopier au caractère près. Un moment non apparié
- * n'est pas perdu — il reste affiché dans le panneau de note (`ScorePanel`), qui les liste tous.
+ * correcteur cite le message sans toujours le recopier au caractère près. Les moments qui ne
+ * retrouvent pas leur message sont listés SOUS la conversation — perdre une remarque du correcteur
+ * parce qu'une citation était imprécise serait le pire des deux mondes.
  */
 export function AnnotatedTranscript({ thread }: { thread: SessionThread }) {
   const moments = thread.score?.moments ?? []
   const cites = moments.map((m) => m.cite)
+  const matched = new Set(
+    thread.messages.flatMap((m) => {
+      if (m.speaker === 'fan') return []
+      const i = matchMomentIndex(m.body, cites)
+      return i == null ? [] : [i]
+    }),
+  )
+  const orphans = moments.filter((_, i) => !matched.has(i))
 
   return (
-    <section className="flex flex-col gap-1 rounded-xl border p-4">
-      <h3 className="font-semibold">Reprise de ta conversation</h3>
-      <p className="mb-3 text-xs text-muted-foreground">
+    <section className="gla-cardbox flex flex-col gap-1 p-5">
+      <h3 className="text-[15px] font-bold">Reprise de ta conversation</h3>
+      <p className="mb-3 text-xs text-[var(--gla-muted)]">
         Ta conv rejouée — <span className="font-semibold text-green-600">vert = bien joué</span>,{' '}
         <span className="font-semibold text-red-600">rouge = points perdus</span>
       </p>
@@ -64,6 +73,28 @@ export function AnnotatedTranscript({ thread }: { thread: SessionThread }) {
               </li>
             )
           })}
+        </ul>
+      )}
+
+      {orphans.length > 0 && (
+        <ul className="mt-3 flex flex-col gap-2 border-t border-[var(--gla-border)] pt-3">
+          {orphans.map((m, i) => (
+            <li
+              key={i}
+              className={cn(
+                'rounded-lg border p-2.5 text-xs',
+                m.type === 'good'
+                  ? 'border-green-600/40 bg-green-50 dark:bg-green-950'
+                  : 'border-red-600/40 bg-red-50 dark:bg-red-950',
+              )}
+            >
+              <p className={cn('font-semibold', m.type === 'good' ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300')}>
+                {m.type === 'good' ? '✅ Bien joué' : '⚠️ Ça coûte des points'} — « {m.cite} »
+              </p>
+              {m.probleme && <p className="mt-1">{m.probleme}</p>}
+              {m.indice && <p className="mt-1 text-muted-foreground">💡 {m.indice}</p>}
+            </li>
+          ))}
         </ul>
       )}
     </section>

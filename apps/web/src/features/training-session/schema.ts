@@ -2,8 +2,15 @@ import { z } from 'zod'
 import { requiredInt } from '@/lib/form-fields'
 
 /**
- * Schémas de l'entraînement (composer + actions de cycle de vie). Miroirs des `check` SQL 0117 :
- * `training_messages.body` 1-1000, `media_price` 1-10000, `training_reports.message` 1-2000.
+ * Schémas de l'entraînement (composer + actions de cycle de vie).
+ *
+ * ⚠️ CES BORNES SONT LA RÈGLE **PRODUIT**, plus stricte que le SQL — ce ne sont plus des miroirs.
+ * Depuis 0123 (reprise Good Luck Agency), le `check` de `training_messages.body` accepte 200 000
+ * caractères et celui de `media_price` accepte 0 : il fallait relâcher la base pour importer 59
+ * transcriptions de plus de 1 000 caractères et 196 médias offerts, sans les tronquer (D5).
+ * Rien de cela ne doit remonter jusqu'au composer : un chatter écrit 1 000 caractères au plus et
+ * ne peut pas offrir un média. Seul l'import écrit des 0 et des corps longs.
+ * `training_reports.message` reste 1-2000 des deux côtés.
  */
 
 /** Bornes du prix d'un média verrouillé — UNE déclaration pour le popover (saisie) et le composer. */

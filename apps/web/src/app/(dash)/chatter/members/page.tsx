@@ -42,6 +42,15 @@ async function loadActivity(
 /** Plafond du flux d'activité. La vue DIT quand il est atteint — pas de troncature muette. */
 const ACTIVITY_LIMIT = 200
 
+/**
+ * Budget de durée des Server Actions de cette route. LE FILET ADMIN DE LA REPRISE GLA POSTE ICI,
+ * pas sur Ma formation : `linkLegacyAccount` / `resyncLegacyAccount` écrivent jusqu'à ~9 300 lignes
+ * puis recalculent tous les agrégats du membre. Le défaut de 15 s ne suffit pas — au dépassement
+ * l'admin reçoit « Récupération partielle — relancez Resynchroniser », jamais un 500 muet.
+ * Patron du projet sous `cacheComponents: true` : `formation/overview/page.tsx:16`.
+ */
+export const maxDuration = 300
+
 export default async function MembersPage({
   searchParams,
 }: {

@@ -25,7 +25,9 @@ export function MessageList({
   }, [messages.length, pendingFan])
 
   return (
-    <ul ref={ref} className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto p-4">
+    // Hauteur FIXE (GLA `.chat-big`), pas un max : la barre de saisie reste au même endroit du
+    // premier au dernier message, au lieu de descendre à chaque échange.
+    <ul ref={ref} className="flex h-[58vh] flex-col gap-2 overflow-y-auto py-1.5">
       {messages.length === 0 && !pendingFan && (
         <li className="py-6 text-center text-sm text-muted-foreground">La conversation n’a pas encore commencé.</li>
       )}
