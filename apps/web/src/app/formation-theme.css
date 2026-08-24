@@ -57,18 +57,32 @@
 
   color: var(--gla-text);
   font-family: var(--font-gla-body), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  /* Le fond est peint par `AuroraBg` (canvas fixe, derrière tout) : ce conteneur reste
-     TRANSPARENT, sinon il masquerait l'aurore. Le `--gla-bg` opaque n'est là que comme repli si le
-     canvas ne monte pas (JS coupé). */
-  background: transparent;
+  /* Fond TOUJOURS opaque : c'est lui qui couvre celui du CRM. Le canvas de l'aurore se peint
+     par-dessus (`.gla > canvas`), jamais à la place — un canvas en z-index négatif passait
+     derrière le fond opaque du layout et on ne voyait plus rien du tout. */
+  background: var(--gla-bg);
+  position: relative;
+  isolation: isolate;
   margin: -1.5rem;
   padding: 1.5rem;
   min-height: calc(100svh - 4rem);
 }
 
-/* Repli sans JS : le canvas n'existe pas, on retombe sur le fond plat de GLA. */
-.gla:not(:has(canvas)) {
-  background: var(--gla-bg);
+/* L'aurore : au-dessus du fond plat, sous le contenu. `absolute` (et non `fixed`) pour rester
+   bornée au conteneur — en `fixed` elle débordait sur la sidebar et l'en-tête du CRM. */
+.gla > canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* Tout le reste passe au-dessus de l'aurore. */
+.gla > *:not(canvas) {
+  position: relative;
+  z-index: 1;
 }
 
 /* Titres en Space Grotesk, comme GLA (`--font-head`). */

@@ -14,8 +14,10 @@ type Blob = { bx: number; by: number; ax: number; ay: number; sp: number; ph: nu
  * C'est ce qui fait qu'un écran de formation ne ressemble pas à un tableur : il bouge, tout le
  * temps, sans jamais attirer l'œil. Un dégradé statique ne rend pas cet effet — d'où le canvas.
  *
- * Fixe et derrière tout (`-z-10`, `pointer-events-none`) : il ne capte aucun clic et ne participe
- * pas au flux. La boucle est arrêtée au démontage (navigation vers une autre face).
+ * Le POSITIONNEMENT vient du thème (`.gla > canvas`, `formation-theme.css`) et non d'ici : le
+ * canvas doit se peindre AU-DESSUS du fond opaque de `.gla` et SOUS le contenu. En `fixed` avec un
+ * z-index négatif, il passait derrière le fond du layout CRM — on ne voyait plus aucun fond.
+ * La boucle est arrêtée au démontage (navigation vers une autre face).
  *
  * `prefers-reduced-motion` : on peint UNE image fixe et on s'arrête là — le fond garde son grain
  * sans mouvement, plutôt que de disparaître.
@@ -33,18 +35,25 @@ export function AuroraBg() {
     const resize = () => {
       // Plafonné à 2 : au-delà, on peint 4× plus de pixels pour un flou que personne ne voit.
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      w = cv.width = window.innerWidth * dpr
-      h = cv.height = window.innerHeight * dpr
-      cv.style.width = `${window.innerWidth}px`
-      cv.style.height = `${window.innerHeight}px`
+      // Dimensions du CONTENEUR (le canvas est `absolute inset-0` dedans), pas de la fenêtre :
+      // sur une page longue, l'aurore doit couvrir toute la hauteur, pas seulement le premier écran.
+      const r = cv.getBoundingClientRect()
+      w = cv.width = Math.max(1, r.width * dpr)
+      h = cv.height = Math.max(1, r.height * dpr)
     }
     resize()
-    window.addEventListener('resize', resize)
+    // `ResizeObserver` et pas `window.resize` : le conteneur grandit quand le contenu arrive
+    // (streaming des panneaux), sans que la fenêtre bouge — l'aurore doit suivre.
+    const ro = new ResizeObserver(resize)
+    ro.observe(cv)
 
     const mouse = { x: 0.5, y: 0.5, active: false }
     const onMove = (e: MouseEvent) => {
-      mouse.x = e.clientX / window.innerWidth
-      mouse.y = e.clientY / window.innerHeight
+      // Position RELATIVE au canvas (il ne couvre plus la fenêtre entière depuis qu'il est borné
+      // au conteneur) : sinon le décalage de l'aurore ne suit plus le curseur.
+      const r = cv.getBoundingClientRect()
+      mouse.x = (e.clientX - r.left) / Math.max(1, r.width)
+      mouse.y = (e.clientY - r.top) / Math.max(1, r.height)
       mouse.active = true
     }
     const onOut = () => {
@@ -100,11 +109,11 @@ export function AuroraBg() {
 
     return () => {
       cancelAnimationFrame(raf)
-      window.removeEventListener('resize', resize)
+      ro.disconnect()
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseout', onOut)
     }
   }, [])
 
-  return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 -z-10" />
+  return <canvas ref={ref} aria-hidden />
 }

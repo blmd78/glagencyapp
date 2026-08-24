@@ -2,6 +2,7 @@ import { BOSS_UNLOCK_AVG, bossUnlocked, medalFor } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { DifficultyBars } from '@/components/training/difficulty-bars'
+import { MedalBar } from '@/components/training/medal-bar'
 import { PlayButton } from '@/components/training/play-button'
 import { MEDAL_EMOJI } from '@/lib/types/training'
 import type { MyBest } from '../services/get-my-bests'
@@ -57,6 +58,9 @@ export function CasesList({
                 {cases.filter((c) => bests.has(c.id)).length}/{cases.length} validés
               </span>
             </p>
+            <div className="mt-2">
+              <MedalBar chips={chipsOf(cases, bests)} />
+            </div>
             {competence.description && (
               <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--gla-muted)]">{competence.description}</p>
             )}
@@ -127,8 +131,8 @@ export function CasesList({
         <section className="gla-clist">
           <div className="gla-clist-hd flex flex-wrap items-center gap-3">
             <h3 className="text-sm font-bold">{withCases.length > 0 ? 'Autres exercices' : 'Exercices'}</h3>
-            <span className="ml-auto text-[11.5px] tabular-nums text-[var(--gla-muted)]">
-              {solos.filter((c) => bests.has(c.id)).length}/{solos.length} validés
+            <span className="ml-auto">
+              <MedalBar chips={chipsOf(solos, bests)} />
             </span>
           </div>
           <ul>
@@ -209,6 +213,14 @@ export function CasesList({
       })}
     </div>
   )
+}
+
+/** Les chips de médailles d'une liste de cas (`MedalBar`) — seuls les cas déjà joués comptent. */
+function chipsOf(cases: PublicCase[], bests: Map<string, MyBest>) {
+  return cases.flatMap((c) => {
+    const b = bests.get(c.id)
+    return b ? [{ caseId: c.id, caseTitle: c.title, best: b.bestTotal }] : []
+  })
 }
 
 /** La médaille d'un cas, façon GLA : la note colorée par palier, pas un badge à libellé. */
