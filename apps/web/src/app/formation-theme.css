@@ -70,13 +70,16 @@
  * Donc : `.gla` ne pose QUE des couleurs et une police, jamais de position ni de fond de page.
  */
 .gla-page {
-  /* Le fond de GLA, en CSS pur. L'aurore animée de l'original (canvas + `requestAnimationFrame`)
-     a été retirée le 2026-08-24 : une boucle d'animation permanente sur cinq pages coûte du CPU et
-     de la batterie en continu, pour un mouvement dont on peut se passer. Les deux halos figés en
-     gardent la teinte. */
+  /* L'aurore de GLA, FIGÉE. L'original la peint au canvas en `requestAnimationFrame` ; retirée le
+     2026-08-24 (une boucle d'animation permanente sur cinq pages coûte du CPU et de la batterie en
+     continu, pour un mouvement dont on peut se passer). Ces quatre halos reprennent ses teintes —
+     toutes VERTES, comme le tableau `cols` de l'original — dans des positions comparables. Coût
+     nul : c'est du dégradé, peint une fois. */
   background:
-    radial-gradient(1200px 620px at 12% -12%, rgba(139, 92, 246, 0.16), transparent 62%),
-    radial-gradient(950px 520px at 108% 8%, rgba(19, 197, 122, 0.14), transparent 62%),
+    radial-gradient(900px 560px at 18% -8%, rgba(19, 197, 122, 0.17), transparent 60%),
+    radial-gradient(760px 620px at 88% 6%, rgba(45, 235, 165, 0.13), transparent 60%),
+    radial-gradient(820px 520px at 62% 52%, rgba(25, 211, 162, 0.1), transparent 62%),
+    radial-gradient(700px 480px at 8% 78%, rgba(60, 245, 180, 0.09), transparent 62%),
     var(--gla-bg);
   position: relative;
   isolation: isolate;
