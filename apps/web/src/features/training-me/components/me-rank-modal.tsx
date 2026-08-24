@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { RankList } from '@/components/training/rank-list'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { cn } from '@/lib/utils'
 import type { MeData, RankScope } from '../types'
 
 const OPTIONS: { value: RankScope; label: string }[] = [
@@ -28,10 +28,15 @@ export function MeRankModal({ data, myProfileId }: { data: MeData; myProfileId: 
   const router = useRouter()
   const searchParams = useSearchParams()
   const { rankingScope, ranking, weeklyRanking } = data
-  const rows =
-    rankingScope === 'global'
-      ? ranking.map((r) => ({ ...r, streakDays: r.streakDays, bossDone: r.bossDone }))
-      : (weeklyRanking ?? []).map((r) => ({ ...r, streakDays: null, bossDone: null }))
+  // Les deux RPC ne rendent pas les mêmes colonnes : on ne garde que le socle commun, seul
+  // affiché ici (`RankList`).
+  const rows = (rankingScope === 'global' ? ranking : (weeklyRanking ?? [])).map((r) => ({
+    profileId: r.profileId,
+    displayName: r.displayName,
+    points: r.points,
+    casesDone: r.casesDone,
+    avgTotal: r.avgTotal,
+  }))
 
   const go = (next: string) => {
     // `ToggleGroup type="single"` renvoie '' au clic sur l'item déjà actif : rien à faire.
@@ -70,36 +75,7 @@ export function MeRankModal({ data, myProfileId }: { data: MeData; myProfileId: 
             ))}
           </ToggleGroup>
 
-          {rows.length === 0 ? (
-            <p className="py-4 text-center text-[12.5px] text-[var(--gla-muted)]">Personne n’a encore de résultat.</p>
-          ) : (
-            <ol className="flex flex-col gap-1">
-              {rows.map((r, i) => (
-                <li
-                  key={r.profileId}
-                  className={cn(
-                    'flex items-center gap-3 rounded-[10px] px-2.5 py-2 text-[13px]',
-                    r.profileId === myProfileId && 'bg-[var(--gla-p1-soft)] font-bold',
-                  )}
-                >
-                  <span className="w-6 text-center tabular-nums text-[var(--gla-faint)]">{i + 1}</span>
-                  <span className="min-w-0 flex-1 truncate">
-                    {r.displayName}
-                    {r.profileId === myProfileId && (
-                      <span className="ml-1.5 text-[11px] font-normal text-[var(--gla-muted)]">toi</span>
-                    )}
-                  </span>
-                  <span className="tabular-nums text-[var(--gla-muted)]">{r.casesDone} cas</span>
-                  <span className="w-12 text-right tabular-nums text-[var(--gla-muted)]">
-                    {r.avgTotal == null ? '—' : Math.round(r.avgTotal)}
-                  </span>
-                  <span className="w-14 text-right font-bold tabular-nums text-[var(--gla-accent)]">
-                    {r.points.toLocaleString('fr-FR')}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
+          <RankList rows={rows} myProfileId={myProfileId} />
         </DialogContent>
       </Dialog>
     </>
