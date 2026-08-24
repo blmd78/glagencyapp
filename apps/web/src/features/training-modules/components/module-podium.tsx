@@ -1,4 +1,5 @@
 import { Podium } from '@/components/training/podium'
+import { ModuleRankModal } from './module-rank-modal'
 import type { ModuleRankRow } from '../services/get-module-ranking'
 
 /**
@@ -37,6 +38,7 @@ export function ModulePodium({ rows, myProfileId }: { rows: ModuleRankRow[]; myP
           'Tu es sur le podium 🔥'
         )}
       </p>
+      <ModuleRankModal rows={rows} myProfileId={myProfileId} />
     </section>
   )
 }

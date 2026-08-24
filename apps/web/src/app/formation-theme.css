@@ -249,3 +249,165 @@
   background: linear-gradient(180deg, #171122, #0e0a18);
   border-color: #33285a;
 }
+
+/* ---- Listes encadrées (GLA `.clist` / `.clist-hd` / `.lrow` / `.csec`) ----
+   La brique de base des pages Modules et Module : un cadre à en-tête violet pâle, puis des lignes
+   séparées par un filet, cliquables et surlignées au survol. */
+.gla-clist {
+  border: 1px solid var(--gla-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(31, 23, 54, 0.4), rgba(14, 10, 26, 0.25)),
+    var(--gla-surface);
+  box-shadow: 0 24px 60px -46px rgba(139, 92, 246, 0.5);
+}
+
+.gla-clist-hd {
+  padding: 13px 16px;
+  background: rgba(139, 92, 246, 0.06);
+  border-bottom: 1px solid var(--gla-border);
+}
+
+.gla-lrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--gla-border);
+  transition: background 0.15s;
+  width: 100%;
+  text-align: left;
+}
+
+.gla-lrow:last-child {
+  border-bottom: none;
+}
+
+.gla-lrow:hover {
+  background: var(--gla-surface2);
+}
+
+/* Section dépliable (`<details>`) : le chevron ⌄ pivote à l'ouverture. */
+.gla-csec {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--gla-border);
+}
+
+.gla-csec:last-child {
+  border-bottom: none;
+}
+
+.gla-csec > summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14.5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.gla-csec > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gla-csec > summary::after {
+  content: '⌄';
+  color: var(--gla-faint);
+  font-size: 17px;
+  line-height: 1;
+  margin-top: -4px;
+  flex: none;
+  transition: transform 0.2s;
+}
+
+.gla-csec[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+/* ---- Bouton retour (GLA `.back`) ---- */
+.gla-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--gla-surface2);
+  border: 1px solid var(--gla-border);
+  border-radius: 11px;
+  padding: 11px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  transition: border 0.15s;
+}
+
+.gla-back:hover {
+  border-color: var(--gla-p1);
+}
+
+/* ---- Pastilles (GLA `.pill`) ---- */
+.gla-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 4px 11px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.gla-pill-accent {
+  background: var(--gla-accent-soft);
+  color: #3fd896;
+}
+
+/* ---- Le cours d'un module, rendu en markdown (GLA `.cours`) ---- */
+.gla-cours h1,
+.gla-cours h2,
+.gla-cours h3,
+.gla-cours h4 {
+  font-size: 14px;
+  margin: 14px 0 6px;
+  color: var(--gla-accent);
+  font-weight: 700;
+}
+
+.gla-cours > :first-child {
+  margin-top: 0;
+}
+
+.gla-cours p,
+.gla-cours li {
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.gla-cours ul,
+.gla-cours ol {
+  margin: 6px 0 8px 20px;
+  list-style: revert;
+}
+
+.gla-cours li {
+  margin: 3px 0;
+}
+
+.gla-cours table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 12.5px;
+}
+
+.gla-cours td,
+.gla-cours th {
+  border: 1px solid var(--gla-border);
+  padding: 6px 9px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.gla-cours th {
+  color: var(--gla-muted);
+  font-weight: 600;
+}

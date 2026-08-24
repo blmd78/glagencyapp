@@ -1,5 +1,5 @@
-import Link from 'next/link'
 import { Podium } from '@/components/training/podium'
+import { MeRankModal } from './me-rank-modal'
 import type { MeData, RankScope } from '../types'
 
 const SCOPE_LABEL: Record<RankScope, string> = {
@@ -62,12 +62,7 @@ export function MePodium({ data, myProfileId }: { data: MeData; myProfileId: str
         </>
       )}
 
-      <Link
-        href="/formation/ma-formation?vue=classement"
-        className="gla-link mt-3 flex w-full items-center justify-center gap-1.5 p-[11px] text-[12.5px] font-bold"
-      >
-        Voir le classement complet →
-      </Link>
+      <MeRankModal data={data} myProfileId={myProfileId} />
     </section>
   )
 }
