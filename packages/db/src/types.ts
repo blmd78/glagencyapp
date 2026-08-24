@@ -3159,6 +3159,98 @@ export type Database = {
           },
         ]
       }
+      training_legacy_claim_attempts: {
+        Row: {
+          cleared_at: string | null
+          created_at: string
+          id: string
+          ip: string | null
+          login_key: string
+          ok: boolean
+          profile_id: string
+          resync: boolean
+        }
+        Insert: {
+          cleared_at?: string | null
+          created_at?: string
+          id?: string
+          ip?: string | null
+          login_key: string
+          ok?: boolean
+          profile_id: string
+          resync?: boolean
+        }
+        Update: {
+          cleared_at?: string | null
+          created_at?: string
+          id?: string
+          ip?: string | null
+          login_key?: string
+          ok?: boolean
+          profile_id?: string
+          resync?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_legacy_claim_attempts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_legacy_claims: {
+        Row: {
+          claimed_at: string
+          detached_at: string | null
+          last_sync_at: string | null
+          linked_by: string | null
+          login_display: string
+          login_key: string
+          profile_id: string
+          sessions_count: number
+          sync_started_at: string | null
+        }
+        Insert: {
+          claimed_at?: string
+          detached_at?: string | null
+          last_sync_at?: string | null
+          linked_by?: string | null
+          login_display: string
+          login_key: string
+          profile_id: string
+          sessions_count?: number
+          sync_started_at?: string | null
+        }
+        Update: {
+          claimed_at?: string
+          detached_at?: string | null
+          last_sync_at?: string | null
+          linked_by?: string | null
+          login_display?: string
+          login_key?: string
+          profile_id?: string
+          sessions_count?: number
+          sync_started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_legacy_claims_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_legacy_claims_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_messages: {
         Row: {
           body: string
@@ -3468,6 +3560,7 @@ export type Database = {
           ended_at: string | null
           id: string
           kind: string
+          legacy_id: string | null
           module_id: string
           objective_reached: boolean | null
           profile_id: string
@@ -3482,6 +3575,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           kind: string
+          legacy_id?: string | null
           module_id: string
           objective_reached?: boolean | null
           profile_id: string
@@ -3496,6 +3590,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           kind?: string
+          legacy_id?: string | null
           module_id?: string
           objective_reached?: boolean | null
           profile_id?: string
@@ -4014,6 +4109,30 @@ export type Database = {
         }[]
       }
       training_last_week: { Args: never; Returns: string }
+      training_legacy_claim_begin: {
+        Args: { p_ip: string; p_login_key: string; p_profile: string }
+        Returns: string
+      }
+      training_legacy_claim_settle: {
+        Args: {
+          p_attempt: string
+          p_linked_by?: string
+          p_login_display: string
+          p_ok: boolean
+        }
+        Returns: string
+      }
+      training_legacy_login_holder: {
+        Args: { p_login: string }
+        Returns: {
+          display_name: string
+          profile_id: string
+        }[]
+      }
+      training_legacy_refresh_all: {
+        Args: { p_profile: string }
+        Returns: number
+      }
       training_module_ranking: {
         Args: { p_module: string }
         Returns: {
