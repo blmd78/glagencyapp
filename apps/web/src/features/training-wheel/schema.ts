@@ -50,4 +50,8 @@ export type WheelConfigInput = z.infer<typeof wheelConfigForm>
 /** Entrée du formulaire (inputs HTML : tout arrive en chaîne) — type de `useForm`. */
 export type WheelConfigFormValues = z.input<typeof wheelConfigForm>
 
-export const spinInput = z.object({ ticketId: z.uuid() })
+/**
+ * Le tirage vise un CHATTEUR, plus un ticket : depuis la règle du 2026-08-24, c'est l'encadrant
+ * qui lance la roue pour quelqu'un (partage d'écran), il n'y a plus de tour à consommer.
+ */
+export const spinInput = z.object({ forProfileId: z.uuid() })

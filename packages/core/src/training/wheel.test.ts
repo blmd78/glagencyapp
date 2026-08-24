@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lastCompletedWeek, pickWeighted, wheelWeekLabel, WHEEL_TOP_N } from './wheel'
+import { lastCompletedWeek, pickWeighted, wheelWeekLabel } from './wheel'
 
 describe('pickWeighted', () => {
   const items = [{ label: 'a', weight: 80 }, { label: 'b', weight: 0 }, { label: 'c', weight: 20 }]
@@ -27,5 +27,4 @@ describe('semaines', () => {
     expect(lastCompletedWeek('2026-08-16')).toBe('2026-08-03')   // dimanche
   })
   it('wheelWeekLabel', () => { expect(wheelWeekLabel('2026-08-10')).toBe('semaine du 10/08') })
-  it('WHEEL_TOP_N : les 3 premiers du classement hebdo ont un tour', () => { expect(WHEEL_TOP_N).toBe(3) })
 })

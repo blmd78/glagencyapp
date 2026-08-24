@@ -36,6 +36,7 @@ export function WheelHistory({ history }: { history: WheelHistoryData }) {
                     <TableHead>Chatter</TableHead>
                     <TableHead className="w-32">Date</TableHead>
                     <TableHead>Lot</TableHead>
+                    <TableHead className="w-32">Lancé par</TableHead>
                     <TableHead className="w-28 text-right">Montant</TableHead>
                     <TableHead className="w-24">Payé</TableHead>
                   </TableRow>
@@ -48,6 +49,8 @@ export function WheelHistory({ history }: { history: WheelHistoryData }) {
                         <TableCell className="font-medium">{r.displayName}</TableCell>
                         <TableCell className="tabular-nums text-muted-foreground">{frDateTimeParis(r.spunAt)}</TableCell>
                         <TableCell className={r.won ? undefined : 'text-muted-foreground'}>{r.won ? (r.prizeLabel ?? '—') : 'Raté'}</TableCell>
+                        {/* Le seul garde-fou du modèle « accès libre » : chaque versement est imputable. */}
+                        <TableCell className="text-muted-foreground">{r.spunByName ?? '—'}</TableCell>
                         <TableCell className="text-right tabular-nums">{r.amountEur == null ? '—' : eur(r.amountEur)}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {!r.won || r.amountEur == null ? '—' : r.paidAt ? '✓' : 'à venir'}

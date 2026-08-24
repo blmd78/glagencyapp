@@ -1,8 +1,7 @@
 import { Suspense, type ReactNode } from 'react'
 import { redirect } from 'next/navigation'
-import { getProfile, hasPageAccess } from '@/lib/auth'
+import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
-import { getWheelPending } from '@/lib/services/wheel-pending'
 import { getRecruitPending } from '@/lib/services/recruit-pending'
 import { ImpersonationBanner } from '@/features/impersonation/components/impersonation-banner'
 import { getImpersonationState } from '@/features/impersonation/services/read-state'
@@ -45,12 +44,6 @@ async function DashDynamic({ children }: { children: ReactNode }) {
   const insightsCountPromise = getOpenInsightsCount().catch(() => 0)
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  // Même patron que le badge insights (kickoff sans await, lu via use() sous Suspense dans
-  // la sidebar) — mais lancée APRÈS getProfile : le profil détermine si le RPC vaut le coup
-  // (accès Formation) OU d'appeler la fonction pour rien à chaque hard load.
-  const wheelPendingPromise = hasPageAccess(profile, 'frm-entrainement')
-    ? getWheelPending(profile.id).catch(() => 0)
-    : Promise.resolve(0)
   // Idem pour la pastille « Recrutement », mais gate ADMIN (l'item de nav est `adminOnly` sans
   // slug — le recrutement ne s'attribue pas page par page). `role === 'admin'` couvre le
   // superadmin (cf. getProfile). La RPC s'auto-restreint de toute façon ; ce test évite juste
@@ -72,7 +65,6 @@ async function DashDynamic({ children }: { children: ReactNode }) {
         isManager={profile.manager}
         allowedPages={profile.pages}
         insightsCountPromise={insightsCountPromise}
-        wheelPendingPromise={wheelPendingPromise}
         recruitPendingPromise={recruitPendingPromise}
         workLink={profile.workLink}
         impersonating={impersonationState.active}

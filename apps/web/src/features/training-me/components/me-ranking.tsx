@@ -1,4 +1,3 @@
-import { WHEEL_TOP_N } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
@@ -7,8 +6,11 @@ import type { MeData, RankRow, WeeklyRankRow } from '../types'
 /**
  * Classement de l'équipe (semaine en cours, dernière semaine complète ou global — sélecteur
  * `MeRankingSelect`) : prénoms d'affichage et agrégats, jamais d'e-mail ni de contenu. Ma ligne
- * est mise en avant partout ; en vues hebdo, le top 3 (récompensé d'un tour de roue) l'est aussi,
- * discrètement.
+ * est mise en avant partout.
+ *
+ * Le top 3 n'est plus distingué : depuis le 2026-08-24 il ne donne plus de tour de roue (c'est
+ * l'encadrant qui lance la roue quand il le décide). Le classement reste un repère d'émulation,
+ * il ne promet plus rien.
  */
 export function MeRanking({ data, myProfileId }: { data: MeData; myProfileId: string }) {
   const { rankingScope, ranking, weeklyRanking } = data
@@ -74,13 +76,7 @@ function WeeklyTable({ rows, myProfileId }: { rows: WeeklyRankRow[]; myProfileId
           </TableHeader>
           <TableBody>
             {rows.map((r, i) => (
-              <TableRow
-                key={r.profileId}
-                // Même condition que les deux portes qui décident réellement (`claimTicket` et
-                // `training_wheel_pending`) : top N ET au moins 1 point. Un 3e à 0 point (défi dont
-                // les 5 conversations ont expiré) n'a PAS de tour — ne pas le lui laisser croire.
-                className={cn(i < WHEEL_TOP_N && r.points > 0 && 'font-medium', r.profileId === myProfileId && 'bg-muted/40 font-medium')}
-              >
+              <TableRow key={r.profileId} className={cn(r.profileId === myProfileId && 'bg-muted/40 font-medium')}>
                 <TableCell className="tabular-nums text-muted-foreground">{i + 1}</TableCell>
                 <TableCell>{r.displayName}</TableCell>
                 <TableCell className="text-right tabular-nums">{r.points}</TableCell>
@@ -91,7 +87,6 @@ function WeeklyTable({ rows, myProfileId }: { rows: WeeklyRankRow[]; myProfileId
           </TableBody>
         </Table>
       </div>
-      <p className="text-sm text-muted-foreground">Top 3 de la semaine, avec au moins 1 point, = un tour de roue.</p>
     </div>
   )
 }

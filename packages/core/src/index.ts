@@ -131,7 +131,6 @@ export {
   pickWeighted,
   lastCompletedWeek,
   wheelWeekLabel,
-  WHEEL_TOP_N,
 } from './training/wheel'
 export type { WheelSector, WheelPrize } from './training/wheel'
 export {

@@ -11,14 +11,6 @@ export interface WheelConfig {
   prizes: WheelPrize[]
 }
 
-/** Un tour non utilisé. `week` = lundi de la semaine RÉCOMPENSÉE (pas celle du tirage). */
-export interface WheelTicket {
-  id: string
-  week: string
-  reason: string
-  createdAt: string
-}
-
 /**
  * Un tirage de l'utilisateur courant (`prizeLabel`/`amountEur` null si Raté). `paidAt` = versement
  * (branché plus tard côté compta) — le chatter voit « payé » ou « à venir » sur SES gains.
@@ -35,17 +27,12 @@ export interface MySpin {
 }
 
 /**
- * Tout ce que la page Roue affiche pour UN chatter. `eligible` = la RPC dit « tu y as droit » mais
- * le ticket n'existe pas encore (attribution paresseuse : le client appelle `claimTicket()` au
- * montage). Le droit de tourner lui-même (`canSpin` côté page) vient de `hasPageAccess`, pas d'ici.
+ * Tout ce que la page Roue affiche au VISITEUR : la config et ses propres gains. Le droit de lancer
+ * un tirage (`canSpin` côté page) vient de `hasPageAccess('frm-suivi')`, pas d'ici — et la liste
+ * des chatteurs pour qui lancer est chargée séparément (`getSpinnableChatters`).
  */
 export interface WheelData {
   config: WheelConfig
-  /** Le PROCHAIN tour à jouer (le plus ancien de la file) — `null` si aucun n'est matérialisé. */
-  ticket: WheelTicket | null
-  /** Nombre total de tours à jouer : les tickets s'accumulent (0118), l'écran doit le dire. */
-  pending: number
-  eligible: boolean
   mySpins: MySpin[]
 }
 
@@ -54,6 +41,8 @@ export interface WheelHistoryRow {
   id: string
   profileId: string
   displayName: string
+  /** Encadrant qui a lancé le tirage — null pour les tirages d'avant la règle du 2026-08-24. */
+  spunByName: string | null
   week: string
   spunAt: string
   won: boolean

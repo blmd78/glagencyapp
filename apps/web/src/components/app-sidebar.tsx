@@ -55,7 +55,6 @@ export function AppSidebar({
   isManager,
   allowedPages,
   insightsCountPromise,
-  wheelPendingPromise,
   recruitPendingPromise,
   workLink = '',
   impersonating = false,
@@ -71,7 +70,6 @@ export function AppSidebar({
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
   insightsCountPromise?: Promise<number>
   /** Tour de roue disponible (badge streamé, cf. `insightsCountPromise`). */
-  wheelPendingPromise?: Promise<number>
   /** Dossiers de recrutement à traiter (badge streamé, admin — cf. `insightsCountPromise`). */
   recruitPendingPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
@@ -243,11 +241,6 @@ export function AppSidebar({
         {item.href.endsWith('/insights') && insightsCountPromise && (
           <Suspense fallback={null}>
             <CountBadge promise={insightsCountPromise} />
-          </Suspense>
-        )}
-        {item.href.endsWith('/roue') && wheelPendingPromise && (
-          <Suspense fallback={null}>
-            <CountBadge promise={wheelPendingPromise} />
           </Suspense>
         )}
         {/* `/formation/recrutement/config` n'est PAS concerné : c'est un item de groupe, rendu

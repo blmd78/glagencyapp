@@ -4,18 +4,21 @@ import { WheelConfigDialog } from './components/wheel-config-dialog'
 import { WheelHistory } from './components/wheel-history'
 import { WheelSpinner } from './components/wheel-spinner'
 import { WheelSvg } from './components/wheel-svg'
+import type { SpinnableChatter } from './services/get-spinnable-chatters'
 import type { WheelData, WheelHistory as WheelHistoryData, WheelVue } from './types'
 
 /**
- * Page Roue — Server Component, AUCUN fetch (guidelines-data-loading §3). Trois publics dans une
- * seule page : le chatter (droit Entraînement) tourne la roue et voit ses gains ; l'encadrant
- * (droit Suivi) gagne l'onglet Historique — `history` non nul EST le signal ; l'admin ouvre la
- * configuration. Un encadrant SANS droit Entraînement n'a pas de bouton : il voit la roue en
- * aperçu, c'est tout.
+ * Page Roue — Server Component, AUCUN fetch (guidelines-data-loading §3).
+ *
+ * Les rôles se sont INVERSÉS avec la règle du 2026-08-24 : c'est l'ENCADRANT (droit Suivi) qui
+ * lance la roue, pour un chatteur qu'il choisit, en partage d'écran — et lui seul. Le chatteur
+ * (droit Entraînement) ne tourne plus : il voit la roue en aperçu et ses gains. L'admin ouvre la
+ * configuration.
  */
 export function WheelTemplate({
   data,
   history,
+  chatters,
   vue,
   canSpin,
   isAdmin,
@@ -23,7 +26,10 @@ export function WheelTemplate({
   data: WheelData
   /** null = pas le droit Suivi (pas d'onglet Historique). */
   history: WheelHistoryData | null
+  /** Chatteurs pour qui lancer — vide si le visiteur n'est pas encadrant. */
+  chatters: SpinnableChatter[]
   vue: WheelVue
+  /** Droit d'encadrement (`frm-suivi`) : lui seul lance un tirage. */
   canSpin: boolean
   isAdmin: boolean
 }) {
@@ -31,14 +37,16 @@ export function WheelTemplate({
     <div className="flex flex-col gap-8">
       {canSpin ? (
         // Props minimales : le spinner n'a que faire des 50 tirages de « Mes gains ».
-        <WheelSpinner sectors={data.config.sectors} ticket={data.ticket} pending={data.pending} eligible={data.eligible} />
+        <WheelSpinner sectors={data.config.sectors} chatters={chatters} />
       ) : (
         <div className="flex flex-col items-center gap-3">
           <WheelSvg sectors={data.config.sectors} />
-          <p className="text-center text-sm text-muted-foreground">Aperçu — le tirage est réservé aux chatters (droit Entraînement).</p>
+          <p className="max-w-prose text-center text-sm text-muted-foreground">
+            Aperçu — c’est ton encadrant qui fait tourner la roue pour toi.
+          </p>
         </div>
       )}
-      {canSpin && <MySpins spins={data.mySpins} />}
+      <MySpins spins={data.mySpins} />
     </div>
   )
   return (
@@ -46,7 +54,9 @@ export function WheelTemplate({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">{data.config.title}</h1>
-          <p className="text-sm text-muted-foreground">Top 3 du classement de la semaine = un tour.</p>
+          <p className="text-sm text-muted-foreground">
+            {canSpin ? 'Choisis un chatter et fais tourner.' : 'Ton encadrant lance la roue quand tu y as droit.'}
+          </p>
         </div>
         {isAdmin && <WheelConfigDialog config={data.config} />}
       </div>

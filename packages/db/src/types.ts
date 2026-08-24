@@ -3662,7 +3662,6 @@ export type Database = {
       training_wheel_config: {
         Row: {
           id: number
-          last_granted_at: string | null
           prizes: Json
           sectors: Json
           title: string
@@ -3671,7 +3670,6 @@ export type Database = {
         }
         Insert: {
           id?: number
-          last_granted_at?: string | null
           prizes: Json
           sectors: Json
           title?: string
@@ -3680,7 +3678,6 @@ export type Database = {
         }
         Update: {
           id?: number
-          last_granted_at?: string | null
           prizes?: Json
           sectors?: Json
           title?: string
@@ -3707,7 +3704,8 @@ export type Database = {
           profile_id: string
           sector_label: string
           spun_at: string
-          ticket_id: string
+          spun_by: string | null
+          ticket_id: string | null
           week: string
           won: boolean
         }
@@ -3720,7 +3718,8 @@ export type Database = {
           profile_id: string
           sector_label: string
           spun_at?: string
-          ticket_id: string
+          spun_by?: string | null
+          ticket_id?: string | null
           week: string
           won: boolean
         }
@@ -3733,7 +3732,8 @@ export type Database = {
           profile_id?: string
           sector_label?: string
           spun_at?: string
-          ticket_id?: string
+          spun_by?: string | null
+          ticket_id?: string | null
           week?: string
           won?: boolean
         }
@@ -3748,6 +3748,13 @@ export type Database = {
           {
             foreignKeyName: "training_wheel_spins_profile_id_fkey"
             columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_spins_spun_by_fkey"
+            columns: ["spun_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -4052,10 +4059,6 @@ export type Database = {
         Args: { p_at: string; p_case: string; p_profile: string }
         Returns: undefined
       }
-      training_trophy_grant: {
-        Args: { p_profile: string; p_trophies: Json }
-        Returns: number
-      }
       training_weekly_ranking: {
         Args: { p_week: string }
         Returns: {
@@ -4066,28 +4069,6 @@ export type Database = {
           profile_id: string
         }[]
       }
-      training_wheel_grant_due: { Args: { p_top: number }; Returns: number }
-      training_wheel_grant_open_weeks: {
-        Args: { p_top: number }
-        Returns: number
-      }
-      training_wheel_grant_week: {
-        Args: { p_top: number; p_week: string }
-        Returns: number
-      }
-      training_wheel_pending: {
-        Args: { p_profile: string; p_top?: number }
-        Returns: number
-      }
-      training_wheel_ranking_raw: {
-        Args: { p_week: string }
-        Returns: {
-          points: number
-          profile_id: string
-          rn: number
-        }[]
-      }
-      training_wheel_weeks_open: { Args: never; Returns: string[] }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       upsert_police_report: {
         Args: {

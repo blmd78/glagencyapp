@@ -1,29 +1,26 @@
 'use server'
 
-// Roue des récompenses — réclamer son tour, le jouer, configurer la roue (admin).
+// Roue des récompenses — lancer un tirage pour un chatteur, configurer la roue (admin).
 //
-// LECTURES avec le client utilisateur (RLS) ; ÉCRITURES en service-role (0122 : aucune policy
-// d'écriture `authenticated` sur tickets/spins) — TOUJOURS après avoir vérifié le droit ET la
-// propriété du ticket avec le client utilisateur. Seule la config admin s'écrit sous RLS
+// Règle du 2026-08-24 : le tour n'est plus GAGNÉ (top 3 hebdo, trophée) mais DONNÉ — l'encadrant
+// ouvre la roue en partage d'écran, choisit un chatteur et lance pour lui. Il n'y a donc plus ni
+// ticket ni file d'attente, et plus aucune limite au nombre de tours : le garde-fou est la
+// traçabilité (`training_wheel_spins.spun_by`, 0121), lisible dans l'historique.
+//
+// LECTURES avec le client utilisateur (RLS) ; ÉCRITURES en service-role (aucune policy d'écriture
+// `authenticated` sur les spins) — TOUJOURS après avoir vérifié le droit ET que la cible est bien
+// un chatteur en formation. Seule la config admin s'écrit sous RLS
 // (`training_wheel_config_admin_write`).
 //
 // Le TIRAGE est décidé ici (crypto.randomInt) : le client ne fait qu'animer jusqu'au secteur rendu.
 //
-// Gardes : `requirePageProfileLive('frm-entrainement')` pour le joueur, `requireAdminProfileLive()`
-// pour la config — les deux refusent la consultation « en tant que » (une impersonation ne réclame
-// ni ne joue jamais de l'argent).
+// Gardes : `requirePageProfileLive('frm-suivi')` pour le tirage, `requireAdminProfileLive()` pour
+// la config — les deux refusent la consultation « en tant que » (une impersonation ne verse jamais
+// d'argent).
 
 import { randomInt } from 'node:crypto'
-import * as Sentry from '@sentry/nextjs'
 import { revalidatePath } from 'next/cache'
-import { z } from 'zod'
-import {
-  lastCompletedWeek,
-  pickWeighted,
-  todayParis,
-  wheelWeekLabel,
-  WHEEL_TOP_N,
-} from '@glagency/core'
+import { mondayOf, pickWeighted, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/server'
@@ -31,114 +28,41 @@ import { prizesToJson, toPrizes, toSectors } from './mappers'
 import { spinInput, wheelConfigForm } from './schema'
 import type { SpinResult } from './types'
 
-const ALREADY_USED = 'Ce tour a déjà été utilisé'
+/** La page Roue affiche l'historique et « Mes gains » : les deux bougent quand la config change. */
+const revalidateWheel = () => revalidatePath('/formation/roue')
 
 /**
- * La pastille de la sidebar est rendue par `app/(dash)/layout.tsx` : le second chemin invalide la
- * CHAÎNE DE LAYOUTS du sous-arbre `/formation` (mode `'layout'`), sans quoi le compteur resterait
- * figé après un tour joué.
+ * Le tirage — décidé ICI (crypto), enregistré au nom du CHATTEUR, tracé au nom de l'encadrant.
+ *
+ * Règle du 2026-08-24 : un tour n'est plus gagné (top 3, trophée) mais DONNÉ. L'encadrant ouvre la
+ * roue en partage d'écran, choisit un chatteur et lance pour lui. Il n'y a donc plus de ticket à
+ * consommer — et plus aucune limite au nombre de tours : le garde-fou est la traçabilité
+ * (`spun_by`), visible dans l'historique.
+ *
+ * DEUX vérifications avant d'écrire, parce que ce geste verse de l'argent :
+ *  1. l'appelant a le droit d'encadrement (`frm-suivi`) — `requirePageProfileLive` couvre aussi
+ *     l'admin et refuse une consultation « en tant que » ;
+ *  2. la cible est bien un chatteur EN FORMATION. Sans ce contrôle, un `forProfileId` forgé
+ *     créerait un gain au nom de n'importe quel membre — un encadrant pourrait se payer lui-même.
  */
-const revalidateWheel = () => {
-  revalidatePath('/formation/roue')
-  revalidatePath('/formation', 'layout')
-}
-
-/**
- * Réclame le ticket de la semaine passée si le chatter y était top 3 (revérifié SERVEUR via la RPC
- * `training_weekly_ranking` — la pastille de la sidebar n'est qu'un indice).
- * Idempotent : ticket non utilisé déjà là → on le rend ; déjà attribué pour cette semaine, ou pas
- * classé → `null` (le client retombe simplement sur « pas de tour »).
- */
-export async function claimTicket(): Promise<ActionResult<{ ticketId: string | null }>> {
-  return runAction({
-    schema: z.object({}),
-    input: {},
-    guard: noGuard,
-    handler: async (): Promise<{ ticketId: string | null }> => {
-      const profile = await requirePageProfileLive('frm-entrainement')
-      const supabase = await createClient()
-      const week = lastCompletedWeek(todayParis())
-
-      // OCTROI GLOBAL (0116) avant de regarder son propre cas : la visite de ce chatter attribue les
-      // tickets de TOUTE la promo pour cette semaine. Sans ça, un top 3 qui n'ouvrait pas la page
-      // perdait son tour en silence — l'octroi était adossé à SA visite. Idempotent, donc rejouable
-      // à chaque montage ; `.catch` : un échec ne doit pas priver le visiteur de SON ticket, qui est
-      // réclamé juste après par le chemin nominal.
-      // Octroi sur TOUTE la fenêtre ouverte (0118) : rattrape les semaines où personne n'a mis les
-      // pieds sur la face. Ignore volontairement le throttle de `training_wheel_grant_due` — ici on
-      // est sur la page Roue, l'utilisateur attend son tour, il ne doit pas se heurter à « repasse
-      // dans une heure ». Sentry et pas un simple `console.error` : c'est le mécanisme qui
-      // distribue de l'argent, une panne muette voudrait dire « plus aucune récompense ».
-      const { error: gErr } = await createAdminClient().rpc('training_wheel_grant_open_weeks', { p_top: WHEEL_TOP_N })
-      if (gErr) Sentry.captureException(new Error(`[roue] octroi impossible : ${gErr.message}`))
-
-      const { data: pending, error: pErr } = await supabase
-        .from('training_wheel_tickets')
-        .select('id')
-        .eq('profile_id', profile.id)
-        .is('used_at', null)
-        .limit(1)
-      if (pErr) throw new Error(pErr.message)
-      const already = pending[0]
-      if (already) return { ticketId: already.id }
-
-      const { data: rows, error } = await supabase.rpc('training_weekly_ranking', { p_week: week })
-      if (error) throw new Error(error.message)
-      const ranking = rows ?? []
-      const rank = ranking.findIndex((r) => r.profile_id === profile.id)
-      const me = rank >= 0 ? ranking[rank] : undefined
-      // Hors top 3, ou 0 point : rien à réclamer. `Number()` — `points` est un integer SQL mais
-      // supabase-js rend les numériques en chaîne selon la version.
-      if (!me || rank >= WHEEL_TOP_N || Number(me.points) <= 0) return { ticketId: null }
-
-      const { data: t, error: iErr } = await createAdminClient()
-        .from('training_wheel_tickets')
-        .insert({ profile_id: profile.id, week, reason: `Top ${rank + 1} — ${wheelWeekLabel(week)}` })
-        .select('id')
-        .single()
-      if (iErr?.code === '23505') {
-        // 23505 : soit `unique (profile_id, week)` (déjà attribué et joué), soit l'index unique
-        // « un seul ticket non utilisé » de 0123 (course avec un autre onglet — celui qui perd
-        // l'insert re-sélectionne le ticket que l'autre onglet vient de créer). Le client se
-        // rafraîchit dès qu'il reçoit un id de ticket ; `null` seulement si vraiment déjà joué.
-        const { data: race, error: rErr } = await supabase
-          .from('training_wheel_tickets')
-          .select('id')
-          .eq('profile_id', profile.id)
-          .is('used_at', null)
-          .limit(1)
-        if (rErr) throw new Error(rErr.message)
-        return { ticketId: race[0]?.id ?? null }
-      }
-      if (iErr) throw new Error(iErr.message)
-
-      revalidateWheel()
-      return { ticketId: t.id }
-    },
-  })
-}
-
-/** Le tirage : décidé ICI (crypto), consomme le ticket, enregistre le tour. */
 export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>> {
   return runAction({
     schema: spinInput,
     input: raw,
     guard: noGuard,
-    handler: async ({ ticketId }): Promise<SpinResult> => {
-      const profile = await requirePageProfileLive('frm-entrainement')
+    handler: async ({ forProfileId }): Promise<SpinResult> => {
+      const profile = await requirePageProfileLive('frm-suivi')
       const supabase = await createClient()
-      const [ticketRes, cfgRes] = await Promise.all([
-        supabase.from('training_wheel_tickets').select('id, profile_id, week, used_at').eq('id', ticketId).maybeSingle(),
+      const [cibleRes, cfgRes] = await Promise.all([
+        // La RPC porte la MÊME garde `has_page('frm-suivi')` et ne renvoie que les chatteurs en
+        // formation : si la cible n'y est pas, elle n'a rien à faire dans un tirage.
+        supabase.rpc('training_overview_roster'),
         supabase.from('training_wheel_config').select('sectors, prizes').eq('id', 1).single(),
       ])
-      if (ticketRes.error) throw new Error(ticketRes.error.message)
+      if (cibleRes.error) throw new Error(cibleRes.error.message)
       if (cfgRes.error) throw new Error(cfgRes.error.message)
-      const t = ticketRes.data
-      // La RLS ne montre au chatter que SES tickets, mais un encadrant `frm-suivi` voit ceux des
-      // autres : la vérification de propriété est explicite, et c'est ELLE qui autorise les
-      // écritures service-role qui suivent.
-      if (!t || t.profile_id !== profile.id) throw new BusinessError('Ticket introuvable')
-      if (t.used_at) throw new BusinessError(ALREADY_USED)
+      const cible = (cibleRes.data ?? []).find((r) => r.profile_id === forProfileId)
+      if (!cible) throw new BusinessError('Ce membre ne fait pas partie de la formation')
 
       const sectors = toSectors(cfgRes.data.sectors)
       const prizes = toPrizes(cfgRes.data.prizes)
@@ -146,65 +70,27 @@ export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>>
       const won = !sec.item.lose
       const prize = won ? pickWeighted(prizes, (n) => randomInt(0, n)) : null
 
-      const admin = createAdminClient()
-      // Consommation ATOMIQUE : `.is('used_at', null)` + select → 0 ligne = double clic / course
-      // perdue, le tour a déjà été joué ailleurs. À faire AVANT d'insérer le tirage (`ticket_id`
-      // est unique sur `training_wheel_spins`, mais mieux vaut ne rien écrire du tout).
-      const { data: used, error: uErr } = await admin
-        .from('training_wheel_tickets')
-        .update({ used_at: new Date().toISOString() })
-        .eq('id', t.id)
-        .is('used_at', null)
-        .select('id')
-      if (uErr) throw new Error(uErr.message)
-      if (!used.length) throw new BusinessError(ALREADY_USED)
-
-      const { error: sErr } = await admin.from('training_wheel_spins').insert({
-        profile_id: profile.id,
-        ticket_id: t.id,
-        week: t.week,
+      // Service-role APRÈS la garde applicative ci-dessus (patron de toute la face Formation) : la
+      // RLS d'écriture de `training_wheel_spins` est fermée, c'est le code qui autorise.
+      const { error: sErr } = await createAdminClient().from('training_wheel_spins').insert({
+        profile_id: forProfileId,
+        // Plus de ticket consommé (0121) ; `week` = semaine du TIRAGE, elle sert au regroupement
+        // comptable de l'historique.
+        ticket_id: null,
+        spun_by: profile.id,
+        week: mondayOf(todayParis()),
         sector_label: sec.item.label,
         won,
         prize_label: prize ? prize.item.label : null,
-        // `check (won or amount_eur is null)` (0123) : un Raté ne porte JAMAIS de montant.
+        // `check (won or amount_eur is null)` : un Raté ne porte JAMAIS de montant.
         amount_eur: won && prize ? prize.item.amountEur : null,
       })
-      if (sErr) {
-        // COMPENSATION : un ticket ne doit jamais être brûlé sans tirage enregistré. L'insert et
-        // l'update ne sont pas dans la même transaction (deux appels PostgREST) — si le tirage
-        // échoue, on rend le ticket pour que le chatter puisse rejouer. L'échec de la compensation
-        // n'est que journalisé : il ne doit JAMAIS masquer l'erreur d'origine (celle qui part en
-        // Sentry via `runAction`).
-        // COMPENSATION CONDITIONNELLE : on ne rend le ticket QUE si on a la PREUVE qu'aucun tirage
-        // n'existe. La consommation du ticket et l'insertion du tirage sont deux appels distincts —
-        // une réponse perdue (timeout après commit) laisse le tirage en base malgré l'erreur. Rendre
-        // le ticket dans ce cas n'ouvrait pas un 2e paiement (`ticket_id` est unique sur
-        // `training_wheel_spins`) mais enfermait le chatter : ticket rejouable, conflit à chaque
-        // clic, pastille allumée à vie — pour un lot pourtant déjà acquis.
-        const { data: spin, error: chkErr } = await admin
-          .from('training_wheel_spins')
-          .select('id')
-          .eq('ticket_id', t.id)
-          .maybeSingle()
-        if (chkErr) {
-          // Vérification impossible : on laisse le ticket consommé (le doute profite à la caisse ;
-          // un encadrant peut toujours réoffrir un tour).
-          console.error('[roue] tirage non vérifiable, ticket laissé consommé', t.id, chkErr.message)
-        } else if (spin) {
-          console.error('[roue] tirage déjà enregistré, ticket laissé consommé', t.id)
-        } else {
-          const { error: cErr } = await admin.from('training_wheel_tickets').update({ used_at: null }).eq('id', t.id)
-          if (cErr) console.error('[roue] ticket non rendu après échec du tirage', t.id, cErr.message)
-        }
-        throw new Error(sErr.message)
-      }
+      if (sErr) throw new Error(sErr.message)
 
       // PAS de `revalidateWheel()` ici, volontairement. Une Server Action qui revalide renvoie le
-      // RSC payload rafraîchi AVEC sa réponse : « Mes gains » (juste sous la roue) afficherait donc
-      // le lot ET son montant avant même que la roue ait commencé à tourner — le coffre à ouvrir ne
-      // révélerait plus rien. Le rafraîchissement se fait côté client (`router.refresh()` dans
-      // `onDone` de `WheelSpinner`), c'est-à-dire quand le chatter FERME la révélation : « Mes
-      // gains » et la pastille de la sidebar se mettent alors à jour au bon moment.
+      // RSC payload rafraîchi AVEC sa réponse : l'historique afficherait le lot et son montant
+      // avant même que la roue ait tourné — le coffre à ouvrir ne révélerait plus rien. Le
+      // rafraîchissement se fait côté client, à la fermeture de la révélation.
       return {
         sectorIndex: sec.index,
         sectorLabel: sec.item.label,
