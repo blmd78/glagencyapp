@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import type { Trophy } from '@glagency/core'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
@@ -25,41 +24,42 @@ export function MeTrophies({ trophies }: { trophies: Trophy[] }) {
   const earned = trophies.filter((t) => t.earned).length
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-baseline justify-between gap-2 space-y-0 pb-4">
-        <CardTitle className="text-base">
-          <span aria-hidden className="mr-1.5">🎖️</span> Trophées
-        </CardTitle>
-        <span className="text-xs tabular-nums text-muted-foreground">
+    <section className="gla-panel">
+      <h2 className="mb-[14px] flex items-center gap-2 text-[15px] font-bold">
+        <span aria-hidden>🎖️</span> Trophées
+        <span className="ml-auto text-[11.5px] font-semibold tabular-nums text-[var(--gla-muted)]">
           {earned}/{trophies.length}
         </span>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-      <ul className="grid grid-cols-4 gap-2">
+      </h2>
+
+      <ul className="flex flex-wrap gap-2">
         {trophies.map((t) => (
           <li key={t.key}>
             <button
               type="button"
               onClick={() => setOpen(true)}
+              title={`${t.label} — ${t.description}`}
               aria-label={`${t.label} — ${t.description} (${t.earned ? 'obtenu' : 'à faire'})`}
-              className={cn(
-                'flex w-full flex-col items-center gap-1 rounded-lg border p-2 text-center transition-colors hover:bg-accent',
-                t.earned ? 'border-gold/40 bg-gold-soft' : 'opacity-45 grayscale',
-              )}
+              className={cn('gla-badge grid size-[52px] place-items-center text-2xl', t.earned && 'gla-badge-on')}
             >
-              <span aria-hidden className="text-xl leading-none">{t.emoji}</span>
-              <span aria-hidden className="text-[10px] font-medium leading-tight">{t.label}</span>
+              <span aria-hidden>{t.emoji}</span>
             </button>
           </li>
         ))}
       </ul>
 
-      <Button variant="outline" className="w-full" onClick={() => setOpen(true)}>
+      <Button
+        variant="ghost"
+        onClick={() => setOpen(true)}
+        className="gla-link mt-3 flex h-auto w-full items-center justify-center gap-1.5 p-[11px] text-[12.5px] font-bold hover:bg-transparent"
+      >
         <span aria-hidden>🎯</span> Comment débloquer les trophées ?
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        {/* `gla` : le Dialog est rendu dans un portail sur <body>, donc HORS du conteneur de la
+            page — sans ça il retomberait sur le thème du CRM. */}
+        <DialogContent className="gla sm:max-w-[480px]">
           <DialogHeader>
             <DialogTitle>
               <span aria-hidden className="mr-1.5">🎖️</span> Tes trophées · {earned}/{trophies.length}
@@ -92,7 +92,6 @@ export function MeTrophies({ trophies }: { trophies: Trophy[] }) {
           </ul>
         </DialogContent>
       </Dialog>
-      </CardContent>
-    </Card>
+    </section>
   )
 }

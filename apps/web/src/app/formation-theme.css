@@ -1,0 +1,251 @@
+/**
+ * Thème de la face Formation — reprise FIDÈLE de l'app Good Luck Agency (`index.html`).
+ *
+ * Demande du 2026-08-24 : les chatteurs formés sur GLA trouvent le rendu shadcn « moche » ; ils
+ * veulent retrouver l'écran qu'ils connaissent. Ce fichier est donc une transposition assumée,
+ * variables et valeurs comprises.
+ *
+ * PORTÉE STRICTE : tout est sous `.gla`, posé par le layout `/formation/*` — et uniquement sur les
+ * écrans du CHATTEUR. Aucune règle ne fuit vers le reste du CRM, qui garde sa palette neutre et son
+ * thème clair/sombre.
+ *
+ * SOMBRE EN DUR, sans variante claire : GLA n'a jamais eu de thème clair, et en inventer un
+ * donnerait un troisième design à maintenir. Les couleurs sont donc écrites en dur ici plutôt que
+ * dérivées des tokens shadcn — c'est le prix de la fidélité, et c'est délibéré.
+ */
+
+.gla {
+  --gla-bg: #0e1016;
+  --gla-surface: #171a23;
+  --gla-surface2: #1f2330;
+  --gla-surface3: #262b3b;
+  --gla-border: #2c3140;
+  --gla-text: #f2f4f9;
+  --gla-muted: #b2b8c8;
+  --gla-faint: #828aa0;
+  --gla-accent: #13c57a;
+  --gla-accent-soft: #102a20;
+  --gla-teal: #19d3a2;
+  --gla-danger: #ff5d7c;
+  --gla-warning: #ffb547;
+  --gla-p1: #8b5cf6;
+  --gla-p1-soft: #1a1330;
+  --gla-gold: #ffcf5c;
+
+  /* Les tokens shadcn sont REMAPPÉS sur la palette GLA dans cette portée. C'est ce qui fait que
+     tous les composants du kit (Badge, Button, Table, Select, Skeleton…) prennent l'apparence GLA
+     sans être réécrits — et que le thème clair du CRM ne peut pas laisser passer une carte blanche
+     sur un fond sombre. Redéfinir 15 variables vaut mieux que retoucher 40 composants. */
+  --background: var(--gla-bg);
+  --foreground: var(--gla-text);
+  --card: var(--gla-surface);
+  --card-foreground: var(--gla-text);
+  --popover: var(--gla-surface);
+  --popover-foreground: var(--gla-text);
+  --primary: var(--gla-p1);
+  --primary-foreground: #fff;
+  --secondary: var(--gla-surface2);
+  --secondary-foreground: var(--gla-text);
+  --muted: var(--gla-surface2);
+  --muted-foreground: var(--gla-muted);
+  --accent: var(--gla-surface2);
+  --accent-foreground: var(--gla-text);
+  --destructive: var(--gla-danger);
+  --border: var(--gla-border);
+  --input: var(--gla-border);
+  --ring: var(--gla-p1);
+
+  color: var(--gla-text);
+  /* La zone de contenu du CRM garde son fond ; c'est CE conteneur qui pose celui de GLA. */
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(139, 92, 246, 0.14), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(19, 197, 122, 0.12), transparent 60%),
+    var(--gla-bg);
+  margin: -1.5rem;
+  padding: 1.5rem;
+  min-height: calc(100svh - 4rem);
+}
+
+/* Le titre de page, façon GLA (Space Grotesk n'est pas chargé : la pile système suffit et évite
+   une requête de police bloquante sur un écran que les chatteurs ouvrent dix fois par jour). */
+.gla h1,
+.gla h2,
+.gla h3 {
+  letter-spacing: -0.3px;
+}
+
+/* ---- Le hero de « Ma formation » (GLA `.ahero`) ---- */
+.gla-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid #33285a;
+  padding: 24px 26px;
+  background: linear-gradient(120deg, rgba(139, 92, 246, 0.22), rgba(19, 197, 122, 0.15));
+  box-shadow: 0 30px 80px -46px rgba(139, 92, 246, 0.6);
+}
+
+/* La lueur verte en haut à droite — c'est elle qui donne sa profondeur au bandeau. */
+.gla-hero::after {
+  content: '';
+  position: absolute;
+  right: -70px;
+  top: -70px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(19, 197, 122, 0.3), transparent 70%);
+  pointer-events: none;
+}
+
+/* Badge de rang : la tuile qui porte l'emoji et le niveau (GLA `.arankbadge`). */
+.gla-rank {
+  background: linear-gradient(135deg, #1b1330, #241a44);
+  border: 1.5px solid var(--gla-p1);
+  box-shadow:
+    0 0 40px -10px var(--gla-p1),
+    inset 0 0 30px -14px var(--gla-p1);
+}
+
+/* ---- Panneaux (GLA `.apanel`) ---- */
+.gla-panel {
+  background: linear-gradient(180deg, rgba(30, 22, 52, 0.35), rgba(14, 10, 26, 0.2));
+  border: 1px solid var(--gla-border);
+  border-radius: 18px;
+  padding: 18px;
+}
+
+/* ---- Cartes de module (GLA `.amcard`) ---- */
+.gla-card {
+  background: var(--gla-surface2);
+  border: 1px solid var(--gla-border);
+  border-radius: 14px;
+  transition:
+    transform 0.15s,
+    border-color 0.15s;
+}
+
+.gla-card:hover {
+  transform: translateX(3px);
+  border-color: var(--gla-p1);
+}
+
+/* La tuile emoji d'une carte (GLA `.amcard .ic`). */
+.gla-tile {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.28), rgba(19, 197, 122, 0.2));
+}
+
+/* ---- Barres de progression (GLA `.ambar` / `.axpbar`) ---- */
+.gla-bar {
+  background: var(--gla-surface3);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.gla-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--gla-p1), var(--gla-accent));
+}
+
+/* La barre d'XP du hero porte en plus une lueur (GLA `.axpbar>i`). */
+.gla-bar-xp > i {
+  box-shadow: 0 0 16px -2px var(--gla-accent);
+}
+
+/* ---- Bandeau « ton prochain objectif » (GLA `.aobj`) ---- */
+.gla-obj {
+  background: linear-gradient(120deg, var(--gla-p1-soft), rgba(19, 197, 122, 0.07));
+  border: 1px solid #33285a;
+  border-radius: 16px;
+}
+
+/* Le bouton d'action du bandeau et des célébrations (GLA `.obtn`). */
+.gla-btn {
+  background: linear-gradient(90deg, var(--gla-p1), var(--gla-accent));
+  color: #fff;
+  transition: filter 0.15s;
+}
+
+.gla-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* ---- Chips du hero (GLA `.achip`) ---- */
+.gla-chip {
+  background: rgba(20, 15, 36, 0.55);
+  border: 1px solid #2c2148;
+  border-radius: 14px;
+}
+
+/* ---- Trophées (GLA `.abdg`) ---- */
+.gla-badge {
+  background: var(--gla-surface2);
+  border: 1px solid var(--gla-border);
+  border-radius: 14px;
+  opacity: 0.32;
+  filter: grayscale(1);
+  transition: transform 0.15s;
+}
+
+.gla-badge:hover {
+  transform: translateY(-3px);
+}
+
+.gla-badge-on {
+  opacity: 1;
+  filter: none;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(19, 197, 122, 0.2));
+  border-color: var(--gla-p1);
+  box-shadow: 0 0 18px -6px var(--gla-p1);
+}
+
+/* ---- Podium (GLA `.apo`) ---- */
+.gla-podium-av {
+  background: linear-gradient(135deg, #241a44, #1b1330);
+  border: 2px solid var(--gla-border);
+}
+
+.gla-podium-av-1 {
+  border-color: var(--gla-gold);
+  box-shadow: 0 0 20px -4px var(--gla-gold);
+}
+
+.gla-podium-bar {
+  border-radius: 10px 10px 0 0;
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.4), rgba(139, 92, 246, 0.05));
+}
+
+/* ---- Lien pleine largeur en pied de panneau (GLA `.alink`) ---- */
+.gla-link {
+  background: var(--gla-surface2);
+  border: 1px solid var(--gla-border);
+  border-radius: 12px;
+  transition: 0.15s;
+}
+
+.gla-link:hover {
+  border-color: var(--gla-p1);
+  color: #fff;
+  background: var(--gla-p1-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gla-card:hover,
+  .gla-badge:hover {
+    transform: none;
+  }
+}
+
+/* Un Dialog porte `.gla` pour hériter de la palette (il est rendu dans un portail, hors page),
+   mais PAS de la mise en page du conteneur : ni marge négative, ni hauteur d'écran, ni fond
+   dégradé — sinon la modale déborde et se décale. */
+[data-slot='dialog-content'].gla,
+.gla[role='dialog'] {
+  margin: 0;
+  padding: 1.5rem;
+  min-height: 0;
+  background: linear-gradient(180deg, #171122, #0e0a18);
+  border-color: #33285a;
+}

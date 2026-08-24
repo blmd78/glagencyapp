@@ -1,58 +1,58 @@
 import { BOSS_UNLOCK_AVG } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
-import { ChevronRight, Lock } from 'lucide-react'
 import { ScoreBadge } from '@/components/training/score-badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import type { MeData, MeModule } from '../types'
 
 /**
- * Progression module par module : barre d'avancement, cas faits / moyenne / points, puis chaque
- * cas en pastille avec son meilleur résultat. Le boss final se lit à part (il ne compte pas dans
- * la progression des modules) : verrouillé sous 60/100 de moyenne, sinon son meilleur essai.
+ * « Tes modules » — transposition du panneau GLA (`paintModules` / `.apanel` + `.amcard`) : une
+ * carte par module, tuile emoji à gauche, pourcentage en vert à droite, barre dégradée dessous.
+ *
+ * Le boss final se lit à part : il ne compte pas dans la progression des modules (verrouillé sous
+ * 60/100 de moyenne, sinon son meilleur essai).
  */
 export function MeModules({ data }: { data: MeData }) {
   const { modules, stats, bossUnlocked: unlocked, totalCases } = data
   return (
-    <section className="flex flex-col gap-4">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">
-          <span aria-hidden className="mr-1.5">⚔️</span> Tes modules
-        </h2>
-        <span className="text-sm tabular-nums text-muted-foreground">
+    <section className="gla-panel">
+      <h2 className="mb-[14px] flex items-center gap-2 text-[15px] font-bold">
+        <span aria-hidden>⚔️</span> Tes modules
+        <span className="ml-auto text-[11.5px] font-semibold tabular-nums text-[var(--gla-muted)]">
           {stats.casesDone}/{totalCases} cas validés
         </span>
-      </div>
+      </h2>
+
       {modules.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucun module disponible pour l’instant.</p>
+        <p className="py-[14px] text-center text-[12.5px] text-[var(--gla-muted)]">
+          Aucun module ne t’a encore été attribué.
+        </p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col gap-[9px]">
           {modules.map((m) => <ModuleCard key={m.id} m={m} />)}
         </ul>
       )}
-      <Card>
-        <CardContent className="flex flex-col gap-2 p-4">
+
+      <div className="mt-[9px] flex flex-col gap-2 rounded-[14px] border border-[var(--gla-border)] bg-[var(--gla-surface2)] p-3">
         <div className="flex flex-wrap items-center gap-3">
-          <h3 className="text-base font-semibold">
+          <h3 className="text-sm font-bold">
             <span aria-hidden className="mr-1.5">🏆</span> Boss final
           </h3>
-          {unlocked ? <ScoreBadge total={stats.bossBest} /> : <Lock aria-hidden className="size-4 text-muted-foreground" />}
+          {unlocked && <ScoreBadge total={stats.bossBest} />}
+          {!unlocked && <span className="text-xs text-[var(--gla-muted)]">🔒 verrouillé</span>}
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-[11.5px] leading-relaxed text-[var(--gla-muted)]">
           {unlocked
             ? stats.bossDone
               ? 'Réussi — tu peux le refaire pour améliorer ta note.'
               : 'Débloqué : 5 conversations en même temps, une seule tentative à la fois.'
             : `Se débloque à ${BOSS_UNLOCK_AVG}/100 de moyenne (actuelle : ${stats.avgTotal == null ? '—' : Math.round(stats.avgTotal)}).`}
         </p>
-        {/* Le boss se joue depuis SON module (avec ses 5 fans) : sans ce lien, un chatter débloqué
+        {/* Le boss se joue depuis SON module (avec ses 5 fans) : sans ce lien, un chatteur débloqué
             n'a aucun chemin vers lui depuis Ma formation. */}
-        <Link href="/formation/modules" className="w-fit text-sm hover:underline">
-          Voir les modules
+        <Link href="/formation/modules" className="w-fit text-[12px] font-bold text-[var(--gla-accent)] hover:underline">
+          Voir les modules →
         </Link>
-        </CardContent>
-      </Card>
+      </div>
     </section>
   )
 }
@@ -60,44 +60,32 @@ export function MeModules({ data }: { data: MeData }) {
 function ModuleCard({ m }: { m: MeModule }) {
   const { progress } = m
   const complete = progress.total > 0 && progress.done === progress.total
-  // Toute la carte est le lien (même affordance que la liste Modules : fond au survol + chevron) :
-  // le titre seul souligné au hover ne se lisait pas comme « clique ici pour jouer ».
+  // Toute la carte est le lien (affordance GLA : elle glisse vers la droite au survol).
   return (
     <li>
-      <Link
-        href={`/formation/modules/${m.code}?vue=cas` as Route}
-        className="group flex flex-col gap-3 rounded-xl border p-4 transition-colors hover:bg-accent"
-      >
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-base font-semibold">
-            {m.emoji && <span aria-hidden className="mr-2">{m.emoji}</span>}
+      <Link href={`/formation/modules/${m.code}?vue=cas` as Route} className="gla-card flex items-center gap-[13px] p-3">
+        <span className="gla-tile grid size-11 flex-none place-items-center rounded-[13px] text-[21px]" aria-hidden>
+          {m.emoji ?? '🎯'}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-bold">
             {m.title}
-            {complete && <span aria-hidden className="ml-2">✅</span>}
+            {complete && <span aria-hidden className="ml-1.5">✅</span>}
           </span>
-          <span className="flex items-center gap-2 text-sm tabular-nums text-muted-foreground">
+          <span className="mt-px block text-[11.5px] tabular-nums text-[var(--gla-muted)]">
             {progress.done}/{progress.total} cas · moy. {progress.avg ?? '—'} · {progress.points} pts
-            <ChevronRight aria-hidden className="size-4 opacity-0 transition-opacity group-hover:opacity-100" />
           </span>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Vert plein quand c'est bouclé : la couleur seule dit « module terminé » de loin. */}
-          <Progress
-            value={progress.pct}
-            className="flex-1"
-            indicatorClassName={complete ? 'bg-green-600' : 'bg-xp'}
-            label={`${m.title} : ${progress.pct}% des cas validés`}
-          />
-          <span className="w-10 shrink-0 text-right text-sm font-semibold tabular-nums">{progress.pct}%</span>
-        </div>
-        <ul className="flex flex-wrap gap-2">
-          {m.cases.map((c) => (
-            <li key={c.id} className="flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs">
-              <span>{c.title}</span>
-              {c.best == null ? <span className="text-muted-foreground">—</span> : <ScoreBadge total={c.best} />}
-            </li>
-          ))}
-        </ul>
-        <span className="text-xs text-muted-foreground group-hover:text-foreground">Ouvrir le module et jouer un cas →</span>
+          <span className="gla-bar mt-1.5 block h-[5px]">
+            <i style={{ width: `${Math.min(100, progress.pct)}%` }} />
+          </span>
+        </span>
+        <span
+          className={`flex-none text-right text-[15px] font-extrabold tabular-nums ${
+            progress.done > 0 ? 'text-[var(--gla-accent)]' : 'text-[var(--gla-muted)]'
+          }`}
+        >
+          {progress.pct}%
+        </span>
       </Link>
     </li>
   )

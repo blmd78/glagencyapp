@@ -71,7 +71,7 @@ export function ReportDialog({ sessionId, reported }: { sessionId: string; repor
           {reported ? 'Note signalée' : 'Signaler la note'}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="gla sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Signaler cette note</DialogTitle>
           <DialogDescription>Explique ce qui te semble faux — un encadrant la regardera.</DialogDescription>

@@ -47,9 +47,9 @@ export function MeTemplate({ data, vue, myProfileId }: { data: MeData; vue: MeVu
             value: 'progression',
             label: 'Progression',
             content: (
-              <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid items-start gap-4 lg:grid-cols-[1.5fr_1fr]">
                 <MeModules data={data} />
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4">
                   <MePodium data={data} myProfileId={myProfileId} />
                   <MeTrophies trophies={data.trophies} />
                 </div>

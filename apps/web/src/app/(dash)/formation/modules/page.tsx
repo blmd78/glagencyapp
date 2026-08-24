@@ -11,8 +11,9 @@ export default async function ModulesPage() {
   // Seul un chatter qui s'entraîne a une progression : un encadrant Suivi voit le catalogue nu.
   const data = getModulesProgress(hasPageAccess(profile, 'frm-entrainement') ? profile.id : null)
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Modules</h1>
+    // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
+    <div className="gla flex flex-col gap-6">
+      <h1 className="text-2xl font-bold tracking-[-0.3px]">Modules</h1>
       <Suspense fallback={<SectionFallback><ModulesSkeleton /></SectionFallback>}>
         <ModulesContent data={data} />
       </Suspense>

@@ -59,8 +59,9 @@ async function ModuleContent({
   // titre et les onglets s'affichent, le classement streame dans ses boundaries (`ModuleTemplate`).
   const ranking = getModuleRanking(m.id)
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+    // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
+    <div className="gla flex flex-col gap-6">
+      <h1 className="flex items-center gap-2 text-2xl font-bold tracking-[-0.3px]">
         {m.emoji && <span aria-hidden>{m.emoji}</span>}
         {m.title}
       </h1>
