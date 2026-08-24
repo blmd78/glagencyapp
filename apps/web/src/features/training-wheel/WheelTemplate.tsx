@@ -21,6 +21,7 @@ export function WheelTemplate({
   chatters,
   vue,
   canSpin,
+  hasTraining,
   isAdmin,
 }: {
   data: WheelData
@@ -31,6 +32,8 @@ export function WheelTemplate({
   vue: WheelVue
   /** Droit d'encadrement (`frm-suivi`) : lui seul lance un tirage. */
   canSpin: boolean
+  /** Droit Entraînement : le visiteur s'entraîne, donc « Mes gains » le concerne. */
+  hasTraining: boolean
   isAdmin: boolean
 }) {
   const roue = (
@@ -46,7 +49,9 @@ export function WheelTemplate({
           </p>
         </div>
       )}
-      <MySpins spins={data.mySpins} />
+      {/* Un encadrant qui ne s'entraîne pas n'a pas de gains : lui afficher « Mes gains — aucun
+          tirage » n'aurait aucun sens. */}
+      {hasTraining && <MySpins spins={data.mySpins} />}
     </div>
   )
   return (

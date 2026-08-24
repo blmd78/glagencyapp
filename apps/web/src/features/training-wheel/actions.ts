@@ -42,8 +42,10 @@ const revalidateWheel = () => revalidatePath('/formation/roue')
  * DEUX vérifications avant d'écrire, parce que ce geste verse de l'argent :
  *  1. l'appelant a le droit d'encadrement (`frm-suivi`) — `requirePageProfileLive` couvre aussi
  *     l'admin et refuse une consultation « en tant que » ;
- *  2. la cible est bien un chatteur EN FORMATION. Sans ce contrôle, un `forProfileId` forgé
- *     créerait un gain au nom de n'importe quel membre — un encadrant pourrait se payer lui-même.
+ *  2. la cible est bien un chatteur EN FORMATION, ET n'est pas l'appelant. Sans le premier
+ *     contrôle, un `forProfileId` forgé créerait un gain au nom de n'importe quel membre ; sans le
+ *     second, un chatteur à qui on donnerait le droit Suivi (rien ne l'interdit) se retrouverait
+ *     dans sa propre liste de cibles et pourrait se payer en boucle.
  */
 export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>> {
   return runAction({
@@ -61,6 +63,8 @@ export async function spinWheel(raw: unknown): Promise<ActionResult<SpinResult>>
       ])
       if (cibleRes.error) throw new Error(cibleRes.error.message)
       if (cfgRes.error) throw new Error(cfgRes.error.message)
+      // Personne ne se verse un gain à soi-même, quel que soit son cumul de droits.
+      if (forProfileId === profile.id) throw new BusinessError('Tu ne peux pas lancer la roue pour toi-même')
       const cible = (cibleRes.data ?? []).find((r) => r.profile_id === forProfileId)
       if (!cible) throw new BusinessError('Ce membre ne fait pas partie de la formation')
 

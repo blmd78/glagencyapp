@@ -39,6 +39,10 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
   const [result, setResult] = useState<SpinResult | null>(null)
   const [forProfileId, setForProfileId] = useState('')
   const timer = useRef<number | null>(null)
+  // Verrou SYNCHRONE : `phase` ne vaut 'spinning' qu'au rendu suivant, et le `disabled` du bouton
+  // avec lui. Deux clics dans la même frame passeraient donc tous les deux — soit deux gains
+  // versés pour un double-clic accidentel. Une ref est lue et posée immédiatement.
+  const busy = useRef(false)
 
   // Le timer de révélation ne doit pas survivre au démontage (navigation pendant la rotation).
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
@@ -46,19 +50,22 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
   const cible = chatters.find((c) => c.profileId === forProfileId) ?? null
 
   const spin = async () => {
-    if (!cible || phase !== 'idle') return
+    if (!cible || phase !== 'idle' || busy.current) return
+    busy.current = true
     setPhase('spinning')
     let r: Awaited<ReturnType<typeof spinWheel>>
     try {
       r = await spinWheel({ forProfileId: cible.profileId })
     } catch {
       toast.error(TRANSPORT_KO)
+      busy.current = false
       setPhase('idle')
       router.refresh()
       return
     }
     if (!r.success) {
       toast.error(r.error)
+      busy.current = false
       setPhase('idle')
       router.refresh()
       return
@@ -68,6 +75,7 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
     const a = angles.find((x) => x.index === r.data.sectorIndex) ?? angles[0]
     if (!a) {
       // Config sans aucun poids > 0 : le serveur aurait throw avant d'en arriver là.
+      busy.current = false
       setPhase('idle')
       router.refresh()
       return
@@ -126,6 +134,7 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
           winnerName={cible?.displayName ?? null}
           onDone={() => {
             // Retour à `idle` : l'encadrant enchaîne sur un autre chatter sans recharger.
+            busy.current = false
             setPhase('idle')
             setResult(null)
             router.refresh()

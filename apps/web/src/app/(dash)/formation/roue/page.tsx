@@ -19,6 +19,7 @@ const VUES: WheelVue[] = ['roue', 'historique']
 export default async function RouePage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
   const [profile, { vue }] = await Promise.all([requireAccess(['frm-entrainement', 'frm-suivi']), searchParams])
   const isSuivi = hasPageAccess(profile, 'frm-suivi')
+  const hasTraining = hasPageAccess(profile, 'frm-entrainement')
   // Pas de `await` ici : les requêtes partent pendant que le squelette s'affiche (streaming).
   const data = getWheel(profile.id)
   const history = isSuivi ? getWheelHistory() : null
@@ -34,6 +35,7 @@ export default async function RouePage({ searchParams }: { searchParams: Promise
         chatters={chatters}
         vue={VUES.find((v) => v === vue) ?? 'roue'}
         canSpin={isSuivi}
+        hasTraining={hasTraining}
         isAdmin={profile.role === 'admin'}
       />
     </Suspense>
@@ -46,6 +48,7 @@ async function WheelContent({
   chatters,
   vue,
   canSpin,
+  hasTraining,
   isAdmin,
 }: {
   data: Promise<WheelData>
@@ -53,8 +56,19 @@ async function WheelContent({
   chatters: Promise<SpinnableChatter[]> | null
   vue: WheelVue
   canSpin: boolean
+  hasTraining: boolean
   isAdmin: boolean
 }) {
   const [d, h, c] = await Promise.all([data, history, chatters])
-  return <WheelTemplate data={d} history={h ?? null} chatters={c ?? []} vue={vue} canSpin={canSpin} isAdmin={isAdmin} />
+  return (
+    <WheelTemplate
+      data={d}
+      history={h ?? null}
+      chatters={c ?? []}
+      vue={vue}
+      canSpin={canSpin}
+      hasTraining={hasTraining}
+      isAdmin={isAdmin}
+    />
+  )
 }
