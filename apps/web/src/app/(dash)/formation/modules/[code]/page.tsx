@@ -7,7 +7,6 @@ import { getMyBests, type MyBests } from '@/features/training-modules/services/g
 import { ModuleTemplate } from '@/features/training-modules/ModuleTemplate'
 import { ModuleSkeleton } from '@/features/training-modules/components/module-skeleton'
 import type { ModuleDetail } from '@/features/training-modules/types'
-import { AuroraBg } from '@/components/training/aurora-bg'
 
 const NO_BESTS: MyBests = { bests: new Map(), avgTotal: null }
 
@@ -68,7 +67,6 @@ async function ModuleContent({
   return (
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
     <div className="gla gla-page flex flex-col gap-6">
-      <AuroraBg />
       <h1 className="flex items-center gap-2 text-2xl font-bold tracking-[-0.3px]">
         {m.emoji && <span aria-hidden>{m.emoji}</span>}
         {m.title}

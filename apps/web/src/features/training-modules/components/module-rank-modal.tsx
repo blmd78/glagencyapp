@@ -1,17 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
-import { RankList } from '@/components/training/rank-list'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import type { ModuleRankRow } from '../services/get-module-ranking'
 
 /**
  * Le classement complet du module en modale — même patron que celui de « Ma formation »
  * (`MeRankModal`) : la page ne porte que le podium, le détail s'ouvre à la demande. Sans ça, un
  * tableau de quinze lignes pousserait les exercices sous la ligne de flottaison.
+ *
+ * Les lignes arrivent en `children`, DÉJÀ RENDUES par le serveur : ce composant est client (état
+ * `open`), et tout ce qu'un composant client reçoit en props est sérialisé en JSON dans le payload.
+ * En `children`, seul le HTML voyage.
  */
-export function ModuleRankModal({ rows, myProfileId }: { rows: ModuleRankRow[]; myProfileId: string }) {
+export function ModuleRankModal({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
     <>
@@ -24,14 +26,14 @@ export function ModuleRankModal({ rows, myProfileId }: { rows: ModuleRankRow[]; 
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        {/* `gla` : portail sur <body>, hors du conteneur de la page. */}
+        {/* `gla` : portail sur <body>, hors du conteneur de la page — il lui faut la palette. */}
         <DialogContent className="gla max-h-[82vh] overflow-auto sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle>
               <span aria-hidden className="mr-1.5">🏆</span> Classement du module
             </DialogTitle>
           </DialogHeader>
-          <RankList rows={rows} myProfileId={myProfileId} />
+          {children}
         </DialogContent>
       </Dialog>
     </>

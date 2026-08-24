@@ -4,7 +4,6 @@ import { ModulesTemplate } from '@/features/training-modules/ModulesTemplate'
 import { ModulesSkeleton } from '@/features/training-modules/components/modules-skeleton'
 import { getModulesProgress, type ModulesData } from '@/features/training-modules/services/get-modules-progress'
 import { SectionFallback } from '@/components/skeletons/route-loading'
-import { AuroraBg } from '@/components/training/aurora-bg'
 
 /** Modules de formation — ouverts au droit Entraînement OU Suivi (miroir de `NavItem.anyOf`). */
 export default async function ModulesPage() {
@@ -14,7 +13,6 @@ export default async function ModulesPage() {
   return (
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
     <div className="gla gla-page flex flex-col gap-6">
-      <AuroraBg />
       <h1 className="text-2xl font-bold tracking-[-0.3px]">Modules</h1>
       <Suspense fallback={<SectionFallback><ModulesSkeleton /></SectionFallback>}>
         <ModulesContent data={data} />

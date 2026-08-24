@@ -1,6 +1,7 @@
 import { rankOf, rankTier, xpLevelOf, xpOf } from '@glagency/core'
 import { MeCelebrate } from './components/me-celebrate'
 import { MeHero } from './components/me-hero'
+import { MeHistory } from './components/me-history'
 import { MeHistoryModal } from './components/me-history-modal'
 import { MeModules } from './components/me-modules'
 import { MeNext } from './components/me-next'
@@ -45,7 +46,11 @@ export function MeTemplate({ data, myProfileId }: { data: MeData; myProfileId: s
         <div className="flex flex-col gap-4">
           <MePodium data={data} myProfileId={myProfileId} />
           <MeTrophies trophies={data.trophies} />
-          <MeHistoryModal sessions={data.history} />
+          {/* Même patron que le classement : le contenu est rendu ici, côté serveur, et passé en
+              children — les 50 sessions ne traversent pas en JSON. */}
+          <MeHistoryModal>
+            <MeHistory sessions={data.history} />
+          </MeHistoryModal>
         </div>
       </div>
     </div>

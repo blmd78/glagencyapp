@@ -1,4 +1,5 @@
 import { Podium } from '@/components/training/podium'
+import { RankList, type RankListRow } from '@/components/training/rank-list'
 import { MeRankModal } from './me-rank-modal'
 import type { MeData, RankScope } from '../types'
 
@@ -8,7 +9,8 @@ const SCOPE_LABEL: Record<RankScope, string> = {
   global: 'général',
 }
 
-type Standing = { profileId: string; displayName: string; points: number }
+/** Socle commun aux deux RPC de classement — `RankListRow` le décrit déjà, on le réutilise. */
+type Standing = RankListRow
 
 /**
  * Podium à marches — reprise de `paintHomePodium` de l'app Good Luck Agency : 2e à gauche, 1er au
@@ -23,8 +25,16 @@ type Standing = { profileId: string; displayName: string; points: number }
  */
 export function MePodium({ data, myProfileId }: { data: MeData; myProfileId: string }) {
   const { rankingScope, ranking, weeklyRanking } = data
+  // Le socle commun aux deux RPC (elles ne rendent pas les mêmes colonnes) — il sert au podium
+  // comme au classement complet, d'où `casesDone` / `avgTotal` que le podium n'affiche pas.
   const rows: Standing[] = (rankingScope === 'global' ? ranking : (weeklyRanking ?? []))
-    .map((r) => ({ profileId: r.profileId, displayName: r.displayName, points: r.points }))
+    .map((r) => ({
+      profileId: r.profileId,
+      displayName: r.displayName,
+      points: r.points,
+      casesDone: r.casesDone,
+      avgTotal: r.avgTotal,
+    }))
     .filter((r) => r.points > 0)
 
   // Rang recalculé sur la liste FILTRÉE : `myRank` (serveur) compte aussi les 0 point, il ne
@@ -62,7 +72,11 @@ export function MePodium({ data, myProfileId }: { data: MeData; myProfileId: str
         </>
       )}
 
-      <MeRankModal data={data} myProfileId={myProfileId} />
+      {/* `RankList` est un Server Component rendu ICI et passé en children : seul son HTML traverse,
+          jamais les lignes du classement en JSON (cf. `MeRankModal`). */}
+      <MeRankModal scope={rankingScope}>
+        <RankList rows={rows} myProfileId={myProfileId} />
+      </MeRankModal>
     </section>
   )
 }

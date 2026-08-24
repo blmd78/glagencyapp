@@ -1,13 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { RankList } from '@/components/training/rank-list'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import type { MeData, RankScope } from '../types'
+import type { RankScope } from '../types'
 
 const OPTIONS: { value: RankScope; label: string }[] = [
   { value: 'semaine', label: 'Cette semaine' },
@@ -22,21 +21,16 @@ const OPTIONS: { value: RankScope; label: string }[] = [
  *
  * Le scope reste dans l'URL (`?classement=`) : le serveur ne charge qu'UNE RPC de classement par
  * requête, donc changer de période est une navigation, pas un filtre client.
+ *
+ * Les lignes arrivent en `children`, DÉJÀ RENDUES par le serveur — et pas en props de données. Ce
+ * composant est client (état `open` + sélecteur), or tout ce qu'un composant client reçoit en props
+ * est sérialisé en JSON dans le payload : passer le classement le ferait traverser deux fois, en
+ * données puis en HTML. En `children`, seul le HTML voyage.
  */
-export function MeRankModal({ data, myProfileId }: { data: MeData; myProfileId: string }) {
+export function MeRankModal({ scope, children }: { scope: RankScope; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { rankingScope, ranking, weeklyRanking } = data
-  // Les deux RPC ne rendent pas les mêmes colonnes : on ne garde que le socle commun, seul
-  // affiché ici (`RankList`).
-  const rows = (rankingScope === 'global' ? ranking : (weeklyRanking ?? [])).map((r) => ({
-    profileId: r.profileId,
-    displayName: r.displayName,
-    points: r.points,
-    casesDone: r.casesDone,
-    avgTotal: r.avgTotal,
-  }))
 
   const go = (next: string) => {
     // `ToggleGroup type="single"` renvoie '' au clic sur l'item déjà actif : rien à faire.
@@ -67,7 +61,7 @@ export function MeRankModal({ data, myProfileId }: { data: MeData; myProfileId: 
             </DialogTitle>
           </DialogHeader>
 
-          <ToggleGroup type="single" variant="outline" size="sm" value={rankingScope} onValueChange={go} className="self-start">
+          <ToggleGroup type="single" variant="outline" size="sm" value={scope} onValueChange={go} className="self-start">
             {OPTIONS.map((o) => (
               <ToggleGroupItem key={o.value} value={o.value}>
                 {o.label}
@@ -75,7 +69,7 @@ export function MeRankModal({ data, myProfileId }: { data: MeData; myProfileId: 
             ))}
           </ToggleGroup>
 
-          <RankList rows={rows} myProfileId={myProfileId} />
+          {children}
         </DialogContent>
       </Dialog>
     </>

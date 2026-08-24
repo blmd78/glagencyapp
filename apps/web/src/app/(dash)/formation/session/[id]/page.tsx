@@ -6,7 +6,6 @@ import { SessionSkeleton } from '@/features/training-session/components/session-
 import type { SessionData } from '@/features/training-session/types'
 import { getSession } from '@/features/training-session/services/get-session'
 import { requireAccess } from '@/lib/auth'
-import { AuroraBg } from '@/components/training/aurora-bg'
 
 /**
  * Budget de durée des Server Actions de cette route : la notation d'un boss lance 5 appels Sonnet
@@ -28,7 +27,6 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`) : c'est l'écran où le
     // chatteur passe le plus de temps, il doit être le plus fidèle.
     <div className="gla gla-page">
-      <AuroraBg />
       <Suspense fallback={<SessionSkeleton />}>
         <SessionContent data={data} viewerId={profile.id} />
       </Suspense>

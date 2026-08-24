@@ -1,4 +1,5 @@
 import { Podium } from '@/components/training/podium'
+import { RankList } from '@/components/training/rank-list'
 import { ModuleRankModal } from './module-rank-modal'
 import type { ModuleRankRow } from '../services/get-module-ranking'
 
@@ -38,7 +39,10 @@ export function ModulePodium({ rows, myProfileId }: { rows: ModuleRankRow[]; myP
           'Tu es sur le podium 🔥'
         )}
       </p>
-      <ModuleRankModal rows={rows} myProfileId={myProfileId} />
+      {/* `RankList` est rendu ICI, côté serveur, et passé en children : seul son HTML traverse. */}
+      <ModuleRankModal>
+        <RankList rows={rows} myProfileId={myProfileId} />
+      </ModuleRankModal>
     </section>
   )
 }

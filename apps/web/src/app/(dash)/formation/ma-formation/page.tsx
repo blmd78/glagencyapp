@@ -6,7 +6,6 @@ import { getMe } from '@/features/training-me/services/get-me'
 import { LegacyClaimCard } from '@/features/training-legacy/components/legacy-claim-card'
 import { getLegacyClaim } from '@/features/training-legacy/services/get-claim'
 import type { MeData, RankScope } from '@/features/training-me/types'
-import { AuroraBg } from '@/components/training/aurora-bg'
 
 const SCOPES: RankScope[] = ['semaine', 'semaine-derniere', 'global']
 
@@ -33,7 +32,6 @@ export default async function MaFormationPage({
     // `.gla` = thème repris de l'app Good Luck Agency (cf. `formation-theme.css`) : les chatteurs
     // formés là-bas doivent retrouver leur écran, pas découvrir un design de CRM.
     <div className="gla gla-page flex flex-col gap-6">
-      <AuroraBg />
       <h1 className="text-2xl font-bold tracking-[-0.3px]">Ma formation</h1>
       {/* Encart de reprise GLA — SON PROPRE boundary, et pas celui de `getMe` : c'est une seule
           ligne à lire, elle n'a aucune raison d'attendre les six requêtes de la progression.
