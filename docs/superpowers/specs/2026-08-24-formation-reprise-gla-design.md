@@ -1509,7 +1509,13 @@ sa prudence (`eq` séparés jamais concaténés, `adminPosedOnly` pour ne pas pu
   avant validation, détachement doux, et journal `member_events`. Un admin malveillant reste un
   problème d'organisation, pas de schéma.
 
-### 7.8 La racine de confiance est chez GLA — à identifier AVANT de livrer
+### 7.8 La racine de confiance est chez GLA — RISQUE ACCEPTÉ
+
+> **Arbitrage Benoit, 2026-08-24 : « ignore, ça n'arrivera pas ».** Ce point ne bloque donc pas la
+> mise en service. Il reste écrit ici parce qu'il décrit exactement ce que la reprise garantit — et
+> ce qu'elle ne garantit pas — et parce qu'une décision assumée doit rester traçable. Ce qui est en
+> jeu se limite à un historique d'entraînement : ni argent, ni identifiants, ni donnée client.
+
 
 D1 délègue l'authentification à une base dont §6.4 et §9.4 admettent que **le propriétaire réel et
 le plan de facturation ne sont pas connus**. Or, côté GLA :
@@ -1522,8 +1528,8 @@ le plan de facturation ne sont pas connus**. Or, côté GLA :
 **Qui que ce soit qui détienne cet accès peut se rattacher l'historique de n'importe qui chez nous.**
 Aucune parade de notre côté n'y change quoi que ce soit — c'est la définition d'une racine de
 confiance. Ce n'est pas un motif pour renoncer à D1 (il n'existe pas d'autre preuve de propriété),
-c'est un **prérequis de mise en service** : savoir qui tient GLA, et que ce soit quelqu'un en qui on
-a la même confiance que dans nos propres admins.
+c'est un constat : la confiance qu'on accorde à un historique repris est exactement celle qu'on
+accorde au détenteur de l'accès admin GLA.
 
 **Ce que ça implique aussi** : les sessions importées ne sont pas plus fiables que la plateforme qui
 les a produites (§5.11). L'historique repris se lit comme un historique **déclaré**, pas comme une
@@ -1745,8 +1751,8 @@ n'apporte rien.
 **L'ordre de bataille** (les trois premiers points sont des prérequis durs, §8) :
 
 1. commiter et déployer **0121 + 0122** — le nouveau modèle de roue passe **avant** ;
-2. obtenir `gla_readonly` **et** l'identité du propriétaire de GLA (§7.8) : c'est un prérequis, pas
-   une formalité ;
+2. obtenir `gla_readonly` (accès Postgres en lecture seule à GLA) — seul prérequis dur de cette
+   étape ; la question du propriétaire de GLA est un risque accepté (§7.8) ;
 3. appliquer **0123**, régénérer les types, recetter sur UAT (§8) ;
 4. déployer en production. **La fonctionnalité est disponible dès qu'un compte existe** (D2) : il n'y
    a ni date de bascule, ni gel, ni communication de masse à organiser. Un chatter réclame quand son
