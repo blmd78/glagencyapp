@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { hasPageAccess, requireAccess } from '@/lib/auth'
+import { requireAccess } from '@/lib/auth'
 import { WheelTemplate } from '@/features/training-wheel/WheelTemplate'
 import { WheelSkeleton } from '@/features/training-wheel/components/wheel-skeleton'
 import { getSpinnableChatters, type SpinnableChatter } from '@/features/training-wheel/services/get-spinnable-chatters'
@@ -10,21 +10,19 @@ import type { WheelData, WheelHistory, WheelVue } from '@/features/training-whee
 const VUES: WheelVue[] = ['roue', 'historique']
 
 /**
- * Roue des récompenses — ouverte aux deux droits de la face Formation, mais les rôles se sont
- * INVERSÉS avec la règle du 2026-08-24 : c'est l'encadrant (Suivi) qui lance la roue pour un
- * chatteur, et qui lit l'historique ; le chatteur (Entraînement) n'y voit plus que l'aperçu et ses
- * gains. Le vrai cloisonnement reste la RLS + la garde de `spinWheel` ; `canSpin` ne pilote que
- * l'affichage.
+ * Roue des récompenses — réservée à l'ENCADREMENT (`frm-suivi`, les admins passent partout).
+ *
+ * Règle du 2026-08-24 : le manager ouvre la roue en partage d'écran et la fait tourner pour un
+ * chatteur. Le chatteur n'a plus accès à la page — il apprend son gain de vive voix, et la trace
+ * comptable vit dans l'historique. Le vrai verrou est la garde de `spinWheel` + la RLS ; cette
+ * page ne fait que refuser l'entrée.
  */
 export default async function RouePage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
-  const [profile, { vue }] = await Promise.all([requireAccess(['frm-entrainement', 'frm-suivi']), searchParams])
-  const isSuivi = hasPageAccess(profile, 'frm-suivi')
-  const hasTraining = hasPageAccess(profile, 'frm-entrainement')
+  const [profile, { vue }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
   // Pas de `await` ici : les requêtes partent pendant que le squelette s'affiche (streaming).
-  const data = getWheel(profile.id)
-  const history = isSuivi ? getWheelHistory() : null
-  // La liste des cibles ne sert qu'à l'encadrant — inutile de la charger pour un chatteur.
-  const chatters = isSuivi ? getSpinnableChatters() : null
+  const data = getWheel()
+  const history = getWheelHistory()
+  const chatters = getSpinnableChatters()
   return (
     // Le `<h1>` est le titre CONFIGURABLE de la roue : il dépend de la donnée, donc il vit dans le
     // Suspense (contrairement à Ma formation, dont le titre est en dur).
@@ -34,8 +32,6 @@ export default async function RouePage({ searchParams }: { searchParams: Promise
         history={history}
         chatters={chatters}
         vue={VUES.find((v) => v === vue) ?? 'roue'}
-        canSpin={isSuivi}
-        hasTraining={hasTraining}
         isAdmin={profile.role === 'admin'}
       />
     </Suspense>
@@ -47,28 +43,14 @@ async function WheelContent({
   history,
   chatters,
   vue,
-  canSpin,
-  hasTraining,
   isAdmin,
 }: {
   data: Promise<WheelData>
-  history: Promise<WheelHistory> | null
-  chatters: Promise<SpinnableChatter[]> | null
+  history: Promise<WheelHistory>
+  chatters: Promise<SpinnableChatter[]>
   vue: WheelVue
-  canSpin: boolean
-  hasTraining: boolean
   isAdmin: boolean
 }) {
   const [d, h, c] = await Promise.all([data, history, chatters])
-  return (
-    <WheelTemplate
-      data={d}
-      history={h ?? null}
-      chatters={c ?? []}
-      vue={vue}
-      canSpin={canSpin}
-      hasTraining={hasTraining}
-      isAdmin={isAdmin}
-    />
-  )
+  return <WheelTemplate data={d} history={h} chatters={c} vue={vue} isAdmin={isAdmin} />
 }

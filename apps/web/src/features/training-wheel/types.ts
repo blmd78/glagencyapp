@@ -12,28 +12,12 @@ export interface WheelConfig {
 }
 
 /**
- * Un tirage de l'utilisateur courant (`prizeLabel`/`amountEur` null si Raté). `paidAt` = versement
- * (branché plus tard côté compta) — le chatter voit « payé » ou « à venir » sur SES gains.
- */
-export interface MySpin {
-  id: string
-  week: string
-  spunAt: string
-  sectorLabel: string
-  won: boolean
-  prizeLabel: string | null
-  amountEur: number | null
-  paidAt: string | null
-}
-
-/**
- * Tout ce que la page Roue affiche au VISITEUR : la config et ses propres gains. Le droit de lancer
- * un tirage (`canSpin` côté page) vient de `hasPageAccess('frm-suivi')`, pas d'ici — et la liste
- * des chatteurs pour qui lancer est chargée séparément (`getSpinnableChatters`).
+ * Ce que la page Roue affiche. Réduit à la config : la page est réservée à l'encadrement, la liste
+ * des chatteurs pour qui lancer est chargée séparément (`getSpinnableChatters`) et les tirages se
+ * lisent dans l'historique.
  */
 export interface WheelData {
   config: WheelConfig
-  mySpins: MySpin[]
 }
 
 /** Une ligne de l'historique encadrant (`paidAt` = versement, branché plus tard côté compta). */
