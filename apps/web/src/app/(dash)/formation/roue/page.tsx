@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
 import { WheelTemplate } from '@/features/training-wheel/WheelTemplate'
 import { WheelSkeleton } from '@/features/training-wheel/components/wheel-skeleton'
+import { AuroraBg } from '@/components/training/aurora-bg'
 import { getSpinnableChatters, type SpinnableChatter } from '@/features/training-wheel/services/get-spinnable-chatters'
 import { getWheel } from '@/features/training-wheel/services/get-wheel'
 import { getWheelHistory } from '@/features/training-wheel/services/get-wheel-history'
@@ -24,17 +25,22 @@ export default async function RouePage({ searchParams }: { searchParams: Promise
   const history = getWheelHistory()
   const chatters = getSpinnableChatters()
   return (
-    // Le `<h1>` est le titre CONFIGURABLE de la roue : il dépend de la donnée, donc il vit dans le
-    // Suspense (contrairement à Ma formation, dont le titre est en dur).
-    <Suspense fallback={<WheelSkeleton />}>
-      <WheelContent
-        data={data}
-        history={history}
-        chatters={chatters}
-        vue={VUES.find((v) => v === vue) ?? 'roue'}
-        isAdmin={profile.role === 'admin'}
-      />
-    </Suspense>
+    // `.gla` : la roue est le même objet que chez Good Luck Agency — elle garde son décor, même si
+    // c'est désormais l'encadrant qui la fait tourner.
+    <div className="gla gla-page">
+      <AuroraBg />
+      {/* Le `<h1>` est le titre CONFIGURABLE de la roue : il dépend de la donnée, donc il vit dans
+          le Suspense (contrairement à Ma formation, dont le titre est en dur). */}
+      <Suspense fallback={<WheelSkeleton />}>
+        <WheelContent
+          data={data}
+          history={history}
+          chatters={chatters}
+          vue={VUES.find((v) => v === vue) ?? 'roue'}
+          isAdmin={profile.role === 'admin'}
+        />
+      </Suspense>
+    </div>
   )
 }
 

@@ -118,11 +118,17 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
 
       <WheelSvg sectors={sectors} rotation={rotation} spinning={phase === 'spinning'} />
 
-      <ActionButton type="button" onClick={() => void spin()} pending={phase === 'spinning'} disabled={!cible || phase === 'reveal'}>
-        {cible ? `Faire tourner pour ${cible.displayName}` : 'Faire tourner'}
+      <ActionButton
+        type="button"
+        onClick={() => void spin()}
+        pending={phase === 'spinning'}
+        disabled={!cible || phase === 'reveal'}
+        className="gla-btn mt-2 h-12 w-full max-w-[250px] border-0 text-[15px] font-bold"
+      >
+        {cible ? `Tourner pour ${cible.displayName} 🎡` : 'Tourner la roue 🎡'}
       </ActionButton>
 
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="text-center text-sm text-[var(--gla-faint)]">
         {chatters.length === 0
           ? 'Aucun chatter en formation pour l’instant.'
           : 'Le gain est enregistré au nom du chatter, et ton nom reste sur le tirage.'}
