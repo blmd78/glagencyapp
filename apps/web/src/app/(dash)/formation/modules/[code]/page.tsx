@@ -67,7 +67,7 @@ async function ModuleContent({
   const ranking = getModuleRanking(m.id)
   return (
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
-    <div className="gla flex flex-col gap-6">
+    <div className="gla gla-page flex flex-col gap-6">
       <AuroraBg />
       <h1 className="flex items-center gap-2 text-2xl font-bold tracking-[-0.3px]">
         {m.emoji && <span aria-hidden>{m.emoji}</span>}

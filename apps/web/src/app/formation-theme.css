@@ -57,9 +57,22 @@
 
   color: var(--gla-text);
   font-family: var(--font-gla-body), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  /* Fond TOUJOURS opaque : c'est lui qui couvre celui du CRM. Le canvas de l'aurore se peint
-     par-dessus (`.gla > canvas`), jamais à la place — un canvas en z-index négatif passait
-     derrière le fond opaque du layout et on ne voyait plus rien du tout. */
+}
+
+/**
+ * La MISE EN PAGE d'un écran de la face — séparée de `.gla` (la palette) pour une raison précise :
+ * une modale porte `.gla` afin d'hériter des couleurs, mais elle est rendue dans un portail sur
+ * <body> et se positionne elle-même en `fixed`. Tant que `.gla` portait `position: relative`, elle
+ * ÉCRASAIT ce `fixed` (ce fichier est importé après Tailwind, à spécificité égale c'est l'ordre qui
+ * tranche) : la modale s'ouvrait en flux normal, décalée hors écran par son propre `translate`. On
+ * la croyait morte alors qu'elle était juste ailleurs.
+ *
+ * Donc : `.gla` ne pose QUE des couleurs et une police, jamais de position ni de fond de page.
+ */
+.gla-page {
+  /* Fond TOUJOURS opaque : c'est lui qui couvre celui du CRM. L'aurore se peint par-dessus
+     (`.gla-page > canvas`), jamais à la place — un canvas en z-index négatif passait derrière le
+     fond du layout et on ne voyait plus rien du tout. */
   background: var(--gla-bg);
   position: relative;
   isolation: isolate;
@@ -70,7 +83,7 @@
 
 /* L'aurore : au-dessus du fond plat, sous le contenu. `absolute` (et non `fixed`) pour rester
    bornée au conteneur — en `fixed` elle débordait sur la sidebar et l'en-tête du CRM. */
-.gla > canvas {
+.gla-page > canvas {
   position: absolute;
   inset: 0;
   z-index: 0;
@@ -80,7 +93,7 @@
 }
 
 /* Tout le reste passe au-dessus de l'aurore. */
-.gla > *:not(canvas) {
+.gla-page > *:not(canvas) {
   position: relative;
   z-index: 1;
 }
@@ -258,14 +271,9 @@
   }
 }
 
-/* Un Dialog porte `.gla` pour hériter de la palette (il est rendu dans un portail, hors page),
-   mais PAS de la mise en page du conteneur : ni marge négative, ni hauteur d'écran, ni fond
-   dégradé — sinon la modale déborde et se décale. */
-[data-slot='dialog-content'].gla,
+/* Fond d'une modale de la face (GLA `.amodal`) : elle porte `.gla` pour la palette, et cette règle
+   pour son décor. Aucune propriété de POSITION ici — le Dialog gère la sienne. */
 .gla[role='dialog'] {
-  margin: 0;
-  padding: 1.5rem;
-  min-height: 0;
   background: linear-gradient(180deg, #171122, #0e0a18);
   border-color: #33285a;
 }

@@ -27,7 +27,7 @@ export default async function SessionPage({ params }: { params: Promise<{ id: st
   return (
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`) : c'est l'écran où le
     // chatteur passe le plus de temps, il doit être le plus fidèle.
-    <div className="gla">
+    <div className="gla gla-page">
       <AuroraBg />
       <Suspense fallback={<SessionSkeleton />}>
         <SessionContent data={data} viewerId={profile.id} />

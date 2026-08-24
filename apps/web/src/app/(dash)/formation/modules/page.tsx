@@ -13,7 +13,7 @@ export default async function ModulesPage() {
   const data = getModulesProgress(hasPageAccess(profile, 'frm-entrainement') ? profile.id : null)
   return (
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
-    <div className="gla flex flex-col gap-6">
+    <div className="gla gla-page flex flex-col gap-6">
       <AuroraBg />
       <h1 className="text-2xl font-bold tracking-[-0.3px]">Modules</h1>
       <Suspense fallback={<SectionFallback><ModulesSkeleton /></SectionFallback>}>

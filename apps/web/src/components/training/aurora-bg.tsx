@@ -14,7 +14,7 @@ type Blob = { bx: number; by: number; ax: number; ay: number; sp: number; ph: nu
  * C'est ce qui fait qu'un écran de formation ne ressemble pas à un tableur : il bouge, tout le
  * temps, sans jamais attirer l'œil. Un dégradé statique ne rend pas cet effet — d'où le canvas.
  *
- * Le POSITIONNEMENT vient du thème (`.gla > canvas`, `formation-theme.css`) et non d'ici : le
+ * Le POSITIONNEMENT vient du thème (`.gla-page > canvas`, `formation-theme.css`) et non d'ici : le
  * canvas doit se peindre AU-DESSUS du fond opaque de `.gla` et SOUS le contenu. En `fixed` avec un
  * z-index négatif, il passait derrière le fond du layout CRM — on ne voyait plus aucun fond.
  * La boucle est arrêtée au démontage (navigation vers une autre face).
