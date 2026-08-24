@@ -7,16 +7,26 @@ import { getMyBests, type MyBests } from '@/features/training-modules/services/g
 import { ModuleTemplate } from '@/features/training-modules/ModuleTemplate'
 import { ModuleSkeleton } from '@/features/training-modules/components/module-skeleton'
 import type { ModuleDetail } from '@/features/training-modules/types'
+import { AuroraBg } from '@/components/training/aurora-bg'
 
 const NO_BESTS: MyBests = { bests: new Map(), avgTotal: null }
 
-/** Un module : classement, cours replié et exercices sur un seul écran. 404 si code inconnu ou module inactif. */
+/**
+ * Un module : classement, cours replié et exercices sur un seul écran. `?competence=<id>` ouvre les
+ * exercices d'une compétence (Setting en a 6, Relationnel 4). 404 si code inconnu ou module inactif.
+ */
 export default async function ModulePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string }>
+  searchParams: Promise<{ competence?: string }>
 }) {
-  const [profile, { code }] = await Promise.all([requireAccess(['frm-entrainement', 'frm-suivi']), params])
+  const [profile, { code }, { competence }] = await Promise.all([
+    requireAccess(['frm-entrainement', 'frm-suivi']),
+    params,
+    searchParams,
+  ])
   // « Jouer » n'appartient qu'au droit Entraînement — un encadrant Suivi seul lit les cas.
   const canPlay = hasPageAccess(profile, 'frm-entrainement')
   // Le h1 est le titre du module → il streame avec la donnée (pas de h1 immédiat séparable).
@@ -26,7 +36,13 @@ export default async function ModulePage({
   const bests = canPlay ? getMyBests(profile.id) : Promise.resolve(NO_BESTS)
   return (
     <Suspense fallback={<ModuleSkeleton />}>
-      <ModuleContent module={modulePromise} bests={bests} canPlay={canPlay} myProfileId={profile.id} />
+      <ModuleContent
+        module={modulePromise}
+        bests={bests}
+        canPlay={canPlay}
+        myProfileId={profile.id}
+        competenceId={competence ?? null}
+      />
     </Suspense>
   )
 }
@@ -36,11 +52,13 @@ async function ModuleContent({
   bests,
   canPlay,
   myProfileId,
+  competenceId,
 }: {
   module: Promise<ModuleDetail | null>
   bests: Promise<MyBests>
   canPlay: boolean
   myProfileId: string
+  competenceId: string | null
 }) {
   const [m, my] = await Promise.all([module, bests])
   if (!m) notFound()
@@ -50,6 +68,7 @@ async function ModuleContent({
   return (
     // `.gla` = thème repris de Good Luck Agency (cf. `formation-theme.css`).
     <div className="gla flex flex-col gap-6">
+      <AuroraBg />
       <h1 className="flex items-center gap-2 text-2xl font-bold tracking-[-0.3px]">
         {m.emoji && <span aria-hidden>{m.emoji}</span>}
         {m.title}
@@ -61,6 +80,7 @@ async function ModuleContent({
         avgTotal={my.avgTotal}
         ranking={ranking}
         myProfileId={myProfileId}
+        competenceId={competenceId}
       />
     </div>
   )

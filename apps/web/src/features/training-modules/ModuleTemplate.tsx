@@ -27,6 +27,7 @@ export function ModuleTemplate({
   avgTotal,
   ranking,
   myProfileId,
+  competenceId,
 }: {
   module: ModuleDetail
   canPlay: boolean
@@ -35,8 +36,17 @@ export function ModuleTemplate({
   avgTotal: number | null
   ranking: Promise<ModuleRankRow[]>
   myProfileId: string
+  /** Compétence ouverte (`?competence=`) — `null` = vue du module. */
+  competenceId: string | null
 }) {
   const hasCourse = Boolean(module.courseMd?.trim())
+
+  // Dans une COMPÉTENCE, l'écran ne porte que ses exercices (GLA `formationSousCat` remplace la
+  // page entière) : ni podium, ni cours — on est venu travailler une compétence précise.
+  if (competenceId) {
+    return <CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} competenceId={competenceId} />
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <Link href="/formation/modules" className="gla-back w-fit">
@@ -67,7 +77,7 @@ export function ModuleTemplate({
         )}
       </section>
 
-      <CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} />
+      <CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} competenceId={null} />
     </div>
   )
 }

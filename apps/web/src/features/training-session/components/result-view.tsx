@@ -1,6 +1,4 @@
 import { COMBO_MIN, MEDAL_BRONZE, medalFor, xpGain } from '@glagency/core'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { CASE_KIND_LABELS, MEDAL_EMOJI, MEDAL_LABELS } from '@/lib/types/training'
 import type { SessionData } from '../types'
@@ -33,74 +31,100 @@ export function ResultView({ data, viewerIsOwner }: { data: SessionData; viewerI
   const avgDelta =
     data.total != null && data.ownerAvgTotal != null ? Math.round(data.total - data.ownerAvgTotal) : null
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <SessionCelebrate sessionId={data.id} total={data.total} improved={worthCelebrating} viewerIsOwner={viewerIsOwner} />
+
       <header className="flex flex-col gap-1">
-        <p className="text-sm text-muted-foreground">{s.moduleTitle} · {CASE_KIND_LABELS[data.kind]}</p>
-        <h1 className="text-2xl font-semibold tracking-tight">{s.title}</h1>
+        <p className="text-sm text-[var(--gla-muted)]">
+          {s.moduleTitle} · {CASE_KIND_LABELS[data.kind]}
+        </p>
+        <h1 className="text-2xl font-bold tracking-[-0.3px]">{s.title}</h1>
       </header>
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-6 p-6">
-          <ScoreGauge
-            total={data.total}
-            medalLabel={medal ? MEDAL_LABELS[medal] : null}
-            medalEmoji={medal ? MEDAL_EMOJI[medal] : null}
-            objectiveReached={data.objectiveReached}
-          />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            {gain > 0 && (
-              <p className="text-2xl font-semibold text-xp tabular-nums">
-                +{gain} XP{data.kind === 'boss' && <span className="ml-2 text-sm font-normal text-muted-foreground">boss ×2</span>}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{data.kind === 'boss' ? (data.objectiveReached ? 'Boss réussi' : 'Boss non réussi') : data.objectiveReached ? `${s.objectiveLabel} atteint` : `${s.objectiveLabel} non atteint`}</Badge>
-              {improved && <Badge variant="outline">🎉 Nouveau record</Badge>}
-              {data.combo >= COMBO_MIN && <Badge variant="outline">🔥 Combo ×{data.combo}</Badge>}
-              {solo && single?.score?.capped && <Badge variant="outline">Plafonné à 65</Badge>}
-            </div>
-            {/* Cas où un média payant est en jeu : l'objectif atteint EST la vente conclue. */}
-            {single?.isSale && (
-              <p className={cn('font-semibold', data.objectiveReached ? 'text-green-600' : 'text-red-600')}>
-                {data.objectiveReached ? '💰 Vente conclue' : '🚫 Vente ratée'}
-              </p>
-            )}
-            {/* « vs ta moyenne » — masqué à écart nul : la moyenne inclut déjà cette session, un
-                premier cas afficherait « +0 vs ta moyenne » sans rien apprendre à personne. */}
-            {avgDelta != null && avgDelta !== 0 && (
-              <p className={cn('text-sm font-semibold', avgDelta > 0 ? 'text-green-600' : 'text-amber-600')}>
-                {avgDelta > 0 ? `▲ +${avgDelta}` : `▼ ${avgDelta}`}{' '}
-                <span className="font-normal text-muted-foreground">
-                  vs ta moyenne ({Math.round(data.ownerAvgTotal!)})
-                </span>
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              {data.previousBest != null
-                ? `Meilleur précédent sur ce cas : ${data.previousBest}/100`
-                : 'Premier passage sur ce cas.'}
-              {gain === 0 && data.previousBest != null && ' — ton record tient, rejoue pour le battre.'}
-            </p>
-          </div>
-          <div className="ml-auto self-start"><ResultActions data={data} viewerIsOwner={viewerIsOwner} /></div>
-        </CardContent>
-      </Card>
+
+      {/* Bloc de note CENTRÉ (GLA `.card.center`) : la jauge, puis les verdicts empilés dessous —
+          et non côte à côte. C'est l'écran qu'on découvre : tout doit tomber sous l'œil au même
+          endroit, dans l'ordre où on veut le lire. */}
+      <section className="gla-cardbox flex flex-col items-center gap-2 p-6 text-center">
+        <ScoreGauge
+          total={data.total}
+          medalLabel={medal ? MEDAL_LABELS[medal] : null}
+          medalEmoji={medal ? MEDAL_EMOJI[medal] : null}
+          objectiveReached={data.objectiveReached}
+        />
+
+        <span className={cn('gla-pill', data.objectiveReached ? 'gla-pill-accent' : 'gla-pill-warn')}>
+          {data.kind === 'boss'
+            ? data.objectiveReached
+              ? 'Boss réussi'
+              : 'Boss non réussi'
+            : data.objectiveReached
+              ? `${s.objectiveLabel} atteint`
+              : `${s.objectiveLabel} non atteint`}
+        </span>
+
+        {/* Cas où un média payant est en jeu : l'objectif atteint EST la vente conclue. */}
+        {single?.isSale && (
+          <p className={cn('text-[15px] font-extrabold', data.objectiveReached ? 'text-[var(--gla-accent)]' : 'text-[var(--gla-danger)]')}>
+            {data.objectiveReached ? '💰 Il a acheté — vente conclue !' : '🚫 Il a refusé — vente ratée'}
+          </p>
+        )}
+
+        {/* « vs ta moyenne » — masqué à écart nul : la moyenne inclut déjà cette session, un
+            premier cas afficherait « +0 vs ta moyenne » sans rien apprendre à personne. */}
+        {avgDelta != null && avgDelta !== 0 && (
+          <p className={cn('text-[13px] font-extrabold', avgDelta > 0 ? 'text-[var(--gla-teal)]' : 'text-[var(--gla-warning)]')}>
+            {avgDelta > 0 ? `▲ +${avgDelta}` : `▼ ${avgDelta}`}{' '}
+            <span className="font-semibold text-[var(--gla-muted)]">vs ta moyenne ({Math.round(data.ownerAvgTotal!)})</span>
+          </p>
+        )}
+
+        {gain > 0 && (
+          <p className="text-xl font-extrabold tabular-nums text-[#c4b5fd]">
+            +{gain} XP
+            {data.kind === 'boss' && <span className="ml-2 text-xs font-semibold text-[var(--gla-muted)]">boss ×2</span>}
+          </p>
+        )}
+
+        {improved && (
+          <p className="font-extrabold text-[var(--gla-accent)]">
+            🎉 Nouveau record ! {data.previousBest != null && `(avant : ${data.previousBest})`}
+          </p>
+        )}
+        {data.combo >= COMBO_MIN && <p className="font-bold">🔥 Combo ×{data.combo}</p>}
+        {solo && single?.score?.capped && <p className="text-[13px] text-[var(--gla-warning)]">Plafonné à 65</p>}
+        {gain === 0 && data.previousBest != null && (
+          <p className="text-[13px] text-[var(--gla-muted)]">
+            Ton record tient ({data.previousBest}/100) — rejoue pour le battre.
+          </p>
+        )}
+      </section>
+
       {solo && single?.score ? (
         <>
-          <ScorePanel score={single.score} objectiveLabel={s.objectiveLabel} />
+          <ScorePanel score={single.score} />
+          <AnnotatedTranscript thread={single} />
+          {single.score.comment && (
+            <section className="gla-cardbox p-5">
+              <h3 className="mb-2 text-[15px] font-bold">Débrief du coach</h3>
+              <p className="whitespace-pre-line text-[13.5px] leading-relaxed">{single.score.comment}</p>
+            </section>
+          )}
           {data.expected && (
-            <details className="rounded-xl border p-4">
-              <summary className="cursor-pointer text-sm font-medium">Ce qui était attendu</summary>
-              <p className="mt-2 whitespace-pre-line text-sm text-muted-foreground">{data.expected}</p>
+            <details className="gla-cardbox p-5">
+              <summary className="cursor-pointer text-[15px] font-bold">Ce qui était attendu</summary>
+              <p className="mt-2 whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--gla-muted)]">{data.expected}</p>
             </details>
           )}
-          <AnnotatedTranscript thread={single} />
         </>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
-          {data.threads.map((t) => <ThreadResult key={t.id} thread={t} kind={data.kind} objectiveLabel={s.objectiveLabel} />)}
+          {data.threads.map((t) => (
+            <ThreadResult key={t.id} thread={t} kind={data.kind} objectiveLabel={s.objectiveLabel} />
+          ))}
         </div>
       )}
+
+      <ResultActions data={data} viewerIsOwner={viewerIsOwner} />
     </div>
   )
 }
