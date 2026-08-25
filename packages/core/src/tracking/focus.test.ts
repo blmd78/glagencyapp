@@ -87,6 +87,23 @@ describe('attributeApps', () => {
     expect(a.items[0]).toMatchObject({ label: 'discord', kind: 'app', allowed: true, minutes: 20 })
   })
 
+  it('deux plages actives du MÊME label sont additionnées sous une seule entrée', () => {
+    const events: TrackerEvent[] = [
+      state('shift_start', 0),
+      focus(0, { app: 'chrome', host: 'mypuls.app' }),
+      focus(10, { app: 'chrome', host: 'youtube.com' }),
+      focus(20, { app: 'chrome', host: 'mypuls.app' }),
+      state('shift_end', 40),
+    ]
+    const built = buildSegments(events, { now: T0 + min(120) })
+    const a = attributeApps(built, events, T0, T0 + min(40), rules)
+    // Sans regroupement par clé, on aurait 3 entrées (10 + 10 + 20) au lieu de 2.
+    expect(a.items).toHaveLength(2)
+    const byLabel = Object.fromEntries(a.items.map((i) => [i.label, i.minutes]))
+    expect(byLabel['mypuls.app']).toBe(30)
+    expect(byLabel['youtube.com']).toBe(10)
+  })
+
   it('fenêtre qui COUPE les segments : seule la portion dans la fenêtre est attribuée', () => {
     // Sans clipping, une implémentation qui attribue le segment entier rendrait 30 et 10.
     const events: TrackerEvent[] = [
