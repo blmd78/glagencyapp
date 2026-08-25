@@ -18,7 +18,7 @@ const COLS =
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
 const num = (v: number | string | null): number => Number(v ?? 0)
 
-/** Nouveaux d'abord (c'est la file de traitement), puis du plus récent au plus ancien. */
+/** Nouveaux d'abord : c'est la file de traitement, un dossier déjà tranché n'a plus à remonter. */
 const STATUS_RANK: Record<CandidateStatus, number> = { nouveau: 0, valide: 1, refuse: 2 }
 
 /**
@@ -76,8 +76,9 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
  * (client SESSION : la RLS de `recruit_candidates` / `recruit_config` est `is_admin()` en lecture,
  * un non-admin lit zéro ligne — la garde `requireAdmin()` de la page est la défense en profondeur).
  *
- * Le tri « nouveaux d'abord » est fait EN MÉMOIRE : PostgREST ne sait pas trier sur une expression
- * (`order by status = 'nouveau' desc`), et la file tient de toute façon dans `MAX_ROWS`.
+ * Le tri (nouveaux d'abord, puis meilleure note) est fait EN MÉMOIRE : PostgREST ne sait pas trier
+ * sur une expression (`order by status = 'nouveau' desc`), et la file tient de toute façon dans
+ * `MAX_ROWS`.
  */
 export async function getCandidates(): Promise<CandidatesData> {
   const supabase = await createClient()
@@ -106,7 +107,15 @@ export async function getCandidates(): Promise<CandidatesData> {
     globalThreshold: config.data.global_threshold,
   }
   const rows = (candidates.data ?? []).map(toCandidateRow)
-  rows.sort((a, b) => STATUS_RANK[a.status] - STATUS_RANK[b.status] || b.createdAt.localeCompare(a.createdAt))
+  // Nouveaux d'abord, puis MEILLEURE NOTE EN TÊTE (demande du 2026-08-25) : on recrute par score,
+  // et c'est en haut de liste qu'on veut trouver qui embaucher. La date ne départage plus que les
+  // ex æquo — deux 78/100 se lisent alors du plus récent au plus ancien.
+  rows.sort(
+    (a, b) =>
+      STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
+      b.global - a.global ||
+      b.createdAt.localeCompare(a.createdAt),
+  )
   const kpis: RecruitKpis = {
     total: total.count ?? 0,
     nouveau: Math.max(0, (total.count ?? 0) - (valide.count ?? 0) - (refuse.count ?? 0)),

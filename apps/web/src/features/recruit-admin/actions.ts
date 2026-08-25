@@ -13,6 +13,7 @@
 // Patron §4 des guidelines : `noGuard` + vérification UNE SEULE FOIS en tête de handler, refus
 // métier = `BusinessError` (message français affiché tel quel), erreur technique = `Error` nue.
 
+import { todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { attachRecruitCandidate } from '@/lib/recruit-link'
@@ -232,16 +233,28 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
       if (!created.user) throw new Error('Création refusée')
       const uid = created.user.id
 
-      // Le trigger a déjà posé le profil (rôle `chatteur` par défaut) : on ne pose que le nom, les
-      // droits et la traçabilité. `formation` EST le droit de face, indispensable en plus de
-      // `frm-entrainement` — sans lui la face entière reste invisible.
-      const { error: pErr } = await admin
+      // Le trigger `on_auth_user_created` a posé le profil (rôle `chatteur` par défaut) : on ne
+      // pose que le nom, les droits et la traçabilité.
+      //
+      // `.select('id')` À LA FIN, et pas seulement `if (pErr)` : un update qui ne matche AUCUNE
+      // ligne ne renvoie pas d'erreur. Sans ce contrôle, un profil non encore visible laissait
+      // passer un compte SANS DROITS ni « nouvel arrivant », en silence — le candidat était créé
+      // mais inutilisable, et rien ne le signalait. Constaté en recette le 2026-08-25.
+      // `formation` EST le droit de face, indispensable en plus de `frm-entrainement` — sans lui la
+      // face entière reste invisible.
+      const { data: patched, error: pErr } = await admin
         .from('profiles')
         .update({
           display_name: displayName,
           pages: ['frm-entrainement', 'formation'],
           // Il sort du test de recrutement : il EST un nouvel arrivant, par définition.
+          //
+          // `arrived_at` OBLIGATOIREMENT avec : le check `profiles_is_new_needs_arrived_at` (0101)
+          // impose `not is_new or arrived_at is not null` — un drapeau sans date était refusé par la
+          // base, et faisait échouer toute la pose des droits. Le jour de l'ajout au CRM fait foi :
+          // c'est le moment où la personne entre dans l'agence.
           is_new: true,
+          arrived_at: todayParis(),
           // « Créé par » (0098) — l'encadrant qui a cliqué, jamais réécrit ensuite.
           created_by: caller.id,
           // « Modifié par » (0101) : LU PAR LE TRIGGER D'HISTORIQUE. On écrit en service-role, où
@@ -249,7 +262,14 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
           updated_by: caller.id,
         })
         .eq('id', uid)
+        .select('id')
       if (pErr) throw new Error(pErr.message)
+      if (!patched?.length) {
+        throw new Error(
+          `Profil ${uid} introuvable juste après la création du compte — droits non posés. ` +
+            'Le compte existe : termine-le depuis Membres.',
+        )
+      }
 
       // Rattachement du dossier — NON BLOQUANT par construction : le compte est déjà créé, un échec
       // ici ne coûte qu'un « devenu membre » manquant sur la fiche (tracé Sentry, rien à l'écran).
