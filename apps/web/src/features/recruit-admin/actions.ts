@@ -13,6 +13,7 @@
 // Patron §4 des guidelines : `noGuard` + vérification UNE SEULE FOIS en tête de handler, refus
 // métier = `BusinessError` (message français affiché tel quel), erreur technique = `Error` nue.
 
+import { todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { attachRecruitCandidate } from '@/lib/recruit-link'
@@ -247,7 +248,13 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
           display_name: displayName,
           pages: ['frm-entrainement', 'formation'],
           // Il sort du test de recrutement : il EST un nouvel arrivant, par définition.
+          //
+          // `arrived_at` OBLIGATOIREMENT avec : le check `profiles_is_new_needs_arrived_at` (0101)
+          // impose `not is_new or arrived_at is not null` — un drapeau sans date était refusé par la
+          // base, et faisait échouer toute la pose des droits. Le jour de l'ajout au CRM fait foi :
+          // c'est le moment où la personne entre dans l'agence.
           is_new: true,
+          arrived_at: todayParis(),
           // « Créé par » (0098) — l'encadrant qui a cliqué, jamais réécrit ensuite.
           created_by: caller.id,
           // « Modifié par » (0101) : LU PAR LE TRIGGER D'HISTORIQUE. On écrit en service-role, où
