@@ -85,4 +85,35 @@ describe('attributeModels', () => {
     expect(r.main).toBeNull()
     expect(r.untrackedMinutes).toBe(60)
   })
+
+  it("un retour sur le même modèle s'additionne sous une seule entrée", () => {
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0) },
+      { type: 'model', at: at(0), meta: { model: 'CARLA' } },
+      { type: 'model', at: at(20), meta: { model: 'LEA' } },
+      { type: 'model', at: at(40), meta: { model: 'CARLA' } },
+      { type: 'shift_end', at: at(60) },
+    ]
+    const built = buildSegments(events, { now: T0 + min(120) })
+    const r = attributeModels(built, events, T0, T0 + min(120))
+    // Sans accumulation, on aurait 3 entrées (20 + 20 + 20).
+    expect(r.perModel).toEqual([
+      { model: 'CARLA', minutes: 40 },
+      { model: 'LEA', minutes: 20 },
+    ])
+    expect(r.main).toBe('CARLA')
+  })
+
+  it("la casse ne crée pas deux modèles : « CARLA » et « carla » n'en font qu'un", () => {
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0) },
+      { type: 'model', at: at(0), meta: { model: 'CARLA' } },
+      { type: 'model', at: at(30), meta: { model: 'carla' } },
+      { type: 'shift_end', at: at(60) },
+    ]
+    const built = buildSegments(events, { now: T0 + min(120) })
+    const r = attributeModels(built, events, T0, T0 + min(120))
+    // Le premier libellé rencontré fait foi pour l'affichage.
+    expect(r.perModel).toEqual([{ model: 'CARLA', minutes: 60 }])
+  })
 })

@@ -58,7 +58,10 @@ export function attributeModels(
 ): ModelAttribution {
   const active = built.segments.filter((s) => s.kind === 'active')
   const intervals = buildIntervals(events)
-  const byModel = new Map<string, number>()
+  // Regroupement par CLÉ normalisée — « CARLA » et « carla » sont le MÊME modèle — en gardant le
+  // premier libellé rencontré pour l'affichage. Sans ça, une simple différence de casse scinde un
+  // modèle en deux lignes et peut faire élire le mauvais `main`.
+  const byModel = new Map<string, { label: string; ms: number }>()
   let attributed = 0
 
   for (const seg of active) {
@@ -68,15 +71,18 @@ export function attributeModels(
     for (const iv of intervals) {
       const ms = overlap(s, e, iv.start, iv.end)
       if (ms <= 0) continue
-      byModel.set(iv.model, (byModel.get(iv.model) ?? 0) + ms)
+      const key = modelKey(iv.model)
+      const rec = byModel.get(key) ?? { label: iv.model, ms: 0 }
+      rec.ms += ms
+      byModel.set(key, rec)
       attributed += ms
     }
   }
 
   const activeMs = active.reduce((n, s) => n + overlap(s.start, s.end, windowStart, windowEnd), 0)
 
-  const perModel = [...byModel.entries()]
-    .map(([model, ms]) => ({ model, minutes: Math.round(ms / 60_000) }))
+  const perModel = [...byModel.values()]
+    .map((r) => ({ model: r.label, minutes: Math.round(r.ms / 60_000) }))
     .filter((m) => m.minutes > 0)
     .sort((a, b) => b.minutes - a.minutes)
 
