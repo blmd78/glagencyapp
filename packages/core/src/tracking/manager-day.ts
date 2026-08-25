@@ -28,6 +28,11 @@ export interface ManagerDay {
   openShift: boolean
   crashed: boolean
   recovered: boolean
+  /**
+   * État à l'instant présent. ATTENTION : c'est le SEUL champ de cette structure qui ne soit PAS
+   * borné au jour demandé — il est calculé sur tous les événements reçus. C'est voulu : sans lui,
+   * un encadrant dont le shift a démarré la veille apparaîtrait comme absent aujourd'hui.
+   */
   live: LiveStatus | null
   totalMinutes: number
   workedMinutes: number

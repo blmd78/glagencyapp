@@ -55,6 +55,52 @@ describe('managerDay', () => {
     expect(d.started).toBeNull()
     expect(d.workedMinutes).toBe(0)
   })
+
+  it('shift de la veille jamais clôturé : aujourd’hui est vide, mais `live` reste actif', () => {
+    const now = NIGHT + min(720)
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(NIGHT, 0) },
+      { type: 'heartbeat', at: at(NIGHT, 719) },
+    ]
+    const hier = managerDay(events, '2026-08-16', { now })
+    expect(hier.openShift).toBe(true)
+    expect(hier.ended).toBeNull()
+    expect(hier.live).toMatchObject({ state: 'active' })
+
+    const aujourdhui = managerDay(events, '2026-08-17', { now })
+    expect(aujourdhui.hasActivity).toBe(false)
+    expect(aujourdhui.workedMinutes).toBe(0)
+    // `live` est le SEUL champ qui ne soit pas borné au jour demandé : c'est lui qui évite
+    // d'afficher comme absent un encadrant réellement au travail.
+    expect(aujourdhui.live).toMatchObject({ state: 'active' })
+  })
+
+  it('PC éteint en pleine session : `crashed`, sans heure de fin inventée', () => {
+    const now = NIGHT + min(200)
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(NIGHT, 0) },
+      { type: 'heartbeat', at: at(NIGHT, 60) },
+    ]
+    const d = managerDay(events, '2026-08-16', { now })
+    expect(d.crashed).toBe(true)
+    expect(d.openShift).toBe(false)
+    expect(d.ended).toBeNull()
+    expect(d.workedMinutes).toBe(60)
+  })
+
+  it('deux shifts le même jour : `totalMinutes` couvre le trou, pas `workedMinutes`', () => {
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: '2026-08-17T06:00:00.000Z' },   // 08h Paris
+      { type: 'shift_end', at: '2026-08-17T10:00:00.000Z' },     // 12h Paris
+      { type: 'shift_start', at: '2026-08-17T14:00:00.000Z' },   // 16h Paris
+      { type: 'shift_end', at: '2026-08-17T18:00:00.000Z' },     // 20h Paris
+    ]
+    const d = managerDay(events, '2026-08-17', { now: Date.parse('2026-08-17T20:00:00.000Z') })
+    expect(d.activeMinutes).toBe(480)
+    expect(d.workedMinutes).toBe(480)
+    // Le trou de 4 h est DANS `totalMinutes` (début → fin) mais hors du temps travaillé.
+    expect(d.totalMinutes).toBe(720)
+  })
 })
 
 describe('sumManagerDays', () => {
