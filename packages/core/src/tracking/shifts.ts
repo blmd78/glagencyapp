@@ -35,6 +35,7 @@ export interface ShiftWindow {
  * Fenêtre du shift qui vient de se TERMINER à `nowMs`.
  * Ex. à 13h05 pour « matin » → [aujourd'hui 05 h, aujourd'hui 13 h].
  *     à 05h05 pour « nuit »  → [hier 21 h, aujourd'hui 05 h].
+ * Correct les jours de bascule d'heure en passant par l'heure murale explicite.
  */
 export function shiftWindow(shift: Shift, nowMs: number = Date.now()): ShiftWindow {
   const today = parisDay(new Date(nowMs).toISOString())
@@ -42,8 +43,13 @@ export function shiftWindow(shift: Shift, nowMs: number = Date.now()): ShiftWind
   // Si la fin de ce shift n'est pas encore passée aujourd'hui, c'est celui d'hier qui a fini.
   if (parisWallUtcMs(endDay, shift.endH) > nowMs) endDay = addDays(endDay, -1)
   const end = parisWallUtcMs(endDay, shift.endH)
+  // Le `start` ne se DÉRIVE PAS de `end` par une durée fixe : les deux nuits de bascule d'heure
+  // durent 7 h ou 9 h, pas 8. On repasse donc par l'heure murale du jour de départ — la veille
+  // quand le shift franchit minuit (cas `nuit`).
+  const startDay = shift.startH > shift.endH ? addDays(endDay, -1) : endDay
+  const start = parisWallUtcMs(startDay, shift.startH)
   return {
-    start: end - 8 * 3_600_000,
+    start,
     end,
     date: endDay,
     label: shift.label,
