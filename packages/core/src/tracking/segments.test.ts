@@ -81,7 +81,10 @@ describe('buildSegments', () => {
       now: T0 + min(120),
     })
     expect(b.segments).toHaveLength(2)
-    expect(b.segments[1]?.shiftStart).toBe(T0 + min(30))
+    // Le segment du PREMIER shift garde le shiftStart du premier — la fermeture doit avoir lieu
+    // AVANT que `curShiftStart` ne soit réaffecté.
+    expect(b.segments[0]).toMatchObject({ kind: 'active', start: T0, end: T0 + min(30), shiftStart: T0 })
+    expect(b.segments[1]).toMatchObject({ kind: 'active', start: T0 + min(30), end: T0 + min(60), shiftStart: T0 + min(30) })
   })
 
   it('DEFAULT_STALE_MS vaut 3 minutes', () => {
@@ -98,7 +101,7 @@ describe('liveFromEvents', () => {
     const events: TrackerEvent[] = [
       { ...ev('shift_start', 0), at: new Date(T0 - min(9999)).toISOString() },
     ]
-    expect(liveFromEvents(events, now)).toMatchObject({ state: 'active' })
+    expect(liveFromEvents(events, now)).toMatchObject({ state: 'active', since: T0 })
   })
   it('rien reçu depuis staleMs → hors ligne', () => {
     expect(liveFromEvents([ev('shift_start', 0)], T0 + min(10))).toBeNull()
@@ -107,8 +110,10 @@ describe('liveFromEvents', () => {
     expect(liveFromEvents([ev('shift_start', 0), ev('shift_end', 1)], T0 + min(2))).toBeNull()
   })
   it('suit pause et inactivité', () => {
-    expect(liveFromEvents([ev('shift_start', 0), ev('pause', 1)], T0 + min(2))?.state).toBe('pause')
-    expect(liveFromEvents([ev('shift_start', 0), ev('idle_start', 1)], T0 + min(2))?.state).toBe('idle')
+    expect(liveFromEvents([ev('shift_start', 0), ev('pause', 1)], T0 + min(2)))
+      .toMatchObject({ state: 'pause', since: T0 + min(1) })
+    expect(liveFromEvents([ev('shift_start', 0), ev('idle_start', 1)], T0 + min(2)))
+      .toMatchObject({ state: 'idle', since: T0 + min(1) })
   })
 })
 
@@ -133,5 +138,23 @@ describe('summarize', () => {
     expect(s.firstStart).toBeNull()
     expect(s.lastStop).toBeNull()
     expect(s.activeMinutes).toBe(0)
+  })
+  it('fenêtre qui COUPE les segments : seule la portion dans la fenêtre compte', () => {
+    // Segments : active[0,20] pause[20,30] active[30,40] idle[40,50] active[50,60].
+    // Fenêtre [25,45] : coupe la pause (5 min sur 10), prend l'actif entier (10 min),
+    // coupe l'inactif (5 min sur 10). Une implémentation qui compterait le segment ENTIER dès
+    // que son début tombe dans la fenêtre rendrait idleMinutes = 10.
+    const b = buildSegments(
+      [ev('shift_start', 0), ev('pause', 20), ev('resume', 30), ev('idle_start', 40), ev('idle_end', 50), ev('shift_end', 60)],
+      { now: T0 + min(120) },
+    )
+    const s = summarize(b, T0 + min(25), T0 + min(45))
+    expect(s.activeMinutes).toBe(10)
+    expect(s.pauseMinutes).toBe(5)
+    expect(s.idleMinutes).toBe(5)
+    // Début et fin du shift tombent hors fenêtre : pas d'heure à afficher.
+    expect(s.firstStart).toBeNull()
+    expect(s.lastStop).toBeNull()
+    expect(s.hasActivity).toBe(true)
   })
 })
