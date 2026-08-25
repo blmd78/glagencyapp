@@ -198,13 +198,14 @@ export const WORKSPACES: Workspace[] = [
     // formation, Roue, Recrutement, Modules) sans les cacher.
     groups: [{ id: 'config', label: 'Configuration', icon: Settings2 }],
     nav: [
-      // EN TÊTE (demande du 2026-08-25) : le recrutement précède la formation dans le parcours réel
-      // — on recrute, puis on forme. Dossiers du test public (/postuler) ; `adminOnly` SANS slug :
-      // le recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables recruit_*),
-      // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de
-      // `facePageChoices` ci-dessous). Seul item à porter une pastille sur cette face.
-      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
       { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
+      // Placé JUSTE AU-DESSUS de « Ma formation » (demande du 2026-08-25) : le recrutement précède
+      // la formation dans le parcours réel — on recrute, puis on forme. Overview reste en tête,
+      // c'est le tableau de bord de la face. Dossiers du test public (/postuler) ; `adminOnly` SANS
+      // slug : le recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables
+      // recruit_*), et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre
+      // de `facePageChoices` ci-dessous). Seul item à porter une pastille sur cette face.
+      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
       // Réservée à l'ENCADREMENT depuis la règle du 2026-08-24 : c'est le manager qui fait tourner
       // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il
