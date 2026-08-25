@@ -6,6 +6,7 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
 import { CANDIDATE_STATUS_LABELS, type CandidateRow, type RecruitGates } from '../types'
 import { AddToCrmButton } from './add-to-crm-button'
+import { CandidateAnswers } from './candidate-answers'
 
 // Formateur hoisté (un `toLocaleDateString` avec options reconstruit un Intl.DateTimeFormat à
 // chaque appel). TZ explicite : le SSR (UTC) et le navigateur doivent rendre LE MÊME jour.
@@ -71,7 +72,7 @@ export function CandidatesTable({ rows, gates }: { rows: CandidateRow[]; gates: 
             <TableHead className="w-56">Épreuves</TableHead>
             <TableHead className="w-28">Statut</TableHead>
             <TableHead className="w-28">Reçu</TableHead>
-            <TableHead className="w-36 text-right">Au CRM</TableHead>
+            <TableHead className="w-44 text-right">Réponses · CRM</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -126,11 +127,14 @@ export function CandidatesTable({ rows, gates }: { rows: CandidateRow[]; gates: 
               {/* Création du compte EN UN CLIC : e-mail du dossier, rôle chatteur, droit
                   Entraînement — aucun formulaire à remplir. */}
               <TableCell className="text-right">
-                {c.isMember ? (
-                  <span className="text-xs text-muted-foreground">déjà membre</span>
-                ) : (
-                  <AddToCrmButton candidateId={c.id} />
-                )}
+                <span className="flex items-center justify-end gap-1">
+                  <CandidateAnswers candidate={c} />
+                  {c.isMember ? (
+                    <span className="text-xs text-muted-foreground">déjà membre</span>
+                  ) : (
+                    <AddToCrmButton candidateId={c.id} />
+                  )}
+                </span>
               </TableCell>
             </TableRow>
           ))}

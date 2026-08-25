@@ -10,8 +10,10 @@ import type { CandidateRow, CandidatesData, CandidateStatus, RecruitGates, Recru
  */
 const MAX_ROWS = 500
 
+// `phone`/`age`/`location`/`shifts`/`source` : les réponses du formulaire de fin, montrées dans la
+// modale « Ses réponses » de la liste — sans elles il fallait ouvrir la fiche pour les lire.
 const COLS =
-  'id, first_name, last_name, email, discord, created_at, qi_score, qi_total, typing_wpm, connection_mbps, orthographe, coherence, relance, vente, bot_total, global, passed, refusal_step, refusal_reason, repeat, status, profile_id'
+  'id, first_name, last_name, email, discord, phone, age, location, shifts, source, created_at, qi_score, qi_total, typing_wpm, connection_mbps, orthographe, coherence, relance, vente, bot_total, global, passed, refusal_step, refusal_reason, repeat, status, profile_id'
 
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
 const num = (v: number | string | null): number => Number(v ?? 0)
@@ -29,6 +31,7 @@ type CandidateCols = Omit<
   Pick<
     Database['public']['Tables']['recruit_candidates']['Row'],
     | 'id' | 'first_name' | 'last_name' | 'email' | 'discord' | 'created_at' | 'qi_score' | 'qi_total'
+    | 'phone' | 'age' | 'location' | 'shifts' | 'source'
     | 'typing_wpm' | 'connection_mbps' | 'orthographe' | 'coherence' | 'relance' | 'vente' | 'bot_total'
     | 'global' | 'passed' | 'refusal_step' | 'refusal_reason' | 'repeat' | 'status' | 'profile_id'
   >,
@@ -60,6 +63,11 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
     // `check` SQL (0125) : la colonne ne peut valoir que l'une des trois valeurs.
     status: r.status as CandidateStatus,
     isMember: r.profile_id !== null,
+    phone: r.phone,
+    age: r.age,
+    location: r.location,
+    shifts: r.shifts,
+    source: r.source,
   }
 }
 

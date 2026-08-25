@@ -127,7 +127,7 @@ export async function unblockCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id }) => {
-      await requireAdminProfileLive()
+      const caller = await requireAdminProfileLive()
       const admin = createAdminClient()
       const t = await loadBlockTargets(admin, id)
       const identity: ['device' | 'email' | 'discord', string | null][] = [
@@ -172,7 +172,7 @@ export async function deleteCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id }) => {
-      await requireAdminProfileLive()
+      const caller = await requireAdminProfileLive()
       const admin = createAdminClient()
       const { data, error } = await admin.from('recruit_candidates').delete().eq('id', id).select('id').maybeSingle()
       if (error) throw new Error(error.message)
@@ -203,7 +203,7 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
     input: raw,
     guard: noGuard,
     handler: async ({ id }): Promise<{ profileId: string }> => {
-      await requireAdminProfileLive()
+      const caller = await requireAdminProfileLive()
       const admin = createAdminClient()
 
       const { data: c, error } = await admin
@@ -232,12 +232,22 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
       if (!created.user) throw new Error('Création refusée')
       const uid = created.user.id
 
-      // Le trigger a déjà posé le profil (rôle `chatteur` par défaut) : on ne pose que le nom et
-      // les droits. `formation` EST le droit de face, indispensable en plus de `frm-entrainement` —
-      // sans lui la face entière reste invisible (`mergePages` le fait pour les faces secondaires).
+      // Le trigger a déjà posé le profil (rôle `chatteur` par défaut) : on ne pose que le nom, les
+      // droits et la traçabilité. `formation` EST le droit de face, indispensable en plus de
+      // `frm-entrainement` — sans lui la face entière reste invisible.
       const { error: pErr } = await admin
         .from('profiles')
-        .update({ display_name: displayName, pages: ['frm-entrainement', 'formation'] })
+        .update({
+          display_name: displayName,
+          pages: ['frm-entrainement', 'formation'],
+          // Il sort du test de recrutement : il EST un nouvel arrivant, par définition.
+          is_new: true,
+          // « Créé par » (0098) — l'encadrant qui a cliqué, jamais réécrit ensuite.
+          created_by: caller.id,
+          // « Modifié par » (0101) : LU PAR LE TRIGGER D'HISTORIQUE. On écrit en service-role, où
+          // `auth.uid()` est null — sans cette colonne, la création serait attribuée à « système ».
+          updated_by: caller.id,
+        })
         .eq('id', uid)
       if (pErr) throw new Error(pErr.message)
 
