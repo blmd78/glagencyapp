@@ -80,6 +80,10 @@ create index if not exists tracker_events_date_idx
 create index if not exists tracker_events_type_date_idx
   on public.tracker_events (type, local_date);
 
+-- Postgres n'indexe PAS les colonnes de clé étrangère. Sans cet index, supprimer un poste
+-- (cas courant : remplacement de PC) déclencherait un scan complet de la table.
+create index if not exists tracker_events_device_idx on public.tracker_events (device_id);
+
 -- ---------------------------------------------------------------------------
 -- Horizon CHAUD — l'état courant, écrasé
 -- ---------------------------------------------------------------------------
@@ -121,11 +125,17 @@ create index if not exists tracker_focus_raw_profile_date_idx
 -- Sert la purge quotidienne.
 create index if not exists tracker_focus_raw_date_idx
   on public.tracker_focus_raw (local_date);
+create index if not exists tracker_focus_raw_device_idx on public.tracker_focus_raw (device_id);
 
 -- ---------------------------------------------------------------------------
 -- Horizon FROID — les tables de faits, figées à chaque fin de shift
 -- ---------------------------------------------------------------------------
 
+-- `on delete cascade` sur `profile_id` : c'est la convention du schéma pour TOUTE référence à
+-- `profiles` (61 FK en production, aucune en `restrict`). Supprimer un membre efface donc son
+-- historique de présence — comme celui de ses rapports de police et de ses sessions de formation.
+-- Assumé : la suppression est réservée aux doublons et erreurs de saisie, les départs se traitent
+-- par bannissement.
 create table if not exists public.tracker_shift_rows (
   profile_id            uuid not null references public.profiles(id) on delete cascade,
   date                  date not null,
@@ -195,6 +205,9 @@ create table if not exists public.tracker_model_time (
 create index if not exists tracker_model_time_date_idx
   on public.tracker_model_time (date, shift_key);
 
+-- `creator_id` est le dernier champ de la PK composite, donc inutilisable en préfixe.
+create index if not exists tracker_model_time_creator_idx on public.tracker_model_time (creator_id);
+
 -- Idempotence des rapports Discord : un rapport par (jour, shift), rejouable sans doublon.
 create table if not exists public.tracker_reports (
   date      date not null,
@@ -226,9 +239,10 @@ insert into public.tracker_rules (id, apps, domains)
 values (
   1,
   array['chrome','msedge','firefox','brave','opera','vivaldi','discord','slack','telegram',
-        'adspower','gologin','gl agency shift','iremotech','chatgpt classic','explorer',
-        'shellexperiencehost','applicationframehost','searchhost','startmenuexperiencehost',
-        'textinputhost','snippingtool','notepad','msedgewebview2'],
+        'whatsapp','whatsapp.root','infloww','sunbrowser','adspower global','adspower','gologin',
+        'gl agency shift','iremotech','chatgpt classic','explorer','shellexperiencehost',
+        'applicationframehost','searchhost','startmenuexperiencehost','textinputhost',
+        'snippingtool','notepad','msedgewebview2'],
   array['mypuls.app','onlyfans.com','fansly.com','fanvue.com','discord.com','telegram.org',
         'glagencyapp-web.vercel.app','gla-workflow-z5f2.vercel.app','chatgpt.com',
         'gemini.google.com','grok.com','claude.ai','translate.google.com','loom.com',
@@ -282,6 +296,9 @@ create policy tracker_focus_shift_read on public.tracker_focus_shift for select 
 create policy tracker_model_time_read on public.tracker_model_time for select to authenticated
   using ((select public.is_admin()) or (select public.has_page('presence')) or profile_id = (select auth.uid()));
 
+-- EXCEPTION à la règle de lecture ci-dessus : `tracker_reports` est admin-only. Ce n'est pas une
+-- surface utilisateur mais la table d'idempotence des rapports Discord — son payload agrège tout
+-- le monde, y compris des personnes hors du périmètre du lecteur.
 create policy tracker_reports_read on public.tracker_reports for select to authenticated
   using ((select public.is_admin()));
 
