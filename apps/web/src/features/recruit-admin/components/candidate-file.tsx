@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import type { Route } from 'next'
+import { ArrowLeft, UserPlus } from 'lucide-react'
 import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type RecruitGates } from '../types'
 import { CandidateActions, CopyValue } from './recruit-actions'
@@ -87,6 +89,23 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
           <Meta label="Reçu le">{frDateTimeLongParis(candidate.createdAt)}</Meta>
         </dl>
       </div>
+
+      {/* « Ajouter au CRM » — ouvre la création de membre AVEC l'e-mail et le nom du candidat, et
+          la case Entraînement déjà cochée (le rôle chatteur est le défaut). Un lien avec paramètres
+          plutôt qu'un dialog importé : `recruit-admin` ne peut pas importer `members` (frontière
+          ESLint cross-feature), et l'écran de destination reste celui où l'on gère les droits.
+          Masqué si le candidat est DÉJÀ membre — il n'y a plus rien à créer. */}
+      {!candidate.isMember && (
+        <Button asChild size="sm" className="w-fit gap-1.5">
+          <Link
+            href={
+              `/formation/members?nouveau=1&email=${encodeURIComponent(candidate.email)}&nom=${encodeURIComponent(`${candidate.firstName} ${candidate.lastName}`.trim())}` as Route
+            }
+          >
+            <UserPlus className="size-3.5" /> Ajouter au CRM
+          </Link>
+        </Button>
+      )}
 
       <CandidateActions
         candidate={{

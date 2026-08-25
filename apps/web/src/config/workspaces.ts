@@ -198,17 +198,18 @@ export const WORKSPACES: Workspace[] = [
     // formation, Roue, Recrutement, Modules) sans les cacher.
     groups: [{ id: 'config', label: 'Configuration', icon: Settings2 }],
     nav: [
+      // EN TÊTE (demande du 2026-08-25) : le recrutement précède la formation dans le parcours réel
+      // — on recrute, puis on forme. Dossiers du test public (/postuler) ; `adminOnly` SANS slug :
+      // le recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables recruit_*),
+      // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de
+      // `facePageChoices` ci-dessous). Seul item à porter une pastille sur cette face.
+      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
       { href: '/formation/overview', label: 'Overview', icon: LayoutDashboard, slug: 'frm-suivi', choiceLabel: 'Suivi' },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
       // Réservée à l'ENCADREMENT depuis la règle du 2026-08-24 : c'est le manager qui fait tourner
       // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il
       // apprend son gain de vive voix. Pas de `slug` propre : le droit vient de Suivi.
       { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-suivi'] },
-      // Dossiers du test de recrutement public (/postuler) — `adminOnly` SANS slug : le
-      // recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables recruit_*),
-      // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de
-      // `facePageChoices` ci-dessous). Item DIRECT, seul à porter une pastille sur cette face.
-      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
       // Réservé à l'ENCADREMENT depuis le 2026-08-25 : un chatteur navigue depuis « Ma formation »,
       // dont le panneau « Tes modules » liste tout le catalogue — c'est le parcours de l'ancienne
       // plateforme, où la liste des modules EST l'accueil. L'encadrant, lui, n'a pas « Ma

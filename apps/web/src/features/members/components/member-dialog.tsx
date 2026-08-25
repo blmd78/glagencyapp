@@ -19,6 +19,7 @@ import { ActionButton } from '@/components/action-button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { createMember, updateMember } from '../actions'
+import type { MemberPrefill } from './member-defaults'
 import { loadMemberEvents } from '../actions-lifecycle'
 import { loadLegacyState } from '../actions-legacy'
 import { checkRecruitByEmail } from '../actions-recruit'
@@ -84,6 +85,7 @@ export function MemberDialog({
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
+  prefill,
 }: {
   /** Absent = création. */
   member?: Member
@@ -102,6 +104,8 @@ export function MemberDialog({
   viewer?: 'admin' | 'manager'
   /** Propriétaire : option rôle Admin (garde serveur en plus du sélecteur). */
   superadmin?: boolean
+  /** Valeurs pré-saisies à la création (bouton « Ajouter au CRM » d'un dossier de recrutement). */
+  prefill?: MemberPrefill
 }) {
   'use no memo'
   const [openState, setOpenState] = useState(false)
@@ -141,7 +145,7 @@ export function MemberDialog({
     formState: { errors, isSubmitting },
   } = useForm<MemberForm>({
     resolver: zodResolver(memberInput),
-    defaultValues: memberDefaults({ member, scope, viewer, creators }),
+    defaultValues: memberDefaults({ member, scope, viewer, creators, prefill }),
   })
   // Réinitialise à L'OUVERTURE SEULEMENT (transition fermé→ouvert, gardée par prevOpen) : le
   // useForm n'est semé qu'au montage — sans reset, le dialog garde l'état de sa précédente
@@ -154,11 +158,11 @@ export function MemberDialog({
     const opening = open && !prevOpen.current
     prevOpen.current = open
     if (!opening) return
-    reset(memberDefaults({ member, scope, viewer, creators }))
+    reset(memberDefaults({ member, scope, viewer, creators, prefill }))
     // Même geste pour le jeton du lookup recrutement : sans ça, rouvrir le dialog et resaisir LE
     // MÊME e-mail serait vu comme un doublon et l'encart ne reviendrait jamais.
     askedEmail.current = ''
-  }, [open, member, scope, viewer, creators, reset])
+  }, [open, member, scope, viewer, creators, prefill, reset])
 
   // Rôle admin choisi → pages/modèles/rattachement sans objet (un admin voit tout).
   const roleValue = useWatch({ control, name: 'role' })

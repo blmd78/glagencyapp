@@ -1,4 +1,5 @@
 import { MembersTable } from './components/members-table'
+import type { MemberPrefill } from './components/member-defaults'
 import type { WorkspaceId } from '@/config/workspaces'
 import { MembersTabs } from './components/members-tabs'
 import { TurnoverView } from './components/turnover-view'
@@ -26,6 +27,7 @@ export function MembersTemplate({
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
+  prefill,
 }: {
   data: MembersData | null
   turnover?: TurnoverData | null
@@ -46,6 +48,13 @@ export function MembersTemplate({
   viewer?: 'admin' | 'manager'
   /** Propriétaire : peut nommer des admins et gérer les fiches admin. */
   superadmin?: boolean
+  /**
+   * Valeurs pré-saisies du « Nouveau membre », lues de l'URL (`?nouveau=1&email=…`). Le bouton
+   * « Ajouter au CRM » d'un dossier de recrutement amène ici avec l'e-mail et le nom du candidat.
+   * Passer par l'URL et non par un import : `recruit-admin` ne peut pas importer `members`
+   * (frontière ESLint cross-feature).
+   */
+  prefill?: MemberPrefill
 }) {
   const liste = data && (
     <div className="flex flex-col gap-6">
@@ -62,6 +71,7 @@ export function MembersTemplate({
         scope={scope}
         viewer={viewer}
         superadmin={superadmin}
+        prefill={prefill}
       />
     </div>
   )
