@@ -232,10 +232,16 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
       if (!created.user) throw new Error('Création refusée')
       const uid = created.user.id
 
-      // Le trigger a déjà posé le profil (rôle `chatteur` par défaut) : on ne pose que le nom, les
-      // droits et la traçabilité. `formation` EST le droit de face, indispensable en plus de
-      // `frm-entrainement` — sans lui la face entière reste invisible.
-      const { error: pErr } = await admin
+      // Le trigger `on_auth_user_created` a posé le profil (rôle `chatteur` par défaut) : on ne
+      // pose que le nom, les droits et la traçabilité.
+      //
+      // `.select('id')` À LA FIN, et pas seulement `if (pErr)` : un update qui ne matche AUCUNE
+      // ligne ne renvoie pas d'erreur. Sans ce contrôle, un profil non encore visible laissait
+      // passer un compte SANS DROITS ni « nouvel arrivant », en silence — le candidat était créé
+      // mais inutilisable, et rien ne le signalait. Constaté en recette le 2026-08-25.
+      // `formation` EST le droit de face, indispensable en plus de `frm-entrainement` — sans lui la
+      // face entière reste invisible.
+      const { data: patched, error: pErr } = await admin
         .from('profiles')
         .update({
           display_name: displayName,
@@ -249,7 +255,14 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
           updated_by: caller.id,
         })
         .eq('id', uid)
+        .select('id')
       if (pErr) throw new Error(pErr.message)
+      if (!patched?.length) {
+        throw new Error(
+          `Profil ${uid} introuvable juste après la création du compte — droits non posés. ` +
+            'Le compte existe : termine-le depuis Membres.',
+        )
+      }
 
       // Rattachement du dossier — NON BLOQUANT par construction : le compte est déjà créé, un échec
       // ici ne coûte qu'un « devenu membre » manquant sur la fiche (tracé Sentry, rien à l'écran).
