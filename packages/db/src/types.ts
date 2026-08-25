@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       chatter_alias: {
@@ -2784,6 +2759,469 @@ export type Database = {
           },
         ]
       }
+      tracker_devices: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          label: string | null
+          last_seen_at: string | null
+          machine_id: string | null
+          profile_id: string
+          role: string
+          token_hash: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          machine_id?: string | null
+          profile_id: string
+          role: string
+          token_hash: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string | null
+          last_seen_at?: string | null
+          machine_id?: string | null
+          profile_id?: string
+          role?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_devices_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_events: {
+        Row: {
+          at: string
+          client_event_id: string
+          device_id: string
+          id: number
+          local_date: string
+          meta: Json | null
+          profile_id: string
+          received_at: string
+          session_id: string
+          skewed: boolean
+          type: string
+        }
+        Insert: {
+          at: string
+          client_event_id: string
+          device_id: string
+          id?: never
+          local_date: string
+          meta?: Json | null
+          profile_id: string
+          received_at?: string
+          session_id: string
+          skewed?: boolean
+          type: string
+        }
+        Update: {
+          at?: string
+          client_event_id?: string
+          device_id?: string
+          id?: never
+          local_date?: string
+          meta?: Json | null
+          profile_id?: string
+          received_at?: string
+          session_id?: string
+          skewed?: boolean
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_events_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "tracker_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracker_events_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_focus_raw: {
+        Row: {
+          at: string
+          device_id: string
+          id: number
+          kind: string
+          label: string
+          local_date: string
+          profile_id: string
+        }
+        Insert: {
+          at: string
+          device_id: string
+          id?: never
+          kind: string
+          label: string
+          local_date: string
+          profile_id: string
+        }
+        Update: {
+          at?: string
+          device_id?: string
+          id?: never
+          kind?: string
+          label?: string
+          local_date?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_focus_raw_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "tracker_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracker_focus_raw_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_focus_shift: {
+        Row: {
+          allowed: boolean
+          date: string
+          kind: string
+          label: string
+          minutes: number
+          profile_id: string
+          shift_key: string
+        }
+        Insert: {
+          allowed: boolean
+          date: string
+          kind: string
+          label: string
+          minutes: number
+          profile_id: string
+          shift_key: string
+        }
+        Update: {
+          allowed?: boolean
+          date?: string
+          kind?: string
+          label?: string
+          minutes?: number
+          profile_id?: string
+          shift_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_focus_shift_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_live: {
+        Row: {
+          current_model: string | null
+          device_id: string
+          last_heartbeat_at: string
+          machine_id: string | null
+          profile_id: string
+          since: string | null
+          state: string
+        }
+        Insert: {
+          current_model?: string | null
+          device_id: string
+          last_heartbeat_at: string
+          machine_id?: string | null
+          profile_id: string
+          since?: string | null
+          state: string
+        }
+        Update: {
+          current_model?: string | null
+          device_id?: string
+          last_heartbeat_at?: string
+          machine_id?: string | null
+          profile_id?: string
+          since?: string | null
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_live_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: true
+            referencedRelation: "tracker_devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracker_live_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_model_time: {
+        Row: {
+          creator_id: string
+          date: string
+          minutes: number
+          profile_id: string
+          shift_key: string
+          untracked_minutes: number
+        }
+        Insert: {
+          creator_id: string
+          date: string
+          minutes: number
+          profile_id: string
+          shift_key: string
+          untracked_minutes?: number
+        }
+        Update: {
+          creator_id?: string
+          date?: string
+          minutes?: number
+          profile_id?: string
+          shift_key?: string
+          untracked_minutes?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_model_time_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracker_model_time_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_reports: {
+        Row: {
+          date: string
+          payload: Json
+          sent_at: string
+          shift_key: string
+        }
+        Insert: {
+          date: string
+          payload: Json
+          sent_at?: string
+          shift_key: string
+        }
+        Update: {
+          date?: string
+          payload?: Json
+          sent_at?: string
+          shift_key?: string
+        }
+        Relationships: []
+      }
+      tracker_rules: {
+        Row: {
+          apps: string[]
+          domains: string[]
+          id: number
+          lateness_max_minutes: number
+          main_tool: string
+          off_task_threshold_minutes: number
+          stagnant_threshold_minutes: number
+          tool_min_minutes: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          apps?: string[]
+          domains?: string[]
+          id?: number
+          lateness_max_minutes?: number
+          main_tool?: string
+          off_task_threshold_minutes?: number
+          stagnant_threshold_minutes?: number
+          tool_min_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          apps?: string[]
+          domains?: string[]
+          id?: number
+          lateness_max_minutes?: number
+          main_tool?: string
+          off_task_threshold_minutes?: number
+          stagnant_threshold_minutes?: number
+          tool_min_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_rules_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_settings: {
+        Row: {
+          daily_quota_minutes: number
+          profile_id: string
+          workdays: string
+        }
+        Insert: {
+          daily_quota_minutes?: number
+          profile_id: string
+          workdays?: string
+        }
+        Update: {
+          daily_quota_minutes?: number
+          profile_id?: string
+          workdays?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracker_shift_rows: {
+        Row: {
+          active_minutes: number
+          compliant: boolean
+          computed_at: string
+          counted_pause_minutes: number
+          crashed: boolean
+          date: string
+          effective_minutes: number
+          ended_at: string | null
+          idle_cuts: number
+          idle_minutes: number
+          is_workday: boolean
+          launched: boolean
+          missing_minutes: number
+          off_task_minutes: number
+          off_task_over: boolean
+          open_shift: boolean
+          overlap_minutes: number
+          pause_count: number
+          pause_minutes: number
+          profile_id: string
+          quota_minutes: number
+          reasons: string[]
+          recovered: boolean
+          shift_key: string
+          stagnant_minutes: number
+          stagnant_over: boolean
+          started_at: string | null
+        }
+        Insert: {
+          active_minutes?: number
+          compliant?: boolean
+          computed_at?: string
+          counted_pause_minutes?: number
+          crashed?: boolean
+          date: string
+          effective_minutes?: number
+          ended_at?: string | null
+          idle_cuts?: number
+          idle_minutes?: number
+          is_workday?: boolean
+          launched?: boolean
+          missing_minutes?: number
+          off_task_minutes?: number
+          off_task_over?: boolean
+          open_shift?: boolean
+          overlap_minutes?: number
+          pause_count?: number
+          pause_minutes?: number
+          profile_id: string
+          quota_minutes?: number
+          reasons?: string[]
+          recovered?: boolean
+          shift_key: string
+          stagnant_minutes?: number
+          stagnant_over?: boolean
+          started_at?: string | null
+        }
+        Update: {
+          active_minutes?: number
+          compliant?: boolean
+          computed_at?: string
+          counted_pause_minutes?: number
+          crashed?: boolean
+          date?: string
+          effective_minutes?: number
+          ended_at?: string | null
+          idle_cuts?: number
+          idle_minutes?: number
+          is_workday?: boolean
+          launched?: boolean
+          missing_minutes?: number
+          off_task_minutes?: number
+          off_task_over?: boolean
+          open_shift?: boolean
+          overlap_minutes?: number
+          pause_count?: number
+          pause_minutes?: number
+          profile_id?: string
+          quota_minutes?: number
+          reasons?: string[]
+          recovered?: boolean
+          shift_key?: string
+          stagnant_minutes?: number
+          stagnant_over?: boolean
+          started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracker_shift_rows_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_ai_calls: {
         Row: {
           cache_read_tokens: number
@@ -4330,9 +4768,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {},
   },
