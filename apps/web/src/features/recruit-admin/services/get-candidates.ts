@@ -22,6 +22,20 @@ const num = (v: number | string | null): number => Number(v ?? 0)
 const STATUS_RANK: Record<CandidateStatus, number> = { nouveau: 0, valide: 1, refuse: 2 }
 
 /**
+ * L'ordre de la file : nouveaux d'abord, puis MEILLEURE NOTE EN TÊTE (2026-08-25) — on recrute par
+ * score, et c'est en haut qu'on veut trouver qui embaucher. La date ne départage que les ex æquo.
+ *
+ * Exporté pour être TESTÉ : avec un ou deux dossiers en base, l'ordre ne se vérifie pas à l'œil.
+ */
+export function byQueueOrder(a: CandidateRow, b: CandidateRow): number {
+  return (
+    STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
+    b.global - a.global ||
+    b.createdAt.localeCompare(a.createdAt)
+  )
+}
+
+/**
  * Ce que `toCandidateRow` lit d'une ligne `recruit_candidates` — DÉRIVÉ des types générés (patron
  * de `training-catalog/services/get-catalog.ts`), avec le seul écart réel : `connection_mbps` est
  * un `numeric` que supabase-js peut rendre en CHAÎNE selon la version, là où le type généré promet
@@ -107,15 +121,7 @@ export async function getCandidates(): Promise<CandidatesData> {
     globalThreshold: config.data.global_threshold,
   }
   const rows = (candidates.data ?? []).map(toCandidateRow)
-  // Nouveaux d'abord, puis MEILLEURE NOTE EN TÊTE (demande du 2026-08-25) : on recrute par score,
-  // et c'est en haut de liste qu'on veut trouver qui embaucher. La date ne départage plus que les
-  // ex æquo — deux 78/100 se lisent alors du plus récent au plus ancien.
-  rows.sort(
-    (a, b) =>
-      STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
-      b.global - a.global ||
-      b.createdAt.localeCompare(a.createdAt),
-  )
+  rows.sort(byQueueOrder)
   const kpis: RecruitKpis = {
     total: total.count ?? 0,
     nouveau: Math.max(0, (total.count ?? 0) - (valide.count ?? 0) - (refuse.count ?? 0)),
