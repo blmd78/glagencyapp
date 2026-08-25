@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
 import { buildMembersColumns } from './members-columns'
 import { MemberDialog } from './member-dialog'
+import type { MemberPrefill } from './member-defaults'
 import type { Member } from '../types'
 
 export function MembersTable({
@@ -19,6 +20,7 @@ export function MembersTable({
   scope = 'chatter',
   viewer = 'admin',
   superadmin = false,
+  prefill,
 }: {
   members: Member[]
   creators: { id: string; name: string }[]
@@ -28,6 +30,8 @@ export function MembersTable({
   viewer?: 'admin' | 'manager'
   /** Propriétaire : option rôle Admin + gestion des fiches admin. */
   superadmin?: boolean
+  /** Valeurs pré-saisies du « Nouveau membre » — vient d'un dossier de recrutement (`?nouveau=`). */
+  prefill?: MemberPrefill
 }) {
   // Managers rattachables (sélecteur admin du dialog) — dérivés de la liste courante.
   const managers = members
@@ -108,6 +112,7 @@ export function MembersTable({
             scope={scope}
             viewer={viewer}
             superadmin={superadmin}
+            prefill={prefill}
             trigger={
               <Button size="sm" className="gap-1.5">
                 <UserPlus className="size-3.5" />

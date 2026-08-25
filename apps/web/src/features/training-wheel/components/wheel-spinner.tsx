@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import type { WheelSector } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Combobox } from '@/components/ui/combobox'
 import { playCling, playWheelSpin } from '@/lib/sfx'
 import { spinWheel } from '../actions'
 import type { SpinResult } from '../types'
@@ -99,21 +99,19 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
   return (
     <section className="flex flex-col items-center gap-5">
       <div className="flex w-full max-w-sm flex-col gap-1.5">
-        <label htmlFor="wheel-target" className="text-sm font-medium">
-          Pour qui ?
-        </label>
-        <Select value={forProfileId} onValueChange={setForProfileId} disabled={phase !== 'idle'}>
-          <SelectTrigger id="wheel-target">
-            <SelectValue placeholder="Choisis un chatter…" />
-          </SelectTrigger>
-          <SelectContent>
-            {chatters.map((c) => (
-              <SelectItem key={c.profileId} value={c.profileId}>
-                {c.displayName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <span className="text-sm font-medium">Pour qui ?</span>
+        {/* `Combobox` et non `Select` : il porte une RECHERCHE (même composant que côté chatteurs).
+            Avec une promo entière dans la liste, dérouler et faire défiler pour trouver un nom est
+            plus lent que de taper trois lettres. */}
+        <Combobox
+          value={forProfileId}
+          onChange={setForProfileId}
+          disabled={phase !== 'idle'}
+          placeholder="Choisis un chatter…"
+          searchPlaceholder="Rechercher un chatter…"
+          emptyText="Aucun chatter trouvé."
+          options={chatters.map((c) => ({ value: c.profileId, label: c.displayName }))}
+        />
       </div>
 
       <WheelSvg sectors={sectors} rotation={rotation} spinning={phase === 'spinning'} />
