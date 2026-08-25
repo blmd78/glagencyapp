@@ -62,7 +62,7 @@ describe('computeWindowVerdict', () => {
     expect(v.pauseMinutes).toBe(120)
     expect(v.countedPauseMinutes).toBe(60)          // plafonné
     expect(v.effectiveMinutes).toBe(360 + 60)       // 360 actives + 60 comptées
-    expect(v.reasons.some((r) => r.startsWith('pause 2h00'))).toBe(true)
+    expect(v.reasons).toContain('pause 2h00 (max 1h00)')
     expect(v.compliant).toBe(false)
   })
 
@@ -107,5 +107,34 @@ describe('computeWindowVerdict', () => {
     expect(v.crashed).toBe(true)
     expect(v.activeMinutes).toBe(400)
     expect(v.reasons).toContain('app fermée / PC éteint')
+  })
+
+  it('PC éteint alors que le quota est DÉJÀ atteint → non conforme quand même', () => {
+    // Isole le terme `!crashed` de la formule : ici `missing` vaut 0, donc si `crashed` sautait
+    // de `compliant`, la personne serait blanchie malgré un arrêt anormal.
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0) },
+      { type: 'heartbeat', at: at(400) },
+    ]
+    const v = computeWindowVerdict({ ...base, events, quotaMinutes: 390 })
+    expect(v.activeMinutes).toBe(400)
+    expect(v.missingMinutes).toBe(0)
+    expect(v.crashed).toBe(true)
+    expect(v.compliant).toBe(false)
+  })
+
+  it('pause de 60 min PILE : dans les clous, aucun motif', () => {
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0) },
+      { type: 'pause', at: at(300) },
+      { type: 'resume', at: at(360) },   // exactement 60 min
+      { type: 'shift_end', at: at(480) },
+    ]
+    const v = computeWindowVerdict({ ...base, events })
+    expect(v.pauseMinutes).toBe(60)
+    expect(v.countedPauseMinutes).toBe(60)
+    expect(v.effectiveMinutes).toBe(480)
+    expect(v.reasons).toEqual([])
+    expect(v.compliant).toBe(true)
   })
 })
