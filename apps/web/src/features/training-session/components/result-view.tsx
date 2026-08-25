@@ -119,7 +119,7 @@ export function ResultView({ data, viewerIsOwner }: { data: SessionData; viewerI
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {data.threads.map((t) => (
-            <ThreadResult key={t.id} thread={t} kind={data.kind} objectiveLabel={s.objectiveLabel} />
+            <ThreadResult key={t.id} thread={t} kind={data.kind} />
           ))}
         </div>
       )}

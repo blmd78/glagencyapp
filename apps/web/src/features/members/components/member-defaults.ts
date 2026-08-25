@@ -16,33 +16,24 @@ import type { Member } from '../types'
  * une valeur hors de son périmètre serait refusée côté serveur, autant ne pas la mettre dans le
  * formulaire. Le serveur, lui, préserve ces valeurs invisibles (`mergePages`, `authz.ts`).
  */
-export type MemberPrefill = { email?: string; displayName?: string; pages?: string[] }
-
 export function memberDefaults({
   member,
   scope,
   viewer,
   creators,
-  prefill,
 }: {
   member?: Member
   scope: WorkspaceId
   viewer: 'admin' | 'manager'
   creators: { id: string; name: string }[]
-  /**
-   * Valeurs pré-saisies à la CRÉATION (jamais en édition — `member` gagne toujours). Sert au
-   * bouton « Ajouter au CRM » d'un dossier de recrutement, qui arrive avec l'e-mail et le nom du
-   * candidat et la case Entraînement déjà cochée.
-   */
-  prefill?: MemberPrefill
 }): MemberForm {
   const scopeSlugs = new Set(pageChoicesFor(scope).map((c) => c.slug as string))
   const creatorSet = new Set(creators.map((c) => c.id))
 
   return {
     scope,
-    email: member?.email ?? prefill?.email ?? '',
-    displayName: member?.displayName ?? prefill?.displayName ?? '',
+    email: member?.email ?? '',
+    displayName: member?.displayName ?? '',
     // Un appelant MANAGER ne pose que des chatteurs (le serveur le force aussi) ; sinon on
     // reprend le rôle en base, avec repli sur `chatteur` pour les valeurs hors liste (le `user`
     // transitoire de 0059).
@@ -58,8 +49,7 @@ export function memberDefaults({
               : member?.role === 'police'
                 ? 'police'
                 : 'chatteur',
-    // Le pré-remplissage ne sert QU'À LA CRÉATION : en édition, les pages en base font foi.
-    pages: (member?.pages ?? prefill?.pages ?? []).filter((p) => scopeSlugs.has(p)),
+    pages: (member?.pages ?? []).filter((p) => scopeSlugs.has(p)),
     creatorIds: (member?.creatorIds ?? []).filter((id) => creatorSet.has(id)),
     // Le serveur force le rattachement au créateur pour un appelant manager, et l'ignore sur ses
     // éditions (il ne peut pas déplacer un chatteur).

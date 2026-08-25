@@ -1,12 +1,11 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import type { Route } from 'next'
-import { ArrowLeft, UserPlus } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type RecruitGates } from '../types'
+import { AddToCrmButton } from './add-to-crm-button'
 import { CandidateActions, CopyValue } from './recruit-actions'
 
 /** Une mesure d'épreuve avec son seuil : vert si le gate passe, rouge sinon. */
@@ -90,22 +89,9 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
         </dl>
       </div>
 
-      {/* « Ajouter au CRM » — ouvre la création de membre AVEC l'e-mail et le nom du candidat, et
-          la case Entraînement déjà cochée (le rôle chatteur est le défaut). Un lien avec paramètres
-          plutôt qu'un dialog importé : `recruit-admin` ne peut pas importer `members` (frontière
-          ESLint cross-feature), et l'écran de destination reste celui où l'on gère les droits.
+      {/* Création du compte EN UN CLIC (e-mail du dossier, rôle chatteur, droit Entraînement).
           Masqué si le candidat est DÉJÀ membre — il n'y a plus rien à créer. */}
-      {!candidate.isMember && (
-        <Button asChild size="sm" className="w-fit gap-1.5">
-          <Link
-            href={
-              `/formation/members?nouveau=1&email=${encodeURIComponent(candidate.email)}&nom=${encodeURIComponent(`${candidate.firstName} ${candidate.lastName}`.trim())}` as Route
-            }
-          >
-            <UserPlus className="size-3.5" /> Ajouter au CRM
-          </Link>
-        </Button>
-      )}
+      {!candidate.isMember && <AddToCrmButton candidateId={candidate.id} label="Ajouter au CRM" className="w-fit" />}
 
       <CandidateActions
         candidate={{

@@ -108,7 +108,7 @@ export function WheelSvg({
           filter: 'drop-shadow(0 12px 34px rgba(139,92,246,.45))',
         }}
       >
-        {angles.map(({ index, a0, a1 }, i) => {
+        {angles.map(({ index, a0, a1 }) => {
           const s = sectors[index]
           if (!s) return null
           const span = a1 - a0

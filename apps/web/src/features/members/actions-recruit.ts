@@ -3,7 +3,7 @@
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { noGuard, requireAdminProfile, runAction, type ActionResult } from '@/lib/actions'
-import { findRecruitByEmail } from './recruit-link'
+import { findRecruitByEmail } from '@/lib/recruit-link'
 import type { RecruitCheck } from './types'
 
 /**

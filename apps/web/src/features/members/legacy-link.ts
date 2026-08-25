@@ -10,7 +10,7 @@ import { LegacyUnreachableError, runLegacyImport } from '@/lib/gla/import'
  * PONT Membres → reprise Good Luck Agency : ce que le filet admin (D7) a besoin de lire et
  * d'écrire, hors des Server Actions.
  *
- * Module NEUTRE (pas de `'use server'`), même patron que `recruit-link.ts` : le client service-role
+ * Module NEUTRE (pas de `'use server'`), même patron que `lib/recruit-link.ts` : le client service-role
  * est passé en paramètre. L'exporter depuis un fichier `'use server'` en ferait un point d'entrée
  * appelable depuis le navigateur — or ces fonctions lisent la table des tentatives, qui est la
  * carte des comptes ciblés sur un parc dont 4 mots de passe sont le login lui-même.
