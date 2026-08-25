@@ -144,3 +144,45 @@ export type {
   RecruitConfig,
   Verdict,
 } from './recruit/rules'
+// --- Tracker de présence (incrément 1) -------------------------------------
+export type {
+  TrackerEventType,
+  TrackerEvent,
+  SegmentKind,
+  Segment,
+  BuiltSegments,
+  LiveState,
+  LiveStatus,
+} from './tracking/types'
+export {
+  parisOffsetMs,
+  parisWallUtcMs,
+  parisDay,
+  dayBounds,
+  isoWeekday,
+  fmtClock,
+  fmtDuration,
+} from './tracking/time'
+export { SHIFTS, BOUNDARIES, shiftByKey, shiftWindow, currentShift } from './tracking/shifts'
+export type { Shift, ShiftKey, ShiftWindow } from './tracking/shifts'
+export {
+  DEFAULT_STALE_MS,
+  buildSegments,
+  liveFromEvents,
+  summarize,
+} from './tracking/segments'
+export type { DaySummary } from './tracking/segments'
+export { DEFAULT_RULES, normalizeRules, isAllowedApp, isAllowedDomain } from './tracking/rules'
+export type { RawRules, TrackerRules } from './tracking/rules'
+export { normalizeUrl, attributeApps } from './tracking/focus'
+export type { AppItem, AppAttribution } from './tracking/focus'
+export { attributeModels, modelKey } from './tracking/models'
+export type { ModelTime, ModelAttribution } from './tracking/models'
+export { stagnantStretch } from './tracking/stagnant'
+export type { StagnantStretch } from './tracking/stagnant'
+export { OVERLAP_ALERT_MINUTES, machineBreakdown } from './tracking/devices'
+export type { MachineSlice, MachineBreakdown } from './tracking/devices'
+export { DEFAULT_PAUSE_ALLOWANCE_MINUTES, computeWindowVerdict } from './tracking/verdict'
+export type { TrackerVerdictInput, TrackerVerdict } from './tracking/verdict'
+export { managerDay, sumManagerDays } from './tracking/manager-day'
+export type { ManagerDay, ManagerSpan, ManagerCumul } from './tracking/manager-day'
