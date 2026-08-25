@@ -77,7 +77,7 @@ export function managerDay(
   const openHere = built.openShift && !!lastGlobal && shiftDay(lastGlobal) === day
   const crashedHere = built.crashed && !!lastGlobal && shiftDay(lastGlobal) === day
   const lastHere = segments[segments.length - 1]
-  const recoveredHere = built.recovered && !!lastHere && shiftDay(lastHere) === day
+  const recoveredHere = built.recovered && !!lastGlobal && shiftDay(lastGlobal) === day
 
   const first = segments[0]
   const started = first ? first.start : null

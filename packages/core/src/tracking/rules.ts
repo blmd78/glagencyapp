@@ -32,6 +32,9 @@ export interface TrackerRules {
 // Le type se dérive de `TrackerRules` (déjà normalisé, sans `null`) et NON de `RawRules` :
 // `Required<T>` retire le `?` mais CONSERVE le `| null`, donc `Required<Omit<RawRules, …>>`
 // laisserait `number | null` et `num(v, fallback: number)` ne compilerait pas.
+// ⚠️ Doit rester ALIGNÉ avec la seed de `tracker_rules` dans la migration 0125. Ces valeurs ne
+// servent que de repli quand la ligne de configuration est absente ; une divergence ferait
+// compter comme « hors tâche » du temps de travail légitime.
 export const DEFAULT_RULES: Omit<TrackerRules, 'apps' | 'domains'> & {
   apps: string[]
   domains: string[]
@@ -41,8 +44,19 @@ export const DEFAULT_RULES: Omit<TrackerRules, 'apps' | 'domains'> & {
   mainTool: 'mypuls.app',
   toolMinMinutes: 330, // 5 h 30
   latenessMaxMinutes: 10,
-  apps: ['chrome', 'msedge', 'firefox', 'brave', 'opera', 'vivaldi', 'discord', 'slack', 'telegram'],
-  domains: ['mypuls.app', 'onlyfans.com', 'fansly.com', 'fanvue.com', 'discord.com', 'telegram.org'],
+  apps: [
+    'chrome', 'msedge', 'firefox', 'brave', 'opera', 'vivaldi', 'discord', 'slack', 'telegram',
+    'whatsapp', 'whatsapp.root', 'infloww', 'sunbrowser', 'adspower global', 'adspower', 'gologin',
+    'gl agency shift', 'iremotech', 'chatgpt classic', 'explorer', 'shellexperiencehost',
+    'applicationframehost', 'searchhost', 'startmenuexperiencehost', 'textinputhost',
+    'snippingtool', 'notepad', 'msedgewebview2',
+  ],
+  domains: [
+    'mypuls.app', 'onlyfans.com', 'fansly.com', 'fanvue.com', 'discord.com', 'telegram.org',
+    'glagencyapp-web.vercel.app', 'gla-workflow-z5f2.vercel.app', 'chatgpt.com',
+    'gemini.google.com', 'grok.com', 'claude.ai', 'translate.google.com', 'loom.com',
+    'iremotech.com', 'google.com',
+  ],
 }
 
 const list = (arr: readonly string[] | null | undefined, fallback: string[]): string[] =>

@@ -109,6 +109,13 @@ describe('liveFromEvents', () => {
   it('shift clos → hors ligne', () => {
     expect(liveFromEvents([ev('shift_start', 0), ev('shift_end', 1)], T0 + min(2))).toBeNull()
   })
+  it('sans receivedAt, on ne devine pas depuis l’horloge du poste', () => {
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: new Date(T0 + min(9999)).toISOString() },
+    ]
+    expect(liveFromEvents(events, T0 + min(1))).toBeNull()
+  })
+
   it('suit pause et inactivité', () => {
     expect(liveFromEvents([ev('shift_start', 0), ev('pause', 1)], T0 + min(2)))
       .toMatchObject({ state: 'pause', since: T0 + min(1) })

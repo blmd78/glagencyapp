@@ -1,4 +1,4 @@
-import { buildSegments } from './segments'
+import { DEFAULT_STALE_MS, buildSegments } from './segments'
 import type { TrackerEvent } from './types'
 
 /**
@@ -70,6 +70,7 @@ export function machineBreakdown(
   windowStart: number,
   windowEnd: number,
   now: number = Date.now(),
+  staleMs: number = DEFAULT_STALE_MS,
 ): MachineBreakdown {
   const groups = new Map<string | null, TrackerEvent[]>()
   for (const e of events) {
@@ -82,7 +83,7 @@ export function machineBreakdown(
   const machines: MachineSlice[] = []
   for (const [id, evs] of groups) {
     const intervals = clip(
-      buildSegments(evs, { now }).segments
+      buildSegments(evs, { now, staleMs }).segments
         .filter((s) => s.kind === 'active')
         .map((s): Interval => [s.start, s.end]),
       windowStart,

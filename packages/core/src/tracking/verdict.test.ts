@@ -137,4 +137,19 @@ describe('computeWindowVerdict', () => {
     expect(v.reasons).toEqual([])
     expect(v.compliant).toBe(true)
   })
+
+  it('un staleMs personnalisé s’applique aussi à la répartition par poste', () => {
+    // Sans la propagation du staleMs custom vers `machineBreakdown`, la répartition par poste
+    // utiliserait le seuil PAR DÉFAUT (3 min) et verrait un plantage à 100 min, quand le calcul
+    // principal — qui reçoit bien le staleMs custom — ne plante qu'à 600 min : les deux chiffres
+    // divergeraient.
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0), machineId: 'A' },
+      { type: 'heartbeat', at: at(100), machineId: 'A' },
+    ]
+    const v = computeWindowVerdict({ ...base, events, staleMs: min(600) })
+    expect(v.crashed).toBe(false)
+    expect(v.activeMinutes).toBe(480)
+    expect(v.devices.machines[0]?.minutes).toBe(480)
+  })
 })

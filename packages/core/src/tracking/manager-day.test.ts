@@ -59,8 +59,8 @@ describe('managerDay', () => {
   it('shift de la veille jamais clôturé : aujourd’hui est vide, mais `live` reste actif', () => {
     const now = NIGHT + min(720)
     const events: TrackerEvent[] = [
-      { type: 'shift_start', at: at(NIGHT, 0) },
-      { type: 'heartbeat', at: at(NIGHT, 719) },
+      { type: 'shift_start', at: at(NIGHT, 0), receivedAt: at(NIGHT, 0) },
+      { type: 'heartbeat', at: at(NIGHT, 719), receivedAt: at(NIGHT, 719) },
     ]
     const hier = managerDay(events, '2026-08-16', { now })
     expect(hier.openShift).toBe(true)
@@ -86,6 +86,18 @@ describe('managerDay', () => {
     expect(d.openShift).toBe(false)
     expect(d.ended).toBeNull()
     expect(d.workedMinutes).toBe(60)
+  })
+
+  it('« app relancée » ne déborde pas sur les jours précédents', () => {
+    const now = NIGHT + min(1700)
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(NIGHT, 0) },
+      { type: 'shift_end', at: at(NIGHT, 120) },                              // clôture PROPRE le 16
+      { type: 'shift_start', at: at(NIGHT, 1440) },
+      { type: 'shift_end', at: at(NIGHT, 1560), meta: { recovered: true } },  // relancée le 17
+    ]
+    expect(managerDay(events, '2026-08-16', { now }).recovered).toBe(false)
+    expect(managerDay(events, '2026-08-17', { now }).recovered).toBe(true)
   })
 
   it('deux shifts le même jour : `totalMinutes` couvre le trou, pas `workedMinutes`', () => {

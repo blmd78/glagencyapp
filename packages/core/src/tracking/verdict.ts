@@ -61,7 +61,7 @@ export function computeWindowVerdict(input: TrackerVerdictInput): TrackerVerdict
 
   // Postes utilisés : sert uniquement à lever une alerte. On ne corrige AUCUN chiffre — un chatter
   // sur deux PC est un cas à régler avec lui, pas à rattraper par un calcul.
-  const devices = machineBreakdown(events, windowStart, windowEnd, now)
+  const devices = machineBreakdown(events, windowStart, windowEnd, now, staleMs)
 
   // Écran figé : signalé sans rien recalculer — c'est un cas à vérifier, pas une règle automatique.
   const stagnant = stagnantStretch(built, events, windowStart, windowEnd)

@@ -1,6 +1,8 @@
 import { addDays } from '../domain/dates'
 import { parisDay, parisWallUtcMs } from './time'
 
+// ⚠️ Les colonnes `shift_key` de la base acceptent aussi `'jour'` (la vue journalière de
+// l'incrément 4). Ce type ne couvre que les 3 shifts : la ligne journalière exigera un élargissement.
 export type ShiftKey = 'matin' | 'aprem' | 'nuit'
 
 export interface Shift {

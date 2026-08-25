@@ -1,5 +1,11 @@
 /** Types du domaine « tracker de présence ». Aucune logique ici. */
 
+/**
+ * ⚠️ Ce type couvre 9 valeurs, la colonne `tracker_events.type` n'en accepte que 7 : `heartbeat`
+ * et `focus` sont volontairement exclus du stockage définitif (ils vivent dans `tracker_live`,
+ * écrasée, et `tracker_focus_raw`, purgée à 14 jours). De même `LiveState` a 3 valeurs quand
+ * `tracker_live.state` en accepte 4 — la 4e, `off`, n'est jamais rendue par le domaine.
+ */
 export type TrackerEventType =
   | 'shift_start'
   | 'shift_end'

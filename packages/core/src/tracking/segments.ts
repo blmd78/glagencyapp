@@ -10,6 +10,16 @@ type State = SegmentKind | 'off'
  *
  * L'agent horodate `idle_start` au DÉBUT RÉEL de l'inactivité (now − idleSeconds) : les minutes de
  * battement ne sont donc jamais comptées comme du temps actif.
+ *
+ * ⚠️ CONTRAT D'ENTRÉE, deux préconditions que cette fonction ne peut pas vérifier :
+ *
+ * 1. Les événements doivent être TRIÉS par `at` croissant. La normalisation d'horloge ramène tout
+ *    événement à l'instant du précédent : un `pause` livré en retard (reprise réseau) serait donc
+ *    daté du dernier événement vu, et gonflerait la pause d'autant.
+ * 2. Les `heartbeat` ne sont PAS stockés en base (le `check` de `tracker_events` les exclut). La
+ *    couche service DOIT donc synthétiser un `heartbeat` final depuis `tracker_live.last_heartbeat_at`
+ *    avant d'appeler cette fonction — sans lui, tout shift EN COURS est vu comme planté et rendu
+ *    à zéro minute.
  */
 export function buildSegments(
   events: TrackerEvent[],
@@ -119,7 +129,9 @@ export function liveFromEvents(
   let since: number | null = null
 
   for (const e of events) {
-    const recv = Date.parse(e.receivedAt ?? e.at)
+    // `receivedAt` SEUL, jamais `at` : c'est la raison d'être de cette fonction. Un poste dont
+    // l'horloge est en avance se déclarerait « en ligne » pour toujours si on se fiait à `at`.
+    const recv = Date.parse(e.receivedAt ?? '')
     if (Number.isFinite(recv) && recv > lastSeen) lastSeen = recv
     switch (e.type) {
       case 'shift_start': state = 'active'; since = recv; break
