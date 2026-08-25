@@ -19,8 +19,19 @@ describe('parisWallUtcMs', () => {
     // Bascule le dernier dimanche de mars 2026 = 29/03. 13h00 Paris = 11:00 UTC (déjà UTC+2).
     expect(new Date(parisWallUtcMs('2026-03-29', 13)).toISOString()).toBe('2026-03-29T11:00:00.000Z')
   })
-  it('minuit coïncide avec le début de journée', () => {
-    expect(parisWallUtcMs('2026-08-25', 0)).toBe(dayBounds('2026-08-25').start)
+  it('minuit Paris', () => {
+    expect(new Date(parisWallUtcMs('2026-08-25', 0)).toISOString()).toBe('2026-08-24T22:00:00.000Z')
+  })
+  it('bascule hiver→été : 01h existe, 02h n\'existe pas', () => {
+    // Le 29/03 à 02h00 locales, Paris saute à 03h00. Ces deux heures sont les SEULES où une
+    // implémentation en simple passe diverge — sans elles, le test ne prouve pas la double passe.
+    expect(new Date(parisWallUtcMs('2026-03-29', 1)).toISOString()).toBe('2026-03-29T00:00:00.000Z')
+    // 02h locale n'existe pas ce jour-là : on retombe sur l'instant réel (03h locale).
+    expect(new Date(parisWallUtcMs('2026-03-29', 2)).toISOString()).toBe('2026-03-29T01:00:00.000Z')
+  })
+  it('bascule été→hiver : 01h, l\'heure ambiguë', () => {
+    // Le 25/10, 02h→03h locales se répètent. À 01h, la simple passe rend 02h locale : faux.
+    expect(new Date(parisWallUtcMs('2026-10-25', 1)).toISOString()).toBe('2026-10-24T23:00:00.000Z')
   })
 })
 
