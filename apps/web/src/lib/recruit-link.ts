@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import type { createAdminClient } from '@glagency/db'
-import type { RecruitCheck } from './types'
+
 
 /**
  * PONT Membres → Recrutement : retrouver le dossier du test public (`recruit_candidates`, 0125)
@@ -11,10 +11,28 @@ import type { RecruitCheck } from './types'
  * appelable depuis le navigateur, ce qu'il ne doit jamais être. Même patron que
  * `lib/chatter-link.ts`. La Server Action exposée au client vit, elle, dans `actions-recruit.ts`.
  *
+ * Vit dans `lib/` et non dans une feature : DEUX features l'utilisent — `members` (création d'un
+ * membre, rattachement par e-mail) et `recruit-admin` (bouton « Ajouter au CRM »). La frontière
+ * ESLint interdit qu'elles s'importent l'une l'autre ; c'est la règle du projet pour tout ce qui
+ * sert à plus d'une feature (précédent : `lib/training/start-session.ts`).
+ *
  * Service-role et pas le client RLS : la RLS de `recruit_candidates` n'ouvre la lecture qu'à
  * `is_admin()` et AUCUNE écriture — or `createMember` est aussi utilisable par un MANAGER dans
  * son périmètre, qui ne verrait donc rien. Le gate applicatif est celui de l'action appelante.
  */
+
+/**
+ * Écho du test de recrutement pour un e-mail saisi à la CRÉATION d'un membre. Trois champs, pas un
+ * de plus : le dialog Membres annonce « a passé le test le … — X/100 », le détail (mesures,
+ * transcription, motif de refus) reste sur la page Recrutement, seule habilitée à le montrer.
+ */
+export interface RecruitCheck {
+  /** Horodatage de création du dossier = fin du test (ISO). */
+  testedAt: string
+  /** Note globale sur 100. */
+  global: number
+  passed: boolean
+}
 
 type Admin = ReturnType<typeof createAdminClient>
 

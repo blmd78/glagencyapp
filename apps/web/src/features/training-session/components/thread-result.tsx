@@ -12,11 +12,9 @@ import { TranscriptView } from './transcript-view'
 export function ThreadResult({
   thread,
   kind,
-  objectiveLabel,
 }: {
   thread: SessionThread
   kind: CaseKind
-  objectiveLabel: string
 }) {
   const lost = thread.status === 'lost'
   const fault = lost ? (FAULT_LABELS[(thread.lostReason ?? 'timeout') as FaultCode | 'timeout'] ?? FAULT_LABELS.timeout) : null

@@ -15,7 +15,7 @@ import {
   requireManagerTargets,
   syncAssignments,
 } from './authz'
-import { attachRecruitCandidate } from './recruit-link'
+import { attachRecruitCandidate } from '@/lib/recruit-link'
 import { memberInput, memberUpdateInput } from './schema'
 import { canBeAttached } from './types'
 

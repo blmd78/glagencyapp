@@ -172,10 +172,7 @@ export const canBeAttached = (role: Role) => ATTACHABLE_ROLES[role].length > 0
  * test le … — X/100 », le détail (mesures, transcription, motif de refus) reste sur la page
  * Recrutement, seule habilitée à le montrer.
  */
-export interface RecruitCheck {
-  /** Horodatage de création du dossier = fin du test (ISO). */
-  testedAt: string
-  /** Note globale sur 100. */
-  global: number
-  passed: boolean
-}
+// `RecruitCheck` vit désormais dans `lib/recruit-link.ts` : c'est le module qui le PRODUIT, et
+// `lib/` ne peut pas importer une feature (frontière ESLint). Ré-exporté ici pour les appelants
+// existants du dialog Membres.
+export type { RecruitCheck } from '@/lib/recruit-link'

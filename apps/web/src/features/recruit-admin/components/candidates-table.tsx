@@ -1,12 +1,11 @@
 import Link from 'next/link'
-import { UserPlus } from 'lucide-react'
 import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
 import { CANDIDATE_STATUS_LABELS, type CandidateRow, type RecruitGates } from '../types'
+import { AddToCrmButton } from './add-to-crm-button'
 
 // Formateur hoisté (un `toLocaleDateString` avec options reconstruit un Intl.DateTimeFormat à
 // chaque appel). TZ explicite : le SSR (UTC) et le navigateur doivent rendre LE MÊME jour.
@@ -124,24 +123,13 @@ export function CandidatesTable({ rows, gates }: { rows: CandidateRow[]; gates: 
               <TableCell className="tabular-nums text-muted-foreground" title={frDateTimeLongParis(c.createdAt)}>
                 {FR_DATE.format(new Date(c.createdAt))}
               </TableCell>
-              {/* Création du compte EN BOUT DE LIGNE : e-mail et nom pré-saisis, rôle chatteur (le
-                  défaut) et case Entraînement cochée — plus rien à recopier à la main. Un lien avec
-                  paramètres et non un dialog importé : `recruit-admin` ne peut pas importer
-                  `members` (frontière ESLint), et l'écran de destination reste celui des droits. */}
+              {/* Création du compte EN UN CLIC : e-mail du dossier, rôle chatteur, droit
+                  Entraînement — aucun formulaire à remplir. */}
               <TableCell className="text-right">
                 {c.isMember ? (
                   <span className="text-xs text-muted-foreground">déjà membre</span>
                 ) : (
-                  <Button asChild size="sm" variant="outline" className="gap-1.5">
-                    <Link
-                      href={{
-                        pathname: '/formation/members',
-                        query: { nouveau: '1', email: c.email, nom: `${c.firstName} ${c.lastName}`.trim() },
-                      }}
-                    >
-                      <UserPlus className="size-3.5" /> Ajouter
-                    </Link>
-                  </Button>
+                  <AddToCrmButton candidateId={c.id} />
                 )}
               </TableCell>
             </TableRow>

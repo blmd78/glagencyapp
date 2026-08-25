@@ -6,7 +6,7 @@ import type { GlaAccount, GlaSessionRow } from './types'
 /**
  * SEULE frontière avec la base Good Luck Agency (GLA). Module NEUTRE (pas de `'use server'`) : une
  * fonction qui lit `salt` / `pw_hash` ne doit jamais devenir un point d'entrée HTTP appelable depuis
- * le navigateur (patron `features/members/recruit-link.ts:8-12`, `lib/chatter-link.ts`).
+ * le navigateur (patron `lib/recruit-link.ts:8-12`, `lib/chatter-link.ts`).
  *
  * Frontière à UN SEUL FICHIER, et c'est délibéré : le jour où GLA doit mourir, on `pg_dump` les
  * deux tables utiles dans un schéma `gla_legacy` de notre propre projet et **seul ce fichier

@@ -28,12 +28,11 @@ describe('face Formation — droits', () => {
     expect(slugFace('frm-suivi')).toBe('formation')
   })
 
-  it('Modules est visible avec l’un OU l’autre des deux droits (anyOf)', () => {
-    const modules = item('/formation/modules')
-    expect(canAccessNav(modules, user(['frm-entrainement']))).toBe(true)
-    expect(canAccessNav(modules, user(['frm-suivi']))).toBe(true)
-    expect(canAccessNav(modules, user(['mkt-overview']))).toBe(false)
-    expect(canAccessNav(modules, user([]))).toBe(false)
+  // « Modules » n'est PLUS un item de nav (2026-08-25) : on navigue depuis « Ma formation », dont
+  // le panneau « Tes modules » liste tout le catalogue. Les PAGES, elles, restent servies — ce test
+  // garde l'absence de l'item, pour qu'une réintroduction accidentelle se voie.
+  it('Modules n’a plus d’item de nav', () => {
+    expect(WORKSPACES.find((w) => w.id === 'formation')?.nav.some((n) => n.href === '/formation/modules')).toBe(false)
   })
 
   it('Overview = frm-suivi seul, Ma formation = frm-entrainement seul', () => {

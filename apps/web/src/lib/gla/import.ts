@@ -12,7 +12,7 @@ import type { LegacyAnomaly, LegacySkip } from './types'
  * Module NEUTRE (pas de `'use server'`) : il prend le client service-role EN PARAMÈTRE et n'est
  * appelé que par deux Server Actions (l'auto-réclamation côté Formation, le filet admin côté
  * Membres). L'exporter depuis un fichier `'use server'` en ferait un point d'entrée appelable
- * depuis le navigateur — patron `features/members/recruit-link.ts:8-12`.
+ * depuis le navigateur — patron `lib/recruit-link.ts:8-12`.
  *
  * Vit en `lib/` et pas dans une feature parce que DEUX features l'appellent et que la frontière
  * ESLint interdit le cross-feature (précédents : `lib/training/start-session.ts`,

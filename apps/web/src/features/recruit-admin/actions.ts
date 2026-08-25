@@ -15,6 +15,7 @@
 
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { attachRecruitCandidate } from '@/lib/recruit-link'
 import { revalidateRecruit } from './actions-shared'
 import { candidateIdInput, reviewInput } from './schema'
 
@@ -177,6 +178,74 @@ export async function deleteCandidate(raw: unknown): Promise<ActionResult> {
       if (error) throw new Error(error.message)
       if (!data) throw new BusinessError(NOT_FOUND)
       revalidateRecruit()
+    },
+  })
+}
+
+/**
+ * « Ajouter au CRM » : crée le compte du candidat EN UN CLIC, depuis la liste ou sa fiche.
+ *
+ * Le compte est posé avec ce qu'on veut à chaque fois — rôle CHATTEUR (le défaut de la colonne) et
+ * droit ENTRAÎNEMENT sur la face Formation. Il n'y a rien à saisir : l'e-mail et le nom viennent du
+ * dossier, et c'est justement la recopie manuelle qu'on supprime. Les droits restent modifiables
+ * après coup depuis Membres.
+ *
+ * Le dossier est rattaché au profil créé (`attachRecruitCandidate`) : la fiche affiche alors
+ * « devenu membre » et le bouton disparaît.
+ *
+ * L'action vit ICI et non dans `members` : elle est déclenchée par cette seule feature, et
+ * `recruit-admin` ne peut de toute façon pas importer `members` (frontière ESLint cross-feature).
+ * Elle réutilise le pont `recruit-link.ts`, qui est un module neutre prévu pour ça.
+ */
+export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ profileId: string }>> {
+  return runAction({
+    schema: candidateIdInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ id }): Promise<{ profileId: string }> => {
+      await requireAdminProfileLive()
+      const admin = createAdminClient()
+
+      const { data: c, error } = await admin
+        .from('recruit_candidates')
+        .select('id, email, first_name, last_name, profile_id')
+        .eq('id', id)
+        .maybeSingle()
+      if (error) throw new Error(error.message)
+      if (!c) throw new BusinessError(NOT_FOUND)
+      if (c.profile_id) throw new BusinessError('Ce candidat a déjà un compte')
+
+      const displayName = `${c.first_name} ${c.last_name}`.trim() || c.email
+      const { data: created, error: aErr } = await admin.auth.admin.createUser({
+        email: c.email,
+        email_confirm: true,
+        user_metadata: { display_name: displayName },
+      })
+      if (aErr) {
+        // `error.code` (code structuré de GoTrue) et pas un `message.includes('already')`, qui
+        // casserait au premier changement de wording ou de langue — même patron que `createMember`.
+        if (aErr.code === 'email_exists') {
+          throw new BusinessError('Un compte existe déjà avec cet e-mail — rattache-le depuis Membres.')
+        }
+        throw new Error(aErr.message)
+      }
+      if (!created.user) throw new Error('Création refusée')
+      const uid = created.user.id
+
+      // Le trigger a déjà posé le profil (rôle `chatteur` par défaut) : on ne pose que le nom et
+      // les droits. `formation` EST le droit de face, indispensable en plus de `frm-entrainement` —
+      // sans lui la face entière reste invisible (`mergePages` le fait pour les faces secondaires).
+      const { error: pErr } = await admin
+        .from('profiles')
+        .update({ display_name: displayName, pages: ['frm-entrainement', 'formation'] })
+        .eq('id', uid)
+      if (pErr) throw new Error(pErr.message)
+
+      // Rattachement du dossier — NON BLOQUANT par construction : le compte est déjà créé, un échec
+      // ici ne coûte qu'un « devenu membre » manquant sur la fiche (tracé Sentry, rien à l'écran).
+      await attachRecruitCandidate(admin, c.email, uid)
+      revalidateRecruit()
+      return { profileId: uid }
     },
   })
 }
