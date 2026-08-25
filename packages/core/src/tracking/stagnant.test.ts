@@ -54,4 +54,36 @@ describe('stagnantStretch', () => {
     const s = stagnantStretch(built, events, T0, T0 + min(200))
     expect(s.minutes).toBeLessThanOrEqual(10)
   })
+
+  it('des `focus` pendant une PAUSE ne prouvent rien sur le temps actif', () => {
+    // Avant correction, ces 2 focus ouvraient la porte et les 240 min du 1er segment actif —
+    // dépourvu de toute donnée de fenêtre — étaient signalées « écran figé ».
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0) },
+      { type: 'pause', at: at(240) },
+      focus(242), focus(245),
+      { type: 'resume', at: at(250) },
+      { type: 'shift_end', at: at(260) },
+    ]
+    const built = buildSegments(events, { now: T0 + min(400) })
+    const s = stagnantStretch(built, events, T0, T0 + min(400))
+    expect(s.tracked).toBe(false)
+    expect(s.minutes).toBe(0)
+  })
+
+  it('la fenêtre d\'analyse BORNE le segment actif', () => {
+    // Segment actif 0→200, changements à 60 et 70, analyse sur [50,150].
+    // Sans bornage : 130 min (de 70 à 200). Avec : 80 min (de 70 à 150).
+    const events: TrackerEvent[] = [
+      { type: 'shift_start', at: at(0) },
+      focus(60), focus(70),
+      { type: 'shift_end', at: at(200) },
+    ]
+    const built = buildSegments(events, { now: T0 + min(400) })
+    const s = stagnantStretch(built, events, T0 + min(50), T0 + min(150))
+    expect(s.tracked).toBe(true)
+    expect(s.minutes).toBe(80)
+    expect(s.from).toBe(T0 + min(70))
+    expect(s.to).toBe(T0 + min(150))
+  })
 })

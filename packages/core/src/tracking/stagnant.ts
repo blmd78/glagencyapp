@@ -45,16 +45,22 @@ export function stagnantStretch(
   // Dans le doute, on ne signale pas.
   if (changes.length < 2) return { minutes: 0, from: null, to: null, tracked: false }
 
-  let best: StagnantStretch = { minutes: 0, from: null, to: null, tracked: true }
+  let tracked = false
+  let best: { minutes: number; from: number | null; to: number | null } = { minutes: 0, from: null, to: null }
   for (const [s, e] of active) {
-    // Bornes des trous : début du segment, chaque changement dedans, fin du segment.
-    const marks = [s, ...changes.filter((t) => t > s && t < e), e]
+    const inSeg = changes.filter((t) => t > s && t < e)
+    // On ne conclut RIEN d'un segment actif dépourvu de donnée de fenêtre : l'absence de donnée
+    // n'est pas une preuve. Des `focus` survenus pendant une PAUSE ne disent rien du temps de
+    // travail — les compter globalement laissait passer de faux « écrans figés ».
+    if (!inSeg.length) continue
+    tracked = true
+    const marks = [s, ...inSeg, e]
     for (let i = 1; i < marks.length; i++) {
       const to = marks[i] as number
       const from = marks[i - 1] as number
       const minutes = Math.round((to - from) / 60_000)
-      if (minutes > best.minutes) best = { minutes, from, to, tracked: true }
+      if (minutes > best.minutes) best = { minutes, from, to }
     }
   }
-  return best
+  return { ...best, tracked }
 }
