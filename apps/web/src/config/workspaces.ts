@@ -37,7 +37,6 @@ import {
   Trophy,
   GraduationCap,
   BookOpen,
-  Library,
   PlayCircle,
   Gift,
   UserSearch,
@@ -211,11 +210,12 @@ export const WORKSPACES: Workspace[] = [
       // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il
       // apprend son gain de vive voix. Pas de `slug` propre : le droit vient de Suivi.
       { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-suivi'] },
-      // Réservé à l'ENCADREMENT depuis le 2026-08-25 : un chatteur navigue depuis « Ma formation »,
-      // dont le panneau « Tes modules » liste tout le catalogue — c'est le parcours de l'ancienne
-      // plateforme, où la liste des modules EST l'accueil. L'encadrant, lui, n'a pas « Ma
-      // formation » : sans cet item il perdrait tout accès au catalogue en lecture.
-      { href: '/formation/modules', label: 'Modules', icon: Library, anyOf: ['frm-suivi'] },
+      // PLUS D'ITEM « Modules » (2026-08-25) : on navigue depuis « Ma formation », dont le panneau
+      // « Tes modules » liste tout le catalogue — c'est le parcours de l'ancienne plateforme, où la
+      // liste des modules EST l'accueil. Les PAGES restent : `/formation/modules` et
+      // `/formation/modules/[code]` sont toujours servies aux deux droits, et tous les liens qui y
+      // mènent fonctionnent (panneau « Tes modules », bloc Boss, retours depuis un module ou une
+      // session). Seule l'entrée de menu disparaît.
       // Sous-onglet « Configuration » : les items de groupe sont rendus dans le CORPS de la
       // sidebar — donc jamais `bottom` (Catalogue l'était quand il était direct).
       { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, group: 'config' },
