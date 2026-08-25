@@ -209,7 +209,11 @@ export const WORKSPACES: Workspace[] = [
       // et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre de
       // `facePageChoices` ci-dessous). Item DIRECT, seul à porter une pastille sur cette face.
       { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
-      { href: '/formation/modules', label: 'Modules', icon: Library, anyOf: ['frm-entrainement', 'frm-suivi'] },
+      // Réservé à l'ENCADREMENT depuis le 2026-08-25 : un chatteur navigue depuis « Ma formation »,
+      // dont le panneau « Tes modules » liste tout le catalogue — c'est le parcours de l'ancienne
+      // plateforme, où la liste des modules EST l'accueil. L'encadrant, lui, n'a pas « Ma
+      // formation » : sans cet item il perdrait tout accès au catalogue en lecture.
+      { href: '/formation/modules', label: 'Modules', icon: Library, anyOf: ['frm-suivi'] },
       // Sous-onglet « Configuration » : les items de groupe sont rendus dans le CORPS de la
       // sidebar — donc jamais `bottom` (Catalogue l'était quand il était direct).
       { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, group: 'config' },
