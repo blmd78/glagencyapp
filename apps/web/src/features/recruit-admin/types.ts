@@ -77,6 +77,16 @@ export interface CandidateRow {
   status: CandidateStatus
   /** `profile_id` non nul = un membre a été créé avec cet e-mail (rattachement Task 7). */
   isMember: boolean
+  /**
+   * Profil déclaré au FORMULAIRE DE FIN (0127) — `null` sur les dossiers soumis avant l'ajout de
+   * ces questions (l'affichage montre « — »). Dans la file depuis le 2026-08-25 : la modale « Ses
+   * réponses » les montre sans quitter la liste.
+   */
+  phone: string | null
+  age: number | null
+  location: string | null
+  shifts: string[] | null
+  source: string | null
 }
 
 /** Compteurs EXACTS de la file (requêtes `count` dédiées — pas dérivés des lignes bornées à 500). */
@@ -135,15 +145,6 @@ export interface BlockState {
 export interface CandidateFileData extends CandidateRow, BlockState {
   attempt: AttemptMeta
   messages: TranscriptMessage[]
-  /**
-   * Profil déclaré au formulaire de fin (0127) — `null` sur les dossiers soumis avant l'ajout
-   * de ces questions (la fiche affiche « — »). Fiche uniquement : la file n'en a pas besoin.
-   */
-  age: number | null
-  location: string | null
-  phone: string | null
-  shifts: string[] | null
-  source: string | null
 }
 
 /**
