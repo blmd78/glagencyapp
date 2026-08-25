@@ -32,7 +32,7 @@ describe('machineBreakdown', () => {
     expect(r.overlapMinutes).toBe(0)
     expect(r.unionMinutes).toBe(120)
     expect(r.switches).toHaveLength(1)
-    expect(r.switches[0]).toMatchObject({ from: 'Poste 1', to: 'Poste 2' })
+    expect(r.switches[0]).toMatchObject({ at: T0 + min(70), from: 'Poste 1', to: 'Poste 2' })
   })
 
   it('deux postes SIMULTANÉS : le chevauchement est compté, l’union corrige le total', () => {
@@ -47,7 +47,8 @@ describe('machineBreakdown', () => {
   })
 
   it('fenêtre qui COUPE : `clip` borne chaque poste avant tout calcul', () => {
-    // Sans clipping : 60/60, chevauchement 30, union 90 — comme sur la fenêtre pleine.
+    // Discriminant via `machines[].minutes` (40/40 bornés contre 60/60 bruts) et `unionMinutes`
+    // (50 contre 90). `overlapMinutes` vaut 30 dans les deux cas : il ne prouve rien ici.
     const events = [
       ev('shift_start', 0, 'A'), ev('shift_end', 60, 'A'),
       ev('shift_start', 30, 'B'), ev('shift_end', 90, 'B'),
@@ -62,6 +63,19 @@ describe('machineBreakdown', () => {
     const events = [ev('shift_start', 0, null), ev('shift_end', 60, null)]
     const r = machineBreakdown(events, T0, T0 + min(300), NOW)
     expect(r.multi).toBe(false)
+  })
+
+  it('un poste identifié + un groupe SANS identifiant : on ne signale rien', () => {
+    // La règle « avant la 1.0.3 » : deux groupes, un seul identifiant connu -> pas un multi-poste.
+    const events = [
+      ev('shift_start', 0, 'A'), ev('shift_end', 60, 'A'),
+      ev('shift_start', 70, null), ev('shift_end', 120, null),
+    ]
+    const r = machineBreakdown(events, T0, T0 + min(300), NOW)
+    expect(r.machines).toHaveLength(2)
+    expect(r.multi).toBe(false)
+    expect(r.switches).toEqual([])
+    expect(r.unionMinutes).toBe(110)
   })
 
   it('le seuil d’alerte est de 10 minutes', () => {
