@@ -84,7 +84,7 @@ récap, admin des comptes).
 | **D5** | **Les doublons fonctionnels sont portés tels quels.** | Les notes de coaching et la to-do hebdo font doublon avec la Formation et `todos`/`planning`. On ne fusionne pas, on ne supprime rien de l'existant. Arbitrage différé (« on verra pour supprimer ceux qu'on a déjà »). |
 | **D6** | **Emplacement : face Chatteurs, à côté de Planning / To-do.** | Nouveau groupe de sidebar. Le libellé « Tracker » étant déjà pris par `/chatter/police`, le groupe s'appelle **« Présence »**. |
 | **D7** | **Les rapports Discord sont reconstruits côté CRM.** | Le VPS ne poste plus rien après la bascule. |
-| **D8** | **L'ingest vit sur le Worker Cloudflare, pas sur Vercel.** | Voir §4.1 pour le calcul. |
+| **D8** | ~~L'ingest vit dans `apps/ingestion`, Cloudflare ou Vercel à trancher.~~ **Tranché le 2026-08-27 : `apps/tracker-gateway` sur VERCEL.** | Ce n'est pas le prix qui décide, c'est le routage : un Worker Cloudflare ne peut s'attacher qu'à une zone qu'on possède, et DuckDNS ne gère que des champs A/AAAA — donc pas de CNAME, donc pas de Custom Hostname. Vercel se contente d'un champ A. Voir le plan de l'incrément 4. |
 | **D9** | **Trois horizons de stockage.** | Voir §2 — c'est le principe qui rend D1 tenable. |
 
 ---
@@ -283,64 +283,102 @@ compris leurs descriptions — ce sont celles de la Formation.
 
 ---
 
-## 4. Le contrat d'ingest
+## 4. L'alimentation — l'ingest du CRM
 
-### 4.1 Pourquoi le Worker et pas Vercel
+> **Réécrit le 2026-08-26, deuxième fois.** La première version décrivait un contrat *poussé* vers
+> un Worker ; la deuxième, un *pont* qui aspirait l'API du VPS. Les deux sont abandonnées. Décision
+> de Benoit : **on refait le tracker à l'identique dans le CRM, et on n'utilise plus le VPS.** Pas de
+> pont, pas de collecteur, pas de route ajoutée chez eux. **Aucune reprise d'historique** (D2).
 
-*(Estimation — la fréquence de flush vient d'un commentaire de `src/managers.js:60` : « l'app envoie
-ses évènements toutes les 20 s et un battement toutes les 60 s ». À confirmer sur les sources de
-l'agent.)*
+### 4.1 Le seul point dur de tout le chantier
 
-~3 requêtes/minute par poste actif, ~60 postes simultanés (205 chatters répartis sur 3 shifts)
-→ **~260 000 requêtes/jour**, soit ~7,8 M/mois. L'offre Vercel Pro inclut 1 M d'invocations de
-fonction par mois. Sur Cloudflare Workers, l'offre payante à 5 $/mois en couvre 10 M.
+Les `.exe` installés sur les postes envoient leurs évènements à `chatterstracker.duckdns.org`. Tant
+qu'ils pointent là, **le CRM n'a aucune donnée**, quelle que soit la qualité de ce qu'on construit à
+côté. Il n'existe que deux façons d'en sortir :
 
-C'est du trafic **machine-à-machine**, pas des pages : il n'a rien à faire sur l'hébergeur du
-front. Et `apps/ingestion` dispose déjà de `supabase-js`, de Sentry et pourra importer
-`@glagency/core`.
+1. lire le VPS — un pont, du travail jetable, et une dépendance à un tiers ; **abandonné** ;
+2. **repointer les agents** — une URL à changer, puis le VPS s'éteint.
 
-**En profiter pour réduire le flux** : puisque les `.exe` sont republiés de toute façon (D1), on
-passe le flush à **1/minute** → ~86 000 requêtes/jour.
+Donc les **sources du projet Electron sont le chemin critique**, pas une dépendance de fin de
+parcours comme le disait le §12. Sans elles, le CRM se construit entièrement mais ne reçoit jamais
+rien. C'est la seule chose à obtenir des gestionnaires du VPS ; tout le reste est déjà en main.
 
-### 4.2 `POST /tracker/events`
+### 4.2 Le contrat est déjà connu — rien à demander à personne
 
-Authentification : `Authorization: Bearer <token>` → `sha256` → `tracker_devices.token_hash`,
-`active = true`. Écriture **service-role après vérification du token** — le patron déjà en place
-sur toute la face Formation.
+`POST /api/events` (`src/routes.js:543-596`) est lu et documenté. L'agent envoie :
 
 ```jsonc
 {
+  "machine": "<identifiant de poste, optionnel>",
   "events": [
-    { "clientEventId": "…", "sessionId": "…", "type": "shift_start", "at": "2026-08-25T09:00:00Z" },
-    { "clientEventId": "…", "sessionId": "…", "type": "model", "at": "…", "meta": { "model": "CARLA" } }
-  ],
-  "focus": [ { "at": "…", "app": "chrome", "url": "https://mypuls.app/…" } ],
-  "live":  { "state": "active", "since": "…", "machineId": "…", "currentModel": "CARLA" }
+    { "id": "<uuid généré par l'agent>", "type": "shift_start", "at": "…", "sessionId": "…" },
+    { "id": "…", "type": "focus", "at": "…", "sessionId": "…", "meta": { "app": "chrome", "host": "mypuls.app", "path": "/x" } },
+    { "id": "…", "type": "model", "at": "…", "sessionId": "…", "meta": { "model": "CARLA" } }
+  ]
 }
 ```
 
+`type` ∈ `shift_start | shift_end | pause | resume | idle_start | idle_end | heartbeat | focus |
+model`. Lots de 500 maximum. La réponse rend `{ accepted, duplicates, rejected }` — c'est ce qui
+permet à l'agent de vider sa file locale après une coupure réseau.
+
+**Deux comportements du serveur à reproduire à l'identique**, sous peine de régression silencieuse :
+
+1. **Le recalage d'horloge par lot** (`src/routes.js:558-565`). L'évènement le plus récent d'un lot a
+   été produit ~à l'instant de l'envoi : l'écart entre son `at` et l'heure serveur donne la dérive
+   de l'horloge du poste, et **tout le lot est décalé de cet écart**. Un PC à l'heure fausse ne
+   fausse donc rien. Au-delà de 5 minutes d'écart, la ligne est marquée `skewed` mais **jamais
+   rejetée**.
+2. **L'idempotence par `id` d'agent.** L'`id` vient de l'agent ; un doublon est ignoré sans erreur.
+   C'est ce qui rend la file locale rejouable. Il devient `tracker_events.client_event_id`.
+
+### 4.3 `POST /tracker/events` — notre endpoint
+
+Même corps, même réponse, même tolérance. Authentification par jeton de poste :
+`Authorization: Bearer <token>` → `sha256` → `tracker_devices.token_hash`, `active = true`. Écriture
+**service-role après vérification du jeton**, le patron déjà en place sur toute la face Formation.
+
 Traitement, en une transaction :
 
-1. `live` → `upsert tracker_live`, `last_heartbeat_at = now()` **serveur** ;
-2. `focus` → normalisation (`normalizeUrl`) puis `insert tracker_focus_raw` ;
-3. `events` → `insert … on conflict (client_event_id) do nothing` dans `tracker_events` ;
-4. `tracker_devices.last_seen_at = now()`.
+1. recalage d'horloge du lot, puis pour chaque évènement :
+   - états (`shift_start`, `shift_end`, `pause`, `resume`, `idle_start`, `idle_end`, `model`)
+     → `tracker_events`, `on conflict (client_event_id) do nothing` ;
+   - `focus` → `meta.host` (sinon `meta.app`) → `tracker_focus_raw`. L'agent envoie déjà
+     `{ app, host, path }`, **jamais l'URL entière** : query et fragment, qui peuvent porter des
+     jetons, ne transitent pas. `normalizeUrl` reste en garde-fou ;
+   - `heartbeat` → **jeté** après mise à jour du live ;
+2. `tracker_live` en `insert … on conflict (device_id) do update`, `last_heartbeat_at = now()`
+   **serveur** — l'état « en ligne » se juge sur l'heure de réception, jamais sur l'horloge du poste
+   (`src/compute.js:249`, `liveFromEvents`) ;
+3. `tracker_devices.last_seen_at = now()`.
 
-Un event daté à plus de 5 minutes de l'heure serveur est accepté mais marqué `skewed`
-(`src/routes.js:19`, `MAX_SKEW_MS`) — on ne jette jamais de la donnée sur un doute d'horloge.
+**Où il tourne** : ~~`apps/ingestion`~~ → **`apps/tracker-gateway`**, application Vercel distincte
+(décision du 2026-08-27). Deux raisons de ne PAS le mettre dans `apps/ingestion` : ce worker-là est
+un cron de nuit sur le plan Cloudflare Free (10 ms CPU, 100 k requêtes/jour) qu'un endpoint public à
+~300 k requêtes/jour ferait sortir de son forfait ; et les chemins des agents (`/api/events`,
+`/api/me`, `/api/models`) entreraient en collision avec ceux du CRM s'ils partageaient un
+déploiement. Volume réel estimé : 3 à 4 requêtes/minute par poste actif, ~60 postes simultanés.
 
-La réponse porte le compte d'insérés / doublons / rejetés, comme aujourd'hui : c'est ce qui permet
-à l'agent de vider sa file locale en confiance.
+### 4.4 L'enregistrement d'un poste
 
-### 4.3 `POST /tracker/register`
+Le tracker utilise deux secrets partagés (`SIGNUP_SECRET`, `MANAGER_SIGNUP_SECRET`) qui laissent
+n'importe qui créer un compte au nom qu'il veut. Refaire ça à l'identique serait refaire un défaut.
 
-Remplace `/api/signup` et ses deux secrets partagés (`SIGNUP_SECRET`, `MANAGER_SIGNUP_SECRET`), qui
-laissent n'importe qui créer un compte au nom qu'il veut. Le nouveau flux s'appuie sur l'identité
-CRM (D3) : le membre génère un **code d'enregistrement à usage unique et à durée limitée** depuis
-sa page CRM, le saisit dans l'agent, l'agent reçoit son token de poste.
+À la place : le membre génère un **code d'enregistrement à usage unique et à durée limitée** depuis
+sa page CRM, le saisit dans l'agent, l'agent reçoit son jeton de poste. C'est le **seul écart
+fonctionnel volontaire** de tout le chantier, et il découle de D3 : sans identité CRM, un secret
+partagé ne peut pas être remplacé.
 
-> C'est le seul écart fonctionnel volontaire de tout le chantier, et il découle mécaniquement de
-> D3 : sans identité CRM, un secret partagé ne peut pas être remplacé.
+> Si la modification de l'agent doit rester minimale, la solution de repli est de garder le secret
+> partagé pour la première version et de basculer sur le code ensuite. À trancher quand les sources
+> Electron seront en main, pas avant.
+
+### 4.5 La transition, sans pont
+
+L'agent repointé peut **envoyer aux deux adresses** pendant quelques jours : le VPS continue de
+calculer, le CRM calcule de son côté, et on compare. C'est la recette parallèle du §9 — obtenue
+gratuitement, puisqu'on modifie l'agent de toute façon, et **sans rien demander à personne**. Une
+fois les chiffres concordants, on retire l'ancienne URL et le VPS s'éteint.
 
 ---
 
@@ -495,11 +533,12 @@ La bascule est plus douce qu'annoncé : les apps sont packagées **`electron-upd
 (`latest.yml` + `.blockmap` dans `/opt/tracker/updates/{chatters,managers}/`, servis par Caddy).
 Publier une version repointée suffit — **personne ne réinstalle**.
 
-1. Incréments 1→3 livrés ; l'ingest tourne, alimenté par deux postes de test.
-2. Publication des `.exe` repointés sur le Worker, avec identité par code d'enregistrement (§4.3)
-   et flush à 1/minute. Déploiement automatique par l'updater.
-3. **Recette en parallèle** : les deux systèmes tournent, on compare les chiffres sur quelques
-   jours. C'est le seul moment où l'on peut détecter un écart de calcul.
+1. Incréments 1→4 livrés ; notre endpoint d'ingest tourne, alimenté par deux postes de test.
+2. Publication des `.exe` en **double envoi** (§4.5) : VPS *et* CRM. Déploiement automatique par
+   l'updater, personne ne réinstalle.
+3. **Recette en parallèle** : les deux systèmes reçoivent la même donnée et la calculent chacun de
+   son côté ; on compare sur quelques jours. C'est le seul moment où l'on peut détecter un écart de
+   calcul. Puis publication d'une version qui n'envoie plus qu'au CRM.
 4. Bascule des rapports Discord sur le CRM ; le cron du VPS est désactivé.
 5. Extinction du VPS.
 
@@ -533,15 +572,17 @@ une base de 1,19 Go. À archiver ailleurs ou supprimer avant toute manipulation 
 Comptés en PR, dans l'ordre.
 
 1. **Socle** — migration `0125`, RLS, types régénérés, `@glagency/core/tracking` porté et testé.
-2. **Ingest** — Worker : `/tracker/events`, `/tracker/register`, `tracker_live`, page
-   d'enregistrement de poste côté CRM.
+2. **Ingest** — `POST /tracker/events` et `POST /tracker/register` dans `apps/ingestion`,
+   `tracker_live`, enregistrement de poste côté CRM, migration `0126`. **Livrable inerte tant que
+   les agents ne sont pas repointés** (§4.1).
 3. **Board du shift + fiche chatter** — thème `.trk`, les deux écrans qui portent l'essentiel de la
    valeur.
 4. **Fin de shift** — tables de faits, cron d'agrégation, rapports Discord, purge.
 5. **Managers + récap + config des règles.**
 6. **Notes de coaching.**
 7. **To-do hebdo.**
-8. **Bascule** — `.exe` repointés, `/updates` déplacé, recette parallèle, extinction du VPS.
+8. **Bascule** — `.exe` repointés (double envoi pendant la recette, §4.5), `/updates` déplacé,
+   extinction du VPS.
 
 Les incréments 1→4 forment un système complet et utilisable ; 6 et 7 sont volontairement en fin de
 file (D5).
@@ -552,9 +593,9 @@ file (D5).
 
 | Risque | Portée | Parade |
 |---|---|---|
-| **Les sources Electron sont introuvables** — ni dans `~/Documents`, ni sur le VPS (qui n'héberge que les `.exe` compilés) | **Bloque les incréments 2 et 8** | Benoit fournit l'accès. Sans lui, le contrat d'API se spécifie mais ne se vérifie pas. |
+| **Les sources Electron sont introuvables** — ni dans `~/Documents`, ni sur le VPS (qui n'héberge que les `.exe` compilés) | **Bloque la mise en service entière.** Sans elles, le CRM se construit mais ne reçoit jamais rien (§4.1) | Les demander aux gestionnaires du VPS **maintenant**, pas à la bascule. C'est la seule dépendance externe du chantier. |
 | Écart de calcul entre l'ancien et le nouveau système | Fausse les verdicts, donc des sanctions | Recette parallèle (étape 3 du §9) sur plusieurs jours avant extinction. |
-| Volume de requêtes sur le Worker sous-estimé | Coût, ou throttling | Chiffre à confirmer sur les sources de l'agent ; le flush à 1/min donne une marge de 3×. |
+| Volume de requêtes sur l'ingest sous-estimé | Coût, ou throttling | ~3 requêtes/min par poste actif ; chiffre à confirmer sur les sources de l'agent. Le flush peut être ramené à 1/min au passage. |
 | Croissance de `tracker_focus_raw` si la purge échoue | Disque Supabase | Purge idempotente + alerte Sentry sur le cron. |
 | Le canal `/updates` meurt avec le VPS | Agents figés sur leur version | Déplacer `/updates` **avant** l'extinction (§9). |
 | Deux systèmes de notes/to-do en parallèle | Confusion des utilisateurs | Assumé (D5) ; arbitrage à programmer une fois le tracking en service. |
