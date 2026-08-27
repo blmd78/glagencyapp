@@ -126,11 +126,14 @@ export async function getPersona(): Promise<TrainingPersona | null> {
     .eq('id', 1)
     .maybeSingle()
   if (error) {
-    // `42P01` = la table n'existe pas encore : le web est déployé, la migration 0130 pas jouée.
+    // Table absente : le web est déployé, la migration 0130 pas jouée. DEUX codes à tester —
+    // PostgREST répond `PGRST205` (« Could not find the table in the schema cache »), et non le
+    // `42P01` de Postgres, qu'on ne voit que par une RPC. Ne tester que `42P01` rendait ce garde
+    // INOPÉRANT (constaté à la recette de la Release 2.14).
     // Ce volet est DÉCORATIF — le faire tomber emporterait toute la page d'un module, alors que le
     // cours et les exercices, eux, n'ont besoin de rien. On dégrade et on trace. Toute AUTRE erreur
     // remonte : elle signale un vrai problème (droits, réseau) qu'il ne faut pas masquer.
-    if (error.code === '42P01') {
+    if (error.code === 'PGRST205' || error.code === '42P01') {
       console.error('[training] `training_persona` absente — migration 0130 non appliquée sur cette base')
       return null
     }
