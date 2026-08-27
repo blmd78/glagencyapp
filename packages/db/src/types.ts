@@ -1831,6 +1831,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          integrated_at: string | null
           is_new: boolean
           left_at: string | null
           left_by: string | null
@@ -1854,6 +1855,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          integrated_at?: string | null
           is_new?: boolean
           left_at?: string | null
           left_by?: string | null
@@ -1877,6 +1879,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          integrated_at?: string | null
           is_new?: boolean
           left_at?: string | null
           left_by?: string | null

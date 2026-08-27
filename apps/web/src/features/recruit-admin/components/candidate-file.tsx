@@ -4,8 +4,8 @@ import { ArrowLeft } from 'lucide-react'
 import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type RecruitGates } from '../types'
-import { AddToCrmButton } from './add-to-crm-button'
+import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type CreatorChoice, type RecruitGates } from '../types'
+import { IntegrateButton } from './integrate-button'
 import { CandidateActions, CopyValue } from './recruit-actions'
 
 /** Une mesure d'épreuve avec son seuil : vert si le gate passe, rouge sinon. */
@@ -53,7 +53,15 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
  * Ordre de lecture voulu : le verdict D'ABORD (c'est la décision à prendre), puis ce qui l'explique
  * (épreuves, axes de la conversation), puis la transcription (la preuve), puis la technique.
  */
-export function CandidateFile({ candidate, gates }: { candidate: CandidateFileData; gates: RecruitGates }) {
+export function CandidateFile({
+  candidate,
+  gates,
+  creators,
+}: {
+  candidate: CandidateFileData
+  gates: RecruitGates
+  creators: CreatorChoice[]
+}) {
   const { attempt } = candidate
   return (
     <div className="flex flex-col gap-6">
@@ -89,9 +97,17 @@ export function CandidateFile({ candidate, gates }: { candidate: CandidateFileDa
         </dl>
       </div>
 
-      {/* Création du compte EN UN CLIC (e-mail du dossier, rôle chatteur, droit Entraînement).
+      {/* Intégration EN UN CLIC (compte + droits Formation + rattachement à la modèle choisie).
           Masqué si le candidat est DÉJÀ membre — il n'y a plus rien à créer. */}
-      {!candidate.isMember && <AddToCrmButton candidateId={candidate.id} label="Ajouter au CRM" className="w-fit" />}
+      {!candidate.isMember && (
+        <IntegrateButton
+          candidateId={candidate.id}
+          candidateName={`${candidate.firstName} ${candidate.lastName}`.trim() || candidate.email}
+          creators={creators}
+          label="Intégrer à l’agence"
+          className="w-fit"
+        />
+      )}
 
       <CandidateActions
         candidate={{

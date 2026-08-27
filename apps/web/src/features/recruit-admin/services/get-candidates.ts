@@ -77,6 +77,9 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
     // `check` SQL (0125) : la colonne ne peut valoir que l'une des trois valeurs.
     status: r.status as CandidateStatus,
     isMember: r.profile_id !== null,
+    // Renseignés par `getCandidates` après coup : ils vivent sur `profiles`, pas sur le dossier.
+    integratedAt: null,
+    models: [],
     phone: r.phone,
     age: r.age,
     location: r.location,
@@ -102,15 +105,19 @@ export async function getCandidates(): Promise<CandidatesData> {
     const q = supabase.from('recruit_candidates').select('id', { count: 'exact', head: true })
     return status ? q.eq('status', status) : q
   }
-  const [candidates, config, total, valide, refuse] = await Promise.all([
+  const [candidates, config, total, valide, refuse, creators] = await Promise.all([
     supabase.from('recruit_candidates').select(COLS).order('created_at', { ascending: false }).limit(MAX_ROWS),
     supabase.from('recruit_config').select('qi_min, frappe_min, connexion_min, global_threshold').eq('id', 1).maybeSingle(),
     countWhere(),
     countWhere('valide'),
     countWhere('refuse'),
+    // Les modèles proposées au dialog « Intégrer ». Client SESSION : la RLS `creators_scoped_read`
+    // borne un manager à SES modèles — sans effet ici (la page est admin), mais on ne la contourne pas.
+    supabase.from('creators').select('id, name').order('name'),
   ])
   if (candidates.error) throw new Error(candidates.error.message)
   if (config.error) throw new Error(config.error.message)
+  if (creators.error) throw new Error(creators.error.message)
   for (const c of [total, valide, refuse]) if (c.error) throw new Error(c.error.message)
   if (!config.data) throw new Error('Configuration du test de recrutement introuvable (ligne 1)')
 
@@ -122,11 +129,39 @@ export async function getCandidates(): Promise<CandidatesData> {
   }
   const rows = (candidates.data ?? []).map(toCandidateRow)
   rows.sort(byQueueOrder)
+
+  // Date d'intégration + modèles rattachées : elles vivent sur le PROFIL, pas sur le dossier. Deux
+  // requêtes bornées aux candidats déjà membres (souvent une poignée), jamais une par ligne.
+  const profileByCandidate = new Map(
+    (candidates.data ?? []).filter((c) => c.profile_id).map((c) => [c.id, c.profile_id as string]),
+  )
+  const profileIds = [...new Set(profileByCandidate.values())]
+  if (profileIds.length) {
+    const [profiles, links] = await Promise.all([
+      supabase.from('profiles').select('id, integrated_at').in('id', profileIds),
+      supabase.from('profile_creators').select('profile_id, creators(name)').in('profile_id', profileIds),
+    ])
+    if (profiles.error) throw new Error(profiles.error.message)
+    if (links.error) throw new Error(links.error.message)
+    const integratedAt = new Map((profiles.data ?? []).map((p) => [p.id, p.integrated_at]))
+    const models = new Map<string, string[]>()
+    for (const l of links.data ?? []) {
+      const name = l.creators?.name
+      if (!name) continue
+      models.set(l.profile_id, [...(models.get(l.profile_id) ?? []), name])
+    }
+    for (const r of rows) {
+      const pid = profileByCandidate.get(r.id)
+      if (!pid) continue
+      r.integratedAt = integratedAt.get(pid) ?? null
+      r.models = (models.get(pid) ?? []).sort((a, b) => a.localeCompare(b, 'fr'))
+    }
+  }
   const kpis: RecruitKpis = {
     total: total.count ?? 0,
     nouveau: Math.max(0, (total.count ?? 0) - (valide.count ?? 0) - (refuse.count ?? 0)),
     valide: valide.count ?? 0,
     refuse: refuse.count ?? 0,
   }
-  return { rows, gates, kpis }
+  return { rows, gates, kpis, creators: creators.data ?? [] }
 }

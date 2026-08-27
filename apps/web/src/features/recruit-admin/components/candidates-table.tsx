@@ -4,8 +4,8 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
-import { CANDIDATE_STATUS_LABELS, type CandidateRow, type RecruitGates } from '../types'
-import { AddToCrmButton } from './add-to-crm-button'
+import { CANDIDATE_STATUS_LABELS, type CandidateRow, type CreatorChoice, type RecruitGates } from '../types'
+import { IntegrateButton } from './integrate-button'
 import { CandidateAnswers } from './candidate-answers'
 
 // Formateur hoisté (un `toLocaleDateString` avec options reconstruit un Intl.DateTimeFormat à
@@ -55,7 +55,15 @@ const STATUS_CLASS: Record<string, string> = {
  * `passed` FIGÉ à la soumission — c'est le verdict qui a été rendu au candidat ce jour-là, il ne
  * bouge pas si un seuil change ensuite.
  */
-export function CandidatesTable({ rows, gates }: { rows: CandidateRow[]; gates: RecruitGates }) {
+export function CandidatesTable({
+  rows,
+  gates,
+  creators,
+}: {
+  rows: CandidateRow[]
+  gates: RecruitGates
+  creators: CreatorChoice[]
+}) {
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucun candidat pour l’instant — envoie le lien du test.</p>
   }
@@ -124,15 +132,28 @@ export function CandidatesTable({ rows, gates }: { rows: CandidateRow[]; gates: 
               <TableCell className="tabular-nums text-muted-foreground" title={frDateTimeLongParis(c.createdAt)}>
                 {FR_DATE.format(new Date(c.createdAt))}
               </TableCell>
-              {/* Création du compte EN UN CLIC : e-mail du dossier, rôle chatteur, droit
-                  Entraînement — aucun formulaire à remplir. */}
+              {/* Intégration EN UN CLIC : e-mail du dossier, rôle chatteur, droits Formation, et le
+                  rattachement à la modèle choisie dans le dialog. Une fois membre, la cellule
+                  devient le journal d'intégration du legacy : modèle + date (`index.html:2531`). */}
               <TableCell className="text-right">
                 <span className="flex items-center justify-end gap-1">
                   <CandidateAnswers candidate={c} />
                   {c.isMember ? (
-                    <span className="text-xs text-muted-foreground">déjà membre</span>
+                    <span className="text-xs text-muted-foreground">
+                      {c.models.length > 0 ? c.models.join(', ') : 'déjà membre'}
+                      {c.integratedAt && (
+                        <>
+                          {' · '}
+                          <span className="tabular-nums">{FR_DATE.format(new Date(`${c.integratedAt}T12:00:00Z`))}</span>
+                        </>
+                      )}
+                    </span>
                   ) : (
-                    <AddToCrmButton candidateId={c.id} />
+                    <IntegrateButton
+                      candidateId={c.id}
+                      candidateName={`${c.firstName} ${c.lastName}`.trim() || c.email}
+                      creators={creators}
+                    />
                   )}
                 </span>
               </TableCell>
