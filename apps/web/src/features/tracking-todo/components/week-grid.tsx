@@ -11,7 +11,7 @@ import {
 } from '@dnd-kit/core'
 import { toast } from 'sonner'
 import { DayColumn } from './day-column'
-import { addTask, deleteTask, moveTask, toggleTask } from '../actions'
+import { addTask, deleteSection, deleteTask, moveTask, saveSection, toggleTask } from '../actions'
 import { toggleDayOff } from '../actions-content'
 import type { TodoTask, TodoWeek } from '../types'
 
@@ -85,6 +85,21 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     startTransition(() => run(() => toggleDayOff({ ownerId: week.ownerId, date })))
   }
 
+  /**
+   * Une section créée depuis une colonne est RÉCURRENTE sur ce jour de la semaine : c'est le
+   * comportement de leur écran, et c'est ce qu'on attend d'un rituel hebdomadaire (« 1:1 le
+   * lundi »). Pour une section ponctuelle, il suffit de la retirer une fois remplie.
+   */
+  const onAddSection = (name: string, weekday: number): void => {
+    startTransition(() => run(() => saveSection({ ownerId: week.ownerId, name, weekdays: [weekday] })))
+  }
+
+  const onDeleteSection = (name: string): void => {
+    // `withTasks: false` — retirer une section ne doit jamais emporter des tâches. C'est ce que
+    // leur écran promet explicitement.
+    startTransition(() => run(() => deleteSection({ ownerId: week.ownerId, name, withTasks: false })))
+  }
+
   const onDragEnd = (e: DragEndEvent): void => {
     const target = e.over?.data.current as { date: string; category: string } | undefined
     const source = e.active.data.current as { date: string; category: string } | undefined
@@ -120,6 +135,8 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
               onDelete={onDelete}
               onAdd={onAdd}
               onDayOff={onDayOff}
+              onAddSection={onAddSection}
+              onDeleteSection={onDeleteSection}
             />
           ))}
         </div>

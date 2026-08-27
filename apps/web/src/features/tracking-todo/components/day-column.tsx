@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
+import { isoWeekday } from '@glagency/core'
 import { TaskItem } from './task-item'
 import type { TodoDay, TodoSection, TodoTask } from '../types'
 
@@ -13,6 +14,7 @@ function SectionGroup({
   onToggle,
   onDelete,
   onAdd,
+  onDeleteSection,
 }: {
   day: TodoDay
   section: TodoSection
@@ -20,6 +22,7 @@ function SectionGroup({
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string) => void
+  onDeleteSection: (name: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `${day.date}::${section.name}`,
@@ -41,14 +44,24 @@ function SectionGroup({
           {done}/{section.tasks.length}
         </em>
         {canWrite ? (
-          <button
-            type="button"
-            className="gadd"
-            title="Ajouter une tâche ici"
-            onClick={() => setAdding(true)}
-          >
-            +
-          </button>
+          <>
+            <button
+              type="button"
+              className="gadd"
+              title="Ajouter une tâche ici"
+              onClick={() => setAdding(true)}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              className="gdel"
+              title="Retirer la section (ses tâches sont conservées)"
+              onClick={() => onDeleteSection(section.name)}
+            >
+              ✕
+            </button>
+          </>
         ) : null}
       </div>
 
@@ -96,6 +109,8 @@ export function DayColumn({
   onDelete,
   onAdd,
   onDayOff,
+  onAddSection,
+  onDeleteSection,
 }: {
   day: TodoDay
   canWrite: boolean
@@ -103,7 +118,10 @@ export function DayColumn({
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string) => void
   onDayOff: (date: string) => void
+  onAddSection: (name: string, weekday: number) => void
+  onDeleteSection: (name: string) => void
 }) {
+  const [addingSection, setAddingSection] = useState(false)
   const all = day.sections.flatMap((s) => s.tasks)
   const done = all.filter((t) => t.done).length
   const cls = ['day', day.isToday ? 'now' : '', day.isWeekend ? 'we' : '', day.dayOff ? 'rest' : '']
@@ -145,9 +163,36 @@ export function DayColumn({
               onToggle={onToggle}
               onDelete={onDelete}
               onAdd={onAdd}
+              onDeleteSection={onDeleteSection}
             />
           ))
         )}
+
+        {/* Sans ce bouton, une semaine vierge est un cul-de-sac : pas de section, donc pas de
+            bouton « + » de tâche, donc aucun moyen de commencer. */}
+        {canWrite ? (
+          addingSection ? (
+            <div className="qadd">
+              <input
+                autoFocus
+                placeholder="Nom de la section…"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setAddingSection(false)
+                  if (e.key !== 'Enter') return
+                  const value = e.currentTarget.value.trim()
+                  if (value) onAddSection(value, isoWeekday(day.date))
+                  e.currentTarget.value = ''
+                  setAddingSection(false)
+                }}
+                onBlur={() => setAddingSection(false)}
+              />
+            </div>
+          ) : (
+            <button type="button" className="addrow" onClick={() => setAddingSection(true)}>
+              + Section
+            </button>
+          )
+        ) : null}
       </div>
     </div>
   )
