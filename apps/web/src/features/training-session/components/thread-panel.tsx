@@ -19,6 +19,8 @@ export function ThreadPanel({
   thread,
   kind,
   maxSeconds,
+  sending,
+  showChrono,
   now,
   onSend,
   onTimeout,
@@ -29,6 +31,10 @@ export function ThreadPanel({
   kind: CaseKind
   /** Durée du tour (`reactionSecondsFor`), pour la part restante de l'anneau et du compteur. */
   maxSeconds: number | null
+  /** Envoi en vol : le chrono se fige, exactement comme le `trainTimerStop()` de GLA. */
+  sending: boolean
+  /** L'en-tête porte-t-il le compteur chiffré ? Non en défi/boss, où les onglets l'affichent déjà. */
+  showChrono: boolean
   now: number
   onSend: (v: ComposerInput) => Promise<boolean>
   onTimeout: (threadId: string) => void
@@ -39,8 +45,11 @@ export function ThreadPanel({
   const pendingFan = thread.messages.some((m) => m.speaker === 'fan' && Date.parse(m.visibleAt) > now)
   const last = visible[visible.length - 1]
   const dueMs = thread.nextDueAt ? Date.parse(thread.nextDueAt) - now : null
-  const remaining = dueMs != null && !pendingFan ? Math.max(0, Math.ceil(dueMs / 1000)) : null
-  const expired = thread.status === 'open' && dueMs != null && !pendingFan && dueMs < -500
+  // `sending` gèle le décompte ET l'expiration : sans lui, un message parti à temps pouvait être
+  // déclaré perdu pendant que la Server Action était encore en vol.
+  const frozen = pendingFan || sending
+  const remaining = dueMs != null && !frozen ? Math.max(0, Math.ceil(dueMs / 1000)) : null
+  const expired = thread.status === 'open' && dueMs != null && !frozen && dueMs < -500
   useEffect(() => {
     if (expired) onTimeout(thread.id)
   }, [expired, onTimeout, thread.id])
@@ -49,7 +58,7 @@ export function ThreadPanel({
   // 'chatter'` verrouillait le composer dès l'arrivée et le cas était injouable (aucun chrono armé
   // non plus, puisque l'ouverture ne finit pas par le fan : le chrono démarre à sa première réponse).
   const opening = thread.turnsUsed === 0
-  const canWrite = thread.status === 'open' && !pendingFan && !expired && (opening || last?.speaker !== 'chatter') && thread.turnsUsed < thread.maxTurns
+  const canWrite = thread.status === 'open' && !frozen && !expired && (opening || last?.speaker !== 'chatter') && thread.turnsUsed < thread.maxTurns
   const lost = thread.status === 'lost' ? (FAULT_LABELS[(thread.lostReason ?? 'timeout') as FaultCode | 'timeout'] ?? FAULT_LABELS.timeout) : null
 
   return (
@@ -77,7 +86,7 @@ export function ThreadPanel({
         </span>
         {/* Le compteur chiffré DOUBLE l'anneau, comme le `#ttimer` de GLA (`index.html:1725`) —
             l'anneau est `aria-hidden`, et un chiffre reste plus lisible sous pression. */}
-        {thread.status === 'open' && remaining != null && <ChronoBadge seconds={remaining} />}
+        {showChrono && thread.status === 'open' && remaining != null && <ChronoBadge seconds={remaining} />}
       </header>
       <MessageList messages={visible} pendingFan={pendingFan} fanName={thread.fanName} />
       {lost ? (

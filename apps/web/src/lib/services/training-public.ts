@@ -125,7 +125,17 @@ export async function getPersona(): Promise<TrainingPersona | null> {
     .select('name, infos, active')
     .eq('id', 1)
     .maybeSingle()
-  if (error) throw new Error(error.message)
+  if (error) {
+    // `42P01` = la table n'existe pas encore : le web est déployé, la migration 0130 pas jouée.
+    // Ce volet est DÉCORATIF — le faire tomber emporterait toute la page d'un module, alors que le
+    // cours et les exercices, eux, n'ont besoin de rien. On dégrade et on trace. Toute AUTRE erreur
+    // remonte : elle signale un vrai problème (droits, réseau) qu'il ne faut pas masquer.
+    if (error.code === '42P01') {
+      console.error('[training] `training_persona` absente — migration 0130 non appliquée sur cette base')
+      return null
+    }
+    throw new Error(error.message)
+  }
   if (!data || !data.active) return null
   const infos = (data.infos ?? {}) as { base?: unknown; sections?: unknown }
   const base = Array.isArray(infos.base)

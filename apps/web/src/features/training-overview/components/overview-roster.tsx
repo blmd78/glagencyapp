@@ -20,8 +20,8 @@ function lastSeen(iso: string | null): string {
 
 /**
  * Le roster de la promo, dans la forme de l'écran admin de Good Luck Agency
- * (`adminFormation`, index.html:2510-2518) : DEUX sections — « Attribués à une modèle » et « En
- * formation » — chacune triée par AVANCEMENT DÉCROISSANT.
+ * (`adminFormation`, index.html:2510-2523) : DEUX sections dans CET ordre — « Attribués à une
+ * modèle » puis « En formation » — chacune triée par AVANCEMENT DÉCROISSANT.
  *
  * Le legacy triait sur `global_pct` (`_pctVal`, index.html:2444-2445), avec les sans-note en
  * dernier. Ici `totalCases` est le même pour tout le monde : trier sur `casesDone` décroissant est
@@ -48,7 +48,7 @@ export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; to
   return (
     <section className="flex flex-col gap-6">
       <p className="text-sm text-muted-foreground">
-        {roster.length} chatter{roster.length > 1 ? 's' : ''} en formation
+        {roster.length} chatter{roster.length > 1 ? 's' : ''} sur la face Formation
         {newcomers > 0 && `, ${newcomers} nouveau${newcomers > 1 ? 'x' : ''}`}
       </p>
       {roster.length === 0 ? (
@@ -57,8 +57,9 @@ export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; to
         </p>
       ) : (
         <>
-          <RosterSection title="En formation" rows={enFormation} totalCases={totalCases} withModel={false} />
+          {/* « Attribués » EN PREMIER : `body = secAgence + secForm` (index.html:2523). */}
           <RosterSection title="Attribués à une modèle" rows={enAgence} totalCases={totalCases} withModel />
+          <RosterSection title="En formation" rows={enFormation} totalCases={totalCases} withModel={false} />
         </>
       )}
     </section>

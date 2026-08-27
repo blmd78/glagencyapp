@@ -33,7 +33,16 @@ export function FanRing({
   const pct = timed ? Math.max(0, Math.min(100, (seconds / maxSeconds) * 100)) : 100
   const urgent = timed && seconds <= URGENT_S
   // Trois paliers comme GLA : accent > 20 s, orange ≤ 20 s, rouge ≤ 10 s.
-  const ringCol = !timed || seconds > WARN_S ? 'var(--gla-accent)' : urgent ? 'var(--gla-danger)' : 'var(--gla-warning)'
+  // Au REPOS (aucun chrono armé), GLA rendait l'anneau GRIS et non vert plein — `.tring.idle`
+  // (index.html:291), posé par `ringIdle()` (:1602). Un anneau vert plein se lit « il te reste tout
+  // ton temps », ce qui est faux : il n'y a simplement pas de chrono en cours.
+  const ringCol = !timed
+    ? 'rgba(255,255,255,.13)'
+    : seconds > WARN_S
+      ? 'var(--gla-accent)'
+      : urgent
+        ? 'var(--gla-danger)'
+        : 'var(--gla-warning)'
   const initial = name.trim().charAt(0).toUpperCase() || '🙂'
 
   return (
