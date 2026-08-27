@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 /* Thème de la face Formation (reprise GLA) — portée limitée à `.gla`, cf. le fichier. */
 @import "./formation-theme.css";
+/* Thème du Tracker de présence (reprise du tracker GLA) — portée limitée à `.trk`, cf. le fichier. */
+@import "./tracker-theme.css";
 
 @custom-variant dark (&:is(.dark *));
 
