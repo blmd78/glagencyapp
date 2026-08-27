@@ -1,12 +1,13 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { hasPageAccess, requireAccess } from '@/lib/auth'
-import { getModule } from '@/lib/services/training-public'
+import { getModule, getPersona } from '@/lib/services/training-public'
 import { getModuleRanking } from '@/features/training-modules/services/get-module-ranking'
 import { getMyBests, type MyBests } from '@/features/training-modules/services/get-my-bests'
 import { ModuleTemplate } from '@/features/training-modules/ModuleTemplate'
 import { ModuleSkeleton } from '@/features/training-modules/components/module-skeleton'
 import type { ModuleDetail } from '@/features/training-modules/types'
+import type { TrainingPersona } from '@/lib/types/training-public'
 
 const NO_BESTS: MyBests = { bests: new Map(), avgTotal: null }
 
@@ -33,6 +34,8 @@ export default async function ModulePage({
   const modulePromise = getModule(code)
   // Sans droit Entraînement, pas de progression personnelle à afficher : on n'interroge même pas.
   const bests = canPlay ? getMyBests(profile.id) : Promise.resolve(NO_BESTS)
+  // Une ligne unique, sans dépendance au module : lancée en parallèle, attendue dans le contenu.
+  const persona = getPersona()
   return (
     <Suspense fallback={<ModuleSkeleton />}>
       <ModuleContent
@@ -41,6 +44,7 @@ export default async function ModulePage({
         canPlay={canPlay}
         myProfileId={profile.id}
         competenceId={competence ?? null}
+        persona={persona}
       />
     </Suspense>
   )
@@ -52,14 +56,16 @@ async function ModuleContent({
   canPlay,
   myProfileId,
   competenceId,
+  persona,
 }: {
   module: Promise<ModuleDetail | null>
   bests: Promise<MyBests>
   canPlay: boolean
   myProfileId: string
   competenceId: string | null
+  persona: Promise<TrainingPersona | null>
 }) {
-  const [m, my] = await Promise.all([module, bests])
+  const [m, my, fiche] = await Promise.all([module, bests, persona])
   if (!m) notFound()
   // Vraie dépendance séquentielle : la RPC a besoin de l'id du module. Lancée SANS `await` — le
   // titre et les onglets s'affichent, le classement streame dans ses boundaries (`ModuleTemplate`).
@@ -79,6 +85,7 @@ async function ModuleContent({
         ranking={ranking}
         myProfileId={myProfileId}
         competenceId={competenceId}
+        persona={fiche}
       />
     </div>
   )

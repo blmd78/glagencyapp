@@ -4,9 +4,11 @@ import { MarkdownView } from '@/components/markdown-view'
 import { Skeleton } from '@/components/ui/skeleton'
 import { CasesList } from './components/cases-list'
 import { ModulePodium } from './components/module-podium'
+import { PersonaCard } from './components/persona-card'
 import type { MyBest } from './services/get-my-bests'
 import type { ModuleRankRow } from './services/get-module-ranking'
 import type { ModuleDetail } from './types'
+import type { TrainingPersona } from '@/lib/types/training-public'
 
 /**
  * Un module — structure de l'app Good Luck Agency (`render.formationModule`) : bouton de retour, le
@@ -28,6 +30,7 @@ export function ModuleTemplate({
   ranking,
   myProfileId,
   competenceId,
+  persona,
 }: {
   module: ModuleDetail
   canPlay: boolean
@@ -38,6 +41,8 @@ export function ModuleTemplate({
   myProfileId: string
   /** Compétence ouverte (`?competence=`) — `null` = vue du module. */
   competenceId: string | null
+  /** Fiche modèle globale — `null` si aucune n'est configurée (le volet disparaît alors). */
+  persona: TrainingPersona | null
 }) {
   const hasCourse = Boolean(module.courseMd?.trim())
 
@@ -67,6 +72,9 @@ export function ModuleTemplate({
             <p className="mt-1.5 text-[13.5px] leading-relaxed text-[var(--gla-muted)]">{module.description}</p>
           )}
         </div>
+        {/* La fiche AU-DESSUS du cours — l'ordre de GLA, dont le commentaire le dit explicitement :
+            « puis la fiche modele, puis le cours (fiche AU-DESSUS du cours) » (index.html:1531). */}
+        {persona && <PersonaCard persona={persona} />}
         {hasCourse && (
           <details className="gla-csec">
             <summary>Le cours du module</summary>
