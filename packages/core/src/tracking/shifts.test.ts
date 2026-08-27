@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SHIFTS, currentShift, shiftByKey, shiftWindow } from './shifts'
+import { SHIFTS, currentShift, shiftByKey, shiftWindow, shiftWindowOn } from './shifts'
 
 const at = (iso: string): number => Date.parse(iso)
 
@@ -60,5 +60,29 @@ describe('currentShift', () => {
     expect(currentShift(Date.parse('2026-08-25T03:00:00Z')).key).toBe('matin')  // 05h00 pile
     expect(currentShift(Date.parse('2026-08-25T11:00:00Z')).key).toBe('aprem')  // 13h00 pile
     expect(currentShift(Date.parse('2026-08-25T19:00:00Z')).key).toBe('nuit')   // 21h00 pile
+  })
+})
+
+describe('shiftWindowOn', () => {
+  it('rend la fenêtre du jour demandé, pas celle de maintenant', () => {
+    const w = shiftWindowOn(shiftByKey('aprem')!, '2026-08-20')
+    expect(new Date(w.start).toISOString()).toBe('2026-08-20T11:00:00.000Z') // 13h Paris
+    expect(new Date(w.end).toISOString()).toBe('2026-08-20T19:00:00.000Z')   // 21h Paris
+    expect(w.date).toBe('2026-08-20')
+  })
+  it('un shift de nuit démarre la VEILLE de sa date', () => {
+    const w = shiftWindowOn(shiftByKey('nuit')!, '2026-08-20')
+    expect(new Date(w.start).toISOString()).toBe('2026-08-19T19:00:00.000Z') // 21h le 19
+    expect(new Date(w.end).toISOString()).toBe('2026-08-20T03:00:00.000Z')   // 05h le 20
+  })
+  it('nuit de bascule printemps : 7 h réelles, comme shiftWindow', () => {
+    const w = shiftWindowOn(shiftByKey('nuit')!, '2026-03-29')
+    expect(new Date(w.start).toISOString()).toBe('2026-03-28T20:00:00.000Z')
+    expect(new Date(w.end).toISOString()).toBe('2026-03-29T03:00:00.000Z')
+  })
+  it('shiftWindow délègue : même résultat pour la date qu’il déduit', () => {
+    const now = Date.parse('2026-08-26T14:05:00Z')
+    const a = shiftWindow(shiftByKey('aprem')!, now)
+    expect(shiftWindowOn(shiftByKey('aprem')!, a.date)).toEqual(a)
   })
 })

@@ -40,14 +40,22 @@ export interface ShiftWindow {
  * Correct les jours de bascule d'heure en passant par l'heure murale explicite.
  */
 export function shiftWindow(shift: Shift, nowMs: number = Date.now()): ShiftWindow {
-  const today = parisDay(new Date(nowMs).toISOString())
-  let endDay = today
+  let endDay = parisDay(new Date(nowMs).toISOString())
   // Si la fin de ce shift n'est pas encore passée aujourd'hui, c'est celui d'hier qui a fini.
   if (parisWallUtcMs(endDay, shift.endH) > nowMs) endDay = addDays(endDay, -1)
+  return shiftWindowOn(shift, endDay)
+}
+
+/**
+ * Fenêtre d'un shift dont la FIN tombe le jour `endDay` (`YYYY-MM-DD`, heure de Paris) — c'est la
+ * clé d'URL du board, qui laisse choisir une date passée.
+ *
+ * Le `start` ne se DÉRIVE PAS du `end` par une durée fixe : les deux nuits de bascule d'heure
+ * durent 7 h ou 9 h, pas 8. On repasse donc par l'heure murale du jour de départ — la veille
+ * quand le shift franchit minuit (cas `nuit`).
+ */
+export function shiftWindowOn(shift: Shift, endDay: string): ShiftWindow {
   const end = parisWallUtcMs(endDay, shift.endH)
-  // Le `start` ne se DÉRIVE PAS de `end` par une durée fixe : les deux nuits de bascule d'heure
-  // durent 7 h ou 9 h, pas 8. On repasse donc par l'heure murale du jour de départ — la veille
-  // quand le shift franchit minuit (cas `nuit`).
   const startDay = shift.startH > shift.endH ? addDays(endDay, -1) : endDay
   const start = parisWallUtcMs(startDay, shift.startH)
   return {

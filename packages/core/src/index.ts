@@ -163,7 +163,7 @@ export {
   fmtClock,
   fmtDuration,
 } from './tracking/time'
-export { SHIFTS, BOUNDARIES, shiftByKey, shiftWindow, currentShift } from './tracking/shifts'
+export { SHIFTS, BOUNDARIES, shiftByKey, shiftWindow, shiftWindowOn, currentShift } from './tracking/shifts'
 export type { Shift, ShiftKey, ShiftWindow } from './tracking/shifts'
 export {
   DEFAULT_STALE_MS,
