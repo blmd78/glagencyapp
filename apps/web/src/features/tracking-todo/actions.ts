@@ -1,0 +1,246 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@glagency/db'
+import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
+import { assertOwner, TODO_PATH } from './actions-shared'
+import {
+  addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput, habitInput, moveTaskInput,
+  renameSectionInput, sectionInput, toggleTaskInput,
+} from './schema'
+
+/**
+ * Mutations de la to-do hebdomadaire.
+ *
+ * ÉCRITURES EN SERVICE-ROLE APRÈS GARDE, comme toute la face Formation : la migration 0127 ne pose
+ * aucune politique d'écriture, donc il n'existe qu'UN chemin d'écriture, celui qui passe par ici.
+ *
+ * PROPRIÉTÉ : chacun gère sa to-do ; un admin peut agir sur n'importe laquelle. La vérification
+ * est faite UNE fois, dans le handler (`assertOwner`) — jamais en double dans `guard`, ce que la
+ * checklist des guidelines interdit explicitement.
+ */
+
+/** Une occurrence virtuelle d'habitude : `habit:<uuid>:<date>`. */
+function parseVirtual(taskId: string): { habitId: string; date: string } | null {
+  const m = /^habit:([0-9a-f-]{36}):(\d{4}-\d{2}-\d{2})$/.exec(taskId)
+  return m ? { habitId: m[1] as string, date: m[2] as string } : null
+}
+
+/**
+ * Transforme une occurrence virtuelle en vraie ligne, et rend son id.
+ * C'est LE moment où une habitude existe en base : au premier geste, jamais à l'affichage.
+ */
+async function materialize(ownerId: string, taskId: string): Promise<string> {
+  const virt = parseVirtual(taskId)
+  if (!virt) return taskId
+
+  const admin = createAdminClient()
+  const { data: habit, error } = await admin
+    .from('tracker_todo_habits')
+    .select('category, label')
+    .eq('id', virt.habitId)
+    .eq('owner_id', ownerId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!habit) throw new BusinessError('Cette habitude a été supprimée entre-temps.')
+
+  const { data: created, error: insErr } = await admin
+    .from('tracker_todo_tasks')
+    .insert({ owner_id: ownerId, date: virt.date, category: habit.category, label: habit.label })
+    .select('id')
+    .single()
+  if (insErr) throw new Error(insErr.message)
+  return created.id
+}
+
+// ============================================================ tâches
+
+export async function addTask(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: addTaskInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      const callerId = await assertOwner(d.ownerId)
+      const admin = createAdminClient()
+      const { error } = await admin.from('tracker_todo_tasks').insert({
+        owner_id: d.ownerId,
+        date: d.date,
+        category: d.category,
+        label: d.label,
+        // Trace de la hiérarchie : `null` quand on écrit chez soi, pour ne pas marquer d'un
+        // « déposée par » toutes les tâches qu'on se donne soi-même.
+        created_by: callerId === d.ownerId ? null : callerId,
+      })
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+export async function toggleTask(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: toggleTaskInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const id = await materialize(d.ownerId, d.taskId)
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_tasks')
+        .update({ done: d.done, done_at: d.done ? new Date().toISOString() : null })
+        .eq('id', id)
+        .eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+export async function deleteTask(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: deleteTaskInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      // Une occurrence virtuelle n'existe pas en base : la supprimer n'a rien à faire. Pour ne
+      // plus la voir, c'est l'habitude qu'il faut retirer — ce que dit leur écran.
+      if (parseVirtual(d.taskId)) throw new BusinessError("Retire l'habitude pour la faire disparaître.")
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_tasks').delete().eq('id', d.taskId).eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+export async function moveTask(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: moveTaskInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const id = await materialize(d.ownerId, d.taskId)
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_tasks')
+        .update({ date: d.date, category: d.category })
+        .eq('id', id)
+        .eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+// ============================================================ sections
+
+export async function saveSection(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: sectionInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_sections')
+        .upsert(
+          { owner_id: d.ownerId, name: d.name, weekdays: d.weekdays.join(',') },
+          { onConflict: 'owner_id,name' },
+        )
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+export async function renameSection(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: renameSectionInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_sections').update({ name: d.to })
+        .eq('owner_id', d.ownerId).eq('name', d.from)
+      if (error) throw new Error(error.message)
+      // `category` est du texte libre côté tâches : le renommage doit les suivre, sinon elles
+      // se retrouvent orphelines dans une section fantôme.
+      const { error: tErr } = await admin
+        .from('tracker_todo_tasks').update({ category: d.to })
+        .eq('owner_id', d.ownerId).eq('category', d.from)
+      if (tErr) throw new Error(tErr.message)
+      const { error: hErr } = await admin
+        .from('tracker_todo_habits').update({ category: d.to })
+        .eq('owner_id', d.ownerId).eq('category', d.from)
+      if (hErr) throw new Error(hErr.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+export async function deleteSection(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: deleteSectionInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_sections').delete().eq('owner_id', d.ownerId).eq('name', d.name)
+      if (error) throw new Error(error.message)
+      if (d.withTasks) {
+        const { error: tErr } = await admin
+          .from('tracker_todo_tasks').delete().eq('owner_id', d.ownerId).eq('category', d.name)
+        if (tErr) throw new Error(tErr.message)
+      }
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+// ============================================================ habitudes
+
+export async function saveHabit(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: habitInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const admin = createAdminClient()
+      const { error } = await admin.from('tracker_todo_habits').insert({
+        owner_id: d.ownerId,
+        category: d.category,
+        label: d.label,
+        weekdays: d.weekdays.join(','),
+      })
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+export async function deleteHabit(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: deleteHabitInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const admin = createAdminClient()
+      const { error } = await admin
+        .from('tracker_todo_habits').delete().eq('id', d.habitId).eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
