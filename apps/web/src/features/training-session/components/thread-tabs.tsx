@@ -15,11 +15,14 @@ export function ThreadTabs({
   current,
   now,
   onSelect,
+  sending,
 }: {
   threads: SessionThread[]
   current: string
   now: number
   onSelect: (id: string) => void
+  /** Threads dont l'envoi est en vol : leur chrono se fige (cf. `session-view`). */
+  sending: Set<string>
 }) {
   return (
     <div role="tablist" aria-label="Conversations" className="flex flex-wrap gap-2">
@@ -28,7 +31,8 @@ export function ThreadTabs({
         const pendingFan = t.messages.some((m) => m.speaker === 'fan' && Date.parse(m.visibleAt) > now)
         const lastVisible = visible[visible.length - 1]
         const yours = t.status === 'open' && !pendingFan && lastVisible?.speaker === 'fan'
-        const dueMs = t.status === 'open' && t.nextDueAt && !pendingFan ? Date.parse(t.nextDueAt) - now : null
+        const frozen = pendingFan || sending.has(t.id)
+        const dueMs = t.status === 'open' && t.nextDueAt && !frozen ? Date.parse(t.nextDueAt) - now : null
         const remaining = dueMs != null ? Math.max(0, Math.ceil(dueMs / 1000)) : null
         return (
           <button

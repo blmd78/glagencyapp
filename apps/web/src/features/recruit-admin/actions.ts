@@ -18,7 +18,7 @@ import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { attachRecruitCandidate } from '@/lib/recruit-link'
 import { revalidateRecruit } from './actions-shared'
-import { candidateIdInput, reviewInput } from './schema'
+import { candidateIdInput, integrateCandidateInput, reviewInput } from './schema'
 
 const NOT_FOUND = 'Dossier introuvable'
 
@@ -184,7 +184,9 @@ export async function deleteCandidate(raw: unknown): Promise<ActionResult> {
 }
 
 /**
- * « Ajouter au CRM » : crée le compte du candidat EN UN CLIC, depuis la liste ou sa fiche.
+ * « Intégrer à l'agence » : crée le compte du candidat ET le rattache à la modèle choisie, depuis
+ * la liste ou sa fiche. Reprise du CRM Good Luck Agency, où « Intégrer » ouvrait la liste des
+ * modèles (`index.html:2313-2326`) et où le rattachement posait la date (`serveur.py:1117-1123`).
  *
  * Le compte est posé avec ce qu'on veut à chaque fois — rôle CHATTEUR (le défaut de la colonne) et
  * droit ENTRAÎNEMENT sur la face Formation. Il n'y a rien à saisir : l'e-mail et le nom viennent du
@@ -200,10 +202,10 @@ export async function deleteCandidate(raw: unknown): Promise<ActionResult> {
  */
 export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ profileId: string }>> {
   return runAction({
-    schema: candidateIdInput,
+    schema: integrateCandidateInput,
     input: raw,
     guard: noGuard,
-    handler: async ({ id }): Promise<{ profileId: string }> => {
+    handler: async ({ id, creatorId }): Promise<{ profileId: string }> => {
       const caller = await requireAdminProfileLive()
       const admin = createAdminClient()
 
@@ -255,6 +257,13 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
           // c'est le moment où la personne entre dans l'agence.
           is_new: true,
           arrived_at: todayParis(),
+          // Jour d'INTÉGRATION (0129) — seulement si une modèle est choisie : sans rattachement, la
+          // personne entre au CRM mais reste en formation. Règle GLA à l'identique
+          // (`serveur.py:1118-1121` : la date n'est posée que quand `modele` est renseignée).
+          // Posé ICI, dans le même update que `updated_by`, et donc AVANT l'insert d'assignation —
+          // le trigger d'historique lit `profiles.updated_by` pour attribuer l'auteur (`auth.uid()`
+          // est null en service-role) ; inverser l'ordre ferait signer l'event par « système ».
+          ...(creatorId ? { integrated_at: todayParis() } : {}),
           // « Créé par » (0098) — l'encadrant qui a cliqué, jamais réécrit ensuite.
           created_by: caller.id,
           // « Modifié par » (0101) : LU PAR LE TRIGGER D'HISTORIQUE. On écrit en service-role, où
@@ -269,6 +278,22 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
           `Profil ${uid} introuvable juste après la création du compte — droits non posés. ` +
             'Le compte existe : termine-le depuis Membres.',
         )
+      }
+
+      // Rattachement à la MODÈLE, s'il y en a une. BLOQUANT, lui : c'est le sens même du bouton —
+      // un compte créé sans le rattachement promis laisserait la personne invisible du board.
+      // `profile_creators` n'ouvre l'insert qu'à `is_admin()` et n'a aucune policy d'update
+      // (0008:115-118) → service-role, après la garde `requireAdminProfileLive` ci-dessus.
+      //
+      // On n'importe PAS `syncAssignments` de `features/members` : frontière ESLint cross-feature
+      // (même raison que `attachRecruitCandidate`, cf. le JSDoc de cette action). Le cas est de
+      // toute façon plus simple — un seul ajout, jamais de retrait.
+      if (creatorId) {
+        const { error: linkErr } = await admin
+          .from('profile_creators')
+          // Idempotent : deux clics concurrents ne doivent pas faire échouer le second sur la PK.
+          .upsert({ profile_id: uid, creator_id: creatorId }, { onConflict: 'profile_id,creator_id', ignoreDuplicates: true })
+        if (linkErr) throw new Error(linkErr.message)
       }
 
       // Rattachement du dossier — NON BLOQUANT par construction : le compte est déjà créé, un échec

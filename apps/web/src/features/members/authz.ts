@@ -1,4 +1,4 @@
-import { planAssignmentSync } from '@glagency/core'
+import { planAssignmentSync, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { slugFace, type WorkspaceId } from '@/config/workspaces'
 import { getProfile, type Profile } from '@/lib/auth'
@@ -85,6 +85,25 @@ export async function syncAssignments(
         })),
         { onConflict: 'profile_id,creator_id', ignoreDuplicates: true },
       )
+    if (error) return error.message
+  }
+  // DATE D'INTÉGRATION (0129) : le PREMIER rattachement à une modèle marque l'entrée en production.
+  // Règle de GLA à l'identique — `if newm and not c["integrated_at"]` (serveur.py:1119-1121) — où
+  // TOUTE affectation la posait, pas seulement le bouton « Intégrer ». Sans ce passage ici, une
+  // personne rattachée depuis Membres (ou créée sans modèle puis affectée) n'aurait jamais de date.
+  //
+  // `.is('integrated_at', null)` : jamais réécrite ensuite, un changement de modèle ne la bouge pas.
+  //
+  // ÉCART ASSUMÉ avec GLA : lui EFFAÇAIT la date quand on retirait la modèle (serveur.py:1122-1123,
+  // via « Repasser en formation »). On ne le fait pas — ce geste n'existe pas ici, et un retrait
+  // d'assignation passe aussi par le board Organisation, où c'est une réorganisation et non une
+  // sortie de production. Effacer y perdrait de l'information.
+  if (toAdd.length) {
+    const { error } = await admin
+      .from('profiles')
+      .update({ integrated_at: todayParis() })
+      .eq('id', profileId)
+      .is('integrated_at', null)
     if (error) return error.message
   }
   // `scope` (appelant manager) : ne retire que dans SON périmètre — une assignation

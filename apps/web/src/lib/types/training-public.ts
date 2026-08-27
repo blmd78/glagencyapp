@@ -66,3 +66,17 @@ export interface PublicCaseRef {
   title: string
   sectionId: string | null
 }
+
+/**
+ * « Ta fiche modèle » — le persona d'entraînement, unique et global à la face Formation
+ * (`training_persona`, 0130). Reprise de la fiche Alice de Good Luck Agency
+ * (`index.html:1080-1093`), qui était une constante HTML en dur : personnage FICTIF d'exercice,
+ * sans lien avec les vraies créatrices et absent de tout prompt IA.
+ */
+export interface TrainingPersona {
+  name: string
+  /** Grille de champs, dans l'ordre d'affichage (PRÉNOM, ÂGE, VILLE…). */
+  base: { label: string; value: string }[]
+  /** Paragraphes libres. `titre` vide = paragraphe sans intitulé. */
+  sections: { titre: string; contenu: string }[]
+}

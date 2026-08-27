@@ -78,6 +78,14 @@ export interface CandidateRow {
   /** `profile_id` non nul = un membre a été créé avec cet e-mail (rattachement Task 7). */
   isMember: boolean
   /**
+   * Jour d'intégration à l'agence (`profiles.integrated_at`, 0129) — posé au PREMIER rattachement
+   * à une modèle, jamais réécrit. `null` = compte créé mais encore en formation. Reprise du CRM
+   * GLA (`serveur.py:1117-1123`), qui affichait la même date dans son journal des intégrations.
+   */
+  integratedAt: string | null
+  /** Modèles auxquelles le membre est rattaché (`profile_creators`) — vide tant qu'il n'est pas intégré. */
+  models: string[]
+  /**
    * Profil déclaré au FORMULAIRE DE FIN (0127) — `null` sur les dossiers soumis avant l'ajout de
    * ces questions (l'affichage montre « — »). Dans la file depuis le 2026-08-25 : la modale « Ses
    * réponses » les montre sans quitter la liste.
@@ -97,10 +105,21 @@ export interface RecruitKpis {
   refuse: number
 }
 
+/** Une modèle proposée au choix dans le dialog « Intégrer ». */
+export interface CreatorChoice {
+  id: string
+  name: string
+}
+
 export interface CandidatesData {
   rows: CandidateRow[]
   gates: RecruitGates
   kpis: RecruitKpis
+  /**
+   * Les modèles rattachables, pour le dialog « Intégrer ». Chargées ICI et pas dans le composant :
+   * aucun fetch dans une feature (guidelines-data-loading §3).
+   */
+  creators: CreatorChoice[]
 }
 
 /** Un message de la transcription serveur (`recruit_messages`, ordre = `position`). */

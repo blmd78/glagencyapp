@@ -25,7 +25,7 @@ export async function readLegacyCatalog(
       admin
         .from('training_cases')
         .select(
-          'id, module_id, code, kind, title, phase, difficulty, context, objective, max_turns, reaction_max_s, is_sale, fan_name, training_modules(code, title, objective_label)',
+          'id, module_id, section_id, code, kind, title, phase, difficulty, context, objective, max_turns, reaction_max_s, is_sale, fan_name, training_modules(code, title, objective_label)',
         )
         .order('id')
         .range(f, t),
@@ -56,6 +56,7 @@ export async function readLegacyCatalog(
       max_turns: c.max_turns,
       reaction_max_s: c.reaction_max_s,
       is_sale: c.is_sale,
+      section_id: c.section_id,
       training_modules: c.training_modules,
     })
   }

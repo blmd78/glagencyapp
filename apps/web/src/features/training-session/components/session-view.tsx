@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import type { SessionStatus } from '@/lib/types/training'
+import { reactionSecondsFor, type SessionStatus } from '@/lib/types/training'
 import { revealThread, sendMessage } from '../actions'
 import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
@@ -102,7 +102,30 @@ export function SessionView({ data }: { data: SessionData }) {
     [router],
   )
 
+  // Threads dont l'envoi est EN VOL. GLA appelait `trainTimerStop()` en tête de `trainSend`
+  // (index.html:1769) et ne relançait le chrono qu'à la réponse du fan (`:1798`) : le temps de
+  // l'aller-retour IA ne comptait pas. Ici `next_due_at` reste figé en base pendant l'appel, donc
+  // sans cet état le compte à rebours continuait de descendre et `onTimeout` pouvait marquer le
+  // thread perdu ALORS QUE LE MESSAGE ÉTAIT DÉJÀ PARTI — la seconde moitié du bug signalé.
+  const [sending, setSending] = useState<Set<string>>(new Set())
+  const withSending = (threadId: string, on: boolean) =>
+    setSending((prev) => {
+      const next = new Set(prev)
+      if (on) next.add(threadId)
+      else next.delete(threadId)
+      return next
+    })
+
   const handleSend = async (threadId: string, input: ComposerInput): Promise<boolean> => {
+    withSending(threadId, true)
+    try {
+      return await send(threadId, input)
+    } finally {
+      withSending(threadId, false)
+    }
+  }
+
+  const send = async (threadId: string, input: ComposerInput): Promise<boolean> => {
     const r = await sendMessage({ threadId, ...input })
     if (!r.success) {
       toast.error(r.error)
@@ -183,13 +206,19 @@ export function SessionView({ data }: { data: SessionData }) {
           <SessionContext snapshot={data.snapshot} />
         </div>
         <div className="gla-traincol-chat flex flex-col gap-3">
-          {threads.length > 1 && <ThreadTabs threads={threads} current={thread.id} now={now} onSelect={setCurrent} />}
+          {threads.length > 1 && (
+            <ThreadTabs threads={threads} current={thread.id} now={now} onSelect={setCurrent} sending={sending} />
+          )}
           {thread && (
             <ThreadPanel
               key={thread.id}
               thread={thread}
               kind={data.kind}
-              maxSeconds={data.snapshot.reactionMaxS}
+              maxSeconds={reactionSecondsFor(data.kind, data.snapshot.reactionMaxS)}
+              sending={sending.has(thread.id)}
+              // GLA n'affichait qu'UN chrono (`#ttimer`, index.html:1728). En défi/boss les onglets
+              // le portent déjà pour CHAQUE conversation : le répéter dans l'en-tête faisait doublon.
+              showChrono={threads.length === 1}
               now={now}
               onSend={(v) => handleSend(thread.id, v)}
               onTimeout={handleTimeout}

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind } from '@/lib/types/training'
-import type { ModuleDetail, ModuleSummary, PublicCaseRef } from '@/lib/types/training-public'
+import type { ModuleDetail, ModuleSummary, PublicCaseRef, TrainingPersona } from '@/lib/types/training-public'
 
 /** Modules ACTIFS, ordonnés, avec leur nombre de cas actifs (table de référence — select simple). */
 export async function getModules(): Promise<ModuleSummary[]> {
@@ -108,4 +108,50 @@ export async function getAllCases(): Promise<PublicCaseRef[]> {
   const { data, error } = await supabase.from('training_cases').select('id, module_id, kind, title, section_id, training_modules!inner(active)').eq('active', true).eq('training_modules.active', true).order('position')
   if (error) throw new Error(error.message)
   return (data ?? []).map((c) => ({ id: c.id, moduleId: c.module_id, kind: c.kind as CaseKind, title: c.title, sectionId: c.section_id }))
+}
+
+/**
+ * La fiche modèle affichée sur chaque page de module — ligne unique de `training_persona` (0130).
+ *
+ * `null` si la ligne est absente ou désactivée : la page se rend alors SANS le volet, exactement
+ * comme un module sans cours. Le JSONB est validé ici et non par un schéma Zod : c'est une ligne
+ * écrite par un admin, pas une entrée utilisateur — on se protège d'une forme inattendue, pas d'un
+ * attaquant. Une clé manquante donne un tableau vide plutôt qu'une page en erreur.
+ */
+export async function getPersona(): Promise<TrainingPersona | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('training_persona')
+    .select('name, infos, active')
+    .eq('id', 1)
+    .maybeSingle()
+  if (error) {
+    // `42P01` = la table n'existe pas encore : le web est déployé, la migration 0130 pas jouée.
+    // Ce volet est DÉCORATIF — le faire tomber emporterait toute la page d'un module, alors que le
+    // cours et les exercices, eux, n'ont besoin de rien. On dégrade et on trace. Toute AUTRE erreur
+    // remonte : elle signale un vrai problème (droits, réseau) qu'il ne faut pas masquer.
+    if (error.code === '42P01') {
+      console.error('[training] `training_persona` absente — migration 0130 non appliquée sur cette base')
+      return null
+    }
+    throw new Error(error.message)
+  }
+  if (!data || !data.active) return null
+  const infos = (data.infos ?? {}) as { base?: unknown; sections?: unknown }
+  const base = Array.isArray(infos.base)
+    ? infos.base.flatMap((f) => {
+        const o = f as { label?: unknown; value?: unknown }
+        return typeof o?.label === 'string' && typeof o?.value === 'string' ? [{ label: o.label, value: o.value }] : []
+      })
+    : []
+  const sections = Array.isArray(infos.sections)
+    ? infos.sections.flatMap((s) => {
+        const o = s as { titre?: unknown; contenu?: unknown }
+        return typeof o?.contenu === 'string' && o.contenu.trim()
+          ? [{ titre: typeof o.titre === 'string' ? o.titre : '', contenu: o.contenu }]
+          : []
+      })
+    : []
+  if (!base.length && !sections.length) return null
+  return { name: data.name, base, sections }
 }

@@ -25,6 +25,20 @@ export type MessageSpeaker = 'chatter' | 'fan'
 
 /** Chrono de réponse en SOLO (GLA TRAIN_LIMIT_MS = 60 s) ; défi/boss = reaction_max_s du cas. */
 export const SOLO_REACTION_S = 60
+/** Défi/boss sans `reaction_max_s` renseigné — repli historique de `dueAtFrom`. */
+export const ARENA_REACTION_FALLBACK_S = 120
+
+/**
+ * Durée du chrono d'un tour, en secondes. SOURCE UNIQUE, partagée serveur/client : `dueAtFrom`
+ * (qui pose `next_due_at`) et l'affichage du chrono s'en servent tous les deux.
+ *
+ * Sans elle, le client lisait `reaction_max_s` brut — or il est NULL par contrainte SQL sur tout
+ * cas solo (`training_cases_reaction_kind`, 0113_formation.sql:103). L'anneau restait donc plein et
+ * le chatter se prenait « Trop lent » sans avoir jamais vu tourner les 60 s (régression 6c23446).
+ */
+export function reactionSecondsFor(kind: CaseKind, reactionMaxS: number | null): number {
+  return kind === 'solo' ? SOLO_REACTION_S : (reactionMaxS ?? ARENA_REACTION_FALLBACK_S)
+}
 /** Défi/boss : la réponse du fan est révélée entre 30 et 120 s après l'envoi (GLA), ouvertures échelonnées. */
 export const ARENA_REVEAL_MIN_S = 30
 export const ARENA_REVEAL_MAX_S = 120
@@ -73,4 +87,10 @@ export interface CaseSnapshot {
   context: string; objective: string; objectiveLabel: string
   maxTurns: number; reactionMaxS: number | null; isSale: boolean
   moduleTitle: string; moduleCode: string
+  /**
+   * Compétence d'origine du cas (`training_module_sections.id`), pour revenir SUR SA LISTE et non
+   * en haut du module — GLA faisait déjà ce choix (`index.html:1703`, `sous_cat` → `go3`).
+   * `null` = module sans compétences, ou snapshot écrit avant l'ajout du champ (repli sur le module).
+   */
+  sectionId: string | null
 }
