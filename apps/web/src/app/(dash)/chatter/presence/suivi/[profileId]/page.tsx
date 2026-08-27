@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAccess } from '@/lib/auth'
+import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { ChatterFile } from '@/features/tracking-coaching/components/chatter-file'
 import { ChatterFileSkeleton } from '@/features/tracking-coaching/components/coaching-skeleton'
@@ -22,6 +23,13 @@ export default async function PresenceSuiviChatterPage({
   const profile = await requireAccess('presence')
   const { profileId } = await params
   const canWrite = profile.role === 'admin' || profile.pages.includes('presence')
+
+  // PÉRIMÈTRE MODÈLES en LECTURE — le tracker d'origine rendait un 403 sur la fiche d'un chatteur
+  // hors périmètre (`'forbidden'` renvoyé par le builder, routes.js.txt:93-95 et :138-141).
+  // `notFound()` plutôt qu'un 403 : ne pas révéler qu'un profil existe à qui n'a pas à le voir.
+  if (!(await isChatterInScope(await getCreatorScope(profile.id, profile.baseRole), profileId))) {
+    notFound()
+  }
 
   const data = getChatterCoaching(profileId, canWrite)
 

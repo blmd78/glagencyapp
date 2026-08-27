@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, type ActionResult } from '@/lib/actions'
+import { todayParis } from '@glagency/core'
 import { assertOwner, TODO_PATH } from './actions-shared'
 import { addLinkInput, dailyInput, dayOffInput, deleteLinkInput, notesInput } from './schema'
 
@@ -60,11 +61,15 @@ export async function saveDaily(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (d) => {
       await assertOwner(d.ownerId)
+      // La DATE est calculée SERVEUR, comme le legacy (`todo.saveDaily(v.accountId, todo.today(), …)`,
+      // routes.js.txt:425-429) : on ne débriefe que la journée en cours. L'accepter du client
+      // permettait d'antidater, donc d'écraser le débrief d'un jour passé.
+      const today = todayParis()
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_daily').upsert(
         {
           owner_id: d.ownerId,
-          date: d.date,
+          date: today,
           focus: d.focus,
           problem: d.problem,
           positive: d.positive,

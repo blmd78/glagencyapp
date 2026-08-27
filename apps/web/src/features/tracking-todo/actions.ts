@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { assertOwner, TODO_PATH } from './actions-shared'
+import { assertOwner, assertOwnerOrAdmin, TODO_PATH } from './actions-shared'
 import {
   addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput, habitInput, moveTaskInput,
   renameSectionInput, sectionInput, toggleTaskInput,
@@ -61,7 +61,7 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const callerId = await assertOwner(d.ownerId)
+      const callerId = await assertOwnerOrAdmin(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_tasks').insert({
         owner_id: d.ownerId,
@@ -104,7 +104,10 @@ export async function deleteTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      // 2e dérogation admin du legacy : « l'admin peut retirer ce qu'il a déposé (ou corriger une
+      // erreur) » — `task-delete` est la SEULE suppression qu'il puisse faire chez autrui
+      // (routes.js.txt:306-315, qui refait le contrôle à la main au lieu d'utiliser `ownTask`).
+      await assertOwnerOrAdmin(d.ownerId)
       // Une occurrence virtuelle n'existe pas en base : la supprimer n'a rien à faire. Pour ne
       // plus la voir, c'est l'habitude qu'il faut retirer — ce que dit leur écran.
       if (parseVirtual(d.taskId)) throw new BusinessError("Retire l'habitude pour la faire disparaître.")

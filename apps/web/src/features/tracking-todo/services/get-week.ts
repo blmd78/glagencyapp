@@ -122,6 +122,10 @@ export async function getTodoWeek(params: {
     today,
     doneToday: allToday.filter((t) => t.done).map((t) => t.label),
     pendingToday: allToday.filter((t) => !t.done).map((t) => t.label),
-    canWrite: params.isAdmin || params.callerId === params.ownerId,
+    // La semaine d'un AUTRE est en lecture seule, même pour un admin — il ne coche pas, ne déplace
+    // pas, ne signe pas le débrief d'autrui (règle du legacy, cf. `assertOwner`). Il garde le droit
+    // d'y déposer et d'y retirer une tâche : ces deux gestes-là ont leur propre garde côté action.
+    // Le legacy faisait pareil à l'écran : « la page ne rend alors aucun bouton » (routes.js.txt:252-256).
+    canWrite: params.callerId === params.ownerId,
   }
 }
