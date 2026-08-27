@@ -1,0 +1,666 @@
+/**
+ * Thème du Tracker de présence — reprise FIDÈLE du design system du tracker Good Luck Agency.
+ *
+ * Source : le bloc `<style>` injecté par `src/detailpage.js` dans chacune de ses pages, relevé le
+ * 2026-08-26 sur `https://chatterstracker.duckdns.org/login` (41,8 Ko, 450 règles). Les valeurs
+ * ci-dessous sont les siennes, à l'identique — c'est la demande de Benoit : « pareil
+ * esthétiquement, au CSS près ».
+ *
+ * PORTÉE STRICTE : tout est sous `.trk`, posée par les pages de `/chatter/presence/*`. Aucune règle
+ * ne fuit vers le reste du CRM, qui garde sa palette neutre et son thème clair/sombre. Même patron
+ * que `formation-theme.css` (`.gla`) — voir son en-tête, les raisons sont les mêmes.
+ *
+ * SOMBRE EN DUR, sans variante claire : le tracker n'a jamais eu de thème clair, et en inventer un
+ * donnerait un design de plus à maintenir.
+ *
+ * CE QUI N'EST PAS REPRIS : leur coquille — barre latérale (`.app`, `.side`, `.brand`, `.aitem`) et
+ * barre de contexte (`.ctx`). Les écrans vivent dans le CRM, donc dans la navigation du CRM (D6,
+ * groupe « Présence » de la face Chatteurs). Seul le CONTENU est porté à l'identique.
+ *
+ * POLICES : Inter et Space Grotesk sont déjà auto-hébergées par `next/font` pour la face Formation
+ * (`layout.tsx`) — ce sont exactement les deux polices du tracker. On réutilise leurs variables :
+ * aucune requête réseau, aucun saut de mise en page, aucun octet ajouté.
+ */
+
+.trk {
+  /* Palette du tracker, valeurs d'origine (`:root` de leur feuille). */
+  --trk-bg: #0f1216;
+  --trk-surface: #151a21;
+  --trk-surface2: #1a212b;
+  --trk-surface3: #222a36;
+  --trk-border: #28303c;
+  --trk-border2: #333d4c;
+  --trk-text: #eef2f7;
+  --trk-muted: #9aa4b3;
+  --trk-faint: #69727f;
+  --trk-accent: #2fb374;
+  --trk-accent-2: #3fd48c;
+  --trk-accent-soft: #132720;
+  --trk-danger: #ec5a6a;
+  --trk-danger-soft: #2a1a1f;
+
+  /* 12px chez eux, contre 10px (0.625rem) dans le CRM. `--trk-radius` sert leurs règles portées,
+     `--radius` sert les composants shadcn : même valeur, deux consommateurs. */
+  --trk-radius: 12px;
+  --radius: 12px;
+
+  /* Leur police de titres (`--fh`). Pointe sur la Space Grotesk déjà auto-hébergée par next/font. */
+  --trk-fh: var(--font-gla-head), 'Space Grotesk', ui-sans-serif, 'Segoe UI', system-ui, sans-serif;
+
+  /* Les tokens shadcn sont REMAPPÉS sur la palette du tracker dans cette portée : tous les
+     composants du kit (Badge, Button, Table, Select, Skeleton…) prennent son apparence sans être
+     réécrits, et le thème clair du CRM ne peut pas laisser passer une carte blanche sur fond
+     sombre. Redéfinir quinze variables vaut mieux que retoucher quarante composants. */
+  --background: var(--trk-bg);
+  --foreground: var(--trk-text);
+  --card: var(--trk-surface);
+  --card-foreground: var(--trk-text);
+  --popover: var(--trk-surface2);
+  --popover-foreground: var(--trk-text);
+  --primary: var(--trk-accent);
+  --primary-foreground: #08120d;
+  --secondary: var(--trk-surface2);
+  --secondary-foreground: var(--trk-text);
+  --muted: var(--trk-surface2);
+  --muted-foreground: var(--trk-muted);
+  --accent: var(--trk-surface2);
+  --accent-foreground: var(--trk-text);
+  --destructive: var(--trk-danger);
+  --border: var(--trk-border);
+  --input: var(--trk-border);
+  --ring: var(--trk-accent);
+
+  color: var(--trk-text);
+  font-family: var(--font-gla-body), 'Inter', ui-sans-serif, 'Segoe UI', system-ui, sans-serif;
+
+  /* Leur base typographique est à 14px, pas 16 : sans ça, tout l'écran est trop gros et la densité
+     du board — celle qui permet de voir vingt chatteurs sans faire défiler — est perdue. Côté
+     Tailwind, 14px = `text-sm` : c'est la taille de référence des écrans de cette face. */
+  font-size: 14px;
+  line-height: 1.5;
+
+  /* Barres de défilement et champs natifs en sombre, comme chez eux (`body { color-scheme: dark }`). */
+  color-scheme: dark;
+}
+
+/**
+ * `.trk` ne pose QUE des couleurs et une police — jamais de `position`, jamais de fond de page.
+ *
+ * La raison est un bug déjà payé sur la face Formation : une modale porte la classe du thème pour
+ * en hériter les couleurs, mais elle est rendue dans un portail sur <body> et se positionne en
+ * `fixed`. Tant que la classe du thème portait `position: relative`, elle écrasait ce `fixed` et la
+ * modale s'ouvrait hors écran. Le fond de page vit donc dans une classe séparée.
+ */
+.trk-page {
+  background: var(--trk-bg);
+  isolation: isolate;
+
+  /* Le gabarit du dashboard applique sa propre gouttière ; on la neutralise pour que le fond aille
+     bord à bord. Contrairement à `.gla-page`, on ne la REMET PAS à l'intérieur : c'est `.wrap` —
+     leur conteneur de contenu, porté tel quel — qui apporte l'espacement (20px 26px 64px) et la
+     colonne de lecture de 1080px. Remettre la gouttière ici doublerait la leur. */
+  margin: -1.5rem;
+  padding: 0;
+  min-height: calc(100svh - 4rem);
+}
+
+/* Titres en Space Grotesk, comme eux (`h1,h2,h3 { font-family: var(--fh) }`). */
+.trk h1,
+.trk h2,
+.trk h3,
+.trk h4 {
+  font-family: var(--font-gla-head), 'Space Grotesk', ui-sans-serif, 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.1px;
+}
+
+/* Leur `select` natif : le board et la fiche chatteur en sont pleins (choix du jour, du shift, du
+   modèle). Repris tel quel pour que les filtres aient exactement le même rendu. */
+.trk select {
+  background: var(--trk-surface2);
+  border: 1px solid var(--trk-border);
+  color: var(--trk-text);
+  border-radius: 9px;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  outline: none;
+}
+
+.trk select:focus {
+  border-color: var(--trk-border2);
+}
+
+.trk input[type='checkbox'] {
+  accent-color: var(--trk-accent);
+}
+
+/* ==========================================================================================
+ * LEURS RÈGLES DE CONTENU, PORTÉES TELLES QUELLES
+ *
+ * Extraites mécaniquement de `.tracker-ref/tracker-origin.css` (leur feuille d'origine), pas
+ * retapées : chaque sélecteur est préfixé de `.trk`, et chaque `var(--x)` de thème est réécrit en
+ * `var(--trk-x)` — leurs noms entrent en collision avec les tokens shadcn (`--muted` est chez eux
+ * une couleur de texte, chez shadcn une surface).
+ *
+ * SEULE LA NAVIGATION est écartée (`.app`, `.side`, `.brand`, `.aitem`, `.scat`, `.main`) : elle
+ * est remplacée par celle du CRM. La barre de titre d'écran `.ctx` est GARDÉE — titre, fil
+ * d'Ariane et filtres sont du contenu.
+ *
+ * Leurs commentaires sont conservés : ils expliquent des choix non évidents.
+ *
+ * `--cols` reste dans son espace d'origine : variable de mise en page locale, posée sur `.dt` et
+ * lue par `.thead`/`.row` dans le même bloc.
+ *
+ * NE PAS retoucher à la main : regénérer depuis la feuille d'origine si elle change.
+ * ========================================================================================== */
+
+.trk .ctx { position:sticky;top:0;z-index:5;background:rgba(15,18,22,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--trk-border);padding:12px 26px }
+.trk .ctxin { max-width:1080px;margin:0 auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap }
+.trk .ctx .title { flex:1;min-width:150px }
+.trk .ctx .title h1 { font-size:19px;font-weight:600 }
+.trk .ctx .title .crumb { font-size:12px;color:var(--trk-faint);font-weight:500;margin-top:1px }
+.trk .ctx .title .crumb b { color:var(--trk-muted);font-weight:600 }
+.trk .ctx-mid { display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center }
+.trk .ctx-sp { flex:1;min-width:0 }
+.trk .search { display:flex;align-items:center;gap:8px;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;padding:0 11px;min-width:170px }
+.trk .search input { background:none;border:none;color:var(--trk-text);padding:8px 0;font:inherit;font-size:13.5px;outline:none;width:100% }
+.trk .search .i { color:var(--trk-faint) }
+.trk .search:focus-within { border-color:var(--trk-border2) }
+.trk .jump { display:inline-flex;align-items:center;gap:7px;background:var(--trk-danger-soft);border:1px solid rgba(236,90,106,.35);color:var(--trk-danger);border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:600;text-decoration:none }
+.trk .dd { position:relative;display:inline-block }
+.trk .dd>summary { list-style:none;cursor:pointer;background:var(--trk-surface2);border:1px solid var(--trk-border);color:var(--trk-text);border-radius:9px;padding:8px 30px 8px 12px;font-size:13px;font-weight:600;white-space:nowrap;position:relative;user-select:none }
+.trk .dd>summary::-webkit-details-marker { display:none }
+.trk .dd>summary::after { content:'▾';position:absolute;right:11px;top:50%;transform:translateY(-50%);color:var(--trk-faint);font-size:11px }
+.trk .dd[open]>summary { border-color:var(--trk-border2) }
+.trk .dd-menu { position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:100%;max-height:320px;overflow-y:auto;background:var(--trk-surface2);border:1px solid var(--trk-border2);border-radius:10px;padding:5px;box-shadow:0 14px 34px -14px rgba(0,0,0,.7) }
+.trk .dd-menu a { display:block;padding:8px 11px;border-radius:7px;font-size:13px;font-weight:500;color:var(--trk-muted);text-decoration:none;white-space:nowrap }
+.trk .dd-menu a:hover { background:var(--trk-surface3);color:#fff }
+.trk .dd-menu a.on { color:var(--trk-text);font-weight:700 }
+.trk .dd-menu a.on::before { content:'✓ ';color:var(--trk-accent-2) }
+.trk .dd-menu a.dim { color:var(--trk-faint) }
+.trk .seg { display:inline-flex;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;padding:3px }
+.trk .seg a { padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--trk-muted);text-decoration:none }
+.trk .seg a.on { background:var(--trk-surface3);color:#fff }
+.trk .wrap { padding:20px 26px 64px;display:flex;flex-direction:column;gap:16px;width:100%;max-width:1080px;margin:0 auto }
+/* La To Do a besoin de toute la largeur : 7 colonnes dans 1080px donnent des
+   cases illisibles. Le reste des pages garde sa colonne de lecture. */
+.trk .wrap.wide, .trk .ctxin.wide { max-width:none }
+/* Sous la semaine : le bloc-notes prend la place, le bilan du jour comble la
+   droite. Les deux s'alignent sur la largeur de la semaine. */
+.trk .botrow { display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start }
+@media(max-width:1100px) {
+  .trk .botrow { grid-template-columns:1fr }
+}
+.trk .btot { display:flex;gap:22px;padding:13px 16px;border-bottom:1px solid var(--trk-border);flex-wrap:wrap }
+.trk .btot span { display:flex;flex-direction:column;font-size:11px;color:var(--trk-faint);line-height:1.3 }
+.trk .btot b { font-family:var(--trk-fh);font-size:20px;color:var(--trk-text) }
+/* avancement compact, partage par les deux vues du bilan */
+.trk .bstat { display:flex;align-items:center;gap:9px;margin-left:auto }
+.trk .bbar { width:64px;height:5px;border-radius:3px;background:var(--trk-surface3);overflow:hidden;flex:none }
+.trk .bbar i { display:block;height:100%;border-radius:3px;background:var(--trk-accent);transition:width .2s }
+.trk .bstat.low .bbar i { background:var(--trk-danger) }
+.trk .bstat.half .bbar i { background:#e0a53f }
+.trk .bv { font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap }
+.trk .bstat.none .bv { font-weight:500;color:var(--trk-faint) }
+.trk .boto { font-size:10.5px;color:var(--trk-faint);white-space:nowrap }
+/* « Mon débrief » est un bloc a part entiere dans la carte : meme titre blanc
+   que « Bilan du jour », replie par defaut. */
+.trk .bself { border-top:1px solid var(--trk-border) }
+.trk .bself>summary { display:flex;align-items:center;gap:10px;padding:13px 16px 13px 32px;position:relative; cursor:pointer;list-style:none }
+.trk .bself>summary::-webkit-details-marker { display:none }
+.trk .bself>summary:before { content:'▸';position:absolute;left:17px;font-size:9px;color:var(--trk-faint) }
+.trk .bself[open]>summary:before { content:'▾' }
+.trk .bself>summary:hover { background:var(--trk-surface2) }
+.trk .bself[open]>summary { border-bottom:1px solid var(--trk-border) }
+.trk .blab { font-family:var(--trk-fh);font-size:14px;font-weight:600;color:var(--trk-text);letter-spacing:.1px }
+.trk .bstate { margin-left:auto;font-size:11px;font-weight:600;color:var(--trk-faint) }
+/* le formulaire du manager */
+.trk .bform { display:flex;flex-direction:column;gap:11px }
+.trk .bform textarea { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px; color:var(--trk-text);padding:9px 11px;font:inherit;font-size:13px;outline:none;resize:vertical;line-height:1.5 }
+.trk .bform textarea:focus { border-color:var(--trk-accent) }
+.trk .bform .field label { text-transform:none;letter-spacing:0;font-size:12px;color:var(--trk-muted);font-weight:600 }
+/* confirmation d'enregistrement : le bouton marque le coup, l'heure reste */
+.trk .saverow { display:flex;align-items:center;gap:12px;flex-wrap:wrap }
+/* le bilan de fin de semaine se distingue du debrief ordinaire */
+.trk .bself.eve>summary { background:linear-gradient(90deg,var(--trk-accent-soft),transparent) }
+.trk .bself.eve>summary .blab { color:var(--trk-accent-2) }
+.trk .planbox { margin-top:16px;padding:16px;border:1px solid var(--trk-accent);border-radius:var(--trk-radius); background:var(--trk-accent-soft);display:flex;flex-direction:column;gap:13px }
+.trk .pintro { font-size:13px;line-height:1.55;color:var(--trk-text);margin:0 }
+.trk .pintro b { color:var(--trk-accent-2) }
+.trk .phint { font-size:11px;color:var(--trk-faint);margin:0 0 5px }
+.trk .planbox textarea { width:100%;background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:9px; color:var(--trk-text);padding:9px 11px;font:inherit;font-size:13px;outline:none;resize:vertical;line-height:1.5 }
+.trk .planbox textarea:focus { border-color:var(--trk-accent) }
+.trk .planbox .field label { text-transform:none;letter-spacing:0;font-size:12.5px;color:var(--trk-text);font-weight:600 }
+.trk .card.planned { border-color:var(--trk-accent) }
+.trk .card.planned .blockh h2 { color:var(--trk-accent-2) }
+.trk .stamp { font-size:11.5px;font-weight:600;color:var(--trk-accent-2);margin:0 }
+.trk .btn.ok { background:var(--trk-accent-soft);border-color:var(--trk-accent);color:var(--trk-accent-2) }
+/* fait / pas fait : ce qui a ete coche, et ce qui a ete oublie */
+.trk .bsplit { display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--trk-border); border-bottom:1px solid var(--trk-border) }
+.trk .bcol { background:var(--trk-surface);padding:11px 14px }
+.trk .bclab { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px; color:var(--trk-faint);margin-bottom:7px;display:flex;align-items:center;gap:6px }
+.trk .bcol.ok .bclab { color:var(--trk-accent-2) }
+.trk .bcol.ko .bclab { color:var(--trk-danger) }
+.trk .bclab em { font-style:normal;background:var(--trk-surface3);border-radius:20px;padding:0 6px; font-size:10px;color:var(--trk-muted) }
+.trk .bcol ul { list-style:none;display:flex;flex-direction:column;gap:5px }
+.trk .bcol li { font-size:12.5px;line-height:1.35;padding-left:13px;position:relative;word-break:break-word }
+.trk .bcol.ok li:before { content:'✓';position:absolute;left:0;color:var(--trk-accent);font-size:11px }
+.trk .bcol.ko li:before { content:'·';position:absolute;left:3px;color:var(--trk-faint) }
+.trk .bcol.ok li { color:var(--trk-muted);text-decoration:line-through;text-decoration-color:var(--trk-border2) }
+.trk .bcol li b { font-variant-numeric:tabular-nums;color:var(--trk-accent-2);font-weight:700 }
+.trk .bcol li em { font-style:normal;font-size:10.5px;color:var(--trk-faint) }
+/* la revue de l'admin */
+.trk .blist { display:flex;flex-direction:column }
+.trk .bcard { border-bottom:1px solid var(--trk-border) }
+.trk .bcard:last-child { border-bottom:none }
+.trk .bcard.vide { opacity:.7 }
+.trk .bcard>summary { list-style:none;cursor:pointer }
+.trk .bcard>summary::-webkit-details-marker { display:none }
+.trk .bcard .bans { padding:12px 16px }
+.trk .bhead { display:flex;align-items:center;gap:10px;padding:11px 16px }
+.trk .bhead:hover { background:var(--trk-surface2) }
+.trk .bn { font-size:13.5px;font-weight:600;color:var(--trk-text);text-decoration:none;white-space:nowrap; overflow:hidden;text-overflow:ellipsis }
+.trk .bn:hover { color:var(--trk-accent-2) }
+.trk .bans { margin:0;display:flex;flex-direction:column;gap:7px }
+.trk .bans dt { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint) }
+.trk .bans dd { margin:2px 0 0;font-size:12.5px;color:var(--trk-text);white-space:pre-wrap;word-break:break-word; border-left:2px solid var(--trk-border2);padding-left:9px }
+.trk .bnone { font-size:12px;color:var(--trk-faint);font-style:italic;margin:0 }
+/* --- page Recap --- */
+.trk .rtot b.ok { color:var(--trk-accent-2) }
+.trk .rtot b.ko { color:var(--trk-danger) }
+.trk .rtot { border:1px solid var(--trk-border);border-radius:var(--trk-radius);background:var(--trk-surface) }
+.trk .rgroup { display:flex;flex-direction:column;gap:8px }
+.trk .rglab { display:flex;align-items:baseline;gap:9px;font-family:var(--trk-fh);font-size:14px;font-weight:600; padding:6px 2px 0 }
+.trk .rglab em { font-style:normal;font-size:11px;font-weight:700;color:var(--trk-accent-2); background:var(--trk-accent-soft);border-radius:20px;padding:1px 8px }
+.trk .rglab span { font-family:inherit;font-size:11.5px;font-weight:500;color:var(--trk-faint) }
+.trk .rlist { display:flex;flex-direction:column;gap:8px }
+.trk .rcard { background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:var(--trk-radius);overflow:hidden }
+.trk .rcard>summary { list-style:none;cursor:pointer }
+.trk .rcard>summary::-webkit-details-marker { display:none }
+.trk .rhead { display:grid;grid-template-columns:minmax(140px,1fr) 150px auto auto;gap:16px; align-items:center;padding:13px 16px }
+.trk .rhead:hover { background:var(--trk-surface2) }
+.trk .rcard[open]>summary .rhead { border-bottom:1px solid var(--trk-border) }
+.trk .rn { font-size:14px;font-weight:600;display:flex;flex-direction:column;gap:1px }
+.trk .rn em { font-style:normal;font-size:10.5px;color:var(--trk-faint);font-weight:500 }
+.trk .rnums { display:flex;align-items:baseline;gap:5px;flex-wrap:wrap }
+.trk .rnums b { font-family:var(--trk-fh);font-size:16px;margin-left:9px }
+.trk .rnums b:first-child { margin-left:0 }
+.trk .rnums b.ok { color:var(--trk-accent-2) }
+.trk .rnums b.ko { color:var(--trk-danger) }
+.trk .rnums em { font-style:normal;font-size:10.5px;color:var(--trk-faint) }
+.trk .rdeb { font-size:11px;font-weight:700;border-radius:6px;padding:3px 9px;white-space:nowrap; background:var(--trk-surface3);color:var(--trk-muted) }
+.trk .rdeb.ok { background:var(--trk-accent-soft);color:var(--trk-accent-2) }
+.trk .rdeb.part { background:rgba(224,165,63,.14);color:#e0a53f }
+.trk .rdeb.ko { background:var(--trk-danger-soft);color:var(--trk-danger) }
+.trk .rplan { padding:12px 16px;border-top:1px solid var(--trk-border);background:var(--trk-accent-soft) }
+.trk .rplan .rdlab { color:var(--trk-accent-2) }
+.trk .rdays { display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1px;background:var(--trk-border) }
+.trk .rday { background:var(--trk-surface);padding:12px 15px }
+.trk .rday.vide { background:var(--trk-bg) }
+.trk .rdlab { font-size:11px;font-weight:700;text-transform:capitalize;color:var(--trk-muted);margin-bottom:8px }
+@media(max-width:900px) {
+  .trk .rhead { grid-template-columns:1fr;gap:8px }
+}
+.trk .card { background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:var(--trk-radius);overflow:hidden }
+.trk .cardpad { padding:18px }
+.trk .blockh { display:flex;align-items:center;gap:9px;padding:14px 16px;border-bottom:1px solid var(--trk-border) }
+.trk .blockh h2 { font-size:14px;font-weight:600 }
+.trk .blockh .cnt { font-size:12px;color:var(--trk-faint) }
+.trk .blockh.todo { background:var(--trk-danger-soft) }
+.trk .blockh.todo h2 { color:#f0919b }
+.trk .modelgroup>summary { list-style:none;cursor:pointer }
+.trk .modelgroup>summary::-webkit-details-marker { display:none }
+.trk .modelgroup:not([open])>summary.blockh { border-bottom:none }
+.trk .gchev { margin-left:auto;color:var(--trk-faint);transition:transform .15s }
+.trk .modelgroup[open]>summary .gchev { transform:rotate(90deg) }
+.trk .kored { color:var(--trk-danger);font-weight:600 }
+.trk .empty { color:var(--trk-faint);text-align:center;padding:40px 16px;font-size:13px }
+.trk .dt { --cols:15px minmax(130px,215px) minmax(120px,1fr) 66px 62px 16px }
+.trk .dt.mgr { --cols:15px minmax(130px,200px) minmax(120px,1fr) 66px 66px 66px 16px }
+.trk .thead { display:grid;grid-template-columns:var(--cols);gap:14px;align-items:center;padding:9px 16px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint);font-weight:700;border-bottom:1px solid var(--trk-border) }
+.trk .thead .r { text-align:right }
+.trk .item { border-bottom:1px solid var(--trk-border) }
+.trk .item:last-child { border-bottom:none }
+.trk .item summary { list-style:none;outline:none }
+.trk .item summary::-webkit-details-marker { display:none }
+.trk .row { display:grid;grid-template-columns:var(--cols);gap:14px;align-items:center;padding:11px 16px;cursor:pointer;transition:background .1s }
+.trk .row:hover, .trk .item[open]>.row { background:var(--trk-surface2) }
+.trk .dot { width:8px;height:8px;border-radius:999px }
+.trk .dot.ok { background:var(--trk-accent) }
+.trk .dot.bad { background:var(--trk-danger) }
+.trk .dot.warn { background:#c98b3a }
+.trk .dot.mut { background:var(--trk-faint) }
+.trk .c-name { display:flex;align-items:center;gap:8px;min-width:0 }
+.trk .c-name .nm { font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.trk .c-bar { display:flex;flex-direction:column;gap:4px;min-width:0 }
+.trk .mpbar { height:6px;background:var(--trk-surface3);border-radius:999px;overflow:hidden }
+.trk .mpbar>i { display:block;height:100%;border-radius:999px;background:#54617a }
+.trk .mpbar.bad>i { background:var(--trk-danger) }
+.trk .mpbar.mut>i { background:#3a4350 }
+.trk .c-bar .lbl { font-size:10.5px;color:var(--trk-faint);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.trk .c-val { text-align:right;font-family:var(--trk-fh);font-weight:600;font-size:13.5px;font-variant-numeric:tabular-nums }
+.trk .c-val.bad { color:var(--trk-danger) }
+.trk .c-val.mut { color:var(--trk-faint) }
+.trk .chev { color:var(--trk-faint);text-align:center;transition:transform .15s }
+.trk .item[open] .chev { transform:rotate(90deg) }
+.trk .tag { font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap;flex:none;background:var(--trk-surface3);color:var(--trk-muted) }
+.trk .tag.live { background:var(--trk-accent-soft);color:var(--trk-accent-2) }
+.trk .detail { padding:6px 16px 18px;background:var(--trk-surface2) }
+.trk .dlab { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint);margin:8px 0 8px }
+.trk .sites { display:flex;gap:7px;flex-wrap:wrap;margin-bottom:6px }
+.trk .pill { display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:6px;border:1px solid var(--trk-border);background:transparent;color:var(--trk-faint) }
+.trk .pill em { font-style:normal;color:var(--trk-faint);font-weight:500 }
+.trk .pill.tool { background:var(--trk-surface3);color:var(--trk-text);border-color:var(--trk-border2);font-weight:700 }
+.trk .pill.tool em { color:var(--trk-muted) }
+.trk .pill.nt { color:var(--trk-faint) }
+.trk .stats { display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px }
+.trk .stat { flex:1;min-width:92px;background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:9px;padding:9px 12px }
+.trk .stat b { font-family:var(--trk-fh);font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--trk-text);display:block }
+.trk .stat span { font-size:9.5px;color:var(--trk-faint);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:1px;display:block }
+.trk .stat.bad b { color:var(--trk-danger) }
+.trk .stat.mut b { color:var(--trk-faint) }
+.trk .reason { font-size:12.5px;font-weight:500;margin:6px 0 12px;padding:8px 11px;border-radius:8px;background:var(--trk-surface);border:1px solid var(--trk-border);color:var(--trk-muted) }
+.trk .tl { border:1px solid var(--trk-border);border-radius:9px;overflow:hidden;background:var(--trk-surface) }
+.trk .trow { display:grid;grid-template-columns:118px 84px 60px 1fr;gap:12px;align-items:baseline;padding:9px 12px;border-top:1px solid var(--trk-border);font-size:12.5px }
+.trk .trow:first-child { border-top:none }
+.trk .trow .t { color:var(--trk-faint);white-space:nowrap;font-variant-numeric:tabular-nums }
+.trk .trow .k { font-weight:600;color:var(--trk-text);white-space:nowrap }
+.trk .trow.p .k, .trk .trow.i .k, .trk .trow.off .k { color:var(--trk-muted) }
+.trk .trow .d { text-align:right;color:var(--trk-muted);font-weight:600;font-variant-numeric:tabular-nums }
+.trk .trow .s { color:var(--trk-faint);min-width:0 }
+.trk .trow .s em { font-style:normal;color:var(--trk-muted) }
+.trk .moretab { display:inline-block;margin-top:12px;font-size:12.5px;font-weight:600;color:var(--trk-muted);text-decoration:none }
+.trk .moretab:hover { color:#fff }
+.trk .mt { font-size:11px;font-weight:600;color:var(--trk-muted);background:var(--trk-surface3);border-radius:5px;padding:2px 8px }
+.trk .livebar { display:flex;gap:8px;flex-wrap:wrap;padding:0 0 2px }
+.trk .livebar.none { color:var(--trk-faint);font-size:13px }
+.trk .lv { display:inline-flex;align-items:center;gap:7px;background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:999px;padding:6px 13px;font-size:13px;font-weight:600 }
+.trk .lv em { font-style:normal;font-weight:500;color:var(--trk-faint);font-size:12px }
+.trk .lv i { width:8px;height:8px;border-radius:50%;flex:none;background:var(--trk-accent) }
+.trk .lv.p i { background:#c98b3a }
+.trk .lv.i i { background:var(--trk-danger) }
+.trk .btn { display:inline-flex;align-items:center;justify-content:center;gap:7px;background:var(--trk-accent);color:#04170f;border:none;border-radius:9px;padding:9px 15px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;transition:filter .15s,transform .05s }
+.trk .btn:hover { filter:brightness(1.07) }
+.trk .btn:active { transform:scale(.98) }
+.trk .btn-ghost { background:transparent;color:var(--trk-text);border:1px solid var(--trk-border2) }
+.trk .btn-ghost:hover { background:var(--trk-surface2);filter:none }
+.trk .btn-danger { background:transparent;color:var(--trk-danger);border:1px solid rgba(236,90,106,.35) }
+.trk .btn-danger:hover { background:var(--trk-danger-soft);filter:none }
+.trk .btn.sm { padding:6px 11px;font-size:12px }
+.trk .tbl { width:100%;border-collapse:collapse }
+.trk .tbl th { text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint);font-weight:700;padding:14px 16px 10px }
+.trk .tbl td { padding:11px 16px;border-top:1px solid var(--trk-border);font-size:13.5px;vertical-align:top }
+.trk .tbl tr:hover td { background:var(--trk-surface2) }
+.trk .tbl .num { font-variant-numeric:tabular-nums }
+.trk .acts { display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap }
+.trk .acts select { background:var(--trk-surface2);border:1px solid var(--trk-border);color:var(--trk-text);border-radius:8px;padding:6px 9px;font:inherit;font-size:12px;cursor:pointer }
+.trk .modlist { display:flex;flex-wrap:wrap;gap:6px;margin-top:6px }
+.trk .modlist label { display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--trk-text);background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:7px;padding:4px 9px;cursor:pointer }
+.trk .field { margin-bottom:2px }
+.trk .field label { display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint);margin-bottom:6px }
+.trk .field input, .trk .field select { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;color:var(--trk-text);padding:10px 12px;font:inherit;font-size:14px;outline:none }
+.trk .field input:focus { border-color:var(--trk-accent) }
+.trk .frow { display:flex;gap:12px;flex-wrap:wrap }
+.trk .frow>.field { flex:1;min-width:150px }
+.trk .msg { font-size:13px;font-weight:600;margin-top:10px }
+.trk .msg.ok { color:var(--trk-accent-2) }
+.trk .msg.ko { color:var(--trk-danger) }
+.trk .loginwrap { min-height:100vh;display:grid;place-items:center;padding:20px }
+.trk .loginbox { width:100%;max-width:360px }
+.trk .loginbox .sq { width:38px;height:38px;border-radius:10px;background:var(--trk-accent-soft);border:1px solid var(--trk-accent);display:grid;place-items:center;color:var(--trk-accent-2);font-family:var(--trk-fh);font-weight:700;font-size:18px;margin-bottom:16px }
+.trk .loginbox h1 { font-size:22px;margin-bottom:4px }
+.trk .loginbox p { color:var(--trk-faint);font-size:13px;margin-bottom:20px }
+.trk .loginbox .err { color:var(--trk-danger);font-size:13px;font-weight:600;margin-top:14px }
+.trk .warn { --warning:#e0a53f }
+.trk .stars, .trk .crosses { display:inline-flex;gap:1px }
+.trk .star, .trk .cross { background:none;border:none;cursor:pointer;color:var(--trk-surface3);font-size:16px;line-height:1;padding:1px }
+.trk .star.on { color:#e0a53f }
+.trk .star:hover { color:#e0a53f }
+.trk .cross.on { color:var(--trk-danger) }
+.trk .cross:hover { color:var(--trk-danger) }
+.trk .star.ro, .trk .star.ro:hover { cursor:default;color:var(--trk-surface3) }
+.trk .star.ro.on { color:#e0a53f }
+.trk .cat { border-bottom:1px solid var(--trk-border) }
+.trk .cat:last-child { border-bottom:none }
+.trk .cat>summary { list-style:none }
+.trk .cat>summary::-webkit-details-marker { display:none }
+.trk .cat .caret { font-size:10px;color:var(--trk-faint);width:9px }
+.trk .cat[open]>summary .caret { transform:rotate(90deg);display:inline-block }
+.trk .cath { display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;user-select:none }
+.trk .cath:hover { background:var(--trk-surface2) }
+.trk .cath .nm { font-weight:600;font-size:13.5px }
+.trk .cath .nb { font-size:11px;color:var(--trk-faint);background:var(--trk-surface3);border-radius:20px;padding:1px 7px;font-weight:600 }
+.trk .cath .rate { margin-left:auto }
+.trk .catbody { padding:0 16px 15px;display:flex;flex-direction:column;gap:9px }
+.trk .cdesc { font-size:12px;color:var(--trk-faint);line-height:1.45;border-left:2px solid var(--trk-border2);padding-left:10px;margin:0 }
+.trk .note { background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:10px;padding:10px 12px }
+.trk .note.arch { opacity:.5 }
+.trk .note .txt { font-size:13px;white-space:pre-wrap;word-break:break-word }
+.trk .note .meta { display:flex;align-items:center;gap:8px;margin-top:7px;font-size:11px;color:var(--trk-faint);flex-wrap:wrap }
+.trk .note .meta .sp { margin-left:auto;display:flex;gap:3px }
+.trk .rem { display:inline-flex;align-items:center;gap:5px;background:rgba(224,165,63,.14);border:1px solid rgba(224,165,63,.3);color:#e0a53f;border-radius:6px;padding:1px 7px;font-weight:600 }
+.trk .rem.late { background:var(--trk-danger-soft);border-color:rgba(236,90,106,.3);color:var(--trk-danger) }
+.trk .addnote { display:flex;flex-direction:column;gap:8px }
+.trk .addnote textarea { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;color:var(--trk-text);padding:10px 12px;font:inherit;font-size:13.5px;outline:none;resize:vertical;min-height:70px }
+.trk .addnote textarea:focus { border-color:var(--trk-accent) }
+.trk .addnote .row { display:flex;gap:8px;align-items:center;flex-wrap:wrap }
+.trk .addnote input[type=date] { background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;color:var(--trk-text);padding:8px 11px;font:inherit;font-size:13px;outline:none }
+.trk .addnote .lbl { font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint) }
+.trk .sanc { display:flex;align-items:center;gap:14px;flex-wrap:wrap }
+.trk .sanc .info { font-size:12.5px;color:var(--trk-muted) }
+.trk .sanc .info b { color:var(--trk-danger) }
+.trk .alert { display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--trk-border) }
+.trk .alert:last-child { border-bottom:none }
+.trk .alert:hover { background:var(--trk-surface2) }
+.trk .alert .when { font-size:11px;font-weight:700;border-radius:6px;padding:3px 8px;white-space:nowrap;min-width:82px;text-align:center }
+.trk .alert .when.late { background:var(--trk-danger-soft);color:var(--trk-danger) }
+.trk .alert .when.today { background:rgba(224,165,63,.14);color:#e0a53f }
+.trk .alert .when.soon { background:var(--trk-surface3);color:var(--trk-muted) }
+.trk .alert .who { font-weight:600;font-size:13px }
+.trk .alert .who small { display:block;color:var(--trk-faint);font-weight:500;font-size:11px }
+.trk .alert .what { color:var(--trk-muted);font-size:12.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.trk .alert a.who { color:inherit;text-decoration:none }
+.trk .alert a.who:hover { color:var(--trk-accent-2) }
+/* --- barre d'outils de la liste --- */
+.trk .toolbar { display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:2px }
+.trk .toolbar .search { flex:1;min-width:200px;max-width:340px }
+.trk .toolbar select { font-size:12.5px }
+.trk .toolbar .cnt { margin-left:auto;font-size:12px }
+/* --- liste des chatters --- */
+.trk .clist { display:flex;flex-direction:column;gap:7px }
+.trk .crow { display:grid;grid-template-columns:38px minmax(0,1.6fr) 130px 150px minmax(0,auto); gap:14px;align-items:center;background:var(--trk-surface);border:1px solid var(--trk-border); border-radius:var(--trk-radius);padding:12px 15px;text-decoration:none;color:var(--trk-text);transition:.12s }
+.trk .crow:hover { border-color:var(--trk-border2);background:var(--trk-surface2);transform:translateY(-1px) }
+.trk .crow .av { width:38px;height:38px;border-radius:10px;background:var(--trk-surface3);display:grid;place-items:center; font-family:var(--trk-fh);font-weight:700;font-size:13px;color:var(--trk-muted) }
+.trk .cmain { min-width:0 }
+.trk .cn { display:block;font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.trk .cm { display:flex;gap:5px;margin-top:3px;flex-wrap:wrap }
+.trk .cm em { font-style:normal;font-size:10.5px;font-weight:600;color:var(--trk-faint);background:var(--trk-surface2); border:1px solid var(--trk-border);border-radius:5px;padding:1px 6px }
+.trk .cscore, .trk .cseen { display:flex;flex-direction:column;gap:1px;line-height:1.25 }
+.trk .cscore b { font-family:var(--trk-fh);font-size:19px;font-variant-numeric:tabular-nums }
+.trk .cscore em, .trk .cseen em { font-style:normal;font-size:10.5px;color:var(--trk-faint) }
+.trk .cseen b { font-size:13px;font-weight:600 }
+.trk .cscore.good b { color:var(--trk-accent-2) }
+.trk .cscore.mid b { color:#e0a53f }
+.trk .cscore.bad b { color:var(--trk-danger) }
+.trk .cscore b { color:var(--trk-faint) }
+.trk .cseen.warn b { color:#e0a53f }
+.trk .cseen.bad b, .trk .cseen.never b { color:var(--trk-danger) }
+.trk .cflags { display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end }
+.trk .flag { font-size:10.5px;font-weight:700;border-radius:6px;padding:3px 8px;white-space:nowrap }
+.trk .flag.bad { background:var(--trk-danger-soft);color:var(--trk-danger) }
+.trk .flag.warn { background:rgba(224,165,63,.14);color:#e0a53f }
+/* --- bandeau de tete d'une fiche --- */
+.trk .fhead { display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:11px }
+.trk .fscore, .trk .fstat { background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:var(--trk-radius);padding:15px 17px; display:flex;flex-direction:column;gap:2px }
+.trk .fscore b { font-family:var(--trk-fh);font-size:34px;line-height:1;color:var(--trk-faint) }
+.trk .fscore.good b { color:var(--trk-accent-2) }
+.trk .fscore.mid b { color:#e0a53f }
+.trk .fscore.bad b { color:var(--trk-danger) }
+.trk .fstat b { font-family:var(--trk-fh);font-size:19px;line-height:1.2 }
+.trk .fscore span, .trk .fstat span { font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--trk-faint);margin-top:5px }
+.trk .fscore em, .trk .fstat em { font-style:normal;font-size:11.5px;color:var(--trk-muted);margin-top:3px }
+.trk .fscore em.up { color:var(--trk-accent-2) }
+.trk .fscore em.down, .trk .fstat em.down { color:var(--trk-danger) }
+.trk .fstat.sanc { gap:4px }
+.trk .fstat.sanc .btn { align-self:flex-start;margin-top:5px }
+/* --- formulaire de bilan --- */
+.trk .bilan { display:flex;flex-direction:column;gap:14px }
+.trk .bilan textarea { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px; color:var(--trk-text);padding:11px 13px;font:inherit;font-size:13.5px;outline:none;resize:vertical;min-height:130px;line-height:1.55 }
+.trk .bilan textarea:focus { border-color:var(--trk-accent) }
+.trk .rategrid { display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:4px }
+.trk .rrow { display:flex;flex-direction:column;gap:7px;padding:9px 11px;border-radius:8px; background:var(--trk-surface2);border:1px solid var(--trk-border) }
+.trk .rrow.on { border-color:var(--trk-accent);background:var(--trk-accent-soft) }
+.trk .rpick { display:flex;align-items:center;gap:9px;cursor:pointer }
+.trk .rpick .rn { font-size:12.5px;font-weight:600 }
+.trk .rdetail { display:flex;align-items:center;gap:10px;padding-left:24px }
+.trk .rdetail input[type=text] { flex:1;min-width:0;background:var(--trk-surface);border:1px solid var(--trk-border); border-radius:7px;color:var(--trk-text);padding:6px 9px;font:inherit;font-size:12.5px;outline:none }
+.trk .rdetail input[type=text]:focus { border-color:var(--trk-accent) }
+.trk .rrow .stars .star { font-size:17px }
+/* historique de notation d'une rubrique */
+.trk .chist { display:flex;flex-direction:column;gap:6px;background:var(--trk-surface2);border:1px solid var(--trk-border); border-radius:9px;padding:10px 12px }
+.trk .chlab { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--trk-faint) }
+.trk .chrow { display:grid;grid-template-columns:78px 84px 80px minmax(0,1fr);gap:10px;align-items:center; font-size:12.5px;padding:3px 0 }
+.trk .chd { font-weight:600;font-variant-numeric:tabular-nums }
+.trk .cha { font-size:11px;color:var(--trk-faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.trk .chc { color:var(--trk-muted);word-break:break-word }
+.trk .chc em { color:var(--trk-faint);font-size:11.5px }
+@media(max-width:900px) {
+  .trk .chrow { grid-template-columns:1fr;gap:2px }
+}
+/* onglets d'une fenetre */
+.trk .tabs { display:flex;gap:2px;background:var(--trk-surface2);border:1px solid var(--trk-border); border-radius:9px;padding:3px;margin-bottom:4px }
+.trk .tab { flex:1;background:none;border:none;color:var(--trk-muted);padding:7px 10px;border-radius:7px; font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:.12s }
+.trk .tab:hover { color:var(--trk-text) }
+.trk .tab.on { background:var(--trk-surface3);color:#fff }
+.trk .glist { display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto }
+.trk .grow { display:flex;align-items:center;gap:8px;background:var(--trk-surface2);border:1px solid var(--trk-border); border-radius:8px;padding:6px 10px;font-size:12.5px }
+.trk .grow>span:first-child { flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.trk .grow.off { opacity:.5 }
+.trk .grow em { font-style:normal }
+.trk .dows.sm span { width:15px;height:15px;font-size:8.5px;border-radius:4px }
+.trk .btn.primary { background:var(--trk-accent-soft);border-color:var(--trk-accent);color:var(--trk-accent-2) }
+.trk .btn.primary:hover { background:#1a3a2b }
+/* --- sessions --- */
+.trk .pill20 { font-family:var(--trk-fh);font-weight:700;font-size:12.5px;border-radius:7px;padding:2px 9px; background:var(--trk-surface3);color:var(--trk-muted) }
+.trk .pill20.good { background:var(--trk-accent-soft);color:var(--trk-accent-2) }
+.trk .pill20.mid { background:rgba(224,165,63,.14);color:#e0a53f }
+.trk .pill20.bad { background:var(--trk-danger-soft);color:var(--trk-danger) }
+.trk .sr { display:flex;gap:6px;flex-wrap:wrap;margin-top:10px }
+.trk .rchip { display:inline-flex;align-items:center;gap:6px;background:var(--trk-surface2);border:1px solid var(--trk-border); border-radius:7px;padding:3px 9px }
+.trk .rchip em { font-style:normal;font-size:11px;color:var(--trk-muted);font-weight:600 }
+.trk .rchip .star { font-size:11px;padding:0 }
+.trk .sess { border-bottom:1px solid var(--trk-border);padding:14px 16px }
+.trk .sess:last-child { border-bottom:none }
+.trk .sess .sh { display:flex;align-items:center;gap:10px;margin-bottom:7px;flex-wrap:wrap }
+.trk .sess .sd { font-family:var(--trk-fh);font-weight:700;font-size:13.5px }
+.trk .sess .sa { font-size:11.5px;color:var(--trk-faint) }
+.trk .sess .sb { font-size:13px;white-space:pre-wrap;word-break:break-word;color:var(--trk-text) }
+.trk .sess .st { display:flex;gap:5px;flex-wrap:wrap;margin-top:8px }
+.trk .sess .st span { font-size:11px;font-weight:600;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:6px;padding:2px 8px;color:var(--trk-muted) }
+.trk .sess .sp { margin-left:auto;display:flex;gap:3px }
+.trk .lens { display:inline-flex;gap:0 }
+.trk .stale { font-size:11.5px;font-weight:600;color:#e0a53f }
+.trk .stale.bad { color:var(--trk-danger) }
+/* En dessous de ~1560px les colonnes passeraient sous 200px : on defile
+   horizontalement plutot que d'ecraser les cases. */
+.trk .weekwrap { overflow-x:auto;overflow-y:visible;padding-bottom:4px;margin:0 -4px;padding-left:4px;padding-right:4px }
+.trk .week { display:grid;grid-template-columns:repeat(7,minmax(200px,1fr));gap:10px }
+.trk .day.we { background:#12161c }
+.trk .day.we>h3 { color:var(--trk-muted) }
+/* jour de repos : discret, jamais ecrit ailleurs que sur le jour concerne */
+.trk .day.rest { opacity:.5 }
+.trk .day.rest .dayb { filter:grayscale(1) }
+.trk .pc.rest { color:var(--trk-faint);font-weight:600;text-transform:none }
+.trk .dayoff { background:none;border:none;color:var(--trk-faint);cursor:pointer;font-size:12px;line-height:1; padding:1px 3px;border-radius:5px;opacity:0;transition:.12s;margin-left:4px }
+.trk .day>h3:hover .dayoff, .trk .dayoff.on { opacity:1 }
+.trk .dayoff:hover { color:var(--trk-accent-2);background:var(--trk-surface3) }
+.trk .dayoff.on { color:#e0a53f }
+.trk .day { background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:var(--trk-radius);display:flex;flex-direction:column;min-height:170px }
+.trk .day.now { border-color:var(--trk-accent);box-shadow:0 0 0 1px var(--trk-accent-soft) }
+.trk .day>h3 { display:flex;align-items:baseline;gap:7px;padding:11px 13px 9px;border-bottom:1px solid var(--trk-border);font-size:13.5px;text-transform:capitalize }
+.trk .day>h3 em { font-style:normal;font-size:11px;color:var(--trk-faint);font-weight:500 }
+.trk .day>h3 .pc { margin-left:auto;font-size:11px;color:var(--trk-faint);font-weight:700;font-variant-numeric:tabular-nums }
+.trk .day.now>h3 .pc { color:var(--trk-accent-2) }
+.trk .dayb { padding:9px;display:flex;flex-direction:column;gap:12px;flex:1 }
+/* Une rubrique se lit comme une section : un liseré à gauche plutôt qu'un
+   micro-titre gris perdu au-dessus des tâches. */
+.trk .tgroup { display:flex;flex-direction:column;gap:4px;border-left:2px solid var(--trk-border2);padding-left:8px }
+.trk .tgroup:only-of-type, .trk .tgroup[data-drop-cat=""] { border-left-color:transparent;padding-left:0 }
+.trk .glab { display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;color:var(--trk-text);padding:0 1px 2px }
+.trk .glab span { white-space:nowrap;overflow:hidden;text-overflow:ellipsis }
+.trk .glab em { margin-left:auto;font-style:normal;font-size:10px;font-weight:600;color:var(--trk-faint); font-variant-numeric:tabular-nums }
+.trk .gmenu, .trk .gadd, .trk .gdel { background:none;border:none;color:var(--trk-faint);cursor:pointer;font-size:12px; line-height:1;padding:1px 3px;border-radius:5px;transition:.12s }
+.trk .gadd { font-size:15px;font-weight:700 }
+.trk .gdel { font-size:10px }
+.trk .gmenu:hover, .trk .gadd:hover { color:var(--trk-accent-2);background:var(--trk-surface3) }
+.trk .gdel:hover { color:var(--trk-danger);background:var(--trk-danger-soft) }
+/* deux issues explicites plutot qu'un confirm ambigu */
+.trk .choices { display:flex;gap:8px;flex-wrap:wrap }
+.trk .choices .btn { flex:1;min-width:150px }
+/* --- liens utiles --- */
+.trk .botcol { display:flex;flex-direction:column;gap:10px }
+.trk .links { display:flex;flex-direction:column }
+.trk .lrow { display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid var(--trk-border) }
+.trk .lrow:last-child { border-bottom:none }
+.trk .lrow:hover { background:var(--trk-surface2) }
+.trk .lrow>a { font-size:13.5px;font-weight:600;color:var(--trk-text);text-decoration:none;white-space:nowrap }
+.trk .lrow>a:hover { color:var(--trk-accent-2) }
+.trk .lu { font-size:11px;color:var(--trk-faint);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.trk .lrow .x { background:none;border:none;color:var(--trk-faint);cursor:pointer;font-size:11px;padding:3px 5px; border-radius:6px;transition:.12s }
+.trk .lrow .x:hover { color:var(--trk-danger);background:var(--trk-danger-soft) }
+.trk .laddrow { display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--trk-border) }
+.trk .laddrow input { background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:8px;color:var(--trk-text); padding:7px 10px;font:inherit;font-size:12.5px;outline:none;min-width:0 }
+.trk .laddrow input:focus { border-color:var(--trk-accent) }
+.trk .laddrow #lt { width:150px;flex:none }
+.trk .laddrow #lu { flex:1 }
+/* saisie directe dans une section : un champ, Entree, c'est fait */
+.trk .qadd input { width:100%;background:var(--trk-surface);border:1px solid var(--trk-accent);border-radius:8px; color:var(--trk-text);padding:7px 9px;font:inherit;font-size:12.5px;outline:none }
+.trk .task { display:flex;align-items:flex-start;gap:8px;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:8px;padding:8px 10px;cursor:grab;font-size:12.5px }
+.trk .task:hover { border-color:var(--trk-border2) }
+.trk .task.done { opacity:.45 }
+.trk .task.done .tt { text-decoration:line-through }
+.trk .task .box { width:15px;height:15px;border-radius:4px;border:1.5px solid var(--trk-border2);flex:none;margin-top:1px;cursor:pointer;display:grid;place-items:center;font-size:10px;color:transparent;background:none }
+.trk .task.done .box { background:var(--trk-accent);border-color:var(--trk-accent);color:var(--trk-bg) }
+.trk .task .tb { min-width:0;flex:1 }
+.trk .task .tt { word-break:break-word;line-height:1.35 }
+.trk .task .tm { display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap }
+.trk .task .hh { font-variant-numeric:tabular-nums;font-weight:700;color:var(--trk-accent-2);font-size:11px }
+.trk .task .who { font-size:10.5px;font-weight:600;background:var(--trk-surface3);border-radius:5px;padding:1px 6px;color:var(--trk-muted) }
+.trk .task .rec { font-size:10.5px;color:var(--trk-faint) }
+.trk .task .asg { font-size:10.5px;font-weight:600;color:#e0a53f;background:rgba(224,165,63,.14);border-radius:5px;padding:1px 6px }
+/* Supprimer doit se voir : cache au survol, on ne le trouve jamais. */
+.trk .task .x { background:none;border:1px solid transparent;color:var(--trk-faint);cursor:pointer;font-size:11px; line-height:1;padding:3px 5px;border-radius:6px;flex:none;transition:.12s }
+.trk .task .x:hover { color:var(--trk-danger);background:var(--trk-danger-soft);border-color:rgba(236,90,106,.3) }
+.trk .task.dragging { opacity:.35 }
+.trk .tgroup.over, .trk .dayb.over { outline:1px dashed var(--trk-accent);outline-offset:2px;border-radius:8px }
+/* Une seule action par jour. La rubrique se choisit (ou se cree) dans la
+   fenetre d'ajout : un seul bouton par colonne au lieu de deux, sur sept
+   colonnes, ca change tout. Ancre en bas, donc aligne d'un jour a l'autre. */
+.trk .addrow { margin-top:auto;background:none;border:1px dashed var(--trk-border);color:var(--trk-faint); border-radius:8px;padding:5px;font-size:15px;line-height:1;cursor:pointer;width:100%;transition:.12s }
+.trk .addrow:hover { color:var(--trk-accent-2);border-color:var(--trk-accent);background:var(--trk-accent-soft) }
+.trk .habit { display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--trk-border);font-size:13px }
+.trk .habit:last-child { border-bottom:none }
+.trk .habit.off { opacity:.5 }
+.trk .habit .dows { display:flex;gap:3px }
+.trk .habit .dows span { font-size:9.5px;font-weight:700;width:19px;height:19px;border-radius:5px;display:grid;place-items:center;background:var(--trk-surface2);color:var(--trk-faint);border:1px solid var(--trk-border) }
+.trk .habit .dows span.on { background:var(--trk-accent-soft);color:var(--trk-accent-2);border-color:var(--trk-accent) }
+.trk .habit .sp { margin-left:auto;display:flex;gap:5px }
+.trk .scratch { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;color:var(--trk-text);padding:12px;font:inherit;font-size:13.5px;outline:none;resize:vertical;min-height:150px;line-height:1.6 }
+.trk .scratch:focus { border-color:var(--trk-accent) }
+.trk .ov { position:fixed;inset:0;background:rgba(8,10,13,.72);display:grid;place-items:center;z-index:50;padding:20px }
+.trk .ov .box { background:var(--trk-surface);border:1px solid var(--trk-border2);border-radius:var(--trk-radius);width:100%;max-width:480px;padding:20px;display:flex;flex-direction:column;gap:12px;max-height:88vh;overflow:auto }
+.trk .ov h3 { font-size:15px }
+.trk .ov p { font-size:12.5px;color:var(--trk-muted) }
+.trk .ov textarea { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;color:var(--trk-text);padding:10px 12px;font:inherit;font-size:13.5px;outline:none;resize:vertical;min-height:120px }
+.trk .ov textarea:focus { border-color:var(--trk-accent) }
+.trk .ov .acts { display:flex;gap:8px;justify-content:flex-end }
+.trk .ov .chk { display:flex;flex-wrap:wrap;gap:6px }
+.trk .ov .chk label { display:inline-flex;align-items:center;gap:5px;font-size:12px;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:7px;padding:4px 9px;cursor:pointer }
+@media(max-width:760px) {
+  .trk .week { grid-template-columns:1fr }
+  .trk .weekwrap { overflow-x:visible }
+  .trk .crow { grid-template-columns:34px 1fr;gap:10px }
+  .trk .crow .cscore, .trk .crow .cseen, .trk .crow .cflags { grid-column:2 }
+}

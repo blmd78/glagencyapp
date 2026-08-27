@@ -24,6 +24,12 @@ import {
   ChartLine,
   Network,
   UsersRound,
+  Activity,
+  LayoutGrid,
+  Headset,
+  ListTodo,
+  ClipboardCheck,
+  ClipboardPen,
   Briefcase,
   Globe,
   TriangleAlert,
@@ -104,6 +110,9 @@ export const WORKSPACES: Workspace[] = [
     groups: [
       { id: 'performance', label: 'Performance', icon: ChartLine },
       { id: 'equipe', label: 'Équipe', icon: UsersRound },
+      // Tracker de présence, repris du tracker GLA. Le libellé « Tracker » n'était pas
+      // réutilisable : il désigne déjà `/chatter/police`. D'où « Présence ».
+      { id: 'presence', label: 'Présence', icon: Activity },
       // Catégorie dédiée au tracker sanctions (ex-item direct du groupe Équipe) — slug/route
       // techniques inchangés (`police`, /chatter/police), seul l'affichage devient « Police ».
       { id: 'police', label: 'Police', icon: ShieldAlert },
@@ -118,6 +127,14 @@ export const WORKSPACES: Workspace[] = [
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
       { href: '/chatter/planning', label: 'Planning / Todo', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
+      // Tracker de présence — les quatre écrans partagent le slug `presence` : un seul droit à
+      // cocher dans Membres, comme `police` couvre déjà Tracker + Rapport. Le slug du board se
+      // déduit de son href ; les trois autres le portent explicitement.
+      { href: '/chatter/presence', label: 'Board', icon: LayoutGrid, group: 'presence' },
+      { href: '/chatter/presence/managers', label: 'Managers', icon: Headset, slug: 'presence', group: 'presence' },
+      { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
+      { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
+      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence' },
       // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
       // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
       { href: '/chatter/organisation', label: 'Organisation', icon: Network, group: 'equipe' },
@@ -234,7 +251,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

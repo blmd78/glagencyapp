@@ -48,8 +48,8 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
   (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
-  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127, UAT alignée
-  par `migration repair`, prod encore à 0112 — prochaine migration = 0114) : **catalogue**
+  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; UAT à
+  **0125**, prod à **0124** (2026-08-25) — prochaine migration = 0126) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection

@@ -39,3 +39,8 @@ apps/ingestion/logs/
 apps/web/e2e/.auth/
 apps/web/playwright-report/
 apps/web/test-results/
+.vercel
+.env*
+
+# Pages et CSS d’origine du tracker GLA — références de portage, données réelles, jamais versionnées.
+.tracker-ref/
