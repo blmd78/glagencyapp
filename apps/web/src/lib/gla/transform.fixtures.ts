@@ -40,7 +40,7 @@ export const catalog: LegacyCatalog = {
     [
       'renc_01',
       {
-        id: CASE.renc, module_id: MODULE.renc, kind: 'solo' as const, fan_name: 'Pascal',
+        id: CASE.renc, module_id: MODULE.renc, section_id: null, kind: 'solo' as const, fan_name: 'Pascal',
         code: 'renc_01', title: 'Niveau 1 — Envie spontanée et légère', phase: 'Envie légère', difficulty: 1,
         context: 'Contexte du cas.', objective: 'Objectif du cas.', max_turns: 8, reaction_max_s: null, is_sale: false,
         training_modules: { code: 'rencontre', title: 'Demande de rencontre', objective_label: 'L’esprit de ta réponse' },
@@ -49,7 +49,7 @@ export const catalog: LegacyCatalog = {
     [
       'trans_07',
       {
-        id: CASE.trans, module_id: MODULE.trans, kind: 'solo' as const, fan_name: 'Sofiane',
+        id: CASE.trans, module_id: MODULE.trans, section_id: null, kind: 'solo' as const, fan_name: 'Sofiane',
         code: 'trans_07', title: 'Conv complète jusqu’au 1er payant', phase: 'Conversation complète', difficulty: 4,
         context: 'Contexte du cas.', objective: 'Objectif du cas.', max_turns: 12, reaction_max_s: null, is_sale: true,
         training_modules: { code: 'transitions', title: 'Transitions', objective_label: 'Étape de script à amener' },
@@ -58,7 +58,7 @@ export const catalog: LegacyCatalog = {
     [
       'set_mefiance_3',
       {
-        id: CASE.set, module_id: MODULE.set, kind: 'solo' as const, fan_name: 'Maxime',
+        id: CASE.set, module_id: MODULE.set, section_id: null, kind: 'solo' as const, fan_name: 'Maxime',
         code: 'set_mefiance_3', title: 'Niveau 3 — Demande de preuve', phase: 'Preuve précise', difficulty: 3,
         context: 'Contexte du cas.', objective: 'Objectif du cas.', max_turns: 10, reaction_max_s: null, is_sale: false,
         training_modules: { code: 'setting', title: 'Setting & Qualification', objective_label: 'Ce que tu dois obtenir' },
@@ -67,7 +67,7 @@ export const catalog: LegacyCatalog = {
     [
       'boss_final',
       {
-        id: CASE.boss, module_id: MODULE.boss, kind: 'boss' as const, fan_name: null,
+        id: CASE.boss, module_id: MODULE.boss, section_id: null, kind: 'boss' as const, fan_name: null,
         code: 'boss_final', title: 'Boss final — 5 tunnels complets en simultané', phase: 'Boss final', difficulty: 5,
         context: 'Contexte du boss.', objective: 'Objectif du boss.', max_turns: 32, reaction_max_s: 120, is_sale: false,
         training_modules: { code: 'boss', title: 'Boss final', objective_label: 'Objectif' },

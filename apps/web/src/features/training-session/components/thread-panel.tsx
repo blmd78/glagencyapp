@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { FAULT_LABELS, type CaseKind, type FaultCode } from '@/lib/types/training'
 import type { ComposerInput } from '../schema'
 import type { SessionThread } from '../types'
+import { ChronoBadge } from './chrono-badge'
 import { FanRing } from './fan-ring'
 import { Composer } from './composer'
 import { MessageList } from './message-list'
@@ -26,7 +27,7 @@ export function ThreadPanel({
 }: {
   thread: SessionThread
   kind: CaseKind
-  /** Durée du chrono de réponse (`reactionMaxS`), pour la part restante de l'anneau. */
+  /** Durée du tour (`reactionSecondsFor`), pour la part restante de l'anneau et du compteur. */
   maxSeconds: number | null
   now: number
   onSend: (v: ComposerInput) => Promise<boolean>
@@ -74,6 +75,9 @@ export function ThreadPanel({
         <span className="ml-auto tabular-nums text-[var(--gla-muted)]">
           {thread.turnsUsed}/{thread.maxTurns} échanges
         </span>
+        {/* Le compteur chiffré DOUBLE l'anneau, comme le `#ttimer` de GLA (`index.html:1725`) —
+            l'anneau est `aria-hidden`, et un chiffre reste plus lisible sous pression. */}
+        {thread.status === 'open' && remaining != null && <ChronoBadge seconds={remaining} />}
       </header>
       <MessageList messages={visible} pendingFan={pendingFan} fanName={thread.fanName} />
       {lost ? (

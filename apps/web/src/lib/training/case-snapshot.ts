@@ -28,6 +28,7 @@ export interface CaseSnapshotRow {
   max_turns: number
   reaction_max_s: number | null
   is_sale: boolean
+  section_id: string | null
   training_modules: { code: string; title: string; objective_label: string }
 }
 
@@ -45,5 +46,6 @@ export function buildCaseSnapshot(c: CaseSnapshotRow): CaseSnapshot {
     isSale: c.is_sale,
     moduleTitle: c.training_modules.title,
     moduleCode: c.training_modules.code,
+    sectionId: c.section_id,
   }
 }

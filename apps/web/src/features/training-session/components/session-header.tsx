@@ -47,9 +47,17 @@ export function SessionHeader({
     router.push('/formation/ma-formation')
   }
 
+  // Snapshot d'avant l'ajout de `sectionId` (sessions déjà en base) → `undefined` → repli module.
+  const backQuery = s.sectionId ? `?competence=${s.sectionId}` : ''
+
   return (
     <div className="flex flex-col gap-3">
-      <Link href="/formation/modules" className="gla-back w-fit">
+      {/* GLA (`index.html:1703-1705`) : « ← Retour aux cas » renvoie sur la liste d'où l'on vient —
+          la COMPÉTENCE quand le cas en a une (`sous_cat` → `go3`), le module sinon. Le lien pointait
+          sur `/formation/modules` (la liste des modules) : deux crans trop haut.
+          Le littéral doit rester INLINE dans `href` — un `const` intermédiaire s'élargit en `string`
+          et casse le typage `Route` (TS2769). */}
+      <Link href={`/formation/modules/${s.moduleCode}${backQuery}`} className="gla-back w-fit">
         ← Retour aux cas
       </Link>
       <div className="flex flex-wrap items-start gap-3">

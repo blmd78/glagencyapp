@@ -9,7 +9,10 @@ import { ReportDialog } from './report-dialog'
 
 /** Rejouer / Recommencer (propriétaire), Retour au module, Signaler (session notée, propriétaire, une fois). */
 export function ResultActions({ data, viewerIsOwner }: { data: SessionData; viewerIsOwner: boolean }) {
-  const back = `/formation/modules/${data.snapshot.moduleCode}?vue=cas`
+  // Même cible que « ← Retour aux cas » de l'en-tête de session, et que GLA (`index.html:1828`) :
+  // la compétence d'origine si le cas en a une, le module sinon. `?vue=cas` était un paramètre MORT
+  // (`modules/[code]/page.tsx` ne lit que `competence`).
+  const back = `/formation/modules/${data.snapshot.moduleCode}${data.snapshot.sectionId ? `?competence=${data.snapshot.sectionId}` : ''}`
   return (
     <div className="flex flex-wrap items-center gap-2">
       <Button asChild variant="outline" size="sm"><Link href={back as Route}>Retour au module</Link></Button>

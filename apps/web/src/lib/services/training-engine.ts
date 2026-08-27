@@ -1,7 +1,7 @@
 import 'server-only'
 import type { createAdminClient } from '@glagency/db'
 import { bossFanSystemPrompt, fanSystemPrompt } from '@/lib/ai/prompts'
-import { ARENA_REVEAL_MAX_S, ARENA_REVEAL_MIN_S, SOLO_REACTION_S, type CaseKind } from '@/lib/types/training'
+import { ARENA_REVEAL_MAX_S, ARENA_REVEAL_MIN_S, reactionSecondsFor, type CaseKind } from '@/lib/types/training'
 
 type Admin = ReturnType<typeof createAdminClient>
 export type FanThreadRef = {
@@ -65,6 +65,8 @@ export function revealDelayMs(kind: CaseKind): number {
 
 /** Échéance du chrono : solo = 60 s après la révélation ; défi/boss = reaction_max_s du cas. */
 export function dueAtFrom(visibleAt: Date, kind: CaseKind, reactionMaxS: number | null): Date {
-  const s = kind === 'solo' ? SOLO_REACTION_S : (reactionMaxS ?? 120)
-  return new Date(visibleAt.getTime() + s * 1000)
+  // `reactionSecondsFor` est la SOURCE UNIQUE, partagée avec l'affichage du chrono côté client
+  // (`session-view.tsx`) : les deux doivent parler de la même durée, sinon le chatter se prend un
+  // « Trop lent » que rien ne lui a annoncé.
+  return new Date(visibleAt.getTime() + reactionSecondsFor(kind, reactionMaxS) * 1000)
 }

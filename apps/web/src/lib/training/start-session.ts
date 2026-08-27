@@ -53,7 +53,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
         .from('training_cases')
         // Un seul littéral : supabase-js type les embeds depuis le littéral exact.
         .select(
-          'id, module_id, code, kind, title, phase, difficulty, max_turns, reaction_max_s, is_sale, context, objective, fan_name, active, training_modules(code, title, objective_label, active), training_case_messages(position, speaker, body), training_case_arena_slots!case_id(position, ref_case_id, display_name), training_case_boss_fans(id, name, position, opening_message)',
+          'id, module_id, section_id, code, kind, title, phase, difficulty, max_turns, reaction_max_s, is_sale, context, objective, fan_name, active, training_modules(code, title, objective_label, active), training_case_messages(position, speaker, body), training_case_arena_slots!case_id(position, ref_case_id, display_name), training_case_boss_fans(id, name, position, opening_message)',
         )
         .eq('id', caseId)
         .maybeSingle()

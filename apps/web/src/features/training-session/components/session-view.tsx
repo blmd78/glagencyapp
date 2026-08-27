@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import type { SessionStatus } from '@/lib/types/training'
+import { reactionSecondsFor, type SessionStatus } from '@/lib/types/training'
 import { revealThread, sendMessage } from '../actions'
 import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
@@ -189,7 +189,7 @@ export function SessionView({ data }: { data: SessionData }) {
               key={thread.id}
               thread={thread}
               kind={data.kind}
-              maxSeconds={data.snapshot.reactionMaxS}
+              maxSeconds={reactionSecondsFor(data.kind, data.snapshot.reactionMaxS)}
               now={now}
               onSend={(v) => handleSend(thread.id, v)}
               onTimeout={handleTimeout}
