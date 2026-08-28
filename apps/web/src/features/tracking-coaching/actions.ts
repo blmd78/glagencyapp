@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { getProfile } from '@/lib/auth'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
+import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import {
   addNoteInput, archiveSkillInput, deleteNoteInput, deleteSessionInput, rateInput,
   sessionInput, skillInput, updateNoteInput, updateSessionInput,
@@ -17,17 +18,83 @@ import {
  *
  * QUI PEUT ÉCRIRE : les porteurs de la page `presence` et les admins — pas le chatteur sur son
  * propre suivi. On note quelqu'un, on ne se note pas soi-même.
+ *
+ * ET SUR QUI : le PÉRIMÈTRE MODÈLES est revalidé à CHAQUE écriture, jamais seulement à l'affichage.
+ * C'est la règle du tracker d'origine, dont le commentaire la justifie mot pour mot — « Chaque
+ * appel remonte au chatter concerné et revalide le périmètre : masquer un chatter dans l'interface
+ * ne suffit pas » (décorateur `notesApi`, routes.js.txt:144-157). Sans ça, un appel forgé notait ou
+ * supprimait la fiche de n'importe quel chatteur de l'agence — exactement l'incident de l'audit
+ * Police du 2026-08-06, qui avait donné `isChatterInScope`.
+ *
+ * Les mutations qui ne portent qu'un `sessionId`/`noteId` remontent d'ABORD au chatteur propriétaire
+ * (les résolveurs `bySession`/`byNote` du legacy) : « introuvable » avant « non autorisé », comme eux.
  */
 
 const LIST = '/chatter/presence/suivi'
 
-async function requireCoach(): Promise<string> {
+async function requireCoach(): Promise<{ id: string; role: string }> {
   const profile = await getProfile()
   if (!profile) throw new BusinessError('Session expirée.')
-  if (profile.role !== 'admin' && !profile.pages.includes('presence')) {
-    throw new BusinessError("Tu n'as pas accès au suivi des chatters.")
+  // `hasWriteAccess` et non un simple `pages.includes` : il EXCLUT le chatteur, qui peut porter la
+  // page en lecture. Miroir applicatif de `can_write_page()` (0060), utilisé partout ailleurs.
+  if (!hasWriteAccess(profile, 'presence')) {
+    throw new BusinessError("Tu n'as pas le droit d'écrire dans le suivi des chatters.")
   }
-  return profile.id
+  return { id: profile.id, role: profile.baseRole }
+}
+
+/**
+ * Garde complète d'une écriture : le droit de page PUIS le périmètre modèles sur le chatteur visé.
+ * Équivalent du décorateur `notesApi` du tracker d'origine (routes.js.txt:144-157).
+ */
+async function requireCoachFor(chatterId: string): Promise<string> {
+  const caller = await requireCoach()
+  // Ordre du legacy : « introuvable » (404) AVANT « non autorisé » (403).
+  await assertIsChatter(chatterId)
+  const scope = await getCreatorScope(caller.id, caller.role)
+  if (!(await isChatterInScope(scope, chatterId))) {
+    // Le libellé du legacy, au présent : le cas visé est une réassignation de modèles entre
+    // l'affichage et l'écriture (routes.js.txt:331).
+    throw new BusinessError("Ce chatter n'est plus dans ton périmètre.")
+  }
+  return caller.id
+}
+
+/**
+ * La cible est-elle bien un CHATTEUR ? Portage du résolveur `chatterExists` du legacy
+ * (routes.js.txt:157), qui répond « introuvable » (404) avant tout contrôle de périmètre.
+ *
+ * Sans lui, le seul test était le recoupement `profile_creators` : un encadrant pouvait donc se
+ * noter LUI-MÊME, ou noter un pair partageant une de ses modèles — exactement ce que l'en-tête de
+ * ce fichier interdit (« on note quelqu'un, on ne se note pas soi-même »).
+ */
+async function assertIsChatter(chatterId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profiles').select('role').eq('id', chatterId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new BusinessError('Chatter introuvable.')
+  if (data.role !== 'chatteur') throw new BusinessError("Ce profil n'est pas un chatter.")
+}
+
+/** Chatteur propriétaire d'une session — « introuvable » AVANT tout contrôle de périmètre (legacy). */
+async function sessionOwner(sessionId: string): Promise<string> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('tracker_sessions').select('chatter_id').eq('id', sessionId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new BusinessError('Session introuvable.')
+  return data.chatter_id
+}
+
+/** Chatteur propriétaire d'une note libre — même ordre que `sessionOwner`. */
+async function noteOwner(noteId: string): Promise<string> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('tracker_chatter_notes').select('chatter_id').eq('id', noteId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new BusinessError('Note introuvable.')
+  return data.chatter_id
 }
 
 const touch = (chatterId?: string): void => {
@@ -42,7 +109,7 @@ export async function rateSkill(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const authorId = await requireCoach()
+      const authorId = await requireCoachFor(d.chatterId)
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_ratings').insert({
         chatter_id: d.chatterId,
@@ -65,7 +132,7 @@ export async function saveSession(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const authorId = await requireCoach()
+      const authorId = await requireCoachFor(d.chatterId)
       const admin = createAdminClient()
       const { data: session, error } = await admin
         .from('tracker_sessions')
@@ -88,6 +155,9 @@ export async function saveSession(raw: unknown): Promise<ActionResult> {
             skill_id: r.skillId,
             session_id: session.id,
             stars: r.stars,
+            // Le « Pourquoi cette note ? » saisi en face de l'étoile — il était perdu (`comment: ''`
+            // en dur côté composant) alors que l'historique sait l'afficher.
+            comment: r.comment,
             author_id: authorId,
           })),
         )
@@ -109,7 +179,7 @@ export async function updateSession(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await requireCoach()
+      await requireCoachFor(await sessionOwner(d.sessionId))
       const admin = createAdminClient()
       const { data, error } = await admin
         .from('tracker_sessions')
@@ -129,7 +199,7 @@ export async function deleteSession(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await requireCoach()
+      await requireCoachFor(await sessionOwner(d.sessionId))
       const admin = createAdminClient()
       const { data, error } = await admin
         .from('tracker_sessions').delete().eq('id', d.sessionId).select('chatter_id').maybeSingle()
@@ -145,7 +215,7 @@ export async function addNote(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const authorId = await requireCoach()
+      const authorId = await requireCoachFor(d.chatterId)
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_chatter_notes')
@@ -162,7 +232,7 @@ export async function updateNote(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await requireCoach()
+      await requireCoachFor(await noteOwner(d.noteId))
       const admin = createAdminClient()
       const { data, error } = await admin
         .from('tracker_chatter_notes')
@@ -182,7 +252,7 @@ export async function deleteNote(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await requireCoach()
+      await requireCoachFor(await noteOwner(d.noteId))
       const admin = createAdminClient()
       const { data, error } = await admin
         .from('tracker_chatter_notes').delete().eq('id', d.noteId).select('chatter_id').maybeSingle()

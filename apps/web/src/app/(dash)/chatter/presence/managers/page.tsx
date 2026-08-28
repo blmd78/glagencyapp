@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { todayParis } from '@glagency/core'
+import { notFound } from 'next/navigation'
 import { requireAccess } from '@/lib/auth'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { ManagersTemplate } from '@/features/tracking-managers/ManagersTemplate'
@@ -22,7 +23,13 @@ export default async function PresenceManagersPage({
 }: {
   searchParams: Promise<{ date?: string }>
 }) {
-  await requireAccess('presence')
+  const profile = await requireAccess('presence')
+  // Le tracker d'origine réservait cette vue à `canSeeManagers` = admin OU « principal »
+  // (core-modules.txt:837, routes.js.txt:100-107) ; un simple `manager` y recevait un 403.
+  // Correspondance de rôles chez nous : leur `principal` (tous les chatteurs + l'onglet Managers,
+  // sans la gestion des comptes) = notre `manager` ; leur `manager` (borné à ses modèles) = notre
+  // `sous-manager`. La présence des autres encadrants n'a pas à être lisible par un pair.
+  if (profile.role !== 'admin' && profile.baseRole !== 'manager') notFound()
   const { date } = await searchParams
   const day = date ?? todayParis()
 

@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { addDays } from '@glagency/core'
-import { requireAccess } from '@/lib/auth'
+import { requireAdmin } from '@/lib/auth'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { RecapTemplate } from '@/features/tracking-recap/RecapTemplate'
 import { RecapSkeleton } from '@/features/tracking-recap/components/recap-skeleton'
@@ -19,7 +19,10 @@ export default async function PresenceRecapPage({
 }: {
   searchParams: Promise<{ week?: string }>
 }) {
-  await requireAccess('presence')
+  // ADMIN STRICT — le Récap rend les débriefs VERBATIM de tous les encadrants. Le tracker d'origine
+  // le réservait aux admins (`requireAdminView`, routes.js.txt:436) ; l'ouvrir à tout porteur du
+  // slug `presence`, comme c'était le cas, donnait à un sous-manager le journal intime de ses pairs.
+  await requireAdmin()
   const { week } = await searchParams
 
   const data = getWeekRecap(week)

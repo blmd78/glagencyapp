@@ -13,11 +13,26 @@ export const addTaskInput = z.object({
   date: day,
   category: z.string().trim().min(1, 'Section requise').max(60),
   label: z.string().trim().min(1, 'Écris quelque chose').max(200, '200 caractères maximum'),
+  /**
+   * Tâche « 1:1 avec un chatter » : cocher exigera un compte-rendu et créera une session dans sa
+   * fiche. `null` = tâche ordinaire. Leur champ s'intitule « Session 1:1 avec (impose un bilan
+   * pour cocher) » (todo.html:1331).
+   */
+  chatterId: z.uuid().nullable().default(null),
 })
+
 
 export const toggleTaskInput = z.object({ ownerId: owner, taskId, done: z.boolean() })
 
 export const deleteTaskInput = z.object({ ownerId: owner, taskId })
+
+/** Renommer une habitude (`prompt('Renommer l'habitude :')` chez eux) et l'activer/désactiver. */
+export const renameHabitInput = z.object({
+  ownerId: owner,
+  habitId: z.uuid(),
+  label: z.string().trim().min(1, 'Il faut un intitulé.').max(200),
+})
+export const setHabitActiveInput = z.object({ ownerId: owner, habitId: z.uuid(), active: z.boolean() })
 
 export const moveTaskInput = z.object({
   ownerId: owner,
@@ -48,7 +63,8 @@ export const deleteSectionInput = z.object({
 
 export const habitInput = z.object({
   ownerId: owner,
-  category: z.string().trim().min(1).max(60),
+  /** Facultative — leur sélecteur propose « Sans section » en première option (todo.html:1365). */
+  category: z.string().trim().max(60).default(''),
   label: z.string().trim().min(1, 'Écris quelque chose').max(200),
   weekdays: z.array(z.number().int().min(1).max(7)).min(1, 'Choisis au moins un jour'),
 })

@@ -1,18 +1,3 @@
-import { BusinessError } from '@/lib/actions'
-import { getProfile } from '@/lib/auth'
-
-/** Chemin de la to-do — revalidé par toutes ses mutations. */
-export const TODO_PATH = '/chatter/presence/todo'
-
-/**
- * Chacun gère SA to-do ; un admin peut agir sur n'importe laquelle. Vérifié UNE fois, dans le
- * handler — jamais en double dans `guard`, ce que la checklist des guidelines interdit.
- * Rend l'id de l'appelant, pour tracer une tâche déposée par la hiérarchie.
- */
-export async function assertOwner(ownerId: string): Promise<string> {
-  const profile = await getProfile()
-  if (!profile) throw new BusinessError('Session expirée.')
-  const allowed = profile.role === 'admin' || profile.id === ownerId
-  if (!allowed) throw new BusinessError("Cette to-do n'est pas la tienne.")
-  return profile.id
-}
+// Les gardes vivent en `lib/tracking/todo-guards.ts` — elles sont partagées avec l'écran de suivi
+// (clôture d'une tâche « 1:1 »), et la frontière ESLint interdit le cross-feature.
+export { assertOwner, assertOwnerOrAdmin, TODO_PATH } from '@/lib/tracking/todo-guards'

@@ -15,6 +15,29 @@ export interface TodoTask {
   virtual: boolean
   /** Déposée par quelqu'un d'autre que le propriétaire — la hiérarchie, comme sur le planning. */
   fromOther: boolean
+  /**
+   * Tâche « 1:1 » : l'id du chatteur visé. Cocher n'est alors pas une case à cocher — ça ouvre le
+   * bilan sur sa fiche, et c'est l'enregistrement du bilan qui clôt la tâche.
+   */
+  chatterId: string | null
+  /** Nom du chatteur visé, pour l'afficher sur la tâche. */
+  chatterName: string | null
+}
+
+/** Une habitude : le gabarit qui crée sa tâche chaque jour choisi. */
+export interface TodoHabit {
+  id: string
+  label: string
+  category: string
+  /** Jours ISO (1 = lundi … 7 = dimanche). */
+  weekdays: number[]
+  active: boolean
+}
+
+/** Un chatteur proposable dans « Session 1:1 avec » — borné au périmètre de l'appelant. */
+export interface TodoChatter {
+  id: string
+  name: string
 }
 
 export interface TodoSection {
@@ -51,6 +74,16 @@ export interface TodoLink {
 }
 
 export interface TodoWeek {
+  /**
+   * L'appelant peut DÉPOSER (et retirer) une tâche sur cette semaine sans en être le titulaire.
+   * C'est la seule dérogation de l'admin : il ne coche pas, ne déplace pas, ne débriefe pas.
+   * Sans ce drapeau, sa dérogation existait côté serveur mais aucun bouton ne l'exerçait.
+   */
+  canAssign: boolean
+  /** Les habitudes du titulaire, pour le panneau de gestion. */
+  habits: TodoHabit[]
+  /** Les chatteurs que l'appelant peut viser par un 1:1. */
+  chatters: TodoChatter[]
   ownerId: string
   /** Lundi de la semaine affichée. */
   weekStart: string

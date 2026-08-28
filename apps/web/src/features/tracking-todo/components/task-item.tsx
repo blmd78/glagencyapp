@@ -44,7 +44,8 @@ export function TaskItem({
         className="box"
         role="checkbox"
         aria-checked={task.done}
-        aria-label={task.label}
+        aria-label={task.chatterId && !task.done ? `${task.label} — rendre le bilan` : task.label}
+        title={task.chatterId && !task.done ? 'Rendre le bilan sur la fiche du chatter' : undefined}
         disabled={!canWrite}
         onClick={() => onToggle(task, !task.done)}
       >
@@ -52,10 +53,12 @@ export function TaskItem({
       </button>
       <div className="tb" ref={setNodeRef} {...listeners} {...attributes}>
         <div className="tt">{task.label}</div>
-        {task.virtual || task.fromOther ? (
+        {task.virtual || task.fromOther || task.chatterId ? (
           <div className="tm">
             {task.virtual ? <span className="rec">↻ récurrente</span> : null}
             {task.fromOther ? <span className="asg">déposée</span> : null}
+            {/* Une tâche 1:1 se signale : cocher n'y fera pas ce qu'on croit, ça ouvrira le bilan. */}
+            {task.chatterId ? <span className="one">🎧 1:1 {task.chatterName ?? ''}</span> : null}
           </div>
         ) : null}
       </div>

@@ -1,7 +1,6 @@
 import { frDateNumeric } from '@glagency/core'
-import { Figure } from '@/components/training/figure'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { dec2, int } from '@/lib/format'
+import { int } from '@/lib/format'
 import { COST_WINDOW_DAYS, type CostRow } from '../types'
 
 const KIND_LABELS: Record<string, string> = { fan: 'Fan', score: 'Notation' }
@@ -9,35 +8,22 @@ const KIND_LABELS: Record<string, string> = { fan: 'Fan', score: 'Notation' }
 const VISIBLE_ROWS = 10
 
 /**
- * Coût IA de l'entraînement sur 30 jours (ADMIN) : appels, tokens et coût ESTIMÉ aux prix liste
- * Anthropic (la facture réelle peut être plus basse). Le détail par jour × modèle × sorte dit d'où
- * vient la dépense — le fan (haiku, un appel par message) ou la notation (sonnet, un par thread).
+ * DÉTAIL du coût IA de l'entraînement sur 30 jours (ADMIN) : par jour × modèle × sorte, il dit
+ * d'où vient la dépense — le fan (haiku, un appel par message) ou la notation (sonnet, un par
+ * thread). Les totaux, eux, sont remontés dans le bandeau de tête (`OverviewKpis`) : c'est le
+ * chiffre qu'on vient chercher, il n'a pas à être en bas de page.
  */
-export function OverviewCost({ rows, estimatedUsd }: { rows: CostRow[]; estimatedUsd: number }) {
-  const totals = rows.reduce(
-    (acc, r) => ({
-      calls: acc.calls + r.calls,
-      input: acc.input + r.inputTokens,
-      output: acc.output + r.outputTokens,
-      cache: acc.cache + r.cacheReadTokens,
-    }),
-    { calls: 0, input: 0, output: 0, cache: 0 },
-  )
+export function OverviewCost({ rows }: { rows: CostRow[] }) {
+  const cacheTokens = rows.reduce((n, r) => n + r.cacheReadTokens, 0)
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold tracking-tight">Coût IA — {COST_WINDOW_DAYS} derniers jours</h2>
+      <h2 className="text-lg font-semibold tracking-tight">Détail du coût IA — {COST_WINDOW_DAYS} derniers jours</h2>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Aucun appel IA sur la période.</p>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Figure label="Appels" value={int(totals.calls)} />
-            <Figure label="Tokens entrée" value={int(totals.input)} />
-            <Figure label="Tokens sortie" value={int(totals.output)} />
-            <Figure label="Coût estimé" value={`${dec2(estimatedUsd)} $`} />
-          </div>
           <p className="text-sm text-muted-foreground">
-            {int(totals.cache)} tokens lus en cache (facturés ~10 % de l’entrée) · estimation, prix liste — la facture
+            {int(cacheTokens)} tokens lus en cache (facturés ~10 % de l’entrée) · estimation, prix liste — la facture
             réelle peut être plus basse.
           </p>
           <CostTable rows={rows.slice(0, VISIBLE_ROWS)} />

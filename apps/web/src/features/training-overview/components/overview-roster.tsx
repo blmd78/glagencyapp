@@ -40,17 +40,26 @@ function lastSeen(iso: string | null): string {
 /** Tri de GLA : avancement décroissant (`index.html:2444-2445`). `sort` est stable → l'ordre de la RPC départage. */
 const byProgress = (a: RosterRow, b: RosterRow) => b.casesDone - a.casesDone
 
-export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; totalCases: number }) {
+/**
+ * Le décompte de la promo — rendu par la Template EN HAUT de page (au-dessus des signalements),
+ * pas ici : c'est une phrase de cadrage, elle se lit avec les chiffres, pas avec les tableaux.
+ */
+export function OverviewRosterCount({ roster }: { roster: RosterRow[] }) {
   const newcomers = roster.filter((r) => r.isNew).length
+  return (
+    <p className="text-sm text-muted-foreground">
+      {roster.length} chatter{roster.length > 1 ? 's' : ''} sur la face Formation
+      {newcomers > 0 && `, ${newcomers} nouveau${newcomers > 1 ? 'x' : ''}`}
+    </p>
+  )
+}
+
+export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; totalCases: number }) {
   const sorted = [...roster].sort(byProgress)
   const enAgence = sorted.filter((r) => r.models.length > 0)
   const enFormation = sorted.filter((r) => r.models.length === 0)
   return (
     <section className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">
-        {roster.length} chatter{roster.length > 1 ? 's' : ''} sur la face Formation
-        {newcomers > 0 && `, ${newcomers} nouveau${newcomers > 1 ? 'x' : ''}`}
-      </p>
       {roster.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Personne n’a encore le droit « Entraînement » — attribue-le depuis Membres.

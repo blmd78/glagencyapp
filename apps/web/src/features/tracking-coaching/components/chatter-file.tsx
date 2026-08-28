@@ -4,7 +4,10 @@ import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { todayParis } from '@glagency/core'
 import { deleteSession, rateSkill, saveSession } from '../actions'
+import { completeOneToOne } from '@/lib/tracking/complete-one-to-one'
+import { useRouter } from 'next/navigation'
 import { sessionForm, type SessionFormInput, type SessionFormValues } from '../schema'
 import { CoachNotes } from './coach-notes'
 import type { ChatterCoaching } from '../types'
@@ -49,14 +52,42 @@ function Stars({
  * Les avertissements de leur en-tête ne sont PAS repris (décision du 2026-08-27) : les sanctions
  * relèvent du Tracker police, pas du coaching.
  */
-export function ChatterFile({ data }: { data: ChatterCoaching }) {
+export function ChatterFile({
+  data,
+  bilanTaskId,
+  viewerId,
+}: {
+  data: ChatterCoaching
+  /**
+   * Non nul = on arrive d'une tâche « 1:1 » de la To-Do. Le formulaire s'ouvre d'office, et
+   * l'enregistrement clôt la tâche au lieu de créer une session isolée — c'est l'aller-retour
+   * du legacy (`/notes/:id?bilan=<taskId>` puis retour sur `/todo`).
+   */
+  bilanTaskId?: string | null
+  /** Id du VISITEUR — c'est lui le titulaire de la tâche 1:1 qu'on vient clôturer. */
+  viewerId?: string
+}) {
   // ⚠️ OBLIGATOIRE avec React Hook Form : le React Compiler mémoïse `formState`, qui devient muet
   // — plus d'erreurs sous les champs, plus d'état de chargement. Règle du dépôt.
   'use no memo'
 
   const [pending, startTransition] = useTransition()
-  const [openSession, setOpenSession] = useState(false)
-  const [picks, setPicks] = useState<Record<string, number>>({})
+  const [openSession, setOpenSession] = useState(!!bilanTaskId)
+  const router = useRouter()
+  /**
+   * Les compétences COCHÉES pour cette session, avec leur note et leur « pourquoi ». Une clé
+   * absente = compétence non travaillée : elle n'est pas transmise et garde son niveau.
+   * Décocher SUPPRIME la saisie (étoiles remises à zéro, champ vidé) — c'est leur `toggleCat`
+   * (notes-67.html:1009-1015), et ça évite d'envoyer une note qu'on croyait avoir retirée.
+   */
+  const [picks, setPicks] = useState<Record<string, { stars: number; comment: string }>>({})
+  const togglePick = (skillId: string, on: boolean) =>
+    setPicks((p) => {
+      const next = { ...p }
+      if (on) next[skillId] = { stars: 0, comment: '' }
+      else delete next[skillId]
+      return next
+    })
 
   const {
     register,
@@ -65,7 +96,7 @@ export function ChatterFile({ data }: { data: ChatterCoaching }) {
     formState: { errors },
   } = useForm<SessionFormInput, unknown, SessionFormValues>({
     resolver: zodResolver(sessionForm),
-    defaultValues: { score: '', summary: '', general: '' },
+    defaultValues: { date: todayParis(), score: '', summary: '', general: '' },
   })
 
   const run = (fn: () => Promise<{ success: boolean; error?: string }>, ok?: string): void => {
@@ -80,14 +111,30 @@ export function ChatterFile({ data }: { data: ChatterCoaching }) {
   // La saisie est déjà validée et convertie par le resolver : `values.score` est un nombre ou
   // `null`, plus une chaîne à rattraper à la main.
   const submitSession = handleSubmit((values) => {
+    // « Mets une note à « X », ou décoche-la. » — leur validation (notes-67.html:1084). Une
+    // compétence cochée sans étoile n'a aucun sens : on ne l'envoie pas en silence.
+    const sansNote = data.skills.find((sk) => picks[sk.id] && picks[sk.id].stars === 0)
+    if (sansNote) {
+      toast.error(`Mets une note à « ${sansNote.name} », ou décoche-la.`)
+      return
+    }
+    const ratings = Object.entries(picks).map(([skillId, p]) => ({ skillId, stars: p.stars, comment: p.comment }))
+    if (bilanTaskId) {
+      // Arrivée depuis la To-Do : la session ET la coche partent ensemble, puis on rend la main à
+      // la to-do — comme leur `saveBilan`, qui poste sur `/api/todo/done` et repart sur `/todo`.
+      startTransition(async () => {
+        const res = await completeOneToOne({ ownerId: viewerId, taskId: bilanTaskId, ...values, ratings })
+        if (!res.success) {
+          toast.error(res.error ?? 'Erreur inattendue')
+          return
+        }
+        toast.success('1:1 clôturé — le bilan est dans sa fiche')
+        router.push('/chatter/presence/todo')
+      })
+      return
+    }
     run(
-      () =>
-        saveSession({
-          chatterId: data.profileId,
-          date: new Date().toISOString().slice(0, 10),
-          ...values,
-          ratings: Object.entries(picks).map(([skillId, stars]) => ({ skillId, stars })),
-        }),
+      () => saveSession({ chatterId: data.profileId, ...values, ratings }),
       'Session enregistrée',
     )
     setOpenSession(false)
@@ -129,6 +176,11 @@ export function ChatterFile({ data }: { data: ChatterCoaching }) {
           </div>
           {openSession ? (
             <form className="cardpad bform" onSubmit={submitSession} noValidate>
+              <div className="field" style={{ maxWidth: 200 }}>
+                <label htmlFor="bd">Date du 1:1</label>
+                <input id="bd" type="date" {...register('date')} />
+                {errors.date ? <p className="msg ko">{errors.date.message}</p> : null}
+              </div>
               <div className="field">
                 <label htmlFor="bs">Note de la session, sur 20</label>
                 <input id="bs" inputMode="decimal" placeholder="ex. 13,5" {...register('score')} />
@@ -144,14 +196,37 @@ export function ChatterFile({ data }: { data: ChatterCoaching }) {
                 <textarea id="gen" rows={2} {...register('general')} />
                 {errors.general ? <p className="msg ko">{errors.general.message}</p> : null}
               </div>
+              <div className="field">
+                <label>Compétences travaillées pendant cette session</label>
+                <p className="cnt">Coche seulement celles que tu as vues. Les autres gardent leur niveau.</p>
+              </div>
               <div className="rategrid">
                 {data.skills.map((s) => (
-                  <span key={s.id} className="rchip">
-                    {s.name}
-                    <Stars
-                      value={picks[s.id] ?? null}
-                      onPick={(n) => setPicks((p) => ({ ...p, [s.id]: n }))}
-                    />
+                  <span key={s.id} className={picks[s.id] ? 'rchip on' : 'rchip'}>
+                    <label title={s.description ?? undefined}>
+                      <input
+                        type="checkbox"
+                        checked={!!picks[s.id]}
+                        onChange={(e) => togglePick(s.id, e.target.checked)}
+                      />{' '}
+                      {s.name}
+                    </label>
+                    {picks[s.id] ? (
+                      <>
+                        <Stars
+                          value={picks[s.id].stars || null}
+                          onPick={(n) => setPicks((p) => ({ ...p, [s.id]: { ...p[s.id], stars: n } }))}
+                        />
+                        <input
+                          className="why"
+                          placeholder="Pourquoi cette note ?"
+                          value={picks[s.id].comment}
+                          onChange={(e) =>
+                            setPicks((p) => ({ ...p, [s.id]: { ...p[s.id], comment: e.target.value } }))
+                          }
+                        />
+                      </>
+                    ) : null}
                   </span>
                 ))}
               </div>
