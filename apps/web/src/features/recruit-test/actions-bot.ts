@@ -20,6 +20,7 @@
 // bien noter.
 
 import * as Sentry from '@sentry/nextjs'
+import { aiMessage } from '@/lib/ai/errors'
 import { AiCallError } from '@/lib/ai/score'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
@@ -104,7 +105,14 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
         // rend ici un message métier — sans ça, une panne du fournisseur IA n'existerait nulle part.
         Sentry.captureException(err)
         console.error('[recrutement bot]', err)
-        throw new BusinessError(BOT_KO)
+        throw new BusinessError(
+          aiMessage(err, {
+            retryable: BOT_KO,
+            // Un CANDIDAT, pas un membre de l'agence : il n'a personne à prévenir en interne et ne
+            // doit rien apprendre de nos coulisses. On lui dit quoi faire, et rien d'autre.
+            blocked: 'Le test est momentanément indisponible. Reviens plus tard — ta progression est enregistrée.',
+          }),
+        )
       }
 
       const { error: rErr } = await admin

@@ -129,9 +129,13 @@ export function SessionView({ data }: { data: SessionData }) {
     const r = await sendMessage({ threadId, ...input })
     if (!r.success) {
       toast.error(r.error)
-      // Le serveur a pu réarmer le chrono (panne IA) ou fermer le thread (trop lent, course) :
-      // on resynchronise plutôt que de rejouer un état périmé. Le texte saisi reste (return false).
-      if (r.error.startsWith('Trop lent') || r.error.includes('terminée') || r.error.includes('a pas répondu')) router.refresh()
+      // On resynchronise à CHAQUE échec, sans regarder le texte du message. Le serveur a pu retirer
+      // le message et réarmer le chrono (panne IA), ou fermer le thread (trop lent, course entre
+      // deux onglets) : dans tous les cas l'état affiché est périmé, et aucun échec ne gagne à le
+      // garder. Le tri se faisait auparavant en cherchant des bouts de phrase dans l'erreur — les
+      // messages de panne IA ayant changé, la condition ne matchait plus et l'écran restait faux.
+      // Le texte saisi, lui, reste : `return false` ne vide pas le composer.
+      router.refresh()
       return false
     }
     const d = r.data

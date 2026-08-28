@@ -10,6 +10,7 @@
 // profile.id` ci-dessous, qui est désormais la seule garde du cloisonnement en écriture.
 
 import * as Sentry from '@sentry/nextjs'
+import { aiMessage } from '@/lib/ai/errors'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { FAN_MODEL } from '@/lib/ai/client'
@@ -154,7 +155,14 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         // Revalidation AVANT de rendre l'erreur : le prochain rafraîchissement doit voir le message
         // retiré et le chrono réarmé, sinon le client rejoue un état périmé.
         revalidateSession(s.id)
-        throw new BusinessError('Le fan n’a pas répondu — réessaie')
+        throw new BusinessError(
+          aiMessage(err, {
+            retryable: 'Le fan n’a pas répondu — réessaie',
+            // Panne non rejouable : ne pas envoyer le chatter s'acharner. Son tour est annulé, son
+            // message retiré et son chrono réarmé — il ne perd rien en s'arrêtant là.
+            blocked: 'L’entraînement est indisponible — préviens un encadrant, ton tour n’est pas perdu',
+          }),
+        )
       }
       await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: reply.model, usage: reply.usage, latencyMs: reply.latencyMs, ok: reply.ok })
 
