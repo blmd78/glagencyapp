@@ -47,13 +47,24 @@ describe('face Formation — droits', () => {
     expect(canAccessNav(item('/formation/catalogue'), { ...user([]), isAdmin: true })).toBe(true)
   })
 
-  it('Recrutement et Config du test sont adminOnly, et sans slug cochable', () => {
+  // Le recrutement précède la formation dans le parcours réel : l'encadrant qui suit la promo voit
+  // arriver les dossiers et intègre les gens (0135). Les gestes SENSIBLES restent admin, mais ils
+  // sont gardés côté Server Action — pas par la nav.
+  it('Recrutement suit le droit Suivi, PAS Entraînement', () => {
+    expect(canAccessNav(item('/formation/recrutement'), user(['frm-suivi']))).toBe(true)
+    expect(canAccessNav(item('/formation/recrutement'), user(['frm-entrainement']))).toBe(false)
+    expect(canAccessNav(item('/formation/recrutement'), { ...user([]), isAdmin: true })).toBe(true)
+  })
+
+  it('Config du test reste adminOnly', () => {
+    expect(canAccessNav(item('/formation/recrutement/config'), user(['frm-suivi', 'frm-entrainement']))).toBe(false)
+    expect(canAccessNav(item('/formation/recrutement/config'), { ...user([]), isAdmin: true })).toBe(true)
+  })
+
+  it('ni l’un ni l’autre n’ajoute une case à cocher dans Membres', () => {
     for (const href of ['/formation/recrutement', '/formation/recrutement/config']) {
-      expect(canAccessNav(item(href), user(['frm-suivi', 'frm-entrainement']))).toBe(false)
-      expect(canAccessNav(item(href), { ...user([]), isAdmin: true })).toBe(true)
       expect(item(href).slug).toBeUndefined()
     }
-    // Le filtre de `facePageChoices` (adminOnly + slug) doit continuer de les ignorer.
     expect(pageChoicesFor('formation').map((c) => c.slug)).toEqual(['frm-suivi', 'frm-entrainement'])
   })
 

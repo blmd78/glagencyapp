@@ -11,6 +11,7 @@
 import { z } from 'zod'
 import type { QiSlot, RecruitConfig } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
+import * as Sentry from '@sentry/nextjs'
 import { BusinessError } from '@/lib/actions'
 import { NO_ATTEMPT } from './types'
 
@@ -24,6 +25,12 @@ export const CLOSED = 'Le recrutement est fermé pour le moment.'
 // `BLOCKED` vit dans `types.ts` : le CLIENT doit le reconnaître pour basculer sur le cul-de-sac.
 export { BLOCKED } from './types'
 export const RATE_LIMITED = 'Trop de tentatives depuis ce réseau — réessaie plus tard.'
+/**
+ * Plafond GLOBAL atteint (toutes IP confondues). Volontairement indiscernable du refus par IP pour
+ * un candidat : il n'a pas à savoir que c'est l'agence qui a atteint sa limite du jour, et un
+ * abuseur n'a pas à savoir qu'il a réussi à la saturer.
+ */
+export const DAILY_CAPPED = 'Le test est momentanément fermé — réessaie demain.'
 export const ATTEMPT_OVER = 'Ce test est déjà terminé.'
 export const STEPS_MISSING = 'Termine toutes les épreuves d’abord.'
 
@@ -73,6 +80,11 @@ export type RecruitTestConfig = RecruitConfig & {
    * pour une banque cassée par un admin entre-temps — alors qu'aucune des deux ne s'en sert.
    */
   qiBankRaw: unknown
+  /**
+   * Plafond GLOBAL de tentatives sur 24 h, toutes IP confondues (`recruit_config.daily_max`, 0134).
+   * `null` = aucun plafond global — la limite par IP s'applique toujours.
+   */
+  dailyMax: number | null
 }
 
 /**
@@ -82,7 +94,7 @@ export type RecruitTestConfig = RecruitConfig & {
 export async function readConfig(admin: Admin): Promise<RecruitTestConfig> {
   const { data, error } = await admin
     .from('recruit_config')
-    .select('open, bot_messages, qi_timer, frappe_min, connexion_min, qi_min, global_threshold, discord_link, typing_text, qi_bank')
+    .select('open, bot_messages, qi_timer, frappe_min, connexion_min, qi_min, global_threshold, discord_link, typing_text, qi_bank, daily_max')
     .eq('id', 1)
     .maybeSingle()
   if (error) throw new Error(error.message)
@@ -91,6 +103,8 @@ export async function readConfig(admin: Admin): Promise<RecruitTestConfig> {
     open: data.open,
     botMessages: data.bot_messages,
     qiTimer: data.qi_timer,
+    /** Plafond global sur 24 h (0134) — `null` = aucun. */
+    dailyMax: data.daily_max,
     frappeMin: data.frappe_min,
     connexionMin: data.connexion_min,
     qiMin: data.qi_min,
@@ -242,8 +256,12 @@ export async function anyBlocklistMatch(
 }
 
 /**
- * Démarre une tentative SOUS le plafond de coût (5 par IP sur 24 h glissantes) — plafond et
- * insertion dans la MÊME transaction, sérialisés par IP (`recruit_start_attempt`, 0115).
+ * Démarre une tentative SOUS DEUX plafonds — plafonds et insertion dans la MÊME transaction
+ * (`recruit_start_attempt`, 0115 puis 0134) :
+ *  - par IP (5 sur 24 h glissantes) : contre l'acharnement d'une personne ;
+ *  - GLOBAL (`recruit_config.daily_max`, toutes IP confondues) : contre la seule vraie faille de
+ *    coût de cet endpoint public — la limite par IP se contourne avec un pool de proxys, donc la
+ *    dépense pire-cas était linéaire en nombre d'adresses, c'est-à-dire non bornée.
  *
  * L'ancienne version comptait ici puis laissait l'appelant insérer : un TOCTOU sur un endpoint
  * PUBLIC où chaque tentative ouvre jusqu'à `bot_messages` appels Haiku + un Sonnet — une rafale
@@ -254,7 +272,12 @@ export async function anyBlocklistMatch(
  */
 export async function startAttemptRow(
   admin: Admin,
-  v: { device: string; ip: string | null; persona: string; qiAnswers: unknown; qiTimer: number; botMessages: number },
+  v: {
+    device: string; ip: string | null; persona: string; qiAnswers: unknown
+    qiTimer: number; botMessages: number
+    /** `recruit_config.daily_max` — `null` = pas de plafond global. */
+    dailyMax: number | null
+  },
 ): Promise<string> {
   const { data, error } = await admin.rpc('recruit_start_attempt', {
     p_device: v.device,
@@ -267,9 +290,20 @@ export async function startAttemptRow(
     p_bot_messages: v.botMessages,
     p_max: RATE_LIMIT_MAX,
     p_window: `${RATE_LIMIT_WINDOW_MS} milliseconds`,
+    // `null` = aucun plafond global. La valeur vient de la config, pas d'une constante : le jour
+    // d'une campagne de recrutement, on la relève sans déployer.
+    p_daily_max: v.dailyMax ?? undefined,
   })
   // Le plafond est rendu par la fonction en exception applicative : message stable, jamais montré
   // tel quel (on rend le refus métier français).
+  if (error?.message.includes('RECRUIT_DAILY_CAP')) {
+    // `runAction` ne rapporte QUE les erreurs techniques : une `BusinessError` n'atteint jamais
+    // Sentry. Sans cette capture, le plafond de facturation se déclencherait en SILENCE — le test
+    // fermé toute une journée sans que personne ne l'apprenne, ce qui est le pire des deux mondes :
+    // on paie la protection et on perd les candidats sans le savoir.
+    Sentry.captureMessage('Recrutement : plafond journalier atteint — le test refuse les nouvelles tentatives', 'warning')
+    throw new BusinessError(DAILY_CAPPED)
+  }
   if (error?.message.includes('RECRUIT_RATE_LIMITED')) throw new BusinessError(RATE_LIMITED)
   if (error) throw new Error(error.message)
   // `Returns: string | null` côté types générés (toute fonction SQL peut rendre NULL) ; la nôtre

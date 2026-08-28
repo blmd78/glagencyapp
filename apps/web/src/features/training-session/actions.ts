@@ -10,6 +10,7 @@
 // profile.id` ci-dessous, qui est désormais la seule garde du cloisonnement en écriture.
 
 import * as Sentry from '@sentry/nextjs'
+import { aiMessage } from '@/lib/ai/errors'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { FAN_MODEL } from '@/lib/ai/client'
@@ -154,13 +155,28 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         // Revalidation AVANT de rendre l'erreur : le prochain rafraîchissement doit voir le message
         // retiré et le chrono réarmé, sinon le client rejoue un état périmé.
         revalidateSession(s.id)
-        throw new BusinessError('Le fan n’a pas répondu — réessaie')
+        throw new BusinessError(
+          aiMessage(err, {
+            retryable: 'Le fan n’a pas répondu — réessaie',
+            // Panne non rejouable : ne pas envoyer le chatter s'acharner. Son tour est annulé, son
+            // message retiré et son chrono réarmé — il ne perd rien en s'arrêtant là.
+            blocked: 'L’entraînement est indisponible — préviens un encadrant, ton tour n’est pas perdu',
+          }),
+        )
       }
       await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: reply.model, usage: reply.usage, latencyMs: reply.latencyMs, ok: reply.ok })
 
       // `body` du fan borné à 1000 (check SQL) ; jamais vide (fan.ts retombe sur '😒').
       const fanBody = reply.text.slice(0, 1000)
-      const visibleAt = new Date(now.getTime() + revealDelayMs(kind))
+      // Instant RÉEL de la réponse, pris APRÈS l'appel IA — et non le `now` du début de l'action.
+      // `now` est figé avant la lecture d'historique, l'insert du message et l'aller-retour au
+      // modèle (~1,4 s en moyenne, 2,0 s au p95) : ancrer la révélation dessus faisait partir le
+      // chrono suivant AVANT que le chatteur ait vu la réponse. Il payait notre latence sur sa
+      // propre minute, à chaque tour — une dizaine de secondes sur un cas de huit tours.
+      // `now` reste la référence du contrôle d'échéance plus haut : c'est l'heure d'ARRIVÉE de sa
+      // requête qui doit être jugée, pas celle de notre réponse.
+      const repliedAt = new Date()
+      const visibleAt = new Date(repliedAt.getTime() + revealDelayMs(kind))
       const { data: fanRow, error: fErr } = await admin
         .from('training_messages')
         .insert({ session_id: s.id, thread_id: t.id, position: nextPos + 1, speaker: 'fan', body: fanBody, visible_at: visibleAt.toISOString() })
@@ -171,7 +187,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       // défi/boss : 30-120 s). Même règle que `get-session` : sans ça la réponse du fan repartait
       // dans le retour de l'action, lisible dans l'onglet réseau avant l'armement du chrono.
       // Le client la réclame à l'échéance via `revealThread`.
-      const fanVisible = visibleAt.getTime() <= now.getTime()
+      const fanVisible = visibleAt.getTime() <= repliedAt.getTime()
       const fan: SessionMessage = { id: fanRow.id, threadId: t.id, position: fanRow.position, speaker: 'fan', body: fanVisible ? fanBody : '', mediaPrice: null, visibleAt: fanRow.visible_at }
 
       const turnsUsed = t.turns_used + 1

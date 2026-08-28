@@ -11,6 +11,7 @@
 
 import { revalidatePath } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
+import { aiMessage } from '@/lib/ai/errors'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { ScoringBusyError, scoreSessionById } from '@/lib/services/training-scoring'
@@ -155,7 +156,14 @@ export async function scoreSession(raw: unknown): Promise<ActionResult<{ total: 
         // rend ici un message métier — même règle que le rescore de l'Overview.
         Sentry.captureException(err)
         console.error('[training score]', err)
-        throw new BusinessError('La notation a échoué — relance-la dans un instant')
+        throw new BusinessError(
+          aiMessage(err, {
+            retryable: 'La notation a échoué — relance-la dans un instant',
+            // La conversation est enregistrée : la note pourra être calculée plus tard (« Re-noter »
+            // depuis l'Overview). Le dire évite qu'un chatteur croie sa session perdue.
+            blocked: 'La notation est indisponible — ta session est enregistrée, un encadrant la fera noter',
+          }),
+        )
       }
       revalidateSession(sessionId)
       revalidatePath('/formation/modules', 'layout')

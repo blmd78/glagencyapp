@@ -34,11 +34,9 @@ export interface OrgRow {
   creatorId: string
   modelName: string
   byShift: Record<CrmShift, OrgChatter[]>
-  /** TOUS les chatters assignés au modèle, placés ou non — la table en a besoin pour corriger le total
-   *  affiché après un geste (poser quelqu'un déjà assigné n'ajoute personne). */
-  assignedIds: string[]
-  /** Total = `assignedIds.length` — une personne compte une fois même placée sur deux colonnes ; le
-   *  compte global des « à placer » vit dans la carte KPI. */
+  /** Total = les chatters PRÉSENTS dans les cases de la ligne, une fois chacun même placés sur deux
+   *  colonnes. Les assignés SANS aucune case n'y sont pas : ils ne se voient nulle part sur la
+   *  ligne, et leur compte global vit dans la carte KPI « À placer ». */
   total: number
 }
 

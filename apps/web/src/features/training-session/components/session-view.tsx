@@ -25,6 +25,20 @@ export function SessionView({ data }: { data: SessionData }) {
   const router = useRouter()
   const now = useNow(data.serverNow)
   const [threads, setThreads] = useState<SessionThread[]>(data.threads)
+  // `router.refresh()` re-rend le Server Component et fait descendre de NOUVELLES props — mais un
+  // `useState` initialisé une fois les ignore. Sans cette resynchronisation, le rafraîchissement
+  // déclenché après un échec d'envoi ne servait à RIEN : l'écran gardait le message que le serveur
+  // venait de retirer, et un chrono périmé. On remplace l'état par la vérité serveur quand elle
+  // change — après un échec, c'est elle qui fait foi, pas l'optimiste local.
+  // Patron React officiel « ajuster l'état quand une prop change » : mémoriser la dernière valeur
+  // SERVEUR dans un état, la comparer pendant le rendu. Un `useRef` ferait la même chose mais le
+  // lint l'interdit (`react-hooks/refs` : lire `.current` pendant le rendu), et un `useEffect`
+  // rendrait une frame avec l'état périmé.
+  const [lastServer, setLastServer] = useState(data.threads)
+  if (lastServer !== data.threads) {
+    setLastServer(data.threads)
+    setThreads(data.threads)
+  }
   const [current, setCurrent] = useState(data.threads[0]?.id ?? '')
   const [ended, setEnded] = useState(!!data.endedAt)
   const [timeoutFailed, setTimeoutFailed] = useState<Set<string>>(new Set())
@@ -129,9 +143,13 @@ export function SessionView({ data }: { data: SessionData }) {
     const r = await sendMessage({ threadId, ...input })
     if (!r.success) {
       toast.error(r.error)
-      // Le serveur a pu réarmer le chrono (panne IA) ou fermer le thread (trop lent, course) :
-      // on resynchronise plutôt que de rejouer un état périmé. Le texte saisi reste (return false).
-      if (r.error.startsWith('Trop lent') || r.error.includes('terminée') || r.error.includes('a pas répondu')) router.refresh()
+      // On resynchronise à CHAQUE échec, sans regarder le texte du message. Le serveur a pu retirer
+      // le message et réarmer le chrono (panne IA), ou fermer le thread (trop lent, course entre
+      // deux onglets) : dans tous les cas l'état affiché est périmé, et aucun échec ne gagne à le
+      // garder. Le tri se faisait auparavant en cherchant des bouts de phrase dans l'erreur — les
+      // messages de panne IA ayant changé, la condition ne matchait plus et l'écran restait faux.
+      // Le texte saisi, lui, reste : `return false` ne vide pas le composer.
+      router.refresh()
       return false
     }
     const d = r.data

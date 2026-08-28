@@ -101,21 +101,17 @@ export function OrgTable({
     overrides[`${creatorId}:${shift}`] ?? server.map((c) => c.id)
 
   /**
-   * Total AFFICHÉ d'une ligne = les ASSIGNÉS au modèle, corrigés des gestes non encore renvoyés par
-   * le serveur : + une personne posée qui n'était pas assignée (le serveur va l'assigner), − une
-   * personne qui était placée côté serveur et n'a plus aucune case (son dernier placement retiré →
-   * le serveur la désassigne). Poser quelqu'un DÉJÀ assigné (sans placement, 0110) n'ajoute rien.
-   * Nécessaire depuis qu'un commit ne rafraîchit plus la page.
+   * Total AFFICHÉ d'une ligne = les chatters PRÉSENTS dans ses cases, une fois chacun (Matin ET Soir
+   * sur le même modèle = 1 personne). Il se lit sur `cellIds`, donc sur les overrides : il suit un
+   * geste sans attendre le serveur, indispensable depuis qu'un commit ne rafraîchit plus la page.
+   *
+   * Il ne compte PLUS les assignés sans placement (`r.total` côté serveur applique la même règle) :
+   * un chatteur assigné au modèle mais posé dans aucune case n'apparaît nulle part sur la ligne, et
+   * le total dépassait alors les pastilles (12 lignes sur 16 en prod, retour terrain 2026-08-28).
+   * Les gens dans ce cas se comptent dans la carte KPI « À placer », qui est faite pour ça.
    */
-  const displayedTotal = (r: OrgRow) => {
-    const assigned = new Set(r.assignedIds)
-    const serverPlaced = new Set(CRM_SHIFTS.flatMap((sh) => r.byShift[sh].map((c) => c.id)))
-    const shownIds = new Set(CRM_SHIFTS.flatMap((sh) => cellIds(r.creatorId, sh, r.byShift[sh])))
-    let delta = 0
-    for (const id of shownIds) if (!assigned.has(id)) delta += 1
-    for (const id of serverPlaced) if (!shownIds.has(id)) delta -= 1
-    return r.total + delta
-  }
+  const displayedTotal = (r: OrgRow) =>
+    new Set(CRM_SHIFTS.flatMap((sh) => cellIds(r.creatorId, sh, r.byShift[sh]))).size
 
   // Gestes de STRUCTURE (ajout/déplacement de ligne) : la ligne apparaît ou change de
   // section — `revalidatePath` seul ne repeignait pas l'écran, on force le rafraîchissement.

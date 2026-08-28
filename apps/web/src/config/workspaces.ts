@@ -224,7 +224,12 @@ export const WORKSPACES: Workspace[] = [
       // slug : le recrutement ne s'attribue pas page par page (cf. RLS `is_admin()` des tables
       // recruit_*), et un item adminOnly sans slug n'apparaît pas dans les cases de Membres (filtre
       // de `facePageChoices` ci-dessous). Seul item à porter une pastille sur cette face.
-      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, adminOnly: true },
+      // Ouvert aux porteurs de « Suivi » depuis 0135 : le recrutement précède la formation dans le
+      // parcours réel, et c'est l'encadrant qui suit la promo qui voit arriver les dossiers et
+      // intègre les gens. `anyOf` sans `slug` : le droit vient de Suivi, l'item n'est donc pas une
+      // case à cocher de plus dans Membres. Les gestes SENSIBLES (bloquer, débloquer, supprimer,
+      // et toute la config du test) restent admin — ils sont gardés côté Server Action.
+      { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, anyOf: ['frm-suivi'] },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
       // Réservée à l'ENCADREMENT depuis la règle du 2026-08-24 : c'est le manager qui fait tourner
       // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il

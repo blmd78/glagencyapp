@@ -1,12 +1,20 @@
 'use server'
 
-// Server Actions des DOSSIERS candidats (page Recrutement, admin) : valider / refuser / bloquer /
-// débloquer / supprimer. La config du test vit dans `actions-config.ts`.
+// Server Actions des DOSSIERS candidats (page Recrutement) : valider / refuser / intégrer, et
+// bloquer / débloquer / supprimer. La config du test vit dans `actions-config.ts`.
+//
+// DEUX NIVEAUX depuis 0135, et la frontière est ici, pas dans l'UI :
+//  - TRAITER un dossier (valider, refuser, intégrer à l'agence) est ouvert au droit « Suivi » —
+//    c'est la raison d'être de l'ouverture de l'onglet : l'encadrant qui suit la promo fait
+//    entrer les gens. Sans ça il voyait les dossiers sans pouvoir rien en faire ;
+//  - ÉCARTER quelqu'un (bloquer, débloquer) ou EFFACER une trace (supprimer) reste admin : ce
+//    sont des décisions d'agence, pas du traitement de file.
 //
 // Modèle d'écriture de la face Formation depuis 0121, appliqué ici sans exception : la RLS des
 // tables `recruit_*` n'accorde que la LECTURE (`is_admin()`), AUCUNE policy d'écriture — toutes
-// les écritures passent donc par le service-role, APRÈS `requireAdminProfileLive()` (admin + refus
-// impersonation). `recruit_config` est la seule à porter en plus une policy d'écriture admin, mais
+// les écritures passent donc par le service-role, APRÈS la garde de tête (admin ou « Suivi » selon
+// le geste, refus de l'impersonation dans les deux cas). `recruit_config` porte en plus une policy
+// d'écriture admin, mais
 // on garde UN seul chemin d'écriture pour toute la feature : deux clients dans un même fichier
 // d'actions est exactement le genre de nuance qu'une relecture rapide rate.
 //
@@ -15,7 +23,7 @@
 
 import { todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
-import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { attachRecruitCandidate } from '@/lib/recruit-link'
 import { revalidateRecruit } from './actions-shared'
 import { candidateIdInput, integrateCandidateInput, reviewInput } from './schema'
@@ -58,7 +66,7 @@ export async function reviewCandidate(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async ({ id, status }) => {
-      const profile = await requireAdminProfileLive()
+      const profile = await requirePageProfileLive('frm-suivi')
       const admin = createAdminClient()
       const { data, error } = await admin
         .from('recruit_candidates')
@@ -206,7 +214,7 @@ export async function addCandidateToCrm(raw: unknown): Promise<ActionResult<{ pr
     input: raw,
     guard: noGuard,
     handler: async ({ id, creatorId }): Promise<{ profileId: string }> => {
-      const caller = await requireAdminProfileLive()
+      const caller = await requirePageProfileLive('frm-suivi')
       const admin = createAdminClient()
 
       const { data: c, error } = await admin

@@ -1,4 +1,5 @@
 import type { Database } from '@glagency/db'
+import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import type { CandidateRow, CandidatesData, CandidateStatus, RecruitGates, RecruitKpis } from '../types'
 
@@ -107,7 +108,15 @@ export async function getCandidates(): Promise<CandidatesData> {
   }
   const [candidates, config, total, valide, refuse, creators] = await Promise.all([
     supabase.from('recruit_candidates').select(COLS).order('created_at', { ascending: false }).limit(MAX_ROWS),
-    supabase.from('recruit_config').select('qi_min, frappe_min, connexion_min, global_threshold').eq('id', 1).maybeSingle(),
+    // Client ADMIN, à dessein. `recruit_config` reste fermée à `is_admin()` — sa ligne porte
+    // `qi_bank`, c'est-à-dire LA CLÉ DE CORRECTION du QI. L'ouvrir en RLS pour que l'encadrant
+    // « Suivi » puisse lire quatre seuils lui donnerait aussi les bonnes réponses du test.
+    // On ne lit donc ici que les seuils — publics par nature, ils sont affichés sur chaque
+    // dossier — en contournant la RLS de façon délibérée et bornée.
+    // Sans ça, `/formation/recrutement` LEVAIT pour tout porteur de `frm-suivi` non admin :
+    // `config.data` null → « Configuration introuvable » → boundary d'erreur. La page plantait
+    // pour exactement le public à qui 0135 venait de l'ouvrir.
+    createAdminClient().from('recruit_config').select('qi_min, frappe_min, connexion_min, global_threshold').eq('id', 1).maybeSingle(),
     countWhere(),
     countWhere('valide'),
     countWhere('refuse'),

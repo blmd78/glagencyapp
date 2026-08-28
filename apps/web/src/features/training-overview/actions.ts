@@ -5,6 +5,7 @@
 // vérification UNE SEULE FOIS en tête de handler, refus = BusinessError.
 
 import * as Sentry from '@sentry/nextjs'
+import { aiMessage } from '@/lib/ai/errors'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
@@ -63,7 +64,13 @@ export async function rescoreSession(raw: unknown): Promise<ActionResult<{ total
         // notation resterait invisible côté admin.
         Sentry.captureException(err)
         console.error('[training rescore]', err)
-        throw new BusinessError('La re-notation a échoué — réessaie dans un instant')
+        throw new BusinessError(
+          aiMessage(err, {
+            retryable: 'La re-notation a échoué — réessaie dans un instant',
+            // Ici l'utilisateur est un encadrant : il peut agir, on est donc plus direct.
+            blocked: 'La notation par IA est indisponible — vérifie le crédit du compte Anthropic',
+          }),
+        )
       }
       revalidatePath('/formation/overview')
       revalidatePath(`/formation/session/${sessionId}`)
