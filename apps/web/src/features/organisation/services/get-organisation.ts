@@ -69,17 +69,15 @@ export async function getOrganisation(): Promise<OrganisationData> {
   const chatterMembers = profiles.filter((p) => p.role === 'chatteur')
   const chatterById = new Map(chatterMembers.map((m) => [m.id, m]))
   // UNE pastille par PLACEMENT (chatter, modèle, shift) — 0110. Le même chatteur peut donc être
-  // Matin ET Soir sur Emma, et Soir sur Léa. `assigned` compte les personnes par modèle (total de
-  // la ligne), `placed` celles qui ont au moins une case (KPI « à placer »).
+  // Matin ET Soir sur Emma, et Soir sur Léa. `placed` = ceux qui ont au moins une case, PARTOUT
+  // (KPI « à placer »). Le total d'une ligne, lui, se compte sur les pastilles de CETTE ligne
+  // (cf. rowFor) : compter les ASSIGNÉS y mettait des gens qu'on ne voit dans aucune case —
+  // 12 lignes sur 16 affichaient 1 à 4 de plus que leurs pastilles (retour terrain 2026-08-28).
   const chattersByModel = new Map<string, OrgChatter[]>()
-  const assignedByModel = new Map<string, string[]>()
   const placed = new Set<string>()
   for (const a of assignRes.data) {
     const m = chatterById.get(a.profile_id)
     if (!m) continue // porteur (encadrant), parti, ou rôle non chatteur : pas une pastille
-    const assigned = assignedByModel.get(a.creator_id)
-    if (assigned) assigned.push(m.id)
-    else assignedByModel.set(a.creator_id, [m.id])
     for (const shift of (a.shifts ?? []).filter(isShift)) {
       placed.add(m.id)
       const entry: OrgChatter = {
@@ -113,8 +111,8 @@ export async function getOrganisation(): Promise<OrganisationData> {
       creatorId,
       modelName: creatorName.get(creatorId) ?? '?',
       byShift,
-      assignedIds: assignedByModel.get(creatorId) ?? [],
-      total: assignedByModel.get(creatorId)?.length ?? 0,
+      // Les chatters PRÉSENTS sur la ligne, une fois chacun (Matin + Soir sur le même modèle = 1).
+      total: new Set(all.map((c) => c.id)).size,
     }
   }
 

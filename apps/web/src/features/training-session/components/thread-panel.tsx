@@ -88,7 +88,11 @@ export function ThreadPanel({
             l'anneau est `aria-hidden`, et un chiffre reste plus lisible sous pression. */}
         {showChrono && thread.status === 'open' && remaining != null && <ChronoBadge seconds={remaining} />}
       </header>
-      <MessageList messages={visible} pendingFan={pendingFan} fanName={thread.fanName} />
+      {/* `sending` en plus de `pendingFan` : la bulle « écrit… » existait, était stylée, et n'a
+          jamais été affichée UNE SEULE FOIS en solo — le délai de révélation y vaut 0, donc
+          `pendingFan` n'est jamais vrai, et le message du fan n'entre dans l'état qu'au retour de
+          l'action. Résultat : 1,4 s de vide à chaque tour, sans aucun signe que ça travaille. */}
+      <MessageList messages={visible} pendingFan={pendingFan || sending} fanName={thread.fanName} />
       {lost ? (
         <p className="border-t px-4 py-3 text-sm">
           <span className="font-medium">{lost.title}.</span> {lost.text}
