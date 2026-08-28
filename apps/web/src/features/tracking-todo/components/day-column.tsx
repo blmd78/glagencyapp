@@ -15,6 +15,7 @@ function SectionGroup({
   onDelete,
   onAdd,
   chatters,
+  canAssign,
   onDeleteSection,
 }: {
   day: TodoDay
@@ -24,6 +25,8 @@ function SectionGroup({
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
   chatters: TodoChatter[]
+  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin). */
+  canAssign: boolean
   onDeleteSection: (name: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -59,12 +62,12 @@ function SectionGroup({
         <em>
           {done}/{section.tasks.length}
         </em>
-        {canWrite ? (
+        {canWrite || canAssign ? (
           <>
             <button
               type="button"
               className="gadd"
-              title="Ajouter une tâche ici"
+              title={canWrite ? 'Ajouter une tâche ici' : 'Déposer une tâche ici'}
               onClick={() => setAdding(true)}
             >
               +
@@ -93,7 +96,7 @@ function SectionGroup({
         />
       ))}
 
-      {adding ? (
+      {adding && (canWrite || canAssign) ? (
         <div className="qadd">
           <input
             autoFocus
@@ -146,6 +149,7 @@ export function DayColumn({
   onDelete,
   onAdd,
   chatters,
+  canAssign,
   onDayOff,
   onAddSection,
   onDeleteSection,
@@ -156,6 +160,8 @@ export function DayColumn({
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
   chatters: TodoChatter[]
+  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin). */
+  canAssign: boolean
   onDayOff: (date: string) => void
   onAddSection: (name: string, weekday: number) => void
   onDeleteSection: (name: string) => void
@@ -203,6 +209,7 @@ export function DayColumn({
               onDelete={onDelete}
               onAdd={onAdd}
               chatters={chatters}
+              canAssign={canAssign}
               onDeleteSection={onDeleteSection}
             />
           ))

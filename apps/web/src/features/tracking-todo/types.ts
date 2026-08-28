@@ -74,6 +74,12 @@ export interface TodoLink {
 }
 
 export interface TodoWeek {
+  /**
+   * L'appelant peut DÉPOSER (et retirer) une tâche sur cette semaine sans en être le titulaire.
+   * C'est la seule dérogation de l'admin : il ne coche pas, ne déplace pas, ne débriefe pas.
+   * Sans ce drapeau, sa dérogation existait côté serveur mais aucun bouton ne l'exerçait.
+   */
+  canAssign: boolean
   /** Les habitudes du titulaire, pour le panneau de gestion. */
   habits: TodoHabit[]
   /** Les chatteurs que l'appelant peut viser par un 1:1. */

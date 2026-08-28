@@ -10,7 +10,9 @@ import { COST_WINDOW_DAYS, type CostRow, type OverviewData, type ReportRow, type
  */
 const AI_PRICES: Record<string, [input: number, output: number]> = {
   'claude-haiku-4-5': [1, 5],
-  'claude-sonnet-5': [3, 15],
+  // Sonnet 5 = 2/10. Le 3/15 qui était ici est le tarif de Sonnet 4.6 : le coût de la notation
+  // était surestimé de 50 %. Ne pas recopier le prix d'une génération sur la suivante.
+  'claude-sonnet-5': [2, 10],
 }
 /** Lecture de cache facturée ~10 % du prix d'entrée. */
 const CACHE_READ_RATIO = 0.1

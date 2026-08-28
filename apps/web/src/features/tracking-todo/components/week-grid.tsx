@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
 import { toast } from 'sonner'
 import { DayColumn } from './day-column'
-import { addTask, deleteSection, deleteTask, moveTask, saveSection, toggleTask } from '../actions'
+import { addTask, deleteHabit, deleteSection, deleteTask, deleteTaskOccurrence, moveTask, saveSection, toggleTask } from '../actions'
 import { toggleDayOff } from '../actions-content'
 import type { TodoTask, TodoWeek } from '../types'
 
@@ -84,8 +84,33 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     })
   }
 
+  /**
+   * Supprimer une tâche issue d'une habitude est AMBIGU — leur commentaire le dit, et ils posent
+   * la question au lieu de trancher : « La retirer seulement aujourd'hui, ou arrêter l'habitude
+   * pour de bon ? » (todo.html:1459-1476). On refusait le geste avec « Retire l'habitude pour la
+   * faire disparaître », ce qui laissait l'utilisateur sans issue depuis la tâche.
+   */
+  const [recurring, setRecurring] = useState<TodoTask | null>(null)
+
   const onDelete = (task: TodoTask): void => {
+    if (task.virtual) {
+      setRecurring(task)
+      return
+    }
     startTransition(() => run(() => deleteTask({ ownerId: week.ownerId, taskId: task.id })))
+  }
+
+  /** « Juste aujourd'hui » : on matérialise l'occurrence pour la supprimer, elle seule. */
+  const onDeleteOnce = (task: TodoTask): void => {
+    setRecurring(null)
+    startTransition(() => run(() => deleteTaskOccurrence({ ownerId: week.ownerId, taskId: task.id })))
+  }
+
+  /** « Supprimer l'habitude » : le gabarit disparaît, ce qui est déjà coché reste dans l'historique. */
+  const onDeleteHabit = (task: TodoTask): void => {
+    const habitId = task.id.split(':')[1]
+    setRecurring(null)
+    if (habitId) startTransition(() => run(() => deleteHabit({ ownerId: week.ownerId, habitId })))
   }
 
   const onAdd = (date: string, category: string, label: string, chatterId?: string | null): void => {
@@ -131,6 +156,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
   }
 
   return (
+    <>
     <DndContext
       id={id}
       sensors={sensors}
@@ -148,6 +174,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
               onDelete={onDelete}
               onAdd={onAdd}
               chatters={week.chatters}
+              canAssign={week.canAssign}
               onDayOff={onDayOff}
               onAddSection={onAddSection}
               onDeleteSection={onDeleteSection}
@@ -156,5 +183,23 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
         </div>
       </div>
     </DndContext>
+      {recurring ? (
+        <div className="recask" role="dialog" aria-label="Cette tâche revient chaque jour choisi">
+          <p className="rt">Cette tâche revient chaque jour choisi</p>
+          <p className="rd">La retirer seulement aujourd’hui, ou arrêter l’habitude pour de bon ?</p>
+          <div className="ra">
+            <button type="button" className="btn sm" onClick={() => onDeleteOnce(recurring)}>
+              Juste aujourd’hui
+            </button>
+            <button type="button" className="btn sm danger" onClick={() => onDeleteHabit(recurring)}>
+              Supprimer l’habitude
+            </button>
+            <button type="button" className="btn sm" onClick={() => setRecurring(null)}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
   )
 }

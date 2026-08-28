@@ -136,9 +136,9 @@ export async function deleteTask(raw: unknown): Promise<ActionResult> {
       // erreur) » — `task-delete` est la SEULE suppression qu'il puisse faire chez autrui
       // (routes.js.txt:306-315, qui refait le contrôle à la main au lieu d'utiliser `ownTask`).
       await assertOwnerOrAdmin(d.ownerId)
-      // Une occurrence virtuelle n'existe pas en base : la supprimer n'a rien à faire. Pour ne
-      // plus la voir, c'est l'habitude qu'il faut retirer — ce que dit leur écran.
-      if (parseVirtual(d.taskId)) throw new BusinessError("Retire l'habitude pour la faire disparaître.")
+      // Une occurrence virtuelle n'existe pas en base : `deleteTask` ne la traite pas. C'est
+      // `deleteTaskOccurrence` (« Juste aujourd'hui ») qui la matérialise avant de la retirer.
+      if (parseVirtual(d.taskId)) throw new BusinessError("Utilise « Juste aujourd'hui » pour cette occurrence.")
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_todo_tasks').delete().eq('id', d.taskId).eq('owner_id', d.ownerId)
@@ -313,6 +313,30 @@ export async function setHabitActive(raw: unknown): Promise<ActionResult> {
         .update({ active: d.active })
         .eq('id', d.habitId)
         .eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+/**
+ * « Juste aujourd'hui » : retire UNE occurrence d'habitude sans toucher au gabarit.
+ *
+ * L'occurrence n'existe pas en base tant qu'on n'y a pas touché : on la matérialise d'abord, puis
+ * on la supprime. La ligne persistée devient la trace « ce jour-là, la tâche a été retirée », et
+ * l'habitude continue de produire les autres jours — c'est la première des deux issues de leur
+ * fenêtre (todo.html:1466).
+ */
+export async function deleteTaskOccurrence(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: deleteTaskInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const id = await materialize(d.ownerId, d.taskId)
+      const { error } = await createAdminClient()
+        .from('tracker_todo_tasks').delete().eq('id', id).eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
       revalidatePath(TODO_PATH)
     },

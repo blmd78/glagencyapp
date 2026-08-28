@@ -41,16 +41,13 @@ function lastSeen(iso: string | null): string {
 const byProgress = (a: RosterRow, b: RosterRow) => b.casesDone - a.casesDone
 
 export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; totalCases: number }) {
-  const newcomers = roster.filter((r) => r.isNew).length
   const sorted = [...roster].sort(byProgress)
   const enAgence = sorted.filter((r) => r.models.length > 0)
   const enFormation = sorted.filter((r) => r.models.length === 0)
   return (
+    // Le décompte « N chatters, X nouveaux » qui ouvrait la section a été retiré : c'est mot pour
+    // mot ce que disent maintenant les deux premières tuiles du bandeau de tête.
     <section className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">
-        {roster.length} chatter{roster.length > 1 ? 's' : ''} sur la face Formation
-        {newcomers > 0 && `, ${newcomers} nouveau${newcomers > 1 ? 'x' : ''}`}
-      </p>
       {roster.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Personne n’a encore le droit « Entraînement » — attribue-le depuis Membres.

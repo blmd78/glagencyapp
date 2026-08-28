@@ -6,6 +6,7 @@ import { requireAccess } from '@/lib/auth'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { TodoTemplate } from '@/features/tracking-todo/TodoTemplate'
 import { TodoSkeleton } from '@/features/tracking-todo/components/todo-skeleton'
+import { getTodoHolders } from '@/features/tracking-todo/services/get-holders'
 import { getTodoWeek, weekStartOf } from '@/features/tracking-todo/services/get-week'
 import type { TodoWeek } from '@/features/tracking-todo/types'
 
@@ -24,6 +25,10 @@ export default async function PresenceTodoPage({
   const { week, owner } = await searchParams
   const ownerId = profile.role === 'admin' && owner ? owner : profile.id
 
+  // Les encadrants dont un admin peut ouvrir la semaine. Leur écran a le même sélecteur
+  // (todo.html:578) ; sans lui, la dérogation « déposer une tâche » n'a aucun point d'entrée.
+  const holders = profile.role === 'admin' ? getTodoHolders() : Promise.resolve([])
+
   const data = getTodoWeek({
     ownerId,
     callerId: profile.id,
@@ -35,7 +40,7 @@ export default async function PresenceTodoPage({
   return (
     <div className="trk trk-page">
       <Suspense fallback={<CtxBar title="To Do" />}>
-        <Header data={data} owner={owner} />
+        <Header data={data} owner={owner} holders={holders} viewerId={profile.id} />
       </Suspense>
       <Suspense fallback={<TodoSkeleton />}>
         <Body data={data} />
@@ -44,8 +49,18 @@ export default async function PresenceTodoPage({
   )
 }
 
-async function Header({ data, owner }: { data: Promise<TodoWeek>; owner?: string }) {
-  const d = await data
+async function Header({
+  data,
+  owner,
+  holders,
+  viewerId,
+}: {
+  data: Promise<TodoWeek>
+  owner?: string
+  holders: Promise<{ id: string; name: string }[]>
+  viewerId: string
+}) {
+  const [d, people] = await Promise.all([data, holders])
   const href = (w: string): Route => {
     const q = new URLSearchParams({ week: w })
     if (owner) q.set('owner', owner)
@@ -62,6 +77,29 @@ async function Header({ data, owner }: { data: Promise<TodoWeek>; owner?: string
       <Link className="btn sm btn-ghost" href={href(addDays(d.weekStart, 7))}>
         Semaine suivante →
       </Link>
+      {/* Sélecteur de semaine — admin seulement (`holders` est vide pour les autres). Liens et non
+          `<select>` : la page est un Server Component, l'état vit dans l'URL et reste partageable. */}
+      {people.length > 0 ? (
+        <span className="whose">
+          <Link
+            className={owner && owner !== viewerId ? 'btn sm btn-ghost' : 'btn sm'}
+            href={`/chatter/presence/todo?week=${d.weekStart}` as Route}
+          >
+            Ma semaine
+          </Link>
+          {people
+            .filter((p) => p.id !== viewerId)
+            .map((p) => (
+              <Link
+                key={p.id}
+                className={owner === p.id ? 'btn sm' : 'btn sm btn-ghost'}
+                href={`/chatter/presence/todo?week=${d.weekStart}&owner=${p.id}` as Route}
+              >
+                {p.name}
+              </Link>
+            ))}
+        </span>
+      ) : null}
     </CtxBar>
   )
 }

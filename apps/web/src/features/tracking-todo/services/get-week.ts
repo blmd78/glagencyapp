@@ -168,5 +168,6 @@ export async function getTodoWeek(params: {
     // d'y déposer et d'y retirer une tâche : ces deux gestes-là ont leur propre garde côté action.
     // Le legacy faisait pareil à l'écran : « la page ne rend alors aucun bouton » (routes.js.txt:252-256).
     canWrite: params.callerId === params.ownerId,
+    canAssign: params.isAdmin && params.callerId !== params.ownerId,
   }
 }
