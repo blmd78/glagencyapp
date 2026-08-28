@@ -6,6 +6,8 @@ import type { ChatterCoaching, CoachingSession, Skill, SkillRating } from '../ty
 interface RawRating {
   id: string
   skill_id: string
+  /** Non nul quand la note vient d'un 1:1 — c'est alors la date de la session qui fait foi. */
+  session_id: string | null
   stars: number
   comment: string
   created_at: string
@@ -37,7 +39,7 @@ export async function getChatterCoaching(
     // de place d'une page à l'autre et être lues deux fois ou pas du tout.
     fetchAll<RawRating>((f, t) =>
       supabase.from('tracker_ratings')
-        .select('id, skill_id, stars, comment, created_at, author:profiles!tracker_ratings_author_id_fkey(display_name)')
+        .select('id, skill_id, session_id, stars, comment, created_at, author:profiles!tracker_ratings_author_id_fkey(display_name)')
         .eq('chatter_id', profileId)
         .order('created_at', { ascending: false })
         .order('id')
@@ -63,6 +65,9 @@ export async function getChatterCoaching(
 
   const name = (a: { display_name: string | null } | null) => a?.display_name ?? 'inconnu'
 
+  // Une note posée pendant un 1:1 est datée par la SESSION, pas par l'instant d'écriture.
+  const sessionDate = new Map((sessionsRes.data ?? []).map((x) => [x.id, x.date as string]))
+
   const skills: Skill[] = (skillsRes.data ?? []).map((s) => {
     const history: SkillRating[] = (ratingsRes.data ?? [])
       .filter((r) => r.skill_id === s.id)
@@ -71,7 +76,10 @@ export async function getChatterCoaching(
         stars: r.stars,
         comment: r.comment,
         author: name(r.author),
-        date: r.created_at.slice(0, 10),
+        // La date de la SESSION fait foi quand la note en vient : un 1:1 du 19 saisi le 27 doit
+        // apparaître au 19, comme leur historique (`tracker_sessions.date`). `created_at` ne sert
+        // que de repli pour une notation directe, hors session.
+        date: (sessionDate.get(r.session_id ?? '') ?? r.created_at).slice(0, 10),
       }))
     return {
       id: s.id,

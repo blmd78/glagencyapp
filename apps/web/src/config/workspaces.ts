@@ -25,8 +25,6 @@ import {
   Network,
   UsersRound,
   Activity,
-  LayoutGrid,
-  Headset,
   ListTodo,
   ClipboardCheck,
   ClipboardPen,
@@ -127,14 +125,19 @@ export const WORKSPACES: Workspace[] = [
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
       { href: '/chatter/planning', label: 'Planning / Todo', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
-      // Tracker de présence — les quatre écrans partagent le slug `presence` : un seul droit à
-      // cocher dans Membres, comme `police` couvre déjà Tracker + Rapport. Le slug du board se
-      // déduit de son href ; les trois autres le portent explicitement.
-      { href: '/chatter/presence', label: 'Board', icon: LayoutGrid, group: 'presence' },
-      { href: '/chatter/presence/managers', label: 'Managers', icon: Headset, slug: 'presence', group: 'presence' },
+      // Tracker de présence — les écrans partagent le slug `presence` : un seul droit à cocher dans
+      // Membres, comme `police` couvre déjà Tracker + Rapport.
+      //
+      // TROIS ÉCRANS SEULEMENT, et c'est délibéré. Le Board, la vue Managers et la fiche de présence
+      // d'un chatteur dépendent toutes de l'INGESTION (`tracker_events`, `tracker_devices`), qui
+      // n'existe pas encore : leurs tables sont vides en prod et aucun écrivain n'est écrit dans le
+      // dépôt. Les afficher, c'est promettre trois pages blanches. Les ROUTES restent servies —
+      // il n'y a qu'à remettre les items le jour où l'ingestion arrive.
       { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
-      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence' },
+      // Le Récap agrège les débriefs VERBATIM de tous les encadrants : admin seul, page et RLS
+      // (0132) alignées. `adminOnly` évite d'afficher à un encadrant un lien qui le rejetterait.
+      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence', adminOnly: true },
       // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
       // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
       { href: '/chatter/organisation', label: 'Organisation', icon: Network, group: 'equipe' },

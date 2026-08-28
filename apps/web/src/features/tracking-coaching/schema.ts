@@ -22,15 +22,27 @@ export const sessionInput = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
   /** Sur 20, saisie à la main. Vide = session tenue sans note. */
   score: z.number().min(0, 'Entre 0 et 20').max(20, 'Entre 0 et 20').nullable().default(null),
-  summary: z.string().max(8000).default(''),
+  summary: z.string().trim().min(1, 'Le compte-rendu est obligatoire.').max(8000),
   general: z.string().max(8000).default(''),
-  ratings: z.array(z.object({ skillId: z.uuid(), stars: z.number().int().min(1).max(5) })).max(50).default([]),
+  /**
+   * Une compétence COCHÉE pendant la session : sa note et le « pourquoi ». Les non cochées ne sont
+   * pas transmises et gardent leur niveau — le sens littéral de leur sous-texte, « Coche seulement
+   * celles que tu as vues ».
+   */
+  ratings: z
+    .array(z.object({
+      skillId: z.uuid(),
+      stars: z.number().int().min(1).max(5),
+      comment: z.string().max(2000).default(''),
+    }))
+    .max(50)
+    .default([]),
 })
 
 export const updateSessionInput = z.object({
   sessionId: z.uuid(),
   score: z.number().min(0).max(20).nullable().default(null),
-  summary: z.string().max(8000).default(''),
+  summary: z.string().trim().min(1, 'Le compte-rendu est obligatoire.').max(8000),
   general: z.string().max(8000).default(''),
 })
 
@@ -76,8 +88,16 @@ const scoreField = z
   .transform((v) => (v === '' ? null : Number(v.replace(',', '.'))))
 
 export const sessionForm = z.object({
+  /**
+   * La date du 1:1 est CHOISIE, pré-remplie à aujourd'hui, sans borne — leur écran a un
+   * `<input type="date">` libre sous le label « Date du 1:1 » (notes-67.html:600). Un 1:1 se
+   * saisit souvent le lendemain ; l'imposer à aujourd'hui, comme on le faisait, rendait
+   * l'historique faux.
+   */
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide'),
   score: scoreField,
-  summary: z.string().max(8000),
+  /** « Le compte-rendu est obligatoire. » — leur validation, mot pour mot (notes-67.html:1076). */
+  summary: z.string().trim().min(1, 'Le compte-rendu est obligatoire.').max(8000),
   general: z.string().max(8000),
 })
 export type SessionFormInput = z.input<typeof sessionForm>

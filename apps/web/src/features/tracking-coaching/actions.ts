@@ -155,6 +155,9 @@ export async function saveSession(raw: unknown): Promise<ActionResult> {
             skill_id: r.skillId,
             session_id: session.id,
             stars: r.stars,
+            // Le « Pourquoi cette note ? » saisi en face de l'étoile — il était perdu (`comment: ''`
+            // en dur côté composant) alors que l'historique sait l'afficher.
+            comment: r.comment,
             author_id: authorId,
           })),
         )
