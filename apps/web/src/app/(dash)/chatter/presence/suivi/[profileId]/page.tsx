@@ -17,11 +17,14 @@ import type { ChatterCoaching } from '@/features/tracking-coaching/types'
  */
 export default async function PresenceSuiviChatterPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ profileId: string }>
+  /** `?bilan=<taskId>` : on arrive d'une tâche « 1:1 » de la To-Do, le formulaire s'ouvre armé. */
+  searchParams: Promise<{ bilan?: string }>
 }) {
   const profile = await requireAccess('presence')
-  const { profileId } = await params
+  const [{ profileId }, { bilan }] = await Promise.all([params, searchParams])
   // `hasWriteAccess` : le test précédent était TOUJOURS VRAI — il refaisait le contrôle que
   // `requireAccess('presence')` vient de passer deux lignes plus haut. Celui-ci exclut le chatteur,
   // qui peut porter la page en lecture (miroir de `can_write_page()`, 0060).
@@ -42,7 +45,7 @@ export default async function PresenceSuiviChatterPage({
         <Header data={data} />
       </Suspense>
       <Suspense fallback={<ChatterFileSkeleton />}>
-        <Body data={data} />
+        <Body data={data} bilanTaskId={bilan ?? null} viewerId={profile.id} />
       </Suspense>
     </div>
   )
@@ -62,8 +65,16 @@ async function Header({ data }: { data: Promise<ChatterCoaching | null> }) {
   )
 }
 
-async function Body({ data }: { data: Promise<ChatterCoaching | null> }) {
+async function Body({
+  data,
+  bilanTaskId,
+  viewerId,
+}: {
+  data: Promise<ChatterCoaching | null>
+  bilanTaskId: string | null
+  viewerId: string
+}) {
   const d = await data
   if (!d) notFound()
-  return <ChatterFile data={d} />
+  return <ChatterFile data={d} bilanTaskId={bilanTaskId} viewerId={viewerId} />
 }

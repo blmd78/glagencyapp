@@ -1,6 +1,8 @@
 import { addDays, isoWeekday, todayParis } from '@glagency/core'
+import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import type { TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
+import { getCreatorScope } from '@/lib/services/creator-scope'
+import type { TodoChatter, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 
 /** Lundi de la semaine contenant `day`. */
 export const weekStartOf = (day: string): string => addDays(day, -(isoWeekday(day) - 1))
@@ -15,6 +17,8 @@ export const weekStartOf = (day: string): string => addDays(day, -(isoWeekday(da
 export async function getTodoWeek(params: {
   ownerId: string
   callerId: string
+  /** Rôle EXACT de l'appelant — c'est lui qui décide du périmètre modèles (jamais `role`). */
+  callerRole: string
   isAdmin: boolean
   week?: string
 }): Promise<TodoWeek> {
@@ -27,10 +31,14 @@ export async function getTodoWeek(params: {
     await Promise.all([
       supabase.from('tracker_todo_sections').select('name, weekdays, position')
         .eq('owner_id', params.ownerId).order('position'),
-      supabase.from('tracker_todo_tasks').select('id, date, category, label, done, position, created_by')
+      supabase.from('tracker_todo_tasks')
+        .select('id, date, category, label, done, position, created_by, chatter_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd).order('position'),
-      supabase.from('tracker_todo_habits').select('id, category, label, weekdays, position')
-        .eq('owner_id', params.ownerId).eq('active', true).order('position'),
+      // TOUTES les habitudes, actives ou non : le panneau de gestion doit montrer celles en pause
+      // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
+      // bas, au moment de projeter les occurrences dans la semaine.
+      supabase.from('tracker_todo_habits').select('id, category, label, weekdays, active, position')
+        .eq('owner_id', params.ownerId).order('position'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
       supabase.from('tracker_todo_notes').select('body')
@@ -62,7 +70,7 @@ export async function getTodoWeek(params: {
     const names = new Set<string>()
     for (const s of sections) if (s.weekdays.split(',').map(Number).includes(wd)) names.add(s.name)
     for (const t of dayTasks) names.add(t.category)
-    for (const h of habits) if (h.weekdays.split(',').map(Number).includes(wd)) names.add(h.category)
+    for (const h of habits) if (h.active && h.weekdays.split(',').map(Number).includes(wd)) names.add(h.category)
 
     const ordered = [...names].sort((a, b) => {
       const pa = sections.find((s) => s.name === a)?.position ?? 999
@@ -88,9 +96,12 @@ export async function getTodoWeek(params: {
             done: t.done,
             virtual: false,
             fromOther: t.created_by != null && t.created_by !== params.ownerId,
+            chatterId: t.chatter_id,
+            chatterName: t.chatter?.display_name ?? null,
           }))
         // Une habitude ne s'affiche que si son occurrence du jour n'a pas déjà été matérialisée.
         const virtual: TodoTask[] = habits
+          .filter((h) => h.active)
           .filter((h) => h.category === name && h.weekdays.split(',').map(Number).includes(wd))
           .filter((h) => !real.some((r) => r.label === h.label))
           .map((h) => ({
@@ -99,6 +110,9 @@ export async function getTodoWeek(params: {
             done: false,
             virtual: true,
             fromOther: false,
+            // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
+            chatterId: null,
+            chatterName: null,
           }))
         return {
           name,
@@ -112,10 +126,37 @@ export async function getTodoWeek(params: {
   const todayCol = days.find((d) => d.date === today)
   const allToday = todayCol?.sections.flatMap((s) => s.tasks) ?? []
 
+  // Les chatteurs proposables dans « Session 1:1 avec » — bornés au périmètre de l'APPELANT, comme
+  // à la pose côté serveur : proposer un chatteur qu'on ne pourra pas noter n'a pas de sens.
+  const scope = await getCreatorScope(params.callerId, params.callerRole)
+  const chatters: TodoChatter[] = []
+  {
+    const admin = createAdminClient()
+    const { data: rows, error: cErr } = await admin
+      .from('profiles')
+      .select('id, display_name, profile_creators(creator_id)')
+      .eq('role', 'chatteur')
+      .is('left_at', null)
+      .order('display_name')
+    if (cErr) throw new Error(cErr.message)
+    for (const r of rows ?? []) {
+      const ok = !scope || (r.profile_creators ?? []).some((pc) => scope.has(pc.creator_id))
+      if (ok) chatters.push({ id: r.id, name: r.display_name ?? '—' })
+    }
+  }
+
   return {
     ownerId: params.ownerId,
     weekStart,
     days,
+    habits: habits.map((h) => ({
+      id: h.id,
+      label: h.label,
+      category: h.category,
+      weekdays: h.weekdays.split(',').map(Number),
+      active: h.active,
+    })),
+    chatters,
     notes: notesRes.data?.body ?? '',
     links: (linksRes.data ?? []) as TodoLink[],
     daily: dailyRes.data ?? { focus: '', problem: '', positive: '', negative: '', notes: '' },

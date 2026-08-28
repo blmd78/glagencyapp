@@ -27,6 +27,7 @@ export default async function PresenceTodoPage({
   const data = getTodoWeek({
     ownerId,
     callerId: profile.id,
+    callerRole: profile.baseRole,
     isAdmin: profile.role === 'admin',
     week,
   })

@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { todayParis } from '@glagency/core'
 import { deleteSession, rateSkill, saveSession } from '../actions'
+import { completeOneToOne } from '@/lib/tracking/complete-one-to-one'
+import { useRouter } from 'next/navigation'
 import { sessionForm, type SessionFormInput, type SessionFormValues } from '../schema'
 import { CoachNotes } from './coach-notes'
 import type { ChatterCoaching } from '../types'
@@ -50,13 +52,28 @@ function Stars({
  * Les avertissements de leur en-tête ne sont PAS repris (décision du 2026-08-27) : les sanctions
  * relèvent du Tracker police, pas du coaching.
  */
-export function ChatterFile({ data }: { data: ChatterCoaching }) {
+export function ChatterFile({
+  data,
+  bilanTaskId,
+  viewerId,
+}: {
+  data: ChatterCoaching
+  /**
+   * Non nul = on arrive d'une tâche « 1:1 » de la To-Do. Le formulaire s'ouvre d'office, et
+   * l'enregistrement clôt la tâche au lieu de créer une session isolée — c'est l'aller-retour
+   * du legacy (`/notes/:id?bilan=<taskId>` puis retour sur `/todo`).
+   */
+  bilanTaskId?: string | null
+  /** Id du VISITEUR — c'est lui le titulaire de la tâche 1:1 qu'on vient clôturer. */
+  viewerId?: string
+}) {
   // ⚠️ OBLIGATOIRE avec React Hook Form : le React Compiler mémoïse `formState`, qui devient muet
   // — plus d'erreurs sous les champs, plus d'état de chargement. Règle du dépôt.
   'use no memo'
 
   const [pending, startTransition] = useTransition()
-  const [openSession, setOpenSession] = useState(false)
+  const [openSession, setOpenSession] = useState(!!bilanTaskId)
+  const router = useRouter()
   /**
    * Les compétences COCHÉES pour cette session, avec leur note et leur « pourquoi ». Une clé
    * absente = compétence non travaillée : elle n'est pas transmise et garde son niveau.
@@ -101,13 +118,23 @@ export function ChatterFile({ data }: { data: ChatterCoaching }) {
       toast.error(`Mets une note à « ${sansNote.name} », ou décoche-la.`)
       return
     }
+    const ratings = Object.entries(picks).map(([skillId, p]) => ({ skillId, stars: p.stars, comment: p.comment }))
+    if (bilanTaskId) {
+      // Arrivée depuis la To-Do : la session ET la coche partent ensemble, puis on rend la main à
+      // la to-do — comme leur `saveBilan`, qui poste sur `/api/todo/done` et repart sur `/todo`.
+      startTransition(async () => {
+        const res = await completeOneToOne({ ownerId: viewerId, taskId: bilanTaskId, ...values, ratings })
+        if (!res.success) {
+          toast.error(res.error ?? 'Erreur inattendue')
+          return
+        }
+        toast.success('1:1 clôturé — le bilan est dans sa fiche')
+        router.push('/chatter/presence/todo')
+      })
+      return
+    }
     run(
-      () =>
-        saveSession({
-          chatterId: data.profileId,
-          ...values,
-          ratings: Object.entries(picks).map(([skillId, p]) => ({ skillId, stars: p.stars, comment: p.comment })),
-        }),
+      () => saveSession({ chatterId: data.profileId, ...values, ratings }),
       'Session enregistrée',
     )
     setOpenSession(false)

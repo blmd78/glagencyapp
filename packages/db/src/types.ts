@@ -3633,6 +3633,7 @@ export type Database = {
       tracker_todo_tasks: {
         Row: {
           category: string
+          chatter_id: string | null
           created_at: string
           created_by: string | null
           date: string
@@ -3642,9 +3643,11 @@ export type Database = {
           label: string
           owner_id: string
           position: number
+          session_id: string | null
         }
         Insert: {
           category: string
+          chatter_id?: string | null
           created_at?: string
           created_by?: string | null
           date: string
@@ -3654,9 +3657,11 @@ export type Database = {
           label: string
           owner_id: string
           position?: number
+          session_id?: string | null
         }
         Update: {
           category?: string
+          chatter_id?: string | null
           created_at?: string
           created_by?: string | null
           date?: string
@@ -3666,8 +3671,16 @@ export type Database = {
           label?: string
           owner_id?: string
           position?: number
+          session_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "tracker_todo_tasks_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tracker_todo_tasks_created_by_fkey"
             columns: ["created_by"]
@@ -3680,6 +3693,13 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracker_todo_tasks_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "tracker_sessions"
             referencedColumns: ["id"]
           },
         ]

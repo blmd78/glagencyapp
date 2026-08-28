@@ -9,6 +9,8 @@ import {
   type DragEndEvent,
   type ScreenReaderInstructions,
 } from '@dnd-kit/core'
+import { useRouter } from 'next/navigation'
+import type { Route } from 'next'
 import { toast } from 'sonner'
 import { DayColumn } from './day-column'
 import { addTask, deleteSection, deleteTask, moveTask, saveSection, toggleTask } from '../actions'
@@ -59,6 +61,8 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   )
 
+  const router = useRouter()
+
   const run = async (fn: () => Promise<{ success: boolean; error?: string }>): Promise<void> => {
     setBusy(true)
     const res = await fn()
@@ -67,6 +71,13 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
   }
 
   const onToggle = (task: TodoTask, done: boolean): void => {
+    // COCHER un 1:1 n'est pas une case à cocher : on va rendre le bilan sur la fiche du chatteur,
+    // et c'est son enregistrement qui clôt la tâche. « Pas de compte-rendu, pas de coche » — c'est
+    // ce qui garantit qu'un 1:1 réalisé laisse toujours une trace. DÉCOCHER reste direct.
+    if (done && task.chatterId) {
+      router.push(`/chatter/presence/suivi/${task.chatterId}?bilan=${task.id}` as Route)
+      return
+    }
     startTransition(async () => {
       applyOptimistic({ taskId: task.id, done })
       await run(() => toggleTask({ ownerId: week.ownerId, taskId: task.id, done }))
@@ -77,8 +88,10 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     startTransition(() => run(() => deleteTask({ ownerId: week.ownerId, taskId: task.id })))
   }
 
-  const onAdd = (date: string, category: string, label: string): void => {
-    startTransition(() => run(() => addTask({ ownerId: week.ownerId, date, category, label })))
+  const onAdd = (date: string, category: string, label: string, chatterId?: string | null): void => {
+    startTransition(() =>
+      run(() => addTask({ ownerId: week.ownerId, date, category, label, chatterId: chatterId ?? null })),
+    )
   }
 
   const onDayOff = (date: string): void => {
@@ -134,6 +147,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
               onToggle={onToggle}
               onDelete={onDelete}
               onAdd={onAdd}
+              chatters={week.chatters}
               onDayOff={onDayOff}
               onAddSection={onAddSection}
               onDeleteSection={onDeleteSection}

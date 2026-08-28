@@ -5,9 +5,21 @@ import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
 import { assertOwner, assertOwnerOrAdmin, TODO_PATH } from './actions-shared'
 import {
-  addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput, habitInput, moveTaskInput,
-  renameSectionInput, sectionInput, toggleTaskInput,
+  addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput,
+  habitInput, moveTaskInput, renameHabitInput, renameSectionInput, sectionInput,
+  setHabitActiveInput, toggleTaskInput,
 } from './schema'
+import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
+import { getProfile } from '@/lib/auth'
+
+/** Le chatteur visé est-il dans le périmètre modèles de l'appelant ? (message du legacy) */
+async function assertChatterInScope(callerId: string, chatterId: string): Promise<void> {
+  const profile = await getProfile()
+  const scope = await getCreatorScope(callerId, profile?.baseRole ?? 'chatteur')
+  if (!(await isChatterInScope(scope, chatterId))) {
+    throw new BusinessError("Ce chatter n'est pas dans ton périmètre.")
+  }
+}
 
 /**
  * Mutations de la to-do hebdomadaire.
@@ -62,12 +74,17 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (d) => {
       const callerId = await assertOwnerOrAdmin(d.ownerId)
+      // Le périmètre testé est celui de CELUI QUI DÉPOSE, pas du titulaire de la semaine — c'est
+      // la nuance du legacy : « Viser un chatter hors de son périmètre n'a pas de sens : la tâche
+      // produirait un compte-rendu qu'il n'a pas le droit d'écrire » (routes.js.txt:291-295).
+      if (d.chatterId) await assertChatterInScope(callerId, d.chatterId)
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_tasks').insert({
         owner_id: d.ownerId,
         date: d.date,
         category: d.category,
         label: d.label,
+        chatter_id: d.chatterId,
         // Trace de la hiérarchie : `null` quand on écrit chez soi, pour ne pas marquer d'un
         // « déposée par » toutes les tâches qu'on se donne soi-même.
         created_by: callerId === d.ownerId ? null : callerId,
@@ -87,6 +104,17 @@ export async function toggleTask(raw: unknown): Promise<ActionResult> {
       await assertOwner(d.ownerId)
       const id = await materialize(d.ownerId, d.taskId)
       const admin = createAdminClient()
+      // COCHER un 1:1 ne se fait pas ici : il faut passer par le bilan (`completeOneToOne`), qui
+      // exige le compte-rendu et crée la session. Décocher, en revanche, est direct quel que soit
+      // le type — comme leur `toggle()` (todo.html:1447-1456).
+      if (d.done) {
+        const { data: t, error: tErr } = await admin
+          .from('tracker_todo_tasks').select('chatter_id').eq('id', id).maybeSingle()
+        if (tErr) throw new Error(tErr.message)
+        if (t?.chatter_id) {
+          throw new BusinessError('Cette tâche 1:1 se termine par son bilan, sur la fiche du chatter.')
+        }
+      }
       const { error } = await admin
         .from('tracker_todo_tasks')
         .update({ done: d.done, done_at: d.done ? new Date().toISOString() : null })
@@ -242,6 +270,49 @@ export async function deleteHabit(raw: unknown): Promise<ActionResult> {
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_todo_habits').delete().eq('id', d.habitId).eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+
+/** Renomme une habitude — `prompt('Renommer l'habitude :')` chez eux, un champ chez nous. */
+export async function renameHabit(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: renameHabitInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const { error } = await createAdminClient()
+        .from('tracker_todo_habits')
+        .update({ label: d.label })
+        .eq('id', d.habitId)
+        .eq('owner_id', d.ownerId)
+      if (error) throw new Error(error.message)
+      revalidatePath(TODO_PATH)
+    },
+  })
+}
+
+/**
+ * Met une habitude en pause, ou la reprend. Leur endpoint `habit-active` existe mais AUCUN bouton
+ * ne l'appelle dans la page capturée — seule la classe `off` en montre l'effet. On expose le geste :
+ * mettre une habitude en pause sans perdre son historique est plus utile que de la supprimer.
+ */
+export async function setHabitActive(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: setHabitActiveInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertOwner(d.ownerId)
+      const { error } = await createAdminClient()
+        .from('tracker_todo_habits')
+        .update({ active: d.active })
+        .eq('id', d.habitId)
+        .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
       revalidatePath(TODO_PATH)
     },
