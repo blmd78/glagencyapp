@@ -26,7 +26,11 @@ export default async function PresenceBoardPage({
 
   const data = getShiftBoard({
     callerId: profile.id,
-    callerRole: profile.role,
+    // `baseRole` et NON `role` : ce dernier écrase `manager`/`sous-manager`/`police` en
+    // 'admin'|'chatteur' (lib/auth/index.ts:31), or `getCreatorScope` teste justement ces
+    // trois rôles-là — le périmètre du board était donc INERTE. La page Police voisine passe
+    // correctement `baseRole` (chatter/police/page.tsx:29) ; c'est le même contrat.
+    callerRole: profile.baseRole,
     shiftKey: shift,
     date,
     model: m,

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { getProfile } from '@/lib/auth'
+import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import {
   addNoteInput, archiveSkillInput, deleteNoteInput, deleteSessionInput, rateInput,
@@ -35,8 +35,10 @@ const LIST = '/chatter/presence/suivi'
 async function requireCoach(): Promise<{ id: string; role: string }> {
   const profile = await getProfile()
   if (!profile) throw new BusinessError('Session expirée.')
-  if (profile.role !== 'admin' && !profile.pages.includes('presence')) {
-    throw new BusinessError("Tu n'as pas accès au suivi des chatters.")
+  // `hasWriteAccess` et non un simple `pages.includes` : il EXCLUT le chatteur, qui peut porter la
+  // page en lecture. Miroir applicatif de `can_write_page()` (0060), utilisé partout ailleurs.
+  if (!hasWriteAccess(profile, 'presence')) {
+    throw new BusinessError("Tu n'as pas le droit d'écrire dans le suivi des chatters.")
   }
   return { id: profile.id, role: profile.baseRole }
 }
@@ -47,6 +49,8 @@ async function requireCoach(): Promise<{ id: string; role: string }> {
  */
 async function requireCoachFor(chatterId: string): Promise<string> {
   const caller = await requireCoach()
+  // Ordre du legacy : « introuvable » (404) AVANT « non autorisé » (403).
+  await assertIsChatter(chatterId)
   const scope = await getCreatorScope(caller.id, caller.role)
   if (!(await isChatterInScope(scope, chatterId))) {
     // Le libellé du legacy, au présent : le cas visé est une réassignation de modèles entre
@@ -54,6 +58,23 @@ async function requireCoachFor(chatterId: string): Promise<string> {
     throw new BusinessError("Ce chatter n'est plus dans ton périmètre.")
   }
   return caller.id
+}
+
+/**
+ * La cible est-elle bien un CHATTEUR ? Portage du résolveur `chatterExists` du legacy
+ * (routes.js.txt:157), qui répond « introuvable » (404) avant tout contrôle de périmètre.
+ *
+ * Sans lui, le seul test était le recoupement `profile_creators` : un encadrant pouvait donc se
+ * noter LUI-MÊME, ou noter un pair partageant une de ses modèles — exactement ce que l'en-tête de
+ * ce fichier interdit (« on note quelqu'un, on ne se note pas soi-même »).
+ */
+async function assertIsChatter(chatterId: string): Promise<void> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profiles').select('role').eq('id', chatterId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new BusinessError('Chatter introuvable.')
+  if (data.role !== 'chatteur') throw new BusinessError("Ce profil n'est pas un chatter.")
 }
 
 /** Chatteur propriétaire d'une session — « introuvable » AVANT tout contrôle de périmètre (legacy). */
