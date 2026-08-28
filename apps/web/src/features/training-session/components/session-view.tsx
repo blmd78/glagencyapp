@@ -25,6 +25,20 @@ export function SessionView({ data }: { data: SessionData }) {
   const router = useRouter()
   const now = useNow(data.serverNow)
   const [threads, setThreads] = useState<SessionThread[]>(data.threads)
+  // `router.refresh()` re-rend le Server Component et fait descendre de NOUVELLES props — mais un
+  // `useState` initialisé une fois les ignore. Sans cette resynchronisation, le rafraîchissement
+  // déclenché après un échec d'envoi ne servait à RIEN : l'écran gardait le message que le serveur
+  // venait de retirer, et un chrono périmé. On remplace l'état par la vérité serveur quand elle
+  // change — après un échec, c'est elle qui fait foi, pas l'optimiste local.
+  // Patron React officiel « ajuster l'état quand une prop change » : mémoriser la dernière valeur
+  // SERVEUR dans un état, la comparer pendant le rendu. Un `useRef` ferait la même chose mais le
+  // lint l'interdit (`react-hooks/refs` : lire `.current` pendant le rendu), et un `useEffect`
+  // rendrait une frame avec l'état périmé.
+  const [lastServer, setLastServer] = useState(data.threads)
+  if (lastServer !== data.threads) {
+    setLastServer(data.threads)
+    setThreads(data.threads)
+  }
   const [current, setCurrent] = useState(data.threads[0]?.id ?? '')
   const [ended, setEnded] = useState(!!data.endedAt)
   const [timeoutFailed, setTimeoutFailed] = useState<Set<string>>(new Set())

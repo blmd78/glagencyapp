@@ -248,7 +248,14 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
         if (rErr) console.error('[recrutement notation] jeton non rendu', rErr.message)
         Sentry.captureException(err)
         console.error('[recrutement notation]', err)
-        throw new BusinessError(SCORE_KO)
+        throw new BusinessError(
+          aiMessage(err, {
+            retryable: SCORE_KO,
+            // Même public que le fan du test : un CANDIDAT. Sa tentative est enregistrée, son jeton
+            // de notation a été rendu juste au-dessus — il pourra reprendre.
+            blocked: 'L’analyse est momentanément indisponible. Reviens plus tard — ta tentative est enregistrée.',
+          }),
+        )
       }
 
       // `.is('bot_total', null)` : deux notations concurrentes (double-clic sur « Terminer ») ne

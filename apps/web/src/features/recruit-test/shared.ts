@@ -11,6 +11,7 @@
 import { z } from 'zod'
 import type { QiSlot, RecruitConfig } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
+import * as Sentry from '@sentry/nextjs'
 import { BusinessError } from '@/lib/actions'
 import { NO_ATTEMPT } from './types'
 
@@ -295,7 +296,14 @@ export async function startAttemptRow(
   })
   // Le plafond est rendu par la fonction en exception applicative : message stable, jamais montré
   // tel quel (on rend le refus métier français).
-  if (error?.message.includes('RECRUIT_DAILY_CAP')) throw new BusinessError(DAILY_CAPPED)
+  if (error?.message.includes('RECRUIT_DAILY_CAP')) {
+    // `runAction` ne rapporte QUE les erreurs techniques : une `BusinessError` n'atteint jamais
+    // Sentry. Sans cette capture, le plafond de facturation se déclencherait en SILENCE — le test
+    // fermé toute une journée sans que personne ne l'apprenne, ce qui est le pire des deux mondes :
+    // on paie la protection et on perd les candidats sans le savoir.
+    Sentry.captureMessage('Recrutement : plafond journalier atteint — le test refuse les nouvelles tentatives', 'warning')
+    throw new BusinessError(DAILY_CAPPED)
+  }
   if (error?.message.includes('RECRUIT_RATE_LIMITED')) throw new BusinessError(RATE_LIMITED)
   if (error) throw new Error(error.message)
   // `Returns: string | null` côté types générés (toute fonction SQL peut rendre NULL) ; la nôtre
