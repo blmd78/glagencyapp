@@ -45,7 +45,19 @@ export function CopyTestLink() {
  * repasser le test). Ne prend que les champs dont il se sert : le dossier entier ferait voyager la
  * transcription et l'IP une seconde fois dans le payload RSC.
  */
-export function CandidateActions({ candidate }: { candidate: CandidateCommand }) {
+export function CandidateActions({
+  candidate,
+  isAdmin,
+}: {
+  candidate: CandidateCommand
+  /**
+   * Bloquer, débloquer et supprimer un dossier restent ADMIN. Un encadrant « Suivi » traite les
+   * dossiers (valider, refuser, intégrer) mais n'écarte pas quelqu'un définitivement ni n'efface
+   * une trace. Masquer ici n'est qu'une politesse : `requireAdminProfileLive()` refuse ces trois
+   * actions de toute façon (actions.ts:90, :131, :176).
+   */
+  isAdmin: boolean
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const fullName = `${candidate.firstName} ${candidate.lastName}`
@@ -87,7 +99,7 @@ export function CandidateActions({ candidate }: { candidate: CandidateCommand })
         <X className="size-4" /> Refuser
       </ActionButton>
 
-      {!candidate.blockedByAdmin && (
+      {isAdmin && !candidate.blockedByAdmin && (
         <ConfirmDialog
           trigger={
             <Button type="button" size="sm" variant="outline">
@@ -101,7 +113,7 @@ export function CandidateActions({ candidate }: { candidate: CandidateCommand })
           onConfirm={confirmed(() => blockCandidate({ id: candidate.id }), 'Candidat bloqué')}
         />
       )}
-      {candidate.hasBlocklistLines && (
+      {isAdmin && candidate.hasBlocklistLines && (
         <ConfirmDialog
           trigger={
             <Button type="button" size="sm" variant="outline">
@@ -116,6 +128,7 @@ export function CandidateActions({ candidate }: { candidate: CandidateCommand })
         />
       )}
 
+      {isAdmin && (
       <ConfirmDialog
         trigger={
           <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
@@ -132,6 +145,7 @@ export function CandidateActions({ candidate }: { candidate: CandidateCommand })
           router.replace('/formation/recrutement')
         }}
       />
+      )}
     </div>
   )
 }

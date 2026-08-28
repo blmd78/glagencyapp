@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
-import { requireAdmin } from '@/lib/auth'
+import { requireAccess } from '@/lib/auth'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { RecruitTemplate } from '@/features/recruit-admin/RecruitTemplate'
 import { RecruitSkeleton } from '@/features/recruit-admin/components/recruit-skeleton'
@@ -10,11 +10,16 @@ import { getCandidates } from '@/features/recruit-admin/services/get-candidates'
 import type { CandidateFileData, CandidatesData } from '@/features/recruit-admin/types'
 
 /**
- * Recrutement (ADMIN — « c'est la config du lien qu'on envoie ») : la file des candidats du test
- * public, et le dossier complet de l'un d'eux via `?dossier=<id>`.
+ * Recrutement : la file des candidats du test public, et le dossier complet de l'un d'eux via
+ * `?dossier=<id>`.
+ *
+ * Ouvert aux porteurs du droit « Suivi » (0135) — le recrutement précède la formation, et c'est
+ * l'encadrant qui suit la promo qui voit arriver les dossiers et intègre les gens. Les gestes
+ * SENSIBLES (bloquer, débloquer, supprimer) restent admin : masqués ici, et refusés côté Server
+ * Action, qui reste la seule barrière qui compte.
  */
 export default async function RecrutementPage({ searchParams }: { searchParams: Promise<{ dossier?: string }> }) {
-  const [, { dossier }] = await Promise.all([requireAdmin(), searchParams])
+  const [profile, { dossier }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
   // `?dossier=` validé AVANT la requête : un uuid mal formé ferait échouer Postgres (22P02) et
   // tomberait sur la boundary d'erreur au lieu d'être ignoré (précédent : Overview).
   const parsed = z.uuid().safeParse(dossier)
@@ -36,7 +41,7 @@ export default async function RecrutementPage({ searchParams }: { searchParams: 
           </SectionFallback>
         }
       >
-        <RecruitContent data={data} candidate={candidate} hasSelection={selectedId !== null} />
+        <RecruitContent data={data} candidate={candidate} hasSelection={selectedId !== null} isAdmin={profile.role === 'admin'} />
       </Suspense>
     </div>
   )
@@ -46,14 +51,17 @@ async function RecruitContent({
   data,
   candidate,
   hasSelection,
+  isAdmin,
 }: {
   data: Promise<CandidatesData>
   candidate: Promise<CandidateFileData | null> | null
   hasSelection: boolean
+  /** Bloquer, débloquer et supprimer un dossier restent réservés aux admins (gardés côté action). */
+  isAdmin: boolean
 }) {
   const [list, file] = await Promise.all([data, candidate])
   // Uuid valide mais dossier inconnu (supprimé entre-temps, lien périmé) : 404 franc plutôt qu'une
   // fiche vide. Ici et pas dans la page : c'est la lecture, résolue seulement maintenant, qui sait.
   if (hasSelection && !file) notFound()
-  return <RecruitTemplate data={list} candidate={file ?? null} />
+  return <RecruitTemplate data={list} candidate={file ?? null} isAdmin={isAdmin} />
 }

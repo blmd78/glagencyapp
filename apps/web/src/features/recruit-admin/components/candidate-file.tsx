@@ -57,10 +57,13 @@ export function CandidateFile({
   candidate,
   gates,
   creators,
+  isAdmin,
 }: {
   candidate: CandidateFileData
   gates: RecruitGates
   creators: CreatorChoice[]
+  /** Bloquer / débloquer / supprimer : admin seul. La garde réelle est côté Server Action. */
+  isAdmin: boolean
 }) {
   const { attempt } = candidate
   return (
@@ -110,6 +113,7 @@ export function CandidateFile({
       )}
 
       <CandidateActions
+        isAdmin={isAdmin}
         candidate={{
           id: candidate.id,
           firstName: candidate.firstName,

@@ -2210,6 +2210,7 @@ export type Database = {
         Row: {
           bot_messages: number
           connexion_min: number
+          daily_max: number | null
           discord_link: string
           frappe_min: number
           global_threshold: number
@@ -2225,6 +2226,7 @@ export type Database = {
         Insert: {
           bot_messages?: number
           connexion_min?: number
+          daily_max?: number | null
           discord_link?: string
           frappe_min?: number
           global_threshold?: number
@@ -2240,6 +2242,7 @@ export type Database = {
         Update: {
           bot_messages?: number
           connexion_min?: number
+          daily_max?: number | null
           discord_link?: string
           frappe_min?: number
           global_threshold?: number
@@ -4993,6 +4996,7 @@ export type Database = {
       recruit_start_attempt: {
         Args: {
           p_bot_messages: number
+          p_daily_max?: number
           p_device: string
           p_ip: string
           p_max: number

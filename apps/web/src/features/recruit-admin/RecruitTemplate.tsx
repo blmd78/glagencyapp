@@ -53,14 +53,22 @@ function toKpis(k: RecruitKpis): Kpi[] {
  * (elle est longue — transcription comprise — et la file n'apporte rien pendant qu'on lit un
  * dossier). Retour à la liste par le lien en tête de fiche.
  */
-export function RecruitTemplate({ data, candidate }: { data: CandidatesData; candidate: CandidateFileData | null }) {
+export function RecruitTemplate({
+  data,
+  candidate,
+  isAdmin,
+}: {
+  data: CandidatesData
+  candidate: CandidateFileData | null
+  isAdmin: boolean
+}) {
   return (
     <div className="flex flex-col gap-6">
       <div className="-mt-4 flex justify-end">
         <CopyTestLink />
       </div>
       {candidate ? (
-        <CandidateFile candidate={candidate} gates={data.gates} creators={data.creators} />
+        <CandidateFile candidate={candidate} gates={data.gates} creators={data.creators} isAdmin={isAdmin} />
       ) : (
         <>
           <KpiGrid kpis={toKpis(data.kpis)} accents={KPI_ACCENTS} />

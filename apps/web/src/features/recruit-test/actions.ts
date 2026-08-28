@@ -132,8 +132,9 @@ export async function startAttempt(raw: unknown): Promise<ActionResult<StartedAt
       // de la bonne réponse par `pickQiQuestions`.
       const { questions, answerKey } = pickQiQuestions(toQiBank(config.qiBankRaw), (n) => randomInt(0, n))
 
-      // Plafond par IP + insertion ATOMIQUES (0115), et réglages FIGÉS sur la ligne : ce sont ceux
-      // qu'on sert au client juste en dessous, ce seront ceux que la correction relira.
+      // Plafonds (par IP + global) et insertion ATOMIQUES (0115, 0134), réglages FIGÉS sur la
+      // ligne : ce sont ceux qu'on sert au client juste en dessous, ce seront ceux que la
+      // correction relira.
       const attemptId = await startAttemptRow(admin, {
         device: d.device,
         ip,
@@ -141,6 +142,7 @@ export async function startAttempt(raw: unknown): Promise<ActionResult<StartedAt
         qiAnswers: answerKey,
         qiTimer: config.qiTimer,
         botMessages: config.botMessages,
+        dailyMax: config.dailyMax,
       })
 
       return {
