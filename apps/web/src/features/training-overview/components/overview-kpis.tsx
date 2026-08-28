@@ -1,49 +1,56 @@
-import { Figure } from '@/components/training/figure'
+import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { dec2, int } from '@/lib/format'
-import { COST_WINDOW_DAYS, type CostRow, type RosterRow } from '../types'
+import { COST_WINDOW_DAYS, type CostRow } from '../types'
 
 /**
- * Bandeau de tête de l'Overview : les chiffres de la promo, puis — pour un ADMIN seulement — ceux
- * du coût IA. Ils vivaient dans `OverviewCost`, en bas de page, sous deux tableaux : la dépense
- * d'un mois ne se voyait qu'en scrollant. Une seule grille de 4, donc une ligne « promo » puis une
- * ligne « coût » : c'est le même geste de lecture, et le détail par jour reste en bas.
+ * Bandeau de tête de l'Overview : le coût IA, en cartes KPI maison (`KpiGrid`, comme Santé ou
+ * l'Overview chatteur). Ces totaux vivaient en bas de page, sous deux tableaux — la dépense d'un
+ * mois ne se voyait qu'en scrollant. Le détail par jour × modèle reste, lui, en bas.
  *
- * Le coût est `null` pour un non-admin (la RLS de `training_ai_calls` est admin-only, le service
- * n'appelle même pas la RPC) — le bandeau se réduit alors à la promo, sans trou dans la grille.
+ * ADMIN seulement : la Template ne rend ce bandeau que si `cost` existe (la RLS de
+ * `training_ai_calls` est admin-only, le service n'appelle même pas la RPC pour les autres).
+ *
+ * `deltaPct: null` partout : la RPC ne ramène que la fenêtre courante, il n'y a pas de période
+ * précédente à comparer — une variation inventée serait pire que pas de variation.
  */
-export function OverviewKpis({
-  roster,
-  cost,
-}: {
-  roster: RosterRow[]
-  cost: { rows: CostRow[]; estimatedUsd: number } | null
-}) {
-  const newcomers = roster.filter((r) => r.isNew).length
-  const bossDone = roster.filter((r) => r.bossDone).length
-  // Moyenne de la promo = moyenne des moyennes des chatters NOTÉS. Les sans-note sont exclus, pas
-  // comptés 0 : un chatter qui n'a encore rien joué ne doit pas tirer la promo vers le bas.
-  const scored = roster.filter((r) => r.avgTotal != null)
-  const avg = scored.length ? scored.reduce((n, r) => n + (r.avgTotal ?? 0), 0) / scored.length : null
-
-  const totals = (cost?.rows ?? []).reduce(
-    (acc, r) => ({ calls: acc.calls + r.calls, input: acc.input + r.inputTokens, output: acc.output + r.outputTokens }),
-    { calls: 0, input: 0, output: 0 },
+export function OverviewKpis({ rows, estimatedUsd }: { rows: CostRow[]; estimatedUsd: number }) {
+  const t = rows.reduce(
+    (acc, r) => ({
+      calls: acc.calls + r.calls,
+      input: acc.input + r.inputTokens,
+      output: acc.output + r.outputTokens,
+      cache: acc.cache + r.cacheReadTokens,
+    }),
+    { calls: 0, input: 0, output: 0, cache: 0 },
   )
-
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Figure label="Chatters" value={int(roster.length)} />
-      <Figure label="Nouveaux" value={int(newcomers)} />
-      <Figure label="Moyenne promo" value={avg == null ? '—' : int(avg)} />
-      <Figure label="Boss validés" value={`${int(bossDone)}/${int(roster.length)}`} />
-      {cost && (
-        <>
-          <Figure label={`Coût IA estimé · ${COST_WINDOW_DAYS} j`} value={`${dec2(cost.estimatedUsd)} $`} />
-          <Figure label={`Appels IA · ${COST_WINDOW_DAYS} j`} value={int(totals.calls)} />
-          <Figure label={`Tokens entrée · ${COST_WINDOW_DAYS} j`} value={int(totals.input)} />
-          <Figure label={`Tokens sortie · ${COST_WINDOW_DAYS} j`} value={int(totals.output)} />
-        </>
-      )}
-    </div>
-  )
+  const window = `${COST_WINDOW_DAYS} derniers jours`
+  const kpis: Kpi[] = [
+    {
+      key: 'usd',
+      label: 'Coût IA estimé',
+      value: `${dec2(estimatedUsd)} $`,
+      deltaPct: null,
+      trendLabel: window,
+      hint: 'prix liste — la facture réelle peut être plus basse',
+      info: 'Σ (tokens entrée × prix entrée + tokens sortie × prix sortie + cache lu × 10 % du prix d’entrée), aux prix liste Anthropic.',
+    },
+    {
+      key: 'calls',
+      label: 'Appels IA',
+      value: int(t.calls),
+      deltaPct: null,
+      trendLabel: window,
+      hint: 'un appel fan par message, une notation par conversation',
+    },
+    {
+      key: 'in',
+      label: 'Tokens entrée',
+      value: int(t.input),
+      deltaPct: null,
+      trendLabel: window,
+      hint: `dont ${int(t.cache)} lus en cache (~10 % du prix d’entrée)`,
+    },
+    { key: 'out', label: 'Tokens sortie', value: int(t.output), deltaPct: null, trendLabel: window, hint: 'réponses du fan et notations' },
+  ]
+  return <KpiGrid kpis={kpis} />
 }
