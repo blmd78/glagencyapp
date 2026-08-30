@@ -30,6 +30,35 @@ export function addDays(iso: string, n: number): string {
   return d.toISOString().slice(0, 10)
 }
 
+/**
+ * Extrait le littéral objet d'une affectation JS (`var X = {...};`) par ÉQUILIBRAGE d'accolades,
+ * en respectant les chaînes. Un regex non-gourmand s'arrêtait au premier `};` — un compte-rendu
+ * contenant `};` tronquait le JSON et faisait perdre TOUTES les sessions du chatteur en silence.
+ */
+export function extractJsObject(html: string, assign: string): string | null {
+  const i = html.indexOf(assign)
+  if (i < 0) return null
+  const start = html.indexOf('{', i)
+  if (start < 0) return null
+  let depth = 0
+  let inStr: string | null = null
+  for (let j = start; j < html.length; j++) {
+    const ch = html[j]
+    if (inStr) {
+      if (ch === '\\') j++ // échappement : sauter le caractère suivant
+      else if (ch === inStr) inStr = null
+      continue
+    }
+    if (ch === '"' || ch === "'") inStr = ch
+    else if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) return html.slice(start, j + 1)
+    }
+  }
+  return null
+}
+
 export interface TrackerTask {
   sourceId: string
   date: string
@@ -109,10 +138,10 @@ export function parseNotes(html: string): {
   if (html.length < 500) return { sessions: [], skills: new Map(), generalNote: '' }
 
   let past: Record<string, { date?: string; score?: number | null; summary?: string; ratings?: Record<string, { r: number; c?: string }> }> = {}
-  const pm = html.match(/var PAST\s*=\s*(\{[\s\S]*?\});/)
-  if (pm) {
+  const raw = extractJsObject(html, 'var PAST')
+  if (raw) {
     try {
-      past = JSON.parse(pm[1])
+      past = JSON.parse(raw)
     } catch {
       past = {}
     }

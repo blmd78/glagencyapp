@@ -163,18 +163,6 @@ export async function requireAdminProfileLive(): Promise<Profile> {
   return profile
 }
 
-/**
- * Profil connecté, refus en « en tant que », SANS exiger de page précise. Pour les écritures dont
- * le droit ne se réduit pas à un slug — la to-do, ouverte aux encadrants (droit `presence`) ET aux
- * chatteurs sur LEUR propre semaine. La borne fine est faite ensuite par l'appelant (ownership).
- */
-export async function requireLiveProfile(): Promise<Profile> {
-  const profile = await getProfile()
-  if (!profile) throw new BusinessError('Session expirée.')
-  await denyIfImpersonating()
-  return profile
-}
-
 /** `requirePageProfile` + refus en « en tant que » (Entraînement, Suivi…). */
 export async function requirePageProfileLive(slug: PageSlug): Promise<Profile> {
   const profile = await requirePageProfile(slug)

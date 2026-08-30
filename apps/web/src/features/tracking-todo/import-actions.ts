@@ -123,8 +123,10 @@ export async function importFromTracker(raw: unknown): Promise<ActionResult<Impo
       for (const c of chatters) {
         const profileId = byName.get(norm(c.name))
         if (!profileId) {
-          // absent ou ambigu — on ne devine pas
-          if (byName.get(norm(c.name)) === undefined) unmatched.push(c.name)
+          // Absent (undefined) OU ambigu (null, plusieurs profils du même nom) : on ne devine
+          // jamais à quel profil rattacher un suivi, et on le SIGNALE dans les deux cas — sans quoi
+          // les homonymes disparaissaient sans trace.
+          unmatched.push(c.name)
           continue
         }
         const { sessions, generalNote } = parseNotes(await trackerGet(cookie, `/notes/${c.id}`))
