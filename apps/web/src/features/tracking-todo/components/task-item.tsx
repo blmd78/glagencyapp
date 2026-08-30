@@ -62,7 +62,10 @@ export function TaskItem({
           </div>
         ) : null}
       </div>
-      {canWrite && !task.virtual ? (
+      {canWrite ? (
+        // La croix s'affiche AUSSI sur une occurrence récurrente : `onDelete` la route vers la boîte
+        // à deux issues (« juste aujourd'hui » / « supprimer l'habitude »). La masquer rendait ce
+        // choix injoignable — le dialogue était du code mort.
         <button type="button" className="x" onClick={() => onDelete(task)} title="Supprimer">
           ✕
         </button>
