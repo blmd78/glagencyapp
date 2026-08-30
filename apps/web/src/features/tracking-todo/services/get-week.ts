@@ -127,10 +127,12 @@ export async function getTodoWeek(params: {
   const allToday = todayCol?.sections.flatMap((s) => s.tasks) ?? []
 
   // Les chatteurs proposables dans « Session 1:1 avec » — bornés au périmètre de l'APPELANT, comme
-  // à la pose côté serveur : proposer un chatteur qu'on ne pourra pas noter n'a pas de sens.
-  const scope = await getCreatorScope(params.callerId, params.callerRole)
+  // à la pose côté serveur. UNIQUEMENT pour les ENCADRANTS : un chatteur remplit sa propre to-do,
+  // il ne planifie pas de 1:1 avec d'autres chatteurs — inutile de lui servir la liste.
+  const isEncadrant = ['admin', 'manager', 'sous-manager'].includes(params.callerRole)
+  const scope = isEncadrant ? await getCreatorScope(params.callerId, params.callerRole) : null
   const chatters: TodoChatter[] = []
-  {
+  if (isEncadrant) {
     const admin = createAdminClient()
     const { data: rows, error: cErr } = await admin
       .from('profiles')

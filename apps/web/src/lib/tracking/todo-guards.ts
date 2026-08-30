@@ -1,4 +1,4 @@
-import { BusinessError, requirePageProfileLive } from '@/lib/actions'
+import { BusinessError, requireLiveProfile } from '@/lib/actions'
 
 /**
  * Gardes de propriété de la To-Do du tracker.
@@ -15,14 +15,19 @@ export const TODO_PATH = '/chatter/presence/todo'
 
 /** Le droit d'écrire quoi que ce soit sur une to-do de tracker : la page, ou être admin. */
 async function requireTodoAccess() {
-  // Le tracker d'origine exigeait un compte CRM pour toute écriture (`viewerFor`, 401 sinon) — les
-  // chatteurs n'en avaient pas. Sans ce test, n'importe quel profil authentifié écrivait sa to-do
-  // par Server Action, sur un écran qu'il ne voit même pas.
-  //
-  // Le suffixe `Live` refuse en plus la consultation « en tant que » : on ne coche pas, et surtout
-  // on ne signe pas le débrief de quelqu'un sous son identité. Même garde que la face Formation,
-  // dont ce fichier revendique le patron.
-  return requirePageProfileLive('presence')
+  // DEUX populations ont une to-do, et deux seulement :
+  //  - les ENCADRANTS, via le droit de page `presence` (leur écran de suivi d'équipe) ;
+  //  - les CHATTEURS, sur LEUR PROPRE semaine (`baseRole === 'chatteur'`) — chacun remplit la
+  //    sienne, comme dans le tracker d'origine.
+  // La borne « sa propre semaine » est faite juste après par `assertOwner` (profile.id === ownerId) :
+  // ouvrir l'accès ici ne laisse donc écrire QUE sa to-do. `requireLiveProfile` refuse en plus la
+  // consultation « en tant que » — on ne coche pas la to-do de quelqu'un sous son identité.
+  const profile = await requireLiveProfile()
+  const hasPresence = profile.role === 'admin' || profile.pages.includes('presence')
+  if (!hasPresence && profile.baseRole !== 'chatteur') {
+    throw new BusinessError("Tu n'as pas de to-do.")
+  }
+  return profile
 }
 
 /**

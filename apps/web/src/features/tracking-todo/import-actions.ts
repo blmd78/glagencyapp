@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
-import { parseChatterList, parseNotes, parseTodo } from '@/lib/tracker/parse'
+import { addDays, parseChatterList, parseNotes, parseTodo } from '@/lib/tracker/parse'
 import { TrackerAuthError, trackerGet, trackerLogin } from '@/lib/tracker/scrape'
 import { TODO_PATH } from '@/lib/tracking/todo-guards'
 
@@ -63,13 +63,16 @@ export async function importFromTracker(raw: unknown): Promise<ActionResult<Impo
       // ─────────────── TO-DO : mes tâches, rangées sous mon profil
       // Dédup : on charge d'abord ce qui existe déjà chez moi sur ces semaines, et on ne réinsère
       // pas une tâche identique (même jour, même section, même intitulé).
-      const weekEnd = WEEKS[WEEKS.length - 1]
+      // La borne HAUTE est le DIMANCHE de la dernière semaine (lundi + 6), pas le lundi : sinon les
+      // jours de fin de semaine (souvent en septembre) tombent hors de la fenêtre de dédup et se
+      // réinséraient à chaque relance — le contraire de « relancer sans risque ».
+      const weekEnd = addDays(WEEKS[WEEKS.length - 1], 6)
       const { data: existing } = await admin
         .from('tracker_todo_tasks')
         .select('date, category, label')
         .eq('owner_id', me.id)
         .gte('date', WEEKS[0])
-        .lte('date', `${weekEnd}T23:59:59`)
+        .lte('date', weekEnd)
       const seen = new Set((existing ?? []).map((t) => `${t.date}|${norm(t.category)}|${norm(t.label)}`))
 
       const toInsert: { owner_id: string; date: string; category: string; label: string; done: boolean; done_at: string | null; position: number; created_by: string }[] = []

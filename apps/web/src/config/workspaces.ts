@@ -231,6 +231,9 @@ export const WORKSPACES: Workspace[] = [
       // et toute la config du test) restent admin — ils sont gardés côté Server Action.
       { href: '/formation/recrutement', label: 'Recrutement', icon: UserSearch, anyOf: ['frm-suivi'] },
       { href: '/formation/ma-formation', label: 'Ma formation', icon: PlayCircle, slug: 'frm-entrainement', choiceLabel: 'Entraînement' },
+      // « Ma to-do » du chatteur — même to-do que les encadrants, la sienne. Porte le droit
+      // Entraînement (pas de case en plus) : tout chatteur en formation l'a.
+      { href: '/formation/ma-todo', label: 'Ma to-do', icon: ListTodo, anyOf: ['frm-entrainement'] },
       // Réservée à l'ENCADREMENT depuis la règle du 2026-08-24 : c'est le manager qui fait tourner
       // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il
       // apprend son gain de vive voix. Pas de `slug` propre : le droit vient de Suivi.

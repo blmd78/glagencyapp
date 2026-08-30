@@ -54,8 +54,10 @@ export function parseTodo(html: string, weekMonday: string): { tasks: TrackerTas
     if (dayIndex > 6) return
     const date = addDays(weekMonday, dayIndex)
     let section = ''
+    // `class="task"`, `task done`, `task done oto` (1:1)… — on capture TOUTES les classes et on
+    // lit l'état coché dedans. Un regex figé sur `task( done)?` perdait les tâches 1:1 en silence.
     const re =
-      /class="glab">\s*<span>([^<]*)<\/span>|class="task(\s+done)?"[^>]*data-task="(\d+)"[\s\S]*?<span class="tt">([\s\S]*?)<\/span>\s*<span class="tm">([\s\S]*?)<\/span>/g
+      /class="glab">\s*<span>([^<]*)<\/span>|class="task([^"]*)"[^>]*data-task="(\d+)"[\s\S]*?<span class="tt">([\s\S]*?)<\/span>\s*<span class="tm">([\s\S]*?)<\/span>/g
     let m: RegExpExecArray | null
     while ((m = re.exec(chunk))) {
       if (m[1] !== undefined) {
@@ -69,7 +71,7 @@ export function parseTodo(html: string, weekMonday: string): { tasks: TrackerTas
         date,
         section,
         label,
-        done: !!m[2],
+        done: /\bdone\b/.test(m[2] ?? ''),
         recurring: /class="rec"/.test(m[5]),
       })
     }
