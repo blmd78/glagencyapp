@@ -430,10 +430,16 @@ Le plafond a été validé en chat le 2026-08-30. Il ne sera pas atteint : à ce
 
 ## 9. Tests
 
-- **`packages/core`** (Vitest, pur) : aucun nouveau moteur à écrire — `pickWeighted` est déjà
-  testé (`packages/core/src/training/wheel.test.ts`). On ajoute un seul test, sur la **config par
-  défaut** : 8 segments, tous de poids > 0, aucun montant nul, espérance = 7,125 €. Il attrape la
-  faute de frappe dans le seed, seul vrai risque de ce lot côté domaine.
+- **`packages/core`** : rien à ajouter. Aucun nouveau moteur — `pickWeighted` est déjà testé
+  (`packages/core/src/training/wheel.test.ts`), et le barème vit en base (le recopier en littéral
+  TS ferait une seconde source de vérité, refus déjà acté pour la roue nº 1).
+- **Le barème** est donc vérifié **en SQL**, juste après l'application de la migration : 8 secteurs,
+  espérance 7,125 €, min 6, max 8, tous de poids > 0. Une faute de frappe dans le seed est le seul
+  vrai risque de ce lot, et elle ne se verrait nulle part ailleurs avant le premier versement.
+- **`mappers.test.ts`** de la feature : la frontière jsonb ↔ TS. Poids décimal refusé (`randomInt`
+  throw sur un `n` non entier), montant négatif refusé (il passerait la lecture puis violerait le
+  `check` SQL **après** avoir consommé le ticket), montant absent refusé (sur cette roue, tout
+  secteur paie).
 - **`schema.test.ts`** de la feature, sur le modèle de
   `features/training-wheel/schema.test.ts` : segment vide refusé, poids vidé refusé (`requiredInt`,
   pas `z.coerce` — un poids effacé se coerçait en 0 et sortait le segment du tirage en silence),
