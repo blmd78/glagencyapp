@@ -27,6 +27,12 @@ export interface WheelHistoryRow {
   displayName: string
   /** Encadrant qui a lancé le tirage — null pour les tirages d'avant la règle du 2026-08-24. */
   spunByName: string | null
+  /**
+   * D'où vient le tour : « Encadrant » (roue nº 1, aucun ticket) ou le libellé du ticket consommé
+   * (« Module Relance terminé », roue des modules). Les deux roues écrivent dans la même table :
+   * sans cette colonne, la compta ne sait plus ce qu'elle paie.
+   */
+  origine: string
   week: string
   spunAt: string
   won: boolean

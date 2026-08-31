@@ -56,6 +56,7 @@ export function AppSidebar({
   allowedPages,
   insightsCountPromise,
   recruitPendingPromise,
+  moduleWheelPendingPromise,
   workLink = '',
   impersonating = false,
 }: {
@@ -69,9 +70,10 @@ export function AppSidebar({
   allowedPages?: string[]
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
   insightsCountPromise?: Promise<number>
-  /** Tour de roue disponible (badge streamé, cf. `insightsCountPromise`). */
   /** Dossiers de recrutement à traiter (badge streamé, admin — cf. `insightsCountPromise`). */
   recruitPendingPromise?: Promise<number>
+  /** Tours de roue de module disponibles (badge streamé, cf. `insightsCountPromise`). */
+  moduleWheelPendingPromise?: Promise<number>
   /** Lien « outil de travail » du membre connecté ('' = aucun). */
   workLink?: string
   /** Consultation « en tant que » active (Task 9) — bascule le logout de NavUser. */
@@ -248,6 +250,11 @@ export function AppSidebar({
         {item.href.endsWith('/recrutement') && recruitPendingPromise && (
           <Suspense fallback={null}>
             <CountBadge promise={recruitPendingPromise} />
+          </Suspense>
+        )}
+        {item.href.endsWith('/ma-roue') && moduleWheelPendingPromise && (
+          <Suspense fallback={null}>
+            <CountBadge promise={moduleWheelPendingPromise} />
           </Suspense>
         )}
       </SidebarMenuItem>

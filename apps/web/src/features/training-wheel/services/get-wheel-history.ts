@@ -25,7 +25,7 @@ export async function getWheelHistory(): Promise<WheelHistory> {
   const [spinsRes, rosterRes] = await Promise.all([
     supabase
       .from('training_wheel_spins')
-      .select('id, profile_id, spun_by, week, spun_at, won, prize_label, amount_eur, paid_at')
+      .select('id, profile_id, spun_by, week, spun_at, won, prize_label, amount_eur, paid_at, ticket_id')
       .order('spun_at', { ascending: false })
       .limit(HISTORY_LIMIT),
     supabase.rpc('training_overview_roster'),
@@ -46,11 +46,22 @@ export async function getWheelHistory(): Promise<WheelHistory> {
     for (const p of data ?? []) lanceurs.set(p.id, p.display_name ?? p.email ?? '—')
   }
 
+  const ticketIds = [...new Set((spinsRes.data ?? []).flatMap((s) => (s.ticket_id ? [s.ticket_id] : [])))]
+  const raisons = new Map<string, string>()
+  if (ticketIds.length > 0) {
+    // Client UTILISATEUR : la RLS de `training_wheel_tickets` ouvre déjà toutes les lignes à
+    // `frm-suivi` — pas besoin du service-role ici, contrairement aux noms des encadrants.
+    const { data, error } = await supabase.from('training_wheel_tickets').select('id, reason').in('id', ticketIds)
+    if (error) throw new Error(error.message)
+    for (const t of data ?? []) raisons.set(t.id, t.reason)
+  }
+
   const rows: WheelHistoryRow[] = (spinsRes.data ?? []).map((s) => ({
     id: s.id,
     profileId: s.profile_id,
     displayName: names.get(s.profile_id) ?? '—',
     spunByName: s.spun_by ? (lanceurs.get(s.spun_by) ?? '—') : null,
+    origine: s.ticket_id ? (raisons.get(s.ticket_id) ?? 'Roue des modules') : 'Encadrant',
     week: s.week,
     spunAt: s.spun_at,
     won: s.won,

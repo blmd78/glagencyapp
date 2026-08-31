@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { getProfile } from '@/lib/auth'
 import { getOpenInsightsCount } from '@/features/insights/services/get-insights'
+import { getModuleWheelPending } from '@/lib/services/module-wheel-pending'
 import { getRecruitPending } from '@/lib/services/recruit-pending'
 import { ImpersonationBanner } from '@/features/impersonation/components/impersonation-banner'
 import { getImpersonationState } from '@/features/impersonation/services/read-state'
@@ -50,6 +51,16 @@ async function DashDynamic({ children }: { children: ReactNode }) {
   // l'aller-retour inutile à chaque hard load d'un non-admin.
   const recruitPendingPromise =
     profile.role === 'admin' ? getRecruitPending().catch(() => 0) : Promise.resolve(0)
+  // Pastille « Ma roue » : les tours de roue gagnés en finissant un module (0136). Court-circuitée
+  // pour qui n'a pas le droit Entraînement — l'item de nav n'existe pas pour eux, l'aller-retour
+  // serait payé pour rien à chaque hard load. `.catch` inline comme les deux autres : une erreur
+  // de pastille ne casse jamais la page.
+  // `profile.pages` est un `string[]` non optionnel (cf. `lib/auth/index.ts:99`, qui l'appelle
+  // sans garde).
+  const moduleWheelPendingPromise =
+    profile.pages.includes('frm-entrainement') || profile.role === 'admin'
+      ? getModuleWheelPending(profile.id).catch(() => 0)
+      : Promise.resolve(0)
   // Chargé UNE fois (peut rediriger si expiré/tripwire — cf. `getImpersonationState`) puis
   // partagé : `.active` au NavUser (sidebar), l'objet complet au bandeau. Ne pas dupliquer
   // l'appel — pendant une consultation active il fait un aller-retour DB à chaque navigation.
@@ -66,6 +77,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
         allowedPages={profile.pages}
         insightsCountPromise={insightsCountPromise}
         recruitPendingPromise={recruitPendingPromise}
+        moduleWheelPendingPromise={moduleWheelPendingPromise}
         workLink={profile.workLink}
         impersonating={impersonationState.active}
       />
