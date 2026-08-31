@@ -1,7 +1,7 @@
 import { moduleProgress, type ModuleProgress } from '@glagency/core'
+import { getMyBests } from '@/lib/services/training-bests'
 import { getAllCases, getModules } from '@/lib/services/training-public'
 import type { ModuleSummary } from '../types'
-import { getMyBests } from './get-my-bests'
 
 export interface ModuleCard extends ModuleSummary {
   /** Progression du VISITEUR sur ce module. Tout à zéro s'il n'a pas le droit Entraînement. */

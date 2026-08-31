@@ -1,8 +1,8 @@
 import { BOSS_UNLOCK_AVG } from '@glagency/core'
 import Link from 'next/link'
-import type { Route } from 'next'
+import { ModuleCard } from '@/components/training/module-card'
 import { ScoreBadge } from '@/components/training/score-badge'
-import type { MeData, MeModule } from '../types'
+import type { MeData } from '../types'
 
 /**
  * « Tes modules » — transposition du panneau GLA (`paintModules` / `.apanel` + `.amcard`) : une
@@ -28,7 +28,11 @@ export function MeModules({ data }: { data: MeData }) {
         </p>
       ) : (
         <ul className="flex flex-col gap-[9px]">
-          {modules.map((m) => <ModuleCard key={m.id} m={m} />)}
+          {/* Carte PARTAGÉE avec « Ma roue » (`components/training/module-card`) : les deux écrans
+              affichent le même module, ils doivent afficher les mêmes chiffres. */}
+          {modules.map((m) => (
+            <ModuleCard key={m.id} code={m.code} title={m.title} emoji={m.emoji} progress={m.progress} />
+          ))}
         </ul>
       )}
 
@@ -54,39 +58,5 @@ export function MeModules({ data }: { data: MeData }) {
         </Link>
       </div>
     </section>
-  )
-}
-
-function ModuleCard({ m }: { m: MeModule }) {
-  const { progress } = m
-  const complete = progress.total > 0 && progress.done === progress.total
-  // Toute la carte est le lien (affordance GLA : elle glisse vers la droite au survol).
-  return (
-    <li>
-      <Link href={`/formation/modules/${m.code}?vue=cas` as Route} className="gla-card flex items-center gap-[13px] p-3">
-        <span className="gla-tile grid size-11 flex-none place-items-center rounded-[13px] text-[21px]" aria-hidden>
-          {m.emoji ?? '🎯'}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold">
-            {m.title}
-            {complete && <span aria-hidden className="ml-1.5">✅</span>}
-          </span>
-          <span className="mt-px block text-[11.5px] tabular-nums text-[var(--gla-muted)]">
-            {progress.done}/{progress.total} cas · moy. {progress.avg ?? '—'} · {progress.points} pts
-          </span>
-          <span className="gla-bar mt-1.5 block h-[5px]">
-            <i style={{ width: `${Math.min(100, progress.pct)}%` }} />
-          </span>
-        </span>
-        <span
-          className={`flex-none text-right text-[15px] font-extrabold tabular-nums ${
-            progress.done > 0 ? 'text-[var(--gla-accent)]' : 'text-[var(--gla-muted)]'
-          }`}
-        >
-          {progress.pct}%
-        </span>
-      </Link>
-    </li>
   )
 }

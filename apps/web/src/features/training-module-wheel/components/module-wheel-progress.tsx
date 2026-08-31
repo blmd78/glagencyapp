@@ -1,13 +1,16 @@
-import { Progress } from '@/components/ui/progress'
+import { ModuleCard } from '@/components/training/module-card'
 import type { ModuleWheelModule } from '../types'
 
 /**
  * Les 7 modules et ce qui sépare le chatter du prochain tour. Sans ce panneau, la mécanique est
  * opaque : on gagne des tours sans savoir pourquoi ni comment en gagner un de plus.
  *
- * « Validé » veut dire ≥ 60 sur une session jouée ICI. Les exos repris de l'ancienne plateforme
- * comptent dans la progression et le classement, mais pas pour la roue — c'est dit explicitement
- * en bas du panneau, sinon un chatter qui a importé son historique ne comprendra pas ses chiffres.
+ * La carte est celle de « Ma formation » (`components/training/module-card`), avec SES chiffres —
+ * cas tentés, moyenne, points. C'est le correctif : les deux écrans montrent le même module, ils
+ * doivent afficher la même chose. La règle de la roue (« validé » = ≥ 60 sur une session jouée ICI,
+ * D5) ne remplace plus ces chiffres, elle s'affiche À CÔTÉ et se nomme — « 12/23 validés à 60 » en
+ * regard d'un « 22/23 cas · moy. 56 » se lit tout seul, là où un « 0/23 » solitaire ne pouvait se
+ * lire que comme un bug.
  */
 export function ModuleWheelProgress({ modules }: { modules: ModuleWheelModule[] }) {
   return (
@@ -16,59 +19,55 @@ export function ModuleWheelProgress({ modules }: { modules: ModuleWheelModule[] 
       <p className="text-sm text-muted-foreground">
         Un tour de roue par module terminé — il faut au moins 60 à <span className="font-medium">tous</span> ses exos.
       </p>
-      <ul className="flex flex-col gap-2">
-        {modules.map((m) => {
-          const restant = Math.max(0, m.total - m.valides)
-          return (
-            <li key={m.id} className="flex items-center gap-3 rounded-xl border px-4 py-3">
-              <span aria-hidden className="text-xl leading-none">{m.emoji ?? '📘'}</span>
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-medium">{m.title}</span>
-                  <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
-                    {m.valides}/{m.total}
-                  </span>
-                </div>
-                <Progress value={m.total ? (m.valides * 100) / m.total : 0} label={`Progression du module ${m.title}`} />
-              </div>
-              <span className="shrink-0 text-sm">
-                {m.etat === 'joue' ? (
-                  <span className="text-muted-foreground">Tour joué</span>
-                ) : m.etat === 'gagne' ? (
-                  <span className="font-medium text-gold">Tour à jouer 🎡</span>
-                ) : m.total === 0 ? (
-                  // Revue de la Task 3 : un module ACTIF sans aucun CAS actif ne rend aucune ligne
-                  // de `training_module_wheel_state` (jointure INNER dans la RPC) → `total`/`valides`
-                  // retombent à 0/0 côté web. `restant` vaudrait alors 0, ce qui se lirait comme
-                  // « terminé, il ne manque rien » — or l'octroi (0136 §4, « un module VIDE n'est
-                  // pas terminé, il n'a jamais été commencé ») refuse EXPLICITEMENT de payer ce cas.
-                  // On distingue donc « rien à faire parce qu'il n'y a rien à faire » de « fini » :
-                  // le module n'est ni joué, ni gagné, ni à un exo près — il n'a simplement aucun
-                  // contenu actif pour l'instant.
-                  <span className="text-muted-foreground">Aucun exercice actif</span>
-                ) : restant === 0 ? (
-                  // `etat === 'a_gagner'` avec `restant === 0` : tous les exos actifs sont validés
-                  // mais aucun ticket n'existe pour ce module (cf. `getModuleWheel`, `etat: ticket ?
-                  // … : 'a_gagner'`). C'est un état ATTEIGNABLE ET DÉFINITIF — l'octroi n'a qu'un
-                  // seul appelant, le trigger de notation du dernier exo, et rien ne le rejoue
-                  // ensuite (droits pas encore accordés à cet instant, encadrant sans rôle chatteur
-                  // que la base refuse sciemment de payer, etc.). Sans cette branche on retombe dans
-                  // « 0 exo restant » ci-dessous, qui se lit comme « rien à faire » et masque un
-                  // chatter qui a perdu ~7 € en silence : il faut un message qui pousse à agir.
-                  <span className="font-medium text-red-600 dark:text-red-400">Tour non attribué — préviens un encadrant</span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    {restant} exo{restant > 1 ? 's' : ''} restant{restant > 1 ? 's' : ''}
-                  </span>
-                )}
-              </span>
-            </li>
-          )
-        })}
+      <ul className="flex flex-col gap-[9px]">
+        {modules.map((m) => (
+          <ModuleCard
+            key={m.id}
+            code={m.code}
+            title={m.title}
+            emoji={m.emoji}
+            progress={m.progress}
+            right={
+              m.etat === 'joue' ? (
+                <span className="text-sm text-muted-foreground">Tour joué</span>
+              ) : m.etat === 'gagne' ? (
+                <span className="text-sm font-medium text-gold">Tour à jouer 🎡</span>
+              ) : m.total === 0 ? (
+                // Un module ACTIF sans aucun CAS actif ne rend aucune ligne de
+                // `training_module_wheel_state` (jointure INNER dans la RPC) → `total`/`valides`
+                // retombent à 0/0 côté web, ce qui se lirait comme « terminé, il ne manque rien » —
+                // or l'octroi (0136 §4, « un module VIDE n'est pas terminé, il n'a jamais été
+                // commencé ») refuse EXPLICITEMENT de payer ce cas. On distingue donc « rien à faire
+                // parce qu'il n'y a rien à faire » de « fini ».
+                <span className="text-sm text-muted-foreground">Aucun exercice actif</span>
+              ) : m.valides === m.total ? (
+                // `etat === 'a_gagner'` alors que tous les exos actifs sont validés : aucun ticket
+                // n'existe pour ce module (cf. `getModuleWheel`, `etat: ticket ? … : 'a_gagner'`).
+                // État ATTEIGNABLE ET DÉFINITIF — l'octroi n'a qu'un seul appelant, le trigger de
+                // notation du dernier exo, et rien ne le rejoue ensuite (droits pas encore accordés
+                // à cet instant, encadrant sans rôle chatteur que la base refuse sciemment de payer,
+                // etc.). Sans cette branche on retombe sur « 23/23 validés à 60 », qui se lit comme
+                // « c'est bon » et masque un chatter qui a perdu ~7 € en silence : il faut un
+                // message qui pousse à agir.
+                <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                  Tour non attribué — préviens un encadrant
+                </span>
+              ) : (
+                // Le compteur de la ROUE, nommé pour ce qu'il est. « N exos restants » était un
+                // reste à faire sans unité comparable au « x/y cas » de la carte : mis en regard, il
+                // donnait l'impression que l'un des deux écrans mentait.
+                <span className="text-sm tabular-nums text-muted-foreground">
+                  {m.valides}/{m.total} validés à 60
+                </span>
+              )
+            }
+          />
+        ))}
       </ul>
       <p className="text-xs text-muted-foreground">
-        Seuls les exos joués ici comptent pour la roue. Ceux repris de l’ancienne plateforme comptent
-        pour ta progression et le classement.
+        Un exo compte pour la roue à deux conditions : l’avoir joué ICI (les exos repris de
+        l’ancienne plateforme ne comptent pas) ET y avoir eu au moins 60. Les autres comptent quand
+        même pour ta progression, ta moyenne et le classement — c’est ce qu’affiche chaque carte.
       </p>
     </section>
   )

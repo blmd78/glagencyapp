@@ -1,4 +1,4 @@
-import type { WheelPrize } from '@glagency/core'
+import type { ModuleProgress, WheelPrize } from '@glagency/core'
 
 /**
  * Roue des MODULES — celle du chatter (0136). Un étage : le secteur EST le montant, et tous les
@@ -23,6 +23,13 @@ export interface ModuleWheelModule {
   /** Cas validés à ≥ 60 sur une session jouée ICI (l'import GLA ne compte pas — D5). */
   valides: number
   etat: ModuleTourEtat
+  /**
+   * Progression AFFICHÉE, identique à celle de « Ma formation » : cas tentés toutes origines
+   * confondues, quelle que soit la note. Rien à voir avec `valides`, qui porte la règle de la roue
+   * (D5) — les deux coexistent parce que la carte montre l'une et l'état du tour l'autre, et que
+   * les afficher côte à côte est justement ce qui rend la différence lisible.
+   */
+  progress: ModuleProgress
 }
 
 /** Un tirage passé du visiteur. */

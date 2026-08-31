@@ -1,4 +1,6 @@
-import { getModuleRefs } from '@/lib/services/training-public'
+import { moduleProgress } from '@glagency/core'
+import { getMyBests } from '@/lib/services/training-bests'
+import { getAllCases, getModuleRefs } from '@/lib/services/training-public'
 import { createClient } from '@/lib/supabase/server'
 import { toSegments } from '../mappers'
 import type { ModuleWheelData, ModuleWheelModule, ModuleWheelSpin } from '../types'
@@ -15,10 +17,15 @@ const GAINS_LIMIT = 50
  * un profil) et un `select` nu tronquerait à 1000 lignes, en silence. L'agrégat est fait en SQL.
  *
  * D5 est portée par la RPC (`legacy_id is null`) : rien à refiltrer ici.
+ *
+ * S'y ajoutent les cas actifs et les meilleurs résultats du visiteur, UNIQUEMENT pour recalculer la
+ * progression telle que « Ma formation » l'affiche. Sans elle, les deux écrans montraient le même
+ * module avec deux chiffres qui ne se recoupaient pas (« 22/23 cas » ici, « 0/23 » là) et la seule
+ * lecture possible était « c'est cassé » ; on affiche maintenant les deux, côte à côte et nommés.
  */
 export async function getModuleWheel(profileId: string): Promise<ModuleWheelData> {
   const supabase = await createClient()
-  const [cfgRes, ticketsRes, stateRes, spinsRes, modules] = await Promise.all([
+  const [cfgRes, ticketsRes, stateRes, spinsRes, modules, allCases, mine] = await Promise.all([
     supabase.from('training_module_wheel_config').select('title, segments').eq('id', 1).single(),
     // `reason` en plus : cette même lecture rapatrie déjà TOUS les tickets de MODULE du visiteur
     // (`not('module_id', 'is', null)`), donc tous les `ticket_id` que peut porter un spin de
@@ -39,6 +46,10 @@ export async function getModuleWheel(profileId: string): Promise<ModuleWheelData
     // `getModuleRefs` et pas `getModules` : celui-ci rapatrie de quoi calculer `hasCourse` et
     // `caseCount`, dont on n'a que faire ici — les compteurs viennent de la RPC.
     getModuleRefs(),
+    // Table de référence bornée (quelques centaines de lignes, un `order` explicite) : pas de
+    // troncature silencieuse à craindre, contrairement aux sessions.
+    getAllCases(),
+    getMyBests(profileId),
   ])
   if (cfgRes.error) throw new Error(cfgRes.error.message)
   if (ticketsRes.error) throw new Error(ticketsRes.error.message)
@@ -66,6 +77,13 @@ export async function getModuleWheel(profileId: string): Promise<ModuleWheelData
       total: st?.cas_actifs ?? 0,
       valides: st?.valides_ici ?? 0,
       etat: ticket ? (ticket.used_at ? 'joue' : 'gagne') : 'a_gagner',
+      // TOUS les cas actifs du module, BOSS COMPRIS — et c'est une divergence VOULUE avec « Ma
+      // formation » et la page Modules, qui excluent le boss (il s'y joue à part, sous son propre
+      // verrou). Ici le module boss est l'un des 7 qui donnent un tour de roue : sa carte doit
+      // compter son cas boss, sinon elle afficherait 0/0 face à un « 0/1 validé à 60 » et
+      // recréerait exactement l'incohérence qu'on corrige. Aligné, du même coup, sur `cas_actifs`
+      // de la RPC, qui ne filtre pas non plus le boss.
+      progress: moduleProgress(allCases.filter((c) => c.moduleId === m.id), mine.bests),
     }
   })
 

@@ -14,6 +14,11 @@ export interface MyBests {
 
 /**
  * Les meilleurs résultats du VISITEUR, pour afficher les médailles dans un module.
+ *
+ * Vit en `lib/services/` et non dans `features/training-modules/` : Modules, « Ma formation » et
+ * « Ma roue » en ont tous besoin pour calculer la MÊME progression, et la frontière ESLint
+ * (`no-restricted-paths`) interdit à une feature d'importer une autre feature.
+ *
  * `.eq('profile_id', …)` explicite et non « la RLS s'en charge » : la policy de
  * `training_case_bests` ouvre AUSSI la lecture au droit Suivi (encadrant) et celle de
  * `training_profile_stats` à toute la face Formation — sans ce filtre, un encadrant verrait
