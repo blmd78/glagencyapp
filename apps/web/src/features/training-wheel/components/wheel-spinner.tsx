@@ -10,8 +10,8 @@ import { playCling, playWheelSpin } from '@/lib/sfx'
 import { spinWheel } from '../actions'
 import type { SpinResult } from '../types'
 import type { SpinnableChatter } from '../services/get-spinnable-chatters'
-import { WheelResult } from './wheel-result'
-import { sectorAngles, WheelSvg } from './wheel-svg'
+import { WheelResult } from '@/components/training/wheel-result'
+import { sectorAngles, WheelSvg } from '@/components/training/wheel-svg'
 
 /** Durée de la transition CSS de `WheelSvg` (4,8 s) + une marge pour l'arrêt franc. */
 const SPIN_MS = 4900
@@ -134,7 +134,8 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
 
       {phase === 'reveal' && result && (
         <WheelResult
-          result={result}
+          // La roue nº 1 est à deux étages : le lot s'il y en a un, sinon le libellé du secteur.
+          reveal={{ won: result.won, label: result.prize?.label ?? result.sectorLabel, amountEur: result.prize?.amountEur ?? null }}
           winnerName={cible?.displayName ?? null}
           onDone={() => {
             // Retour à `idle` : l'encadrant enchaîne sur un autre chatter sans recharger.
