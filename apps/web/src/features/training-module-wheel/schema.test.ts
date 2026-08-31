@@ -26,4 +26,12 @@ describe('moduleWheelConfigForm', () => {
   it('refuse zéro segment', () => {
     expect(moduleWheelConfigForm.safeParse({ ...ok, segments: [] }).success).toBe(false)
   })
+
+  it('accepte sa PROPRE sortie (des nombres, pas des chaînes) — c\'est le second parse : zodResolver rend des nombres à handleSubmit, et la Server Action revalide ce même objet avec ce schéma. La raison d\'être de requiredInt (union string | number).', () => {
+    const r = moduleWheelConfigForm.safeParse({
+      title: 'La roue des modules',
+      segments: [{ label: '6 €', weight: 1, amountEur: 6 }],
+    })
+    expect(r.success).toBe(true)
+  })
 })

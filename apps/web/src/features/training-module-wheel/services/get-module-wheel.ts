@@ -8,7 +8,7 @@ const GAINS_LIMIT = 50
 
 /**
  * La page « Ma roue » : la config, les tours en attente, l'état des 7 modules et les gains passés
- * du VISITEUR. Quatre lectures en parallèle, toutes sous RLS.
+ * du VISITEUR. Cinq lectures en parallèle, toutes sous RLS.
  *
  * L'état par module vient de la RPC `training_module_wheel_state` (0136) et non d'un `select` sur
  * les sessions : un chatter peut en avoir des centaines (l'import GLA en a chargé jusqu'à 400 pour
@@ -20,9 +20,12 @@ export async function getModuleWheel(profileId: string): Promise<ModuleWheelData
   const supabase = await createClient()
   const [cfgRes, ticketsRes, stateRes, spinsRes, modules] = await Promise.all([
     supabase.from('training_module_wheel_config').select('title, segments').eq('id', 1).single(),
+    // `reason` en plus : cette même lecture rapatrie déjà TOUS les tickets de MODULE du visiteur
+    // (`not('module_id', 'is', null)`), donc tous les `ticket_id` que peut porter un spin de
+    // CETTE roue — inutile d'y revenir plus bas pour lire les libellés des tickets consommés.
     supabase
       .from('training_wheel_tickets')
-      .select('id, module_id, used_at')
+      .select('id, module_id, used_at, reason')
       .eq('profile_id', profileId)
       .not('module_id', 'is', null),
     supabase.rpc('training_module_wheel_state', { p_profile: profileId }),
@@ -45,8 +48,12 @@ export async function getModuleWheel(profileId: string): Promise<ModuleWheelData
   const tickets = ticketsRes.data ?? []
   const state = new Map((stateRes.data ?? []).map((r) => [r.module_id, r]))
   // Un module peut porter DEUX états dans les tickets ? Non : l'unicité (profile_id, module_id) de
-  // 0136 en garantit au plus un. `find` est donc suffisant, pas besoin de trancher.
+  // 0136 en garantit au plus un — la Map ne peut donc pas écraser une valeur utile par une autre.
   const parModule = new Map(tickets.map((t) => [t.module_id as string, t]))
+  // id → reason, à partir des tickets de MODULE déjà en main (aucune requête de plus). Sert AUSSI
+  // de discriminant : un `ticket_id` de spin absent d'ici ne peut venir que de la roue nº 1
+  // (encadrant) — voir plus bas.
+  const raisons = new Map(tickets.map((t) => [t.id, t.reason]))
 
   const cards: ModuleWheelModule[] = modules.map((m) => {
     const st = state.get(m.id)
@@ -62,25 +69,21 @@ export async function getModuleWheel(profileId: string): Promise<ModuleWheelData
     }
   })
 
-  // Les libellés des tickets consommés, en UNE requête sur les ids déjà en main — pas d'embed
-  // PostgREST (dont la cardinalité rendue varie) ni de jointure par ligne. Les tickets du visiteur
-  // lui sont ouverts par la RLS (`profile_id = auth.uid()`).
-  const ticketIds = (spinsRes.data ?? []).flatMap((s) => (s.ticket_id ? [s.ticket_id] : []))
-  const raisons = new Map<string, string>()
-  if (ticketIds.length > 0) {
-    const { data, error } = await supabase.from('training_wheel_tickets').select('id, reason').in('id', ticketIds)
-    if (error) throw new Error(error.message)
-    for (const t of data ?? []) raisons.set(t.id, t.reason)
-  }
-
-  const spins: ModuleWheelSpin[] = (spinsRes.data ?? []).map((s) => ({
-    id: s.id,
-    spunAt: s.spun_at,
-    label: s.prize_label ?? '—',
-    // `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number().
-    amountEur: s.amount_eur == null ? null : Number(s.amount_eur),
-    reason: s.ticket_id ? (raisons.get(s.ticket_id) ?? null) : null,
-  }))
+  // `raisons.has(...)` : `.not('ticket_id', 'is', null)` sur la requête ci-dessus ne suffit PAS à
+  // isoler les spins de CETTE roue — dès que « offrir un tour » (0121:12) créera des tickets
+  // d'encadrant (roue nº 1), leurs spins porteront eux aussi un `ticket_id` non nul, mais SUR UN
+  // TICKET SANS `module_id`, absent de la map ci-dessus. Sans ce filtre, ils remonteraient dans
+  // « Mes gains » et gonfleraient `totalEur` d'un montant qui n'appartient pas à cette roue.
+  const spins: ModuleWheelSpin[] = (spinsRes.data ?? [])
+    .filter((s) => s.ticket_id != null && raisons.has(s.ticket_id))
+    .map((s) => ({
+      id: s.id,
+      spunAt: s.spun_at,
+      label: s.prize_label ?? '—',
+      // `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number().
+      amountEur: s.amount_eur == null ? null : Number(s.amount_eur),
+      reason: raisons.get(s.ticket_id as string) ?? null,
+    }))
 
   return {
     config: { title: cfgRes.data.title, segments: toSegments(cfgRes.data.segments) },

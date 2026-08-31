@@ -61,6 +61,10 @@ export async function spinModuleWheel(): Promise<ActionResult<ModuleSpinResult>>
       // cette contrainte, et rien d'autre, qui interdit de jouer deux fois le même tour (double
       // clic, deux onglets, rejeu réseau). Si elle est violée, RIEN n'a été écrit.
       // L'ordre inverse (marquer le ticket puis insérer) brûlerait le ticket sur un insert raté.
+      // Mais l'ordre laisse un état INTERMÉDIAIRE possible entre les deux écritures : le spin
+      // existe, le ticket est encore `used_at is null` (l'update plus bas a pu échouer sur une
+      // tentative précédente — timeout, coupure réseau). Le rattrapage du `23505` ci-dessous EST
+      // la sortie de cet état, pas seulement la réponse au double-clic.
       const { error: sErr } = await admin.from('training_wheel_spins').insert({
         profile_id: profile.id,
         ticket_id: ticketRes.data.id,
@@ -78,7 +82,22 @@ export async function spinModuleWheel(): Promise<ActionResult<ModuleSpinResult>>
       // nue : `runAction` ne capture à Sentry QUE les `Error` nues, pas les `BusinessError` — les
       // faire toutes passer pour « déjà joué » masquerait une vraie panne, y compris à Sentry.
       if (sErr) {
-        if (sErr.code === '23505') throw new BusinessError('Ce tour vient d’être joué — recharge la page')
+        if (sErr.code === '23505') {
+          // Auto-cicatrisation. Ce code veut dire « un spin porte déjà ce ticket » : le tour A ÉTÉ
+          // joué, que ce soit par un double-clic ou par une tentative précédente dont seul l'update
+          // de `used_at` a échoué. Sans ce rattrapage, ce ticket resterait éternellement le plus
+          // ancien non utilisé : chaque nouvelle tentative le resélectionnerait (tri par
+          // `created_at` croissant plus haut) et échouerait ici, verrouillant le chatter hors de
+          // TOUS ses tours, y compris ceux gagnés plus tard — sans qu'aucun admin ne le voie.
+          // `is('used_at', null)` : idempotent, ne réécrit rien si un rattrapage précédent (ou
+          // l'update normal) l'a déjà marqué.
+          await admin
+            .from('training_wheel_tickets')
+            .update({ used_at: new Date().toISOString() })
+            .eq('id', ticketRes.data.id)
+            .is('used_at', null)
+          throw new BusinessError('Ce tour vient d’être joué — recharge la page')
+        }
         throw new Error(sErr.message)
       }
 
@@ -110,7 +129,7 @@ export async function saveModuleWheelConfig(raw: unknown): Promise<ActionResult>
       const { error } = await supabase.from('training_module_wheel_config').upsert({
         id: 1,
         title: c.title,
-        segments: segmentsToJson(c.segments.map((s) => ({ label: s.label, weight: s.weight, amountEur: s.amountEur }))),
+        segments: segmentsToJson(c.segments),
         updated_at: new Date().toISOString(),
         updated_by: profile.id,
       })
