@@ -4321,6 +4321,38 @@ export type Database = {
           },
         ]
       }
+      training_module_wheel_config: {
+        Row: {
+          id: number
+          segments: Json
+          title: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: number
+          segments: Json
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: number
+          segments?: Json
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_module_wheel_config_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_modules: {
         Row: {
           active: boolean
@@ -4826,6 +4858,7 @@ export type Database = {
           created_at: string
           granted_by: string | null
           id: string
+          module_id: string | null
           profile_id: string
           reason: string
           trophy_key: string | null
@@ -4836,6 +4869,7 @@ export type Database = {
           created_at?: string
           granted_by?: string | null
           id?: string
+          module_id?: string | null
           profile_id: string
           reason: string
           trophy_key?: string | null
@@ -4846,6 +4880,7 @@ export type Database = {
           created_at?: string
           granted_by?: string | null
           id?: string
+          module_id?: string | null
           profile_id?: string
           reason?: string
           trophy_key?: string | null
@@ -4858,6 +4893,13 @@ export type Database = {
             columns: ["granted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_wheel_tickets_module_id_fkey"
+            columns: ["module_id"]
+            isOneToOne: false
+            referencedRelation: "training_modules"
             referencedColumns: ["id"]
           },
           {
@@ -5114,6 +5156,22 @@ export type Database = {
           display_name: string
           points: number
           profile_id: string
+        }[]
+      }
+      training_module_wheel_grant: {
+        Args: { p_module: string; p_profile: string }
+        Returns: number
+      }
+      training_module_wheel_pending: {
+        Args: { p_profile: string }
+        Returns: number
+      }
+      training_module_wheel_state: {
+        Args: { p_profile: string }
+        Returns: {
+          cas_actifs: number
+          module_id: string
+          valides_ici: number
         }[]
       }
       training_overview_roster: {
