@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress'
 import { bigConfetti } from '@/lib/confetti'
 import { playCreak, playThud, playTroll, playVictory, playWind } from '@/lib/sfx'
 import { eur } from '@/lib/format'
-import type { SpinResult } from '../types'
+import type { WheelReveal } from '@/lib/types/training'
 
 /** Nombre de clics pour ouvrir le coffre — valeur GLA (`cineChest`, « Clique 10× »). */
 const CLICKS_NEEDED = 10
@@ -29,12 +29,12 @@ const CLICKS_NEEDED = 10
  * pas envie de jouer le jeu.
  */
 export function WheelResult({
-  result,
+  reveal,
   winnerName,
   onDone,
 }: {
-  result: SpinResult
-  /** Le chatteur pour qui le tour a été lancé — l'encadrant ne joue pas pour lui-même. */
+  reveal: WheelReveal
+  /** Le chatter pour qui le tour a été lancé — `null` quand on joue pour soi-même. */
   winnerName: string | null
   onDone: () => void
 }) {
@@ -43,9 +43,9 @@ export function WheelResult({
 
   // À l'ouverture de la modale : le vent annonce le coffre, le « troll » sanctionne le raté.
   useEffect(() => {
-    if (result.won) playWind()
+    if (reveal.won) playWind()
     else playTroll()
-  }, [result.won])
+  }, [reveal.won])
 
   useEffect(() => {
     if (!opened) return
@@ -59,7 +59,7 @@ export function WheelResult({
   return (
     <Dialog open onOpenChange={(next) => !next && onDone()}>
       <DialogContent className="sm:max-w-[420px]">
-        {!result.won ? (
+        {!reveal.won ? (
           <>
             <DialogHeader className="items-center text-center">
               <span aria-hidden className="text-5xl leading-none">😅</span>
@@ -123,11 +123,11 @@ export function WheelResult({
               <span aria-hidden className="relative text-6xl leading-none">🎉</span>
               <DialogTitle className="mt-3">{winnerName ? `${winnerName} gagne` : 'Gagné'}</DialogTitle>
               <DialogDescription className="text-lg font-semibold text-foreground">
-                {result.prize?.label ?? result.sectorLabel}
+                {reveal.label}
               </DialogDescription>
             </DialogHeader>
-            {result.prize?.amountEur != null && (
-              <p className="text-3xl font-semibold tabular-nums">{eur(result.prize.amountEur)}</p>
+            {reveal.amountEur != null && (
+              <p className="text-3xl font-semibold tabular-nums">{eur(reveal.amountEur)}</p>
             )}
             <p className="text-sm text-muted-foreground">
               Le gain est enregistré — l’agence le versera / l’appliquera.

@@ -49,8 +49,8 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
   (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
   migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; UAT à
-  **0130**, prod à **0124** (2026-08-27) — prochaine migration = 0131 ; **0125→0130 sont en
-  attente de release côté prod : appliquer les migrations AVANT de déployer le web**) : **catalogue**
+  **0136**, prod à **0135** — **0136 est en attente de release côté prod : appliquer la migration
+  AVANT de déployer le web** ; prochaine migration = **0137**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -69,7 +69,13 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   stockés (`training_wheel_spins`, € nullable, `paid_at` pour la compta plus tard), config
   admin 1 ligne, journal `member_events` kind `recompense` ; écritures service-role, RLS
   lecture. Poussé
-  **UAT seulement**, à recetter. **Recrutement** (reprise GLA, incr. 4) : page publique
+  **UAT seulement**, à recetter. **Roue des modules** (`/formation/ma-roue`, migration `0136`) : 2ᵉ
+  roue, celle du CHATTER — un tour par module terminé (≥ 60 à tous les exos, **sur des sessions
+  jouées ici** : l'historique GLA importé ne paie pas, cf. D5 et `0123:414`). Ticket en
+  `training_wheel_tickets.module_id` (unicité `(profile_id, module_id)` = un module paie une
+  fois), tirage dans le MÊME `training_wheel_spins` que la roue nº 1 (une seule compta), octroi
+  dans le trigger `training_on_session_scored` — **jamais dans `training_refresh_stats`**, que
+  l'import appelle en boucle. Pastille de tours sur la sidebar. **Recrutement** (reprise GLA, incr. 4) : page publique
   `/postuler` (proxy `isPublic`, parcours QI→frappe→connexion→fan IA→identité, anti-triche
   SERVEUR — clé de correction/tirages/verdict jamais côté client), tables `recruit_*` + RPC `recruit_pending_count`, e-mails en lower (check), profil candidat au formulaire de fin. Admin
   only : `/formation/recrutement` (dossiers, valider/refuser/bloquer/débloquer/supprimer) +

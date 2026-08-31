@@ -4,8 +4,8 @@ import type { Route } from 'next'
 import { DifficultyBars } from '@/components/training/difficulty-bars'
 import { MedalBar } from '@/components/training/medal-bar'
 import { PlayButton } from '@/components/training/play-button'
+import type { MyBest } from '@/lib/services/training-bests'
 import { MEDAL_EMOJI } from '@/lib/types/training'
-import type { MyBest } from '../services/get-my-bests'
 import type { ModuleDetail, PublicCase } from '../types'
 
 /**

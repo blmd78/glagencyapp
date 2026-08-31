@@ -78,6 +78,18 @@ export const MEDAL_LABELS = { or: 'Or', argent: 'Argent', bronze: 'Bronze' } as 
 /** Le métal en emoji (repères GLA) — au centre de la jauge de résultat, où un mot ne tiendrait pas. */
 export const MEDAL_EMOJI = { or: '🥇', argent: '🥈', bronze: '🥉' } as const
 
+/**
+ * Ce qu'une roue révèle, quelle qu'elle soit — la forme MINIMALE dont la cinématique a besoin.
+ * La roue nº 1 (encadrant) y projette son `SpinResult` à deux étages (secteur puis lot) ; la roue
+ * des modules, qui n'a qu'un étage et aucun perdant, la remplit directement.
+ */
+export interface WheelReveal {
+  won: boolean
+  /** Ce qui est annoncé : le lot pour la roue nº 1, le montant pour la roue des modules. */
+  label: string
+  amountEur: number | null
+}
+
 /** Snapshot VISIBLE du cas au moment joué (jsonb `training_sessions.case_snapshot`) — jamais de secret. */
 export interface CaseSnapshot {
   code: string; title: string; phase: string; difficulty: number

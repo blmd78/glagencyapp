@@ -25,7 +25,7 @@ export async function getWheelHistory(): Promise<WheelHistory> {
   const [spinsRes, rosterRes] = await Promise.all([
     supabase
       .from('training_wheel_spins')
-      .select('id, profile_id, spun_by, week, spun_at, won, prize_label, amount_eur, paid_at')
+      .select('id, profile_id, spun_by, week, spun_at, won, prize_label, amount_eur, paid_at, ticket_id')
       .order('spun_at', { ascending: false })
       .limit(HISTORY_LIMIT),
     supabase.rpc('training_overview_roster'),
@@ -46,11 +46,22 @@ export async function getWheelHistory(): Promise<WheelHistory> {
     for (const p of data ?? []) lanceurs.set(p.id, p.display_name ?? p.email ?? '—')
   }
 
+  const ticketIds = [...new Set((spinsRes.data ?? []).flatMap((s) => (s.ticket_id ? [s.ticket_id] : [])))]
+  const raisons = new Map<string, string>()
+  if (ticketIds.length > 0) {
+    // Client UTILISATEUR : la RLS de `training_wheel_tickets` ouvre déjà toutes les lignes à
+    // `frm-suivi` — pas besoin du service-role ici, contrairement aux noms des encadrants.
+    const { data, error } = await supabase.from('training_wheel_tickets').select('id, reason').in('id', ticketIds)
+    if (error) throw new Error(error.message)
+    for (const t of data ?? []) raisons.set(t.id, t.reason)
+  }
+
   const rows: WheelHistoryRow[] = (spinsRes.data ?? []).map((s) => ({
     id: s.id,
     profileId: s.profile_id,
     displayName: names.get(s.profile_id) ?? '—',
     spunByName: s.spun_by ? (lanceurs.get(s.spun_by) ?? '—') : null,
+    origine: s.ticket_id ? (raisons.get(s.ticket_id) ?? 'Roue des modules') : 'Encadrant',
     week: s.week,
     spunAt: s.spun_at,
     won: s.won,
@@ -74,5 +85,14 @@ export async function getWheelHistory(): Promise<WheelHistory> {
   // tirages d'avant la règle du 2026-08-24 portent la semaine RÉCOMPENSÉE, pas celle du tirage.
   const byWeek = [...acc.values()].sort((a, b) => (a.week < b.week ? 1 : a.week > b.week ? -1 : 0))
 
-  return { rows, totalEur, byWeek }
+  // `rows.length === HISTORY_LIMIT` : la requête a rendu PILE la limite, donc des lignes plus
+  // anciennes existent probablement au-delà (`spun_at` desc). Avec la roue des modules, la table
+  // va passer de 2 à ~1350 lignes (193 chatters × 7 tours) — ce plafond, choisi quand il n'y avait
+  // presque rien, sera désormais atteint en usage normal. Les totaux de `byWeek` ne portent alors
+  // que sur ce jeu tronqué, et la semaine la plus ancienne de la liste (fin de `byWeek`, trié desc)
+  // est celle qui est coupée : le composant doit le dire, pas laisser un total partiel se présenter
+  // comme exact sur un écran qui sert à décider ce qui reste à payer.
+  const truncated = rows.length === HISTORY_LIMIT
+
+  return { rows, totalEur, byWeek, truncated }
 }

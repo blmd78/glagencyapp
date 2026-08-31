@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label'
 import { saveWheelConfig } from '../actions'
 import { wheelConfigForm, type WheelConfigFormValues, type WheelConfigInput } from '../schema'
 import type { WheelConfig } from '../types'
-import { WheelSvg } from './wheel-svg'
+import { WheelSvg } from '@/components/training/wheel-svg'
 
 /** Un poids saisi (`unknown` : l'input rend une chaîne, Zod coerce) → nombre affichable. */
 const asWeight = (v: unknown) => {

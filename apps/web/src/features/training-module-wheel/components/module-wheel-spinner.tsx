@@ -3,15 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import type { WheelSector } from '@glagency/core'
+import type { WheelPrize } from '@glagency/core'
 import { ActionButton } from '@/components/action-button'
-import { Combobox } from '@/components/ui/combobox'
-import { playCling, playWheelSpin } from '@/lib/sfx'
-import { spinWheel } from '../actions'
-import type { SpinResult } from '../types'
-import type { SpinnableChatter } from '../services/get-spinnable-chatters'
 import { WheelResult } from '@/components/training/wheel-result'
 import { sectorAngles, WheelSvg } from '@/components/training/wheel-svg'
+import { playCling, playWheelSpin } from '@/lib/sfx'
+import { spinModuleWheel } from '../actions'
+import type { ModuleSpinResult } from '../types'
 
 /** Durée de la transition CSS de `WheelSvg` (4,8 s) + une marge pour l'arrêt franc. */
 const SPIN_MS = 4900
@@ -25,37 +23,34 @@ const TRANSPORT_KO = 'Connexion perdue — recharge la page'
 type Phase = 'idle' | 'spinning' | 'reveal'
 
 /**
- * La roue, côté ENCADRANT : il choisit un chatteur et lance pour lui — en partage d'écran (règle du
- * 2026-08-24). Il n'y a plus de ticket, donc plus de file d'attente ni d'éligibilité : le tour est
- * donné, pas gagné.
- *
- * Le tirage est décidé par le SERVEUR (`spinWheel`) : ici on anime la roue jusqu'au secteur
- * renvoyé, puis on révèle le lot. Aucune lib — rotation CSS sur le SVG.
+ * La roue des modules, côté CHATTER : il joue pour lui-même, en consommant un tour gagné en
+ * finissant un module. Le tirage est décidé par le SERVEUR (`spinModuleWheel`) : ici on anime la
+ * roue jusqu'au secteur renvoyé, puis on révèle le montant. Aucune lib — rotation CSS sur le SVG.
  */
-export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; chatters: SpinnableChatter[] }) {
+export function ModuleWheelSpinner({ segments, tours }: { segments: WheelPrize[]; tours: number }) {
   const router = useRouter()
   const [rotation, setRotation] = useState(0)
   const [phase, setPhase] = useState<Phase>('idle')
-  const [result, setResult] = useState<SpinResult | null>(null)
-  const [forProfileId, setForProfileId] = useState('')
+  const [result, setResult] = useState<ModuleSpinResult | null>(null)
   const timer = useRef<number | null>(null)
   // Verrou SYNCHRONE : `phase` ne vaut 'spinning' qu'au rendu suivant, et le `disabled` du bouton
-  // avec lui. Deux clics dans la même frame passeraient donc tous les deux — soit deux gains
-  // versés pour un double-clic accidentel. Une ref est lue et posée immédiatement.
+  // avec lui. Deux clics dans la même frame passeraient donc tous les deux. (La base refuserait
+  // le second — `ticket_id` est unique — mais l'utilisateur verrait une erreur pour rien.)
   const busy = useRef(false)
 
   // Le timer de révélation ne doit pas survivre au démontage (navigation pendant la rotation).
   useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current) }, [])
 
-  const cible = chatters.find((c) => c.profileId === forProfileId) ?? null
+  // `WheelSvg` parle en `WheelSector` : sur cette roue, aucun secteur n'est perdant.
+  const sectors = segments.map((s) => ({ label: s.label, weight: s.weight, lose: false }))
 
   const spin = async () => {
-    if (!cible || phase !== 'idle' || busy.current) return
+    if (tours <= 0 || phase !== 'idle' || busy.current) return
     busy.current = true
     setPhase('spinning')
-    let r: Awaited<ReturnType<typeof spinWheel>>
+    let r: Awaited<ReturnType<typeof spinModuleWheel>>
     try {
-      r = await spinWheel({ forProfileId: cible.profileId })
+      r = await spinModuleWheel()
     } catch {
       toast.error(TRANSPORT_KO)
       busy.current = false
@@ -72,7 +67,7 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
     }
     setResult(r.data)
     const angles = sectorAngles(sectors)
-    const a = angles.find((x) => x.index === r.data.sectorIndex) ?? angles[0]
+    const a = angles.find((x) => x.index === r.data.segmentIndex) ?? angles[0]
     if (!a) {
       // Config sans aucun poids > 0 : le serveur aurait throw avant d'en arriver là.
       busy.current = false
@@ -88,7 +83,6 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
     const current = ((rotation % 360) + 360) % 360
     const targetMod = ((-target % 360) + 360) % 360
     setRotation(rotation + ((targetMod - current + 360) % 360) + 5 * 360)
-    // Le cliquet démarre AVEC la rotation et se cale sur sa durée ; le « cling » ponctue l'arrêt.
     playWheelSpin(SPIN_MS / 1000)
     timer.current = window.setTimeout(() => {
       playCling()
@@ -98,50 +92,34 @@ export function WheelSpinner({ sectors, chatters }: { sectors: WheelSector[]; ch
 
   return (
     <section className="flex flex-col items-center gap-5">
-      <div className="flex w-full max-w-sm flex-col gap-1.5">
-        <span className="text-sm font-medium">Pour qui ?</span>
-        {/* `Combobox` et non `Select` : il porte une RECHERCHE (même composant que côté chatteurs).
-            Avec une promo entière dans la liste, dérouler et faire défiler pour trouver un nom est
-            plus lent que de taper trois lettres. */}
-        <Combobox
-          value={forProfileId}
-          onChange={setForProfileId}
-          disabled={phase !== 'idle'}
-          placeholder="Choisis un chatter…"
-          searchPlaceholder="Rechercher un chatter…"
-          emptyText="Aucun chatter trouvé."
-          options={chatters.map((c) => ({ value: c.profileId, label: c.displayName }))}
-        />
-      </div>
-
       <WheelSvg sectors={sectors} rotation={rotation} spinning={phase === 'spinning'} />
 
       <ActionButton
         type="button"
         onClick={() => void spin()}
         pending={phase === 'spinning'}
-        disabled={!cible || phase === 'reveal'}
+        disabled={tours <= 0 || phase === 'reveal'}
         className="gla-btn mt-2 h-12 w-full max-w-[250px] border-0 text-[15px] font-bold"
       >
-        {cible ? `Tourner pour ${cible.displayName} 🎡` : 'Tourner la roue 🎡'}
+        {tours > 0 ? 'Tourner la roue 🎡' : 'Aucun tour disponible'}
       </ActionButton>
 
       <p className="text-center text-sm text-[var(--gla-faint)]">
-        {chatters.length === 0
-          ? 'Aucun chatter en formation pour l’instant.'
-          : 'Le gain est enregistré au nom du chatter, et ton nom reste sur le tirage.'}
+        {tours > 0
+          ? `Tu as ${tours} tour${tours > 1 ? 's' : ''} — chaque tour rapporte entre 6 et 8 €.`
+          : 'Termine un module (au moins 60 à tous ses exos) pour gagner un tour.'}
       </p>
 
       {phase === 'reveal' && result && (
         <WheelResult
-          // La roue nº 1 est à deux étages : le lot s'il y en a un, sinon le libellé du secteur.
-          reveal={{ won: result.won, label: result.prize?.label ?? result.sectorLabel, amountEur: result.prize?.amountEur ?? null }}
-          winnerName={cible?.displayName ?? null}
+          reveal={{ won: true, label: result.label, amountEur: result.amountEur }}
+          winnerName={null}
           onDone={() => {
-            // Retour à `idle` : l'encadrant enchaîne sur un autre chatter sans recharger.
             busy.current = false
             setPhase('idle')
             setResult(null)
+            // C'est ICI qu'on rafraîchit, pas dans l'action : le compteur de tours et « Mes gains »
+            // ne doivent bouger qu'une fois le coffre ouvert.
             router.refresh()
           }}
         />
