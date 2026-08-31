@@ -46,6 +46,7 @@ import {
   UserSearch,
   Settings2,
   SlidersHorizontal,
+  Sparkles,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -235,6 +236,11 @@ export const WORKSPACES: Workspace[] = [
       // la roue pour un chatteur, en partage d'écran. Un chatteur n'a plus rien à y faire — il
       // apprend son gain de vive voix. Pas de `slug` propre : le droit vient de Suivi.
       { href: '/formation/roue', label: 'Roue', icon: Gift, anyOf: ['frm-suivi'] },
+      // La 2ᵉ roue (0136) : celle du CHATTER. Il gagne un tour en finissant un module et le joue
+      // lui-même — d'où la pastille : un chiffre sur lequel on ne peut pas cliquer n'a pas de sens.
+      // `anyOf` sans `slug` : le droit vient de « Ma formation », ce n'est pas une case de plus
+      // dans Membres. Seul item de la face à porter une pastille avec Recrutement.
+      { href: '/formation/ma-roue', label: 'Ma roue', icon: Sparkles, anyOf: ['frm-entrainement'] },
       // PLUS D'ITEM « Modules » (2026-08-25) : on navigue depuis « Ma formation », dont le panneau
       // « Tes modules » liste tout le catalogue — c'est le parcours de l'ancienne plateforme, où la
       // liste des modules EST l'accueil. Les PAGES restent : `/formation/modules` et
