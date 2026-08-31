@@ -1,12 +1,13 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
-import { addDays } from '@glagency/core'
+import { addDays, todayParis } from '@glagency/core'
 import { requireAdmin } from '@/lib/auth'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { RecapTemplate } from '@/features/tracking-recap/RecapTemplate'
 import { RecapSkeleton } from '@/features/tracking-recap/components/recap-skeleton'
 import { getWeekRecap, type RecapData } from '@/features/tracking-recap/services/get-week-recap'
+import { weekStartOf } from '@/features/tracking-todo/services/get-week'
 
 /**
  * Récap hebdomadaire — port de `/recap` du tracker GLA.
@@ -44,12 +45,12 @@ async function Header({ data }: { data: Promise<RecapData> }) {
   const href = (w: string): Route => `/chatter/presence/recap?week=${w}` as Route
   return (
     <CtxBar title="Récap" crumb={<b>semaine du {label(d.weekStart)}</b>}>
-      <Link className="btn sm btn-ghost" href={href(addDays(d.weekStart, -7))}>
-        ← Semaine précédente
-      </Link>
-      <Link className="btn sm btn-ghost" href={href(addDays(d.weekStart, 7))}>
-        Semaine suivante →
-      </Link>
+      {/* Nav de semaine segmentée, identique au tracker et à l'écran To-Do. */}
+      <div className="seg">
+        <Link href={href(addDays(d.weekStart, -7))} aria-label="Semaine précédente">‹</Link>
+        <Link href={href(weekStartOf(todayParis()))}>cette semaine</Link>
+        <Link href={href(addDays(d.weekStart, 7))} aria-label="Semaine suivante">›</Link>
+      </div>
     </CtxBar>
   )
 }

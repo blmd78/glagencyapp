@@ -9,6 +9,7 @@ import { TodoSkeleton } from '@/features/tracking-todo/components/todo-skeleton'
 import { getTodoHolders } from '@/features/tracking-todo/services/get-holders'
 import { getTodoWeek, weekStartOf } from '@/features/tracking-todo/services/get-week'
 import { TrackerImportButton } from '@/features/tracking-todo/components/tracker-import-button'
+import { TodoAccountSelect } from '@/features/tracking-todo/components/todo-account-select'
 import type { TodoWeek } from '@/features/tracking-todo/types'
 
 // L'import depuis le tracker (login + lecture throttlée de plusieurs pages) tourne dans une Server
@@ -75,39 +76,21 @@ async function Header({
     return `/chatter/presence/todo?${q.toString()}` as Route
   }
   return (
-    <CtxBar title="To Do" crumb={<b>semaine du {label(d.weekStart)}</b>}>
-      {ownWeek && <TrackerImportButton />}
-      <Link className="btn sm btn-ghost" href={href(addDays(d.weekStart, -7))}>
-        ← Semaine précédente
-      </Link>
-      <Link className="btn sm btn-ghost" href={href(weekStartOf(d.today))}>
-        Cette semaine
-      </Link>
-      <Link className="btn sm btn-ghost" href={href(addDays(d.weekStart, 7))}>
-        Semaine suivante →
-      </Link>
-      {/* Sélecteur de semaine — admin seulement (`holders` est vide pour les autres). Liens et non
-          `<select>` : la page est un Server Component, l'état vit dans l'URL et reste partageable. */}
+    <CtxBar
+      title="To Do"
+      crumb={<b>semaine du {label(d.weekStart)}</b>}
+      // Bouton de récupération à l'extrême droite : il n'a de sens que sur SA propre semaine.
+      right={ownWeek ? <TrackerImportButton /> : undefined}
+    >
+      {/* Nav de semaine SEGMENTÉE, à l'identique du tracker (`.datenav.seg` : ‹ / cette semaine / ›). */}
+      <div className="seg">
+        <Link href={href(addDays(d.weekStart, -7))} aria-label="Semaine précédente">‹</Link>
+        <Link href={href(weekStartOf(d.today))}>cette semaine</Link>
+        <Link href={href(addDays(d.weekStart, 7))} aria-label="Semaine suivante">›</Link>
+      </div>
+      {/* Sélecteur de compte (notre Combobox), admin seulement (`holders` est vide pour les autres). */}
       {people.length > 0 ? (
-        <span className="whose">
-          <Link
-            className={owner && owner !== viewerId ? 'btn sm btn-ghost' : 'btn sm'}
-            href={`/chatter/presence/todo?week=${d.weekStart}` as Route}
-          >
-            Ma semaine
-          </Link>
-          {people
-            .filter((p) => p.id !== viewerId)
-            .map((p) => (
-              <Link
-                key={p.id}
-                className={owner === p.id ? 'btn sm' : 'btn sm btn-ghost'}
-                href={`/chatter/presence/todo?week=${d.weekStart}&owner=${p.id}` as Route}
-              >
-                {p.name}
-              </Link>
-            ))}
-        </span>
+        <TodoAccountSelect week={d.weekStart} viewerId={viewerId} current={owner ?? viewerId} people={people} />
       ) : null}
     </CtxBar>
   )
