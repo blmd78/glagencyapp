@@ -179,7 +179,8 @@ $cmt$octroie le tour de roue d'un module terminé (≥ 60 partout, sessions jou�
 -- (0123_reprise_gla.sql:367) l'appelle EN BOUCLE sur tous les cas d'un profil pendant un import GLA.
 -- L'octroi y aurait payé l'import.
 --
--- Le trigger, lui, est un `AFTER UPDATE OF status, scored_at` — et 0123:361 le note noir sur blanc :
+-- Le trigger, lui, est un `AFTER UPDATE OF status, scored_at, total, objective_reached` (0116)
+-- — et 0123:361 le note noir sur blanc :
 -- « un INSERT ne le déclenche JAMAIS ». L'import insère. D5 est donc respectée PAR CONSTRUCTION,
 -- pas par un filtre qu'on pourrait oublier de recopier.
 --
@@ -201,8 +202,10 @@ $$;
 -- ─────────────────────────────────────────────────────────────────────────────────────────────
 -- 6. La pastille de sidebar
 --
--- Appelée au rendu de CHAQUE page du CRM : un `count` sur l'index partiel des tickets en attente,
--- rien d'autre. Tout est matérialisé au moment de la notation — contrairement à l'ancienne
+-- Appelée au rendu de CHAQUE page du CRM : un `count` filtré par l'index partiel
+-- `training_wheel_tickets_module_uidx` (`module_id is not null`), puis par `used_at is null` —
+-- pas cher, même sans un index qui porterait les deux prédicats à la fois. Tout est matérialisé
+-- au moment de la notation — contrairement à l'ancienne
 -- `training_wheel_pending` (0118, supprimée par 0122), qui devait rejouer quatre classements
 -- hebdo à chaque appel.
 create or replace function public.training_module_wheel_pending(p_profile uuid)
