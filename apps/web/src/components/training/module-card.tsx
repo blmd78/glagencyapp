@@ -18,6 +18,15 @@ export interface ModuleCardProps {
    * avec des chiffres qui semblaient se contredire.
    */
   right?: ReactNode
+  /**
+   * Force l'état « terminé » (le ✅) au lieu de le déduire des cas TENTÉS.
+   *
+   * Indispensable sur « Ma roue » : là-bas, « terminé » veut dire « un tour a été gagné » (≥ 60 à
+   * CHAQUE exo, sur des sessions jouées ici), pas « tous les exos ont été ouverts ». Sans cette
+   * porte de sortie, un chatter à 23/23 tentés avec 12 validés voyait un ✅ et une barre pleine sans
+   * « Tour à jouer » — et allait réclamer à un encadrant un tour qui ne lui était pas dû.
+   */
+  complete?: boolean
 }
 
 /**
@@ -30,8 +39,9 @@ export interface ModuleCardProps {
  * barre dégradée au centre, valeur à droite. Toute la carte est le lien (affordance GLA : elle
  * glisse vers la droite au survol).
  */
-export function ModuleCard({ code, title, emoji, progress, right }: ModuleCardProps) {
-  const complete = progress.total > 0 && progress.done === progress.total
+export function ModuleCard({ code, title, emoji, progress, right, complete }: ModuleCardProps) {
+  // Par défaut : « tous les cas tentés » — la définition de « Ma formation », inchangée.
+  const done = complete ?? (progress.total > 0 && progress.done === progress.total)
   return (
     <li>
       <Link href={`/formation/modules/${code}?vue=cas` as Route} className="gla-card flex items-center gap-[13px] p-3">
@@ -41,7 +51,7 @@ export function ModuleCard({ code, title, emoji, progress, right }: ModuleCardPr
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold">
             {title}
-            {complete && <span aria-hidden className="ml-1.5">✅</span>}
+            {done && <span aria-hidden className="ml-1.5">✅</span>}
           </span>
           <span className="mt-px block text-[11.5px] tabular-nums text-[var(--gla-muted)]">
             {progress.done}/{progress.total} cas · moy. {progress.avg ?? '—'} · {progress.points} pts

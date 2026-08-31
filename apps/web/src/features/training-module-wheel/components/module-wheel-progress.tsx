@@ -7,17 +7,20 @@ import type { ModuleWheelModule } from '../types'
  *
  * La carte est celle de « Ma formation » (`components/training/module-card`), avec SES chiffres —
  * cas tentés, moyenne, points. C'est le correctif : les deux écrans montrent le même module, ils
- * doivent afficher la même chose. La règle de la roue (« validé » = ≥ 60 sur une session jouée ICI,
- * D5) ne remplace plus ces chiffres, elle s'affiche À CÔTÉ et se nomme — « 12/23 validés à 60 » en
- * regard d'un « 22/23 cas · moy. 56 » se lit tout seul, là où un « 0/23 » solitaire ne pouvait se
- * lire que comme un bug.
+ * doivent afficher la même chose. Avant, cet écran affichait sa PROPRE arithmétique (« 0/23 » là où
+ * l'autre disait « 22/23 ») et se lisait comme un bug.
+ *
+ * À droite, là où « Ma formation » met le pourcentage d'avancement, on met la MOYENNE sur 100 : sur
+ * cet écran, le seul chiffre actionnable est celui qui se compare au seuil de 60. Les états du tour
+ * (joué, à jouer, non attribué) prennent cette place quand ils ont quelque chose à dire — ils
+ * priment sur la note, parce qu'un tour qui attend est plus urgent qu'un score.
  */
 export function ModuleWheelProgress({ modules }: { modules: ModuleWheelModule[] }) {
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-semibold">Comment gagner un tour</h2>
       <p className="text-sm text-muted-foreground">
-        Un tour de roue par module terminé — il faut au moins 60 à <span className="font-medium">tous</span> ses exos.
+        Un tour de roue par module terminé — il faut au moins 60 à <span className="font-medium">chaque</span> exo. La note à droite est ta moyenne sur le module.
       </p>
       <ul className="flex flex-col gap-[9px]">
         {modules.map((m) => (
@@ -27,6 +30,11 @@ export function ModuleWheelProgress({ modules }: { modules: ModuleWheelModule[] 
             title={m.title}
             emoji={m.emoji}
             progress={m.progress}
+            // Sur CET écran, « terminé » = le tour est acquis, pas « tous les exos ont été
+            // ouverts ». La carte le déduirait sinon des cas TENTÉS (la définition de « Ma
+            // formation ») : un chatter à 23/23 tentés dont 12 seulement sont validés à 60 verrait
+            // un ✅ sans « Tour à jouer », et irait réclamer un tour qui ne lui est pas dû.
+            complete={m.etat === 'gagne' || m.etat === 'joue'}
             right={
               m.etat === 'joue' ? (
                 <span className="text-sm text-muted-foreground">Tour joué</span>
@@ -53,11 +61,22 @@ export function ModuleWheelProgress({ modules }: { modules: ModuleWheelModule[] 
                   Tour non attribué — préviens un encadrant
                 </span>
               ) : (
-                // Le compteur de la ROUE, nommé pour ce qu'il est. « N exos restants » était un
-                // reste à faire sans unité comparable au « x/y cas » de la carte : mis en regard, il
-                // donnait l'impression que l'un des deux écrans mentait.
-                <span className="text-sm tabular-nums text-muted-foreground">
-                  {m.valides}/{m.total} validés à 60
+                // LA MOYENNE, et pas un décompte (demande de Benoit du 2026-08-31). Sur cet écran,
+                // le chiffre qui aide est celui qu'on peut comparer au seuil : « 56/100 » en face
+                // d'un en-tête qui annonce « au moins 60 » se lit d'un coup — il manque 4 points.
+                // Un « 0/23 validés à 60 » disait la même chose en négatif, sans dire de combien on
+                // était loin, et se lisait comme un compteur cassé.
+                //
+                // `/100` explicite : sans lui, un « 56 » nu se confond avec le pourcentage
+                // d'avancement que la MÊME place occupe dans « Ma formation ».
+                //
+                // TEINTE NEUTRE, volontairement. Une première version passait le nombre en vert
+                // dès 60 de moyenne : sur un écran qui parle de tours à gagner, ça se lisait comme
+                // « tu y es ». Or la moyenne n'est PAS la règle — il faut 60 à CHAQUE exo, sur des
+                // sessions jouées ici. Un chatter dont tout l'historique est importé peut afficher
+                // 85 de moyenne et ne rien avoir gagné : le vert lui aurait promis de l'argent.
+                <span className="flex-none text-right text-[15px] font-extrabold tabular-nums text-[var(--gla-muted)]">
+                  {m.progress.avg == null ? '—' : `${m.progress.avg}/100`}
                 </span>
               )
             }
