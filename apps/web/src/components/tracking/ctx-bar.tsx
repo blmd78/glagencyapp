@@ -13,12 +13,17 @@ export function CtxBar({
   title,
   crumb,
   children,
+  right,
 }: {
   title: string
   /** Fil d'Ariane à droite du titre, ex. « Shift Nuit · <b>mer. 26/08</b> ». */
   crumb?: ReactNode
   /** Filtres alignés à droite (leurs `.dd`). */
   children?: ReactNode
+  /** Slot poussé à l'extrême droite (`.ctx-right`, flex:1). Avec `right`, le titre (flex:1) et ce
+   *  slot (flex:1) équilibrent la barre et centrent `children` entre eux — ex. To-Do : le bouton
+   *  de récupération à droite, la nav de semaine + le sélecteur au centre. */
+  right?: ReactNode
 }) {
   return (
     <div className="ctx">
@@ -28,6 +33,7 @@ export function CtxBar({
           {crumb ? <div className="crumb">{crumb}</div> : null}
         </div>
         {children ? <div className="ctx-mid">{children}</div> : null}
+        {right ? <div className="ctx-right">{right}</div> : null}
       </div>
     </div>
   )

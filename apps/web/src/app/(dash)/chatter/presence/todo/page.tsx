@@ -76,16 +76,19 @@ async function Header({
     return `/chatter/presence/todo?${q.toString()}` as Route
   }
   return (
-    <CtxBar title="To Do" crumb={<b>semaine du {label(d.weekStart)}</b>}>
-      {ownWeek && <TrackerImportButton />}
+    <CtxBar
+      title="To Do"
+      crumb={<b>semaine du {label(d.weekStart)}</b>}
+      // Bouton de récupération à l'extrême droite : il n'a de sens que sur SA propre semaine.
+      right={ownWeek ? <TrackerImportButton /> : undefined}
+    >
       {/* Nav de semaine SEGMENTÉE, à l'identique du tracker (`.datenav.seg` : ‹ / cette semaine / ›). */}
       <div className="seg">
         <Link href={href(addDays(d.weekStart, -7))} aria-label="Semaine précédente">‹</Link>
         <Link href={href(weekStartOf(d.today))}>cette semaine</Link>
         <Link href={href(addDays(d.weekStart, 7))} aria-label="Semaine suivante">›</Link>
       </div>
-      {/* Sélecteur de compte — un vrai MENU DÉROULANT comme le leur (todo.html), admin seulement
-          (`holders` est vide pour les autres). */}
+      {/* Sélecteur de compte (notre Combobox), admin seulement (`holders` est vide pour les autres). */}
       {people.length > 0 ? (
         <TodoAccountSelect week={d.weekStart} viewerId={viewerId} current={owner ?? viewerId} people={people} />
       ) : null}

@@ -163,6 +163,8 @@
 .trk .ctx .title .crumb { font-size:12px;color:var(--trk-faint);font-weight:500;margin-top:1px }
 .trk .ctx .title .crumb b { color:var(--trk-muted);font-weight:600 }
 .trk .ctx-mid { display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center }
+/* Slot d'extrême droite : flex:1 pour équilibrer le titre (flex:1) et centrer `.ctx-mid` entre eux. */
+.trk .ctx-right { flex:1;min-width:0;display:flex;align-items:center;gap:10px;justify-content:flex-end }
 .trk .ctx-sp { flex:1;min-width:0 }
 .trk .search { display:flex;align-items:center;gap:8px;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;padding:0 11px;min-width:170px }
 .trk .search input { background:none;border:none;color:var(--trk-text);padding:8px 0;font:inherit;font-size:13.5px;outline:none;width:100% }
