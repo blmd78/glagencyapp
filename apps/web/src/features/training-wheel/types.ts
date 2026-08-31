@@ -46,6 +46,13 @@ export interface WheelHistory {
   /** Σ des montants GAGNÉS (les lots non monétaires comptent 0). */
   totalEur: number
   byWeek: { week: string; count: number; totalEur: number }[]
+  /**
+   * `true` quand `rows` a été coupé par `HISTORY_LIMIT` : les totaux de `byWeek` sont alors
+   * calculés sur un jeu tronqué, et en particulier celui de la semaine la PLUS ANCIENNE de la
+   * liste (la dernière de `byWeek`, trié desc) est partiel — ses tirages les plus anciens sont
+   * hors fenêtre. L'UI doit le dire, pas le taire sur un tableau qui sert de base à un versement.
+   */
+  truncated: boolean
 }
 
 /**

@@ -18,6 +18,12 @@ import { saveModuleWheelConfig } from '../actions'
 import { moduleWheelConfigForm, type ModuleWheelConfigFormValues, type ModuleWheelConfigInput } from '../schema'
 import type { ModuleWheelConfig } from '../types'
 
+// Gabarit de grille partagé par la ligne d'en-têtes et la ligne de saisie d'un secteur : les DEUX
+// DOIVENT rester alignées colonne à colonne (label / montant / poids / % / bouton supprimer).
+// Écrit une seule fois ici — dupliqué en dur dans les deux JSX, éditer l'un désalignerait l'autre
+// en silence (revue finale).
+const SECTOR_GRID_COLS = 'grid-cols-[1fr_6rem_5rem_3rem_auto]'
+
 /** Un poids saisi (l'input rend une chaîne) → nombre affichable. */
 const asWeight = (v: unknown) => {
   const n = Number(v)
@@ -108,10 +114,27 @@ export function ModuleWheelConfigDialog({ config }: { config: ModuleWheelConfig 
             <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
               <fieldset className="flex flex-col gap-3">
                 <legend className="text-sm font-medium">Secteurs</legend>
+                {/* En-têtes de colonnes. Pas de la décoration : « Libellé » et « Montant » sont
+                    INDÉPENDANTS — rien n'empêche d'écrire « 8 € » sur un secteur qui en paie 6, et
+                    c'est le montant qui est versé. Deux champs voisins qui se ressemblent sans être
+                    la même chose, sur un écran qui verse de l'argent, doivent se nommer.
+                    `aria-hidden` : chaque input porte déjà son propre `aria-label`, ces titres
+                    seraient une seconde annonce redondante au lecteur d'écran. */}
+                <div
+                  aria-hidden
+                  className={`grid ${SECTOR_GRID_COLS} items-center gap-2 text-xs text-muted-foreground`}
+                >
+                  <span>Libellé sur la roue</span>
+                  <span>Montant versé</span>
+                  <span>Poids</span>
+                  <span className="text-right">%</span>
+                  {/* Colonne du bouton supprimer — vide, pour aligner la grille. */}
+                  <span />
+                </div>
                 <ul className="flex flex-col gap-2">
                   {segments.fields.map((f, i) => (
                     <li key={f.id} className="flex flex-col gap-1">
-                      <div className="grid grid-cols-[1fr_6rem_5rem_3rem_auto] items-center gap-2">
+                      <div className={`grid ${SECTOR_GRID_COLS} items-center gap-2`}>
                         <Input
                           aria-label={`Libellé du secteur ${i + 1}`}
                           placeholder="7 €"

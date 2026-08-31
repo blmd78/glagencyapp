@@ -46,6 +46,16 @@ export function ModuleWheelProgress({ modules }: { modules: ModuleWheelModule[] 
                   // le module n'est ni joué, ni gagné, ni à un exo près — il n'a simplement aucun
                   // contenu actif pour l'instant.
                   <span className="text-muted-foreground">Aucun exercice actif</span>
+                ) : restant === 0 ? (
+                  // `etat === 'a_gagner'` avec `restant === 0` : tous les exos actifs sont validés
+                  // mais aucun ticket n'existe pour ce module (cf. `getModuleWheel`, `etat: ticket ?
+                  // … : 'a_gagner'`). C'est un état ATTEIGNABLE ET DÉFINITIF — l'octroi n'a qu'un
+                  // seul appelant, le trigger de notation du dernier exo, et rien ne le rejoue
+                  // ensuite (droits pas encore accordés à cet instant, encadrant sans rôle chatteur
+                  // que la base refuse sciemment de payer, etc.). Sans cette branche on retombe dans
+                  // « 0 exo restant » ci-dessous, qui se lit comme « rien à faire » et masque un
+                  // chatter qui a perdu ~7 € en silence : il faut un message qui pousse à agir.
+                  <span className="font-medium text-red-600 dark:text-red-400">Tour non attribué — préviens un encadrant</span>
                 ) : (
                   <span className="text-muted-foreground">
                     {restant} exo{restant > 1 ? 's' : ''} restant{restant > 1 ? 's' : ''}

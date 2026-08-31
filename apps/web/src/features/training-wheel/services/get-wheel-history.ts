@@ -85,5 +85,14 @@ export async function getWheelHistory(): Promise<WheelHistory> {
   // tirages d'avant la règle du 2026-08-24 portent la semaine RÉCOMPENSÉE, pas celle du tirage.
   const byWeek = [...acc.values()].sort((a, b) => (a.week < b.week ? 1 : a.week > b.week ? -1 : 0))
 
-  return { rows, totalEur, byWeek }
+  // `rows.length === HISTORY_LIMIT` : la requête a rendu PILE la limite, donc des lignes plus
+  // anciennes existent probablement au-delà (`spun_at` desc). Avec la roue des modules, la table
+  // va passer de 2 à ~1350 lignes (193 chatters × 7 tours) — ce plafond, choisi quand il n'y avait
+  // presque rien, sera désormais atteint en usage normal. Les totaux de `byWeek` ne portent alors
+  // que sur ce jeu tronqué, et la semaine la plus ancienne de la liste (fin de `byWeek`, trié desc)
+  // est celle qui est coupée : le composant doit le dire, pas laisser un total partiel se présenter
+  // comme exact sur un écran qui sert à décider ce qui reste à payer.
+  const truncated = rows.length === HISTORY_LIMIT
+
+  return { rows, totalEur, byWeek, truncated }
 }
