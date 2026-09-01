@@ -99,8 +99,12 @@ async function Header({
     <CtxBar
       title="To Do"
       crumb={<b>semaine du {label(d.weekStart)}</b>}
-      // Bouton de récupération à l'extrême droite : il n'a de sens que sur SA propre semaine.
-      right={ownWeek ? <TrackerImportButton /> : undefined}
+      // Bouton de récupération à l'extrême droite : il n'a de sens que sur SA propre semaine, et
+      // que si on peut y écrire. `d.canWrite` en plus de `ownWeek` : un porteur du droit qui n'est
+      // pas encadrant (chatteur, policier) voit un écran entièrement en lecture seule — lui laisser
+      // le seul bouton d'écriture de la page, que le serveur refuse désormais, serait la dernière
+      // promesse non tenue de cet écran.
+      right={ownWeek && d.canWrite ? <TrackerImportButton /> : undefined}
     >
       {/* Nav de semaine SEGMENTÉE, à l'identique du tracker (`.datenav.seg` : ‹ / cette semaine / ›). */}
       <div className="seg">

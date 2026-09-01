@@ -92,22 +92,43 @@ export async function assertOwner(ownerId: string): Promise<string> {
  */
 export async function canAssignTodoOf(profile: Profile, ownerId: string): Promise<boolean> {
   // Forme de l'id validée EN PREMIER, avant même la dérogation admin. `?owner=` vient de l'URL :
-  // pour un admin, un `true` rendu ici sans regarder la valeur laisse passer `?owner=nawak`
-  // jusqu'aux sept requêtes de `getTodoWeek`, dont les `.eq('owner_id', …)` sur des colonnes uuid
-  // lèvent une 22P02 — la page tombe sur son error boundary au lieu d'ignorer le paramètre.
-  // Un paramètre d'URL bricolé doit être sans effet, pas fatal.
+  // un `true` rendu sans regarder la valeur laisse passer `?owner=nawak` jusqu'aux sept requêtes
+  // de `getTodoWeek`, dont les `.eq('owner_id', …)` sur des colonnes uuid lèvent une 22P02 — la
+  // page tombe sur son error boundary au lieu d'ignorer le paramètre. Un paramètre d'URL bricolé
+  // doit être sans effet, pas fatal.
   if (!UUID.test(ownerId)) return false
-  if (profile.role === 'admin') return true
-  if (profile.baseRole !== 'manager') return false
+  if (profile.role !== 'admin' && profile.baseRole !== 'manager') return false
+
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('profiles')
-    .select('role, manager_ids')
+    .select('role, pages, manager_ids')
     .eq('id', ownerId)
     .is('left_at', null)
     .maybeSingle()
   if (error) throw new Error(error.message)
-  return data?.role === 'sous-manager' && (data.manager_ids ?? []).includes(profile.id)
+  if (!data) return false
+
+  // LA CIBLE DOIT POUVOIR OUVRIR SA TO-DO. Sans ce test, on assigne du travail dans un outil que
+  // la personne ne peut pas ouvrir — et la tâche déposée la fait ensuite apparaître au Récap de
+  // son manager en « 0/N débriefs », c'est-à-dire le reproche structurel que 0137 dit justement
+  // vouloir éviter. Le droit est la règle UNIQUE de toute la feature : qui l'a est attendu, qui ne
+  // l'a pas n'existe pas encore pour cet écran. Vaut aussi pour l'admin, dont le `?owner=` visait
+  // sinon n'importe quel uuid bien formé, chatteur compris.
+  if (!canOpenTodo(data.role, data.pages)) return false
+
+  if (profile.role === 'admin') return true
+  return data.role === 'sous-manager' && (data.manager_ids ?? []).includes(profile.id)
+}
+
+/**
+ * La personne peut-elle ouvrir la To-Do ? Miroir EXACT de `hasPageAccess` (lib/auth) appliqué à
+ * QUELQU'UN D'AUTRE que l'appelant — les admins passent sans porter le slug. Exporté parce que
+ * `getTodoHolders` doit trancher la même question sur une liste, et que deux formulations de cette
+ * règle divergeraient.
+ */
+export function canOpenTodo(role: string | null, pages: string[] | null): boolean {
+  return role === 'admin' || role === 'superadmin' || (pages ?? []).includes('presence')
 }
 
 /**

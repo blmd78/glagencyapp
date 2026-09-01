@@ -1,5 +1,6 @@
 import { createAdminClient } from '@glagency/db'
 import type { Profile } from '@/lib/auth'
+import { canOpenTodo } from '@/lib/tracking/todo-guards'
 
 /** Les rôles qui ont une to-do dans le tracker (le legacy en donnait une à chaque encadrant). */
 const ENCADRANTS = ['admin', 'superadmin', 'manager', 'sous-manager']
@@ -31,7 +32,7 @@ export async function getTodoHolders(profile: Profile): Promise<{ id: string; na
 
   let query = createAdminClient()
     .from('profiles')
-    .select('id, display_name')
+    .select('id, display_name, role, pages')
     .is('left_at', null)
     .order('display_name')
 
@@ -41,5 +42,13 @@ export async function getTodoHolders(profile: Profile): Promise<{ id: string; na
 
   const { data, error } = await query
   if (error) throw new Error(error.message)
-  return (data ?? []).map((p) => ({ id: p.id, name: p.display_name ?? '—' }))
+  return (data ?? [])
+    // Ne proposer que ceux qui peuvent OUVRIR leur to-do — même règle que `canAssignTodoOf`, qui
+    // refusera de toute façon le dépôt chez les autres. Filtré ici et non en SQL parce que le
+    // `where` ci-dessus a déjà ramené la liste à quelques encadrants : le motif « filtrer en SQL »
+    // visait l'annuaire complet, pas ce reliquat. Conséquence attendue au premier jour : tant que
+    // personne ne porte le droit, le sélecteur est vide — il n'y a effectivement personne chez qui
+    // déposer.
+    .filter((p) => canOpenTodo(p.role, p.pages))
+    .map((p) => ({ id: p.id, name: p.display_name ?? '—' }))
 }

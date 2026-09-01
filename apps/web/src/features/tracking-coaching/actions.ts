@@ -227,6 +227,13 @@ export async function deleteSession(raw: unknown): Promise<ActionResult> {
       // sans la trace qui le prouve — l'inverse exact de la règle « pas de compte-rendu, pas de
       // coche ». C'est aussi la seule sortie laissée au décochage d'un 1:1 (`toggleTask` le refuse
       // tant qu'un bilan existe, pour ne pas créer une seconde session à la reclôture).
+      //
+      // SEULE ÉCRITURE SUR LA TO-DO D'UN AUTRE QUI NE PASSE PAS PAR `assertOwner` — assumé, et à
+      // savoir : la garde de ce chemin est `requireCoachFor` (droit d'écriture + périmètre modèles
+      // du CHATTEUR), pas la propriété de la tâche. Un encadrant qui partage une modèle avec le
+      // chatteur peut donc supprimer le bilan écrit par un pair, et rouvrir la tâche de ce pair.
+      // C'est la conséquence cohérente : le bilan n'existe plus, la tâche ne peut pas rester
+      // cochée. La borner à l'auteur laisserait au contraire des tâches cochées sans trace.
       if (task) {
         const { error: reopenErr } = await admin
           .from('tracker_todo_tasks')
