@@ -16,10 +16,23 @@ export interface TodoTask {
   /** Déposée par quelqu'un d'autre que le propriétaire — la hiérarchie, comme sur le planning. */
   fromOther: boolean
   /**
+   * Déposée par CELUI QUI REGARDE. C'est la seule tâche qu'un non-titulaire puisse retirer
+   * (`assertCanUnassign` : « retirer ce qu'il a déposé ») — sans ce drapeau, la dérogation
+   * existerait côté serveur sans aucun bouton pour l'exercer, comme c'était le cas du dépôt.
+   */
+  depositedByMe: boolean
+  /**
    * Tâche « 1:1 » : l'id du chatteur visé. Cocher n'est alors pas une case à cocher — ça ouvre le
    * bilan sur sa fiche, et c'est l'enregistrement du bilan qui clôt la tâche.
    */
   chatterId: string | null
+  /**
+   * Le 1:1 a rendu son bilan (`session_id` posé, 0133). La tâche devient alors INTOUCHABLE : ni
+   * décochée, ni supprimée — sa session vivrait sinon dans la fiche du chatteur sans plus rien
+   * pour la rattacher, et refaire le 1:1 en créerait une seconde. On passe par la suppression du
+   * bilan, qui rouvre la tâche (`deleteSession`).
+   */
+  hasBilan: boolean
   /** Nom du chatteur visé, pour l'afficher sur la tâche. */
   chatterName: string | null
 }
@@ -97,6 +110,12 @@ export interface TodoWeek {
   /** Bilan du jour : ce qui est coché et ce qui ne l'est pas. */
   doneToday: string[]
   pendingToday: string[]
-  /** L'utilisateur peut-il écrire ? (propriétaire de la to-do, ou admin.) */
+  /** L'utilisateur peut-il écrire ? (titulaire de la to-do, ET rôle d'encadrement.) */
   canWrite: boolean
+  /**
+   * Le débrief du jour et le bloc-notes de la semaine sont-ils LISIBLES ? Faux pour un manager sur
+   * la semaine d'un sous-manager : la RLS (0132 / 0137) réserve ce journal à son auteur et aux
+   * admins, il remonterait donc vide. On l'affiche alors comme masqué, jamais comme « à remplir ».
+   */
+  journalLisible: boolean
 }

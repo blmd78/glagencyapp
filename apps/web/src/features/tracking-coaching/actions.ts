@@ -5,6 +5,7 @@ import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
 import { getProfile, hasWriteAccess } from '@/lib/auth'
 import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
+import { revalidateTodo } from '@/lib/tracking/todo-guards'
 import {
   addNoteInput, archiveSkillInput, deleteNoteInput, deleteSessionInput, rateInput,
   sessionInput, skillInput, updateNoteInput, updateSessionInput,
@@ -201,9 +202,47 @@ export async function deleteSession(raw: unknown): Promise<ActionResult> {
     handler: async (d) => {
       await requireCoachFor(await sessionOwner(d.sessionId))
       const admin = createAdminClient()
+
+      // La tâche 1:1 que ce bilan clôturait — relevée AVANT la suppression : la clé étrangère est
+      // `on delete set null` (0133), le lien aurait disparu juste après.
+      const { data: task, error: taskErr } = await admin
+        .from('tracker_todo_tasks').select('id').eq('session_id', d.sessionId).maybeSingle()
+      if (taskErr) throw new Error(taskErr.message)
+
+      // Les notes de compétences font PARTIE du bilan : leur FK est `on delete set null` (0128:60),
+      // elles survivraient donc à la session en perdant leur date (`get-chatter-coaching` retombe
+      // sur `created_at`). Tant que supprimer un bilan était un geste de rattrapage rare, le résidu
+      // passait inaperçu ; c'est devenu la sortie NORMALE d'un 1:1 à refaire, donc chaque correction
+      // aurait dupliqué les notes dans l'historique du chatteur. On ne touche QUE celles de cette
+      // session : une note posée à la volée depuis la fiche (`rateSkill`) a `session_id` null.
+      const { error: ratErr } = await admin
+        .from('tracker_ratings').delete().eq('session_id', d.sessionId)
+      if (ratErr) throw new Error(ratErr.message)
+
       const { data, error } = await admin
         .from('tracker_sessions').delete().eq('id', d.sessionId).select('chatter_id').maybeSingle()
       if (error) throw new Error(error.message)
+
+      // Supprimer le bilan ROUVRE la tâche. Sans ça, elle restait cochée sans session : « faite »
+      // sans la trace qui le prouve — l'inverse exact de la règle « pas de compte-rendu, pas de
+      // coche ». C'est aussi la seule sortie laissée au décochage d'un 1:1 (`toggleTask` le refuse
+      // tant qu'un bilan existe, pour ne pas créer une seconde session à la reclôture).
+      //
+      // SEULE ÉCRITURE SUR LA TO-DO D'UN AUTRE QUI NE PASSE PAS PAR `assertOwner` — assumé, et à
+      // savoir : la garde de ce chemin est `requireCoachFor` (droit d'écriture + périmètre modèles
+      // du CHATTEUR), pas la propriété de la tâche. Un encadrant qui partage une modèle avec le
+      // chatteur peut donc supprimer le bilan écrit par un pair, et rouvrir la tâche de ce pair.
+      // C'est la conséquence cohérente : le bilan n'existe plus, la tâche ne peut pas rester
+      // cochée. La borner à l'auteur laisserait au contraire des tâches cochées sans trace.
+      if (task) {
+        const { error: reopenErr } = await admin
+          .from('tracker_todo_tasks')
+          .update({ done: false, done_at: null })
+          .eq('id', task.id)
+        if (reopenErr) throw new Error(reopenErr.message)
+        revalidateTodo()
+      }
+
       touch(data?.chatter_id)
     },
   })

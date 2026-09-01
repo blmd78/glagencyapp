@@ -2,7 +2,8 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { addDays, todayParis } from '@glagency/core'
-import { requireAdmin } from '@/lib/auth'
+import { notFound } from 'next/navigation'
+import { requireAccess } from '@/lib/auth'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { RecapTemplate } from '@/features/tracking-recap/RecapTemplate'
 import { RecapSkeleton } from '@/features/tracking-recap/components/recap-skeleton'
@@ -20,13 +21,24 @@ export default async function PresenceRecapPage({
 }: {
   searchParams: Promise<{ week?: string }>
 }) {
-  // ADMIN STRICT — le Récap rend les débriefs VERBATIM de tous les encadrants. Le tracker d'origine
-  // le réservait aux admins (`requireAdminView`, routes.js.txt:436) ; l'ouvrir à tout porteur du
-  // slug `presence`, comme c'était le cas, donnait à un sous-manager le journal intime de ses pairs.
-  await requireAdmin()
+  // ENCADREMENT, chacun dans son périmètre (2026-08-31) — et non plus admin strict.
+  //
+  // Ce qui reste de la fermeture d'origine : le VERBATIM. Le tracker réservait cet écran aux
+  // admins (`requireAdminView`, routes.js.txt:436) et l'ouvrir à tout porteur du slug `presence`
+  // donnait à un sous-manager le journal intime de ses pairs — c'est ce que 0132 a refermé, et
+  // `tracker_todo_daily_read` reste fermée. Ce qui change : les COMPTEURS. La RPC (definer, 0137)
+  // rend à chacun son périmètre — admin → tout, manager → lui + ses sous-managers rattachés,
+  // sous-manager → lui seul — et ne joint le texte des débriefs que pour un admin ou soi-même.
+  //
+  // La garde ne fait donc que refuser les NON-ENCADRANTS (chatteur, police) à qui on aurait coché
+  // « Présence » : la RPC leur rendrait de toute façon leur seule ligne, mais un écran de suivi
+  // d'équipe n'est pas à eux. `profile.manager` couvre manager ET sous-manager — exactement ce que
+  // la sidebar lit pour afficher l'item (`managerAccess`, config/workspaces.ts).
+  const profile = await requireAccess('presence')
+  if (profile.role !== 'admin' && !profile.manager) notFound()
   const { week } = await searchParams
 
-  const data = getWeekRecap(week)
+  const data = getWeekRecap({ id: profile.id, isAdmin: profile.role === 'admin' }, week)
 
   return (
     <div className="trk trk-page">

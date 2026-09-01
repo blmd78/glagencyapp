@@ -85,6 +85,11 @@ export function DebriefCard({ week }: { week: TodoWeek }) {
         </div>
       </div>
 
+      {!week.journalLisible ? (
+        <div className="cardpad">
+          <p className="bnone">Le débrief du jour est personnel : seuls son auteur et la direction le lisent.</p>
+        </div>
+      ) : (
       <details className="bself">
         <summary>
           <span className="blab">Mon débrief</span>
@@ -113,6 +118,7 @@ export function DebriefCard({ week }: { week: TodoWeek }) {
           ) : null}
         </form>
       </details>
+      )}
     </div>
   )
 }
@@ -150,15 +156,21 @@ export function WeekNotes({ week }: { week: TodoWeek }) {
           </button>
         ) : null}
       </div>
-      <form id="weeknotes" className="cardpad" onSubmit={save} noValidate>
-        <textarea
-          className="scratch"
-          placeholder="Idées, points à remonter, à creuser la semaine prochaine…"
-          disabled={!week.canWrite}
-          {...register('body')}
-        />
-        {errors.body ? <p className="msg ko">{errors.body.message}</p> : null}
-      </form>
+      {!week.journalLisible ? (
+        <div className="cardpad">
+          <p className="bnone">Bloc-notes personnel : seuls son auteur et la direction le lisent.</p>
+        </div>
+      ) : (
+        <form id="weeknotes" className="cardpad" onSubmit={save} noValidate>
+          <textarea
+            className="scratch"
+            placeholder="Idées, points à remonter, à creuser la semaine prochaine…"
+            disabled={!week.canWrite}
+            {...register('body')}
+          />
+          {errors.body ? <p className="msg ko">{errors.body.message}</p> : null}
+        </form>
+      )}
     </div>
   )
 }

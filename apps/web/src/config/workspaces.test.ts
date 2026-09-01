@@ -102,3 +102,37 @@ describe('face Formation — droits', () => {
     expect(workspaceHome(formation, user(['formation']))).toBe('/formation')
   })
 })
+
+// Régression 2026-08-31 : le Récap du tracker est passé `adminOnly + managerAccess` pour s'ouvrir
+// à l'encadrement. `canAccessNav` ne consultait pas le slug sur la branche `adminOnly` → l'item
+// devenait accessible à tout manager/sous-manager SANS le droit « Présence », et comme il n'est pas
+// `bottom`, `landingHref` le rendait comme page d'atterrissage : `requireAccess('presence')`
+// renvoyait alors vers `landingHref`, soit la même URL. Boucle de redirection, CRM entier verrouillé.
+// Même famille que le bug 2026-08-19 ci-dessus : une nav plus permissive que la garde de la page.
+describe('Récap du tracker — adminOnly + managerAccess + slug', () => {
+  const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
+  const recap = chatter.nav.find((n) => n.href === '/chatter/presence/recap')!
+  const membres = chatter.nav.find((n) => n.href === '/chatter/members')!
+  const encadrant = (pages: string[]): NavAccess => ({ ...user(pages), isManager: true })
+  const profil = (pages: string[]) => ({ role: 'chatteur', superadmin: false, manager: true, pages })
+
+  it('reste invisible de l’encadrant qui n’a pas le droit Présence', () => {
+    expect(canAccessNav(recap, encadrant([]))).toBe(false)
+    expect(canAccessNav(recap, encadrant(['police']))).toBe(false)
+  })
+
+  it('s’affiche pour l’encadrant qui a le droit, et pour l’admin', () => {
+    expect(canAccessNav(recap, encadrant(['presence']))).toBe(true)
+    expect(canAccessNav(recap, { ...user([]), isAdmin: true })).toBe(true)
+  })
+
+  it('ne devient jamais la page d’atterrissage d’un encadrant sans le droit', () => {
+    expect(landingHref(profil(['police']))).toBe('/chatter/police')
+    expect(landingHref(profil([]))).toBe('/no-access')
+    expect(landingHref(profil(['mkt-overview', 'marketing']))).not.toBe('/chatter/presence/recap')
+  })
+
+  it('Membres (adminOnly + managerAccess, SANS slug explicite) n’est pas affecté', () => {
+    expect(canAccessNav(membres, encadrant([]))).toBe(true)
+  })
+})

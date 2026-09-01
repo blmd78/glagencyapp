@@ -23,6 +23,13 @@ export interface RecapPerson {
   percent: number
   debriefs: number
   expectedDebriefs: number
+  /**
+   * Le VERBATIM des débriefs de cette personne est-il lisible par le spectateur ? Miroir EXACT du
+   * `case` de `tracker_todo_week_recap` (0137) : un admin, et chacun sur son propre journal.
+   * Sans ce drapeau, `days` vide serait indiscernable de « aucun débrief déposé » et la carte
+   * afficherait « Pas de débrief » à côté d'un compteur qui dit le contraire.
+   */
+  verbatim: boolean
   days: RecapDay[]
 }
 
@@ -60,7 +67,16 @@ interface RawPerson {
  * dispose : le rôle, et l'existence de modèles assignés. À confronter à leur `recappage.js` si on
  * remet un jour la main dessus.
  */
-export async function getWeekRecap(week?: string): Promise<RecapData> {
+export async function getWeekRecap(
+  /**
+   * Le SPECTATEUR. Il ne sert pas à filtrer — c'est la RPC (definer, 0137) qui borne le périmètre
+   * et décide du verbatim ; il sert à SAVOIR ce qu'elle vient de rendre, pour que la carte ne
+   * mente pas sur un `days` vide. La règle est écrite deux fois, en SQL et ici, à dessein : le
+   * SQL autorise, celui-ci raconte.
+   */
+  viewer: { id: string; isAdmin: boolean },
+  week?: string,
+): Promise<RecapData> {
   const today = todayParis()
   const weekStart = addDays(week ?? today, -(isoWeekday(week ?? today) - 1))
   const weekEnd = addDays(weekStart, 6)
@@ -81,9 +97,12 @@ export async function getWeekRecap(week?: string): Promise<RecapData> {
   const withModels = await profilesWithModels(raw.map((p) => p.profileId))
 
   const people: RecapPerson[] = raw.map((p) => {
+    const verbatim = viewer.isAdmin || p.profileId === viewer.id
     const byDate = new Map(p.days.map((d) => [d.date, d]))
     const days: RecapDay[] = []
-    for (let i = 0; i < expected; i++) {
+    // Aucune colonne de jours à construire quand le verbatim n'est pas rendu : elles seraient
+    // toutes « Pas de débrief », ce qui est faux dès que `debriefs > 0`.
+    for (let i = 0; verbatim && i < expected; i++) {
       const date = addDays(weekStart, i)
       const d = byDate.get(date)
       days.push({
@@ -91,7 +110,12 @@ export async function getWeekRecap(week?: string): Promise<RecapData> {
         label: new Intl.DateTimeFormat('fr-FR', {
           weekday: 'long', day: '2-digit', month: '2-digit', timeZone: 'UTC',
         }).format(new Date(`${date}T12:00:00Z`)),
-        filled: d != null,
+        // Rempli = il y a du CONTENU, pas seulement une ligne. Le formulaire n'impose aucun champ
+        // et `saveDaily` fait un upsert inconditionnel : enregistrer à blanc crée une ligne aux
+        // cinq champs vides. Sur `d != null`, la journée passait alors pour remplie et s'ouvrait
+        // sur un bloc vide, en contradiction avec le compteur — que le SQL, lui, ne compte que si
+        // l'un des cinq champs est non vide (0137). Même règle des deux côtés.
+        filled: d != null && [d.focus, d.problem, d.positive, d.negative, d.notes].some((v) => v.trim() !== ''),
         focus: d?.focus ?? '',
         problem: d?.problem ?? '',
         positive: d?.positive ?? '',
@@ -109,6 +133,7 @@ export async function getWeekRecap(week?: string): Promise<RecapData> {
       percent: p.planned > 0 ? Math.round((p.done / p.planned) * 100) : 0,
       debriefs: p.debriefs,
       expectedDebriefs: expected,
+      verbatim,
       days,
     }
   })
