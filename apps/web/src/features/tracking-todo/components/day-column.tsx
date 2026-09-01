@@ -72,14 +72,19 @@ function SectionGroup({
             >
               +
             </button>
-            <button
-              type="button"
-              className="gdel"
-              title="Retirer la section (ses tâches sont conservées)"
-              onClick={() => onDeleteSection(section.name)}
-            >
-              ✕
-            </button>
+            {/* Retirer une SECTION est réservé au titulaire (`saveSection`/`deleteSection` passent
+                par `assertOwner`) : un déposant qui verrait ce bouton se ferait refuser « Ce n'est
+                pas ta semaine ». Sa dérogation porte sur les tâches, pas sur la structure. */}
+            {canWrite ? (
+              <button
+                type="button"
+                className="gdel"
+                title="Retirer la section (ses tâches sont conservées)"
+                onClick={() => onDeleteSection(section.name)}
+              >
+                ✕
+              </button>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -91,6 +96,7 @@ function SectionGroup({
           date={day.date}
           category={section.name}
           canWrite={canWrite}
+          canAssign={canAssign}
           onToggle={onToggle}
           onDelete={onDelete}
         />

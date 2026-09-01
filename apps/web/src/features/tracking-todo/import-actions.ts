@@ -7,7 +7,7 @@ import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { addDays, parseChatterList, parseNotes, parseTodo } from '@/lib/tracker/parse'
 import { TrackerAuthError, trackerGet, trackerLogin } from '@/lib/tracker/scrape'
-import { TODO_PATH } from '@/lib/tracking/todo-guards'
+import { revalidateTodo } from '@/lib/tracking/todo-guards'
 
 /**
  * « Récupérer mon historique du tracker » — l'encadrant connecté saisit SES identifiants du tracker,
@@ -178,7 +178,7 @@ export async function importFromTracker(raw: unknown): Promise<ActionResult<Impo
         }
       }
 
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
       revalidatePath('/chatter/presence/suivi')
       return { tasksAdded: toInsert.length, sessionsAdded, notesAdded, unmatchedChatters: unmatched }
     },

@@ -169,3 +169,10 @@ export async function requirePageProfileLive(slug: PageSlug): Promise<Profile> {
   await denyIfImpersonating()
   return profile
 }
+
+/** `requireWriteProfile` + refus en « en tant que » — écritures d'une page ouverte aux encadrants. */
+export async function requireWriteProfileLive(slug: PageSlug): Promise<Profile> {
+  const profile = await requireWriteProfile(slug)
+  await denyIfImpersonating()
+  return profile
+}

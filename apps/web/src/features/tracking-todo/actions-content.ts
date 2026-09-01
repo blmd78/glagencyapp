@@ -1,10 +1,9 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, type ActionResult } from '@/lib/actions'
 import { todayParis } from '@glagency/core'
-import { assertOwner, TODO_PATH } from './actions-shared'
+import { assertOwner, revalidateTodo } from './actions-shared'
 import { addLinkInput, dailyInput, dayOffInput, deleteLinkInput, notesInput } from './schema'
 
 /**
@@ -31,7 +30,7 @@ export async function toggleDayOff(raw: unknown): Promise<ActionResult> {
         ? await admin.from('tracker_todo_dayoff').delete().eq('owner_id', d.ownerId).eq('date', d.date)
         : await admin.from('tracker_todo_dayoff').insert({ owner_id: d.ownerId, date: d.date })
       if (res.error) throw new Error(res.error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -49,7 +48,7 @@ export async function saveNotes(raw: unknown): Promise<ActionResult> {
         { onConflict: 'owner_id,week' },
       )
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -80,8 +79,7 @@ export async function saveDaily(raw: unknown): Promise<ActionResult> {
         { onConflict: 'owner_id,date' },
       )
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
-      revalidatePath('/chatter/presence/recap')
+      revalidateTodo()
     },
   })
 }
@@ -99,7 +97,7 @@ export async function addLink(raw: unknown): Promise<ActionResult> {
       const { error } = await admin
         .from('tracker_todo_links').insert({ owner_id: d.ownerId, label: d.label, url })
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -115,7 +113,7 @@ export async function deleteLink(raw: unknown): Promise<ActionResult> {
       const { error } = await admin
         .from('tracker_todo_links').delete().eq('id', d.linkId).eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }

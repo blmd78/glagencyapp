@@ -8,6 +8,26 @@ import type { TodoChatter, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } 
 export const weekStartOf = (day: string): string => addDays(day, -(isoWeekday(day) - 1))
 
 /**
+ * Les rôles qui ÉCRIVENT sur une to-do — miroir applicatif de `hasWriteAccess` (lib/auth), dont
+ * dépend la garde serveur `requireWriteProfileLive('presence')`. `superadmin` en fait partie : il
+ * hérite de tout (son absence de cette liste privait le propriétaire du sélecteur « 1:1 avec »).
+ * `police` en est absent, comme dans `hasWriteAccess` — il lit la page, il n'y écrit pas.
+ */
+const ENCADRANT_ROLES = ['superadmin', 'admin', 'manager', 'sous-manager']
+
+/**
+ * Rôle EXACT du TITULAIRE de la semaine — `getCreatorScope` en a besoin pour savoir s'il faut
+ * borner son périmètre (elle ne borne que manager/sous-manager/police). Client admin, comme la
+ * liste des chatteurs juste en dessous : on lit ici le profil d'un AUTRE.
+ */
+async function ownerRole(ownerId: string): Promise<string> {
+  const { data, error } = await createAdminClient()
+    .from('profiles').select('role').eq('id', ownerId).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data?.role ?? 'chatteur'
+}
+
+/**
  * La semaine de to-do d'un encadrant.
  *
  * Six lectures parallèles, toutes bornées à la semaine ou au propriétaire : aucune n'approche les
@@ -19,7 +39,12 @@ export async function getTodoWeek(params: {
   callerId: string
   /** Rôle EXACT de l'appelant — c'est lui qui décide du périmètre modèles (jamais `role`). */
   callerRole: string
-  isAdmin: boolean
+  /**
+   * L'appelant a-t-il la dérogation de dépôt sur CETTE semaine ? Décidé par la page via
+   * `canAssignTodoOf` (admin, ou manager du titulaire) — et non plus déduit d'un `isAdmin` ici :
+   * la règle a désormais deux branches, elle ne doit vivre qu'à un seul endroit.
+   */
+  canAssign: boolean
   week?: string
 }): Promise<TodoWeek> {
   const today = todayParis()
@@ -32,7 +57,7 @@ export async function getTodoWeek(params: {
       supabase.from('tracker_todo_sections').select('name, weekdays, position')
         .eq('owner_id', params.ownerId).order('position'),
       supabase.from('tracker_todo_tasks')
-        .select('id, date, category, label, done, position, created_by, chatter_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
+        .select('id, date, category, label, done, position, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd).order('position'),
       // TOUTES les habitudes, actives ou non : le panneau de gestion doit montrer celles en pause
       // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
@@ -96,7 +121,9 @@ export async function getTodoWeek(params: {
             done: t.done,
             virtual: false,
             fromOther: t.created_by != null && t.created_by !== params.ownerId,
+            depositedByMe: t.created_by != null && t.created_by === params.callerId,
             chatterId: t.chatter_id,
+            hasBilan: t.session_id != null,
             chatterName: t.chatter?.display_name ?? null,
           }))
         // Une habitude ne s'affiche que si son occurrence du jour n'a pas déjà été matérialisée.
@@ -110,8 +137,10 @@ export async function getTodoWeek(params: {
             done: false,
             virtual: true,
             fromOther: false,
+            depositedByMe: false,
             // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
             chatterId: null,
+            hasBilan: false,
             chatterName: null,
           }))
         return {
@@ -126,14 +155,21 @@ export async function getTodoWeek(params: {
   const todayCol = days.find((d) => d.date === today)
   const allToday = todayCol?.sections.flatMap((s) => s.tasks) ?? []
 
-  // Les chatteurs proposables dans « Session 1:1 avec » — bornés au périmètre de l'APPELANT, comme
-  // à la pose côté serveur. UNIQUEMENT pour les ENCADRANTS : un chatteur remplit sa propre to-do,
-  // il ne planifie pas de 1:1 avec d'autres chatteurs — inutile de lui servir la liste.
-  const isEncadrant = ['admin', 'manager', 'sous-manager'].includes(params.callerRole)
-  const scope = isEncadrant ? await getCreatorScope(params.callerId, params.callerRole) : null
+  // Les chatteurs proposables dans « Session 1:1 avec » — bornés aux MÊMES périmètres que ceux que
+  // `addTask` vérifiera. UNIQUEMENT pour les ENCADRANTS : un chatteur remplit sa propre to-do, il
+  // ne planifie pas de 1:1 avec d'autres chatteurs — inutile de lui servir la liste.
+  //
+  // DEUX périmètres quand on garnit la semaine d'un AUTRE : le sien (on ne vise pas un chatteur
+  // qu'on n'a pas le droit de suivre) ET celui du TITULAIRE (c'est lui qui devra clore le 1:1 —
+  // une tâche déposée hors de son périmètre serait inclôturable). Sans cette intersection, le
+  // sélecteur proposerait des noms que le serveur refuserait ensuite : une liste qui ment.
+  const isEncadrant = ENCADRANT_ROLES.includes(params.callerRole)
   const chatters: TodoChatter[] = []
   if (isEncadrant) {
     const admin = createAdminClient()
+    const scope = await getCreatorScope(params.callerId, params.callerRole)
+    const ownerScope =
+      params.callerId === params.ownerId ? scope : await getCreatorScope(params.ownerId, await ownerRole(params.ownerId))
     const { data: rows, error: cErr } = await admin
       .from('profiles')
       .select('id, display_name, profile_creators(creator_id)')
@@ -141,9 +177,14 @@ export async function getTodoWeek(params: {
       .is('left_at', null)
       .order('display_name')
     if (cErr) throw new Error(cErr.message)
+    // `null` = pas de borne (admin, ou encadrant sans modèle assigné) — convention creator-scope.
+    const inScope = (s: Set<string> | null, cs: { creator_id: string }[]) =>
+      !s || cs.some((pc) => s.has(pc.creator_id))
     for (const r of rows ?? []) {
-      const ok = !scope || (r.profile_creators ?? []).some((pc) => scope.has(pc.creator_id))
-      if (ok) chatters.push({ id: r.id, name: r.display_name ?? '—' })
+      const cs = r.profile_creators ?? []
+      if (inScope(scope, cs) && inScope(ownerScope, cs)) {
+        chatters.push({ id: r.id, name: r.display_name ?? '—' })
+      }
     }
   }
 
@@ -169,7 +210,20 @@ export async function getTodoWeek(params: {
     // pas, ne signe pas le débrief d'autrui (règle du legacy, cf. `assertOwner`). Il garde le droit
     // d'y déposer et d'y retirer une tâche : ces deux gestes-là ont leur propre garde côté action.
     // Le legacy faisait pareil à l'écran : « la page ne rend alors aucun bouton » (routes.js.txt:252-256).
-    canWrite: params.callerId === params.ownerId,
-    canAssign: params.isAdmin && params.callerId !== params.ownerId,
+    // `isEncadrant` en plus du titulaire : la garde d'écriture est `requireWriteProfileLive`
+    // (admin, ou manager/sous-manager porteur du droit), pas le simple port du droit. Un chatteur
+    // ou un policier à qui on a coché « Présence » voyait sinon un écran entièrement éditable dont
+    // chaque geste part en « Accès refusé » — l'UI est optimiste, elle n'a pas le droit d'être
+    // plus permissive que le serveur.
+    canWrite: params.callerId === params.ownerId && isEncadrant,
+    canAssign: params.canAssign && params.callerId !== params.ownerId,
+    // Le journal personnel du titulaire (débrief + bloc-notes) est-il lisible ici ? La RLS le
+    // réserve à son auteur et aux admins (0132 / 0137) : sur la semaine d'un autre, un MANAGER les
+    // reçoit VIDES. Sans ce drapeau, l'écran afficherait « Mon débrief — à remplir » et un
+    // bloc-notes blanc sur le travail de quelqu'un d'autre — faux, et exactement le mensonge
+    // qu'on vient d'écarter du Récap. Le miroir est celui de la RLS, pas celui de `canWrite` :
+    // un admin lit bien le journal d'autrui sans pouvoir y écrire.
+    journalLisible:
+      params.callerId === params.ownerId || ['admin', 'superadmin'].includes(params.callerRole),
   }
 }

@@ -6,7 +6,7 @@ import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/acti
 import { getProfile } from '@/lib/auth'
 import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { z } from 'zod'
-import { assertOwner, TODO_PATH } from './todo-guards'
+import { assertOwner, revalidateTodo } from './todo-guards'
 
 /**
  * Clôture d'une tâche 1:1 : le bilan et la coche partent ENSEMBLE. Pas de compte-rendu, pas de
@@ -64,7 +64,7 @@ export async function completeOneToOne(raw: unknown): Promise<ActionResult<{ ses
 
       const { data: task, error: tErr } = await admin
         .from('tracker_todo_tasks')
-        .select('id, chatter_id, done')
+        .select('id, chatter_id, done, session_id')
         .eq('id', d.taskId)
         .eq('owner_id', d.ownerId)
         .maybeSingle()
@@ -72,6 +72,15 @@ export async function completeOneToOne(raw: unknown): Promise<ActionResult<{ ses
       if (!task) throw new BusinessError('Tâche introuvable.')
       if (!task.chatter_id) throw new BusinessError("Cette tâche n'est pas un 1:1.")
       if (task.done) throw new BusinessError('Ce 1:1 est déjà clôturé.')
+      // GARDE DE L'INVARIANT « une tâche 1:1 = au plus UNE session » — et c'est ICI qu'elle doit
+      // vivre : c'est la seule ligne de code qui crée une session. Le test sur `done` seul ne suffit
+      // pas, puisque `done` peut retomber à false (décochage, correctif d'un import, écriture SQL) ;
+      // `session_id` ne retombe, lui, que par la suppression du bilan (FK on delete set null, 0133)
+      // ou par la réouverture explicite de `deleteSession`. Sans cette ligne, tout chemin qui
+      // décoche rouvre la porte à un deuxième 1:1 dans la fiche du chatteur pour un seul entretien.
+      if (task.session_id) {
+        throw new BusinessError('Ce 1:1 a déjà un bilan : supprime-le sur la fiche du chatter pour le refaire.')
+      }
       await assertChatterInScope(callerId, task.chatter_id)
 
       const { data: session, error: sErr } = await admin
@@ -110,7 +119,7 @@ export async function completeOneToOne(raw: unknown): Promise<ActionResult<{ ses
         .eq('id', task.id)
       if (dErr) throw new Error(dErr.message)
 
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
       revalidatePath(`/chatter/presence/suivi/${task.chatter_id}`)
       return { sessionId: session.id }
     },

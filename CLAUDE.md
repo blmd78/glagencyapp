@@ -48,9 +48,9 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
   (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
-  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; UAT à
-  **0136**, prod à **0135** — **0136 est en attente de release côté prod : appliquer la migration
-  AVANT de déployer le web** ; prochaine migration = **0137**) : **catalogue**
+  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; prod ET UAT à
+  **0136** au 2026-08-31 ; **`0137` appliquée sur l'UAT seulement — à pousser en prod AVANT de
+  déployer le web** ; prochaine migration = **0138**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -103,6 +103,24 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
   (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
   (`created_by` null → « Claude »).
+- **To-Do du tracker** (≠ la to-do personnelle ci-dessus) : `/chatter/presence/todo`, grille
+  hebdo des encadrants reprise de GLA (`tracker_todo_*`, `0127`) — slug `presence`, partagé
+  avec Suivi chatters et le Récap. **Aucune policy d'écriture** : tout passe en service-role
+  après garde dans les Server Actions. Le travail reste celui de son titulaire (`assertOwner` :
+  ni coche, ni déplacement, ni débrief par autrui, admin compris) ; **deux dérogations
+  seulement** — déposer une tâche (`assertCanAssign`) et retirer **ce qu'on a déposé**
+  (`assertCanUnassign`, `created_by = moi` pour un non-admin). Périmètre de la dérogation =
+  `canAssignTodoOf` (`lib/tracking/todo-guards.ts`), **source unique** lue aussi par la page
+  (validation de `?owner=` — sans elle, la RLS laisserait ouvrir la semaine de n'importe qui)
+  et par `getTodoHolders` : admin → tous les encadrants, manager → **ses sous-managers
+  rattachés** (`manager_ids`), personne d'autre. Une tâche « 1:1 » exige le périmètre modèles
+  du **titulaire** (sinon elle est inclôturable) *et* du déposant. **Récap**
+  (`/chatter/presence/recap`, `0137`) : RPC `tracker_todo_week_recap` en **`security definer`
+  à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
+  l'encadrement (chacun son périmètre), **verbatim pour l'admin et son propre journal
+  seulement**. `tracker_todo_daily` (`0132`) et `tracker_todo_notes` (`0137`) restent fermées :
+  journal personnel. Les autres tables `tracker_todo_*` sont lisibles par tout porteur de
+  `presence` — assumé (`0127`).
 - **Rapport du soir police** : page `/chatter/rapport-police`, catégorie « Police », **sous**
   le Tracker (`config/workspaces.ts`, slug `police` partagé → un seul droit pour les deux).
   Rapport structuré par (auteur, modèle, jour) — chiffres du soir saisis à la main (CA, non

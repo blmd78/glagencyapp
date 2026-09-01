@@ -1,24 +1,37 @@
 'use server'
 
-import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { assertOwner, assertOwnerOrAdmin, TODO_PATH } from './actions-shared'
+import { assertOwner, assertCanAssign, assertCanUnassign, revalidateTodo } from './actions-shared'
 import {
   addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput,
   habitInput, moveTaskInput, renameHabitInput, renameSectionInput, sectionInput,
   setHabitActiveInput, toggleTaskInput,
 } from './schema'
 import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
-import { getProfile } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
 
-/** Le chatteur visé est-il dans le périmètre modèles de l'appelant ? (message du legacy) */
-async function assertChatterInScope(callerId: string, chatterId: string): Promise<void> {
-  const profile = await getProfile()
-  const scope = await getCreatorScope(callerId, profile?.baseRole ?? 'chatteur')
-  if (!(await isChatterInScope(scope, chatterId))) {
-    throw new BusinessError("Ce chatter n'est pas dans ton périmètre.")
-  }
+/** Le chatteur visé est-il dans le périmètre modèles de CE profil-là ? */
+async function assertChatterInScope(
+  profileId: string,
+  baseRole: string,
+  chatterId: string,
+  message: string,
+): Promise<void> {
+  const scope = await getCreatorScope(profileId, baseRole)
+  if (!(await isChatterInScope(scope, chatterId))) throw new BusinessError(message)
+}
+
+/**
+ * Rôle EXACT d'un profil — celui de la CIBLE, pas de l'appelant : `getCreatorScope` en a besoin
+ * pour savoir s'il faut la borner (elle ne borne que manager/sous-manager/police).
+ * Client session : `profiles_self_admin_or_team_read` (0097) laisse tout encadrant lire les profils.
+ */
+async function baseRoleOf(profileId: string): Promise<string> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('profiles').select('role').eq('id', profileId).maybeSingle()
+  if (error) throw new Error(error.message)
+  return data?.role ?? 'chatteur'
 }
 
 /**
@@ -27,9 +40,12 @@ async function assertChatterInScope(callerId: string, chatterId: string): Promis
  * ÉCRITURES EN SERVICE-ROLE APRÈS GARDE, comme toute la face Formation : la migration 0127 ne pose
  * aucune politique d'écriture, donc il n'existe qu'UN chemin d'écriture, celui qui passe par ici.
  *
- * PROPRIÉTÉ : chacun gère sa to-do ; un admin peut agir sur n'importe laquelle. La vérification
- * est faite UNE fois, dans le handler (`assertOwner`) — jamais en double dans `guard`, ce que la
- * checklist des guidelines interdit explicitement.
+ * PROPRIÉTÉ : le travail reste celui de son titulaire (`assertOwner` — coche, déplacement,
+ * sections, habitudes, débrief : personne d'autre, admin compris). Deux dérogations seulement, et
+ * elles ont chacune leur garde : DÉPOSER une tâche (`assertCanAssign` — admin, ou manager du
+ * titulaire) et RETIRER CE QU'ON A DÉPOSÉ (`assertCanUnassign`). La vérification est faite UNE
+ * fois, dans le handler — jamais en double dans `guard`, ce que la checklist des guidelines
+ * interdit explicitement.
  */
 
 /** Une occurrence virtuelle d'habitude : `habit:<uuid>:<date>`. */
@@ -73,11 +89,35 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const callerId = await assertOwnerOrAdmin(d.ownerId)
-      // Le périmètre testé est celui de CELUI QUI DÉPOSE, pas du titulaire de la semaine — c'est
-      // la nuance du legacy : « Viser un chatter hors de son périmètre n'a pas de sens : la tâche
-      // produirait un compte-rendu qu'il n'a pas le droit d'écrire » (routes.js.txt:291-295).
-      if (d.chatterId) await assertChatterInScope(callerId, d.chatterId)
+      const caller = await assertCanAssign(d.ownerId)
+      if (d.chatterId) {
+        // DEUX périmètres à satisfaire, et le legacy n'en énonçait qu'un : « Viser un chatter hors
+        // de son périmètre n'a pas de sens : la tâche produirait un compte-rendu qu'il n'a pas le
+        // droit d'écrire » (routes.js.txt:291-295). Le « il » de cette phrase, c'est le TITULAIRE
+        // — c'est lui qui devra rendre le bilan. Tant que seul l'admin déposait, sa règle était
+        // sans effet (son périmètre est toujours nul, donc illimité) et le contresens invisible.
+        //
+        // Ouvert au manager, il produirait des tâches ZOMBIES : `completeOneToOne` re-teste le
+        // périmètre du titulaire (complete-one-to-one.ts:75) et `toggleTask` refuse la coche sèche
+        // d'un 1:1 (plus bas) — une tâche déposée hors du périmètre du titulaire ne peut donc
+        // JAMAIS être fermée, ni cochée, ni débriefée. On teste donc les deux : le titulaire
+        // parce qu'il doit pouvoir clore, le déposant parce qu'on ne vise pas un chatteur qu'on
+        // n'a pas soi-même le droit de suivre.
+        await assertChatterInScope(
+          caller.id,
+          caller.baseRole,
+          d.chatterId,
+          "Ce chatter n'est pas dans ton périmètre.",
+        )
+        if (caller.id !== d.ownerId) {
+          await assertChatterInScope(
+            d.ownerId,
+            await baseRoleOf(d.ownerId),
+            d.chatterId,
+            "Ce chatter n'est pas dans le périmètre de la personne visée : elle ne pourrait pas clore le 1:1.",
+          )
+        }
+      }
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_tasks').insert({
         owner_id: d.ownerId,
@@ -87,10 +127,10 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
         chatter_id: d.chatterId,
         // Trace de la hiérarchie : `null` quand on écrit chez soi, pour ne pas marquer d'un
         // « déposée par » toutes les tâches qu'on se donne soi-même.
-        created_by: callerId === d.ownerId ? null : callerId,
+        created_by: caller.id === d.ownerId ? null : caller.id,
       })
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -105,15 +145,27 @@ export async function toggleTask(raw: unknown): Promise<ActionResult> {
       const id = await materialize(d.ownerId, d.taskId)
       const admin = createAdminClient()
       // COCHER un 1:1 ne se fait pas ici : il faut passer par le bilan (`completeOneToOne`), qui
-      // exige le compte-rendu et crée la session. Décocher, en revanche, est direct quel que soit
-      // le type — comme leur `toggle()` (todo.html:1447-1456).
-      if (d.done) {
-        const { data: t, error: tErr } = await admin
-          .from('tracker_todo_tasks').select('chatter_id').eq('id', id).maybeSingle()
-        if (tErr) throw new Error(tErr.message)
-        if (t?.chatter_id) {
-          throw new BusinessError('Cette tâche 1:1 se termine par son bilan, sur la fiche du chatter.')
-        }
+      // exige le compte-rendu et crée la session.
+      //
+      // DÉCOCHER non plus, dès lors qu'un bilan existe — et c'est la moitié qui manquait. Leur
+      // `toggle()` décochait sans condition (todo.html:1447-1456), mais leur écran ne mémorisait
+      // pas la session ; ici `session_id` (0133) reste posé au décochage, et `completeOneToOne` ne
+      // refuse que sur `done` : décocher puis reclôturer créait donc une SECONDE session dans la
+      // fiche du chatteur — 1:1 en double dans l'historique, moyenne et compteur faussés.
+      //
+      // On renvoie vers la suppression du bilan plutôt que de le détruire ici en silence : « un 1:1
+      // réalisé laisse toujours une trace » (routes.js.txt:328-329). Supprimer le bilan sur la
+      // fiche rouvre la tâche (`deleteSession`, tracking-coaching), et la boucle est refermée.
+      const { data: t, error: tErr } = await admin
+        .from('tracker_todo_tasks').select('chatter_id, session_id').eq('id', id).maybeSingle()
+      if (tErr) throw new Error(tErr.message)
+      if (d.done && t?.chatter_id) {
+        throw new BusinessError('Cette tâche 1:1 se termine par son bilan, sur la fiche du chatter.')
+      }
+      if (!d.done && t?.session_id) {
+        throw new BusinessError(
+          'Ce 1:1 a un bilan : supprime-le sur la fiche du chatter, la tâche redeviendra à faire.',
+        )
       }
       const { error } = await admin
         .from('tracker_todo_tasks')
@@ -121,7 +173,7 @@ export async function toggleTask(raw: unknown): Promise<ActionResult> {
         .eq('id', id)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -132,18 +184,32 @@ export async function deleteTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      // 2e dérogation admin du legacy : « l'admin peut retirer ce qu'il a déposé (ou corriger une
-      // erreur) » — `task-delete` est la SEULE suppression qu'il puisse faire chez autrui
-      // (routes.js.txt:306-315, qui refait le contrôle à la main au lieu d'utiliser `ownTask`).
-      await assertOwnerOrAdmin(d.ownerId)
-      // Une occurrence virtuelle n'existe pas en base : `deleteTask` ne la traite pas. C'est
-      // `deleteTaskOccurrence` (« Juste aujourd'hui ») qui la matérialise avant de la retirer.
+      // Contrôle de FORME avant la garde, et c'est délibéré : une occurrence virtuelle n'existe
+      // pas en base (`deleteTaskOccurrence`, « Juste aujourd'hui », la matérialise avant de la
+      // retirer), or `assertCanUnassign` a besoin d'une vraie ligne pour lire son `created_by`.
+      // Aucune information ne fuit : ce test ne regarde que la forme de l'id fourni.
       if (parseVirtual(d.taskId)) throw new BusinessError("Utilise « Juste aujourd'hui » pour cette occurrence.")
+      // 2e dérogation du legacy : « retirer ce qu'il a déposé (ou corriger une erreur) » —
+      // `task-delete` est la SEULE suppression possible chez autrui (routes.js.txt:306-315, qui
+      // refait le contrôle à la main au lieu d'utiliser `ownTask`).
+      await assertCanUnassign(d.ownerId, d.taskId)
       const admin = createAdminClient()
+      // Une tâche 1:1 CLÔTURÉE ne se supprime pas : sa session resterait dans la fiche du chatteur
+      // sans plus rien pour la rattacher, et `deleteSession` n'aurait plus de tâche à rouvrir.
+      // C'est le second chemin de la même règle que `toggleTask` — la croix est juste à côté de la
+      // case, et sans ce test elle contournait le refus du décochage d'un seul clic.
+      const { data: existing, error: exErr } = await admin
+        .from('tracker_todo_tasks').select('session_id').eq('id', d.taskId).eq('owner_id', d.ownerId).maybeSingle()
+      if (exErr) throw new Error(exErr.message)
+      if (existing?.session_id) {
+        throw new BusinessError(
+          'Ce 1:1 a un bilan : supprime-le sur la fiche du chatter, la tâche redeviendra à faire.',
+        )
+      }
       const { error } = await admin
         .from('tracker_todo_tasks').delete().eq('id', d.taskId).eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -163,7 +229,7 @@ export async function moveTask(raw: unknown): Promise<ActionResult> {
         .eq('id', id)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -185,7 +251,7 @@ export async function saveSection(raw: unknown): Promise<ActionResult> {
           { onConflict: 'owner_id,name' },
         )
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -212,7 +278,7 @@ export async function renameSection(raw: unknown): Promise<ActionResult> {
         .from('tracker_todo_habits').update({ category: d.to })
         .eq('owner_id', d.ownerId).eq('category', d.from)
       if (hErr) throw new Error(hErr.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -233,7 +299,7 @@ export async function deleteSection(raw: unknown): Promise<ActionResult> {
           .from('tracker_todo_tasks').delete().eq('owner_id', d.ownerId).eq('category', d.name)
         if (tErr) throw new Error(tErr.message)
       }
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -255,7 +321,7 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
         weekdays: d.weekdays.join(','),
       })
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -271,7 +337,7 @@ export async function deleteHabit(raw: unknown): Promise<ActionResult> {
       const { error } = await admin
         .from('tracker_todo_habits').delete().eq('id', d.habitId).eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -291,7 +357,7 @@ export async function renameHabit(raw: unknown): Promise<ActionResult> {
         .eq('id', d.habitId)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -314,7 +380,7 @@ export async function setHabitActive(raw: unknown): Promise<ActionResult> {
         .eq('id', d.habitId)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }
@@ -338,7 +404,7 @@ export async function deleteTaskOccurrence(raw: unknown): Promise<ActionResult> 
       const { error } = await createAdminClient()
         .from('tracker_todo_tasks').delete().eq('id', id).eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
-      revalidatePath(TODO_PATH)
+      revalidateTodo()
     },
   })
 }

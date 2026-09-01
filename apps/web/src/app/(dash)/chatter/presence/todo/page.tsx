@@ -3,6 +3,7 @@ import Link from 'next/link'
 import type { Route } from 'next'
 import { addDays } from '@glagency/core'
 import { requireAccess } from '@/lib/auth'
+import { canAssignTodoOf } from '@/lib/tracking/todo-guards'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { TodoTemplate } from '@/features/tracking-todo/TodoTemplate'
 import { TodoSkeleton } from '@/features/tracking-todo/components/todo-skeleton'
@@ -19,7 +20,8 @@ export const maxDuration = 300
 /**
  * To-Do hebdomadaire des encadrants — port de `/todo` du tracker GLA.
  *
- * Chacun voit SA semaine ; un admin peut ouvrir celle d'un autre via `?owner=`. La semaine
+ * Chacun voit SA semaine ; un admin — et depuis 2026-08-31 un manager, pour ses sous-managers
+ * rattachés — peut ouvrir celle d'un autre via `?owner=` pour y déposer une tâche. La semaine
  * affichée vit dans l'URL (`?week=`), donc elle se partage et revient au retour arrière.
  */
 export default async function PresenceTodoPage({
@@ -29,24 +31,42 @@ export default async function PresenceTodoPage({
 }) {
   const profile = await requireAccess('presence')
   const { week, owner } = await searchParams
-  const ownerId = profile.role === 'admin' && owner ? owner : profile.id
 
-  // Les encadrants dont un admin peut ouvrir la semaine. Leur écran a le même sélecteur
+  // `?owner=` n'est honoré QUE si l'appelant a la dérogation de dépôt sur cette personne ; sinon
+  // on retombe en silence sur sa propre semaine. Cette validation n'est pas cosmétique : la RLS
+  // de `tracker_todo_tasks` (0127:142) laisse tout porteur du slug `presence` lire n'importe
+  // quelle semaine, donc un `?owner=` cru suffirait à ouvrir celle de n'importe qui. Le prédicat
+  // est le MÊME que celui des gardes d'écriture (`canAssignTodoOf`) — deux copies divergeraient.
+  // Coût : une lecture de profil, et seulement quand `?owner=` est présent (jamais par défaut).
+  const canAssign = !!owner && owner !== profile.id && (await canAssignTodoOf(profile, owner))
+  const ownerId = canAssign ? (owner as string) : profile.id
+
+  // Les encadrants dont on peut ouvrir la semaine. Leur écran a le même sélecteur
   // (todo.html:578) ; sans lui, la dérogation « déposer une tâche » n'a aucun point d'entrée.
-  const holders = profile.role === 'admin' ? getTodoHolders() : Promise.resolve([])
+  // Vide pour qui n'a aucune dérogation → le sélecteur ne se rend pas.
+  const holders = getTodoHolders(profile)
 
   const data = getTodoWeek({
     ownerId,
     callerId: profile.id,
     callerRole: profile.baseRole,
-    isAdmin: profile.role === 'admin',
+    canAssign,
     week,
   })
 
   return (
     <div className="trk trk-page">
       <Suspense fallback={<CtxBar title="To Do" />}>
-        <Header data={data} owner={owner} holders={holders} viewerId={profile.id} ownWeek={ownerId === profile.id} />
+        {/* `owner` RÉSOLU et non le paramètre brut : un `?owner=` refusé retombe sur sa propre
+            semaine, la nav de semaine et le sélecteur doivent suivre — sinon les liens
+            traîneraient un owner que le serveur vient d'écarter. */}
+        <Header
+          data={data}
+          owner={ownerId === profile.id ? undefined : ownerId}
+          holders={holders}
+          viewerId={profile.id}
+          ownWeek={ownerId === profile.id}
+        />
       </Suspense>
       <Suspense fallback={<TodoSkeleton />}>
         <Body data={data} />

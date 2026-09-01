@@ -136,9 +136,13 @@ export const WORKSPACES: Workspace[] = [
       // il n'y a qu'à remettre les items le jour où l'ingestion arrive.
       { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
-      // Le Récap agrège les débriefs VERBATIM de tous les encadrants : admin seul, page et RLS
-      // (0132) alignées. `adminOnly` évite d'afficher à un encadrant un lien qui le rejetterait.
-      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence', adminOnly: true },
+      // Le Récap : COMPTEURS pour tout l'encadrement, VERBATIM des débriefs pour les seuls admins
+      // (RPC `tracker_todo_week_recap` en definer, 0137 ; `tracker_todo_daily_read` reste fermée
+      // par 0132). D'où `adminOnly` + `managerAccess` : l'item reste invisible d'un chatteur ou
+      // d'un policier porteur du slug — la page les rejetterait — mais s'affiche pour les
+      // managers ET sous-managers (`isManager` = `profile.manager`, qui couvre les deux), chacun
+      // n'y voyant que son périmètre. Un sous-manager n'encadre personne : il y lit SON récap.
+      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence', adminOnly: true, managerAccess: true },
       // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
       // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
       { href: '/chatter/organisation', label: 'Organisation', icon: Network, group: 'equipe' },
@@ -369,7 +373,17 @@ export function workspaceHome(w: Workspace, access: NavAccess): Route {
 export function canAccessNav(item: NavItem, a: NavAccess): boolean {
   if (item.superadminOnly && !a.isSuperadmin) return false
   if (a.isAdmin) return true
-  if (item.adminOnly) return !!item.managerAccess && a.isManager
+  // `adminOnly` + `managerAccess` : visible d'un encadrant — mais SEULEMENT s'il a le droit de la
+  // page quand l'item en déclare un explicitement.
+  //
+  // Sans cette dernière condition, un item `adminOnly + managerAccess + slug` est accessible à
+  // tout manager/sous-manager sans aucun droit — et `landingHref` (plus bas) le prend alors comme
+  // page d'atterrissage : sa garde `requireAccess(slug)` renvoie vers `landingHref`, qui rend la
+  // même URL → boucle de redirection. Membres (`/chatter/members`) n'a pas de `slug` explicite et
+  // reste donc inchangé ; il y échappait de toute façon par `bottom: true`, ce que le Récap n'a pas.
+  if (item.adminOnly) {
+    return !!item.managerAccess && a.isManager && (!item.slug || a.pages.has(item.slug))
+  }
   if (item.anyOf) return item.anyOf.some((s) => a.pages.has(s))
   return a.pages.has(navSlug(item))
 }
