@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import * as Sentry from '@sentry/nextjs'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
-import { BusinessError, noGuard, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { BusinessError, noGuard, requireWriteProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { addDays, parseChatterList, parseNotes, parseTodo } from '@/lib/tracker/parse'
 import { TrackerAuthError, trackerGet, trackerLogin } from '@/lib/tracker/scrape'
 import { revalidateTodo } from '@/lib/tracking/todo-guards'
@@ -48,7 +48,13 @@ export async function importFromTracker(raw: unknown): Promise<ActionResult<Impo
     handler: async (d): Promise<ImportResult> => {
       // Le profil connecté EST le propriétaire de l'import. `Live` refuse la consultation « en tant
       // que » : on ne récupère pas l'historique de quelqu'un sous son identité.
-      const me = await requirePageProfileLive('presence')
+      //
+      // `requireWriteProfileLive` comme les dix-huit autres écritures de la To-Do : cette action
+      // écrit en service-role des sessions, des notations et des notes de suivi. Elle était restée
+      // sur la garde de LECTURE (`requirePageProfileLive`), c'est-à-dire « admin OU droit coché » —
+      // un chatteur à qui on aurait coché « Présence » pouvait donc la déclencher. Le durcissement
+      // de `requireTodoAccess` l'avait laissée derrière, elle n'y passe pas.
+      const me = await requireWriteProfileLive('presence')
       const admin = createAdminClient()
 
       let cookie: string

@@ -108,7 +108,8 @@ async function Header({
         <Link href={href(weekStartOf(d.today))}>cette semaine</Link>
         <Link href={href(addDays(d.weekStart, 7))} aria-label="Semaine suivante">›</Link>
       </div>
-      {/* Sélecteur de compte (notre Combobox), admin seulement (`holders` est vide pour les autres). */}
+      {/* Sélecteur de compte (notre Combobox) : admin, ou manager avec des sous-managers rattachés —
+          `holders` est vide pour tous les autres, le sélecteur ne se rend alors pas. */}
       {people.length > 0 ? (
         <TodoAccountSelect week={d.weekStart} viewerId={viewerId} current={owner ?? viewerId} people={people} />
       ) : null}

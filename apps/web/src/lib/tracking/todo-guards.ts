@@ -72,11 +72,15 @@ export async function assertOwner(ownerId: string): Promise<string> {
 /**
  * QUI PEUT OUVRIR ET GARNIR LA SEMAINE D'UN AUTRE — prédicat unique de la dérogation.
  *
- * Lu par les deux gardes ci-dessous ET par la page (validation de `?owner=`) ET par la liste du
- * sélecteur de comptes (`getTodoHolders`). Une seule source : trois copies divergeraient au
- * premier correctif, et la page est le seul endroit où la divergence serait silencieuse — la RLS
- * de `tracker_todo_tasks` (0127:142) laisse tout porteur du slug lire n'importe quelle semaine,
- * donc un `?owner=` non validé suffirait à ouvrir celle de n'importe qui.
+ * Lu par les deux gardes ci-dessous ET par la page (validation de `?owner=`). C'est la seule
+ * DÉCISION : la page est l'endroit où une divergence serait silencieuse — la RLS de
+ * `tracker_todo_tasks` (0127:142) laisse tout porteur du slug lire n'importe quelle semaine, donc
+ * un `?owner=` non validé suffirait à ouvrir celle de n'importe qui.
+ *
+ * `getTodoHolders` en est un MIROIR, en SQL et non en JS : il liste, il ne décide pas — la garde
+ * repasse derrière sur chaque écriture. Le filtre y est fait dans la requête parce qu'il tourne en
+ * service-role : un `.filter()` après coup aurait quand même rapatrié tout l'annuaire de
+ * l'encadrement. Miroir à garder aligné si la règle change ; c'est le prix assumé.
  *
  * • admin/superadmin : tout le monde (dérogation historique du legacy) ;
  * • manager : ses sous-managers RATTACHÉS — miroir applicatif de `can_manage_planning_of`

@@ -6,6 +6,13 @@ import { isoWeekday } from '@glagency/core'
 import { TaskItem } from './task-item'
 import type { TodoDay, TodoSection, TodoTask, TodoChatter } from '../types'
 
+/**
+ * Catégorie d'accueil d'une tâche déposée sur une journée qui n'a encore aucune section.
+ * Volontairement neutre : la tâche porte déjà son badge « déposée », l'en-tête du groupe n'a pas
+ * à le répéter — et si le titulaire a déjà une section de ce nom, le dépôt s'y range.
+ */
+const DEPOT_CATEGORY = 'À faire'
+
 /** Une section = une zone de dépôt. Leur feuille l'éclaire avec `.tgroup.over`. */
 function SectionGroup({
   day,
@@ -25,7 +32,7 @@ function SectionGroup({
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
   chatters: TodoChatter[]
-  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin). */
+  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin, ou son manager). */
   canAssign: boolean
   onDeleteSection: (name: string) => void
 }) {
@@ -166,13 +173,29 @@ export function DayColumn({
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
   chatters: TodoChatter[]
-  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin). */
+  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin, ou son manager). */
   canAssign: boolean
   onDayOff: (date: string) => void
   onAddSection: (name: string, weekday: number) => void
   onDeleteSection: (name: string) => void
 }) {
   const [addingSection, setAddingSection] = useState(false)
+
+  // LE DÉPOSANT N'A PAS DE SECTION À REMPLIR. Le bouton « + » d'une tâche vit DANS une section, et
+  // créer une section passe par `assertOwner` : sur une journée sans section, un manager n'a donc
+  // aucun point d'entrée — et une semaine vierge est l'état de TOUTES les semaines au premier jour.
+  // La dérogation de dépôt serait arrivée morte.
+  //
+  // On lui pose donc un groupe d'accueil vide. C'est licite parce que `category` est du TEXTE
+  // LIBRE et non une clé étrangère vers les sections (0127:44-45) : la catégorie d'une tâche
+  // déposée existe d'elle-même, et `getTodoWeek` reconstruit les groupes du jour à partir des
+  // sections ET des catégories déjà portées par une tâche. Si le titulaire a déjà une section de
+  // ce nom, le dépôt s'y range naturellement.
+  const sections =
+    canAssign && !canWrite && day.sections.length === 0
+      ? [{ name: DEPOT_CATEGORY, recurring: false, tasks: [] }]
+      : day.sections
+
   const all = day.sections.flatMap((s) => s.tasks)
   const done = all.filter((t) => t.done).length
   const cls = ['day', day.isToday ? 'now' : '', day.isWeekend ? 'we' : '', day.dayOff ? 'rest' : '']
@@ -202,10 +225,10 @@ export function DayColumn({
       </h3>
 
       <div className="dayb" data-drop-date={day.date}>
-        {day.sections.length === 0 ? (
+        {sections.length === 0 ? (
           <p className="bnone">Rien de prévu.</p>
         ) : (
-          day.sections.map((section) => (
+          sections.map((section) => (
             <SectionGroup
               key={section.name}
               day={day}

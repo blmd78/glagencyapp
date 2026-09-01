@@ -51,7 +51,7 @@ même régime que `tracker_todo_daily` (0132), même raison : c'est un journal p
 --   • admin/superadmin : tout le monde, verbatim compris (usage historique de l'écran) ;
 --   • soi-même : toujours, verbatim compris (c'est son propre journal) ;
 --   • manager PORTEUR DU DROIT `presence` : ses sous-managers RATTACHÉS (`can_manage_planning_of`,
---     0092:70-85 — rôle `manager` strict + `manager_ids @> array[caller]`), en CHIFFRES SEULS.
+--     dernière définition en 0102:205-218 — rôle `manager` strict + `manager_ids @> array[caller]`), en CHIFFRES SEULS.
 --     Le `has_page` n'est pas décoratif : la fonction est `grant execute to authenticated`, donc
 --     appelable en direct par PostgREST. Sans lui, un manager à qui personne n'a coché « Présence »
 --     lirait quand même les compteurs de ses sous-managers en contournant l'écran.
@@ -70,7 +70,7 @@ returns jsonb
 language sql
 stable
 security definer
-set search_path = public
+set search_path = public, pg_temp
 as $$
   with me as (
     select (select auth.uid())                  as uid,
@@ -97,9 +97,13 @@ as $$
       --   • pour un admin : les porteurs du droit `presence` — c'est-à-dire les gens à qui on a
       --     confié une to-do. « Tous les encadrants » listerait dix-huit personnes dont la plupart
       --     n'ouvriront jamais l'outil ; le droit est la seule définition honnête de « attendu ».
-      --   • pour un manager : ses sous-managers rattachés. `p.role = 'sous-manager'` n'est pas une
-      --     seconde règle, c'est un pré-filtre pour n'appeler `can_manage_planning_of` (qui refait
-      --     un aller-retour sur profiles) que sur les lignes qui peuvent la satisfaire.
+      --   • pour un manager : ses sous-managers rattachés, PORTEURS DU DROIT eux aussi. Sans cette
+      --     dernière condition il verrait une carte rouge « 0/7 débriefs » pour quelqu'un qui ne
+      --     peut pas ouvrir l'écran — un reproche structurel, pas un constat de travail — et ce
+      --     zéro pèserait dans le dénominateur `totals.expected`. Même critère que la branche
+      --     admin. `p.role = 'sous-manager'` n'est pas une règle de plus, c'est un pré-filtre pour
+      --     n'appeler `can_manage_planning_of` (qui refait un aller-retour sur profiles) que sur
+      --     les lignes qui peuvent la satisfaire.
       --
       -- Différence ASSUMÉE avec `scoped` ci-dessous, qui n'a pas de `left_at` : une personne PARTIE
       -- garde les lignes des semaines qu'elle a travaillées (les masquer réécrirait l'historique),
@@ -118,7 +122,8 @@ as $$
               and p.role in ('superadmin', 'admin', 'manager', 'sous-manager')
               and 'presence' = any(p.pages))
           or (not me.is_admin and me.has_page
-              and p.role = 'sous-manager' and public.can_manage_planning_of(p.id))
+              and p.role = 'sous-manager' and 'presence' = any(p.pages)
+              and public.can_manage_planning_of(p.id))
         )
     ) s
   ),
@@ -142,8 +147,8 @@ as $$
       -- passage sur l'écran, pas un débrief. Filtre repris tel quel de 0127:177-178.
       (select count(*) from tracker_todo_daily d
         where d.owner_id = s.owner_id and d.date between p_from and p_to
-          and (d.focus <> '' or d.problem <> '' or d.positive <> '' or d.negative <> ''
-               or d.notes <> '')) as debriefs
+          and (btrim(d.focus) <> '' or btrim(d.problem) <> '' or btrim(d.positive) <> '' or btrim(d.negative) <> ''
+               or btrim(d.notes) <> '')) as debriefs
     from scoped s
   )
   select coalesce(jsonb_agg(jsonb_build_object(

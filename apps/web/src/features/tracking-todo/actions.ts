@@ -98,7 +98,7 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
         // sans effet (son périmètre est toujours nul, donc illimité) et le contresens invisible.
         //
         // Ouvert au manager, il produirait des tâches ZOMBIES : `completeOneToOne` re-teste le
-        // périmètre du titulaire (complete-one-to-one.ts:75) et `toggleTask` refuse la coche sèche
+        // périmètre du titulaire (complete-one-to-one.ts, assertChatterInScope) et `toggleTask` refuse la coche sèche
         // d'un 1:1 (plus bas) — une tâche déposée hors du périmètre du titulaire ne peut donc
         // JAMAIS être fermée, ni cochée, ni débriefée. On teste donc les deux : le titulaire
         // parce qu'il doit pouvoir clore, le déposant parce qu'on ne vise pas un chatteur qu'on
