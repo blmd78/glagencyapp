@@ -20,7 +20,7 @@
 // bien noter.
 
 import * as Sentry from '@sentry/nextjs'
-import { aiMessage } from '@/lib/ai/errors'
+import { aiMessage, isAiOverloaded } from '@/lib/ai/errors'
 import { AiCallError } from '@/lib/ai/score'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
@@ -103,7 +103,9 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
         else if (deleted.length === 0) console.error('[recrutement bot] message non retiré (aucune ligne)', mine.id)
         // Sentry AVANT le BusinessError : `runAction` ne capture QUE les erreurs techniques, et on
         // rend ici un message métier — sans ça, une panne du fournisseur IA n'existerait nulle part.
-        Sentry.captureException(err)
+        // Saturation (529) : `warning` sous empreinte fixe, comme l'entraînement — sinon la même vague
+        // rouvre un incident « High » via /postuler, groupé par identifiant de requête.
+        Sentry.captureException(err, isAiOverloaded(err) ? { level: 'warning', fingerprint: ['ai-overloaded', 'recruit'] } : undefined)
         console.error('[recrutement bot]', err)
         throw new BusinessError(
           aiMessage(err, {
@@ -250,7 +252,9 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
           .eq('id', attempt.id)
           .is('bot_total', null)
         if (rErr) console.error('[recrutement notation] jeton non rendu', rErr.message)
-        Sentry.captureException(err)
+        // Saturation (529) : `warning` sous empreinte fixe, comme l'entraînement — sinon la même vague
+        // rouvre un incident « High » via /postuler, groupé par identifiant de requête.
+        Sentry.captureException(err, isAiOverloaded(err) ? { level: 'warning', fingerprint: ['ai-overloaded', 'recruit'] } : undefined)
         console.error('[recrutement notation]', err)
         throw new BusinessError(
           aiMessage(err, {

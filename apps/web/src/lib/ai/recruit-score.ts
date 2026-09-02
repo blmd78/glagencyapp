@@ -22,6 +22,8 @@ export type RecruitBotReply = { text: string; usage: RecruitUsage; ok: boolean }
 export async function replyAsRecruitBot(opts: { persona: RecruitPersonaName; history: RecruitHistoryMessage[] }): Promise<RecruitBotReply> {
   const res = await withOverloadFallback((model, request) => anthropic().messages.create({
     model,
+    // Même raison que `fan.ts` : le repli sur Sonnet 5 réfléchirait dans les 150 tokens.
+    thinking: { type: 'disabled' },
     max_tokens: 150,
     system: recruitBotSystem(opts.persona),
     messages: recruitToMessages(opts.history),
@@ -58,7 +60,11 @@ export async function scoreRecruitTranscript(history: RecruitHistoryMessage[]): 
     recruitScoreJsonSchema,
     'Transcription :',
   )
-  const usage: RecruitUsage = { inputTokens: full.inputTokens, outputTokens: full.outputTokens }
+  // `recruit_attempts.input_tokens` est un compteur INFORMATIF (fiche candidat), pas le plafond de
+  // dépense (celui-ci compte des TENTATIVES, `recruit_config.daily_max`). Depuis le cache du prompt
+  // de notation, `input_tokens` de l'API EXCLUT le préfixe mis en cache : on y rajoute les tokens
+  // lus et écrits pour que le compteur continue de dire « tokens envoyés », pas « tokens plein tarif ».
+  const usage: RecruitUsage = { inputTokens: full.inputTokens + full.cacheReadTokens + full.cacheWriteTokens, outputTokens: full.outputTokens }
   // Même règle qu'à l'entraînement : un JSON arrivé puis jugé illisible a été FACTURÉ — l'erreur
   // porte la consommation pour que l'appelant puisse la compter.
   const parsed = billedParse(() => recruitScoreZod.parse(json), { usage: full, latencyMs, model })

@@ -17,11 +17,15 @@ const AI_PRICES: Record<string, [input: number, output: number]> = {
 /** Lecture de cache facturée ~10 % du prix d'entrée. */
 const CACHE_READ_RATIO = 0.1
 /**
- * ÉCRITURE de cache : 2× le prix d'entrée en TTL 1 h — le seul TTL utilisé par le projet
- * (`score.ts`). Ce n'est pas une constante universelle : en TTL 5 minutes c'est 1,25×. À revoir si
- * un appel passe au TTL court, sinon le coût de la notation serait surestimé de 60 %.
+ * ÉCRITURE de cache, PAR SORTE D'APPEL — le tarif dépend du TTL, et les deux coexistent :
+ *  - notation (`score`) : TTL 1 h posé explicitement dans `score.ts` → 2× le prix d'entrée ;
+ *  - fan (`fan`) : marqueur `cache_control` sans TTL dans `fan.ts` → 5 minutes, 1,25×. Il n'écrit
+ *    que rarement (repli sur Sonnet 5 pendant une saturation, ou boss > 4 096 tokens sur Haiku),
+ *    mais quand il écrit, le compter à 2× surestimait cette part de 60 % — relevé en revue.
+ * Une sorte inconnue tombe sur 2 : mieux vaut surestimer qu'ignorer.
  */
-const CACHE_WRITE_RATIO = 2
+const CACHE_WRITE_RATIO: Record<string, number> = { score: 2, fan: 1.25 }
+const cacheWriteRatio = (kind: string): number => CACHE_WRITE_RATIO[kind] ?? 2
 
 /** `numeric`/`bigint` Postgres : supabase-js peut les rendre en chaîne selon la version → Number(). */
 const numOrNull = (v: number | string | null | undefined): number | null => (v == null ? null : Number(v))
@@ -115,7 +119,7 @@ export async function getOverview(isAdmin: boolean): Promise<OverviewData> {
   }
 }
 
-/** Σ (entrée × prix_in + sortie × prix_out + cache lu × 0,1×prix_in + cache écrit × 2×prix_in) ÷ 1e6, prix liste. */
+/** Σ (entrée × prix_in + sortie × prix_out + cache lu × 0,1×prix_in + cache écrit × ratio(kind)×prix_in) ÷ 1e6, prix liste. */
 function estimateUsd(rows: CostRow[]): number {
   let usd = 0
   for (const r of rows) {
@@ -126,7 +130,7 @@ function estimateUsd(rows: CostRow[]): number {
     const price = Object.entries(AI_PRICES).find(([k]) => r.model.startsWith(k))?.[1]
     if (!price) continue // modèle hors table de prix → 0 (cf. AI_PRICES)
     const [pIn, pOut] = price
-    usd += (r.inputTokens * pIn + r.outputTokens * pOut + r.cacheReadTokens * pIn * CACHE_READ_RATIO + r.cacheWriteTokens * pIn * CACHE_WRITE_RATIO) / 1e6
+    usd += (r.inputTokens * pIn + r.outputTokens * pOut + r.cacheReadTokens * pIn * CACHE_READ_RATIO + r.cacheWriteTokens * pIn * cacheWriteRatio(r.kind)) / 1e6
   }
   return usd
 }

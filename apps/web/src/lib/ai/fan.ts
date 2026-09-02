@@ -45,6 +45,11 @@ export async function replyAsFan(opts: { system: string; history: HistoryMessage
     // une exception au marqueur coûterait plus cher à comprendre qu'à payer.
     cache_control: { type: 'ephemeral' },
     model,
+    // Réflexion COUPÉE explicitement — sans effet sur Haiku 4.5 (qui n'en fait pas par défaut),
+    // décisif sur le modèle de REPLI : Sonnet 5 réfléchit quand on ne dit rien, et ses tokens de
+    // réflexion comptent dans `max_tokens` (200 ici) — une réplique pouvait revenir vide, facturée
+    // en sortie à 10 $/M. Accepté par les deux modèles (vérifié à l'appel, 2026-09-02).
+    thinking: { type: 'disabled' },
     max_tokens: opts.maxTokens,
     system: opts.system,
     messages: toFanMessages(opts.history),

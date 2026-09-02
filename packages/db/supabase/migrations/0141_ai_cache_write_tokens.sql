@@ -10,8 +10,11 @@
 -- prix d'entrée. Les lectures (0,1×) étaient déjà comptées, les écritures ne l'étaient nulle part —
 -- on aurait vu l'entrée s'effondrer sans voir ce qui la remplace. On veut mesurer, pas se rassurer.
 --
--- Le fan (Haiku 4.5) reste hors cache : son préfixe fait ~2 400 tokens, sous le minimum de 4 096 du
--- modèle. Vérifié à l'appel (`cache_creation` et `cache_read` à 0) — la colonne restera à 0 pour lui.
+-- Le fan (Haiku 4.5) reste hors cache en temps normal : son préfixe fait ~2 400 tokens, sous le
+-- minimum de 4 096 du modèle (vérifié à l'appel, `cache_creation` et `cache_read` à 0). La colonne
+-- se remplit pour lui dans deux cas seulement : le repli sur Sonnet 5 pendant une saturation
+-- (minimum 1 024) et un boss dont l'historique dépasse 4 096 — en TTL 5 min, donc 1,25× et non 2×
+-- (l'écran de coût applique le bon ratio par sorte d'appel).
 alter table training_ai_calls add column if not exists cache_write_tokens integer not null default 0;
 
 -- Le type de retour change : `create or replace` ne suffit pas, il faut retirer puis recréer.
@@ -32,6 +35,8 @@ as $$
 $$;
 
 -- Droits rendus à l'identique de l'existant (relevé en prod avant la reprise : postgres,
--- authenticated, service_role — un `drop` les emporte, il faut les reposer).
-revoke all on function training_ai_cost(timestamptz) from public;
+-- authenticated, service_role — un `drop` les emporte, il faut les reposer). `anon` en plus de
+-- `public`, comme 0113 : les privilèges par défaut de Supabase donnent EXECUTE à `anon` sur toute
+-- fonction créée dans `public`, et une révocation de `public` seul ne l'atteint pas.
+revoke all on function training_ai_cost(timestamptz) from public, anon;
 grant execute on function training_ai_cost(timestamptz) to authenticated, service_role;
