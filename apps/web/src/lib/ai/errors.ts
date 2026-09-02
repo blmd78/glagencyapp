@@ -30,12 +30,40 @@ export function isAiBlocked(err: unknown): boolean {
 }
 
 /**
- * Le message rendu à l'utilisateur : `blocked` quand réessayer est inutile, `retryable` sinon.
+ * Le message rendu à l'utilisateur : `blocked` quand réessayer est inutile, `overloaded` quand il
+ * faut LAISSER PASSER la vague, `retryable` sinon.
  *
- * Les deux textes restent volontairement muets sur la cause (solde, clé) : un chatteur — et
- * surtout un CANDIDAT sur le test public — n'a pas à lire l'état de facturation de l'agence. Le
- * détail est dans Sentry et dans les logs, pour qui peut agir.
+ * Les trois textes restent volontairement muets sur la cause (solde, clé, capacité du fournisseur) :
+ * un chatteur — et surtout un CANDIDAT sur le test public — n'a pas à lire l'état de facturation de
+ * l'agence. Le détail est dans Sentry et dans les logs, pour qui peut agir.
+ *
+ * `overloaded` est optionnel : sans lui, une saturation retombe sur `retryable` — le comportement
+ * d'avant le 2026-09-02, correct mais qui invite à recliquer tout de suite.
  */
-export function aiMessage(err: unknown, opts: { retryable: string; blocked: string }): string {
-  return isAiBlocked(err) ? opts.blocked : opts.retryable
+export function aiMessage(err: unknown, opts: { retryable: string; blocked: string; overloaded?: string }): string {
+  if (isAiBlocked(err)) return opts.blocked
+  if (opts.overloaded && isAiOverloaded(err)) return opts.overloaded
+  return opts.retryable
+}
+
+/**
+ * La panne est-elle une SATURATION passagère du fournisseur ?
+ *
+ * Le 2026-09-02, entre 14h28 et 14h45 (Paris), l'API a répondu `529 overloaded_error` sur le modèle
+ * du fan pendant 17 minutes d'affilée (79 envois en échec, aucun incident déclaré sur
+ * status.claude.com : la capacité d'un modèle se sature sans que ce soit une panne). Les chatteurs
+ * en formation lisaient « le fan n'a pas répondu — réessaie » et recliquaient : chaque clic
+ * renvoyait trois tentatives de plus vers une API déjà saturée, pendant 17 minutes.
+ *
+ * Une saturation se distingue des autres pannes rejouables sur DEUX points, d'où cette fonction :
+ *  - elle se contourne (`withOverloadFallback` rejoue la requête sur un modèle de secours, dont la
+ *    capacité est indépendante) ;
+ *  - quand le contournement échoue lui aussi, réessayer TOUT DE SUITE est inutile — le message doit
+ *    dire d'attendre, pas d'insister.
+ *
+ * 529 est la saturation proprement dite ; 503 et 429 sont le même genre de limite passagère. Les
+ * autres 5xx restent des pannes ordinaires : rejouables, mais pas au sens « attends, ça revient ».
+ */
+export function isAiOverloaded(err: unknown): boolean {
+  return err instanceof Anthropic.APIError && (err.status === 529 || err.status === 503 || err.status === 429)
 }

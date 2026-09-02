@@ -111,6 +111,10 @@ export async function sendToBot(raw: unknown): Promise<ActionResult<BotTurn>> {
             // Un CANDIDAT, pas un membre de l'agence : il n'a personne à prévenir en interne et ne
             // doit rien apprendre de nos coulisses. On lui dit quoi faire, et rien d'autre.
             blocked: 'Le test est momentanément indisponible. Reviens plus tard — ta progression est enregistrée.',
+            // Saturation : les deux modèles sont pris (le repli a échoué aussi). Attendre est la
+            // seule chose utile — et un candidat qui reclique en rafale sur une page publique est
+            // exactement ce qu'il ne faut pas encourager.
+            overloaded: 'Le client ne répond pas, tout le monde écrit en même temps. Attends une minute et réessaie — ta progression est enregistrée.',
           }),
         )
       }
@@ -254,6 +258,9 @@ export async function scoreAttempt(raw: unknown): Promise<ActionResult<void>> {
             // Même public que le fan du test : un CANDIDAT. Sa tentative est enregistrée, son jeton
             // de notation a été rendu juste au-dessus — il pourra reprendre.
             blocked: 'L’analyse est momentanément indisponible. Reviens plus tard — ta tentative est enregistrée.',
+            // La notation n'a PAS de repli de modèle (cf. `score.ts` : changer de juge changerait les
+            // notes) — sur saturation, attendre est la seule issue, et elle est sans risque ici.
+            overloaded: 'L’analyse est saturée en ce moment. Attends une minute et réessaie — ta tentative est enregistrée.',
           }),
         )
       }
