@@ -32,7 +32,7 @@ export function OverviewKpis({ rows, estimatedUsd }: { rows: CostRow[]; estimate
       deltaPct: null,
       trendLabel: window,
       hint: 'prix liste — la facture réelle peut être plus basse',
-      info: 'Σ (tokens entrée × prix entrée + tokens sortie × prix sortie + cache lu × 10 % du prix d’entrée), aux prix liste Anthropic.',
+      info: 'Σ (tokens entrée × prix entrée + tokens sortie × prix sortie + cache lu × 10 % du prix d’entrée + cache écrit × 2 (notation, 1 h) ou × 1,25 (fan, 5 min) du prix d’entrée), aux prix liste Anthropic.',
     },
     {
       key: 'calls',

@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { callAction } from '@/lib/actions-client'
 import { scoreSession } from '../actions-lifecycle'
 
 /** Lance la notation (une fois) puis `router.refresh()` → le RSC bascule sur l'écran de résultat. */
@@ -15,7 +16,7 @@ export function useScoring(sessionId: string) {
     started.current = true
     setScoring(true)
     setError(null)
-    const r = await scoreSession({ sessionId })
+    const r = await callAction(scoreSession({ sessionId }))
     if (!r.success) {
       // Relançable : on rouvre la porte pour le bouton « Relancer la notation ».
       started.current = false

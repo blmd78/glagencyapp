@@ -10,7 +10,7 @@
 // profile.id` ci-dessous, qui est désormais la seule garde du cloisonnement en écriture.
 
 import * as Sentry from '@sentry/nextjs'
-import { aiMessage } from '@/lib/ai/errors'
+import { aiMessage, isAiOverloaded } from '@/lib/ai/errors'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { FAN_MODEL } from '@/lib/ai/client'
@@ -146,11 +146,18 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
             .eq('status', 'open')
           if (dueErr) console.error('[training fan] chrono non réarmé', dueErr.message)
         }
-        await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: FAN_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, ok: false })
+        await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: FAN_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, latencyMs: 0, ok: false })
         // Sentry AVANT le BusinessError : `runAction` ne capture QUE les erreurs techniques, et on
         // rend ici un message métier — sans ça, une panne du fournisseur IA n'existait que dans les
         // logs de la fonction (et dans training_ai_calls), jamais dans les alertes.
-        Sentry.captureException(err)
+        // Une SATURATION (529) part en `warning` sous une empreinte fixe : le 2026-09-02, 79 échecs
+        // en 17 minutes ont ouvert un incident « High / Escalating » pour une capacité fournisseur
+        // sur laquelle on ne peut rien — et qui est désormais contournée par le repli de modèle. Le
+        // signal reste (savoir QUAND une vague passe est utile) sans réveiller personne, et l'empreinte
+        // fixe les garde groupés : le message porte l'identifiant de requête, donc chaque 529 formait
+        // son propre groupe côté logs. Tout le reste garde le niveau `error` par défaut.
+        const overloaded = isAiOverloaded(err)
+        Sentry.captureException(err, overloaded ? { level: 'warning', fingerprint: ['ai-overloaded', 'training-fan'] } : undefined)
         console.error('[training fan]', err)
         // Revalidation AVANT de rendre l'erreur : le prochain rafraîchissement doit voir le message
         // retiré et le chrono réarmé, sinon le client rejoue un état périmé.
@@ -161,6 +168,11 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
             // Panne non rejouable : ne pas envoyer le chatter s'acharner. Son tour est annulé, son
             // message retiré et son chrono réarmé — il ne perd rien en s'arrêtant là.
             blocked: 'L’entraînement est indisponible — préviens un encadrant, ton tour n’est pas perdu',
+            // Saturation ET repli saturé : les deux modèles sont pris. Recliquer dans la seconde ne
+            // sert qu'à ajouter des requêtes à une API qui n'en peut plus — c'est exactement ce qui
+            // s'est passé le 2026-09-02. On donne un ordre de grandeur d'attente, et on répète que
+            // le tour n'est pas perdu (le chrono est réarmé quelques lignes plus haut).
+            overloaded: 'L’IA est saturée en ce moment — attends une minute avant de réessayer, ton tour n’est pas perdu',
           }),
         )
       }
@@ -182,6 +194,21 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
         .insert({ session_id: s.id, thread_id: t.id, position: nextPos + 1, speaker: 'fan', body: fanBody, visible_at: visibleAt.toISOString() })
         .select('id, position, visible_at')
         .single()
+      // 23505 ICI = un SECOND envoi du même chatteur (double-clic, deuxième onglet, renvoi après un
+      // échec réseau) est parti pendant notre appel IA (1-3 s) et a pris la position que le fan
+      // visait. Vu en production le 2026-09-02 à 12h06 : erreur TECHNIQUE, donc message générique à
+      // l'écran, message du chatteur laissé en base SANS réponse et tour jamais compté — la
+      // transcription devenait bancale et le chatteur croyait ne pas pouvoir envoyer.
+      // Le 23505 de l'insert du CHATTEUR (plus haut) ne couvre pas ce cas : là, le second envoi a lu
+      // l'historique APRÈS notre premier insert, donc sa position ne collisionnait pas.
+      // Même rollback que la panne IA : on retire le message de CE tour-ci (le second envoi, lui, a
+      // sa réponse) et on rend la main sur un message métier. L'appel IA déjà payé reste tracé.
+      if (fErr?.code === '23505') {
+        const { error: dErr } = await admin.from('training_messages').delete().eq('id', mine.id)
+        if (dErr) console.error('[training fan] message non retiré après collision', dErr.message)
+        revalidateSession(s.id)
+        throw new BusinessError('Un autre envoi est passé avant celui-ci — la conversation vient d’être rechargée')
+      }
       if (fErr) throw new Error(fErr.message)
       // Corps RETENU tant que la révélation n'a pas eu lieu (solo : délai 0 → livré tout de suite ;
       // défi/boss : 30-120 s). Même règle que `get-session` : sans ça la réponse du fan repartait
