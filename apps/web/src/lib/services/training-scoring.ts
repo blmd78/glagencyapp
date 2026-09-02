@@ -178,7 +178,7 @@ async function runScoring(
       const label = FAULT_LABELS[reason] ?? FAULT_LABELS.timeout
       scores.set(t.id, {
         total: 0, objectiveReached: false, capped: false, comment: `${label.title}. ${label.text}`, moments: [], axes: [],
-        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0, model: '',
+        usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, latencyMs: 0, model: '',
       })
       continue
     }
@@ -228,7 +228,7 @@ async function runScoring(
         // repaie. Une panne réseau reste une `Error` nue : rien n'a été facturé, donc 0 token.
         const billed = err instanceof AiCallError
           ? { model: err.model, usage: err.usage, latencyMs: err.latencyMs }
-          : { model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0 }, latencyMs: 0 }
+          : { model: SCORE_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, latencyMs: 0 }
         await logAiCall(admin, { sessionId, threadId, kind: 'score', ...billed, ok: false })
         throw err
       }

@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { callAction } from '@/lib/actions-client'
 import { reportScore } from '../actions-lifecycle'
 import { reportInput } from '../schema'
 
@@ -53,7 +54,7 @@ export function ReportDialog({ sessionId, reported }: { sessionId: string; repor
   }, [open, reset])
 
   const submit = handleSubmit(async (values) => {
-    const res = await reportScore({ sessionId, ...values })
+    const res = await callAction(reportScore({ sessionId, ...values }))
     if (!res.success) {
       setError('root', { message: res.error })
       toast.error(res.error)

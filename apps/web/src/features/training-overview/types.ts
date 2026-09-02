@@ -46,6 +46,7 @@ export interface CostRow {
   inputTokens: number
   outputTokens: number
   cacheReadTokens: number
+  cacheWriteTokens: number
 }
 
 export interface OverviewData {

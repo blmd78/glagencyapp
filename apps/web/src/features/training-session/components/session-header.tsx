@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
+import { callAction } from '@/lib/actions-client'
 import { abandonSession, endSession } from '../actions-lifecycle'
 import type { SessionData, SessionThread } from '../types'
 
@@ -31,7 +32,7 @@ export function SessionHeader({
   const closed = threads.filter((t) => t.status !== 'open').length
 
   const end = async () => {
-    const r = await endSession({ sessionId: data.id })
+    const r = await callAction(endSession({ sessionId: data.id }))
     if (!r.success) {
       toast.error(r.error)
       return r.error
@@ -39,7 +40,7 @@ export function SessionHeader({
     onEnded()
   }
   const abandon = async () => {
-    const r = await abandonSession({ sessionId: data.id })
+    const r = await callAction(abandonSession({ sessionId: data.id }))
     if (!r.success) {
       toast.error(r.error)
       return r.error

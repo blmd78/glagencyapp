@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { reactionSecondsFor, type SessionStatus } from '@/lib/types/training'
+import { callAction } from '@/lib/actions-client'
 import { revealThread, sendMessage } from '../actions'
 import { expireSession, timeoutThread } from '../actions-lifecycle'
 import type { ComposerInput } from '../schema'
@@ -67,7 +68,7 @@ export function SessionView({ data }: { data: SessionData }) {
     // voie normale du timeout par thread reprendre la main.
     const openIds = open.map((t) => t.id)
     for (const id of openIds) firing.current.add(id)
-    void expireSession({ sessionId: data.id }).then((r) => {
+    void callAction(expireSession({ sessionId: data.id })).then((r) => {
       if (r.success && r.data.expired) {
         router.refresh()
         return
@@ -93,7 +94,7 @@ export function SessionView({ data }: { data: SessionData }) {
       const due = t.messages.filter((m) => m.body === '' && Date.parse(m.visibleAt) <= now && !revealed.current.has(m.id))
       if (!due.length) continue
       for (const m of due) revealed.current.add(m.id)
-      void revealThread({ threadId: t.id }).then((r) => {
+      void callAction(revealThread({ threadId: t.id })).then((r) => {
         if (!r.success) return
         const bodies = new Map(r.data.messages.map((m) => [m.id, m.body]))
         patch(t.id, (th) => ({
@@ -140,7 +141,7 @@ export function SessionView({ data }: { data: SessionData }) {
   }
 
   const send = async (threadId: string, input: ComposerInput): Promise<boolean> => {
-    const r = await sendMessage({ threadId, ...input })
+    const r = await callAction(sendMessage({ threadId, ...input }))
     if (!r.success) {
       toast.error(r.error)
       // On resynchronise à CHAQUE échec, sans regarder le texte du message. Le serveur a pu retirer
@@ -169,7 +170,7 @@ export function SessionView({ data }: { data: SessionData }) {
     async (threadId: string) => {
       if (firing.current.has(threadId)) return
       firing.current.add(threadId)
-      const r = await timeoutThread({ threadId })
+      const r = await callAction(timeoutThread({ threadId }))
       if (!r.success) {
         // On garde le thread dans `firing` : l'effet de `ThreadPanel` ne rappelle pas tout seul
         // (pas de boucle de refresh). L'affordance « Réessayer » relance explicitement via

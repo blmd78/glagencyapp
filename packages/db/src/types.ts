@@ -3710,6 +3710,7 @@ export type Database = {
       training_ai_calls: {
         Row: {
           cache_read_tokens: number
+          cache_write_tokens: number
           created_at: string
           id: string
           input_tokens: number
@@ -3723,6 +3724,7 @@ export type Database = {
         }
         Insert: {
           cache_read_tokens?: number
+          cache_write_tokens?: number
           created_at?: string
           id?: string
           input_tokens?: number
@@ -3736,6 +3738,7 @@ export type Database = {
         }
         Update: {
           cache_read_tokens?: number
+          cache_write_tokens?: number
           created_at?: string
           id?: string
           input_tokens?: number
@@ -5115,6 +5118,7 @@ export type Database = {
         Args: { p_since: string }
         Returns: {
           cache_read_tokens: number
+          cache_write_tokens: number
           calls: number
           day: string
           input_tokens: number
