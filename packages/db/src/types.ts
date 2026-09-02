@@ -5027,6 +5027,15 @@ export type Database = {
         Returns: undefined
       }
       norm_shifts: { Args: { p: string[] }; Returns: string[] }
+      overview_ca_global: {
+        Args: {
+          p_chart_from: string
+          p_chart_to: string
+          p_period_from: string
+          p_period_to: string
+        }
+        Returns: Json
+      }
       overview_report: {
         Args: {
           p_chart_from: string

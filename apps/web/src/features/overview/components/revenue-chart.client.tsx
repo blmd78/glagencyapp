@@ -30,16 +30,23 @@ const chartConfig = {
 export function RevenueChart({
   data,
   periodLabel,
+  scopeLabel = null,
 }: {
   data: DailyPoint[]
   periodLabel: string
+  /**
+   * Périmètre de la série, accolé au titre (« agence », « vos modèles »). `null` = titre nu :
+   * KPI et courbe décrivent le même périmètre, il n'y a rien à lever. Renseigné seulement pour
+   * les porteurs d'un bout `overview:*`, chez qui les deux peuvent diverger (cf. 0139).
+   */
+  scopeLabel?: string | null
 }) {
   const total = data.reduce((s, d) => s + (d.inPeriod ? (d.revenue ?? 0) : 0), 0)
 
   return (
     <Card className="pt-0">
       <CardHeader className="border-b py-5">
-        <CardTitle>CA quotidien</CardTitle>
+        <CardTitle>CA quotidien{scopeLabel ? ` — ${scopeLabel}` : ''}</CardTitle>
         <CardDescription>
           {periodLabel} · {eur(total)} au total
         </CardDescription>

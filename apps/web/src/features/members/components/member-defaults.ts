@@ -1,4 +1,4 @@
-import { pageChoicesFor, slugFace, type WorkspaceId } from '@/config/workspaces'
+import { pageChoicesFor, slugFace, subChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import type { MemberForm } from '../schema'
 import type { Member } from '../types'
 
@@ -27,7 +27,12 @@ export function memberDefaults({
   viewer: 'admin' | 'manager'
   creators: { id: string; name: string }[]
 }): MemberForm {
-  const scopeSlugs = new Set(pageChoicesFor(scope).map((c) => c.slug as string))
+  // Bouts COMPRIS (`overview:ca`…) : `mergePages` ne garde que les pages des AUTRES faces plus
+  // celles que ce form renvoie, et `slugFace('overview:ca')` vaut bien `chatter`. Les omettre
+  // ici, c'est effacer le droit dès qu'on rouvre puis enregistre la fiche, sans rien afficher.
+  const scopeSlugs = new Set(
+    [...pageChoicesFor(scope), ...subChoicesFor(scope)].map((c) => c.slug as string),
+  )
   const creatorSet = new Set(creators.map((c) => c.id))
 
   return {

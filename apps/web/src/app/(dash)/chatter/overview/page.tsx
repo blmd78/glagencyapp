@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { getOverview } from '@/features/overview/services/get-overview'
-import { requireAccess } from '@/lib/auth'
+import { hasPageAccess, requireAccess } from '@/lib/auth'
 import { OverviewTemplate } from '@/features/overview/OverviewTemplate'
 import { OverviewSkeleton } from '@/features/overview/components/overview-skeleton'
 import { resolvePeriod } from '@/lib/period'
@@ -17,7 +17,13 @@ export default async function OverviewPage({
   const period = resolvePeriod(await searchParams)
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, le bloc de données
   // (KPIs + graphe) streame dans son boundary quand le RPC répond.
-  const data = getOverview(period, { restricted: profile.role !== 'admin' })
+  // Bouts de page (0139) : `overview:ca` bascule le KPI CA sur le CA de l'agence, `overview:courbe`
+  // fait de même pour la série du graphe. Deux droits séparés, accordés indépendamment dans Membres.
+  const data = getOverview(period, {
+    restricted: profile.role !== 'admin',
+    caGlobal: hasPageAccess(profile, 'overview:ca'),
+    courbeGlobale: hasPageAccess(profile, 'overview:courbe'),
+  })
 
   return (
     <div className="flex flex-col gap-6">

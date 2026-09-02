@@ -20,7 +20,7 @@ export function OverviewTemplate({ data }: { data: OverviewData }) {
         accents={['border-t-emerald-500', 'border-t-blue-500', 'border-t-blue-500', 'border-t-amber-500']}
       />
 
-      <RevenueChart data={data.daily} periodLabel={data.periodLabel} />
+      <RevenueChart data={data.daily} periodLabel={data.periodLabel} scopeLabel={data.dailyScope} />
     </div>
   )
 }

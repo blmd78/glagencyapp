@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
-import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
+import { pageChoicesFor, subChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { RowActions } from './member-row-actions'
 import type { Member } from '../types'
@@ -58,7 +58,9 @@ export function buildMembersColumns({
   superadmin: boolean
 }): ColumnDef<Member>[] {
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
-  const choices = pageChoicesFor(scope)
+  // Bouts compris : un droit accordé qui n'apparaîtrait dans aucun badge serait invisible de
+  // la liste — on ne verrait qui a le CA global qu'en ouvrant chaque fiche.
+  const choices = [...pageChoicesFor(scope), ...subChoicesFor(scope)]
 
   const modelsColumn: ColumnDef<Member>[] = scope === 'chatter' ? [
     {

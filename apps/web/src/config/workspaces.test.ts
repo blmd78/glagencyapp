@@ -5,6 +5,8 @@ import {
   pageChoicesFor,
   PAGE_SLUGS,
   slugFace,
+  subChoicesFor,
+  subSlugsOf,
   WORKSPACES,
   workspaceHome,
   type NavAccess,
@@ -134,5 +136,53 @@ describe('Récap du tracker — adminOnly + managerAccess + slug', () => {
 
   it('Membres (adminOnly + managerAccess, SANS slug explicite) n’est pas affecté', () => {
     expect(canAccessNav(membres, encadrant([]))).toBe(true)
+  })
+})
+
+// ── Bouts de page (`<page>:<bout>`) — droits plus fins qu'une page, cf. migration 0139 ────────
+describe('bouts de page', () => {
+  it('les bouts de l’Overview sont des slugs assignables, rattachés à la face chatteurs', () => {
+    expect(PAGE_SLUGS).toContain('overview:ca')
+    expect(PAGE_SLUGS).toContain('overview:courbe')
+    // Le `:` ne doit pas être confondu avec un préfixe de face secondaire (mkt-*, frm-*).
+    expect(slugFace('overview:ca')).toBe('chatter')
+    expect(slugFace('overview:courbe')).toBe('chatter')
+  })
+
+  // La grille des pages ne doit PAS enfler d'une case par bout : ils sont servis à part, et
+  // l'UI ne les rend que sous une page cochée (retour Benoit 2026-09-02).
+  it('les bouts ne sont pas dans la grille des pages, mais dans subChoicesFor', () => {
+    expect(pageChoicesFor('chatter').map((c) => c.slug)).not.toContain('overview:ca')
+    const subs = subChoicesFor('chatter')
+    expect(subs.map((c) => c.slug)).toEqual(['overview:ca', 'overview:courbe'])
+    expect(subs.every((c) => c.parent === 'overview')).toBe(true)
+    // Les bouts de la face chatteurs n'apparaissent pas sur les faces secondaires.
+    expect(subChoicesFor('marketing')).toEqual([])
+    expect(subChoicesFor('formation')).toEqual([])
+  })
+
+  // Un libellé de bout est elliptique par nature : sans description, on accorde un droit sur la
+  // foi de deux mots. Ce test force à l'écrire pour tout bout ajouté plus tard.
+  it('tout bout explique au survol ce qu’il ouvre', () => {
+    for (const sub of subChoicesFor('chatter')) {
+      expect(sub.description, `bout ${sub.slug} sans description`).toBeTruthy()
+    }
+  })
+
+  it('subSlugsOf ne rend les bouts que de la page qui en a', () => {
+    expect(subSlugsOf('overview')).toEqual(['overview:ca', 'overview:courbe'])
+    expect(subSlugsOf('compta')).toEqual([])
+  })
+
+  // Un bout N'EST PAS une page : il n'a ni item de nav ni route. Sans ce garde-fou, un membre
+  // n'ayant QUE `overview:ca` passerait `atLeastOnePage` puis atterrirait sur /no-access,
+  // `landingHref` ne sachant résoudre que les slugs portés par un item de nav.
+  it('un bout seul n’ouvre aucune nav et n’est jamais une page d’atterrissage', () => {
+    const overview = WORKSPACES.find((w) => w.id === 'chatter')!.nav.find((n) => n.href === '/chatter/overview')!
+    expect(canAccessNav(overview, user(['overview:ca']))).toBe(false)
+    expect(canAccessNav(overview, user(['overview', 'overview:ca']))).toBe(true)
+    expect(
+      landingHref({ role: 'chatteur', superadmin: false, manager: false, pages: ['overview:ca'] }),
+    ).toBe('/no-access')
   })
 })

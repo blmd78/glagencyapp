@@ -269,13 +269,73 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
+
+/**
+ * Une case à cocher de Membres. `parent` renseigné = ce n'est pas une page mais un BOUT d'une
+ * page (cf. SUB_PAGE_CHOICES).
+ */
+export type PageChoice = {
+  slug: PageSlug
+  label: string
+  icon: LucideIcon
+  parent?: PageSlug
+  /** Ce que la case change, en quelques mots — affiché au survol dans Membres. Pas une phrase. */
+  description?: string
+}
+
+/**
+ * BOUTS DE PAGE — un droit PLUS FIN que la page, cochable à part dans Membres (demande Benoit
+ * 2026-09-02). Convention de slug : `<page>:<bout>`.
+ *
+ * POURQUOI À PLAT dans le même `profiles.pages text[]` et pas un jsonb `{ overview: ['ca'] }` :
+ * les deux formes portent EXACTEMENT la même information — l'imbriquée se dérive de la plate à
+ * l'affichage (`parent`, ci-dessous) — mais la plate ne coûte rien, là où le jsonb obligerait à
+ * réécrire les 231 appels `has_page()` et 67 `can_write_page()` répartis sur 44 migrations, qui
+ * font tous `slug = any(pages)`. `has_page('overview:ca')` marche donc sans une ligne de SQL.
+ *
+ * UN BOUT N'A DE SENS QU'AVEC SA PAGE. Trois verrous, du plus faible au plus fort : la case est
+ * désactivée tant que la page ne l'est pas (UI), `memberInput` refuse un bout orphelin (form),
+ * et la page elle-même fait `requireAccess('overview')` avant de lire quoi que ce soit — sans
+ * quoi un `pages: ['overview:ca']` seul mènerait sur /no-access, `landingHref` ne sachant
+ * résoudre que des slugs portés par un item de nav.
+ */
+export const SUB_PAGE_CHOICES: PageChoice[] = [
+  // CA global : le KPI « CA total » de l'Overview affiche le CA de L'AGENCE sur la période, et
+  // rien d'autre — pas de ventilation par modèle (il n'y en a pas sur cet écran de toute façon :
+  // OverviewTemplate ne rend que les KPIs et la courbe). Cf. migration 0139.
+  {
+    slug: 'overview:ca',
+    parent: 'overview',
+    label: 'CA global',
+    icon: Banknote,
+    description: 'Carte « CA total » = CA de l’agence',
+  },
+  // Idem pour la série quotidienne de la carte « CA quotidien ». Droit SÉPARÉ : les deux se
+  // donnent indépendamment (décision Benoit) ; le libellé de chaque bloc dit lequel des deux
+  // périmètres il affiche, pour qu'aucune combinaison ne mente.
+  {
+    slug: 'overview:courbe',
+    parent: 'overview',
+    label: 'Courbe CA globale',
+    icon: ChartLine,
+    description: 'Carte « CA quotidien » = CA de l’agence',
+  },
+]
+
+/** Bouts d'une page donnée (vide si elle n'en a pas) — décocher la page décoche les siens. */
+export const subSlugsOf = (parent: string): PageSlug[] =>
+  SUB_PAGE_CHOICES.filter((s) => s.parent === parent).map((s) => s.slug)
 
 /**
  * Pages cochables dans la gestion des membres (= nav non-admin). Dédupliquées par slug :
  * plusieurs sous-pages peuvent partager un droit (ex. le groupe Spenders) → une seule case,
  * libellée par le groupe.
+ *
+ * LES BOUTS N'Y SONT PAS, et c'est délibéré : les fondre dans cette grille la ferait enfler
+ * d'une case par bout pour tout le monde, y compris les membres à qui la page n'est pas
+ * accordée. Ils sont rendus à part (`subChoicesFor`), et seulement sous les pages cochées.
  */
 export const PAGE_CHOICES = (() => {
   const slugOf = (n: NavItem) => (n.slug ?? pageSlug(n.href)) as string
@@ -286,7 +346,7 @@ export const PAGE_CHOICES = (() => {
   for (const n of items) shared.set(slugOf(n), (shared.get(slugOf(n)) ?? 0) + 1)
   const groupOf = new Map((DEFAULT_WORKSPACE.groups ?? []).map((g) => [g.id, g]))
   const seen = new Set<string>()
-  const out: { slug: PageSlug; label: string; icon: LucideIcon }[] = []
+  const out: PageChoice[] = []
   for (const n of items) {
     const slug = slugOf(n) as PageSlug
     if (seen.has(slug)) continue
@@ -297,8 +357,6 @@ export const PAGE_CHOICES = (() => {
   }
   return out
 })()
-
-export type PageChoice = { slug: PageSlug; label: string; icon: LucideIcon }
 
 /** Pages cochables d'une face secondaire (slugs explicites, non-admin) — gérées depuis SA page Membres. */
 const facePageChoices = (id: WorkspaceId): PageChoice[] =>
@@ -316,6 +374,16 @@ export function pageChoicesFor(scope: WorkspaceId): PageChoice[] {
   if (scope === 'marketing') return MKT_PAGE_CHOICES
   if (scope === 'formation') return FRM_PAGE_CHOICES
   return PAGE_CHOICES
+}
+
+/**
+ * Bouts cochables d'un scope Membres — RENDUS À PART de la grille des pages, et seulement sous
+ * les pages effectivement cochées (cf. MemberPermissionFields). Un bout n'existe que par sa
+ * page : celles de l'autre face n'apparaissent pas ici.
+ */
+export function subChoicesFor(scope: WorkspaceId): PageChoice[] {
+  const pages = new Set<string>(pageChoicesFor(scope).map((c) => c.slug))
+  return SUB_PAGE_CHOICES.filter((s) => pages.has(s.parent!))
 }
 
 /** Slug d'accès d'un item de nav (slug explicite sinon dérivé de l'href). */
