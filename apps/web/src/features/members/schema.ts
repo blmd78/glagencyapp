@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { pageChoicesFor, type WorkspaceId } from '@/config/workspaces'
+import { pageChoicesFor, subChoicesFor, SUB_PAGE_CHOICES, type WorkspaceId } from '@/config/workspaces'
 import { CRM_ROLES, CRM_SHIFTS, CRM_TEAMS } from '@/lib/types/chatters'
 
 // Désignation « closing » portée par le membre (setter/closer + équipe rouge/bleue) — n'a de sens
@@ -65,7 +65,7 @@ const memberFields = {
 
 // Refines partagés (mêmes prédicats, mêmes messages, même path pour les deux schémas).
 const pagesOfScope = (d: { scope: WorkspaceId; pages: string[] }) => {
-  const allowed = new Set<string>(pageChoicesFor(d.scope).map((p) => p.slug))
+  const allowed = new Set<string>([...pageChoicesFor(d.scope), ...subChoicesFor(d.scope)].map((p) => p.slug))
   return d.pages.every((x) => allowed.has(x))
 }
 // min 1 page SAUF pour un admin (accès à tout) : un compte chatteur/manager sans page
@@ -73,6 +73,14 @@ const pagesOfScope = (d: { scope: WorkspaceId; pages: string[] }) => {
 // le form ne voit que les pages de son scope, `hasOtherFacePages` porte le reste.
 const atLeastOnePage = (d: { role: string; pages: string[]; hasOtherFacePages: boolean }) =>
   d.role === 'admin' || d.pages.length > 0 || d.hasOtherFacePages
+// Un BOUT de page (`overview:ca`…) sans sa page ne donne rien : la page fait `requireAccess` sur
+// SON slug avant de lire le bout, et un membre qui n'aurait QUE des bouts atterrirait sur
+// /no-access (landingHref ne résout que des slugs portés par un item de nav). On le refuse ici
+// plutôt que de laisser fabriquer un compte muet. L'UI grise déjà la case ; ceci ferme la porte
+// côté serveur, où le même schéma est rejoué en safeParse.
+const noOrphanSubPage = (d: { pages: string[] }) =>
+  SUB_PAGE_CHOICES.every((sub) => !d.pages.includes(sub.slug) || d.pages.includes(sub.parent!))
+
 // Miroir applicatif du check SQL `profiles_is_new_needs_arrived_at` (0101) : un drapeau sans date
 // s'afficherait « nouveau depuis on ne sait quand », donc nouveau pour toujours — et le rappel de
 // retrait à 30 jours ne pourrait jamais se déclencher.
@@ -87,6 +95,7 @@ export const memberInput = z
   })
   .refine(pagesOfScope, { message: 'Page inconnue', path: ['pages'] })
   .refine(atLeastOnePage, { message: 'Coche au moins une page', path: ['pages'] })
+  .refine(noOrphanSubPage, { message: 'Coche la page avant l’un de ses droits', path: ['pages'] })
   .refine(arrivalWhenNew, { message: 'Renseigne la date d’arrivée', path: ['arrivedAt'] })
 export type MemberForm = z.infer<typeof memberInput>
 
@@ -118,4 +127,5 @@ export const memberUpdateInput = z
   })
   .refine(pagesOfScope, { message: 'Page inconnue', path: ['pages'] })
   .refine(atLeastOnePage, { message: 'Coche au moins une page', path: ['pages'] })
+  .refine(noOrphanSubPage, { message: 'Coche la page avant l’un de ses droits', path: ['pages'] })
   .refine(arrivalWhenNew, { message: 'Renseigne la date d’arrivée', path: ['arrivedAt'] })

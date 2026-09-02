@@ -58,5 +58,11 @@ export interface OverviewData {
   subsByModel: ModelSubs[]
   /** Série quotidienne du CA sur la période (tous les jours ; null après aujourd'hui). */
   daily: DailyPoint[]
+  /**
+   * Suffixe de périmètre de la carte « CA quotidien » (`agence` / `vos modèles`). `null` =
+   * rien à lever, on garde le titre nu — c'est le cas de TOUT LE MONDE sauf les porteurs d'un
+   * bout `overview:*`, pour qui KPI et courbe peuvent ne plus décrire le même périmètre.
+   */
+  dailyScope: string | null
   insights: Insight[]
 }

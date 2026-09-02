@@ -28,9 +28,14 @@ interface OverviewReport {
  */
 export async function getOverview(
   period: Period,
-  opts: { restricted?: boolean } = {},
+  opts: { restricted?: boolean; caGlobal?: boolean; courbeGlobale?: boolean } = {},
 ): Promise<OverviewData> {
   const restricted = opts.restricted ?? false
+  // Bouts de page `overview:ca` / `overview:courbe` (0139) : le KPI et/ou la courbe passent au
+  // CA de L'AGENCE. Sans objet pour un admin, dont les deux sont déjà globaux — d'où le `&&
+  // restricted`, qui évite aussi un aller-retour SQL inutile sur chaque affichage admin.
+  const caGlobal = restricted && (opts.caGlobal ?? false)
+  const courbeGlobale = restricted && (opts.courbeGlobale ?? false)
   const supabase = await createClient()
 
   // Le graphe CA quotidien couvre toujours le(s) mois entier(s) de la sélection :
@@ -38,7 +43,7 @@ export async function getOverview(
   const chartFrom = startOfMonth(period.from)
   const chartTo = endOfMonth(period.to)
 
-  const [{ data: creators, error: creatorsErr }, rpcRes, denomBase] =
+  const [{ data: creators, error: creatorsErr }, rpcRes, denomBase, globalRes] =
     await Promise.all([
       supabase.from('creators').select('id, name, is_private'),
       // Agrégation EN BASE (migration 0052 overview_report, SECURITY INVOKER = RLS appliquée) :
@@ -88,6 +93,18 @@ export async function getOverview(
             if (error) throw new Error(error.message)
             return (data ?? []).map((m) => m.chatter_id)
           }),
+      // CA AGENCE (0139) — `security definer`, car la RLS `creator_daily_scoped_read` filtre des
+      // LIGNES et ne sait pas rendre un total sur celles qu'elle cache. Retour scalaire, aucun
+      // `creator_id` : il n'y a rien à ventiler dedans. Chaque champ est gardé par SON bout côté
+      // SQL → `total`/`daily` reviennent `null` quand le droit correspondant manque.
+      caGlobal || courbeGlobale
+        ? supabase.rpc('overview_ca_global', {
+            p_period_from: period.from,
+            p_period_to: period.to,
+            p_chart_from: chartFrom,
+            p_chart_to: chartTo,
+          })
+        : null,
     ])
 
   if (creatorsErr) throw new Error(creatorsErr.message)
@@ -96,8 +113,19 @@ export async function getOverview(
   // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
   const rep = (rpcRes.data as OverviewReport | null) ?? { by_model: [], daily: [], by_chatter: [] }
 
+  if (globalRes?.error) throw new Error(globalRes.error.message)
+  // Retour `Returns: Json` → même cast documenté que `rep` ci-dessus. `total`/`daily` valent
+  // `null` quand le bout correspondant n'est pas accordé (garde SQL, pas garde TS).
+  const glob =
+    (globalRes?.data as { total: number | null; daily: Array<{ date: string; ca: number | null }> | null } | null) ??
+    null
+
   const meta = new Map((creators ?? []).map((c) => [c.id, { name: c.name, isPrivate: c.is_private }]))
+  // `totalCa` reste le total DE SON PÉRIMÈTRE : il sert aux parts par modèle ci-dessous. Le KPI,
+  // lui, lit `kpiCa` — deux variables distinctes, pour qu'accorder `overview:ca` ne redéfinisse
+  // pas en douce ce que « part » veut dire.
   const totalCa = rep.by_model.reduce((s, r) => s + (Number(r.ca) || 0), 0)
+  const kpiCa = glob?.total != null ? Number(glob.total) : totalCa
 
   // Agrégat par modèle (déjà sommé par le RPC, regroupé par nom).
   const byModel = new Map<string, { ca: number; subs: number; isPrivate: boolean }>()
@@ -125,7 +153,7 @@ export async function getOverview(
   // Série quotidienne : TOUS les jours du/des mois couvrant la sélection ; null après
   // aujourd'hui ; les jours hors sélection sont marqués `inPeriod: false` (affichés atténués).
   const perDay = new Map<string, number>()
-  for (const r of rep.daily) perDay.set(r.date, Number(r.ca) || 0)
+  for (const r of glob?.daily ?? rep.daily) perDay.set(r.date, Number(r.ca) || 0)
   const today = todayParis()
   const daily: DailyPoint[] = []
   for (let key = chartFrom; key <= chartTo; key = addDays(key, 1)) {
@@ -174,9 +202,17 @@ export async function getOverview(
 
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
-    { key: 'ca', label: 'CA total', value: eur(totalCa), deltaPct: null, trendLabel: restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
-    { key: 'active', label: 'Chatters actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: restricted ? scopeHint : 'effectif = membres rôle chatter' },
-    { key: 'avgCa', label: 'CA moyen / chatter', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatters, ${scopeHint}` : `${int(active)} chatters avec CA` },
+    { key: 'ca', label: 'CA total', value: eur(kpiCa), deltaPct: null, trendLabel: caGlobal ? 'Total agence' : restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
+    // KPIs CHATTEURS retirés dès qu'un bout `overview:*` est accordé (décision Benoit
+    // 2026-09-02, « si je coche ces 2 droits ils n'ont rien à faire là ») : ces bouts donnent le
+    // CA de l'agence, et ces deux cartes-là comptent sur les modèles assignés. Les laisser, c'est
+    // afficher deux périmètres côte à côte — et « 0 / N » chez qui n'a aucun modèle.
+    ...(caGlobal || courbeGlobale
+      ? []
+      : [
+          { key: 'active', label: 'Chatters actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: restricted ? scopeHint : 'effectif = membres rôle chatter' } satisfies Kpi,
+          { key: 'avgCa', label: 'CA moyen / chatter', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatters, ${scopeHint}` : `${int(active)} chatters avec CA` } satisfies Kpi,
+        ]),
     // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
     ...(restricted
       ? []
@@ -186,5 +222,10 @@ export async function getOverview(
   // Insights : vides tant que le moteur de règles @glagency/core n'est pas branché.
   const insights: Insight[] = []
 
-  return { periodLabel: period.label, kpis, caByModel, subsByModel, daily, insights }
+  // Le suffixe n'apparaît QUE pour un porteur de bout : sans lui, KPI et courbe décrivent le
+  // même périmètre et le titre nu ne ment pas. Ne rien changer pour les autres est délibéré.
+  const dailyScope =
+    !caGlobal && !courbeGlobale ? null : courbeGlobale ? 'agence' : 'vos modèles'
+
+  return { periodLabel: period.label, kpis, caByModel, subsByModel, daily, dailyScope, insights }
 }
