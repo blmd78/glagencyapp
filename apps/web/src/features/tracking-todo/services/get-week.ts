@@ -2,10 +2,15 @@ import { addDays, isoWeekday, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getCreatorScope } from '@/lib/services/creator-scope'
-import type { TodoChatter, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
+import { defaultDebriefDay } from '../debrief-day'
+import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 
 /** Lundi de la semaine contenant `day`. */
 export const weekStartOf = (day: string): string => addDays(day, -(isoWeekday(day) - 1))
+
+/** `YYYY-MM-DD` parsable — le seul format qu'acceptent les helpers de dates de core. */
+const isDay = (s: string): boolean =>
+  /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`))
 
 /**
  * Les rôles qui ÉCRIVENT sur une to-do — miroir applicatif de `hasWriteAccess` (lib/auth), dont
@@ -48,7 +53,10 @@ export async function getTodoWeek(params: {
   week?: string
 }): Promise<TodoWeek> {
   const today = todayParis()
-  const weekStart = weekStartOf(params.week ?? today)
+  // `?week=` arrive brut de l'URL : une valeur bricolée retombe en silence sur la semaine courante
+  // (même principe que `?owner=` refusé) au lieu de faire lever `toISOString` sur une date invalide.
+  const weekParam = params.week && isDay(params.week) ? params.week : today
+  const weekStart = weekStartOf(weekParam)
   const weekEnd = addDays(weekStart, 6)
   const supabase = await createClient()
 
@@ -70,8 +78,10 @@ export async function getTodoWeek(params: {
         .eq('owner_id', params.ownerId).eq('week', weekStart).maybeSingle(),
       supabase.from('tracker_todo_links').select('id, label, url')
         .eq('owner_id', params.ownerId).order('position'),
-      supabase.from('tracker_todo_daily').select('focus, problem, positive, negative, notes')
-        .eq('owner_id', params.ownerId).eq('date', today).maybeSingle(),
+      // Les SEPT débriefs possibles de la semaine, pas seulement celui du jour civil : la carte
+      // laisse choisir le jour (celui qui finit à 3 h débriefe la veille), et bascule sans requête.
+      supabase.from('tracker_todo_daily').select('date, focus, problem, positive, negative, notes')
+        .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
     ])
 
   for (const res of [sectionsRes, tasksRes, habitsRes, dayoffRes, notesRes, linksRes, dailyRes]) {
@@ -152,8 +162,8 @@ export async function getTodoWeek(params: {
     })
   }
 
-  const todayCol = days.find((d) => d.date === today)
-  const allToday = todayCol?.sections.flatMap((s) => s.tasks) ?? []
+  const dailyByDay: Record<string, TodoDaily> = {}
+  for (const { date, ...daily } of dailyRes.data ?? []) dailyByDay[date] = daily
 
   // Les chatteurs proposables dans « Session 1:1 avec » — bornés aux MÊMES périmètres que ceux que
   // `addTask` vérifiera. UNIQUEMENT pour les ENCADRANTS : un chatteur remplit sa propre to-do, il
@@ -202,10 +212,9 @@ export async function getTodoWeek(params: {
     chatters,
     notes: notesRes.data?.body ?? '',
     links: (linksRes.data ?? []) as TodoLink[],
-    daily: dailyRes.data ?? { focus: '', problem: '', positive: '', negative: '', notes: '' },
+    dailyByDay,
     today,
-    doneToday: allToday.filter((t) => t.done).map((t) => t.label),
-    pendingToday: allToday.filter((t) => !t.done).map((t) => t.label),
+    debriefDay: defaultDebriefDay(today, weekStart),
     // La semaine d'un AUTRE est en lecture seule, même pour un admin — il ne coche pas, ne déplace
     // pas, ne signe pas le débrief d'autrui (règle du legacy, cf. `assertOwner`). Il garde le droit
     // d'y déposer et d'y retirer une tâche : ces deux gestes-là ont leur propre garde côté action.

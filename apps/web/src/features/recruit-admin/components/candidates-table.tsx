@@ -1,10 +1,11 @@
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
-import { CANDIDATE_STATUS_LABELS, type CandidateRow, type CreatorChoice, type RecruitGates } from '../types'
+import { CANDIDATE_STATUS_LABELS, type CandidateDay, type CreatorChoice, type RecruitGates } from '../types'
 import { IntegrateButton } from './integrate-button'
 import { CandidateAnswers } from './candidate-answers'
 
@@ -48,23 +49,25 @@ const STATUS_CLASS: Record<string, string> = {
 }
 
 /**
- * File des candidats — Server Component (aucun état, que des liens). Nouveaux d'abord (tri du
- * service). Chaque ligne mène à `?dossier=<id>` (état partageable par URL, guidelines §6).
+ * File des candidats — Server Component (aucun état, que des liens). Une SECTION par journée de
+ * réception, la plus récente en tête, chacune classée par note (tri du service) : une session de
+ * test se lit d'un bloc, sans se mélanger à la précédente. Chaque ligne mène à `?dossier=<id>`
+ * (état partageable par URL, guidelines §6).
  *
  * Les gates sont colorés avec les seuils COURANTS ; le badge du score global, lui, vient du
  * `passed` FIGÉ à la soumission — c'est le verdict qui a été rendu au candidat ce jour-là, il ne
  * bouge pas si un seuil change ensuite.
  */
 export function CandidatesTable({
-  rows,
+  days,
   gates,
   creators,
 }: {
-  rows: CandidateRow[]
+  days: CandidateDay[]
   gates: RecruitGates
   creators: CreatorChoice[]
 }) {
-  if (rows.length === 0) {
+  if (days.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucun candidat pour l’instant — envoie le lien du test.</p>
   }
   return (
@@ -84,7 +87,17 @@ export function CandidatesTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((c) => (
+          {days.map((d) => (
+            <Fragment key={d.day}>
+              {/* En-tête de journée : une session de test = une fournée à comparer entre elle.
+                  Mêmes classes que les lignes de sous-groupe du dépôt (compta-table, chatters-sub-rows). */}
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                <TableCell colSpan={7} className="py-1.5 text-xs font-medium text-muted-foreground">
+                  {d.label}
+                  <span className="font-normal"> · {d.rows.length} dossier{d.rows.length > 1 ? 's' : ''}</span>
+                </TableCell>
+              </TableRow>
+              {d.rows.map((c) => (
             <TableRow key={c.id}>
               <TableCell>
                 <Link
@@ -158,6 +171,8 @@ export function CandidatesTable({
                 </span>
               </TableCell>
             </TableRow>
+              ))}
+            </Fragment>
           ))}
         </TableBody>
       </Table>
