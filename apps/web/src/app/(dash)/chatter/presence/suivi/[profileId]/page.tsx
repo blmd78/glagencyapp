@@ -20,11 +20,15 @@ export default async function PresenceSuiviChatterPage({
   searchParams,
 }: {
   params: Promise<{ profileId: string }>
-  /** `?bilan=<taskId>` : on arrive d'une tâche « 1:1 » de la To-Do, le formulaire s'ouvre armé. */
-  searchParams: Promise<{ bilan?: string }>
+  /**
+   * `?bilan=<taskId>` : on arrive d'une tâche « 1:1 » de la To-Do, le formulaire s'ouvre armé.
+   * `?week=` : la semaine de la To-Do d'où l'on vient, pour y REVENIR une fois le 1:1 clos — sans
+   * elle, le retour tombait sur la semaine du jour civil, vide après minuit le dimanche.
+   */
+  searchParams: Promise<{ bilan?: string; week?: string }>
 }) {
   const profile = await requireAccess('presence')
-  const [{ profileId }, { bilan }] = await Promise.all([params, searchParams])
+  const [{ profileId }, { bilan, week }] = await Promise.all([params, searchParams])
   // `hasWriteAccess` : le test précédent était TOUJOURS VRAI — il refaisait le contrôle que
   // `requireAccess('presence')` vient de passer deux lignes plus haut. Celui-ci exclut le chatteur,
   // qui peut porter la page en lecture (miroir de `can_write_page()`, 0060).
@@ -45,7 +49,7 @@ export default async function PresenceSuiviChatterPage({
         <Header data={data} />
       </Suspense>
       <Suspense fallback={<ChatterFileSkeleton />}>
-        <Body data={data} bilanTaskId={bilan ?? null} viewerId={profile.id} />
+        <Body data={data} bilanTaskId={bilan ?? null} backWeek={week ?? null} viewerId={profile.id} />
       </Suspense>
     </div>
   )
@@ -68,13 +72,15 @@ async function Header({ data }: { data: Promise<ChatterCoaching | null> }) {
 async function Body({
   data,
   bilanTaskId,
+  backWeek,
   viewerId,
 }: {
   data: Promise<ChatterCoaching | null>
   bilanTaskId: string | null
+  backWeek: string | null
   viewerId: string
 }) {
   const d = await data
   if (!d) notFound()
-  return <ChatterFile data={d} bilanTaskId={bilanTaskId} viewerId={viewerId} />
+  return <ChatterFile data={d} bilanTaskId={bilanTaskId} backWeek={backWeek} viewerId={viewerId} />
 }

@@ -75,7 +75,9 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     // et c'est son enregistrement qui clôt la tâche. « Pas de compte-rendu, pas de coche » — c'est
     // ce qui garantit qu'un 1:1 réalisé laisse toujours une trace. DÉCOCHER reste direct.
     if (done && task.chatterId) {
-      router.push(`/chatter/presence/suivi/${task.chatterId}?bilan=${task.id}` as Route)
+      // `week` fait l'aller-retour : la fiche nous ramènera sur la semaine d'où l'on est parti,
+      // pas sur celle du jour civil — la nuit du dimanche au lundi, ce n'est plus la même.
+      router.push(`/chatter/presence/suivi/${task.chatterId}?bilan=${task.id}&week=${week.weekStart}` as Route)
       return
     }
     startTransition(async () => {

@@ -2,7 +2,6 @@
 
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { todayParis } from '@glagency/core'
 import { assertOwner, revalidateTodo } from './actions-shared'
 import { addLinkInput, dailyInput, dayOffInput, deleteLinkInput, notesInput } from './schema'
 
@@ -60,15 +59,17 @@ export async function saveDaily(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (d) => {
       await assertOwner(d.ownerId)
-      // La DATE est calculée SERVEUR, comme le legacy (`todo.saveDaily(v.accountId, todo.today(), …)`,
-      // routes.js.txt:425-429) : on ne débriefe que la journée en cours. L'accepter du client
-      // permettait d'antidater, donc d'écraser le débrief d'un jour passé.
-      const today = todayParis()
+      // Le jour vient de la CARTE : l'encadrant le choisit parmi les sept de la semaine affichée.
+      // Il était calculé serveur (`todayParis()`, jour civil) comme chez eux (routes.js.txt:425-427,
+      // « toujours celui du jour ») — et c'est précisément ce qui était faux sur le terrain : les
+      // services de l'encadrement finissent entre 2 h et 7 h, chaque débrief de fin de nuit partait
+      // sur le lendemain (le pourquoi complet : en-tête de `debrief-day.ts`). Aucune borne : c'est
+      // SON journal (`assertOwner`), il peut y revenir — décision Benoit du 2026-09-03.
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_daily').upsert(
         {
           owner_id: d.ownerId,
-          date: today,
+          date: d.date,
           focus: d.focus,
           problem: d.problem,
           positive: d.positive,

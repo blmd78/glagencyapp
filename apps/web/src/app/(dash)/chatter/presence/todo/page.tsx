@@ -1,7 +1,8 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import type { Route } from 'next'
-import { addDays } from '@glagency/core'
+import { addDays, todayParis } from '@glagency/core'
 import { requireAccess } from '@/lib/auth'
 import { canAssignTodoOf } from '@/lib/tracking/todo-guards'
 import { CtxBar } from '@/components/tracking/ctx-bar'
@@ -27,10 +28,24 @@ export const maxDuration = 300
 export default async function PresenceTodoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string; owner?: string }>
+  searchParams: Promise<{ week?: string; owner?: string } & Record<string, string | string[] | undefined>>
 }) {
   const profile = await requireAccess('presence')
-  const { week, owner } = await searchParams
+  const sp = await searchParams
+  const { week, owner } = sp
+
+  // La semaine affichée vit dans l'URL — TOUJOURS. Sans `?week=`, elle se déduisait du jour civil
+  // à chaque rendu : la nuit du dimanche au lundi, le premier geste (coche, débrief) revalidait la
+  // page sur la semaine SUIVANTE — grille vide, carte du bilan remontée, débrief « disparu ». On
+  // épingle donc la semaine courante dès l'atterrissage ; les liens de navigation la portent déjà.
+  // On reporte TOUT ce que l'URL portait (`?from&to` de la période du header, cf. `withPeriod`) :
+  // la redirection ne doit pas faire perdre la période choisie sur les autres écrans.
+  if (!week) {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(sp)) if (typeof v === 'string') q.set(k, v)
+    q.set('week', weekStartOf(todayParis()))
+    redirect(`/chatter/presence/todo?${q.toString()}`)
+  }
 
   // `?owner=` n'est honoré QUE si l'appelant a la dérogation de dépôt sur cette personne ; sinon
   // on retombe en silence sur sa propre semaine. Cette validation n'est pas cosmétique : la RLS

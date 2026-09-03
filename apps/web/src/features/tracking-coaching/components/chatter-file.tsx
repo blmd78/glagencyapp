@@ -8,6 +8,7 @@ import { todayParis } from '@glagency/core'
 import { deleteSession, rateSkill, saveSession } from '../actions'
 import { completeOneToOne } from '@/lib/tracking/complete-one-to-one'
 import { useRouter } from 'next/navigation'
+import type { Route } from 'next'
 import { sessionForm, type SessionFormInput, type SessionFormValues } from '../schema'
 import { CoachNotes } from './coach-notes'
 import type { ChatterCoaching } from '../types'
@@ -55,6 +56,7 @@ function Stars({
 export function ChatterFile({
   data,
   bilanTaskId,
+  backWeek,
   viewerId,
 }: {
   data: ChatterCoaching
@@ -64,6 +66,8 @@ export function ChatterFile({
    * du legacy (`/notes/:id?bilan=<taskId>` puis retour sur `/todo`).
    */
   bilanTaskId?: string | null
+  /** Semaine de la To-Do d'où l'on vient (`?week=`) — le retour y revient, pas sur le jour civil. */
+  backWeek?: string | null
   /** Id du VISITEUR — c'est lui le titulaire de la tâche 1:1 qu'on vient clôturer. */
   viewerId?: string
 }) {
@@ -129,7 +133,8 @@ export function ChatterFile({
           return
         }
         toast.success('1:1 clôturé — le bilan est dans sa fiche')
-        router.push('/chatter/presence/todo')
+        // Retour sur la semaine d'où l'on vient ; sans `?week=`, la page épingle la semaine courante.
+        router.push(backWeek ? (`/chatter/presence/todo?week=${backWeek}` as Route) : '/chatter/presence/todo')
       })
       return
     }

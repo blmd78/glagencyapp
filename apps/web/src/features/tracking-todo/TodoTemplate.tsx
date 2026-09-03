@@ -14,9 +14,14 @@ export function TodoTemplate({ week }: { week: TodoWeek }) {
     <div className="wrap wide">
       <WeekGrid week={week} />
       <div className="botrow">
-        <DebriefCard week={week} />
+        {/* Clé titulaire + semaine : le jour choisi dans la carte est un état client ; sans
+            remontage, un changement de semaine (ou de compte) garderait un jour hors de la grille. */}
+        <DebriefCard key={`${week.ownerId}:${week.weekStart}`} week={week} />
         <div className="botcol">
-          <WeekNotes week={week} />
+          {/* Même clé que la carte du bilan : Next ne remonte pas la page entre `?week=A` et
+              `?week=B`, et React Hook Form fige ses valeurs au montage — sans clé, le bloc-notes
+              gardait le texte de la semaine précédente sous le titre de la nouvelle. */}
+          <WeekNotes key={`${week.ownerId}:${week.weekStart}`} week={week} />
           <LinksCard week={week} />
           {/* Les habitudes se gèrent au même endroit que le reste du contexte de la semaine. Chez
               eux c'était un onglet de la fenêtre d'ajout ; ici la semaine est déjà à l'écran, et un

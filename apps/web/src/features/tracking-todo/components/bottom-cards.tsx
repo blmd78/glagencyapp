@@ -1,69 +1,68 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import { frWeekdayDate } from '@glagency/core'
 import { addLink, deleteLink, saveDaily, saveNotes } from '../actions-content'
+import { debriefLists } from '../debrief-day'
 import {
   dailyForm, linkForm, notesForm,
   type DailyFormValues, type LinkFormValues, type NotesFormValues,
 } from '../schema'
-import type { TodoWeek } from '../types'
+import type { TodoDaily, TodoWeek } from '../types'
 
 const DAILY_FIELDS = [
-  { key: 'focus', label: "Sur quoi tu as passé le plus de temps aujourd'hui", ph: 'ex. les 1:1 et la reprise des scripts de Lena' },
+  { key: 'focus', label: 'Sur quoi tu as passé le plus de temps dans la journée', ph: 'ex. les 1:1 et la reprise des scripts de Lena' },
   { key: 'problem', label: 'Ton plus gros problème de la journée', ph: 'ex. trois chatters injoignables tout l’après-midi' },
   { key: 'positive', label: 'Un point positif de la journée', ph: 'ex. Kevin a tenu son prix sur deux objections' },
   { key: 'negative', label: 'Un point négatif de la journée', ph: 'ex. personne n’a relancé les spenders du week-end' },
   { key: 'notes', label: 'Notes libres', ph: '' },
 ] as const
 
+const EMPTY_DAILY: TodoDaily = { focus: '', problem: '', positive: '', negative: '', notes: '' }
+
 /**
  * Bilan du jour — port de leur `.card.bilan` : ce qui est coché, ce qui ne l'est pas, et le
  * débrief en cinq champs, replié dans un `<details>` comme chez eux.
+ *
+ * Le JOUR se choisit (sélecteur des sept jours de la semaine affichée), là où chez eux c'était
+ * « toujours celui du jour ». Un encadrant qui finit à 3 h débriefe la journée qu'il vient de
+ * faire ; avec le jour civil, tout basculait sur le lendemain à minuit — débrief vide, listes du
+ * lendemain, enregistrement sur la mauvaise date. Pas de règle d'heure imposée : il choisit.
+ * Le `<select>` natif est celui du thème (`.trk select`, repris du tracker d'origine), le même
+ * que les filtres de la liste coaching (`coaching-list.tsx`). Les jours à venir sont grisés : on
+ * ne débriefe pas une journée qui n'a pas eu lieu, et le Récap compterait un débrief de trop.
  */
 export function DebriefCard({ week }: { week: TodoWeek }) {
-  // ⚠️ React Hook Form + React Compiler : sans ça `formState` est mémoïsé et les erreurs comme
-  // l'état de chargement restent muets. Règle du dépôt.
-  'use no memo'
-
-  const [pending, startTransition] = useTransition()
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<DailyFormValues>({ resolver: zodResolver(dailyForm), defaultValues: week.daily })
-  const filled = Object.values(week.daily).some((v) => v.trim() !== '')
-
-  const save = handleSubmit((values) => {
-    startTransition(async () => {
-      const res = await saveDaily({ ownerId: week.ownerId, date: week.today, ...values })
-      if (res.success) toast.success('Débrief enregistré')
-      else toast.error(res.error ?? 'Erreur inattendue')
-    })
-  })
-
-  const dayLabel = new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
-  }).format(new Date(`${week.today}T12:00:00Z`))
+  const [day, setDay] = useState(week.debriefDay)
+  const lists = debriefLists(week.days, day)
+  const initial = week.dailyByDay[day] ?? EMPTY_DAILY
+  const filled = Object.values(initial).some((v) => v.trim() !== '')
 
   return (
     <div className="card bilan">
       <div className="blockh">
         <h2>Bilan du jour</h2>
-        <span className="cnt">{dayLabel}</span>
+        <select aria-label="Jour du bilan" value={day} onChange={(e) => setDay(e.target.value)}>
+          {week.days.map((d) => (
+            <option key={d.date} value={d.date} disabled={d.date > week.today}>
+              {d.weekdayLabel} {d.dayLabel}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="bsplit">
         <div className="bcol ok">
           <div className="bclab">
-            Tâches faites<em>{week.doneToday.length}</em>
+            Tâches faites<em>{lists.done.length}</em>
           </div>
-          {week.doneToday.length === 0 ? (
-            <p className="bnone">Rien de coché aujourd’hui.</p>
+          {lists.done.length === 0 ? (
+            <p className="bnone">Rien de coché ce jour-là.</p>
           ) : (
             <div className="blist">
-              {week.doneToday.map((t, i) => (
+              {lists.done.map((t, i) => (
                 <div key={`${t}-${i}`} className="bn">{t}</div>
               ))}
             </div>
@@ -71,13 +70,13 @@ export function DebriefCard({ week }: { week: TodoWeek }) {
         </div>
         <div className="bcol ko">
           <div className="bclab">
-            Pas faites<em>{week.pendingToday.length}</em>
+            Pas faites<em>{lists.pending.length}</em>
           </div>
-          {week.pendingToday.length === 0 ? (
-            <p className="bnone">Rien en attente aujourd’hui.</p>
+          {lists.pending.length === 0 ? (
+            <p className="bnone">Rien en attente ce jour-là.</p>
           ) : (
             <div className="blist">
-              {week.pendingToday.map((t, i) => (
+              {lists.pending.map((t, i) => (
                 <div key={`${t}-${i}`} className="bn">{t}</div>
               ))}
             </div>
@@ -95,31 +94,79 @@ export function DebriefCard({ week }: { week: TodoWeek }) {
           <span className="blab">Mon débrief</span>
           <span className="bstate">{filled ? 'rempli' : 'à remplir'}</span>
         </summary>
-        <form className="cardpad bform" onSubmit={save} noValidate>
-          {DAILY_FIELDS.map((f) => (
-            <div key={f.key} className="field">
-              <label htmlFor={`d-${f.key}`}>{f.label}</label>
-              <textarea
-                id={`d-${f.key}`}
-                rows={2}
-                placeholder={f.ph}
-                disabled={!week.canWrite}
-                {...register(f.key)}
-              />
-              {errors[f.key] ? <p className="msg ko">{errors[f.key]?.message}</p> : null}
-            </div>
-          ))}
-          {week.canWrite ? (
-            <div className="saverow">
-              <button type="submit" className="btn sm" disabled={pending}>
-                {pending ? 'Enregistrement…' : 'Enregistrer'}
-              </button>
-            </div>
-          ) : null}
-        </form>
+        {/* PAS de clé par jour : remonter le formulaire à chaque changement jetterait le texte
+            en cours de frappe — et corriger le jour APRÈS avoir écrit est justement le geste de
+            celui qui débriefe à 3 h. Le formulaire décide lui-même quoi garder (voir DebriefForm). */}
+        <DebriefForm week={week} day={day} initial={initial} />
       </details>
       )}
     </div>
+  )
+}
+
+function DebriefForm({ week, day, initial }: { week: TodoWeek; day: string; initial: TodoDaily }) {
+  // ⚠️ React Hook Form + React Compiler : sans ça `formState` est mémoïsé et les erreurs comme
+  // l'état de chargement restent muets. Règle du dépôt.
+  'use no memo'
+
+  const [pending, startTransition] = useTransition()
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<DailyFormValues>({ resolver: zodResolver(dailyForm), defaultValues: initial })
+
+  // Changement de jour, ou données rafraîchies après un geste sur la grille : CHAMP PAR CHAMP,
+  // ce qu'on a tapé reste (`keepDirtyValues`), tout le reste suit le jour choisi — corriger le
+  // jour après avoir écrit est le geste de celui qui débriefe à 3 h, et rien ne doit se perdre.
+  // Une garde globale « formulaire sale » ne suffisait pas : les champs NON touchés gardaient le
+  // débrief de l'ancien jour et écrasaient, à l'enregistrement, celui du jour cible. `initial`
+  // change d'identité à chaque re-rendu serveur : mêmes valeurs rechargées, sans effet visible.
+  useEffect(() => {
+    reset(initial, { keepDirtyValues: true })
+  }, [day, initial, reset])
+
+  // Une journée à venir se sélectionne si c'est le jour proposé d'une semaine future (l'option
+  // est grisée, mais déjà choisie) : on ne débriefe pas une journée qui n'a pas eu lieu.
+  const future = day > week.today
+
+  const save = handleSubmit((values) => {
+    startTransition(async () => {
+      const res = await saveDaily({ ownerId: week.ownerId, date: day, ...values })
+      // Le toast NOMME le jour : après minuit, c'est la seule confirmation que le débrief est
+      // parti sur la bonne journée. `reset(values)` : ce qui vient d'être enregistré devient la
+      // référence — le formulaire redevient « intact », prêt à suivre un autre jour.
+      if (res.success) {
+        reset(values)
+        toast.success(`Débrief du ${frWeekdayDate(day)} enregistré`)
+      } else toast.error(res.error ?? 'Erreur inattendue')
+    })
+  })
+
+  return (
+    <form className="cardpad bform" onSubmit={save} noValidate>
+      {DAILY_FIELDS.map((f) => (
+        <div key={f.key} className="field">
+          <label htmlFor={`d-${f.key}`}>{f.label}</label>
+          <textarea
+            id={`d-${f.key}`}
+            rows={2}
+            placeholder={f.ph}
+            disabled={!week.canWrite || future}
+            {...register(f.key)}
+          />
+          {errors[f.key] ? <p className="msg ko">{errors[f.key]?.message}</p> : null}
+        </div>
+      ))}
+      {week.canWrite && !future ? (
+        <div className="saverow">
+          <button type="submit" className="btn sm" disabled={pending}>
+            {pending ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      ) : null}
+    </form>
   )
 }
 
