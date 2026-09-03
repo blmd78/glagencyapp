@@ -50,6 +50,8 @@ export interface CandidateRow {
   email: string
   discord: string | null
   createdAt: string
+  /** Jour Paris de réception (`YYYY-MM-DD`), précalculé : clé de tri et de section de la file. */
+  day: string
   /** Épreuves (gates cachés côté candidat). */
   qiScore: number
   /**
@@ -111,8 +113,22 @@ export interface CreatorChoice {
   name: string
 }
 
-export interface CandidatesData {
+/**
+ * Une journée de réception (jour Paris de `createdAt`) et ses dossiers, classés par note. C'est
+ * l'unité de décision de l'encadrement : une session de test = une fournée de candidats à
+ * comparer entre eux, jamais avec ceux d'une autre session.
+ */
+export interface CandidateDay {
+  /** `YYYY-MM-DD` Paris. */
+  day: string
+  /** « mardi 25 août ». */
+  label: string
   rows: CandidateRow[]
+}
+
+export interface CandidatesData {
+  /** Journées de la plus récente à la plus ancienne, chacune classée par note (`byQueueOrder`). */
+  days: CandidateDay[]
   gates: RecruitGates
   kpis: RecruitKpis
   /**

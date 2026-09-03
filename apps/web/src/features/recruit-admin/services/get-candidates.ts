@@ -1,13 +1,15 @@
+import { frWeekdayDate, parisDay } from '@glagency/core'
 import type { Database } from '@glagency/db'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import type { CandidateRow, CandidatesData, CandidateStatus, RecruitGates, RecruitKpis } from '../types'
+import type { CandidateDay, CandidateRow, CandidatesData, CandidateStatus, RecruitGates, RecruitKpis } from '../types'
 
 /**
  * Borne EXPLICITE de la file des candidats (guidelines-data-loading §2 : jamais de `select` nu —
  * PostgREST tronque silencieusement à 1000 lignes). Le recrutement est un flux d'agence, pas une
  * table de faits : quelques dossiers par semaine. 500 couvre largement, et le jour où ça déborde
- * il faudra une vraie pagination, pas une limite plus haute.
+ * il faudra une vraie pagination, pas une limite plus haute — la coupe tombe au MILIEU de la
+ * journée la plus ancienne, dont la section afficherait alors un compte tronqué.
  */
 const MAX_ROWS = 500
 
@@ -19,21 +21,42 @@ const COLS =
 /** `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number(). */
 const num = (v: number | string | null): number => Number(v ?? 0)
 
-/** Nouveaux d'abord : c'est la file de traitement, un dossier déjà tranché n'a plus à remonter. */
-const STATUS_RANK: Record<CandidateStatus, number> = { nouveau: 0, valide: 1, refuse: 2 }
-
 /**
- * L'ordre de la file : nouveaux d'abord, puis MEILLEURE NOTE EN TÊTE (2026-08-25) — on recrute par
- * score, et c'est en haut qu'on veut trouver qui embaucher. La date ne départage que les ex æquo.
+ * L'ordre de la file : une JOURNÉE de réception après l'autre (la plus récente en tête), et dans
+ * la journée la MEILLEURE NOTE en tête — QI puis heure ne départagent que les ex æquo.
+ *
+ * Demande de l'encadrement du 2026-09-03 : les candidats passent le test par session (un lien
+ * envoyé à une fournée), et c'est session par session qu'on choisit qui embaucher. Un classement
+ * global mélangeait les sessions, et le « nouveaux d'abord » de la première version cassait le
+ * classement par note dès qu'un dossier était tranché (un validé à 98 tombait sous un nouveau à
+ * 44). Le statut reste lisible sur son badge ; il ne pèse plus sur l'ordre.
  *
  * Exporté pour être TESTÉ : avec un ou deux dossiers en base, l'ordre ne se vérifie pas à l'œil.
  */
 export function byQueueOrder(a: CandidateRow, b: CandidateRow): number {
+  // `day` est PRÉCALCULÉ sur la ligne (`toCandidateRow`) : `parisDay` construit un
+  // `Intl.DateTimeFormat` à chaque appel, et un comparateur tourne n·log n fois — à 500 lignes,
+  // le recalculer ici coûtait ~190 ms de rendu serveur pour le seul tri.
   return (
-    STATUS_RANK[a.status] - STATUS_RANK[b.status] ||
+    b.day.localeCompare(a.day) ||
     b.global - a.global ||
+    b.qiScore - a.qiScore ||
     b.createdAt.localeCompare(a.createdAt)
   )
+}
+
+/**
+ * Sections de la file : une par journée Paris de réception, dans l'ordre des lignes (déjà triées
+ * par `byQueueOrder`). Le libellé est celui de l'en-tête de section (« mardi 25 août »).
+ */
+export function groupByDay(rows: CandidateRow[]): CandidateDay[] {
+  const days: CandidateDay[] = []
+  for (const r of rows) {
+    const last = days[days.length - 1]
+    if (last && last.day === r.day) last.rows.push(r)
+    else days.push({ day: r.day, label: frWeekdayDate(r.day), rows: [r] })
+  }
+  return days
 }
 
 /**
@@ -61,6 +84,7 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
     email: r.email,
     discord: r.discord,
     createdAt: r.created_at,
+    day: parisDay(r.created_at),
     qiScore: r.qi_score,
     qiTotal: r.qi_total,
     typingWpm: r.typing_wpm,
@@ -94,8 +118,8 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
  * (client SESSION : la RLS de `recruit_candidates` / `recruit_config` est `is_admin()` en lecture,
  * un non-admin lit zéro ligne — la garde `requireAdmin()` de la page est la défense en profondeur).
  *
- * Le tri (nouveaux d'abord, puis meilleure note) est fait EN MÉMOIRE : PostgREST ne sait pas trier
- * sur une expression (`order by status = 'nouveau' desc`), et la file tient de toute façon dans
+ * Le tri (journée Paris, puis meilleure note) est fait EN MÉMOIRE : PostgREST ne sait pas trier
+ * sur une expression (le jour Paris d'un `timestamptz`), et la file tient de toute façon dans
  * `MAX_ROWS`.
  */
 export async function getCandidates(): Promise<CandidatesData> {
@@ -172,5 +196,5 @@ export async function getCandidates(): Promise<CandidatesData> {
     valide: valide.count ?? 0,
     refuse: refuse.count ?? 0,
   }
-  return { rows, gates, kpis, creators: creators.data ?? [] }
+  return { days: groupByDay(rows), gates, kpis, creators: creators.data ?? [] }
 }

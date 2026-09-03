@@ -104,12 +104,21 @@ export interface TodoWeek {
   /** Bloc-notes de la semaine. */
   notes: string
   links: TodoLink[]
-  /** Débrief du jour courant. */
-  daily: TodoDaily
+  /**
+   * Les débriefs de la semaine affichée, par jour (`YYYY-MM-DD`) — un jour sans ligne est absent.
+   * La carte « Bilan du jour » laisse CHOISIR le jour : celui qui finit son service après minuit
+   * débriefe la journée qu'il vient de faire, pas celle qui commence. Vide sur la semaine d'un
+   * autre (RLS 0132), sauf pour l'admin.
+   */
+  dailyByDay: Record<string, TodoDaily>
+  /**
+   * Jour civil Paris du rendu — sert au lien « cette semaine » de la page et à griser les jours à
+   * venir du sélecteur ; la colonne, elle, se surligne via `TodoDay.isToday`, calculé à partir de
+   * lui dans le service.
+   */
   today: string
-  /** Bilan du jour : ce qui est coché et ce qui ne l'est pas. */
-  doneToday: string[]
-  pendingToday: string[]
+  /** Jour proposé d'office dans la carte « Bilan du jour » (`defaultDebriefDay`). */
+  debriefDay: string
   /** L'utilisateur peut-il écrire ? (titulaire de la to-do, ET rôle d'encadrement.) */
   canWrite: boolean
   /**

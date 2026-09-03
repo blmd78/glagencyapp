@@ -72,7 +72,7 @@ export function RecruitTemplate({
       ) : (
         <>
           <KpiGrid kpis={toKpis(data.kpis)} accents={KPI_ACCENTS} />
-          <CandidatesTable rows={data.rows} gates={data.gates} creators={data.creators} />
+          <CandidatesTable days={data.days} gates={data.gates} creators={data.creators} />
         </>
       )}
     </div>
