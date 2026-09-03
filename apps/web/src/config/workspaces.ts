@@ -153,7 +153,8 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
       // Groupe Accès (porté de gla-workflow) : identifiants Snapchat + fiches modèles.
-      // codes-snap : page ASSIGNABLE (lecture) ; l'écriture reste admin (adminGuard + RLS).
+      // codes-snap : page ASSIGNABLE (lecture) ; écriture admin, ou encadrant sur SES modèles
+      // assignés (`features/snap-codes/access.ts`).
       { href: '/chatter/codes-snap', label: 'Codes Snap', icon: Ghost, group: 'acces' },
       { href: '/chatter/infos-modeles', label: 'Infos modèles', icon: IdCard, group: 'acces' },
       // Sous-catégorie Spenders (CRM closing). Toutes les sous-pages partagent le droit

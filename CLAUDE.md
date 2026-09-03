@@ -139,6 +139,13 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   admin, lecteurs et encadrant sans assignation voient tout. Consultation = historique
   filtrable par modèle / par chatteur (suppression de son propre rapport uniquement).
 
+- **Codes Snap** (`/chatter/codes-snap`, table `snap_codes`, mot de passe chiffré AES) : lecture pour
+  tout porteur de la page (RLS `snap_codes_read`, 0063 — un encadrant ne voit que SES modèles via
+  `creators_scoped_read`) ; **écriture admin sur tout, manager / sous-manager sur SES modèles assignés**
+  (hotfix 2026-09-03, règle pure `features/snap-codes/access.ts`, garde `requireWriteProfileLive` +
+  `getCreatorScope` en tête de `saveSnapCode`, écriture service-role — la RLS `snap_codes_admin_all`
+  de 0047 reste admin-only et son commentaire SQL est périmé).
+
 ## Données MyPuls — workflow d'ajout
 
 Benoit donne les URLs MyPuls **dans le chat** (pas de fichier d'inventaire). Pour chaque page :

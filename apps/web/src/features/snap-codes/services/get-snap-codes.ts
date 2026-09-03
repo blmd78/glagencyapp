@@ -11,8 +11,9 @@ import {
 /**
  * Codes Snap : UNE ligne par modèle actif (les modèles sans code apparaissent vides —
  * l'upsert de l'action crée la ligne à la première édition). Page ASSIGNABLE : lecture
- * ouverte à `has_page('codes-snap')` (RLS `snap_codes_read`, 0063) ; l'ÉCRITURE reste
- * admin (adminGuard côté action + RLS `snap_codes_admin_all`, 0047).
+ * ouverte à `has_page('codes-snap')` (RLS `snap_codes_read`, 0063) ; l'ÉCRITURE : admin sur
+ * tout, manager / sous-manager sur ses modèles assignés (garde de `saveSnapCode`, `access.ts`,
+ * écriture service-role — la RLS `snap_codes_admin_all` de 0047 reste admin-only).
  * `snap_codes` est dans les types générés (`packages/db/src/types.ts:1810`) → appel typé,
  * aucun cast. Table de config (1 ligne / modèle, pas une table de faits journaliers) →
  * volume borné par le nombre de modèles, bien sous la limite PostgREST de 1000 lignes ;
