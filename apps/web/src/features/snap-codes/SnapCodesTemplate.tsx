@@ -1,5 +1,12 @@
 import { SnapCodesView } from './components/snap-codes-view'
-import type { SnapCodesData } from './types'
+import type { SnapCodesData, SnapEditMode } from './types'
+
+const SUBTITLE: Record<SnapEditMode, string> = {
+  all: ' — édition directe, sauvegarde automatique',
+  scoped: ' — édition de tes modèles, sauvegarde automatique',
+  unassigned: ' — lecture seule : aucun modèle ne t’est assigné',
+  none: ' — lecture seule',
+}
 
 /**
  * Codes Snap (porté de gla-workflow) : identifiants Snapchat par modèle, édition inline
@@ -8,15 +15,23 @@ import type { SnapCodesData } from './types'
  * `h1` remonté dans `page.tsx` (kickoff sans await + Suspense, recette pilote) — sous-titre
  * en `-mt-4` pour compenser le double `gap-6` page/Template (docs/guidelines-standard-feature.md §2.5).
  */
-export function SnapCodesTemplate({ data, canWrite }: { data: SnapCodesData; canWrite: boolean }) {
+export function SnapCodesTemplate({
+  data,
+  editable,
+  mode,
+}: {
+  data: SnapCodesData
+  editable: string[]
+  mode: SnapEditMode
+}) {
   return (
     <div className="flex flex-col gap-6">
       <p className="-mt-4 text-sm text-muted-foreground">
         Identifiants Snapchat par modèle (1 par modèle)
-        {canWrite ? ' — édition directe, sauvegarde automatique' : ' — lecture seule'}
+        {SUBTITLE[mode]}
       </p>
 
-      <SnapCodesView data={data} canWrite={canWrite} />
+      <SnapCodesView data={data} editable={editable} />
     </div>
   )
 }

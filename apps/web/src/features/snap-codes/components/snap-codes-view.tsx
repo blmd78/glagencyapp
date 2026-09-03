@@ -64,7 +64,7 @@ function CodeRow({ row, canWrite }: { row: SnapCodeRow; canWrite: boolean }) {
 
   function change(patch: Partial<SnapCodeRow>, immediate = false) {
     // Lecture seule : les inputs readOnly restent focusables → un blur déclencherait un save
-    // voué à l'échec (adminGuard/RLS). On coupe le chemin d'écriture côté client.
+    // voué à l'échec (garde de l'action : hors périmètre). On coupe le chemin d'écriture côté client.
     if (!canWrite) return
     const next = { ...local, ...patch }
     setLocal(next)
@@ -146,8 +146,12 @@ function CodeRow({ row, canWrite }: { row: SnapCodeRow; canWrite: boolean }) {
   )
 }
 
-export function SnapCodesView({ data, canWrite }: { data: SnapCodesData; canWrite: boolean }) {
+/** `editable` : les modèles que l'appelant peut modifier (règle `access.ts`). Un encadrant ne
+ *  voit de toute façon que SES modèles (RLS `creators_scoped_read`) ; les lignes hors liste —
+ *  chatteur ou police porteur de la page — restent en lecture, comme avant. */
+export function SnapCodesView({ data, editable }: { data: SnapCodesData; editable: string[] }) {
   const [model, setModel] = useState('all')
+  const writable = new Set(editable)
 
   const modelOptions = useMemo(
     () => data.rows.map((r) => ({ value: r.creatorId, label: r.model })),
@@ -179,7 +183,7 @@ export function SnapCodesView({ data, canWrite }: { data: SnapCodesData; canWrit
           </TableHeader>
           <TableBody>
             {shown.map((r) => (
-              <CodeRow key={r.creatorId} row={r} canWrite={canWrite} />
+              <CodeRow key={r.creatorId} row={r} canWrite={writable.has(r.creatorId)} />
             ))}
           </TableBody>
         </Table>
