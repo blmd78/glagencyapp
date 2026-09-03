@@ -118,7 +118,12 @@ export default function LoginPage() {
     !!codeForm.formState.errors.code || !!codeForm.formState.errors.root
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-6">
+    // `translate="no"` : Chrome traduit la page (lang="fr") pour un navigateur en anglais et
+    // remplace les textes par ses propres balises ; à la bascule e-mail → code, ou à l'affichage
+    // d'une erreur, React ne retrouve plus ses nœuds (« insertBefore … is not a child of this
+    // node », Sentry JAVASCRIPT-1K, 2026-09-03). On ne l'interdit qu'ICI : le reste du CRM reste
+    // traduisible pour qui en a besoin.
+    <div className="flex min-h-screen items-center justify-center p-6" translate="no">
       <div className="w-full max-w-sm">
         {step === 'email' ? (
           <form onSubmit={onEmail} noValidate className="flex flex-col gap-6">
