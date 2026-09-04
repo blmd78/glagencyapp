@@ -70,19 +70,48 @@ export interface OverviewData {
  * par la page) — le faire re-résoudre par ce service ajouterait une requête pour un champ
  * que la Template a sous la main.
  */
+/**
+ * Un cas du catalogue, vu depuis la fiche d'un chatter. `bestTotal` null = JAMAIS TENTÉ — c'est
+ * l'information la plus utile de l'écran (le trou dans le parcours), elle ne pouvait pas s'écrire
+ * tant que la fiche ne listait que `training_case_bests`.
+ */
+export interface CaseProgress {
+  caseId: string
+  title: string
+  kind: CaseKind
+  /** 1 → 10, l'échelle de `training_cases.difficulty` : le « niveau » d'un module. */
+  difficulty: number
+  bestTotal: number | null
+  attempts: number
+  lastAt: string | null
+}
+
+/** Une compétence (`training_module_sections`) ou, pour un module sans compétence, son seul groupe. */
+export interface CaseGroup {
+  /** null = le groupe implicite d'un module sans compétence (ou les cas hors compétence). */
+  id: string | null
+  title: string
+  avg: number | null
+  attempted: number
+  total: number
+  cases: CaseProgress[]
+}
+
+export interface ModuleProgress {
+  code: string
+  title: string
+  emoji: string | null
+  avg: number | null
+  attempted: number
+  total: number
+  /** Un seul groupe à `id: null` = le module n'a pas de compétences → un niveau de dépliage en moins. */
+  groups: CaseGroup[]
+}
+
 export interface ChatterDetail {
   profileId: string
-  bests: {
-    caseId: string
-    caseTitle: string
-    moduleTitle: string
-    /** Code du module (`/formation/modules/<code>`) — le lien de la fiche pointe vers le module du cas. */
-    moduleCode: string
-    kind: CaseKind
-    bestTotal: number
-    attempts: number
-    lastAt: string
-  }[]
+  /** Le CATALOGUE entier croisé avec ses meilleures notes — modules dans l'ordre du catalogue. */
+  modules: ModuleProgress[]
   sessions: {
     id: string
     caseTitle: string
