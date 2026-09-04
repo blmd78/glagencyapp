@@ -14,6 +14,7 @@ import {
   ingestOneModel,
 } from './spenders-core'
 import { loadCookie, refreshCookie } from './session'
+import { ingestShiftsDay, loadSettings, recordShiftRun, type DayRunResult } from './shifts-core'
 import { createAdminClient } from '@glagency/db'
 
 /**
@@ -60,6 +61,8 @@ const MONITOR_SOCIAL_SLUG = 'ingestion-marketing-social-nightly'
 const MONITOR_TG_SLUG = 'ingestion-marketing-telegram-nightly'
 const MONITOR_SPENDERS_SLUG = 'ingestion-spenders-nightly'
 const SPENDERS_CRON = '0 0 * * *'
+const MONITOR_SHIFTS_SLUG = 'ingestion-shifts-nightly'
+const SHIFTS_CRON = '30 4 * * *'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -167,6 +170,46 @@ async function scrapeOneModel(mypulsId: string, creatorId: string): Promise<numb
   const resolveChatter = await chatterResolver(db)
   return ingestOneModel(db, cookie, mypulsId, creatorId, resolveChatter)
 }
+
+/**
+ * Relevé « Contrôle des shifts » MyPuls — le temps de chatting réel de toute l'agence.
+ * Trois sous-requêtes par jour traité : la page (liste des modèles), le CSV des segments,
+ * le fragment de couverture. Très loin des 50 sous-requêtes du plan Free.
+ *
+ * 04h30 UTC — soit 05h30 ou 06h30 à Paris, TOUJOURS après 05h00. C'est la seule heure qui
+ * marche : le créneau du soir de la veille court jusqu'à 05h00, et MyPuls calcule sa
+ * couverture sur le temps ÉCOULÉ tant qu'il n'est pas fini. Un run à minuit écrivait donc une
+ * veille plafonnée à ~65 %, marquée `ok`, et c'était le jour ouvert PAR DÉFAUT par l'écran :
+ * toute l'équipe du soir apparaissait sous le seuil pendant 22 heures.
+ *
+ * DEUX jours par run (J-1 et J-2) : J-1 est complet à cette heure-ci, J-2 rattrape une nuit
+ * manquée. Idempotent — chaque jour est purgé puis réécrit.
+ */
+async function runShifts(): Promise<void> {
+  const db = createAdminClient()
+  const settings = await loadSettings(db)
+  const cookie = await refreshCookie(db)
+
+  const today = new Date()
+  const dayAt = (back: number) => iso(new Date(today.getTime() - back * 86_400_000))
+  const from = dayAt(2)
+  const to = dayAt(1)
+  const results: DayRunResult[] = []
+
+  try {
+    for (const day of [from, to]) {
+      results.push(await ingestShiftsDay(db, cookie, day, settings))
+    }
+  } catch (err) {
+    await recordShiftRun(db, from, to, settings, { results, error: err })
+    throw err
+  }
+  await recordShiftRun(db, from, to, settings, { results })
+  for (const r of results) {
+    console.log(`[shifts] ${r.day} : ${r.segments} segments, ${r.coverageRows} couverture`)
+  }
+}
+
 const MONITOR_CONFIG = {
   schedule: { type: 'crontab', value: '5 23 * * *' },
   timezone: 'Etc/UTC',
@@ -305,6 +348,15 @@ const handler = {
         ...MONITOR_CONFIG,
         schedule: { type: 'crontab', value: SPENDERS_CRON },
         maxRuntime: 120,
+      })
+      return
+    }
+    // 04h30 UTC = relevé des shifts. Voir runShifts() : l'heure n'est pas négociable.
+    if (controller.cron === SHIFTS_CRON) {
+      await Sentry.withMonitor(MONITOR_SHIFTS_SLUG, () => runShifts(), {
+        ...MONITOR_CONFIG,
+        schedule: { type: 'crontab', value: SHIFTS_CRON },
+        maxRuntime: 60,
       })
       return
     }

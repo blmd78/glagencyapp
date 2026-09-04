@@ -14,3 +14,26 @@ export { fetchChatInit, switchCreator } from './endpoints/chat'
 export type { ChatConversation } from './endpoints/chat'
 export { fetchScripts, parseScripts } from './endpoints/scripts'
 export type { CreatorScript } from './endpoints/scripts'
+// Contrôle des shifts (/stats/shifts) — parseurs purs testés sur captures, sans cheerio :
+// ce module doit tourner dans le Worker (budget 10 ms CPU).
+export {
+  parseShiftsPage,
+  parseSegmentsCsv,
+  parseTeamReport,
+  parseChatterActivity,
+  fetchShiftsPage,
+  fetchSegments,
+  fetchTeamReport,
+  fetchChatterActivity,
+} from './endpoints/shifts'
+export type {
+  ShiftsPage,
+  ShiftCreatorOption,
+  ShiftWindowRow,
+  ShiftSegment,
+  SegmentModel,
+  CoverageRow,
+  ChatterKpi,
+  ChatterActivity,
+  ReportQuery,
+} from './endpoints/shifts'

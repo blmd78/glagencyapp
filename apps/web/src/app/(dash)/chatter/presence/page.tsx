@@ -1,83 +1,63 @@
 import { Suspense } from 'react'
-import { requireAccess } from '@/lib/auth'
-import { CtxBar } from '@/components/tracking/ctx-bar'
-import { BoardTemplate } from '@/features/tracking-board/BoardTemplate'
-import { BoardFilters } from '@/features/tracking-board/components/board-filters'
-import { BoardSkeleton } from '@/features/tracking-board/components/board-skeleton'
-import { getShiftBoard } from '@/features/tracking-board/services/get-shift-board'
-import type { BoardData } from '@/features/tracking-board/types'
+import { canWritePolice, requireAccess } from '@/lib/auth'
+import { SectionFallback } from '@/components/skeletons/route-loading'
+import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
+import { TableSkeleton } from '@/components/skeletons/table-skeleton'
+import { MypulsShiftReportTemplate } from '@/features/mypuls-shift-report/MypulsShiftReportTemplate'
+import { getShiftReport } from '@/features/mypuls-shift-report/services/get-shift-report'
+import type { ShiftReport } from '@/features/mypuls-shift-report/types'
 
 /**
- * Board du shift — port de `/d/:shift/:date` du tracker GLA.
+ * Relevé d'équipe — qui a tenu son poste, sur un jour et un créneau.
  *
- * `.trk` porte la palette, `.trk-page` le fond bord à bord (cf. `tracker-theme.css`).
+ * La source est MyPuls (`mypuls_shift_*`, migrations 0138/0140) : c'est la seule mesure de
+ * présence dont l'app dispose réellement. L'agent Electron du tracker porté n'a jamais été
+ * repointé — ses tables sont vides depuis l'origine.
  *
- * La lecture est lancée SANS `await` puis partagée entre deux boundaries : les filtres et le
- * contenu. La barre de titre s'affiche donc immédiatement — c'est elle qui porte le contexte
- * (quel créneau, quel jour) et elle ne doit pas attendre une RPC d'une seconde pour apparaître.
+ * La lecture est lancée SANS `await` : le titre s'affiche tout de suite, la RPC est streamée
+ * dans son `<Suspense>`.
  */
-export default async function PresenceBoardPage({
+export default async function PresenceReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ shift?: string; date?: string; m?: string }>
+  searchParams: Promise<{ date?: string; shift?: string; attendu?: string; ecart?: string }>
 }) {
   const profile = await requireAccess('presence')
-  const { shift, date, m } = await searchParams
+  const { date, shift, attendu, ecart } = await searchParams
 
-  const data = getShiftBoard({
+  const data = getShiftReport({
     callerId: profile.id,
     // `baseRole` et NON `role` : ce dernier écrase `manager`/`sous-manager`/`police` en
     // 'admin'|'chatteur' (lib/auth/index.ts:31), or `getCreatorScope` teste justement ces
-    // trois rôles-là — le périmètre du board était donc INERTE. La page Police voisine passe
-    // correctement `baseRole` (chatter/police/page.tsx:29) ; c'est le même contrat.
+    // trois rôles-là — le périmètre serait INERTE. C'est le bug qu'avait le Board porté.
     callerRole: profile.baseRole,
-    shiftKey: shift,
-    date,
-    model: m,
+    day: date,
+    slot: shift,
+    onlyExpected: attendu === '1',
+    belowOnly: ecart === '1',
+    // Le lien « Signaler » n'apparaît que pour qui peut RÉELLEMENT écrire une sanction —
+    // `canWritePolice` est la source unique, miroir des gardes d'action et de la RLS. Un
+    // porteur de « presence » sans le droit Police lit le relevé sans jamais voir le lien.
+    canWritePolice: canWritePolice(profile),
   })
 
   return (
-    <div className="trk trk-page">
-      <CtxBar
-        title="Chatters"
-        crumb={
-          <Suspense fallback={null}>
-            <Crumb data={data} />
-          </Suspense>
+    <div className="flex flex-col gap-6">
+      <h1 className="text-2xl font-semibold tracking-tight">Relevé d’équipe</h1>
+      <Suspense
+        fallback={
+          <SectionFallback>
+            <KpiSkeleton />
+            <TableSkeleton />
+          </SectionFallback>
         }
       >
-        <Suspense fallback={null}>
-          <Filters data={data} />
-        </Suspense>
-      </CtxBar>
-
-      <Suspense fallback={<BoardSkeleton />}>
-        <Board data={data} />
+        <Report data={data} />
       </Suspense>
     </div>
   )
 }
 
-async function Crumb({ data }: { data: Promise<BoardData> }) {
-  const d = await data
-  const day = new Date(`${d.date}T12:00:00Z`)
-  const label = new Intl.DateTimeFormat('fr-FR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    timeZone: 'UTC',
-  }).format(day)
-  return (
-    <>
-      Shift {d.shiftLabel} · <b>{label}</b>
-    </>
-  )
-}
-
-async function Filters({ data }: { data: Promise<BoardData> }) {
-  return <BoardFilters data={await data} />
-}
-
-async function Board({ data }: { data: Promise<BoardData> }) {
-  return <BoardTemplate data={await data} />
+async function Report({ data }: { data: Promise<ShiftReport> }) {
+  return <MypulsShiftReportTemplate data={await data} />
 }

@@ -51,3 +51,47 @@ export async function isChatterInScope(
   if (error) throw new Error(error.message)
   return (data ?? []).some((r) => scope.has(r.creator_id))
 }
+
+/**
+ * Les PROFILS visibles, en UNE lecture — la question renversée.
+ *
+ * `isChatterInScope` interroge la base par chatteur : sur une centaine de lignes ça ferait une
+ * centaine d'allers-retours. On demande plutôt « quels profils sont assignés à MES modèles » et
+ * le filtre devient un `Set`. `null` = aucune borne (admin, ou encadrant sans assignation).
+ *
+ * SOURCE UNIQUE de la borne de LECTURE des écrans de présence (Relevé, Vacations) — le tenir en
+ * double dans deux features, c'est prendre le risque qu'une seule des deux soit corrigée.
+ */
+export async function allowedProfileIds(scope: Set<string> | null): Promise<Set<string> | null> {
+  if (!scope) return null
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profile_creators')
+    .select('profile_id')
+    .in('creator_id', [...scope])
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map((r) => r.profile_id))
+}
+
+/**
+ * Les CHATTEURS visibles (`chatters.id`), en une lecture — le pendant d'`allowedProfileIds`
+ * sur la clé d'identité du CRM.
+ *
+ * Indispensable depuis 0144 : le relevé MyPuls nomme désormais les gens par leur `chatters`,
+ * et la majorité d'entre eux n'a pas de compte membre (486 lignes `chatters` pour 110 profils
+ * rattachés en production). Borner uniquement par `profile_creators` aurait donc caché à un
+ * encadrant les 29 % de lignes qui parlent de SES modèles, faute de compte en face.
+ *
+ * `chatter_creators` est la table d'assignation côté chatteur, celle que money-team alimente.
+ * `null` = aucune borne (admin, ou encadrant sans modèle assigné).
+ */
+export async function allowedChatterIds(scope: Set<string> | null): Promise<Set<string> | null> {
+  if (!scope) return null
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('chatter_creators')
+    .select('chatter_id')
+    .in('creator_id', [...scope])
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map((r) => r.chatter_id))
+}

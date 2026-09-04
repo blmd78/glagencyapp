@@ -49,10 +49,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
   (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
   migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-02,
-  prod à **0137 + 0141** (Release 2.21, hotfix formation) et UAT à **0140 + 0141** — `0138`/`0139`/
-  `0140` (relevé MyPuls, CA Overview) ne sont PAS encore en prod : le jour où elles y vont,
-  `db push` refusera des versions antérieures à 0141 déjà enregistrée → passer **`--include-all`** ;
-  prochaine migration = **0142**) : **catalogue**
+  au 2026-09-04, prod à **0141** et UAT à **0145** — les six migrations du relevé MyPuls
+  (`0138`, `0140`, `0142`→`0145`) ne sont PAS encore en prod : le jour où elles y vont,
+  `db push` refusera des versions antérieures à 0141 déjà enregistrée → passer
+  **`--include-all`** (déjà fait pour 0139) ; prochaine migration = **0146**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -138,6 +138,32 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   sélecteur du formulaire, chatteurs groupés (`getChattersByModel`) et historique compris ;
   admin, lecteurs et encadrant sans assignation voient tout. Consultation = historique
   filtrable par modèle / par chatteur (suppression de son propre rapport uniquement).
+
+- **Relevé MyPuls (Présence)** : la mesure de présence de l'app vient du scrape MyPuls
+  « Contrôle des shifts », **pas** de l'agent Electron (`tracker_events` est vide en prod depuis
+  l'origine). Tables `mypuls_shift_*` (`0138`), lectures par RPC `security invoker` rendant du
+  `jsonb` (`0140`, `0142`, `0143` — jamais de `select` nu : un jour fait ~2 600 segments).
+  **La clé d'identité est `chatters.id`** (`chatter_id`, migration `0144`) et NON `profiles.id` :
+  le compte membre est l'exception (486 lignes `chatters` pour 110 profils rattachés en prod), et
+  y clouer le relevé laissait 29 % du travail mesuré compté pour personne. `profile_id` reste à
+  côté, pour ce qui exige un compte — créneau attendu, fiche d'activité, signalement. Le
+  périmètre modèles se lit donc par les DEUX tables d'assignation (`allowedChatterIds` sur
+  `chatter_creators` + `allowedProfileIds` sur `profile_creators`, `lib/services/creator-scope.ts`).
+  Ingestion : 3 sous-requêtes par jour dans `apps/ingestion/src/shifts-core.ts`, cron
+  **04h30 UTC** (l'heure n'est PAS négociable — le créneau du soir court jusqu'à 05h00 Paris et
+  MyPuls plafonne sa couverture tant qu'il n'est pas fini) ; rattrapage manuel
+  `pnpm --filter @glagency/ingestion shifts <du> <au>`. Quatre écrans, tous slug `presence` :
+  Relevé d'équipe (`/chatter/presence`), Vacations, Fiche d'activité (`[profileId]`, lecture
+  MyPuls **à la demande**) et Créneaux & réglages. **Trois invariants** : (1) le verdict de
+  couverture est celui de MyPuls, parsé, jamais recalculé (un recalcul dérive jusqu'à 20,7 pts) ;
+  (2) un jour sans run `ok` affiche « relevé indisponible », **jamais des zéros** — sinon « le
+  scrape a échoué » et « personne n'a travaillé » deviennent indiscernables, et ça produit des
+  sanctions injustes ; (3) `mypuls_shift_settings.idle_minutes` décide du temps mesuré (3 → 10 min
+  ajoute ~115 min médianes par chatteur et par jour) — écriture admin, valeurs recopiées sur
+  chaque run. Périmètre modèles **applicatif** (`allowedProfileIds`, source unique dans
+  `lib/services/creator-scope.ts`) ; le lien sanction passe par l'URL vers le dialog Police
+  existant (`?chatteur&jour&creneau&motif`), jamais par un formulaire dupliqué. Spec :
+  `docs/superpowers/specs/2026-09-01-releve-mypuls-design.md`.
 
 - **Codes Snap** (`/chatter/codes-snap`, table `snap_codes`, mot de passe chiffré AES) : lecture pour
   tout porteur de la page (RLS `snap_codes_read`, 0063 — un encadrant ne voit que SES modèles via

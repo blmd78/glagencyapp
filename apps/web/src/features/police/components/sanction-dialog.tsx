@@ -40,7 +40,7 @@ import { SHIFTS, type PoliceData, type PoliceEntry } from '../types'
  * Le dialog se FERME à l'enregistrement, et s'ouvre toujours sur SES valeurs (reset à
  * l'ouverture — une saisie abandonnée à la croix ne réapparaît pas).
  */
-const formDefaults = (entry?: PoliceEntry): ControlForm =>
+const formDefaults = (entry?: PoliceEntry, prefill?: SanctionPrefill): ControlForm =>
   entry
     ? {
         day: entry.occurredOn,
@@ -50,23 +50,51 @@ const formDefaults = (entry?: PoliceEntry): ControlForm =>
         amount: entry.kind === 'malus' ? String(entry.amountEur) : '',
         note: entry.note ?? '',
       }
-    : { day: todayParis(), chatterId: '', errorKey: '', shift: '', amount: '', note: '' }
+    : {
+        day: prefill?.day ?? todayParis(),
+        chatterId: prefill?.chatterId ?? '',
+        errorKey: prefill?.errorKey ?? '',
+        shift: prefill?.shift ?? '',
+        // JAMAIS de montant pré-rempli : le relevé constate une couverture, il ne chiffre
+        // rien. Le montant reste ENTIÈREMENT humain (spec §5.5) — une valeur suggérée
+        // deviendrait la valeur par défaut de toutes les retenues.
+        amount: '',
+        note: '',
+      }
+
+/**
+ * Valeurs proposées à l'ouverture, quand la sanction est amorcée depuis un autre écran (le
+ * Relevé d'équipe). Ce ne sont QUE des valeurs par défaut : le formulaire, ses gardes et son
+ * Zod restent le seul chemin d'écriture, et tout reste modifiable avant l'envoi.
+ */
+export interface SanctionPrefill {
+  day: string
+  chatterId: string
+  shift?: string
+  errorKey?: string
+}
 
 export function SanctionDialog({
   data,
   entry,
   trigger,
+  prefill,
+  openOnMount = false,
 }: {
   data: PoliceData
   /** Entrée à ÉDITER — absente, le dialog crée. */
   entry?: PoliceEntry
   /** Bouton d'ouverture (le `+` de la page, ou le crayon d'une sous-ligne). */
   trigger: ReactNode
+  /** Valeurs proposées en création — arrivées d'un autre écran (cf. `SanctionPrefill`). */
+  prefill?: SanctionPrefill
+  /** Ouvre le dialog au montage : le lien « Signaler » du Relevé arrive ici tout ouvert. */
+  openOnMount?: boolean
 }) {
   // 'use no memo' : formState de RHF est un Proxy à abonnement — mémoïsé par le React
   // Compiler, isSubmitting/errors gèlent (règle projet, mémoire forms-zod-rhf).
   'use no memo'
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(openOnMount)
   const {
     control,
     register,
@@ -76,7 +104,7 @@ export function SanctionDialog({
     formState: { errors, isSubmitting },
   } = useForm<ControlForm>({
     resolver: zodResolver(controlFormSchema),
-    defaultValues: formDefaults(entry),
+    defaultValues: formDefaults(entry, prefill),
   })
 
   // Réouverture toujours sur SES valeurs (vierge en création, l'entrée en édition) : une saisie
@@ -86,7 +114,7 @@ export function SanctionDialog({
     // Pas de fermeture (croix/ESC/clic dehors) pendant l'envoi — même garde que le Rapport.
     if (!next && isSubmitting) return
     setOpen(next)
-    if (next) reset(formDefaults(entry))
+    if (next) reset(formDefaults(entry, prefill))
   }
 
   // useWatch (pas watch) : compatible React Compiler (watch lit ref.current au render).
@@ -137,7 +165,7 @@ export function SanctionDialog({
       },
     )
     // Enregistré → la modal se ferme (le toast confirme ; rouvrir = repartir du bon état).
-    reset(formDefaults(entry))
+    reset(formDefaults(entry, prefill))
     setOpen(false)
   })
 

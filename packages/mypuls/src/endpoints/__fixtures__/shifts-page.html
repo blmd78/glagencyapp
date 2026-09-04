@@ -1,0 +1,41 @@
+<!-- extrait de /stats/shifts (2026-09-01) : sélecteur de modèles + fenêtres de créneau -->
+<select class="form-select js-report-creators" id="reportCreators" name="creators[]" multiple
+                                data-placeholder="Choisir les modèles">
+                                                            <option value="1951" >
+                                    Alice_prvv
+                                </option><option value="219" >
+                                    Alicegameuse
+                                </option><option value="1949" >
+                                    Carlaprive
+                                </option><option value="1311" >
+                                    Claire_sps
+                                </option><option value="3381" >
+                                    Elsamdd
+                                </option>
+</select>
+<form id="shift-window-rows">
+<input type="text" class="form-control form-control-sm" maxlength="40"
+               name="windows[0][label]"
+               value="Matin"
+               placeholder="Matin, Nuit…">
+<input type="time" class="form-control form-control-sm js-shift-time" required
+               name="windows[0][start]" value="05:00">
+<input type="time" class="form-control form-control-sm js-shift-time" required
+               name="windows[0][end]" value="13:00">
+<input type="text" class="form-control form-control-sm" maxlength="40"
+               name="windows[1][label]"
+               value="Après-midi"
+               placeholder="Matin, Nuit…">
+<input type="time" class="form-control form-control-sm js-shift-time" required
+               name="windows[1][start]" value="13:00">
+<input type="time" class="form-control form-control-sm js-shift-time" required
+               name="windows[1][end]" value="21:00">
+<input type="text" class="form-control form-control-sm" maxlength="40"
+               name="windows[2][label]"
+               value="Soirée"
+               placeholder="Matin, Nuit…">
+<input type="time" class="form-control form-control-sm js-shift-time" required
+               name="windows[2][start]" value="21:00">
+<input type="time" class="form-control form-control-sm js-shift-time" required
+               name="windows[2][end]" value="05:00">
+</form>

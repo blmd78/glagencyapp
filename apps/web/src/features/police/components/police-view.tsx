@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { eur2max as eur } from '@/lib/format'
-import { SanctionDialog } from './sanction-dialog'
+import { SanctionDialog, type SanctionPrefill } from './sanction-dialog'
 import { PoliceTable } from './police-table'
 import type { PoliceData, PoliceEntry } from '../types'
 
@@ -31,9 +31,12 @@ const POLICE_ACCENTS = ['border-t-red-500', 'border-t-amber-500', 'border-t-blue
 export function PoliceView({
   data,
   canWrite,
+  prefill,
 }: {
   data: PoliceData
   canWrite: boolean
+  /** Sanction amorcée depuis le Relevé d'équipe (`?signalement=…`) — le dialog s'ouvre dessus. */
+  prefill?: SanctionPrefill
 }) {
   const [search, setSearch] = useState('')
   // Même sémantique que le filtre de colonne TanStack qu'elle remplace (`includesString`) :
@@ -56,6 +59,8 @@ export function PoliceView({
         <div className="flex items-center">
           <SanctionDialog
             data={data}
+            prefill={prefill}
+            openOnMount={!!prefill}
             trigger={
               <Button type="button" className="gap-1.5">
                 <Plus className="size-4" />
