@@ -27,6 +27,10 @@ export default async function PresenceReportPage({
   searchParams: Promise<{
     from?: string
     to?: string
+    /** `jour` = grain d'une journée (ignore le header) ; absent = période du header. */
+    vue?: string
+    /** Jour affiché en mode `jour`. */
+    date?: string
     shift?: string
     attendu?: string
     ecart?: string
@@ -38,7 +42,11 @@ export default async function PresenceReportPage({
   // `resolvePeriod` est la source unique (défaut : mois en cours). Le service la borne ensuite
   // à hier — aujourd'hui n'est jamais relevé.
   const period = resolvePeriod(params)
-  const { shift, attendu, ecart } = params
+  const { vue, date, shift, attendu, ecart } = params
+  // Le grain est CHOISI, pas déduit : voir l'écran changer de tête parce qu'on a bougé le
+  // datepicker d'un jour serait déroutant. La valeur par défaut (période) ne s'écrit pas dans
+  // l'URL, qui reste propre.
+  const mode = vue === 'jour' ? 'day' : 'period'
 
   const data = getShiftReport({
     callerId: profile.id,
@@ -49,6 +57,8 @@ export default async function PresenceReportPage({
     from: period.from,
     to: period.to,
     periodLabel: period.label,
+    mode,
+    day: date,
     slot: shift,
     onlyExpected: attendu === '1',
     belowOnly: ecart === '1',

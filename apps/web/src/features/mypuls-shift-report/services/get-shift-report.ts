@@ -3,6 +3,7 @@ import { SLOT_KEYS, addDays, todayParis, type SlotKey } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { isDayInWindow } from '@/lib/periods'
 import { allowedChatterIds, allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
+import { getDayReport } from './get-day-report'
 import type {
   BoardRangeRpc,
   ModelGroup,
@@ -29,6 +30,14 @@ export async function getShiftReport(params: {
   from: string
   to: string
   periodLabel: string
+  /**
+   * Grain choisi À LA MAIN par la bascule de la barre de filtres, et non déduit de la longueur
+   * de la période : `day` ignore le sélecteur du header, `period` le suit. Deviner le grain
+   * ferait changer la tête de l'écran sans qu'on l'ait demandé.
+   */
+  mode: 'day' | 'period'
+  /** Jour affiché en mode `day` — validé contre la fenêtre autorisée, défaut hier. */
+  day?: string
   slot?: string
   onlyExpected?: boolean
   belowOnly?: boolean
@@ -55,6 +64,44 @@ export async function getShiftReport(params: {
     .maybeSingle()
   const threshold = Number(settings?.coverage_threshold ?? 80)
 
+  const scope = await getCreatorScope(params.callerId, params.callerRole)
+  const [allowed, allowedChatters] = await Promise.all([
+    allowedProfileIds(scope),
+    allowedChatterIds(scope),
+  ])
+
+  const onlyExpected = params.onlyExpected ?? false
+  const belowOnly = params.belowOnly ?? false
+  const canReport = (params.canWritePolice ?? false) && isDayInWindow(to)
+  const common = {
+    from,
+    to,
+    periodLabel: params.periodLabel,
+    clampedToYesterday,
+    slot,
+    onlyExpected,
+    belowOnly,
+    canReport,
+  }
+
+  // MODE JOUR → l'écran reprend son grain d'origine : jauge en minutes, timeline dépliable,
+  // attendus silencieux. C'est là que ces trois choses ont un sens ; sur trente jours une jauge
+  // en minutes n'en a plus aucun, et déplier l'effectif ferait des milliers de lignes de DOM.
+  //
+  // Le jour est validé contre la fenêtre autorisée plutôt que pris tel quel : un `?date=` forgé
+  // pointant sur aujourd'hui afficherait une couverture tronquée, que MyPuls plafonne.
+  if (params.mode === 'day') {
+    const day = params.day && params.day <= yesterday ? params.day : yesterday
+    return getDayReport({
+      ...common,
+      day,
+      rpcSlot: slot === 'all' ? undefined : slot,
+      threshold,
+      allowed,
+      allowedChatters,
+    })
+  }
+
   const { data, error } = await supabase.rpc('mypuls_shift_board_range', {
     p_from: from,
     p_to: to,
@@ -73,12 +120,6 @@ export async function getShiftReport(params: {
     models: {},
     totals: { days: 0, activeMinutes: 0, messages: 0 },
   }
-
-  const scope = await getCreatorScope(params.callerId, params.callerRole)
-  const [allowed, allowedChatters] = await Promise.all([
-    allowedProfileIds(scope),
-    allowedChatterIds(scope),
-  ])
 
   // PÉRIMÈTRE. `allowed` null = aucune borne (admin, ou encadrant sans modèle assigné). Borné,
   // on ne laisse RIEN passer d'autre : ne pas savoir à qui une ligne appartient n'autorise pas à
@@ -103,32 +144,21 @@ export async function getShiftReport(params: {
 
   // PAR DÉFAUT : tout le monde. Masquer d'entrée les trois quarts de l'effectif donnait un écran
   // qui semblait vide. Le lien CRM ↔ MyPuls sert à NOMMER les gens, pas à en écarter.
-  const onlyExpected = params.onlyExpected ?? false
-  const belowOnly = params.belowOnly ?? false
   let shown = onlyExpected ? rows.filter((r) => r.expected !== null) : rows
   // « Sous le seuil » = a manqué au moins un jour SUR SON CRÉNEAU. Une personne sans créneau
   // attendu n'y figure jamais : il n'y a rien à comparer, donc rien à reprocher.
   if (belowOnly) shown = shown.filter((r) => missedDays(r) > 0)
 
   return {
+    ...common,
+    mode: 'period',
     run: rpc.run,
     kpi: buildKpi(rows),
     groups: groupByModel(shown),
-    from,
-    to,
-    periodLabel: params.periodLabel,
-    clampedToYesterday,
-    slot,
-    onlyExpected,
-    belowOnly,
     missingDays: rpc.missingDays,
     available: rpc.run !== null,
     threshold,
     totalRows: rows.length,
-    // `isDayInWindow` est la MÊME borne que le schéma serveur (`features/police/schema.ts`) :
-    // au-delà de 14 jours la Server Action refuse. Sur une période on teste la FIN, le jour le
-    // plus récent, donc le plus susceptible d'être encore saisissable.
-    canReport: (params.canWritePolice ?? false) && isDayInWindow(to),
   }
 }
 
