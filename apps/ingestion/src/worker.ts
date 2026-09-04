@@ -186,10 +186,6 @@ async function scrapeOneModel(mypulsId: string, creatorId: string): Promise<numb
  * manquée. Idempotent — chaque jour est purgé puis réécrit.
  */
 async function runShifts(): Promise<void> {
-  const db = createAdminClient()
-  const settings = await loadSettings(db)
-  const cookie = await refreshCookie(db)
-
   // `todayParis()` et non `new Date()` : le jour civil de l'agence est celui de Paris, et
   // `toISOString()` rend le jour UTC. À 04h30 UTC les deux coïncident, mais la règle du projet
   // ne souffre pas d'exception « ça marche à cette heure-ci » — déplacer le cron d'une heure
@@ -198,13 +194,26 @@ async function runShifts(): Promise<void> {
   // J-1 et J-2 : J-1 est complet à cette heure-ci (la Soirée de la veille s'est terminée à
   // 05h00), J-2 rattrape une nuit manquée. Le jour EN COURS n'est jamais lu — MyPuls
   // plafonnerait sa couverture sur le temps écoulé.
-  const from = addDays(todayParis(), -2)
-  const to = addDays(todayParis(), -1)
+  await runShiftsRange(addDays(todayParis(), -2), addDays(todayParis(), -1))
+}
+
+/**
+ * Le relevé sur une plage — partagé par le cron et par `?job=shifts`.
+ *
+ * Un seul chemin d'écriture pour les deux déclencheurs : un rattrapage manuel qui suivrait un
+ * code différent de la nuit ne prouverait rien sur la nuit.
+ */
+async function runShiftsRange(from: string, to: string): Promise<DayRunResult[]> {
+  const db = createAdminClient()
+  const settings = await loadSettings(db)
+  const cookie = await refreshCookie(db)
   const results: DayRunResult[] = []
 
+  let day = from
   try {
-    for (const day of [from, to]) {
+    while (day <= to) {
       results.push(await ingestShiftsDay(db, cookie, day, settings))
+      day = addDays(day, 1)
     }
   } catch (err) {
     await recordShiftRun(db, from, to, settings, { results, error: err })
@@ -214,6 +223,7 @@ async function runShifts(): Promise<void> {
   for (const r of results) {
     console.log(`[shifts] ${r.day} : ${r.segments} segments, ${r.coverageRows} couverture`)
   }
+  return results
 }
 
 const MONITOR_CONFIG = {
@@ -447,6 +457,43 @@ const handler = {
       } catch (err) {
         Sentry.captureException(err)
         return new Response(`échec spenders modèle ${model} : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
+    // `?job=shifts&from=YYYY-MM-DD&to=YYYY-MM-DD` : relevé MyPuls à la demande, sur le VRAI
+    // runtime. Sans lui, la seule façon de savoir si le job tient dans le budget CPU du plan
+    // Free (10 ms) était d'attendre 04h30 et de lire le journal — une boucle de vérification
+    // d'une journée, pour un job qui décide de retenues sur paie.
+    //
+    // Sert aussi de rattrapage sans machine : rejouer une nuit manquée depuis un `curl`, là où
+    // le CLI demande le dépôt, les dépendances et les secrets en local.
+    //
+    // Bornes par défaut = celles du cron (J-2 → J-1), et le jour EN COURS est refusé même s'il
+    // est demandé : MyPuls plafonne sa couverture sur le temps écoulé et écrirait une journée
+    // à ~65 % marquée `ok`.
+    if (url.searchParams.get('job') === 'shifts') {
+      const isDay = (v: string | null): v is string => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v)
+      const yesterday = addDays(todayParis(), -1)
+      const askedFrom = url.searchParams.get('from')
+      const askedTo = url.searchParams.get('to')
+      const to = isDay(askedTo) && askedTo <= yesterday ? askedTo : yesterday
+      const from = isDay(askedFrom) && askedFrom <= to ? askedFrom : addDays(to, -1)
+      try {
+        const t0 = Date.now()
+        const results = await runShiftsRange(from, to)
+        return Response.json({
+          from,
+          to,
+          ms: Date.now() - t0,
+          days: results.map((r) => ({
+            day: r.day,
+            segments: r.segments,
+            coverageRows: r.coverageRows,
+            unmatched: r.unmatched.length,
+          })),
+        })
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec shifts : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
       }
     }
     // `?job=spenders-orchestrate` : déclenche le fan-out complet à la main (test).
