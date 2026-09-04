@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { SlidersHorizontal } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { canWritePolice, requireAccess } from '@/lib/auth'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
@@ -49,16 +50,17 @@ export default async function PresenceReportPage({
           cliquant la ligne « Relevé MyPuls du … » et le compteur de libellés non rattachés :
           on tombait donc sur un écran de maintenance en cliquant ce qu'on lisait comme un
           NOM. Un lien doit mener là où son texte le dit. */}
-      <div className="flex items-baseline justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Relevé d’équipe</h1>
-        <Link
-          href="/chatter/presence/reglages"
-          className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          title="Journal des relevés, seuils de mesure et gens à rattacher"
-        >
-          <SlidersHorizontal className="size-4" />
-          Réglages
-        </Link>
+        <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
+          <Link
+            href="/chatter/presence/reglages"
+            title="Journal des relevés, seuils de mesure et gens à rattacher"
+          >
+            <SlidersHorizontal className="size-4" />
+            Réglages
+          </Link>
+        </Button>
       </div>
       <Suspense
         fallback={
