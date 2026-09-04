@@ -4,29 +4,26 @@ import type { ModelGroup as ModelGroupData } from '../types'
 
 /**
  * Une carte par modèle, reprise de l'ancien board (`card modelgroup`, .tracker-ref/board.html) :
- * en-tête « Alice · 2 chatters · 2 sous le seuil », puis les lignes.
+ * en-tête « Alice · 12 chatters · 3 ont manqué des jours », puis les lignes.
  *
  * `<details>` natif comme chez eux : l'ouverture ne coûte pas un octet de JavaScript, et la page
- * reste un Server Component de bout en bout. Ouverte par défaut — sur un créneau, l'encadrant
- * veut voir, pas déplier quinze cartes.
+ * reste un Server Component de bout en bout.
+ *
+ * Repliée par défaut dès que la vue est longue. Sur une période d'un mois, l'effectif entier
+ * déplié portait le DOM bien au-delà du seuil d'alerte Lighthouse, pour un contenu que personne
+ * ne lit d'un bloc — les cartes qui comptent sont celles qui portent un manque, et l'en-tête le
+ * dit sans qu'on ait à ouvrir.
  */
 export function ModelGroup({
   group,
   threshold,
-  showSlot,
   open,
-  day,
   canReport,
 }: {
   group: ModelGroupData
   threshold: number
-  /** Journée complète : une même personne peut apparaître sur plusieurs créneaux. */
-  showSlot: boolean
-  /** Carte dépliée d'emblée. Faux en journée complète, où le DOM atteignait 12 687 éléments. */
+  /** Carte dépliée d'emblée — seulement quand la vue est courte. */
   open: boolean
-  /** Jour du relevé — la date de la faute proposée au dialog Police. */
-  day: string
-  /** Le lien « Signaler » est-il proposé sur les lignes sous le seuil ? */
   canReport: boolean
 }) {
   return (
@@ -40,7 +37,7 @@ export function ModelGroup({
             <>
               {' · '}
               <span className="font-medium text-red-600 dark:text-red-400">
-                {group.belowCount} sous le seuil
+                {group.belowCount} {group.belowCount > 1 ? 'ont manqué des jours' : 'a manqué des jours'}
               </span>
             </>
           )}
@@ -50,23 +47,15 @@ export function ModelGroup({
       <div className="border-t">
         {/* En-tête de colonnes — le `div.thead` de l'ancien board. Masqué en petit écran, où la
             grille se réduit et où les libellés seraient illisibles. */}
-        <div className="hidden grid-cols-[0.5rem_minmax(8rem,1fr)_minmax(12rem,2fr)_5rem_5rem_1rem] items-center gap-3 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground sm:grid">
+        <div className="hidden grid-cols-[0.5rem_minmax(9rem,1fr)_minmax(11rem,1.6fr)_5rem_5rem] items-center gap-3 border-b bg-muted/30 px-4 py-2 text-xs text-muted-foreground sm:grid">
           <span />
           <span>Chatter</span>
-          <span>Couverture du créneau</span>
+          <span>Jours tenus sur son créneau</span>
           <span className="text-right">Actif</span>
-          <span className="text-right">Retard</span>
-          <span />
+          <span className="text-right">Retard moy.</span>
         </div>
         {group.rows.map((row) => (
-          <ChatterRow
-            key={`${row.slot}:${row.mypulsUserId}`}
-            row={row}
-            threshold={threshold}
-            showSlot={showSlot}
-            day={day}
-            canReport={canReport}
-          />
+          <ChatterRow key={row.key} row={row} threshold={threshold} canReport={canReport} />
         ))}
       </div>
     </details>

@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
+import { resolvePeriod } from '@/lib/period'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 import { MypulsShiftSettingsTemplate } from '@/features/mypuls-shift-settings/MypulsShiftSettingsTemplate'
@@ -19,9 +20,20 @@ import type { ShiftSettingsPage } from '@/features/mypuls-shift-settings/types'
  *
  * La lecture est lancée SANS `await` : le titre s'affiche tout de suite.
  */
-export default async function PresenceSettingsPage() {
+export default async function PresenceSettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>
+}) {
   const profile = await requireAccess('presence')
-  const data = getShiftSettings({ isAdmin: profile.role === 'admin' })
+  // MÊME période que le Relevé (sélecteur du header) : cet écran explique les chiffres du
+  // relevé, il doit donc regarder les mêmes jours.
+  const period = resolvePeriod(await searchParams)
+  const data = getShiftSettings({
+    isAdmin: profile.role === 'admin',
+    from: period.from,
+    to: period.to,
+  })
 
   return (
     <div className="flex flex-col gap-6">
