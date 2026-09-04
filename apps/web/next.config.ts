@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   // Liens typés : un href inexistant = erreur de typecheck (filet pour la réorg des routes).
   typedRoutes: true,
   // Packages workspace consommés en TS source → transpilés par Next.
-  transpilePackages: ['@glagency/core', '@glagency/db'],
+  transpilePackages: ['@glagency/core', '@glagency/db', '@glagency/mypuls'],
   // `pg` (client Postgres de la reprise Good Luck Agency) charge des binaires natifs optionnels et
   // résout des modules à l'exécution : bundlé par Turbopack, il casse. Laissé externe côté serveur.
   serverExternalPackages: ['pg'],
