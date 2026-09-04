@@ -130,7 +130,7 @@ export async function getCandidates(): Promise<CandidatesData> {
     const q = supabase.from('recruit_candidates').select('id', { count: 'exact', head: true })
     return status ? q.eq('status', status) : q
   }
-  const [candidates, config, total, valide, refuse, creators] = await Promise.all([
+  const [candidates, config, total, valide, refuse] = await Promise.all([
     supabase.from('recruit_candidates').select(COLS).order('created_at', { ascending: false }).limit(MAX_ROWS),
     // Client ADMIN, à dessein. `recruit_config` reste fermée à `is_admin()` — sa ligne porte
     // `qi_bank`, c'est-à-dire LA CLÉ DE CORRECTION du QI. L'ouvrir en RLS pour que l'encadrant
@@ -144,13 +144,9 @@ export async function getCandidates(): Promise<CandidatesData> {
     countWhere(),
     countWhere('valide'),
     countWhere('refuse'),
-    // Les modèles proposées au dialog « Intégrer ». Client SESSION : la RLS `creators_scoped_read`
-    // borne un manager à SES modèles — sans effet ici (la page est admin), mais on ne la contourne pas.
-    supabase.from('creators').select('id, name').order('name'),
   ])
   if (candidates.error) throw new Error(candidates.error.message)
   if (config.error) throw new Error(config.error.message)
-  if (creators.error) throw new Error(creators.error.message)
   for (const c of [total, valide, refuse]) if (c.error) throw new Error(c.error.message)
   if (!config.data) throw new Error('Configuration du test de recrutement introuvable (ligne 1)')
 
@@ -196,5 +192,5 @@ export async function getCandidates(): Promise<CandidatesData> {
     valide: valide.count ?? 0,
     refuse: refuse.count ?? 0,
   }
-  return { days: groupByDay(rows), gates, kpis, creators: creators.data ?? [] }
+  return { days: groupByDay(rows), gates, kpis }
 }

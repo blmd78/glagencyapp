@@ -34,9 +34,11 @@ const num = (v: number | string | null | undefined): number => (v == null ? 0 : 
 /**
  * Tout l'Overview encadrant en 4 lectures parallèles (client utilisateur = RLS) :
  *
- * - `training_overview_roster` (RPC 0118/0119, definer, gardée par `has_page('frm-suivi')`) —
- *   les chatters AYANT le droit Entraînement, nouveaux d'abord puis par nom, `streak_days` déjà
- *   effectif. Roster NON cloisonné par modèle (spec §7) : qui a Suivi voit toute la promo.
+ * - `training_overview_roster` (RPC 0118/0119/0147, definer, gardée par `has_page('frm-suivi')`) —
+ *   les chatters ayant le droit Entraînement OU le drapeau « en formation » (0147 : un intégré
+ *   sans droit ne doit pas être invisible de l'écran censé le signaler), nouveaux d'abord puis par
+ *   nom, `streak_days` déjà effectif. Roster NON cloisonné par modèle (spec §7) : qui a Suivi voit
+ *   toute la promo.
  * - les notes contestées (RLS `training_reports_read` : propriétaire ou encadrant), 100 dernières ;
  *   le nom vient du roster (une RPC de moins), le titre du cas du SNAPSHOT de la session.
  * - le nombre de cas actifs HORS boss = dénominateur des « cas validés » (même définition que
@@ -80,6 +82,8 @@ export async function getOverview(isAdmin: boolean): Promise<OverviewData> {
     streakDays: r.streak_days,
     lastSessionAt: r.last_session_at,
     sessionsScored: r.sessions_scored,
+    inTraining: r.in_training,
+    hasTraining: r.has_training,
   }))
   const names = new Map(roster.map((r) => [r.profileId, r.displayName]))
 

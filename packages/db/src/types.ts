@@ -2067,6 +2067,7 @@ export type Database = {
           display_name: string | null
           email: string | null
           id: string
+          in_training: boolean
           integrated_at: string | null
           is_new: boolean
           left_at: string | null
@@ -2091,6 +2092,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id: string
+          in_training?: boolean
           integrated_at?: string | null
           is_new?: boolean
           left_at?: string | null
@@ -2115,6 +2117,7 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           id?: string
+          in_training?: boolean
           integrated_at?: string | null
           is_new?: boolean
           left_at?: string | null
@@ -5452,6 +5455,8 @@ export type Database = {
           boss_done: boolean
           cases_done: number
           display_name: string
+          has_training: boolean
+          in_training: boolean
           is_new: boolean
           last_session_at: string
           models: string[]

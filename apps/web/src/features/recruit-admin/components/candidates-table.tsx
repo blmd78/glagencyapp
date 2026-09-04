@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { cn } from '@/lib/utils'
-import { CANDIDATE_STATUS_LABELS, type CandidateDay, type CreatorChoice, type RecruitGates } from '../types'
+import { CANDIDATE_STATUS_LABELS, type CandidateDay, type RecruitGates } from '../types'
 import { IntegrateButton } from './integrate-button'
 import { CandidateAnswers } from './candidate-answers'
 
@@ -61,11 +61,9 @@ const STATUS_CLASS: Record<string, string> = {
 export function CandidatesTable({
   days,
   gates,
-  creators,
 }: {
   days: CandidateDay[]
   gates: RecruitGates
-  creators: CreatorChoice[]
 }) {
   if (days.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucun candidat pour l’instant — envoie le lien du test.</p>
@@ -165,7 +163,6 @@ export function CandidatesTable({
                     <IntegrateButton
                       candidateId={c.id}
                       candidateName={`${c.firstName} ${c.lastName}`.trim() || c.email}
-                      creators={creators}
                     />
                   )}
                 </span>

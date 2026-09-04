@@ -46,22 +46,32 @@ function progressOf(row: RosterRow, totalCases: number) {
 const PROGRESS_BAR_COLOR = 'bg-green-600'
 
 /**
- * Le roster de la promo, en DEUX sections — « En formation » puis « Attribués à une modèle ».
+ * Le roster de la promo, en DEUX ONGLETS — « En formation » (par défaut) et « En agence ».
+ *
+ * ILS ÉTAIENT EMPILÉS (deux sections l'une sous l'autre, jusqu'au 2026-09-04). En production, la
+ * promo compte 245 chatteurs avec le droit Entraînement pour 58 en formation : le manager qui vient
+ * lire sa file d'attente déroulait 245 lignes de 9 colonnes pour en trouver 58. « C'est illisible »
+ * — d'où les onglets, qui n'en montrent qu'un à la fois, et les colonnes retirées (Points, Série et
+ * Notées sont des chiffres de CLASSEMENT : ils vivent sur la fiche du chatter et au classement
+ * hebdo, pas sur l'écran de pilotage).
  *
  * L'écran admin de Good Luck Agency (`adminFormation`, index.html:2510-2523) affichait l'inverse
- * (`body = secAgence + secForm`). Ordre inversé à la demande de Benoit (2026-09-02) : ceux qui
- * sont déjà en agence n'attendent plus rien de cette page, alors que « En formation » est la
- * FILE D'ATTENTE de l'agence — c'est elle qu'on vient lire, elle passe donc en premier.
+ * (`body = secAgence + secForm`). Ordre inversé à la demande de Benoit (2026-09-02), et l'onglet
+ * par défaut le confirme : ceux qui sont déjà en agence n'attendent plus rien de cette page, alors
+ * que « En formation » est la FILE D'ATTENTE de l'agence.
  *
- * Chaque section est triée par AVANCEMENT DÉCROISSANT, comme le legacy (`_pctVal`,
+ * Chaque onglet est trié par AVANCEMENT DÉCROISSANT, comme le legacy (`_pctVal`,
  * index.html:2444-2445), avec les sans-note en dernier. Ici `totalCases` est le même pour tout le
  * monde : trier sur `casesDone` décroissant est strictement équivalent, sans avoir à recalculer un
  * pourcentage. L'ordre de la RPC (nouveaux d'abord puis nom, 0113:1427) ne sert plus qu'à
  * départager les ex æquo — `sort` est stable. Conséquence utile : le prochain à intégrer est la
- * première ligne du premier tableau de la page.
+ * première ligne du premier onglet.
  *
- * La bascule d'une section à l'autre suit le RATTACHEMENT, pas la date : `hasModel` chez eux
- * (index.html:2443), `models.length > 0` ici — la même chose, sans liste de prénoms en dur.
+ * La bascule d'un onglet à l'autre suit le DRAPEAU `in_training` (0147), et non plus le
+ * rattachement (`hasModel` chez eux, index.html:2443, `models.length > 0` ici). La déduction ne
+ * tenait que tant que « Intégrer » rattachait une modèle dans le même geste : ce dialog a disparu,
+ * une personne peut rester des semaines sans modèle sans être en formation, et l'inverse (en
+ * formation avec une modèle d'essai) devient dicible.
  *
  * Non cloisonné par modèle — qui a le droit Suivi voit toute la formation (spec §7).
  *
@@ -77,7 +87,7 @@ const byProgress = (a: RosterRow, b: RosterRow) => b.casesDone - a.casesDone
  */
 export function OverviewRosterCount({ roster }: { roster: RosterRow[] }) {
   const newcomers = roster.filter((r) => r.isNew).length
-  const enFormation = roster.filter((r) => r.models.length === 0).length
+  const enFormation = roster.filter((r) => r.inTraining).length
   return (
     <p className="text-sm text-muted-foreground">
       {roster.length} chatter{roster.length > 1 ? 's' : ''} sur la face Formation
@@ -87,68 +97,41 @@ export function OverviewRosterCount({ roster }: { roster: RosterRow[] }) {
   )
 }
 
-export function OverviewRoster({ roster, totalCases }: { roster: RosterRow[]; totalCases: number }) {
-  const sorted = [...roster].sort(byProgress)
-  const enAgence = sorted.filter((r) => r.models.length > 0)
-  const enFormation = sorted.filter((r) => r.models.length === 0)
-  // La réponse à « combien arrivent ? », posée au-dessus du tableau qui la détaille.
-  const nearly = enFormation.filter((r) => progressOf(r, totalCases).pct >= NEARLY_READY_PCT).length
-  return (
-    <section className="flex flex-col gap-6">
-      {roster.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Personne n’a encore le droit « Entraînement » — attribue-le depuis Membres.
-        </p>
-      ) : (
-        <>
-          <RosterSection
-            title="En formation"
-            subtitle={
-              enFormation.length === 0
-                ? null
-                : nearly === 0
-                  ? `Personne au-dessus de ${NEARLY_READY_PCT} % pour l’instant`
-                  : `${nearly} au-dessus de ${NEARLY_READY_PCT} % — bientôt en agence`
-            }
-            rows={enFormation}
-            totalCases={totalCases}
-            withModel={false}
-          />
-          <RosterSection title="Attribués à une modèle" subtitle={null} rows={enAgence} totalCases={totalCases} withModel />
-        </>
-      )}
-    </section>
-  )
+/**
+ * Combien sont au-dessus du seuil « bientôt en agence » — la réponse à « combien arrivent ? »,
+ * posée en sous-titre de l'onglet « En formation ». Exportée : c'est la Template qui compose les
+ * onglets, elle a besoin du chiffre pour écrire la phrase.
+ */
+export function nearlyReadyCount(rows: RosterRow[], totalCases: number): number {
+  return rows.filter((r) => progressOf(r, totalCases).pct >= NEARLY_READY_PCT).length
 }
 
+/** Le tri des deux onglets — avancement décroissant, `sort` stable (cf. le JSDoc du fichier). */
+export const sortRoster = (rows: RosterRow[]): RosterRow[] => [...rows].sort(byProgress)
+
+export { NEARLY_READY_PCT }
+
 /**
- * Une section du roster. `withModel` ajoute la colonne « Modèle » — chez GLA le rattachement
- * n'était montré que dans la section « Attribués » (le paramètre `hideModel` de `section()`,
- * index.html:2512-2518), puisqu'il est vide par construction dans l'autre.
+ * Le tableau d'UN onglet. `withModel` ajoute la colonne « Modèle » — elle est vide par
+ * construction sur « En formation » (chez GLA aussi : le paramètre `hideModel` de `section()`,
+ * index.html:2512-2518).
  */
-function RosterSection({
-  title,
-  subtitle,
+export function OverviewRosterTable({
   rows,
   totalCases,
   withModel,
+  subtitle,
 }: {
-  title: string
-  subtitle: string | null
   rows: RosterRow[]
   totalCases: number
   withModel: boolean
+  subtitle?: string | null
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <div>
-        <h3 className="flex items-baseline gap-2 text-sm font-semibold">
-          {title}
-          <span className="text-xs font-bold text-muted-foreground">{rows.length}</span>
-        </h3>
-        {/* Le `sub` de `section()` (index.html:2521) : une ligne de contexte sous le titre. */}
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-      </div>
+      {/* Le `sub` de `section()` (index.html:2521) : une ligne de contexte. Le TITRE, lui, est
+          devenu l'onglet — le répéter ici ferait doublon à trois centimètres d'écart. */}
+      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
       {rows.length === 0 ? (
         // « Personne ici. » — le vide de GLA (index.html:2516), qui dit que la section existe.
         <p className="rounded-md border px-4 py-4 text-sm text-muted-foreground">Personne ici.</p>
@@ -161,11 +144,8 @@ function RosterSection({
                 {withModel && <TableHead className="w-32">Modèle</TableHead>}
                 <TableHead className="w-56">Progression</TableHead>
                 <TableHead className="w-24 text-right">Moyenne</TableHead>
-                <TableHead className="w-20 text-right">Points</TableHead>
-                <TableHead className="w-20 text-right">Série</TableHead>
                 <TableHead className="w-28 text-center">Boss</TableHead>
                 <TableHead className="w-32">Dernière session</TableHead>
-                <TableHead className="w-20 text-right">Notées</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -184,6 +164,14 @@ function RosterSection({
                       {r.isNew && (
                         <Badge variant="outline" className="ml-2">
                           nouveau{r.arrivedAt ? ` · ${frDateNumeric(r.arrivedAt)}` : ''}
+                        </Badge>
+                      )}
+                      {/* Intégré mais SANS le droit « Entraînement » : il ne peut pas avancer, et sa
+                          ligne à 0 % ne le dirait pas. Il n'apparaît ici que depuis 0147, qui a
+                          élargi la RPC — avant, il était simplement absent de l'écran. */}
+                      {!r.hasTraining && (
+                        <Badge variant="outline" className="ml-2 text-amber-700 dark:text-amber-400">
+                          sans accès
                         </Badge>
                       )}
                     </TableCell>
@@ -219,14 +207,11 @@ function RosterSection({
                     <TableCell className="text-right tabular-nums">
                       {r.avgTotal == null ? '—' : Math.round(r.avgTotal)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.points}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.streakDays} j</TableCell>
                     <TableCell className="text-center tabular-nums">
                       {r.bossBest == null ? '—' : <ScoreBadge total={r.bossBest} />}
                       {r.bossDone && ' ✓'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{lastSeen(r.lastSessionAt)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.sessionsScored}</TableCell>
                   </TableRow>
                 )
               })}

@@ -73,6 +73,9 @@ export const EVENT_KINDS = [
   // Ancienne plateforme Good Luck Agency : rattachement, reprise d'historique, détachement,
   // libération de l'identifiant (trigger 0123). SURTOUT PAS `'lien'`, qui est le lien MyPuls.
   'formation',
+  // Le drapeau « en formation » posé ou retiré (trigger 0147). SURTOUT PAS `'formation'`
+  // ci-dessus, qui est l'ANCIENNE PLATEFORME : on y lirait « Ancienne plateforme : true → false ».
+  'integration',
 ] as const
 
 export type EventKind = (typeof EVENT_KINDS)[number]
@@ -174,6 +177,11 @@ export function memberEventLabel(kind: EventKind, from: string | null, to: strin
       return `Droits modifiés (${from ?? '0'} → ${to ?? '0'} pages)`
     case 'nouveau':
       return to === 'true' ? 'Marqué nouvel arrivant' : 'Drapeau « nouvel arrivant » retiré'
+    // Le retrait est le fait NOTABLE des deux — c'est l'entrée en production. Le plus souvent
+    // personne ne l'a décidé à la main : le trigger 0147 le pose au premier rattachement à une
+    // modèle, et l'événement est alors signé « système ». C'est exact.
+    case 'integration':
+      return to === 'true' ? 'Repassé en formation' : 'Sorti de formation — en agence'
     case 'arrivee':
       return to ? `Date d’arrivée : ${fr(to)}` : 'Date d’arrivée effacée'
     // Le lien MyPuls : c'est lui qui attribue le CA, donc la paie. Le délier n'est pas un détail.

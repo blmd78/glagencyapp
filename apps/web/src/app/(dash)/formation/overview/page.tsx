@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { z } from 'zod'
 import { requireAccess } from '@/lib/auth'
-import { OverviewTemplate } from '@/features/training-overview/OverviewTemplate'
+import { OverviewTemplate, ROSTER_TABS, type RosterTab } from '@/features/training-overview/OverviewTemplate'
 import { OverviewSkeleton } from '@/features/training-overview/components/overview-skeleton'
 import { getChatter } from '@/features/training-overview/services/get-chatter'
 import { getOverview } from '@/features/training-overview/services/get-overview'
@@ -26,15 +26,18 @@ export const maxDuration = 300
 export default async function FormationOverviewPage({
   searchParams,
 }: {
-  searchParams: Promise<{ chatter?: string }>
+  searchParams: Promise<{ chatter?: string; vue?: string }>
 }) {
-  const [profile, { chatter }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
+  const [profile, { chatter, vue }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
   const isAdmin = profile.role === 'admin'
   const showPicker = isAdmin || profile.baseRole === 'manager' || profile.baseRole === 'sous-manager'
   // `?chatter=` validé AVANT la requête : un uuid mal formé ferait échouer Postgres (22P02) et
   // tomberait sur la boundary d'erreur au lieu d'être ignoré.
   const parsedId = z.uuid().safeParse(chatter)
   const selectedId = parsedId.success ? parsedId.data : null
+  // `?vue=` inconnu → l'onglet d'accueil. Un `?vue=nimportequoi` ne doit pas vider l'écran : c'est
+  // la page qui normalise, `UrlTabs` ne relit jamais l'URL lui-même (cf. son JSDoc).
+  const tab: RosterTab = ROSTER_TABS.includes(vue as RosterTab) ? (vue as RosterTab) : 'formation'
 
   // Kickoff SANS await (pattern streaming) : les deux lectures partent en parallèle pendant que
   // le shell (h1) s'affiche ; la fiche ne dépend pas du roster (le nom est repris côté Template).
@@ -46,7 +49,14 @@ export default async function FormationOverviewPage({
       <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
       {/* Le `<h1>` est déjà rendu ci-dessus (il ne dépend d'aucune donnée) → squelette sans titre. */}
       <Suspense fallback={<OverviewSkeleton withTitle={false} />}>
-        <OverviewContent overview={overview} detail={detail} selectedId={selectedId} showPicker={showPicker} isAdmin={isAdmin} />
+        <OverviewContent
+          overview={overview}
+          detail={detail}
+          selectedId={selectedId}
+          showPicker={showPicker}
+          isAdmin={isAdmin}
+          tab={tab}
+        />
       </Suspense>
     </div>
   )
@@ -58,12 +68,14 @@ async function OverviewContent({
   selectedId,
   showPicker,
   isAdmin,
+  tab,
 }: {
   overview: Promise<OverviewData>
   detail: Promise<ChatterDetail> | null
   selectedId: string | null
   showPicker: boolean
   isAdmin: boolean
+  tab: RosterTab
 }) {
   const [data, chatter] = await Promise.all([overview, detail])
   // Uuid valide mais hors roster (chatter parti, droit Entraînement retiré, id d'un autre profil) :
@@ -77,6 +89,7 @@ async function OverviewContent({
       selectedId={selectedId}
       showPicker={showPicker}
       isAdmin={isAdmin}
+      tab={tab}
     />
   )
 }

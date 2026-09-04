@@ -19,12 +19,11 @@ import { requiredInt } from '@/lib/form-fields'
 export const candidateIdInput = z.object({ id: z.uuid() })
 
 /**
- * « Intégrer » : créer le compte du candidat ET le rattacher à une modèle (reprise GLA
- * `doIntegrate`, index.html:2322). `creatorId` reste OPTIONNEL — le dialog laisse créer le compte
- * sans rattacher, ce que faisait l'ancien bouton « Ajouter » et qui sert quand la modèle n'est pas
- * encore décidée. Sans modèle, pas de date d'intégration : la personne reste « en formation ».
+ * « Intégrer » : créer le compte du candidat. Rien d'autre à fournir que le dossier — le choix de
+ * la modèle a quitté ce geste (0147), la personne entre « en formation » et sera rattachée plus
+ * tard depuis Membres ou le board Organisation.
  */
-export const integrateCandidateInput = z.object({ id: z.uuid(), creatorId: z.uuid().optional() })
+export const integrateCandidateInput = z.object({ id: z.uuid() })
 
 /** Verdict de l'agence — `nouveau` n'est jamais reposé à la main (c'est l'état initial). */
 export const reviewInput = z.object({

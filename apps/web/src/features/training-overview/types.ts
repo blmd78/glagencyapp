@@ -21,6 +21,14 @@ export interface RosterRow {
   streakDays: number
   lastSessionAt: string | null
   sessionsScored: number
+  /**
+   * EN FORMATION (`profiles.in_training`, 0147) — décide de l'onglet où la ligne apparaît. C'est
+   * un DRAPEAU, plus une déduction : jusqu'ici la coupure se faisait sur `models.length === 0`,
+   * qui ne tenait que parce que le bouton « Intégrer » rattachait une modèle dans le même geste.
+   */
+  inTraining: boolean
+  /** A le droit `frm-entrainement`. Faux = intégré mais sans accès à l'entraînement → badge. */
+  hasTraining: boolean
 }
 
 export interface ReportRow {

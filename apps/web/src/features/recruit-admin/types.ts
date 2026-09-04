@@ -107,12 +107,6 @@ export interface RecruitKpis {
   refuse: number
 }
 
-/** Une modèle proposée au choix dans le dialog « Intégrer ». */
-export interface CreatorChoice {
-  id: string
-  name: string
-}
-
 /**
  * Une journée de réception (jour Paris de `createdAt`) et ses dossiers, classés par note. C'est
  * l'unité de décision de l'encadrement : une session de test = une fournée de candidats à
@@ -131,11 +125,6 @@ export interface CandidatesData {
   days: CandidateDay[]
   gates: RecruitGates
   kpis: RecruitKpis
-  /**
-   * Les modèles rattachables, pour le dialog « Intégrer ». Chargées ICI et pas dans le composant :
-   * aucun fetch dans une feature (guidelines-data-loading §3).
-   */
-  creators: CreatorChoice[]
 }
 
 /** Un message de la transcription serveur (`recruit_messages`, ordre = `position`). */
