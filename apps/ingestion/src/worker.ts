@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/cloudflare'
-import type { IngestRunSummary } from '@glagency/core'
+import { addDays, todayParis, type IngestRunSummary } from '@glagency/core'
 import { runPipeline } from './pipeline'
 import { parseMoneyTeamHR, fetchMoneyTeamDayHR } from './money-team-hr'
 import { recordRun, type IngestTrigger } from './record-run'
@@ -190,10 +190,16 @@ async function runShifts(): Promise<void> {
   const settings = await loadSettings(db)
   const cookie = await refreshCookie(db)
 
-  const today = new Date()
-  const dayAt = (back: number) => iso(new Date(today.getTime() - back * 86_400_000))
-  const from = dayAt(2)
-  const to = dayAt(1)
+  // `todayParis()` et non `new Date()` : le jour civil de l'agence est celui de Paris, et
+  // `toISOString()` rend le jour UTC. À 04h30 UTC les deux coïncident, mais la règle du projet
+  // ne souffre pas d'exception « ça marche à cette heure-ci » — déplacer le cron d'une heure
+  // suffirait à décaler la journée ingérée d'un jour entier.
+  //
+  // J-1 et J-2 : J-1 est complet à cette heure-ci (la Soirée de la veille s'est terminée à
+  // 05h00), J-2 rattrape une nuit manquée. Le jour EN COURS n'est jamais lu — MyPuls
+  // plafonnerait sa couverture sur le temps écoulé.
+  const from = addDays(todayParis(), -2)
+  const to = addDays(todayParis(), -1)
   const results: DayRunResult[] = []
 
   try {

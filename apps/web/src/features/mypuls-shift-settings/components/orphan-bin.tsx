@@ -7,17 +7,19 @@ import { STATUS_COLORS } from '@/lib/status-color'
 import type { ChatterWithoutAccount, MemberWithoutShift, OrphanLabel } from '../types'
 
 /**
- * Le bac : les trois populations que le relevé ne compte pas complètement, rangées par GESTE de
+ * Les trois populations que le relevé ne compte pas complètement, rangées par GESTE de
  * réparation — parce que c'est le geste, et non le symptôme, qu'on vient chercher ici.
  *
- * 1. **Inconnus du CRM** : ni fiche `chatters`, ni compte. Leur travail n'est rattaché à rien,
- *    ils s'affichent sous leur pseudo MyPuls, et un encadrant borné à ses modèles ne les voit
- *    pas du tout. → les créer.
+ * 1. **Sans créneau attendu** — EN PREMIER, parce que c'est le plus nombreux (87 membres
+ *    actifs en production au 2026-09-04) et le plus vite réparé : une valeur à poser dans
+ *    Membres. Sans elle, le relevé mesure leur activité mais ne la compare à rien — aucune de
+ *    leurs lignes n'est jamais « attendue » (D7), donc leur retard n'a aucun référent.
  * 2. **Sans compte membre** : le CRM les connaît (fiche, modèles, CA). Depuis 0144 ils ont leur
  *    ligne et leur nom sur le relevé ; il leur manque une fiche d'activité et la possibilité
  *    d'être signalés, qui exigent toutes deux un `profiles`. → leur ouvrir un compte.
- * 3. **Sans créneau attendu** : mesurés, mais comparés à rien — aucune de leurs lignes n'est
- *    jamais « attendue » (D7). → leur poser un shift.
+ * 3. **Inconnus du CRM** : ni fiche `chatters`, ni compte. Leur travail n'est rattaché à rien,
+ *    ils s'affichent sous leur pseudo MyPuls, et un encadrant borné à ses modèles ne les voit
+ *    pas du tout. → les créer. Le moins nombreux (12 en production) et le plus coûteux.
  */
 export function OrphanBin({
   orphans,
@@ -34,27 +36,14 @@ export function OrphanBin({
 }) {
   return (
     <div className="flex flex-col gap-6">
+      <MissingShift members={noShift} />
+
       <p className="text-sm text-muted-foreground">
-        Du {frWeekdayDate(from)} au {frWeekdayDate(to)}. Trois manques, trois gestes différents.
+        Ci-dessous, l’activité relevée du {frWeekdayDate(from)} au {frWeekdayDate(to)}, triée par
+        messages : en tête, ceux dont le travail non rattaché pèse le plus lourd.
       </p>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ActivityList
-          title="Inconnus du CRM"
-          count={orphans.length}
-          hint="Ni fiche chatteur, ni compte. Leur travail n’est rattaché à personne, et un encadrant borné à ses modèles ne les voit pas. Le rapprochement automatique se fait sur le nom, à chaque relevé — ceux qui restent sont à créer à la main."
-          empty="Tout le monde est rattaché."
-          tone="warning"
-          rows={orphans.map((o) => ({
-            key: o.mypulsUserId,
-            label: o.chatterLabel,
-            sub: `#${o.mypulsUserId}`,
-            days: o.days,
-            activeMinutes: o.activeMinutes,
-            messages: o.messages,
-          }))}
-        />
-
         <ActivityList
           title="Sans compte membre"
           count={noAccount.length}
@@ -70,9 +59,23 @@ export function OrphanBin({
             messages: o.messages,
           }))}
         />
-      </div>
 
-      <MissingShift members={noShift} />
+        <ActivityList
+          title="Inconnus du CRM"
+          count={orphans.length}
+          hint="Ni fiche chatteur, ni compte. Leur travail n’est rattaché à personne, et un encadrant borné à ses modèles ne les voit pas. Le rapprochement automatique se fait sur le nom à chaque relevé — ceux qui restent sont à créer à la main."
+          empty="Tout le monde est rattaché."
+          tone="warning"
+          rows={orphans.map((o) => ({
+            key: o.mypulsUserId,
+            label: o.chatterLabel,
+            sub: `#${o.mypulsUserId}`,
+            days: o.days,
+            activeMinutes: o.activeMinutes,
+            messages: o.messages,
+          }))}
+        />
+      </div>
     </div>
   )
 }

@@ -14,6 +14,7 @@ import { createClient } from '@/lib/supabase/server'
 import { isDayInWindow } from '@/lib/periods'
 import { allowedChatterIds, allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
 import type {
+  ReportKpi,
   SlotFilter,
   CoverageRow,
   ModelGroup,
@@ -143,7 +144,11 @@ export async function getShiftReport(params: {
 
   return {
     run: rpc.run,
-    kpi: rpc.kpi,
+    // DÉRIVÉ des lignes montrées, et non repris de `mypuls_day_kpi`. Cette table est au grain
+    // JOUR et pour toute l'agence : les tuiles ignoraient donc le créneau choisi ET le
+    // périmètre modèles. Un sous-manager borné à deux modèles lisait « 250 chatteurs actifs »
+    // au-dessus d'un tableau de 14 lignes, et choisir un créneau ne bougeait que le tableau.
+    kpi: buildKpi(enriched),
     groups: groupByModel(shown),
     // Les silencieux sont par nature des COMPTES membres (seul un compte porte un créneau
     // attendu) : leur borne reste `profile_creators`, sans équivalent chatteur à ajouter.
@@ -288,4 +293,42 @@ async function chatterDisplayNames(rows: CoverageRow[]): Promise<Map<string, str
   const { data, error } = await admin.from('chatters').select('id, display_name').in('id', ids)
   if (error) throw new Error(error.message)
   return new Map((data ?? []).map((c) => [c.id, c.display_name]))
+}
+
+/**
+ * Les tuiles, calculées sur les lignes du créneau affiché et du périmètre de l'appelant.
+ *
+ * Sur `enriched` et non sur `shown` : les deux bascules d'affichage ne doivent pas déplacer les
+ * totaux — « Postes tenus » afficherait 0/N dès qu'on coche « sous le seuil seulement ».
+ *
+ * Les grandeurs sont des SOMMES et des cardinalités, jamais une moyenne de couverture : le
+ * pourcentage de couverture est le verdict de MyPuls, et le moyenner sur plusieurs personnes
+ * fabriquerait un chiffre que personne ne peut vérifier.
+ */
+function buildKpi(rows: ReportRow[]): ReportKpi {
+  const chatters = new Set<string>()
+  const models = new Set<string>()
+  let activeMinutes = 0
+  let messages = 0
+  let vacations = 0
+
+  for (const r of rows) {
+    chatters.add(r.mypulsUserId)
+    activeMinutes += r.activeMinutes
+    messages += r.messages
+    for (const m of r.models) models.add(m)
+    // Les vacations déjà bornées au créneau par `enrich` — donc comptées dans la même
+    // fenêtre que le temps et les messages de la même tuile.
+    vacations += r.vacations.length
+  }
+
+  return {
+    chatters: chatters.size,
+    activeMinutes,
+    messages,
+    vacations,
+    models: models.size,
+    held: rows.filter((r) => r.held).length,
+    total: rows.length,
+  }
 }

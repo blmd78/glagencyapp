@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { SettingsForm, SettingsReadOnly } from './components/settings-form'
 import { SlotWindows } from './components/slot-windows'
 import { RunJournal } from './components/run-journal'
@@ -7,14 +8,40 @@ import type { ShiftSettingsPage } from './types'
 /**
  * Créneaux & réglages — Server Component qui ne fetch RIEN : `page.tsx` lui passe la donnée.
  *
- * L'ordre des blocs suit la question qu'on se pose en arrivant : « pourquoi ce chiffre ? ».
- * D'abord les réglages qui l'ont produit, puis les fenêtres qui ont servi de dénominateur,
- * puis le journal qui dit si la nuit a été lue, et enfin les gens que le relevé ne peut pas
- * compter.
+ * Écran de MAINTENANCE, volontairement hors sidebar : on y arrive en cliquant la ligne
+ * « Relevé MyPuls du … » qui coiffe le relevé, c'est-à-dire au moment où l'on se demande d'où
+ * sort un chiffre. L'ordre des blocs suit cette question.
+ *
+ * D'ABORD le journal, parce que c'est la réponse dans la grande majorité des cas : la nuit
+ * manque, ou le réglage a bougé. Ensuite les réglages eux-mêmes. Enfin les gens que le relevé
+ * ne peut pas compter, qui ne sont pas un réglage mais du travail à faire — d'où le titre
+ * « À rattacher » et non « Orphelins ».
+ *
+ * Les fenêtres de créneau sont REPLIÉES : trois lignes qui ne bougent jamais, utiles le seul
+ * jour où quelqu'un déplace une fenêtre chez MyPuls. Dépliées, elles occupaient le tiers de
+ * l'écran pour ne rien apprendre.
  */
 export function MypulsShiftSettingsTemplate({ data }: { data: ShiftSettingsPage }) {
+  const aRattacher = data.orphans.length + data.noAccount.length + data.noShift.length
+
   return (
     <div className="flex flex-col gap-6">
+      <p className="text-sm text-muted-foreground">
+        D’où sortent les chiffres du{' '}
+        <Link href="/chatter/presence" className="underline underline-offset-4">
+          Relevé d’équipe
+        </Link>{' '}
+        : quand la lecture MyPuls a tourné, avec quels seuils, et qui elle ne sait pas encore
+        nommer.
+      </p>
+
+      <Section
+        title="Journal des relevés"
+        subtitle="La première chose à regarder quand un chiffre surprend : la nuit a-t-elle été lue ?"
+      >
+        <RunJournal runs={data.runs} missingDays={data.missingDays} />
+      </Section>
+
       <Section
         title="Réglages de mesure"
         subtitle="Ce que MyPuls compte, et à partir de quand un poste est tenu."
@@ -33,22 +60,8 @@ export function MypulsShiftSettingsTemplate({ data }: { data: ShiftSettingsPage 
       </Section>
 
       <Section
-        title="Fenêtres de créneau"
-        subtitle="Les bornes qui ont réellement servi, relevées jour par jour."
-      >
-        <SlotWindows windows={data.windows} />
-      </Section>
-
-      <Section
-        title="Journal des relevés"
-        subtitle="Quand la lecture MyPuls a tourné, ce qu’elle a écrit, et avec quels réglages."
-      >
-        <RunJournal runs={data.runs} missingDays={data.missingDays} />
-      </Section>
-
-      <Section
-        title="À rattacher"
-        subtitle="Ce qui manque au relevé pour compter tout le monde, rangé par geste de réparation."
+        title={`À rattacher${aRattacher > 0 ? ` (${aRattacher})` : ''}`}
+        subtitle="Du travail à faire, pas un réglage : ce qui manque au relevé pour compter tout le monde."
       >
         <OrphanBin
           orphans={data.orphans}
@@ -58,6 +71,20 @@ export function MypulsShiftSettingsTemplate({ data }: { data: ShiftSettingsPage 
           to={data.to}
         />
       </Section>
+
+      {/* Replié : trois lignes statiques. `<details>` natif — l'ouverture ne coûte pas un octet
+          de JavaScript et la page reste un Server Component de bout en bout. */}
+      <details className="rounded-xl border bg-card">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          Fenêtres de créneau appliquées
+          <span className="ml-2 font-normal text-muted-foreground">
+            {data.windows.length} relevée{data.windows.length > 1 ? 's' : ''} sur la période
+          </span>
+        </summary>
+        <div className="border-t p-4">
+          <SlotWindows windows={data.windows} />
+        </div>
+      </details>
     </div>
   )
 }

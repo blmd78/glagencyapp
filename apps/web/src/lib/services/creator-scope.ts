@@ -59,8 +59,9 @@ export async function isChatterInScope(
  * centaine d'allers-retours. On demande plutôt « quels profils sont assignés à MES modèles » et
  * le filtre devient un `Set`. `null` = aucune borne (admin, ou encadrant sans assignation).
  *
- * SOURCE UNIQUE de la borne de LECTURE des écrans de présence (Relevé, Vacations) — le tenir en
- * double dans deux features, c'est prendre le risque qu'une seule des deux soit corrigée.
+ * Va PAR PAIRE avec `allowedProfileIds` : le relevé de présence teste les deux, parce que ses
+ * lignes portent deux clés d'identité et qu'une personne sans compte membre n'existe que dans
+ * l'une. Tester une seule des deux, c'est cacher à un encadrant les lignes de SES modèles.
  */
 export async function allowedProfileIds(scope: Set<string> | null): Promise<Set<string> | null> {
   if (!scope) return null
