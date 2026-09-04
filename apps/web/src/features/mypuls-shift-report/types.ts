@@ -8,6 +8,14 @@ export interface ShiftRun {
   unmatched: number
 }
 
+/**
+ * Les tuiles du haut de `mypuls_day_kpi`, au grain JOUR et pour toute l'agence.
+ *
+ * Plus affichées telles quelles : elles ignoraient le filtre de créneau ET le périmètre
+ * modèles, si bien que l'écran donnait « 250 chatteurs actifs » (agence, journée) au-dessus
+ * d'un tableau montrant 14 lignes (un créneau, mes modèles). Deux chiffres pour la même chose
+ * au même écran, c'est un chiffre faux. Conservé pour une courbe d'agence plus tard.
+ */
 export interface ShiftDayKpi {
   day: string
   chatters_actifs: number
@@ -18,6 +26,27 @@ export interface ShiftDayKpi {
   models_total: number
   slots_held: number
   slots_total: number
+}
+
+/**
+ * Les tuiles RÉELLEMENT affichées : dérivées des lignes que le tableau montre.
+ *
+ * Elles suivent donc le créneau choisi et le périmètre modèles de l'appelant — comme les
+ * tuiles de la page Police, calculées sur les entrées affichées pour que « les cartes et la
+ * table racontent la même chose ».
+ *
+ * En revanche elles ne suivent PAS les deux bascules d'affichage (« seulement leur créneau »,
+ * « sous le seuil seulement ») : « Postes tenus » afficherait sinon 0/N dès qu'on filtre sur
+ * les écarts, ce qui ne veut plus rien dire.
+ */
+export interface ReportKpi {
+  chatters: number
+  activeMinutes: number
+  messages: number
+  vacations: number
+  models: number
+  held: number
+  total: number
 }
 
 export interface CoverageRow {
@@ -99,7 +128,7 @@ export type SlotFilter = SlotKey | 'all'
 
 export interface ShiftReport {
   run: ShiftRun | null
-  kpi: ShiftDayKpi | null
+  kpi: ReportKpi | null
   groups: ModelGroup[]
   silent: SilentChatter[]
   day: string

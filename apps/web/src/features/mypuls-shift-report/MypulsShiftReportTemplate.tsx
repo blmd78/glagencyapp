@@ -1,4 +1,4 @@
-import { fmtDuration } from '@glagency/core'
+import { SLOT_LABEL, fmtDuration } from '@glagency/core'
 import { int } from '@/lib/format'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { ReportFilters } from './components/report-filters'
@@ -82,11 +82,16 @@ const ACCENTS = [
 ]
 
 /**
- * QUATRE tuiles, choisies sur ce qu'elles apprennent réellement.
+ * QUATRE tuiles, choisies sur ce qu'elles apprennent réellement, et calculées sur LE MÊME
+ * périmètre que le tableau en dessous : le créneau choisi et les modèles de l'appelant. Le
+ * libellé de portée le rappelle sur chaque tuile — un chiffre d'agence et un chiffre de
+ * périmètre ne se distinguent pas à l'œil.
  *
  * MyPuls en affiche six ; deux ne disent rien ici. « Créneaux tenus » vaut 3/3 tous les jours
  * de la semaine mesurée — une constante n'informe pas. « Modèles travaillés » vaut 17/18 six
- * jours sur sept. « Vacations » est un compte technique, corrélé au nombre de chatteurs.
+ * jours sur sept ; il est rétrogradé en sous-titre de « Messages », là où il coûte zéro place.
+ * « Vacations » est un compte technique, corrélé au nombre de chatteurs : même traitement, sous
+ * « Temps actif ».
  *
  * À leur place, « Postes tenus » : le nombre de personnes au-dessus du seuil sur le total.
  * C'est la seule qui bouge vraiment (25/284 à 36/269 sur la semaine) et la seule sur laquelle
@@ -94,25 +99,28 @@ const ACCENTS = [
  */
 function buildKpis(data: ShiftReport): Kpi[] {
   const k = data.kpi!
-  const heldPct = data.totalRows > 0 ? Math.round((data.heldRows / data.totalRows) * 100) : 0
+  const heldPct = k.total > 0 ? Math.round((k.held / k.total) * 100) : 0
+  // La portée, en clair. Avant, la tuile disait « Sur toute la journée, tous créneaux » alors
+  // que le tableau montrait un créneau : le lecteur devait deviner lequel des deux mentait.
+  const scope = data.slot === 'all' ? 'Journée complète' : `Créneau ${SLOT_LABEL[data.slot]}`
 
   return [
     {
       key: 'chatteurs',
       label: 'Chatteurs actifs',
-      value: int(k.chatters_actifs),
+      value: int(k.chatters),
       deltaPct: null,
       trendLabel: 'Ont envoyé au moins un message',
-      hint: 'Sur toute la journée, tous créneaux',
-      info: "Compté sur les segments d'activité MyPuls du jour, pas sur l'effectif théorique.",
+      hint: scope,
+      info: "Compté sur les lignes affichées : le créneau choisi, et les modèles de ton périmètre. Ce n'est pas l'effectif théorique.",
     },
     {
       key: 'temps',
       label: 'Temps actif cumulé',
-      value: fmtDuration(k.active_minutes),
+      value: fmtDuration(k.activeMinutes),
       deltaPct: null,
-      trendLabel: 'Chatting actif',
-      hint: 'Minutes porteuses de messages',
+      trendLabel: `${int(k.vacations)} vacation${k.vacations > 1 ? 's' : ''}`,
+      hint: scope,
       info: "Le « Chatting actif » de MyPuls : une pause est comptée dès le seuil d'inactivité. Ce n'est PAS le temps connecté, qui est plus large.",
     },
     {
@@ -120,18 +128,18 @@ function buildKpis(data: ShiftReport): Kpi[] {
       label: 'Messages envoyés',
       value: int(k.messages),
       deltaPct: null,
-      trendLabel: 'Sur la journée',
-      hint: 'Tous modèles confondus',
+      trendLabel: `${int(k.models)} modèle${k.models > 1 ? 's' : ''} travaillé${k.models > 1 ? 's' : ''}`,
+      hint: scope,
       info: 'La seule mesure directe du travail — les autres tuiles sont des durées.',
     },
     {
       key: 'postes',
       label: 'Postes tenus',
-      value: `${int(data.heldRows)}/${int(data.totalRows)}`,
+      value: `${int(k.held)}/${int(k.total)}`,
       deltaPct: null,
       trendLabel: `${heldPct} % au-dessus du seuil`,
       hint: `Couverture ≥ ${data.threshold} %`,
-      info: 'Une ligne = une personne sur un créneau. Remplace le « Créneaux tenus » de MyPuls, qui vaut 3/3 tous les jours et n’apprend donc rien.',
+      info: 'Une ligne = une personne sur un créneau. Ne bouge pas avec les deux bascules ci-dessus : filtrer sur les écarts afficherait sinon 0 sur N.',
     },
   ]
 }

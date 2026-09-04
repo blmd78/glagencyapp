@@ -152,9 +152,14 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   Ingestion : 3 sous-requêtes par jour dans `apps/ingestion/src/shifts-core.ts`, cron
   **04h30 UTC** (l'heure n'est PAS négociable — le créneau du soir court jusqu'à 05h00 Paris et
   MyPuls plafonne sa couverture tant qu'il n'est pas fini) ; rattrapage manuel
-  `pnpm --filter @glagency/ingestion shifts <du> <au>`. Quatre écrans, tous slug `presence` :
-  Relevé d'équipe (`/chatter/presence`), Vacations, Fiche d'activité (`[profileId]`, lecture
-  MyPuls **à la demande**) et Créneaux & réglages. **Trois invariants** : (1) le verdict de
+  `pnpm --filter @glagency/ingestion shifts <du> <au>` (le CLI **plafonne à J-1**, arguments
+  compris : ingérer le jour en cours écrit une couverture plafonnée à ~65 % et la marque `ok`).
+  **UN écran dans la sidebar** — Relevé d'équipe (`/chatter/presence`) ; deux hors sidebar, la
+  Fiche d'activité (`[profileId]`, lecture MyPuls **à la demande**, atteinte nominativement) et
+  les Réglages (`/reglages` — maintenance : journal des runs, seuils, gens à rattacher ;
+  atteints en cliquant la ligne « Relevé MyPuls du … »). Les tuiles du Relevé sont **dérivées
+  des lignes affichées** et non de `mypuls_day_kpi` (grain jour + agence) : sinon elles
+  ignorent le créneau choisi ET le périmètre modèles. **Trois invariants** : (1) le verdict de
   couverture est celui de MyPuls, parsé, jamais recalculé (un recalcul dérive jusqu'à 20,7 pts) ;
   (2) un jour sans run `ok` affiche « relevé indisponible », **jamais des zéros** — sinon « le
   scrape a échoué » et « personne n'a travaillé » deviennent indiscernables, et ça produit des

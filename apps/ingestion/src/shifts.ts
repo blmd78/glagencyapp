@@ -32,11 +32,26 @@ async function run(): Promise<void> {
   const db = createAdminClient()
   const settings = await loadSettings(db)
 
-  // Hier par défaut : le créneau du soir d'aujourd'hui n'est pas terminé, l'ingérer donnerait
-  // une couverture tronquée qui ressemble trait pour trait à une faute.
+  // J-1 AU PLUS TARD, toujours — comme toute l'ingestion du projet.
+  //
+  // Ce n'est pas une commodité, c'est le garde-fou principal du relevé : MyPuls calcule sa
+  // couverture sur le temps ÉCOULÉ tant qu'un créneau n'est pas fini, et le créneau du soir
+  // court jusqu'à 05h00 le lendemain. Ingérer le jour EN COURS écrit donc une journée
+  // plafonnée — mesuré à ~65 % — et la marque `ok`. Toute l'équipe du soir apparaîtrait sous
+  // le seuil, sur l'écran même qui sert à décider de retenues sur paie.
+  //
+  // Le plafond s'applique aussi aux dates passées EN ARGUMENT : `shifts 2026-09-01 2026-09-04`
+  // est une commande qu'on tape sans y penser, et rien ne la rattrapait.
   const yesterday = addDays(todayParis(), -1)
-  const from = process.argv[2] ?? yesterday
-  const to = process.argv[3] ?? process.argv[2] ?? yesterday
+  const asked = { from: process.argv[2] ?? yesterday, to: process.argv[3] ?? process.argv[2] ?? yesterday }
+  const to = asked.to > yesterday ? yesterday : asked.to
+  const from = asked.from > to ? to : asked.from
+
+  if (asked.to !== to || asked.from !== from) {
+    console.log(
+      `[shifts] plage ramenée à ${from} → ${to} : le jour en cours (et au-delà) n'est jamais ingéré.`,
+    )
+  }
 
   console.log(
     `[shifts] ${from} → ${to} | idle=${settings.idleMinutes} min, seuil=${settings.coverageThreshold} %`,
