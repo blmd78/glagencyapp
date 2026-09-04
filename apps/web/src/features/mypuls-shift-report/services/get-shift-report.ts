@@ -88,10 +88,13 @@ export async function getShiftReport(params: {
   // attendus silencieux. C'est là que ces trois choses ont un sens ; sur trente jours une jauge
   // en minutes n'en a plus aucun, et déplier l'effectif ferait des milliers de lignes de DOM.
   //
-  // Le jour est validé contre la fenêtre autorisée plutôt que pris tel quel : un `?date=` forgé
-  // pointant sur aujourd'hui afficherait une couverture tronquée, que MyPuls plafonne.
+  // Le jour est validé contre LA PÉRIODE plutôt que pris tel quel. Deux raisons : un `?date=`
+  // forgé pointant sur aujourd'hui afficherait une couverture que MyPuls plafonne sur le temps
+  // écoulé ; et un jour hors de la période affichée ferait mentir le sélecteur de dates du
+  // header, qui resterait sur ses bornes. Défaut = la FIN de la période, le jour le plus récent.
   if (params.mode === 'day') {
-    const day = params.day && params.day <= yesterday ? params.day : yesterday
+    const asked = params.day
+    const day = asked && asked >= from && asked <= to ? asked : to
     return getDayReport({
       ...common,
       day,

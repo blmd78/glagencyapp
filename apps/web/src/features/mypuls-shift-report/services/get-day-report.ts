@@ -4,7 +4,6 @@ import {
   frWeekdayDate,
   groupVacationsAt,
   held,
-  todayParis,
   type MypulsSegmentAt,
   type MypulsVacation,
 } from '@glagency/core'
@@ -23,16 +22,21 @@ import type {
 /** Le fourre-tout de l'ancien board, toujours affiché en dernier. */
 const NO_MODEL = 'Sans modèle'
 
-/** Jours proposés au sélecteur du mode JOUR. Deux semaines : au-delà, on passe en période. */
-const DAY_OPTIONS = 14
+/** Plafond du sélecteur de jour. Au-delà, le menu devient une liste qu'on ne parcourt plus. */
+const MAX_DAY_OPTIONS = 62
 
 /**
  * Le relevé d'UNE journée — le grain d'origine de l'écran, restauré.
  *
  * Choisi EXPLICITEMENT par la bascule « Jour » de la barre de filtres (`?vue=jour`), et non
- * déduit de la longueur de la période : deviner le grain à partir du header ferait changer la
- * tête de l'écran sans qu'on l'ait demandé. En mode Jour, le sélecteur du header est ignoré —
- * c'est la définition du mode — et l'écran propose ses propres jours.
+ * déduit de la longueur de la période : deviner le grain ferait changer la tête de l'écran sans
+ * qu'on l'ait demandé.
+ *
+ * Le mode Jour est un ZOOM DANS la période du header, pas une échappée hors d'elle : le
+ * sélecteur ne propose que les jours de la période affichée. Avec « 1 au 4 septembre » en haut,
+ * on descend au 1er, au 2, au 3 ou au 4 — et à rien d'autre. Proposer les quatorze derniers
+ * jours, comme le faisait la première version, revenait à ignorer la période qu'on venait de
+ * régler.
  *
  * C'est le grain où la jauge en minutes et la timeline des sessions ont un sens ; sur trente
  * jours elles n'en ont plus.
@@ -116,12 +120,16 @@ export async function getDayReport(
   // renfort ferait remonter des gens dont la seule faute est d'avoir dépanné.
   if (params.belowOnly) shown = shown.filter((r) => r.isExpected && !r.held)
 
-  // Le mode JOUR ignore la période du header — c'est sa définition. Il propose ses propres
-  // jours, d'hier vers le passé : aujourd'hui n'est jamais relevé.
-  const dayOptions = Array.from({ length: DAY_OPTIONS }, (_, i) => {
-    const value = addDays(todayParis(), -1 - i)
-    return { value, label: frWeekdayDate(value) }
-  })
+  // Les jours DE LA PÉRIODE, du plus récent au plus ancien. Les bornes ont déjà été plafonnées
+  // à hier par l'appelant — aujourd'hui n'est jamais relevé.
+  const dayOptions: { value: string; label: string }[] = []
+  for (
+    let d = params.to;
+    d >= params.from && dayOptions.length < MAX_DAY_OPTIONS;
+    d = addDays(d, -1)
+  ) {
+    dayOptions.push({ value: d, label: frWeekdayDate(d) })
+  }
 
   return {
     mode: 'day',
