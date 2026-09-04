@@ -71,14 +71,21 @@ export function ChatterRow({
             )}
           </span>
           {/* « Renfort » ne se dit que si on CONNAÎT son créneau et qu'il diffère. Sans shift
-              renseigné on ne sait pas : le dire serait une affirmation gratuite. */}
+              renseigné on ne sait pas : le dire serait une affirmation gratuite.
+              Les deux derniers cas ne sont PAS la même situation, et c'est le nerf de 0144 :
+              « pas de compte membre » désigne quelqu'un que le CRM connaît parfaitement (il a
+              sa fiche `chatters`, ses modèles, son CA) et qui n'a simplement pas d'accès à
+              l'app ; « inconnu du CRM » désigne quelqu'un dont personne ne sait qui il est.
+              Le geste de réparation diffère, donc le mot doit différer. */}
           {!row.isExpected && (
             <span className="block truncate text-xs text-muted-foreground">
               {row.memberShift
                 ? `renfort · son créneau : ${SLOT_LABEL[row.memberShift]}`
                 : row.profileId
                   ? 'shift non renseigné'
-                  : 'non rattaché au CRM'}
+                  : row.chatterId
+                    ? 'pas de compte membre'
+                    : 'inconnu du CRM'}
             </span>
           )}
         </span>
@@ -185,6 +192,16 @@ function RowDetail({
           </ul>
         )}
       </div>
+
+      {/* Pourquoi cette ligne n'offre ni fiche ni signalement — dit une fois, à l'endroit où
+          l'on cherche les deux boutons. Une absence sans explication se lit comme un bug. */}
+      {!row.profileId && (
+        <p className="text-xs text-muted-foreground">
+          {row.chatterId
+            ? 'Mesuré et nommé, mais sans compte membre : pas de fiche d’activité, et aucun signalement possible (une sanction se pose sur un compte).'
+            : 'Libellé MyPuls inconnu du CRM : personne ne sait à qui ce travail appartient. À traiter dans Créneaux & réglages.'}
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-4">
         {row.profileId && (

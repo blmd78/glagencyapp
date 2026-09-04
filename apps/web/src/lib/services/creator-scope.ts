@@ -72,3 +72,26 @@ export async function allowedProfileIds(scope: Set<string> | null): Promise<Set<
   if (error) throw new Error(error.message)
   return new Set((data ?? []).map((r) => r.profile_id))
 }
+
+/**
+ * Les CHATTEURS visibles (`chatters.id`), en une lecture — le pendant d'`allowedProfileIds`
+ * sur la clé d'identité du CRM.
+ *
+ * Indispensable depuis 0144 : le relevé MyPuls nomme désormais les gens par leur `chatters`,
+ * et la majorité d'entre eux n'a pas de compte membre (486 lignes `chatters` pour 110 profils
+ * rattachés en production). Borner uniquement par `profile_creators` aurait donc caché à un
+ * encadrant les 29 % de lignes qui parlent de SES modèles, faute de compte en face.
+ *
+ * `chatter_creators` est la table d'assignation côté chatteur, celle que money-team alimente.
+ * `null` = aucune borne (admin, ou encadrant sans modèle assigné).
+ */
+export async function allowedChatterIds(scope: Set<string> | null): Promise<Set<string> | null> {
+  if (!scope) return null
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('chatter_creators')
+    .select('chatter_id')
+    .in('creator_id', [...scope])
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map((r) => r.chatter_id))
+}

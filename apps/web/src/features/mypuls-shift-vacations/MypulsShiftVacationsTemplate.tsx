@@ -34,7 +34,7 @@ export function MypulsShiftVacationsTemplate({ data }: { data: VacationsPage }) 
             <p className="text-sm text-amber-700 dark:text-amber-400">
               {/* Le plafond est la contrepartie du filtre, pas une limite arbitraire : une
                   journée d’agence pèse ~2 600 segments, un chatter une vingtaine. */}
-              {data.profileId
+              {data.chatterId
                 ? `Période ramenée à ${data.maxDays} jours — au-delà, c’est un export, pas un écran.`
                 : `Période ramenée au ${frWeekdayDate(data.to)} : sans chatter choisi, une seule journée d’agence pèse déjà ~2 600 segments. Choisis quelqu’un pour remonter jusqu’à un mois.`}
             </p>

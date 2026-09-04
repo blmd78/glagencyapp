@@ -65,7 +65,15 @@ export async function loadSettings(db: Db): Promise<ShiftSettings> {
 // ---------------------------------------------------------------------------
 
 interface Identity {
-  /** mypuls_user_id → profiles.id, quand la chaîne complète est établie. */
+  /**
+   * mypuls_user_id → chatters.id. LA clé d'identité du relevé, et celle du reste du CRM
+   * (`chatter_daily`, `chatter_creators`, `insights`, `spender_*` pointent tous là).
+   * Elle se remplit SANS compte membre : c'est ce qui donne une ligne nommée aux 372 lignes
+   * `chatters` de production qui n'ont pas de `profiles` en face (relevé le 2026-09-04).
+   */
+  chatterByMypulsId: Map<string, string>
+  /** mypuls_user_id → profiles.id, quand la chaîne complète est établie. Reste nécessaire : le
+   *  créneau attendu, la fiche d'activité et une sanction exigent un compte membre. */
   profileByMypulsId: Map<string, string>
   backfilled: number
   unmatched: UnmatchedChatter[]
@@ -175,7 +183,7 @@ export async function resolveIdentities(
     if (p) profileByMypulsId.set(mypulsUserId, p)
   }
 
-  return { profileByMypulsId, backfilled, unmatched }
+  return { chatterByMypulsId, profileByMypulsId, backfilled, unmatched }
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +321,7 @@ export async function ingestShiftsDay(
       active_minutes: s.activeMinutes,
       messages: s.messages,
       models: s.models,
+      chatter_id: identity.chatterByMypulsId.get(s.mypulsUserId) ?? null,
       profile_id: identity.profileByMypulsId.get(s.mypulsUserId) ?? null,
     }
   })
@@ -324,6 +333,7 @@ export async function ingestShiftsDay(
     slot_end_at: string
     mypuls_user_id: string
     chatter_label: string
+    chatter_id: string | null
     profile_id: string | null
     coverage_pct: number
     active_minutes: number
@@ -358,6 +368,7 @@ export async function ingestShiftsDay(
       slot_end_at: bounds.endAt,
       mypuls_user_id: mypulsUserId,
       chatter_label: c.chatterLabel,
+      chatter_id: identity.chatterByMypulsId.get(mypulsUserId) ?? null,
       profile_id: identity.profileByMypulsId.get(mypulsUserId) ?? null,
       coverage_pct: c.coveragePct,
       active_minutes: c.activeMinutes,

@@ -1503,6 +1503,7 @@ export type Database = {
       mypuls_shift_coverage: {
         Row: {
           active_minutes: number
+          chatter_id: string | null
           chatter_label: string
           coverage_pct: number
           day: string
@@ -1518,6 +1519,7 @@ export type Database = {
         }
         Insert: {
           active_minutes: number
+          chatter_id?: string | null
           chatter_label: string
           coverage_pct: number
           day: string
@@ -1533,6 +1535,7 @@ export type Database = {
         }
         Update: {
           active_minutes?: number
+          chatter_id?: string | null
           chatter_label?: string
           coverage_pct?: number
           day?: string
@@ -1547,6 +1550,13 @@ export type Database = {
           slot_start_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mypuls_shift_coverage_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mypuls_shift_coverage_profile_id_fkey"
             columns: ["profile_id"]
@@ -1601,6 +1611,7 @@ export type Database = {
       mypuls_shift_segments: {
         Row: {
           active_minutes: number
+          chatter_id: string | null
           day: string
           ended_at: string
           imported_at: string
@@ -1612,6 +1623,7 @@ export type Database = {
         }
         Insert: {
           active_minutes: number
+          chatter_id?: string | null
           day: string
           ended_at: string
           imported_at?: string
@@ -1623,6 +1635,7 @@ export type Database = {
         }
         Update: {
           active_minutes?: number
+          chatter_id?: string | null
           day?: string
           ended_at?: string
           imported_at?: string
@@ -1633,6 +1646,13 @@ export type Database = {
           started_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "mypuls_shift_segments_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "mypuls_shift_segments_profile_id_fkey"
             columns: ["profile_id"]
@@ -5247,11 +5267,11 @@ export type Database = {
         Returns: Json
       }
       mypuls_shift_chatter: {
-        Args: { p_from: string; p_profile: string; p_to: string }
+        Args: { p_chatter?: string; p_from: string; p_profile: string; p_to: string }
         Returns: Json
       }
       mypuls_shift_segments_range: {
-        Args: { p_from: string; p_profile?: string; p_to: string }
+        Args: { p_chatter?: string; p_from: string; p_to: string }
         Returns: Json
       }
       mypuls_shift_settings_page: {

@@ -34,7 +34,8 @@ export default async function PresenceVacationsPage({
     callerRole: profile.baseRole,
     from: du,
     to: au,
-    profileId: chatteur,
+    // `?chatteur=` porte un `chatters.id` — la clé du relevé depuis 0144.
+    chatterId: chatteur,
     model: modele,
     slot: creneau,
   })

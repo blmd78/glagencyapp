@@ -24,6 +24,10 @@ export interface CoverageRow {
   slot: SlotKey
   mypulsUserId: string
   chatterLabel: string
+  /** `chatters.id` — LA clé d'identité, qui existe sans compte membre (0144). */
+  chatterId: string | null
+  /** `profiles.id` — seulement pour qui a un compte. Porte le créneau attendu, la fiche
+   *  d'activité et la possibilité d'un signalement. */
   profileId: string | null
   memberName: string | null
   memberShift: SlotKey | null
@@ -48,6 +52,7 @@ export interface SilentChatter {
 /** Segment renvoyé par la RPC — instants ISO, avant conversion en `MypulsSegment`. */
 export interface RawSegment {
   mypulsUserId: string
+  chatterId?: string | null
   day: string
   startedAt: string
   endedAt: string

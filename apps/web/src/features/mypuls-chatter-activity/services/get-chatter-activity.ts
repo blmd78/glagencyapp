@@ -1,3 +1,4 @@
+import { createAdminClient } from '@glagency/db'
 import { fetchChatterActivity } from '@glagency/mypuls/shifts'
 import { SLOT_KEYS, addDays, frWeekdayDate, todayParis, type SlotKey } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
@@ -29,9 +30,18 @@ export async function getChatterActivity(params: {
 }): Promise<ChatterActivityData> {
   const supabase = await createClient()
 
-  const { data: profile, error: profileError } = await supabase
+  // Le profil est lu en SERVICE-ROLE, et pas via `supabase` : la policy de `profiles` exige
+  // `is_admin() or is_manager()`, si bien qu'un porteur de « presence » de rôle police ou
+  // chatteur tombait sur « Profil introuvable » — la fiche était inaccessible pour eux. Le
+  // PÉRIMÈTRE modèles, lui, est déjà appliqué en amont par la page (`isChatterInScope` +
+  // `notFound()`), qui est le bon endroit pour ça. Même parade que `displayNames` du relevé.
+  //
+  // `chatter_id` est lu ICI parce que c'est la clé du relevé depuis 0144 : sans lui, la fiche
+  // d'un membre rattaché n'affiche que les journées où `profile_id` avait été résolu.
+  const admin = createAdminClient()
+  const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('id, display_name, shift')
+    .select('id, display_name, shift, chatter_id')
     .eq('id', params.profileId)
     .maybeSingle()
   if (profileError) throw new Error(profileError.message)
@@ -54,6 +64,10 @@ export async function getChatterActivity(params: {
     p_profile: params.profileId,
     p_from: from,
     p_to: to,
+    // Les DEUX clés (0145) : `profile_id` seul laissait vides les fiches des membres rattachés
+    // dont l'historique ne porte que `chatter_id`, et `chatter_id` seul aurait vidé celles des
+    // 150 profils actifs sans rattachement. Omis = le défaut SQL (`null`).
+    p_chatter: profile.chatter_id ?? undefined,
   })
   if (error) throw new Error(error.message)
 

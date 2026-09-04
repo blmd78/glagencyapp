@@ -41,7 +41,10 @@ export interface ShiftRunRow {
   coverageThreshold: number
 }
 
-/** Un libellé MyPuls que le CRM ne sait pas nommer. */
+/**
+ * Un libellé MyPuls INCONNU du CRM : ni fiche `chatters`, ni compte. Personne ne sait qui c'est,
+ * et son travail n'est rattaché à rien. Le geste est de le créer.
+ */
 export interface OrphanLabel {
   mypulsUserId: string
   chatterLabel: string
@@ -49,8 +52,24 @@ export interface OrphanLabel {
   lastDay: string
   activeMinutes: number
   messages: number
-  /** Une ligne `chatters` porte-t-elle déjà ce `mypuls_user_id` ? Lu en service-role. */
-  hasChatter: boolean
+}
+
+/**
+ * Un chatteur CONNU du CRM mais SANS COMPTE membre.
+ *
+ * Depuis 0144 il a sa ligne et son nom sur le relevé — c'est réglé. Ce qui lui manque est une
+ * fiche d'activité et la possibilité d'être signalé : les deux exigent un `profiles`
+ * (`police_entries.chatter_id` pointe sur `profiles` depuis 0078). Le geste est de lui ouvrir
+ * un compte, pas de le créer.
+ */
+export interface ChatterWithoutAccount {
+  chatterId: string
+  mypulsUserId: string
+  chatterLabel: string
+  days: number
+  lastDay: string
+  activeMinutes: number
+  messages: number
 }
 
 /** Un membre actif du CRM sans créneau attendu — donc jamais comparable à quoi que ce soit. */
@@ -66,7 +85,8 @@ export interface SettingsPageRpc {
   settings: ShiftSettings | null
   windows: SlotWindow[]
   runs: ShiftRunRow[]
-  orphans: Omit<OrphanLabel, 'hasChatter'>[]
+  orphans: OrphanLabel[]
+  noAccount: ChatterWithoutAccount[]
 }
 
 export interface ShiftSettingsPage {
@@ -74,6 +94,7 @@ export interface ShiftSettingsPage {
   windows: SlotWindow[]
   runs: ShiftRunRow[]
   orphans: OrphanLabel[]
+  noAccount: ChatterWithoutAccount[]
   noShift: MemberWithoutShift[]
   /** Période observée par les fenêtres et le bac d'orphelins. */
   from: string

@@ -12,7 +12,7 @@ import {
 } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { isDayInWindow } from '@/lib/periods'
-import { allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
+import { allowedChatterIds, allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
 import type {
   SlotFilter,
   CoverageRow,
@@ -84,7 +84,10 @@ export async function getShiftReport(params: {
     .maybeSingle()
   const breakMinutes = settings?.break_minutes ?? 60
   const scope = await getCreatorScope(params.callerId, params.callerRole)
-  const allowed = await allowedProfileIds(scope)
+  const [allowed, allowedChatters] = await Promise.all([
+    allowedProfileIds(scope),
+    allowedChatterIds(scope),
+  ])
 
   // PÉRIMÈTRE. `allowed` null = aucune borne (admin, ou encadrant sans modèle assigné) : on
   // montre tout ce que MyPuls a mesuré, y compris les libellés non rattachés au CRM.
@@ -95,20 +98,36 @@ export async function getShiftReport(params: {
   // lignes du jour, nominatives, avec couverture, retard et timeline — 94 % de ce qu'il lisait
   // ne le regardait pas, sur l'écran même qui sert à décider de retenues sur paie. Ne pas
   // savoir à qui une ligne appartient n'autorise pas à la montrer à tout le monde.
-  const visible = allowed
-    ? rpc.rows.filter((r) => r.profileId !== null && allowed.has(r.profileId))
-    : rpc.rows
+  //
+  // DEUX clés depuis 0144, et les deux comptent. Le périmètre par `profile_creators` seul
+  // aurait caché à un encadrant les lignes de SES modèles dès que la personne n'a pas de
+  // compte membre — soit 29 % des lignes mesurées. `chatter_creators` est la même assignation,
+  // du côté de la clé qui existe toujours.
+  const inScope = (r: { chatterId: string | null; profileId: string | null }): boolean =>
+    (r.profileId !== null && (allowed?.has(r.profileId) ?? false)) ||
+    (r.chatterId !== null && (allowedChatters?.has(r.chatterId) ?? false))
+  const visible = allowed || allowedChatters ? rpc.rows.filter(inScope) : rpc.rows
 
   // Les noms viennent du client admin et NON de la jointure de la RPC. La RPC est
   // `security invoker` : la policy de `profiles` exige `is_admin() or is_manager()`, si bien
   // qu'un porteur de « presence » de rôle police ou chatteur recevait 264 lignes SANS UN SEUL
   // nom, et zéro « aucune activité » — l'écran se lisait « personne n'était absent ».
   const names = await displayNames(rpc)
+  const chatterNames = await chatterDisplayNames(rpc.rows)
 
   const vacationsByUser = buildVacations(rpc.segments, breakMinutes)
   const enriched = visible.map((r) =>
     enrich(
-      { ...r, memberName: r.memberName ?? (r.profileId ? (names.get(r.profileId) ?? null) : null) },
+      {
+        ...r,
+        // Trois sources, dans cet ordre : la jointure de la RPC, le compte membre, puis le
+        // CHATTEUR. C'est ce dernier qui nomme les 29 % de lignes qui n'ont pas de compte —
+        // avant lui, elles s'affichaient sous le pseudo MyPuls, quand elles s'affichaient.
+        memberName:
+          r.memberName ??
+          (r.profileId ? (names.get(r.profileId) ?? null) : null) ??
+          (r.chatterId ? (chatterNames.get(r.chatterId) ?? null) : null),
+      },
       threshold,
       vacationsByUser.get(r.mypulsUserId) ?? [],
     ),
@@ -126,6 +145,8 @@ export async function getShiftReport(params: {
     run: rpc.run,
     kpi: rpc.kpi,
     groups: groupByModel(shown),
+    // Les silencieux sont par nature des COMPTES membres (seul un compte porte un créneau
+    // attendu) : leur borne reste `profile_creators`, sans équivalent chatteur à ajouter.
     silent: (allowed ? rpc.silent.filter((s) => allowed.has(s.profileId)) : rpc.silent).map((s) => ({
       ...s,
       memberName: s.memberName || (names.get(s.profileId) ?? 'Sans nom'),
@@ -249,4 +270,22 @@ async function displayNames(rpc: ShiftBoardRpc): Promise<Map<string, string>> {
   const { data, error } = await admin.from('profiles').select('id, display_name').in('id', ids)
   if (error) throw new Error(error.message)
   return new Map((data ?? []).map((p) => [p.id, p.display_name ?? 'Sans nom']))
+}
+
+/**
+ * Noms d'affichage des CHATTEURS cités, lus en service-role.
+ *
+ * Même contrainte que `displayNames`, une table plus loin : `chatters_scoped_read` exige d'être
+ * admin OU d'avoir au moins un modèle assigné. En `security invoker`, la RPC aurait donc rendu
+ * `null` à un porteur de « presence » sans assignation — et l'écran serait retombé sur le pseudo
+ * MyPuls pour tout le monde, ce que 0144 est précisément censé corriger. Le PÉRIMÈTRE, lui,
+ * reste appliqué en amont (`inScope`).
+ */
+async function chatterDisplayNames(rows: CoverageRow[]): Promise<Map<string, string>> {
+  const ids = [...new Set(rows.map((r) => r.chatterId).filter((v): v is string => v !== null))]
+  if (ids.length === 0) return new Map()
+  const admin = createAdminClient()
+  const { data, error } = await admin.from('chatters').select('id, display_name').in('id', ids)
+  if (error) throw new Error(error.message)
+  return new Map((data ?? []).map((c) => [c.id, c.display_name]))
 }

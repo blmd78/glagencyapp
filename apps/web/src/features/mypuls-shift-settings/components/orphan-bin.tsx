@@ -4,99 +4,140 @@ import { fmtDuration, frWeekdayDate } from '@glagency/core'
 import { int } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { STATUS_COLORS } from '@/lib/status-color'
-import type { MemberWithoutShift, OrphanLabel } from '../types'
+import type { ChatterWithoutAccount, MemberWithoutShift, OrphanLabel } from '../types'
 
 /**
- * Le bac d'orphelins : les deux populations qui manquent au relevé, et qui manquent pour deux
- * raisons opposées.
+ * Le bac : les trois populations que le relevé ne compte pas complètement, rangées par GESTE de
+ * réparation — parce que c'est le geste, et non le symptôme, qu'on vient chercher ici.
  *
- * À GAUCHE, ceux que MyPuls mesure et que le CRM ne sait pas nommer. Leur travail est compté
- * chez MyPuls, jamais chez nous : le relevé les affiche sous leur pseudo, sans lien vers une
- * fiche, et un encadrant borné à ses modèles ne les voit pas du tout — une ligne sans profil
- * n'est montrée qu'aux non-bornés.
- *
- * À DROITE, ceux que le CRM connaît mais qui n'ont pas de créneau attendu. Le relevé mesure
- * bien leur activité, mais ne peut la comparer à rien : ils n'apparaissent ni dans les
- * manquants, ni dans le filtre « seulement leur créneau », et leur retard n'est calculé contre
- * aucune borne.
+ * 1. **Inconnus du CRM** : ni fiche `chatters`, ni compte. Leur travail n'est rattaché à rien,
+ *    ils s'affichent sous leur pseudo MyPuls, et un encadrant borné à ses modèles ne les voit
+ *    pas du tout. → les créer.
+ * 2. **Sans compte membre** : le CRM les connaît (fiche, modèles, CA). Depuis 0144 ils ont leur
+ *    ligne et leur nom sur le relevé ; il leur manque une fiche d'activité et la possibilité
+ *    d'être signalés, qui exigent toutes deux un `profiles`. → leur ouvrir un compte.
+ * 3. **Sans créneau attendu** : mesurés, mais comparés à rien — aucune de leurs lignes n'est
+ *    jamais « attendue » (D7). → leur poser un shift.
  */
 export function OrphanBin({
   orphans,
+  noAccount,
   noShift,
   from,
   to,
 }: {
   orphans: OrphanLabel[]
+  noAccount: ChatterWithoutAccount[]
   noShift: MemberWithoutShift[]
   from: string
   to: string
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <UnmatchedLabels orphans={orphans} from={from} to={to} />
+    <div className="flex flex-col gap-6">
+      <p className="text-sm text-muted-foreground">
+        Du {frWeekdayDate(from)} au {frWeekdayDate(to)}. Trois manques, trois gestes différents.
+      </p>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <ActivityList
+          title="Inconnus du CRM"
+          count={orphans.length}
+          hint="Ni fiche chatteur, ni compte. Leur travail n’est rattaché à personne, et un encadrant borné à ses modèles ne les voit pas. Le rapprochement automatique se fait sur le nom, à chaque relevé — ceux qui restent sont à créer à la main."
+          empty="Tout le monde est rattaché."
+          tone="warning"
+          rows={orphans.map((o) => ({
+            key: o.mypulsUserId,
+            label: o.chatterLabel,
+            sub: `#${o.mypulsUserId}`,
+            days: o.days,
+            activeMinutes: o.activeMinutes,
+            messages: o.messages,
+          }))}
+        />
+
+        <ActivityList
+          title="Sans compte membre"
+          count={noAccount.length}
+          hint="Le CRM les connaît : ils ont leur ligne et leur nom sur le relevé. Ce qui leur manque est une fiche d’activité et la possibilité d’être signalés — une sanction se pose sur un compte."
+          empty="Tous les chatteurs mesurés ont un compte."
+          tone="info"
+          rows={noAccount.map((o) => ({
+            key: o.chatterId,
+            label: o.chatterLabel,
+            sub: `#${o.mypulsUserId}`,
+            days: o.days,
+            activeMinutes: o.activeMinutes,
+            messages: o.messages,
+          }))}
+        />
+      </div>
+
       <MissingShift members={noShift} />
     </div>
   )
 }
 
-function UnmatchedLabels({
-  orphans,
-  from,
-  to,
-}: {
-  orphans: OrphanLabel[]
-  from: string
-  to: string
-}) {
-  const linkable = orphans.filter((o) => o.hasChatter).length
+interface ActivityRow {
+  key: string
+  label: string
+  sub: string
+  days: number
+  activeMinutes: number
+  messages: number
+}
 
+/**
+ * Une liste triée par MESSAGES, décroissant. C'est le tri utile : il met en tête ceux dont le
+ * travail non compté pèse le plus lourd, donc ceux qu'il faut traiter d'abord.
+ */
+function ActivityList({
+  title,
+  count,
+  hint,
+  empty,
+  tone,
+  rows,
+}: {
+  title: string
+  count: number
+  hint: string
+  empty: string
+  tone: 'warning' | 'info'
+  rows: ActivityRow[]
+}) {
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">
-        Mesurés par MyPuls, inconnus du CRM{' '}
-        <span className="text-muted-foreground">({orphans.length})</span>
+      <h3 className="flex items-center gap-2 text-sm font-medium">
+        {title}
+        <Badge className={STATUS_COLORS[tone]}>{count}</Badge>
       </h3>
-      <p className="text-sm text-muted-foreground">
-        Du {frWeekdayDate(from)} au {frWeekdayDate(to)}. Le rapprochement se fait sur le nom : il
-        se pose tout seul quand un seul chatteur du CRM porte ce libellé.{' '}
-        {linkable > 0 && (
-          <>
-            {linkable} d’entre eux ont déjà une fiche <code>chatters</code> — il n’y manque que
-            le rattachement à un membre.
-          </>
-        )}
-      </p>
+      <p className="text-sm text-muted-foreground">{hint}</p>
 
-      {orphans.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Tout le monde est rattaché.</p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
         <div className="max-h-96 overflow-y-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-card">
               <tr className="text-left text-xs text-muted-foreground">
-                <th className="py-1 pr-4 font-normal">Libellé MyPuls</th>
+                <th className="py-1 pr-4 font-normal">Chatter</th>
                 <th className="py-1 pr-4 text-right font-normal">Jours</th>
                 <th className="py-1 pr-4 text-right font-normal">Temps actif</th>
                 <th className="py-1 text-right font-normal">Messages</th>
               </tr>
             </thead>
             <tbody>
-              {orphans.map((o) => (
-                <tr key={o.mypulsUserId} className="border-t">
+              {rows.map((r) => (
+                <tr key={r.key} className="border-t">
                   <td className="py-2 pr-4">
-                    <span className="font-medium">{o.chatterLabel}</span>
-                    <span className="ml-1.5 text-xs text-muted-foreground">
-                      #{o.mypulsUserId}
-                    </span>
-                    {!o.hasChatter && (
-                      <Badge className={`ml-2 ${STATUS_COLORS.warning}`}>à créer</Badge>
-                    )}
+                    <span className="font-medium">{r.label}</span>
+                    <span className="ml-1.5 text-xs text-muted-foreground">{r.sub}</span>
                   </td>
-                  <td className="py-2 pr-4 text-right tabular-nums">{o.days}</td>
+                  <td className="py-2 pr-4 text-right tabular-nums">{r.days}</td>
                   <td className="py-2 pr-4 text-right tabular-nums">
-                    {fmtDuration(o.activeMinutes)}
+                    {fmtDuration(r.activeMinutes)}
                   </td>
-                  <td className="py-2 text-right tabular-nums">{int(o.messages)}</td>
+                  <td className="py-2 text-right tabular-nums">{int(r.messages)}</td>
                 </tr>
               ))}
             </tbody>
@@ -112,8 +153,9 @@ function MissingShift({ members }: { members: MemberWithoutShift[] }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-medium">
-        Membres actifs sans créneau <span className="text-muted-foreground">({members.length})</span>
+      <h3 className="flex items-center gap-2 text-sm font-medium">
+        Membres actifs sans créneau
+        <Badge className={STATUS_COLORS.neutral}>{members.length}</Badge>
       </h3>
       <p className="text-sm text-muted-foreground">
         Le créneau attendu se pose dans{' '}
@@ -124,8 +166,8 @@ function MissingShift({ members }: { members: MemberWithoutShift[] }) {
         {unlinked > 0 && (
           <>
             {' '}
-            {unlinked} ne sont rattachés à aucune fiche <code>chatters</code> (en orange) : MyPuls
-            ne pourra jamais les reconnaître, même une fois leur créneau posé.
+            {unlinked} ne sont rattachés à aucune fiche chatteur (en orange) : MyPuls ne pourra
+            jamais les reconnaître, même une fois leur créneau posé.
           </>
         )}
       </p>
@@ -133,7 +175,7 @@ function MissingShift({ members }: { members: MemberWithoutShift[] }) {
       {members.length === 0 ? (
         <p className="text-sm text-muted-foreground">Tous les membres actifs ont un créneau.</p>
       ) : (
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-72 overflow-y-auto">
           <div className="flex flex-wrap gap-2">
             {members.map((m) => (
               <Link key={m.profileId} href={`/chatter/presence/${m.profileId}` as Route}>

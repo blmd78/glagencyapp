@@ -1,12 +1,7 @@
 import { createAdminClient } from '@glagency/db'
 import { addDays, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import type {
-  MemberWithoutShift,
-  OrphanLabel,
-  SettingsPageRpc,
-  ShiftSettingsPage,
-} from '../types'
+import type { MemberWithoutShift, SettingsPageRpc, ShiftSettingsPage } from '../types'
 
 /**
  * Période observée par les fenêtres de créneau et le bac d'orphelins.
@@ -44,19 +39,19 @@ export async function getShiftSettings(params: {
     windows: [],
     runs: [],
     orphans: [],
+    noAccount: [],
   }
-
-  const [orphans, noShift] = await Promise.all([
-    withChatterFlag(rpc.orphans),
-    membersWithoutShift(),
-  ])
 
   return {
     settings: rpc.settings ?? { ...FALLBACK, updatedAt: new Date(0).toISOString(), updatedBy: null },
     windows: rpc.windows,
     runs: rpc.runs,
-    orphans,
-    noShift,
+    // Les deux moitiés du bac viennent désormais de la RPC (0144), qui les distingue par
+    // `chatter_id` : plus besoin d'un test `chatters` en service-role pour savoir dans quelle
+    // moitié ranger un libellé. C'est la base qui le sait.
+    orphans: rpc.orphans,
+    noAccount: rpc.noAccount,
+    noShift: await membersWithoutShift(),
     from,
     to,
     canEdit: params.isAdmin,
@@ -83,38 +78,17 @@ function missingDays(from: string, to: string, runs: SettingsPageRpc['runs']): s
 }
 
 /**
- * « Ce libellé MyPuls a-t-il déjà une ligne `chatters` ? » — en service-role, et pas dans la RPC.
- *
- * La policy `chatters_scoped_read` exige d'être admin OU d'avoir au moins un modèle assigné : en
- * `security invoker`, un porteur de `presence` sans assignation aurait lu « non » partout, sans
- * erreur, et conclu que 300 personnes sont inconnues du CRM. Le drapeau change le geste de
- * réparation — poser un lien, ou créer quelqu'un — donc il ne peut pas être approximatif.
- */
-async function withChatterFlag(
-  orphans: SettingsPageRpc['orphans'],
-): Promise<OrphanLabel[]> {
-  if (orphans.length === 0) return []
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('chatters')
-    .select('mypuls_user_id')
-    .in('mypuls_user_id', orphans.map((o) => o.mypulsUserId))
-  if (error) throw new Error(error.message)
-  const known = new Set((data ?? []).map((c) => c.mypuls_user_id).filter((v): v is string => v !== null))
-  return orphans.map((o) => ({ ...o, hasChatter: known.has(o.mypulsUserId) }))
-}
-
-/**
- * L'autre moitié du bac : les membres actifs SANS `profiles.shift`.
+ * La TROISIÈME population du bac : les membres actifs SANS `profiles.shift`.
  *
  * Ceux-là ont peut-être une ligne de couverture, mais aucune n'est jamais « attendue » (D7) —
  * ils n'apparaissent donc ni dans les manquants, ni dans le filtre « seulement leur créneau », et
  * leur retard n'est comparé à rien. Le relevé ne peut rien dire d'eux tant que personne ne leur
  * a posé de créneau.
  *
- * En service-role, même raison que ci-dessus : la policy de `profiles` exige
- * `is_admin() or is_manager()`, ce qui rendrait la liste vide pour un porteur de `presence` de
- * rôle police — c'est le bug que le relevé a déjà dû contourner (`displayNames`).
+ * Lue en SERVICE-ROLE et non dans la RPC : la policy de `profiles` exige
+ * `is_admin() or is_manager()`, ce qui rendrait la liste vide, sans erreur, pour un porteur de
+ * `presence` de rôle police — c'est le défaut que le relevé a déjà dû contourner
+ * (`displayNames`).
  */
 async function membersWithoutShift(): Promise<MemberWithoutShift[]> {
   const admin = createAdminClient()

@@ -48,10 +48,11 @@ export function MypulsShiftSettingsTemplate({ data }: { data: ShiftSettingsPage 
 
       <Section
         title="À rattacher"
-        subtitle="Les deux populations que le relevé ne peut pas compter."
+        subtitle="Ce qui manque au relevé pour compter tout le monde, rangé par geste de réparation."
       >
         <OrphanBin
           orphans={data.orphans}
+          noAccount={data.noAccount}
           noShift={data.noShift}
           from={data.from}
           to={data.to}

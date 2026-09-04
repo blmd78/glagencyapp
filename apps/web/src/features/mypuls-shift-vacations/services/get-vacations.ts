@@ -9,7 +9,7 @@ import {
   type SlotKey,
 } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
+import { allowedChatterIds, allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
 import type { RangeSegment, VacationRow, VacationsPage } from '../types'
 
 /**
@@ -40,15 +40,20 @@ export async function getVacations(params: {
   callerRole: string
   from?: string
   to?: string
-  profileId?: string
+  /**
+   * `chatters.id` et non `profiles.id` (0144). Filtrer par compte membre excluait exactement
+   * les gens que ce lot rend visibles : sur l'UAT, 29 % des lignes mesurées appartiennent à des
+   * chatteurs parfaitement identifiés qui n'ont pas d'accès à l'app.
+   */
+  chatterId?: string
   model?: string
   slot?: string
 }): Promise<VacationsPage> {
   const today = todayParis()
   const yesterday = addDays(today, -1)
 
-  const profileId = params.profileId || null
-  const maxDays = profileId ? MAX_DAYS_ONE : MAX_DAYS_ALL
+  const chatterId = params.chatterId || null
+  const maxDays = chatterId ? MAX_DAYS_ONE : MAX_DAYS_ALL
 
   // Bornes demandées, remises dans l'ordre et jamais au-delà d'hier : la journée d'aujourd'hui
   // n'est pas encore relevée (le créneau du soir court jusqu'à 05 h demain).
@@ -66,7 +71,7 @@ export async function getVacations(params: {
       p_to: to,
       // Omis = le défaut SQL (`null`, tous les chatteurs) — les types générés n'acceptent
       // pas `null` ici.
-      p_profile: profileId ?? undefined,
+      p_chatter: chatterId ?? undefined,
     }),
     // Un seul run réussi couvrant la fin de plage suffit à dire que l'écran montre quelque
     // chose de réel. Sans ce test, une plage jamais relevée s'afficherait « 0 vacation »,
@@ -86,16 +91,27 @@ export async function getVacations(params: {
   const segments = (segRes.data as unknown as RangeSegment[] | null) ?? []
 
   const scope = await getCreatorScope(params.callerId, params.callerRole)
-  const allowed = await allowedProfileIds(scope)
+  const [allowed, allowedChatters] = await Promise.all([
+    allowedProfileIds(scope),
+    allowedChatterIds(scope),
+  ])
 
   // PÉRIMÈTRE, même règle que le Relevé : borné, on ne laisse rien passer d'autre — pas même
-  // les segments sans profil, qu'on ne saurait pas attribuer. Ne pas savoir à qui une ligne
+  // les segments sans identité, qu'on ne saurait pas attribuer. Ne pas savoir à qui une ligne
   // appartient n'autorise pas à la montrer à tout le monde.
-  const visible = allowed
-    ? segments.filter((s) => s.profileId !== null && allowed.has(s.profileId))
+  //
+  // Les DEUX clés comptent : `chatter_creators` porte l'assignation des chatteurs sans compte,
+  // que `profile_creators` ne connaît pas.
+  const bounded = allowed !== null || allowedChatters !== null
+  const visible = bounded
+    ? segments.filter(
+        (s) =>
+          (s.profileId !== null && (allowed?.has(s.profileId) ?? false)) ||
+          (s.chatterId !== null && (allowedChatters?.has(s.chatterId) ?? false)),
+      )
     : segments
 
-  const names = await displayNames(visible)
+  const names = await resolveNames(visible)
   const domain: MypulsSegmentAt[] = visible.map((s) => ({
     mypulsUserId: s.mypulsUserId,
     day: s.day,
@@ -110,18 +126,22 @@ export async function getVacations(params: {
   }))
 
   const breakMinutes = await loadBreakMinutes(supabase)
-  const profileByUser = new Map(
-    visible.filter((s) => s.profileId).map((s) => [s.mypulsUserId, s.profileId as string]),
-  )
-  const labelByUser = new Map(visible.map((s) => [s.mypulsUserId, s.memberName]))
+  // Les segments d'un même `mypuls_user_id` portent la même identité : on l'indexe une fois.
+  const idByUser = new Map<string, { chatterId: string | null; profileId: string | null }>()
+  for (const s of visible) {
+    if (!idByUser.has(s.mypulsUserId)) {
+      idByUser.set(s.mypulsUserId, { chatterId: s.chatterId, profileId: s.profileId })
+    }
+  }
 
   const all: VacationRow[] = groupVacationsAt(domain, breakMinutes).map((v) => {
-    const pid = profileByUser.get(v.mypulsUserId) ?? null
+    const id = idByUser.get(v.mypulsUserId)
     return {
       key: `${v.mypulsUserId}:${v.startedAtMs}`,
       mypulsUserId: v.mypulsUserId,
-      profileId: pid,
-      name: (pid ? names.get(pid) : null) ?? labelByUser.get(v.mypulsUserId) ?? `#${v.mypulsUserId}`,
+      chatterId: id?.chatterId ?? null,
+      profileId: id?.profileId ?? null,
+      name: names.get(v.mypulsUserId) ?? `#${v.mypulsUserId}`,
       day: v.day,
       startedAtMs: v.startedAtMs,
       endedAtMs: v.endedAtMs,
@@ -144,10 +164,10 @@ export async function getVacations(params: {
     rows,
     from,
     to,
-    profileId,
+    chatterId,
     model,
     slot,
-    chatterOptions: await chatterOptions(allowed),
+    chatterOptions: await chatterOptions(allowedChatters),
     // Les modèles proposés sont ceux OBSERVÉS sur la plage, pas le catalogue : filtrer sur un
     // modèle absent de la période ne rendrait jamais rien, sans dire pourquoi.
     modelOptions: [...new Set(all.flatMap((r) => r.models.map((m) => m.label)))].sort((a, b) =>
@@ -199,41 +219,72 @@ async function loadBreakMinutes(
 }
 
 /**
- * Noms d'affichage, en service-role.
+ * `mypuls_user_id` → nom à afficher, en service-role.
  *
- * La RPC est `security invoker` et la policy de `profiles` exige `is_admin() or is_manager()` :
- * un porteur de « presence » de rôle police recevrait des lignes sans nom. Même contournement
- * que le Relevé, et même raison — les noms ne sont pas sensibles ici, l'écran est déjà réservé
- * aux porteurs du droit, et le PÉRIMÈTRE reste appliqué.
+ * Deux tables, dans cet ordre : le COMPTE membre s'il existe (c'est le nom que l'encadrement
+ * emploie), sinon le CHATTEUR. Sans le second, les 29 % de lignes sans compte retombaient sur
+ * le pseudo MyPuls.
+ *
+ * Service-role, et pas la jointure de la RPC : `chatters_scoped_read` exige un modèle assigné
+ * et la policy de `profiles` exige `is_admin() or is_manager()` — en `security invoker`, un
+ * porteur de « presence » de rôle police aurait lu des lignes sans un seul nom. Le PÉRIMÈTRE
+ * reste appliqué en amont.
  */
-async function displayNames(segments: RangeSegment[]): Promise<Map<string, string>> {
-  const ids = [...new Set(segments.map((s) => s.profileId).filter((v): v is string => v !== null))]
-  if (ids.length === 0) return new Map()
+async function resolveNames(segments: RangeSegment[]): Promise<Map<string, string>> {
+  const profileIds = [
+    ...new Set(segments.map((s) => s.profileId).filter((v): v is string => v !== null)),
+  ]
+  const chatterIds = [
+    ...new Set(segments.map((s) => s.chatterId).filter((v): v is string => v !== null)),
+  ]
+  if (profileIds.length === 0 && chatterIds.length === 0) return new Map()
+
   const admin = createAdminClient()
-  const { data, error } = await admin.from('profiles').select('id, display_name').in('id', ids)
-  if (error) throw new Error(error.message)
-  return new Map((data ?? []).map((p) => [p.id, p.display_name ?? 'Sans nom']))
+  const [profiles, chatters] = await Promise.all([
+    profileIds.length
+      ? admin.from('profiles').select('id, display_name').in('id', profileIds)
+      : Promise.resolve({ data: [], error: null }),
+    chatterIds.length
+      ? admin.from('chatters').select('id, display_name').in('id', chatterIds)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+  if (profiles.error) throw new Error(profiles.error.message)
+  if (chatters.error) throw new Error(chatters.error.message)
+
+  const byProfile = new Map((profiles.data ?? []).map((p) => [p.id, p.display_name ?? 'Sans nom']))
+  const byChatter = new Map((chatters.data ?? []).map((c) => [c.id, c.display_name]))
+
+  const out = new Map<string, string>()
+  for (const s of segments) {
+    if (out.has(s.mypulsUserId)) continue
+    const name =
+      (s.profileId ? byProfile.get(s.profileId) : null) ??
+      (s.chatterId ? byChatter.get(s.chatterId) : null)
+    if (name) out.set(s.mypulsUserId, name)
+  }
+  return out
 }
 
 /**
- * Les chatteurs proposés au filtre — le périmètre de l'appelant, pas seulement les présents de
- * la plage lue. Sans ça, choisir quelqu'un pour ÉLARGIR la période serait impossible : il
- * faudrait déjà l'avoir vu dans la journée affichée.
+ * Les chatteurs proposés au filtre — tout le périmètre de l'appelant, pas seulement les
+ * présents de la plage lue. Sans ça, choisir quelqu'un pour ÉLARGIR la période serait
+ * impossible : il faudrait déjà l'avoir vu dans la journée affichée.
+ *
+ * Pris sur `chatters` et non sur `profiles` : c'est la clé du relevé, et la liste des comptes
+ * membres en aurait écarté la moitié des gens que l'écran affiche.
  */
-async function chatterOptions(allowed: Set<string> | null): Promise<{ id: string; name: string }[]> {
+async function chatterOptions(
+  allowedChatters: Set<string> | null,
+): Promise<{ id: string; name: string }[]> {
   const admin = createAdminClient()
-  let q = admin
-    .from('profiles')
-    .select('id, display_name')
-    .eq('role', 'chatteur')
-    .is('left_at', null)
-  if (allowed) {
-    if (allowed.size === 0) return []
-    q = q.in('id', [...allowed])
+  let q = admin.from('chatters').select('id, display_name').eq('active', true)
+  if (allowedChatters) {
+    if (allowedChatters.size === 0) return []
+    q = q.in('id', [...allowedChatters])
   }
   const { data, error } = await q
   if (error) throw new Error(error.message)
   return (data ?? [])
-    .map((p) => ({ id: p.id, name: p.display_name ?? 'Sans nom' }))
+    .map((c) => ({ id: c.id, name: c.display_name }))
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
 }

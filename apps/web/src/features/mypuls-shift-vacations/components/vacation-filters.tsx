@@ -82,7 +82,7 @@ export function VacationFilters({ data }: { data: VacationsPage }) {
             { value: ANY, label: 'Tous les chatters' },
             ...data.chatterOptions.map((c) => ({ value: c.id, label: c.name })),
           ]}
-          value={data.profileId ?? ANY}
+          value={data.chatterId ?? ANY}
           disabled={pending}
           placeholder="Tous les chatters"
           onChange={(v) => go({ chatteur: v === ANY ? '' : v })}
