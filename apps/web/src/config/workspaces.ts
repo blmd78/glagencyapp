@@ -47,6 +47,7 @@ import {
   Settings2,
   SlidersHorizontal,
   Sparkles,
+  Gauge,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -129,11 +130,15 @@ export const WORKSPACES: Workspace[] = [
       // Tracker de présence — les écrans partagent le slug `presence` : un seul droit à cocher dans
       // Membres, comme `police` couvre déjà Tracker + Rapport.
       //
-      // TROIS ÉCRANS SEULEMENT, et c'est délibéré. Le Board, la vue Managers et la fiche de présence
-      // d'un chatteur dépendent toutes de l'INGESTION (`tracker_events`, `tracker_devices`), qui
-      // n'existe pas encore : leurs tables sont vides en prod et aucun écrivain n'est écrit dans le
-      // dépôt. Les afficher, c'est promettre trois pages blanches. Les ROUTES restent servies —
-      // il n'y a qu'à remettre les items le jour où l'ingestion arrive.
+      // Le RELEVÉ est alimenté depuis le 2026-09-02 : il ne lit plus l'agent Electron (jamais
+      // repointé, `tracker_events` toujours vide) mais le scrape MyPuls « Contrôle des shifts »
+      // (`mypuls_shift_*`, migrations 0138/0140, cron nocturne dans apps/ingestion). C'est la
+      // seule mesure de présence dont l'app dispose réellement.
+      //
+      // La vue Managers reste HORS sidebar, et c'est définitif tant que l'agent ne revient pas :
+      // les encadrants n'envoient pas de messages, donc MyPuls ne sait rien d'eux. La fiche d'un
+      // chatteur reste hors sidebar aussi — on y arrive depuis le relevé.
+      { href: '/chatter/presence', label: 'Relevé d’équipe', icon: Gauge, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
       // Le Récap : COMPTEURS pour tout l'encadrement, VERBATIM des débriefs pour les seuls admins

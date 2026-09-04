@@ -1,10 +1,13 @@
 import { RouteLoading } from '@/components/skeletons/route-loading'
-import { RowsSkeleton } from '@/components/skeletons/rows-skeleton'
+import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
+import { TableSkeleton } from '@/components/skeletons/table-skeleton'
 
+/** Silhouette du relevé d’équipe : filtres, quatre tuiles, cartes par modèle. */
 export default function Loading() {
   return (
-    <RouteLoading title="h-6 w-32" subtitle="h-4 w-56">
-      <RowsSkeleton />
+    <RouteLoading title="h-8 w-56" subtitle="h-9 w-[29rem]">
+      <KpiSkeleton />
+      <TableSkeleton />
     </RouteLoading>
   )
 }
