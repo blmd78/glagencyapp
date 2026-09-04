@@ -10,6 +10,7 @@
     "check-session": "tsx src/check-session.ts",
     "backfill-scripts": "tsx src/backfill-scripts.ts",
     "spenders": "tsx src/spenders.ts",
+    "shifts": "tsx src/shifts.ts",
     "cf:dev": "wrangler dev --test-scheduled --port 8799",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",

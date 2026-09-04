@@ -5254,6 +5254,10 @@ export type Database = {
         Args: { p_from: string; p_profile?: string; p_to: string }
         Returns: Json
       }
+      mypuls_shift_settings_page: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       norm_shifts: { Args: { p: string[] }; Returns: string[] }
       overview_ca_global: {
         Args: {
