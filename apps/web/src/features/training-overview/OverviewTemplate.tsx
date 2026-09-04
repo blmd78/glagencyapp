@@ -23,15 +23,13 @@ export type RosterTab = (typeof ROSTER_TABS)[number]
  * Server Component, aucun fetch (guidelines-data-loading §3) ; le nom de la fiche est repris du
  * roster — le service `getChatter` n'a pas à le re-requêter.
  *
- * ORDRE DE LECTURE, revu le 2026-09-04 (« les managers sont perdus, c'est illisible ») : le
- * décompte de la promo, puis LES ONGLETS tout de suite — c'est ce qu'on vient lire. Les
- * signalements, qui sont une file d'exceptions, et le coût IA, qui est une facture, descendent
- * dessous. Avant, les deux tableaux du roster (245 lignes en production) séparaient le haut de
- * page de ce qu'on cherchait.
+ * ORDRE DE LECTURE INCHANGÉ (2026-09-04) : le coût IA en cartes KPI (admin), le décompte de la
+ * promo, la file de travail qu'est la liste des signalements, puis les TABLEAUX. Les onglets ne
+ * remplacent que les deux sections empilées du roster — ils ne déplacent rien d'autre.
  *
- * Le sélecteur de chatter reste au-dessus des onglets : c'est un raccourci vers une fiche, il ne
- * dépend d'aucun onglet. Sur la FICHE d'un chatter il est en tête — c'est le seul moyen d'en
- * changer.
+ * Le sélecteur de chatter descend juste au-dessus des tableaux : c'est là qu'il sert. Sur la FICHE
+ * d'un chatter il reste en tête — c'est le seul moyen d'en changer, et il n'y a pas de tableau
+ * au-dessus duquel le poser.
  */
 export function OverviewTemplate({
   overview,
@@ -68,7 +66,9 @@ export function OverviewTemplate({
         </>
       ) : (
         <>
+          {overview.cost && <OverviewKpis rows={overview.cost.rows} estimatedUsd={overview.cost.estimatedUsd} />}
           <OverviewRosterCount roster={overview.roster} />
+          <OverviewReports reports={overview.reports} isAdmin={isAdmin} />
           {picker}
           {overview.roster.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -105,8 +105,6 @@ export function OverviewTemplate({
               ]}
             />
           )}
-          <OverviewReports reports={overview.reports} isAdmin={isAdmin} />
-          {overview.cost && <OverviewKpis rows={overview.cost.rows} estimatedUsd={overview.cost.estimatedUsd} />}
           {overview.cost && <OverviewCost rows={overview.cost.rows} />}
         </>
       )}
