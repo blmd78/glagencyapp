@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { requireAccess } from '@/lib/auth'
+import { resolvePeriod } from '@/lib/period'
 import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
@@ -25,11 +26,14 @@ export default async function PresenceChatterPage({
   searchParams,
 }: {
   params: Promise<{ profileId: string }>
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ date?: string; from?: string; to?: string }>
 }) {
   const profile = await requireAccess('presence')
   const { profileId } = await params
-  const { date } = await searchParams
+  const sp = await searchParams
+  // MÊME période que le Relevé d'équipe : le sélecteur du header. Ouvrir une fiche depuis le
+  // relevé et y lire d'autres bornes se serait lu comme une incohérence de la donnée.
+  const period = resolvePeriod(sp)
 
   // PÉRIMÈTRE MODÈLES en lecture. `notFound()` plutôt qu'un 403 : ne pas révéler qu'un profil
   // existe à qui n'a pas à le voir. `baseRole` et non `role`, sinon le périmètre est inerte.
@@ -37,7 +41,15 @@ export default async function PresenceChatterPage({
     notFound()
   }
 
-  const data = getChatterActivity({ profileId, day: date })
+  const data = getChatterActivity({
+    profileId,
+    from: period.from,
+    to: period.to,
+    periodLabel: period.label,
+    // `?date=` reste un paramètre PROPRE à la fiche : il choisit le jour du graphe minute par
+    // minute, à l'intérieur de la période. Le graphe est par nature d'un seul jour.
+    day: sp.date,
+  })
 
   return (
     <div className="flex flex-col gap-6">

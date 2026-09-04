@@ -45,6 +45,8 @@ export interface ChatterActivityData {
   /** Fenêtre des agrégats (le mois glissant). */
   from: string
   to: string
+  /** Libellé de la période du header, affiché tel quel (« Septembre 2026 », « 1 – 3 sept »). */
+  periodLabel: string
   dayOptions: { value: string; label: string }[]
   stored: ChatterStoredRpc
   live: LiveDetail

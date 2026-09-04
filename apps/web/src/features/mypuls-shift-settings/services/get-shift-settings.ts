@@ -3,27 +3,25 @@ import { addDays, todayParis } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { MemberWithoutShift, SettingsPageRpc, ShiftSettingsPage } from '../types'
 
-/**
- * Période observée par les fenêtres de créneau et le bac d'orphelins.
- *
- * 30 jours et non les 60 que MyPuls conserve : la question posée par cet écran est « qui
- * travaille aujourd'hui sans être compté », pas « qui a travaillé cet été ». Sur 60 jours, le
- * bac se remplirait de gens partis depuis, et on cesserait de le lire.
- */
-const WINDOW_DAYS = 30
-
 /** Valeurs de repli si la ligne unique de réglages a disparu — jamais un écran vide. */
 const FALLBACK = { idleMinutes: 3, breakMinutes: 60, coverageThreshold: 80 }
 
 export async function getShiftSettings(params: {
   /** L'appelant peut-il écrire ? Miroir applicatif de `mypuls_shift_settings_admin_write` (0138). */
   isAdmin: boolean
+  /** Bornes du sélecteur de dates du HEADER — la même période que le Relevé d'équipe. */
+  from: string
+  to: string
 }): Promise<ShiftSettingsPage> {
+  // MÊME période que le Relevé, et bornée à hier comme lui : cet écran répond à « d'où sort ce
+  // chiffre ? », donc il doit regarder exactement les jours que le chiffre regardait. Une
+  // fenêtre fixe de 30 jours répondait à côté dès qu'on consultait un autre mois.
+  //
   // `todayParis()` et jamais `new Date()` : sur Vercel (UTC), entre 00 h et 02 h heure de Paris
   // le jour civil est encore la veille.
-  const today = todayParis()
-  const to = addDays(today, -1)
-  const from = addDays(to, -(WINDOW_DAYS - 1))
+  const yesterday = addDays(todayParis(), -1)
+  const to = params.to > yesterday ? yesterday : params.to
+  const from = params.from > to ? to : params.from
 
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('mypuls_shift_settings_page', {
