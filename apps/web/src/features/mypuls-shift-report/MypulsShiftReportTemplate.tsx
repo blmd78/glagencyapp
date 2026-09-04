@@ -65,6 +65,8 @@ function Groups({ data }: { data: ShiftReport }) {
           threshold={data.threshold}
           showSlot={data.slot === 'all'}
           open={openByDefault}
+          day={data.day}
+          canReport={data.canReport}
         />
       ))}
     </div>

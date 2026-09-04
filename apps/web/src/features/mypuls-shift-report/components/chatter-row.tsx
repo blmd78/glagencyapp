@@ -35,11 +35,17 @@ export function ChatterRow({
   row,
   threshold,
   showSlot,
+  day,
+  canReport,
 }: {
   row: ReportRow
   threshold: number
   /** Journée complète : le créneau n'est plus implicite, on le nomme sur la ligne. */
   showSlot: boolean
+  /** Jour du relevé — la date de la faute proposée au dialog Police. */
+  day: string
+  /** L'appelant peut-il signaler ? Droit d'écriture Police ET jour dans la fenêtre de 14 j. */
+  canReport: boolean
 }) {
   const name = row.memberName ?? row.chatterLabel
 
@@ -109,13 +115,23 @@ export function ChatterRow({
         <ChevronRight className="size-4 text-muted-foreground transition-transform group-open:rotate-90" />
       </summary>
 
-      <RowDetail row={row} name={name} />
+      <RowDetail row={row} name={name} day={day} canReport={canReport} />
     </details>
   )
 }
 
 /** Le dépliage : les chiffres du créneau, les modèles observés, et la timeline des vacations. */
-function RowDetail({ row, name }: { row: ReportRow; name: string }) {
+function RowDetail({
+  row,
+  name,
+  day,
+  canReport,
+}: {
+  row: ReportRow
+  name: string
+  day: string
+  canReport: boolean
+}) {
   return (
     <div className="flex flex-col gap-4 border-t bg-muted/20 px-4 py-4">
       <div className="flex flex-wrap gap-6">
@@ -170,14 +186,38 @@ function RowDetail({ row, name }: { row: ReportRow; name: string }) {
         )}
       </div>
 
-      {row.profileId && (
-        <Link
-          href={`/chatter/presence/${row.profileId}` as Route}
-          className="self-start text-sm underline-offset-4 hover:underline"
-        >
-          Fiche d’activité de {name} →
-        </Link>
-      )}
+      <div className="flex flex-wrap items-center gap-4">
+        {row.profileId && (
+          <Link
+            href={`/chatter/presence/${row.profileId}` as Route}
+            className="text-sm underline-offset-4 hover:underline"
+          >
+            Fiche d’activité de {name} →
+          </Link>
+        )}
+
+        {/* LE LIEN SANCTION. Il vit DANS le dépliage, pas sur la ligne : on ne propose une
+            retenue qu'à côté de ce qui la justifie — la couverture, la timeline, les heures.
+            Un bouton sur la ligne fermée ferait signaler sans avoir rien regardé.
+
+            Il n'écrit RIEN et ne chiffre rien : il ouvre le dialog Police existant sur des
+            valeurs proposées (chatteur, jour, créneau, motif « horaires »). Le montant, les
+            trois gardes, le Zod et la fenêtre de 14 jours restent le seul chemin d'écriture.
+
+            Masqué sans `profileId` (le serveur rejetterait un pseudo MyPuls), au-dessus du
+            seuil, hors fenêtre de saisie, ou sans droit d'écriture Police : proposer un geste
+            que le serveur refusera est pire que ne rien proposer. */}
+        {canReport && !row.held && row.profileId && (
+          <Link
+            href={
+              `/chatter/police?chatteur=${row.profileId}&jour=${day}&creneau=${row.slot}&motif=horaires` as Route
+            }
+            className="text-sm text-red-700 underline-offset-4 hover:underline dark:text-red-400"
+          >
+            Signaler un non-respect des horaires →
+          </Link>
+        )}
+      </div>
     </div>
   )
 }

@@ -110,6 +110,9 @@ export interface ShiftReport {
   totalRows: number
   /** Lignes au-dessus du seuil, avant filtres. Le numérateur de « Postes tenus ». */
   heldRows: number
+  /** Le lien « Signaler » est-il proposé ? Droit d'écriture Police ET jour dans la fenêtre
+   *  de saisie de 14 jours — proposer un geste que le serveur rejettera est pire que rien. */
+  canReport: boolean
 }
 
 export type { MypulsSegment, MypulsVacation }

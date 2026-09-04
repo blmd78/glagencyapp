@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { requireAccess } from '@/lib/auth'
+import { canWritePolice, requireAccess } from '@/lib/auth'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
@@ -35,6 +35,10 @@ export default async function PresenceReportPage({
     slot: shift,
     onlyExpected: attendu === '1',
     belowOnly: ecart === '1',
+    // Le lien « Signaler » n'apparaît que pour qui peut RÉELLEMENT écrire une sanction —
+    // `canWritePolice` est la source unique, miroir des gardes d'action et de la RLS. Un
+    // porteur de « presence » sans le droit Police lit le relevé sans jamais voir le lien.
+    canWritePolice: canWritePolice(profile),
   })
 
   return (

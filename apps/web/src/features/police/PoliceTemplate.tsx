@@ -1,4 +1,5 @@
 import { PoliceView } from './components/police-view'
+import type { SanctionPrefill } from './components/sanction-dialog'
 import type { PoliceData } from './types'
 
 /** Template Police : KPIs + saisie + journal — période pilotée par le datepicker global du header.
@@ -6,9 +7,12 @@ import type { PoliceData } from './types'
 export function PoliceTemplate({
   data,
   canWrite,
+  prefill,
 }: {
   data: PoliceData
   canWrite: boolean
+  /** Sanction amorcée depuis le Relevé d'équipe — valeurs proposées, rien d'enregistré. */
+  prefill?: SanctionPrefill
 }) {
-  return <PoliceView data={data} canWrite={canWrite} />
+  return <PoliceView data={data} canWrite={canWrite} prefill={prefill} />
 }

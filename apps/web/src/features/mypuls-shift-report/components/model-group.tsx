@@ -15,6 +15,8 @@ export function ModelGroup({
   threshold,
   showSlot,
   open,
+  day,
+  canReport,
 }: {
   group: ModelGroupData
   threshold: number
@@ -22,6 +24,10 @@ export function ModelGroup({
   showSlot: boolean
   /** Carte dépliée d'emblée. Faux en journée complète, où le DOM atteignait 12 687 éléments. */
   open: boolean
+  /** Jour du relevé — la date de la faute proposée au dialog Police. */
+  day: string
+  /** Le lien « Signaler » est-il proposé sur les lignes sous le seuil ? */
+  canReport: boolean
 }) {
   return (
     <details open={open} className="group overflow-hidden rounded-xl border bg-card">
@@ -58,6 +64,8 @@ export function ModelGroup({
             row={row}
             threshold={threshold}
             showSlot={showSlot}
+            day={day}
+            canReport={canReport}
           />
         ))}
       </div>
