@@ -8,9 +8,9 @@ import type { ShiftSettingsPage } from './types'
 /**
  * Créneaux & réglages — Server Component qui ne fetch RIEN : `page.tsx` lui passe la donnée.
  *
- * Écran de MAINTENANCE, volontairement hors sidebar : on y arrive en cliquant la ligne
- * « Relevé MyPuls du … » qui coiffe le relevé, c'est-à-dire au moment où l'on se demande d'où
- * sort un chiffre. L'ordre des blocs suit cette question.
+ * Écran de MAINTENANCE, volontairement hors sidebar : on y arrive par le lien « Réglages » en
+ * haut à droite du relevé. On l'ouvre quand on se demande d'où sort un chiffre, et l'ordre des
+ * blocs suit cette question.
  *
  * D'ABORD le journal, parce que c'est la réponse dans la grande majorité des cas : la nuit
  * manque, ou le réglage a bougé. Ensuite les réglages eux-mêmes. Enfin les gens que le relevé

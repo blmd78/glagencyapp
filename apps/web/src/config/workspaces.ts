@@ -138,11 +138,10 @@ export const WORKSPACES: Workspace[] = [
       // TROIS écrans HORS sidebar, chacun pour sa raison. La vue Managers : les encadrants
       // n'envoient pas de messages, MyPuls ne sait rien d'eux — définitif tant que l'agent ne
       // revient pas. La fiche d'un chatteur : on y arrive depuis le relevé, nominativement.
-      // « Créneaux & réglages » : c'est un écran de MAINTENANCE (journal des runs, seuils, gens
-      // à rattacher), pas un écran quotidien — le mettre au même niveau que le relevé lui
-      // donnait un poids qu'il n'a pas. On y arrive en cliquant la ligne « Relevé MyPuls
-      // du … » qui coiffe le relevé, c'est-à-dire au moment précis où l'on se demande d'où
-      // sort un chiffre.
+      // « Réglages du relevé » : écran de MAINTENANCE (journal des runs, seuils, gens à
+      // rattacher), pas un écran quotidien — le mettre au même niveau que le relevé lui donnait
+      // un poids qu'il n'a pas. On y arrive par le lien « Réglages » en haut à droite du
+      // relevé.
       { href: '/chatter/presence', label: 'Relevé d’équipe', icon: Gauge, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },

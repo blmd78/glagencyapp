@@ -1,4 +1,6 @@
 import { Suspense } from 'react'
+import Link from 'next/link'
+import { SlidersHorizontal } from 'lucide-react'
 import { canWritePolice, requireAccess } from '@/lib/auth'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
@@ -43,7 +45,21 @@ export default async function PresenceReportPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Relevé d’équipe</h1>
+      {/* Les réglages en HAUT À DROITE, et nulle part ailleurs. Ils étaient atteints en
+          cliquant la ligne « Relevé MyPuls du … » et le compteur de libellés non rattachés :
+          on tombait donc sur un écran de maintenance en cliquant ce qu'on lisait comme un
+          NOM. Un lien doit mener là où son texte le dit. */}
+      <div className="flex items-baseline justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Relevé d’équipe</h1>
+        <Link
+          href="/chatter/presence/reglages"
+          className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          title="Journal des relevés, seuils de mesure et gens à rattacher"
+        >
+          <SlidersHorizontal className="size-4" />
+          Réglages
+        </Link>
+      </div>
       <Suspense
         fallback={
           <SectionFallback>
