@@ -1,4 +1,4 @@
-import type { MypulsSegment, MypulsVacation, SlotKey } from '@glagency/core'
+import type { SlotKey } from '@glagency/core'
 
 export interface ShiftRun {
   ranAt: string
@@ -9,144 +9,130 @@ export interface ShiftRun {
 }
 
 /**
- * Les tuiles du haut de `mypuls_day_kpi`, au grain JOUR et pour toute l'agence.
+ * Un agrégat (personne × créneau) sur la période, tel que le rend la RPC.
  *
- * Plus affichées telles quelles : elles ignoraient le filtre de créneau ET le périmètre
- * modèles, si bien que l'écran donnait « 250 chatteurs actifs » (agence, journée) au-dessus
- * d'un tableau montrant 14 lignes (un créneau, mes modèles). Deux chiffres pour la même chose
- * au même écran, c'est un chiffre faux. Conservé pour une courbe d'agence plus tard.
+ * `held` est un COMPTE de jours au-dessus du seuil, jamais une moyenne de pourcentages :
+ * moyenner des verdicts MyPuls fabriquerait un chiffre invérifiable, à côté d'un seuil qui
+ * coûte de l'argent.
  */
-export interface ShiftDayKpi {
-  day: string
-  chatters_actifs: number
-  vacations: number
-  active_minutes: number
-  messages: number
-  models_worked: number
-  models_total: number
-  slots_held: number
-  slots_total: number
-}
-
-/**
- * Les tuiles RÉELLEMENT affichées : dérivées des lignes que le tableau montre.
- *
- * Elles suivent donc le créneau choisi et le périmètre modèles de l'appelant — comme les
- * tuiles de la page Police, calculées sur les entrées affichées pour que « les cartes et la
- * table racontent la même chose ».
- *
- * En revanche elles ne suivent PAS les deux bascules d'affichage (« seulement leur créneau »,
- * « sous le seuil seulement ») : « Postes tenus » afficherait sinon 0/N dès qu'on filtre sur
- * les écarts, ce qui ne veut plus rien dire.
- */
-export interface ReportKpi {
-  chatters: number
-  activeMinutes: number
-  messages: number
-  vacations: number
-  models: number
-  held: number
-  total: number
-}
-
-export interface CoverageRow {
-  slot: SlotKey
+export interface RangeRow {
   mypulsUserId: string
-  chatterLabel: string
-  /** `chatters.id` — LA clé d'identité, qui existe sans compte membre (0144). */
   chatterId: string | null
-  /** `profiles.id` — seulement pour qui a un compte. Porte le créneau attendu, la fiche
-   *  d'activité et la possibilité d'un signalement. */
   profileId: string | null
-  memberName: string | null
-  memberShift: SlotKey | null
-  /** Le créneau consulté est-il CELUI de la personne (`profiles.shift`) ? */
-  isExpected: boolean
-  coveragePct: number
+  chatterLabel: string
+  slot: SlotKey
+  days: number
+  held: number
   activeMinutes: number
   messages: number
-  firstAt: string | null
-  lastAt: string | null
-  slotStartAt: string
-  slotEndAt: string
-  /** Modèles OBSERVÉS, du plus bavard au moins bavard. */
-  models: string[]
+  firstDay: string
+  lastDay: string
+  /** Retard moyen à la prise de poste, en minutes. Null si aucune première activité connue. */
+  latenessAvg: number | null
 }
 
-export interface SilentChatter {
-  profileId: string
-  memberName: string
-}
-
-/** Segment renvoyé par la RPC — instants ISO, avant conversion en `MypulsSegment`. */
-export interface RawSegment {
-  mypulsUserId: string
-  chatterId?: string | null
-  day: string
-  startedAt: string
-  endedAt: string
-  activeMinutes: number
-  messages: number
-  models: { label: string; messages: number }[]
-}
-
-/** Réponse brute de la RPC — castée explicitement depuis `Json`. */
-export interface ShiftBoardRpc {
+/** Réponse brute de `mypuls_shift_board_range` — castée explicitement depuis `Json`. */
+export interface BoardRangeRpc {
+  missingDays: string[]
   run: ShiftRun | null
-  kpi: ShiftDayKpi | null
-  rows: CoverageRow[]
-  segments: RawSegment[]
-  silent: SilentChatter[]
+  rows: RangeRow[]
+  /** `mypuls_user_id` → modèles observés, du plus bavard au moins bavard. */
+  models: Record<string, string[]>
+  totals: { days: number; activeMinutes: number; messages: number }
+}
+
+/** L'activité d'une personne sur UN créneau. */
+export interface SlotActivity {
+  slot: SlotKey
+  /** Jours où la personne a une ligne de couverture sur ce créneau. */
+  days: number
+  /** Jours au-dessus du seuil. */
+  held: number
+  activeMinutes: number
+  messages: number
+  latenessAvg: number | null
 }
 
 /**
- * Une ligne prête à afficher, avec ce que l'ancien board montrait : la barre de couverture, le
- * retard, et la timeline dépliable.
+ * Une personne sur la période.
+ *
+ * La distinction `expected` / `other` est le cœur de l'écran, et c'est la décision D7 de la
+ * spec : **seul le créneau de `profiles.shift` peut valoir un écart**. Le reste est du renfort
+ * — quelqu'un qui dépanne un autre créneau y a par construction une couverture minuscule
+ * (16 % de moyenne, mesuré en production le 2026-09-04), et le compter comme une faute
+ * reviendrait à sanctionner le zèle.
  */
-export interface ReportRow extends CoverageRow {
-  /** Durée du créneau, en minutes — dénominateur de la barre. */
-  slotMinutes: number
-  /** Minutes manquantes pour atteindre le seuil. 0 si le poste est tenu. */
-  missingMinutes: number
-  /** Retard sur la prise de poste, en minutes. Null si pas de première activité. */
-  latenessMinutes: number | null
-  held: boolean
-  /** Sessions de travail du créneau — la timeline de l'ancien écran. */
-  vacations: MypulsVacation[]
+export interface ReportRow {
+  key: string
+  mypulsUserId: string
+  chatterId: string | null
+  profileId: string | null
+  /** Nom du compte membre, sinon du chatteur, sinon le libellé MyPuls. */
+  name: string
+  /** Créneau attendu (`profiles.shift`). Null = rien à comparer, la personne n'est pas jugée. */
+  memberShift: SlotKey | null
+  /** Le créneau attendu — LE seul qui vaut verdict. Null si aucune activité dessus. */
+  expected: SlotActivity | null
+  /** Les autres créneaux : affichés, jamais un écart. */
+  other: SlotActivity[]
+  /** Jours distincts travaillés, tous créneaux confondus. */
+  daysWorked: number
+  activeMinutes: number
+  messages: number
+  models: string[]
 }
 
 /** Une carte de l'ancien board : un modèle, ses chatteurs. */
 export interface ModelGroup {
   model: string
   rows: ReportRow[]
-  /** Nombre de chatteurs sous le seuil — le « N à sanctionner » rouge de l'en-tête. */
+  /** Personnes ayant manqué au moins un jour sur LEUR créneau. */
   belowCount: number
 }
 
-/** Filtre de créneau. `all` = journée complète, l'option par défaut (comme l'ancien board). */
+/** Filtre de créneau. `all` = tous, l'option par défaut. */
 export type SlotFilter = SlotKey | 'all'
+
+/**
+ * Les tuiles, calculées sur les lignes affichées.
+ *
+ * `heldDays`/`expectedDays` ne comptent QUE le créneau attendu : c'est le seul dénominateur
+ * honnête. Avant cette correction, « Postes tenus » rapportait 52 tenues sur 823 lignes en
+ * production — alors que 640 de ces lignes n'étaient pas jugeables (renfort, ou personne sans
+ * créneau attendu). L'écran annonçait un désastre qui n'existait pas.
+ */
+export interface ReportKpi {
+  chatters: number
+  activeMinutes: number
+  messages: number
+  models: number
+  heldDays: number
+  expectedDays: number
+  /** Personnes sans créneau attendu — hors de tout verdict, et signalées comme telles. */
+  unjudgeable: number
+}
 
 export interface ShiftReport {
   run: ShiftRun | null
-  kpi: ReportKpi | null
+  kpi: ReportKpi
   groups: ModelGroup[]
-  silent: SilentChatter[]
-  day: string
+  /** Période affichée, venue du sélecteur du header et bornée à J-1. */
+  from: string
+  to: string
+  periodLabel: string
+  /** La période demandée dépassait-elle hier ? (aujourd'hui n'est jamais relevé) */
+  clampedToYesterday: boolean
   slot: SlotFilter
-  /** Filtres actifs, reflétés dans l'URL. Tous deux ÉTEINTS par défaut : l'écran montre
-   *  d'abord tout ce que MyPuls a mesuré, et on restreint ensuite si on veut. */
+  /** Filtres actifs, reflétés dans l'URL. */
   onlyExpected: boolean
   belowOnly: boolean
-  dayOptions: { value: string; label: string }[]
+  /** Jours de la période qu'aucun relevé n'a couverts. */
+  missingDays: string[]
+  /** Aucun relevé du tout sur la période → on ne montre pas des zéros. */
   available: boolean
   threshold: number
-  /** Nombre total de lignes du créneau, avant filtres — pour dire ce qui est masqué. */
+  /** Nombre total de personnes de la période, avant filtres d'affichage. */
   totalRows: number
-  /** Lignes au-dessus du seuil, avant filtres. Le numérateur de « Postes tenus ». */
-  heldRows: number
-  /** Le lien « Signaler » est-il proposé ? Droit d'écriture Police ET jour dans la fenêtre
-   *  de saisie de 14 jours — proposer un geste que le serveur rejettera est pire que rien. */
+  /** Le lien « Signaler » est-il proposé ? */
   canReport: boolean
 }
-
-export type { MypulsSegment, MypulsVacation }

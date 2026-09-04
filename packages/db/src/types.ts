@@ -5266,6 +5266,10 @@ export type Database = {
         Args: { p_day: string; p_slot?: string }
         Returns: Json
       }
+      mypuls_shift_board_range: {
+        Args: { p_from: string; p_slot?: string; p_threshold?: number; p_to: string }
+        Returns: Json
+      }
       mypuls_shift_chatter: {
         Args: { p_chatter?: string; p_from: string; p_profile: string; p_to: string }
         Returns: Json

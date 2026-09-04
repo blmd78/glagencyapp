@@ -5,7 +5,12 @@ import { createClient } from '@/lib/supabase/server'
 import { loadMypulsCookie } from '@/lib/mypuls/session'
 import type { ChatterActivityData, ChatterStoredRpc, LiveDetail } from '../types'
 
-const DAYS = 14
+/**
+ * Nombre de jours proposés au sélecteur du graphe minute par minute, quand la période du header
+ * est plus longue. Le graphe est par nature d'UN jour (1 440 points) : au-delà d'une poignée de
+ * jours, le menu devient une liste illisible et l'appel MyPuls reste de toute façon quotidien.
+ */
+const MAX_DAY_OPTIONS = 31
 
 const isSlot = (v: unknown): v is SlotKey =>
   typeof v === 'string' && (SLOT_KEYS as readonly string[]).includes(v)
@@ -26,6 +31,10 @@ const isSlot = (v: unknown): v is SlotKey =>
  */
 export async function getChatterActivity(params: {
   profileId: string
+  /** Bornes du sélecteur de dates du HEADER — la même période que le Relevé d'équipe. */
+  from: string
+  to: string
+  periodLabel: string
   day?: string
 }): Promise<ChatterActivityData> {
   const supabase = await createClient()
@@ -47,18 +56,27 @@ export async function getChatterActivity(params: {
   if (profileError) throw new Error(profileError.message)
   if (!profile) throw new Error('Profil introuvable')
 
-  // `todayParis()` : sur Vercel (UTC) le jour civil bascule deux heures trop tôt, et la fiche
-  // s'ouvrirait sur une journée vide entre minuit et 2 h.
-  const today = todayParis()
-  const dayOptions = Array.from({ length: DAYS }, (_, i) => {
-    const value = addDays(today, -1 - i)
-    return { value, label: frWeekdayDate(value) }
-  })
+  // LA PÉRIODE VIENT DU HEADER, comme le Relevé d'équipe : ouvrir une fiche depuis le relevé
+  // et y lire d'autres bornes que celles qu'on venait de régler était le meilleur moyen de
+  // croire à une incohérence de la donnée.
+  //
+  // Bornée à hier : aujourd'hui n'est jamais relevé (le créneau du soir court jusqu'à 05 h
+  // demain). `todayParis()` et non `new Date()` — sur Vercel (UTC) le jour civil bascule deux
+  // heures trop tôt.
+  const yesterday = addDays(todayParis(), -1)
+  const to = params.to > yesterday ? yesterday : params.to
+  const from = params.from > to ? to : params.from
+
+  // Le sélecteur du graphe ne propose que des jours DE la période, du plus récent au plus
+  // ancien, plafonné pour rester lisible.
+  const dayOptions: { value: string; label: string }[] = []
+  for (let d = to; d >= from && dayOptions.length < MAX_DAY_OPTIONS; d = addDays(d, -1)) {
+    dayOptions.push({ value: d, label: frWeekdayDate(d) })
+  }
   const day =
-    params.day && dayOptions.some((o) => o.value === params.day) ? params.day : addDays(today, -1)
-  // Agrégats sur le mois glissant — la fenêtre que la fiche du tracker d'origine montrait.
-  const from = addDays(today, -30)
-  const to = today
+    params.day && dayOptions.some((o) => o.value === params.day)
+      ? params.day
+      : (dayOptions[0]?.value ?? to)
 
   const { data, error } = await supabase.rpc('mypuls_shift_chatter', {
     p_profile: params.profileId,
@@ -92,6 +110,7 @@ export async function getChatterActivity(params: {
   const threshold = Number(settings?.coverage_threshold ?? 80)
 
   return {
+    periodLabel: params.periodLabel,
     threshold,
     profileId: profile.id,
     memberName: profile.display_name ?? 'Sans nom',

@@ -15,22 +15,22 @@ import {
 import { Switch } from '@/components/ui/switch'
 
 /**
- * Jour et créneau vivent dans l'URL, pas dans un état client : un relevé se partage par lien,
- * et le Server Component se recharge sur la nouvelle valeur.
+ * Les filtres PROPRES à l'écran. Les dates n'en font plus partie : elles viennent du sélecteur
+ * de période du header, comme partout ailleurs dans le CRM. Un écran qui a son propre sélecteur
+ * de jour à côté du sélecteur global oblige à se demander lequel des deux commande.
  *
- * `router.replace` et non `push` : parcourir les jours ne doit pas remplir l'historique du
+ * Le reste vit dans l'URL, pas dans un état client : un relevé se partage par lien, et le Server
+ * Component se recharge sur la nouvelle valeur.
+ *
+ * `router.replace` et non `push` : basculer un filtre ne doit pas remplir l'historique du
  * navigateur au point qu'un retour arrière devienne inutilisable.
  */
 export function ReportFilters({
-  day,
   slot,
-  dayOptions,
   onlyExpected,
   belowOnly,
 }: {
-  day: string
   slot: SlotFilter
-  dayOptions: { value: string; label: string }[]
   onlyExpected: boolean
   belowOnly: boolean
 }) {
@@ -38,7 +38,7 @@ export function ReportFilters({
   const params = useSearchParams()
   const [pending, startTransition] = useTransition()
 
-  const go = (key: 'date' | 'shift' | 'attendu' | 'ecart', value: string) => {
+  const go = (key: 'shift' | 'attendu' | 'ecart', value: string) => {
     const next = new URLSearchParams(params.toString())
     // Une bascule éteinte sort de l'URL au lieu d'y écrire « 0 » : un lien partagé reste lisible.
     if (value === '') next.delete(key)
@@ -50,25 +50,12 @@ export function ReportFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Select value={day} onValueChange={(v) => go('date', v)} disabled={pending}>
-        <SelectTrigger className="w-[15rem]">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {dayOptions.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select value={slot} onValueChange={(v) => go('shift', v)} disabled={pending}>
+      <Select value={slot} onValueChange={(v) => go('shift', v === 'all' ? '' : v)} disabled={pending}>
         <SelectTrigger className="w-[13rem]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Journée complète</SelectItem>
+          <SelectItem value="all">Tous les créneaux</SelectItem>
           {SLOT_KEYS.map((k) => (
             <SelectItem key={k} value={k}>
               {SLOT_LABEL[k]} · {String(SLOT_START_HOUR[k]).padStart(2, '0')}h →{' '}
@@ -77,13 +64,14 @@ export function ReportFilters({
           ))}
         </SelectContent>
       </Select>
+
       <label className="flex items-center gap-2 text-sm">
         <Switch
           checked={onlyExpected}
           disabled={pending}
           onCheckedChange={(v) => go('attendu', v ? '1' : '')}
         />
-        Seulement leur créneau
+        Seulement ceux qui ont un créneau
       </label>
 
       <label className="flex items-center gap-2 text-sm">
@@ -92,7 +80,7 @@ export function ReportFilters({
           disabled={pending}
           onCheckedChange={(v) => go('ecart', v ? '1' : '')}
         />
-        Sous le seuil seulement
+        Seulement ceux qui ont manqué des jours
       </label>
     </div>
   )

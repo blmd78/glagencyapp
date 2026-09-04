@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { SlidersHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { canWritePolice, requireAccess } from '@/lib/auth'
+import { resolvePeriod } from '@/lib/period'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
 import { TableSkeleton } from '@/components/skeletons/table-skeleton'
@@ -11,7 +12,7 @@ import { getShiftReport } from '@/features/mypuls-shift-report/services/get-shif
 import type { ShiftReport } from '@/features/mypuls-shift-report/types'
 
 /**
- * Relevé d'équipe — qui a tenu son poste, sur un jour et un créneau.
+ * Relevé d'équipe — qui a tenu son poste, sur la PÉRIODE du header.
  *
  * La source est MyPuls (`mypuls_shift_*`, migrations 0138/0140) : c'est la seule mesure de
  * présence dont l'app dispose réellement. L'agent Electron du tracker porté n'a jamais été
@@ -23,10 +24,21 @@ import type { ShiftReport } from '@/features/mypuls-shift-report/types'
 export default async function PresenceReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; shift?: string; attendu?: string; ecart?: string }>
+  searchParams: Promise<{
+    from?: string
+    to?: string
+    shift?: string
+    attendu?: string
+    ecart?: string
+  }>
 }) {
   const profile = await requireAccess('presence')
-  const { date, shift, attendu, ecart } = await searchParams
+  const params = await searchParams
+  // PÉRIODE = le datepicker GLOBAL du header (`?from&to`), comme les autres pages du CRM.
+  // `resolvePeriod` est la source unique (défaut : mois en cours). Le service la borne ensuite
+  // à hier — aujourd'hui n'est jamais relevé.
+  const period = resolvePeriod(params)
+  const { shift, attendu, ecart } = params
 
   const data = getShiftReport({
     callerId: profile.id,
@@ -34,7 +46,9 @@ export default async function PresenceReportPage({
     // 'admin'|'chatteur' (lib/auth/index.ts:31), or `getCreatorScope` teste justement ces
     // trois rôles-là — le périmètre serait INERTE. C'est le bug qu'avait le Board porté.
     callerRole: profile.baseRole,
-    day: date,
+    from: period.from,
+    to: period.to,
+    periodLabel: period.label,
     slot: shift,
     onlyExpected: attendu === '1',
     belowOnly: ecart === '1',
