@@ -23,3 +23,10 @@ export interface SnapCodeRow {
 export interface SnapCodesData {
   rows: SnapCodeRow[]
 }
+
+/**
+ * Ce que l'appelant peut écrire, pour le sous-titre : `all` (admin), `scoped` (encadrant sur ses
+ * modèles assignés), `unassigned` (encadrant porteur de la page mais sans modèle : rien à
+ * modifier, et il faut le lui dire), `none` (lecture seule : chatteur, police).
+ */
+export type SnapEditMode = 'all' | 'scoped' | 'unassigned' | 'none'
