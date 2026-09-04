@@ -11,7 +11,8 @@ import {
   type SlotKey,
 } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
-import { getCreatorScope } from '@/lib/services/creator-scope'
+import { isDayInWindow } from '@/lib/periods'
+import { allowedProfileIds, getCreatorScope } from '@/lib/services/creator-scope'
 import type {
   SlotFilter,
   CoverageRow,
@@ -38,6 +39,8 @@ export async function getShiftReport(params: {
   slot?: string
   onlyExpected?: boolean
   belowOnly?: boolean
+  /** L'appelant a-t-il le droit d'ÉCRIRE une sanction ? (`canWritePolice`, calculé par la page) */
+  canWritePolice?: boolean
 }): Promise<ShiftReport> {
   // `todayParis()` et jamais `new Date()` : sur Vercel (UTC), entre 00 h et 02 h heure de Paris
   // le jour civil est encore la veille — le relevé serait vide sans qu'on comprenne pourquoi.
@@ -81,7 +84,7 @@ export async function getShiftReport(params: {
     .maybeSingle()
   const breakMinutes = settings?.break_minutes ?? 60
   const scope = await getCreatorScope(params.callerId, params.callerRole)
-  const allowed = await allowedProfiles(scope)
+  const allowed = await allowedProfileIds(scope)
 
   // PÉRIMÈTRE. `allowed` null = aucune borne (admin, ou encadrant sans modèle assigné) : on
   // montre tout ce que MyPuls a mesuré, y compris les libellés non rattachés au CRM.
@@ -136,6 +139,11 @@ export async function getShiftReport(params: {
     threshold,
     totalRows: enriched.length,
     heldRows: enriched.filter((r) => r.held).length,
+    // `isDayInWindow` est la MÊME borne que le schéma serveur (`features/police/schema.ts`) :
+    // au-delà de 14 jours la Server Action refuse, et un lien qui mène à un refus est pire
+    // qu'une absence de lien. Le périmètre modèles, lui, est déjà appliqué — une ligne visible
+    // ici est dans le périmètre de l'appelant.
+    canReport: (params.canWritePolice ?? false) && isDayInWindow(day),
   }
 }
 
@@ -241,22 +249,4 @@ async function displayNames(rpc: ShiftBoardRpc): Promise<Map<string, string>> {
   const { data, error } = await admin.from('profiles').select('id, display_name').in('id', ids)
   if (error) throw new Error(error.message)
   return new Map((data ?? []).map((p) => [p.id, p.display_name ?? 'Sans nom']))
-}
-
-/**
- * Les profils visibles par l'appelant, en UNE lecture.
- *
- * `isChatterInScope` interroge la base par chatteur : sur une centaine de lignes ça ferait une
- * centaine d'allers-retours. On renverse la question — quels profils sont assignés à MES
- * modèles — et le filtre devient un `Set`. `null` = aucune borne.
- */
-async function allowedProfiles(scope: Set<string> | null): Promise<Set<string> | null> {
-  if (!scope) return null
-  const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('profile_creators')
-    .select('profile_id')
-    .in('creator_id', [...scope])
-  if (error) throw new Error(error.message)
-  return new Set((data ?? []).map((r) => r.profile_id))
 }

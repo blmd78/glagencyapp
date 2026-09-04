@@ -51,3 +51,24 @@ export async function isChatterInScope(
   if (error) throw new Error(error.message)
   return (data ?? []).some((r) => scope.has(r.creator_id))
 }
+
+/**
+ * Les PROFILS visibles, en UNE lecture — la question renversée.
+ *
+ * `isChatterInScope` interroge la base par chatteur : sur une centaine de lignes ça ferait une
+ * centaine d'allers-retours. On demande plutôt « quels profils sont assignés à MES modèles » et
+ * le filtre devient un `Set`. `null` = aucune borne (admin, ou encadrant sans assignation).
+ *
+ * SOURCE UNIQUE de la borne de LECTURE des écrans de présence (Relevé, Vacations) — le tenir en
+ * double dans deux features, c'est prendre le risque qu'une seule des deux soit corrigée.
+ */
+export async function allowedProfileIds(scope: Set<string> | null): Promise<Set<string> | null> {
+  if (!scope) return null
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('profile_creators')
+    .select('profile_id')
+    .in('creator_id', [...scope])
+  if (error) throw new Error(error.message)
+  return new Set((data ?? []).map((r) => r.profile_id))
+}

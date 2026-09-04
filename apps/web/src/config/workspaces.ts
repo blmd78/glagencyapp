@@ -48,6 +48,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Gauge,
+  History,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -139,6 +140,10 @@ export const WORKSPACES: Workspace[] = [
       // les encadrants n'envoient pas de messages, donc MyPuls ne sait rien d'eux. La fiche d'un
       // chatteur reste hors sidebar aussi — on y arrive depuis le relevé.
       { href: '/chatter/presence', label: 'Relevé d’équipe', icon: Gauge, slug: 'presence', group: 'presence' },
+      // Le DÉTAIL des vacations : la vue d'enquête, au grain de la vacation et non du créneau.
+      // Elle double le dépliage d'une ligne du Relevé, à dessein — celui-ci répond « ce
+      // chatteur, ce créneau », celle-là « ce chatteur, ce mois » ou « tout le monde, ce jour ».
+      { href: '/chatter/presence/vacations', label: 'Vacations', icon: History, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
       // Le Récap : COMPTEURS pour tout l'encadrement, VERBATIM des débriefs pour les seuls admins
@@ -148,6 +153,11 @@ export const WORKSPACES: Workspace[] = [
       // managers ET sous-managers (`isManager` = `profile.manager`, qui couvre les deux), chacun
       // n'y voyant que son périmètre. Un sous-manager n'encadre personne : il y lit SON récap.
       { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence', adminOnly: true, managerAccess: true },
+      // Réglages du relevé, EN LECTURE pour tout porteur de `presence` — savoir qu'une nuit
+      // manque ou que la fenêtre du soir a bougé fait partie de la lecture honnête des chiffres.
+      // Seule l'ÉCRITURE des réglages est admin (miroir de `mypuls_shift_settings_admin_write`),
+      // d'où l'absence d'`adminOnly` ici : masquer l'item cacherait aussi le journal des runs.
+      { href: '/chatter/presence/reglages', label: 'Créneaux & réglages', icon: SlidersHorizontal, slug: 'presence', group: 'presence' },
       // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
       // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
       { href: '/chatter/organisation', label: 'Organisation', icon: Network, group: 'equipe' },
