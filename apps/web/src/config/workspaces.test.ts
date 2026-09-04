@@ -186,3 +186,37 @@ describe('bouts de page', () => {
     ).toBe('/no-access')
   })
 })
+
+// Le Relevé d'équipe (2026-09-04) est devenu le PREMIER item du groupe Présence, devant « Suivi
+// chatters ». Deux effets de bord passent par là, et tous deux sont voulus — ce test les fixe
+// pour qu'un futur réordonnancement de la nav ne les change pas par accident.
+//
+// 1. `landingHref` rend le premier item accessible : un porteur de « Présence » seul atterrit
+//    donc désormais sur le Relevé. Sa garde est `requireAccess('presence')`, la même que le
+//    droit testé — donc AUCUNE boucle de redirection (le bug du Récap, plus haut, venait
+//    précisément d'une nav plus permissive que la garde).
+// 2. `PAGE_CHOICES` prend le libellé du GROUPE dès qu'un slug est porté par plusieurs items :
+//    la case à cocher de Membres doit rester « Présence », pas devenir « Relevé d'équipe ».
+//    Sans ça, un admin croirait à un droit nouveau à distribuer sur 230 membres.
+describe('Relevé d’équipe en tête du groupe Présence', () => {
+  const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
+  const releve = chatter.nav.find((n) => n.href === '/chatter/presence')!
+
+  it('est la page d’atterrissage d’un porteur de « Présence » seul, sans boucle', () => {
+    expect(canAccessNav(releve, user(['presence']))).toBe(true)
+    expect(
+      landingHref({ role: 'chatteur', superadmin: false, manager: false, pages: ['presence'] }),
+    ).toBe('/chatter/presence')
+  })
+
+  it('reste invisible sans le droit — la nav ne dépasse pas la garde de la page', () => {
+    expect(canAccessNav(releve, user([]))).toBe(false)
+    expect(canAccessNav(releve, user(['police']))).toBe(false)
+  })
+
+  it('n’ajoute AUCUNE case à cocher dans Membres : le slug reste « presence », libellé du groupe', () => {
+    const presence = pageChoicesFor('chatter').filter((c) => c.slug === 'presence')
+    expect(presence).toHaveLength(1)
+    expect(presence[0]!.label).toBe('Présence')
+  })
+})
