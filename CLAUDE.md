@@ -157,7 +157,7 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   **UN écran dans la sidebar** — Relevé d'équipe (`/chatter/presence`) ; deux hors sidebar, la
   Fiche d'activité (`[profileId]`, lecture MyPuls **à la demande**, atteinte nominativement) et
   les Réglages (`/reglages` — maintenance : journal des runs, seuils, gens à rattacher ;
-  atteints en cliquant la ligne « Relevé MyPuls du … »). Les tuiles du Relevé sont **dérivées
+  atteints par le lien « Réglages » en haut à droite du Relevé). Les tuiles du Relevé sont **dérivées
   des lignes affichées** et non de `mypuls_day_kpi` (grain jour + agence) : sinon elles
   ignorent le créneau choisi ET le périmètre modèles. **Trois invariants** : (1) le verdict de
   couverture est celui de MyPuls, parsé, jamais recalculé (un recalcul dérive jusqu'à 20,7 pts) ;

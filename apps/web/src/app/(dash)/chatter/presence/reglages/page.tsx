@@ -9,9 +9,9 @@ import type { ShiftSettingsPage } from '@/features/mypuls-shift-settings/types'
 /**
  * Réglages du relevé — l'écran où l'on vient quand un chiffre du relevé surprend.
  *
- * HORS SIDEBAR à dessein : c'est de la maintenance, pas du quotidien. On y arrive en cliquant
- * la ligne « Relevé MyPuls du … » qui coiffe le relevé, au moment précis où l'on se demande
- * d'où sort un chiffre.
+ * HORS SIDEBAR à dessein : c'est de la maintenance, pas du quotidien. On y arrive par le lien
+ * « Réglages » en haut à droite du relevé — un seul point d'entrée, sous un libellé qui dit où
+ * il mène.
  *
  * Ouvert à tout porteur de « presence » EN LECTURE : savoir qu'une nuit manque fait partie de
  * la lecture honnête du relevé. L'ÉCRITURE des réglages reste admin (`data.canEdit`, miroir de

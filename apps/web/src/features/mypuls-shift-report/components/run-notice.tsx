@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { frDateTimeParis, frWeekdayDate } from '@glagency/core'
 import type { ShiftRun } from '../types'
 
@@ -9,10 +8,10 @@ import type { ShiftRun } from '../types'
  * travaillé » sont indiscernables, et cette confusion produirait des sanctions injustes. Un
  * jour sans run réussi n'affiche donc AUCUN zéro — il dit qu'il ne sait pas.
  *
- * C'est aussi LA porte d'entrée de « Créneaux & réglages », qui n'est plus dans la sidebar :
- * cette ligne dit d'où sortent les chiffres, et le seul moment où l'on veut en savoir plus est
- * celui où l'on vient de la lire. Un écran de maintenance rangé dans la nav quotidienne se
- * faisait ouvrir par curiosité et jamais au bon moment.
+ * AUCUN LIEN ICI, volontairement. Cette ligne a porté l'accès aux réglages : on atterrissait
+ * donc sur un écran de maintenance en cliquant « 12 libellés MyPuls non rattachés », c'est-à-dire
+ * en cliquant ce qu'on lit comme des NOMS. L'accès vit désormais en haut à droite de la page,
+ * une fois, sous un libellé qui dit où il mène.
  */
 export function RunNotice({
   run,
@@ -35,10 +34,8 @@ export function RunNotice({
           d’activité : les chiffres ne sont simplement pas connus.
         </p>
         <p className="mt-1">
-          <Link href="/chatter/presence/reglages" className="underline underline-offset-4">
-            Voir le journal des relevés
-          </Link>{' '}
-          — il dit quelles nuits manquent, et comment les rattraper.
+          Le journal des relevés — « Réglages », en haut à droite — dit quelles nuits manquent et
+          comment les rattraper.
         </p>
       </div>
     )
@@ -48,24 +45,14 @@ export function RunNotice({
 
   return (
     <p className="text-sm text-muted-foreground">
-      <Link
-        href="/chatter/presence/reglages"
-        className="underline decoration-dotted underline-offset-4 hover:decoration-solid"
-        title="Journal des relevés, seuils de mesure et gens à rattacher"
-      >
-        Relevé MyPuls du {frDateTimeParis(run.ranAt)}
-      </Link>{' '}
-      · seuil d’inactivité {run.idleMinutes} min · poste tenu au-delà de{' '}
-      {run.coverageThreshold} %
+      Relevé MyPuls du {frDateTimeParis(run.ranAt)} · seuil d’inactivité {run.idleMinutes} min ·
+      poste tenu au-delà de {run.coverageThreshold} %
       {run.unmatched > 0 && (
         <>
           {' · '}
-          <Link
-            href="/chatter/presence/reglages"
-            className="text-amber-700 underline underline-offset-4 dark:text-amber-400"
-          >
+          <span className="text-amber-700 dark:text-amber-400">
             {run.unmatched} libellé(s) MyPuls non rattaché(s)
-          </Link>
+          </span>
         </>
       )}
     </p>
