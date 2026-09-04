@@ -4,21 +4,42 @@ import { addDays } from '../domain/dates'
  * Décalage Paris↔UTC (ms) À CET INSTANT. On formate l'instant en composantes horaires de Paris,
  * on relit ces composantes comme si elles étaient UTC, et la différence EST le décalage.
  */
+// Formateur HOISTÉ et résultat MÉMOÏSÉ À L'HEURE.
+//
+// Construire un Intl.DateTimeFormat coûte ~61 µs et `formatToParts` ~3,7 µs ; une nuit
+// d'ingestion demandait ~25 000 conversions, soit ~785 ms en reconstruisant le formateur et
+// encore ~92 ms en le hoistant — contre les 10 ms de CPU qu'accorde le plan Cloudflare Free.
+// L'isolate mourait avant la première écriture.
+//
+// Le décalage Paris↔UTC est CONSTANT à l'intérieur d'une heure UTC, y compris les deux jours de
+// bascule : la transition tombe pile à 01:00 UTC. Mémoïser par heure est donc exact, et ramène
+// 25 000 conversions à une cinquantaine.
+const PARIS_PARTS = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Paris',
+  hour12: false,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
+const OFFSET_BY_HOUR = new Map<number, number>()
+
 export function parisOffsetMs(at: Date): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Paris',
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(at)
+  const hour = Math.floor(at.getTime() / 3_600_000)
+  const memo = OFFSET_BY_HOUR.get(hour)
+  if (memo !== undefined) return memo
+  const parts = PARIS_PARTS.formatToParts(at)
   const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? 0)
   // `hour12: false` rend « 24 » pour minuit sur certaines versions d'ICU — `% 24` neutralise.
   const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'))
-  return asUtc - at.getTime()
+  const offset = asUtc - at.getTime()
+  // Borne de sécurité : le cache ne doit pas grossir indéfiniment dans un process long.
+  if (OFFSET_BY_HOUR.size > 20_000) OFFSET_BY_HOUR.clear()
+  OFFSET_BY_HOUR.set(hour, offset)
+  return offset
 }
 
 /**
@@ -35,13 +56,14 @@ export function parisWallUtcMs(day: string, hour: number): number {
 }
 
 /** Jour civil Paris (YYYY-MM-DD) d'un instant ISO. */
-export const parisDay = (iso: string): string =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Paris',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(iso))
+const PARIS_DAY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Paris',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
+export const parisDay = (iso: string): string => PARIS_DAY.format(new Date(iso))
 
 /** Bornes UTC (ms) de la journée Paris `day`. `end` est EXCLUSIVE. */
 export function dayBounds(day: string): { start: number; end: number } {

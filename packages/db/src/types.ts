@@ -1461,6 +1461,222 @@ export type Database = {
           },
         ]
       }
+      mypuls_day_kpi: {
+        Row: {
+          active_minutes: number
+          chatters_actifs: number
+          day: string
+          imported_at: string
+          messages: number
+          models_total: number
+          models_worked: number
+          slots_held: number
+          slots_total: number
+          vacations: number
+        }
+        Insert: {
+          active_minutes: number
+          chatters_actifs: number
+          day: string
+          imported_at?: string
+          messages: number
+          models_total: number
+          models_worked: number
+          slots_held: number
+          slots_total: number
+          vacations: number
+        }
+        Update: {
+          active_minutes?: number
+          chatters_actifs?: number
+          day?: string
+          imported_at?: string
+          messages?: number
+          models_total?: number
+          models_worked?: number
+          slots_held?: number
+          slots_total?: number
+          vacations?: number
+        }
+        Relationships: []
+      }
+      mypuls_shift_coverage: {
+        Row: {
+          active_minutes: number
+          chatter_label: string
+          coverage_pct: number
+          day: string
+          first_at: string | null
+          imported_at: string
+          last_at: string | null
+          messages: number
+          mypuls_user_id: string
+          profile_id: string | null
+          slot: string
+          slot_end_at: string
+          slot_start_at: string
+        }
+        Insert: {
+          active_minutes: number
+          chatter_label: string
+          coverage_pct: number
+          day: string
+          first_at?: string | null
+          imported_at?: string
+          last_at?: string | null
+          messages: number
+          mypuls_user_id: string
+          profile_id?: string | null
+          slot: string
+          slot_end_at: string
+          slot_start_at: string
+        }
+        Update: {
+          active_minutes?: number
+          chatter_label?: string
+          coverage_pct?: number
+          day?: string
+          first_at?: string | null
+          imported_at?: string
+          last_at?: string | null
+          messages?: number
+          mypuls_user_id?: string
+          profile_id?: string | null
+          slot?: string
+          slot_end_at?: string
+          slot_start_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mypuls_shift_coverage_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mypuls_shift_runs: {
+        Row: {
+          coverage_rows: number
+          coverage_threshold: number
+          day_from: string
+          day_to: string
+          error: string | null
+          id: number
+          idle_minutes: number
+          ran_at: string
+          segments: number
+          status: string
+          unmatched: Json
+        }
+        Insert: {
+          coverage_rows?: number
+          coverage_threshold: number
+          day_from: string
+          day_to: string
+          error?: string | null
+          id?: never
+          idle_minutes: number
+          ran_at?: string
+          segments?: number
+          status: string
+          unmatched?: Json
+        }
+        Update: {
+          coverage_rows?: number
+          coverage_threshold?: number
+          day_from?: string
+          day_to?: string
+          error?: string | null
+          id?: never
+          idle_minutes?: number
+          ran_at?: string
+          segments?: number
+          status?: string
+          unmatched?: Json
+        }
+        Relationships: []
+      }
+      mypuls_shift_segments: {
+        Row: {
+          active_minutes: number
+          day: string
+          ended_at: string
+          imported_at: string
+          messages: number
+          models: Json
+          mypuls_user_id: string
+          profile_id: string | null
+          started_at: string
+        }
+        Insert: {
+          active_minutes: number
+          day: string
+          ended_at: string
+          imported_at?: string
+          messages: number
+          models?: Json
+          mypuls_user_id: string
+          profile_id?: string | null
+          started_at: string
+        }
+        Update: {
+          active_minutes?: number
+          day?: string
+          ended_at?: string
+          imported_at?: string
+          messages?: number
+          models?: Json
+          mypuls_user_id?: string
+          profile_id?: string | null
+          started_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mypuls_shift_segments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mypuls_shift_settings: {
+        Row: {
+          break_minutes: number
+          coverage_threshold: number
+          id: number
+          idle_minutes: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          break_minutes?: number
+          coverage_threshold?: number
+          id: number
+          idle_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          break_minutes?: number
+          coverage_threshold?: number
+          id?: number
+          idle_minutes?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mypuls_shift_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       period_snapshot_kpi: {
         Row: {
           current_week_days: number
@@ -5025,6 +5241,18 @@ export type Database = {
           p_to_manager_id: string
         }
         Returns: undefined
+      }
+      mypuls_shift_board: {
+        Args: { p_day: string; p_slot?: string }
+        Returns: Json
+      }
+      mypuls_shift_chatter: {
+        Args: { p_from: string; p_profile: string; p_to: string }
+        Returns: Json
+      }
+      mypuls_shift_segments_range: {
+        Args: { p_from: string; p_profile?: string; p_to: string }
+        Returns: Json
       }
       norm_shifts: { Args: { p: string[] }; Returns: string[] }
       overview_ca_global: {

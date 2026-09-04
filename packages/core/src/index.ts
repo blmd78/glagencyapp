@@ -186,3 +186,17 @@ export { DEFAULT_PAUSE_ALLOWANCE_MINUTES, computeWindowVerdict } from './trackin
 export type { TrackerVerdictInput, TrackerVerdict } from './tracking/verdict'
 export { managerDay, sumManagerDays } from './tracking/manager-day'
 export type { ManagerDay, ManagerSpan, ManagerCumul } from './tracking/manager-day'
+
+// Contrôle des shifts MyPuls (0138) — le temps de chatting réel, mesuré sans agent sur le poste.
+// Vocabulaire CRM (`soir`), volontairement distinct de `tracking/shifts` qui dit `nuit`.
+export { SLOT_KEYS, SLOT_LABEL, SLOT_START_HOUR, slotOf, held, hoursOf } from './mypuls-shifts/slots'
+export type { SlotKey } from './mypuls-shifts/slots'
+export { groupIntoVacations, groupVacationsAt, segmentBounds } from './mypuls-shifts/vacations'
+export type {
+  MypulsSegment,
+  MypulsSegmentAt,
+  MypulsSegmentModel,
+  MypulsVacation,
+} from './mypuls-shifts/vacations'
+export { dayKpi } from './mypuls-shifts/kpi'
+export type { MypulsDayKpi, MypulsCoverageRow } from './mypuls-shifts/kpi'
