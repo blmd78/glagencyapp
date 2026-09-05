@@ -1,7 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@glagency/db'
 import type { ScoreMoment } from '@/lib/ai/schema'
-import { comboOf } from '@glagency/core'
+import { comboOf, isBodyWithheld, type RevealSessionStatus } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import type { CaseKind, CaseSnapshot, MessageSpeaker, SessionStatus, ThreadStatus } from '@/lib/types/training'
 import type { SessionData, SessionThread } from '../types'
@@ -129,13 +129,23 @@ export async function getSession(id: string): Promise<SessionData | null> {
             threadId: m.thread_id,
             position: m.position,
             speaker: m.speaker as MessageSpeaker,
-            // RÉVÉLATION DIFFÉRÉE TENUE PAR LE SERVEUR : un message pas encore visible part SANS son
-            // corps. Le masquage vivait seulement dans `thread-panel`/`thread-tabs` (filtre CSS du
-            // rendu) — le texte du fan voyageait donc dans le payload RSC jusqu'à 2 minutes avant sa
-            // révélation, lisible dans l'onglet réseau : de quoi préparer sa réponse avant que le
-            // chrono de réaction s'arme, sur la mécanique même qui alimente le classement (et la
-            // roue). Le corps est récupéré à l'échéance par `revealThread` (actions.ts).
-            body: Date.parse(m.visible_at) > revealNow ? '' : m.body,
+            // RÉVÉLATION DIFFÉRÉE TENUE PAR LE SERVEUR : sur une session EN COURS, un message
+            // pas encore visible part SANS son corps. Le masquage vivait seulement dans
+            // `thread-panel`/`thread-tabs` (filtre CSS du rendu) — le texte du fan voyageait donc
+            // dans le payload RSC jusqu'à 2 minutes avant sa révélation, lisible dans l'onglet
+            // réseau : de quoi préparer sa réponse avant que le chrono de réaction s'arme, sur la
+            // mécanique même qui alimente le classement (et la roue). Le corps est récupéré à
+            // l'échéance par `revealThread` (actions.ts).
+            //
+            // La règle s'ARRÊTE à la fin de la session (`isBodyWithheld`, domaine testé) : une
+            // fois notée, ratée ou abandonnée, il n'y a plus de chrono à protéger et la conv
+            // devient un support de relecture. Sans cette borne, un message dont l'échéance
+            // tombait après la notation restait VIDE sur l'écran de résultat — 966 cas en sept
+            // jours en production, soit une à trois bulles blanches sur une session sur cinq, à
+            // l'instant précis où le chatteur ouvre son résultat.
+            body: isBodyWithheld(s.status as RevealSessionStatus, Date.parse(m.visible_at), revealNow)
+              ? ''
+              : m.body,
             mediaPrice: m.media_price,
             visibleAt: m.visible_at,
           })),

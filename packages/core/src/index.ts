@@ -127,6 +127,8 @@ export {
 } from './training/levels'
 export type { LevelInfo, Rank, NextObjective, ObjectiveKind, ObjectiveInput } from './training/levels'
 export { normalizeCite, matchMomentIndex } from './training/moments'
+export { isBodyWithheld } from './training/reveal'
+export type { RevealSessionStatus } from './training/reveal'
 export {
   pickWeighted,
   lastCompletedWeek,
