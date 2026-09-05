@@ -119,6 +119,16 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
   (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
   (`created_by` null → « Claude »).
+- **Suivi chatters** (`/chatter/presence/suivi`, `tracker_*` de `0128`) : coaching, 1:1 notés,
+  grille de compétences. **AUCUN cloisonnement par modèles** — décision Benoit 2026-09-05 :
+  qui porte `presence` voit et note TOUS les chatteurs. Le périmètre repris de GLA se calculait
+  sur `profile_creators`, un rattachement manuel et incomplet, et masquait à un encadrant les
+  chatteurs de ses PROPRES modèles (cas Juliette : hors money-team, donc zéro rattachement
+  automatique). Retiré aux 4 maillons — liste, fiche, écritures, clôture 1:1 — plus les 2 tests
+  de la To-Do qui n'existaient que pour eux. Seul garde-fou restant : `assertIsChatter` (on ne
+  se note pas soi-même, ni un pair). Les **modèles affichés** restent bornés par la RLS
+  `creators_scoped_read` → une ligne hors de ses modèles s'affiche sans pastille, c'est voulu.
+  **Police (sanctions) et Relevé de présence restent cloisonnés**, eux.
 - **To-Do du tracker** (≠ la to-do personnelle ci-dessus) : `/chatter/presence/todo`, grille
   hebdo des encadrants reprise de GLA (`tracker_todo_*`, `0127`) — slug `presence`, partagé
   avec Suivi chatters et le Récap. **Aucune policy d'écriture** : tout passe en service-role
@@ -129,8 +139,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `canAssignTodoOf` (`lib/tracking/todo-guards.ts`), **source unique** lue aussi par la page
   (validation de `?owner=` — sans elle, la RLS laisserait ouvrir la semaine de n'importe qui)
   et par `getTodoHolders` : admin → tous les encadrants, manager → **ses sous-managers
-  rattachés** (`manager_ids`), personne d'autre. Une tâche « 1:1 » exige le périmètre modèles
-  du **titulaire** (sinon elle est inclôturable) *et* du déposant. **Récap**
+  rattachés** (`manager_ids`), personne d'autre. Une tâche « 1:1 » ne demande **aucun périmètre
+  modèles** (ni titulaire, ni déposant) depuis le 2026-09-05 : les deux tests n'existaient que
+  pour éviter des tâches inclôturables, et la clôture ne teste plus rien (cf. Suivi chatters).
+  **Récap**
   (`/chatter/presence/recap`, `0137`) : RPC `tracker_todo_week_recap` en **`security definer`
   à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
   l'encadrement (chacun son périmètre), **verbatim pour l'admin et son propre journal

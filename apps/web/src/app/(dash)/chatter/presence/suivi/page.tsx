@@ -15,7 +15,7 @@ import type { CoachingRow } from '@/features/tracking-coaching/types'
  */
 export default async function PresenceSuiviPage() {
   const profile = await requireAccess('presence')
-  const rows = getCoachingList(profile.id, profile.baseRole)
+  const rows = getCoachingList()
   // La grille n'est chargée que pour un admin : inutile de la lire pour qui ne peut pas l'éditer.
   const skills = profile.role === 'admin' ? getSkills() : Promise.resolve(null)
 

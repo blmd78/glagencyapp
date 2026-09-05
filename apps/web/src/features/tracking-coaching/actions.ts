@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
 import { getProfile, hasWriteAccess } from '@/lib/auth'
-import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { revalidateTodo } from '@/lib/tracking/todo-guards'
 import {
   addNoteInput, archiveSkillInput, deleteNoteInput, deleteSessionInput, rateInput,
@@ -20,12 +19,11 @@ import {
  * QUI PEUT ÉCRIRE : les porteurs de la page `presence` et les admins — pas le chatteur sur son
  * propre suivi. On note quelqu'un, on ne se note pas soi-même.
  *
- * ET SUR QUI : le PÉRIMÈTRE MODÈLES est revalidé à CHAQUE écriture, jamais seulement à l'affichage.
- * C'est la règle du tracker d'origine, dont le commentaire la justifie mot pour mot — « Chaque
- * appel remonte au chatter concerné et revalide le périmètre : masquer un chatter dans l'interface
- * ne suffit pas » (décorateur `notesApi`, routes.js.txt:144-157). Sans ça, un appel forgé notait ou
- * supprimait la fiche de n'importe quel chatteur de l'agence — exactement l'incident de l'audit
- * Police du 2026-08-06, qui avait donné `isChatterInScope`.
+ * ET SUR QUI : tout CHATTEUR de l'agence. Le périmètre modèles a été retiré du suivi le
+ * 2026-09-05 (décision de Benoit ; le raisonnement est dans `services/get-coaching-list.ts`) —
+ * la seule borne restante est `assertIsChatter`, et c'est celle qui compte : elle interdit de se
+ * noter soi-même ou de noter un pair. Le cloisonnement du tracker d'origine (décorateur
+ * `notesApi`, routes.js.txt:144-157) ne survit donc QUE dans Police, où il porte des sanctions.
  *
  * Les mutations qui ne portent qu'un `sessionId`/`noteId` remontent d'ABORD au chatteur propriétaire
  * (les résolveurs `bySession`/`byNote` du legacy) : « introuvable » avant « non autorisé », comme eux.
@@ -33,7 +31,7 @@ import {
 
 const LIST = '/chatter/presence/suivi'
 
-async function requireCoach(): Promise<{ id: string; role: string }> {
+async function requireCoach(): Promise<string> {
   const profile = await getProfile()
   if (!profile) throw new BusinessError('Session expirée.')
   // `hasWriteAccess` et non un simple `pages.includes` : il EXCLUT le chatteur, qui peut porter la
@@ -41,24 +39,26 @@ async function requireCoach(): Promise<{ id: string; role: string }> {
   if (!hasWriteAccess(profile, 'presence')) {
     throw new BusinessError("Tu n'as pas le droit d'écrire dans le suivi des chatters.")
   }
-  return { id: profile.id, role: profile.baseRole }
+  return profile.id
 }
 
 /**
- * Garde complète d'une écriture : le droit de page PUIS le périmètre modèles sur le chatteur visé.
- * Équivalent du décorateur `notesApi` du tracker d'origine (routes.js.txt:144-157).
+ * Garde complète d'une écriture : le droit de page, et la cible est bien un CHATTEUR.
+ *
+ * Le PÉRIMÈTRE MODÈLES a sauté le 2026-09-05 (décision de Benoit ; raisonnement complet dans
+ * `services/get-coaching-list.ts`). Il aurait été absurde de le garder ici : la liste et la fiche
+ * ouvrent désormais tout chatteur à qui porte la page — un écran où l'on peut tout lire mais rien
+ * écrire n'aurait fait qu'échouer au moment du clic.
+ *
+ * `assertIsChatter` reste, et c'est elle qui porte le vrai interdit : sans elle, un encadrant se
+ * noterait LUI-MÊME ou noterait un pair (cf. son propre commentaire) — le recoupement
+ * `profile_creators` n'a jamais été ce qui l'empêchait.
  */
 async function requireCoachFor(chatterId: string): Promise<string> {
-  const caller = await requireCoach()
+  const callerId = await requireCoach()
   // Ordre du legacy : « introuvable » (404) AVANT « non autorisé » (403).
   await assertIsChatter(chatterId)
-  const scope = await getCreatorScope(caller.id, caller.role)
-  if (!(await isChatterInScope(scope, chatterId))) {
-    // Le libellé du legacy, au présent : le cas visé est une réassignation de modèles entre
-    // l'affichage et l'écriture (routes.js.txt:331).
-    throw new BusinessError("Ce chatter n'est plus dans ton périmètre.")
-  }
-  return caller.id
+  return callerId
 }
 
 /**
@@ -229,9 +229,10 @@ export async function deleteSession(raw: unknown): Promise<ActionResult> {
       // tant qu'un bilan existe, pour ne pas créer une seconde session à la reclôture).
       //
       // SEULE ÉCRITURE SUR LA TO-DO D'UN AUTRE QUI NE PASSE PAS PAR `assertOwner` — assumé, et à
-      // savoir : la garde de ce chemin est `requireCoachFor` (droit d'écriture + périmètre modèles
-      // du CHATTEUR), pas la propriété de la tâche. Un encadrant qui partage une modèle avec le
-      // chatteur peut donc supprimer le bilan écrit par un pair, et rouvrir la tâche de ce pair.
+      // savoir : la garde de ce chemin est `requireCoachFor` (droit d'écriture sur la page), pas
+      // la propriété de la tâche. Tout encadrant peut donc supprimer le bilan écrit par un pair,
+      // et rouvrir la tâche de ce pair — la portée s'est élargie le 2026-09-05 avec la levée du
+      // périmètre modèles, qui la limitait aux encadrants partageant une modèle avec le chatteur.
       // C'est la conséquence cohérente : le bilan n'existe plus, la tâche ne peut pas rester
       // cochée. La borner à l'auteur laisserait au contraire des tâches cochées sans trace.
       if (task) {

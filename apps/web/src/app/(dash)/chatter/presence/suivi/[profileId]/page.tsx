@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { hasWriteAccess, requireAccess } from '@/lib/auth'
-import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { CtxBar } from '@/components/tracking/ctx-bar'
 import { ChatterFile } from '@/features/tracking-coaching/components/chatter-file'
 import { ChatterFileSkeleton } from '@/features/tracking-coaching/components/coaching-skeleton'
@@ -34,13 +33,12 @@ export default async function PresenceSuiviChatterPage({
   // qui peut porter la page en lecture (miroir de `can_write_page()`, 0060).
   const canWrite = hasWriteAccess(profile, 'presence')
 
-  // PÉRIMÈTRE MODÈLES en LECTURE — le tracker d'origine rendait un 403 sur la fiche d'un chatteur
-  // hors périmètre (`'forbidden'` renvoyé par le builder, routes.js.txt:93-95 et :138-141).
-  // `notFound()` plutôt qu'un 403 : ne pas révéler qu'un profil existe à qui n'a pas à le voir.
-  if (!(await isChatterInScope(await getCreatorScope(profile.id, profile.baseRole), profileId))) {
-    notFound()
-  }
-
+  // AUCUN PÉRIMÈTRE MODÈLES ici — décision de Benoit du 2026-09-05, miroir de la liste
+  // (`get-coaching-list.ts`, où le raisonnement est écrit). Le tracker d'origine rendait un 403
+  // sur la fiche d'un chatteur hors périmètre (routes.js.txt:93-95 et :138-141) ; ce test rendait
+  // surtout inaccessibles les chatteurs de ses propres modèles quand le rattachement
+  // `profile_creators` manque. La fiche suit donc la liste : qui porte la page ouvre n'importe
+  // quelle fiche de chatteur.
   const data = getChatterCoaching(profileId, canWrite)
 
   return (
