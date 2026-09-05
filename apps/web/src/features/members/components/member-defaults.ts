@@ -64,6 +64,10 @@ export function memberDefaults({
     closingTeam: member?.closingTeam ?? null,
     shift: member?.shift ?? null,
     isNew: member?.isNew ?? false,
+    // COCHÉ PAR DÉFAUT à la création (`member` absent), à la différence de `isNew` : un chatteur
+    // qu'on crée aujourd'hui n'a, par construction, pas encore de modèle — et le champ n'est
+    // montré qu'aux chatteurs. En édition, la valeur en base fait foi.
+    inTraining: member?.inTraining ?? true,
     arrivedAt: member?.arrivedAt ?? null,
     chatterId: member?.chatterId ?? '',
     orgExcluded: member?.orgExcluded ?? false,

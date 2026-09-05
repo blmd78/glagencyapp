@@ -68,11 +68,11 @@ export function RecruitTemplate({
         <CopyTestLink />
       </div>
       {candidate ? (
-        <CandidateFile candidate={candidate} gates={data.gates} creators={data.creators} isAdmin={isAdmin} />
+        <CandidateFile candidate={candidate} gates={data.gates} isAdmin={isAdmin} />
       ) : (
         <>
           <KpiGrid kpis={toKpis(data.kpis)} accents={KPI_ACCENTS} />
-          <CandidatesTable days={data.days} gates={data.gates} creators={data.creators} />
+          <CandidatesTable days={data.days} gates={data.gates} />
         </>
       )}
     </div>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { ChatterDetail } from '../types'
+import { OverviewChatterModules } from './overview-chatter-modules'
 
 /** Barème d'un axe (solo / défi) — même échelle que le détail de note d'une session. */
 const AXIS_MAX = 25
@@ -21,8 +22,9 @@ function statusLabel(status: string): string {
 
 /**
  * Fiche d'un chatter pour l'encadrant : ses points faibles (moyennes par axe, du plus faible au
- * plus fort — l'ordre vient de la RPC `training_axis_profile`), ses meilleurs résultats par cas,
- * puis ses 50 dernières sessions. Le nom vient du roster (prop) : la fiche ne le re-requête pas.
+ * plus fort — l'ordre vient de la RPC `training_axis_profile`), son PARCOURS module par module
+ * (`overview-chatter-modules.tsx`), puis ses 50 dernières sessions. Le nom vient du roster (prop) :
+ * la fiche ne le re-requête pas.
  */
 export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail; displayName: string }) {
   return (
@@ -58,44 +60,8 @@ export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail
       </section>
 
       <section className="flex flex-col gap-3">
-        <h3 className="text-base font-semibold tracking-tight">Cas</h3>
-        {detail.bests.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun cas validé pour l’instant.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cas</TableHead>
-                  <TableHead>Module</TableHead>
-                  <TableHead className="w-32">Sorte</TableHead>
-                  <TableHead className="w-36">Meilleur</TableHead>
-                  <TableHead className="w-24 text-right">Essais</TableHead>
-                  <TableHead className="w-32">Dernier</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detail.bests.map((b) => (
-                  <TableRow key={b.caseId}>
-                    <TableCell className="font-medium">{b.caseTitle}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {/* `as Route` : typedRoutes n'accepte pas une chaîne interpolée sur un segment dynamique. */}
-                      <Link href={`/formation/modules/${b.moduleCode}?vue=cas` as Route} className="hover:underline">
-                        {b.moduleTitle}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{CASE_KIND_LABELS[b.kind]}</TableCell>
-                    <TableCell>
-                      <ScoreBadge total={b.bestTotal} />
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{b.attempts}</TableCell>
-                    <TableCell className="tabular-nums text-muted-foreground">{frDateTimeParis(b.lastAt)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <h3 className="text-base font-semibold tracking-tight">Parcours</h3>
+        <OverviewChatterModules modules={detail.modules} />
       </section>
 
       <section className="flex flex-col gap-3">

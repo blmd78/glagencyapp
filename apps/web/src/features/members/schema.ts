@@ -44,6 +44,10 @@ const memberFields = {
   // Nouvel arrivant : drapeau MANUEL + date d'arrivée réelle (0101). La date est EXIGÉE quand le
   // drapeau est posé (refine `arrivalWhenNew` plus bas, miroir du check SQL).
   isNew: z.boolean(),
+  // EN FORMATION (0147) : le chatteur n'est pas encore en production sur une modèle. Aucun refine
+  // — contrairement à `isNew`, aucune date ne lui est attachée. Le serveur le force à false hors
+  // rôle chatteur, comme `isNew`.
+  inTraining: z.boolean(),
   arrivedAt: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide')

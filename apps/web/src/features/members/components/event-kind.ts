@@ -28,6 +28,7 @@ export const KIND_LABEL: Record<EventKind, string> = {
   rapport: 'Rapport',
   recompense: 'Récompense',
   formation: 'Ancienne plateforme',
+  integration: 'Intégration',
 }
 
 // Code couleur de l'app, hors STATUS_COLORS : violet = modèles/lien MyPuls, orange = police —
@@ -60,6 +61,9 @@ export const KIND_TONE: Record<EventKind, string> = {
   recompense: STATUS_COLORS.positive,
   // Reprise Good Luck Agency (0123) : un fait d'historique, pas une bonne ni une mauvaise nouvelle.
   formation: STATUS_COLORS.neutral,
+  // Sortie de formation (0147) = entrée en production : la bonne nouvelle que toute la face
+  // Formation attend — même teinte que l'arrivée et le rattachement.
+  integration: STATUS_COLORS.positive,
 }
 
 /** Colonne « Action » du flux d'activité — la nature de l'opération (`memberEventOp`, domaine).

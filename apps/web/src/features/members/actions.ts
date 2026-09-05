@@ -129,6 +129,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
           // non-chatteur — un drapeau orphelin sur un manager ne voudrait rien dire.
           is_new: role === 'chatteur' ? values.isNew : false,
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
+          // En formation (0147) : même règle de rôle que `is_new`. Le décochage se fait le plus
+          // souvent tout seul — le trigger `profile_creators_clear_in_training` l'éteint au
+          // premier rattachement à une modèle, y compris quand il vient du board Organisation.
+          in_training: role === 'chatteur' ? values.inTraining : false,
           // Exclusion de l'affichage Organisation (0111) : têtes de section du board
           // uniquement (isOrgSectionHead, source unique partagée avec le filtre du board) —
           // false pour les autres rôles, même règle que `is_new` pour les non-chatteurs.
@@ -245,6 +249,10 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
           // l'efface, puisque la personne quitte le dispositif chatteur.
           is_new: role === 'chatteur' ? values.isNew : false,
           arrived_at: role === 'chatteur' ? values.arrivedAt : null,
+          // En formation (0147) : même règle de rôle que `is_new`. Le décochage se fait le plus
+          // souvent tout seul — le trigger `profile_creators_clear_in_training` l'éteint au
+          // premier rattachement à une modèle, y compris quand il vient du board Organisation.
+          in_training: role === 'chatteur' ? values.inTraining : false,
           // Exclusion de l'affichage Organisation (0111) : cf. createMember — têtes de
           // section uniquement (isOrgSectionHead), false pour les autres rôles.
           org_excluded: isOrgSectionHead(role) ? values.orgExcluded : false,

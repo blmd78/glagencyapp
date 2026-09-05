@@ -48,11 +48,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
   (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
-  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-02,
-  au 2026-09-04, prod à **0141** et UAT à **0145** — les six migrations du relevé MyPuls
-  (`0138`, `0140`, `0142`→`0145`) ne sont PAS encore en prod : le jour où elles y vont,
-  `db push` refusera des versions antérieures à 0141 déjà enregistrée → passer
-  **`--include-all`** (déjà fait pour 0139) ; prochaine migration = **0146**) : **catalogue**
+  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-04,
+  prod à **0145** — tout le relevé MyPuls y est passé avec les Releases 2.26→2.28, la mention
+  `--include-all` n'a plus d'objet — et UAT à **0147** : `0146` (relevé sur une période) et
+  `0147` (« en formation ») attendent leur release ; prochaine migration = **0148**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -86,7 +85,22 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   (Catalogue déplacé dedans + Config du test) ; blocage auto (device/email/discord,
   `created_by` null) ≠ blocage admin (+ IP). Rattachement membre→candidat par e-mail à la
   création (lookup `recruit_candidates`, non bloquant). Écritures `recruit_*` :
-  service-role après garde admin (comme le reste de la formation). Droits
+  service-role après garde admin (comme le reste de la formation).
+  **« En formation »** (`profiles.in_training`, `0147`) : le drapeau qui décide de l'onglet où un
+  chatteur apparaît sur l'Overview — la coupure se faisait avant sur `models.length === 0`, une
+  déduction qui ne tenait que tant qu'« Intégrer » rattachait une modèle dans le même geste. Ce
+  dialog est **supprimé** : intégrer = un clic (compte chatteur + droits + `is_new` + `in_training`,
+  pas d'`integrated_at` — c'est `syncAssignments` qui le posera au premier rattachement). Coché par
+  défaut à la création d'un chatteur dans Membres (`member-defaults.ts`, `?? true`) ; **décoché par
+  TRIGGER** (`profile_creators_clear_in_training`) et non par du code applicatif — `profile_creators`
+  s'écrit aussi depuis le board Organisation, via RPC SQL, qu'un décochage dans `authz.ts` raterait ;
+  retirer une modèle **ne recoche pas** (même écart assumé que `integrated_at`). Journal
+  `member_events` kind **`integration`** — surtout pas `formation`, déjà pris par la reprise GLA
+  (0123) et libellé « Ancienne plateforme ». Overview en **2 onglets** (`UrlTabs`, `?vue=agence`),
+  tableau à 6 colonnes (Points/Série/Notées sortis : ce sont des chiffres de classement), badge
+  « sans accès » pour un intégré sans `frm-entrainement` — la RPC `training_overview_roster` les
+  ramène depuis 0147 (`… or in_training`). Spec :
+  `docs/superpowers/specs/2026-09-04-formation-en-formation-design.md`. Droits
   `frm-suivi` (Overview,
   encadrement) / `frm-entrainement` (Ma formation, chatter), Modules et session ouverts aux deux
   (`NavItem.anyOf`, `requireAccess([...])`). Une seule source : `config/workspaces.ts`

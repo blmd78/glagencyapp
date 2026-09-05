@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react'
 import { frDateTimeLongParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type CreatorChoice, type RecruitGates } from '../types'
+import { ATTEMPT_STATUS_LABELS, CANDIDATE_STATUS_LABELS, type CandidateFileData, type RecruitGates } from '../types'
 import { IntegrateButton } from './integrate-button'
 import { CandidateActions, CopyValue } from './recruit-actions'
 
@@ -56,12 +56,10 @@ function Meta({ label, children }: { label: string; children: ReactNode }) {
 export function CandidateFile({
   candidate,
   gates,
-  creators,
   isAdmin,
 }: {
   candidate: CandidateFileData
   gates: RecruitGates
-  creators: CreatorChoice[]
   /** Bloquer / débloquer / supprimer : admin seul. La garde réelle est côté Server Action. */
   isAdmin: boolean
 }) {
@@ -106,7 +104,6 @@ export function CandidateFile({
         <IntegrateButton
           candidateId={candidate.id}
           candidateName={`${candidate.firstName} ${candidate.lastName}`.trim() || candidate.email}
-          creators={creators}
           label="Intégrer à l’agence"
           className="w-fit"
         />

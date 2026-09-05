@@ -54,6 +54,8 @@ export interface Member {
   /** Drapeau MANUEL « nouvel arrivant » (0101) — chatteurs uniquement, `false` pour les autres
    *  rôles (le serveur le force, comme `closing_role`). */
   isNew: boolean
+  /** En cours de formation — pas encore rattaché à une modèle (0147). */
+  inTraining: boolean
   /** Date d'arrivée réelle dans l'agence ('YYYY-MM-DD'). CONSERVÉE après retrait du drapeau :
    *  c'est la base du calcul d'ancienneté, pas un simple attribut d'affichage. */
   arrivedAt: string | null

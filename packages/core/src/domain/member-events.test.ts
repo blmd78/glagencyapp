@@ -46,6 +46,7 @@ describe('vocabulaire', () => {
       'rapport',
       'recompense',
       'formation',
+      'integration',
     ])
     expect(isEventKind('shift')).toBe(true)
     expect(isEventKind('nimportequoi')).toBe(false)
@@ -200,6 +201,13 @@ describe('memberEventLabel — chaque type produit une phrase lisible', () => {
     expect(memberEventLabel('nouveau', 'true', 'false')).toBe(
       'Drapeau « nouvel arrivant » retiré',
     )
+  })
+
+  it('drapeau « en formation », dans les deux sens', () => {
+    // Le retrait est le fait notable : c'est l'entrée en production, et il vient le plus souvent
+    // du trigger 0147 (premier rattachement à une modèle), pas d'une main humaine.
+    expect(memberEventLabel('integration', 'true', 'false')).toBe('Sorti de formation — en agence')
+    expect(memberEventLabel('integration', 'false', 'true')).toBe('Repassé en formation')
   })
 
   it('arrivée : date en format français', () => {
