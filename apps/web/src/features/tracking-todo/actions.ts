@@ -8,31 +8,6 @@ import {
   habitInput, moveTaskInput, renameHabitInput, renameSectionInput, sectionInput,
   setHabitActiveInput, toggleTaskInput,
 } from './schema'
-import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
-import { createClient } from '@/lib/supabase/server'
-
-/** Le chatteur visé est-il dans le périmètre modèles de CE profil-là ? */
-async function assertChatterInScope(
-  profileId: string,
-  baseRole: string,
-  chatterId: string,
-  message: string,
-): Promise<void> {
-  const scope = await getCreatorScope(profileId, baseRole)
-  if (!(await isChatterInScope(scope, chatterId))) throw new BusinessError(message)
-}
-
-/**
- * Rôle EXACT d'un profil — celui de la CIBLE, pas de l'appelant : `getCreatorScope` en a besoin
- * pour savoir s'il faut la borner (elle ne borne que manager/sous-manager/police).
- * Client session : `profiles_self_admin_or_team_read` (0097) laisse tout encadrant lire les profils.
- */
-async function baseRoleOf(profileId: string): Promise<string> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.from('profiles').select('role').eq('id', profileId).maybeSingle()
-  if (error) throw new Error(error.message)
-  return data?.role ?? 'chatteur'
-}
 
 /**
  * Mutations de la to-do hebdomadaire.
@@ -90,34 +65,13 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
     guard: noGuard,
     handler: async (d) => {
       const caller = await assertCanAssign(d.ownerId)
-      if (d.chatterId) {
-        // DEUX périmètres à satisfaire, et le legacy n'en énonçait qu'un : « Viser un chatter hors
-        // de son périmètre n'a pas de sens : la tâche produirait un compte-rendu qu'il n'a pas le
-        // droit d'écrire » (routes.js.txt:291-295). Le « il » de cette phrase, c'est le TITULAIRE
-        // — c'est lui qui devra rendre le bilan. Tant que seul l'admin déposait, sa règle était
-        // sans effet (son périmètre est toujours nul, donc illimité) et le contresens invisible.
-        //
-        // Ouvert au manager, il produirait des tâches ZOMBIES : `completeOneToOne` re-teste le
-        // périmètre du titulaire (complete-one-to-one.ts, assertChatterInScope) et `toggleTask` refuse la coche sèche
-        // d'un 1:1 (plus bas) — une tâche déposée hors du périmètre du titulaire ne peut donc
-        // JAMAIS être fermée, ni cochée, ni débriefée. On teste donc les deux : le titulaire
-        // parce qu'il doit pouvoir clore, le déposant parce qu'on ne vise pas un chatteur qu'on
-        // n'a pas soi-même le droit de suivre.
-        await assertChatterInScope(
-          caller.id,
-          caller.baseRole,
-          d.chatterId,
-          "Ce chatter n'est pas dans ton périmètre.",
-        )
-        if (caller.id !== d.ownerId) {
-          await assertChatterInScope(
-            d.ownerId,
-            await baseRoleOf(d.ownerId),
-            d.chatterId,
-            "Ce chatter n'est pas dans le périmètre de la personne visée : elle ne pourrait pas clore le 1:1.",
-          )
-        }
-      }
+      // AUCUN PÉRIMÈTRE MODÈLES sur la cible d'un 1:1 depuis le 2026-09-05. Deux tests vivaient ici
+      // — celui du déposant et celui du TITULAIRE — et ils n'avaient qu'une raison d'être : éviter
+      // des tâches ZOMBIES, puisque `completeOneToOne` re-testait alors le périmètre du titulaire.
+      // Ce test-là a sauté avec le décloisonnement du suivi (décision de Benoit ; raisonnement dans
+      // `features/tracking-coaching/services/get-coaching-list.ts`) : n'importe quel encadrant peut
+      // désormais clore n'importe quel 1:1, donc plus aucune tâche déposée ne peut être zombie, et
+      // il ne reste rien à vérifier. `assertCanAssign` continue de dire QUI peut déposer chez QUI.
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_tasks').insert({
         owner_id: d.ownerId,

@@ -1,7 +1,5 @@
 import { todayParis } from '@glagency/core'
-import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getCreatorScope } from '@/lib/services/creator-scope'
 import type { CoachingRow } from '../types'
 
 interface RawRow {
@@ -20,31 +18,27 @@ interface RawRow {
  * chatteurs croisés avec leurs sessions et leurs modèles, ça se somme en base, pas en JavaScript —
  * et une seule ligne de retour ne peut pas être tronquée à mille.
  *
- * BORNÉE AU PÉRIMÈTRE MODÈLES de l'appelant — le tracker d'origine posait le même périmètre sur
- * `/notes` que sur le dashboard (routes.js.txt:110-112). Sans ça, la liste affichait toute l'agence
- * en renvoyant vers des fiches désormais en 404 : des liens morts, et surtout la fuite des noms.
- * Le filtrage se fait sur les MODÈLES déjà rendus par la RPC, donc sans requête par ligne.
+ * PAS DE PÉRIMÈTRE MODÈLES — décision de Benoit du 2026-09-05. Tout porteur de la page voit TOUS
+ * les chatteurs de l'agence. On avait repris le cloisonnement du tracker d'origine
+ * (routes.js.txt:110-112) ; à l'usage il masque à un encadrant les chatteurs de SES PROPRES
+ * modèles, parce qu'il se calcule sur `profile_creators`, un rattachement manuel et incomplet.
+ * Cas rencontré : Juliette n'appartient à aucune money-team, donc aucun rattachement automatique
+ * n'existe pour elle — la moitié de ses chatteurs n'a même pas de compte membre. Le suivi est un
+ * outil de coaching, pas une donnée sensible : le cloisonnement coûtait plus qu'il ne protégeait.
+ * Les SANCTIONS (Police) et le Relevé de présence, eux, restent cloisonnés.
+ *
+ * Les MODÈLES affichés, en revanche, restent ceux de l'appelant : la RPC est `security invoker` et
+ * `creators_scoped_read` (0063) borne la table `creators`. Une ligne hors de ses modèles s'affiche
+ * donc sans pastille. C'est voulu — décloisonner les chatteurs n'était pas décloisonner les
+ * modèles, et l'élargir demanderait une lecture service-role qu'on ne fait pas ici.
  */
-export async function getCoachingList(callerId: string, callerRole: string): Promise<CoachingRow[]> {
+export async function getCoachingList(): Promise<CoachingRow[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('tracker_coaching_list')
   if (error) throw new Error(error.message)
 
-  // `getCreatorScope` rend des ids de créatrices ; la RPC rend leurs NOMS. Une seule requête pour
-  // faire le pont, plutôt qu'un `isChatterInScope` par ligne (deux cents chatteurs).
-  const scope = await getCreatorScope(callerId, callerRole)
-  let allowed: Set<string> | null = null
-  if (scope) {
-    const { data: creators, error: cErr } = await createAdminClient()
-      .from('creators').select('name').in('id', [...scope])
-    if (cErr) throw new Error(cErr.message)
-    allowed = new Set((creators ?? []).map((c) => c.name))
-  }
-
   const today = Date.parse(`${todayParis()}T12:00:00Z`)
-  return ((data as RawRow[] | null) ?? [])
-    .filter((r) => !allowed || r.models.some((m) => allowed.has(m)))
-    .map((r) => ({
+  return ((data as RawRow[] | null) ?? []).map((r) => ({
     ...r,
     score: r.score == null ? null : Number(r.score),
     gapDays:

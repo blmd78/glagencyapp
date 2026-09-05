@@ -3,8 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { getProfile } from '@/lib/auth'
-import { getCreatorScope, isChatterInScope } from '@/lib/services/creator-scope'
 import { z } from 'zod'
 import { assertOwner, revalidateTodo } from './todo-guards'
 
@@ -33,15 +31,6 @@ const completeOneToOneInput = z.object({
     .default([]),
 })
 
-/** Le chatteur visé est-il dans le périmètre modèles de l'appelant ? (message du legacy) */
-async function assertChatterInScope(callerId: string, chatterId: string): Promise<void> {
-  const profile = await getProfile()
-  const scope = await getCreatorScope(callerId, profile?.baseRole ?? 'chatteur')
-  if (!(await isChatterInScope(scope, chatterId))) {
-    throw new BusinessError("Ce chatter n'est plus dans ton périmètre.")
-  }
-}
-
 /**
  * Clôt une tâche « 1:1 » : crée la session dans la fiche du chatteur, y attache les notes de
  * compétences, puis marque la tâche faite EN MÉMORISANT l'id de la session.
@@ -50,8 +39,11 @@ async function assertChatterInScope(callerId: string, chatterId: string): Promis
  * toujours une trace dans la fiche du chatter » (routes.js.txt:328-329). Le compte-rendu est donc
  * exigé par le schéma, pas seulement par le formulaire : un appel forgé ne peut pas cocher à vide.
  *
- * Le périmètre est RE-testé ici, et pas seulement à la pose : entre les deux, les modèles ont pu
- * être réassignées — d'où le message au présent du legacy (routes.js.txt:331).
+ * PLUS DE PÉRIMÈTRE MODÈLES depuis le 2026-09-05 (décision de Benoit ; raisonnement dans
+ * `features/tracking-coaching/services/get-coaching-list.ts`). Il n'aurait pas pu rester : cette
+ * ligne écrit une session DANS la fiche du chatteur, exactement ce que la fiche elle-même permet
+ * désormais à tout porteur de la page. Le garder n'aurait interdit que le chemin To-Do, en
+ * laissant l'autre ouvert — et c'est lui qui rendait certaines tâches inclôturables.
  */
 export async function completeOneToOne(raw: unknown): Promise<ActionResult<{ sessionId: string }>> {
   return runAction({
@@ -81,7 +73,6 @@ export async function completeOneToOne(raw: unknown): Promise<ActionResult<{ ses
       if (task.session_id) {
         throw new BusinessError('Ce 1:1 a déjà un bilan : supprime-le sur la fiche du chatter pour le refaire.')
       }
-      await assertChatterInScope(callerId, task.chatter_id)
 
       const { data: session, error: sErr } = await admin
         .from('tracker_sessions')
