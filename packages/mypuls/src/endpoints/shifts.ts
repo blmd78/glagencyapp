@@ -388,6 +388,8 @@ export function parseTeamReport(html: string, range: { from: string; to: string 
   if (!table) throw new Error('shifts: tableau de couverture introuvable')
 
   const rows: CoverageRow[] = []
+  /** Lignes ignorées hors du jour mesuré — journalisées, jamais silencieuses. */
+  const skipped: string[] = []
   let currentDay: string | null = null
 
   for (const tr of grp(table, 0, 'tableau').matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/g)) {
@@ -402,7 +404,27 @@ export function parseTeamReport(html: string, range: { from: string; to: string 
 
     const slot = text(col(cells, 1, 'créneau'))
     const slotBounds = /(\d{1,2}:\d{2})\s*(?:→|->|&rarr;)\s*(\d{1,2}:\d{2})/.exec(slot)
-    if (!slotBounds) throw new Error(`shifts: bornes de créneau illisibles — ${JSON.stringify(slot)}`)
+    if (!slotBounds) {
+      // UNE LIGNE ILLISIBLE NE DOIT PAS FAIRE TOMBER LA NUIT — mais seulement si elle porte sur
+      // un jour qu'on jette de toute façon.
+      //
+      // La requête couvre TOUJOURS deux jours (`[D, D+1]`) parce que la Soirée de D court
+      // jusqu'à 05:00 le lendemain ; seules les lignes de D sont écrites, celles de D+1 sont
+      // rejetées par l'appelant. Or D+1 est le jour EN COURS au moment du cron, et MyPuls y rend
+      // un créneau entamé dont le libellé n'a pas la forme attendue. C'est ce qui a fait échouer
+      // le run du 2026-09-05 à 04:30 UTC — sur une ligne dont pas une valeur n'aurait été écrite.
+      //
+      // Sur le jour MESURÉ, en revanche, on lève : un créneau manquant fausserait le verdict de
+      // quelqu'un, et un relevé incomplet marqué `ok` est exactement ce que le journal existe
+      // pour empêcher.
+      if (currentDay === range.from) {
+        throw new Error(
+          `shifts: bornes de créneau illisibles sur le jour mesuré ${currentDay} — ${JSON.stringify(slot)}`,
+        )
+      }
+      skipped.push(`${currentDay} ${JSON.stringify(slot)}`)
+      continue
+    }
     const slotFrom = grp(slotBounds, 1, 'début de créneau')
     const slotTo = grp(slotBounds, 2, 'fin de créneau')
     const slotLabel = squash(slot.slice(0, slot.indexOf(slotFrom)))
@@ -417,6 +439,11 @@ export function parseTeamReport(html: string, range: { from: string; to: string 
   }
 
   if (rows.length === 0) throw new Error('shifts: tableau de couverture sans aucune ligne')
+  // Visible dans les logs du run sans le faire échouer : si MyPuls change durablement son
+  // rendu, la ligne apparaîtra chaque nuit et finira par se voir.
+  if (skipped.length > 0) {
+    console.warn(`[shifts] ${skipped.length} ligne(s) hors du jour mesuré ignorée(s) : ${skipped.join(' · ')}`)
+  }
   return rows
 }
 
