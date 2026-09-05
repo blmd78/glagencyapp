@@ -125,6 +125,34 @@ describe('parseTeamReport', () => {
     expect(new Set(rows.map((r) => r.day))).toEqual(new Set(['2026-09-01']))
   })
 
+  // INCIDENT DU 2026-09-05, 04:30 UTC : le run nocturne a échoué en entier sur
+  // « bornes de créneau illisibles — "05:27" ». La requête couvre toujours DEUX jours
+  // (`[D, D+1]`, la Soirée de D courant jusqu'à 05:00), et D+1 est le jour EN COURS à l'heure du
+  // cron : MyPuls y rend un créneau entamé dont le libellé n'a pas la forme attendue. La nuit
+  // entière tombait donc sur une ligne dont pas une valeur n'aurait été écrite.
+  it('ignore une ligne illisible du jour SUIVANT — celui qu’on jette de toute façon', () => {
+    const html = fixture('team-report.html').replace(
+      '</table>',
+      '<tr><td>mar. 1 sept</td><td>05:27</td><td><div class="shift-worker"></div></td></tr></table>',
+    )
+    const rows = parseTeamReport(html, { from: '2026-08-31', to: '2026-09-01' })
+    // Les lignes du jour mesuré sont toutes là : la nuit n'est pas perdue.
+    expect(rows.length).toBeGreaterThan(0)
+    expect(new Set(rows.map((r) => r.day))).toEqual(new Set(['2026-08-31']))
+  })
+
+  it('lève, en revanche, si la ligne illisible porte sur le jour MESURÉ', () => {
+    // Là, un créneau manquant fausserait le verdict de quelqu'un — et un relevé incomplet
+    // marqué `ok` est exactement ce que le journal des runs existe pour empêcher.
+    const html = fixture('team-report.html').replace(
+      '</table>',
+      '<tr><td>lun. 31 août</td><td>05:27</td><td><div class="shift-worker"></div></td></tr></table>',
+    )
+    expect(() => parseTeamReport(html, { from: '2026-08-31', to: '2026-09-01' })).toThrow(
+      /jour mesuré 2026-08-31/,
+    )
+  })
+
   it('refuse un mois ambigu plutôt que de choisir entre juin et juillet', () => {
     const html = fixture('team-report.html').replace('lun. 31 août', 'mar. 1 ju')
     expect(() => parseTeamReport(html, { from: '2026-06-01', to: '2026-07-31' })).toThrow(/ambigu/)
