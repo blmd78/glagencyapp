@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { chatterSummaryUrl, parseChatterSummary } from './money-team'
+import { chatterSummaryUrl, parseChatterSummary, parseMoneyTeamSales } from './money-team'
 
 // Fixture = extrait d'une capture RÉELLE du fragment du 2026-09-06, comme pour `shifts.test.ts`.
 // C'est le seul moyen de vérifier qu'on lit MyPuls et pas l'idée qu'on s'en fait — et c'est
@@ -48,5 +48,24 @@ describe('chatterSummaryUrl', () => {
     expect(chatterSummaryUrl('2026-09-06')).toContain(
       '/creator/messaging-money-team/chatter-summary?start=2026-09-06%2000%3A00%3A00&end=2026-09-07%2000%3A00%3A00',
     )
+  })
+})
+
+describe('parseMoneyTeamSales — les ventes, au milieu d’une table qui leur ressemble', () => {
+  // Fixture = les DEUX tables de la page du 2026-09-06, réduites à deux lignes chacune : le
+  // classement (`ranking-table`, ajouté par MyPuls) puis les ventes. Leur cohabitation EST le
+  // piège : les deux portent un `th` « Montant net ».
+  const tx = parseMoneyTeamSales(fixture('money-team-page.html'))
+
+  it('lit les ventes, et non le classement qui les précède', () => {
+    expect(tx).toHaveLength(2)
+    // Un nom de créatrice, pas un rang : « 1 » signerait la table de classement.
+    for (const t of tx) expect(t.creator).not.toMatch(/^\d+$/)
+  })
+
+  it('rend créateur, chatteur, montant et type', () => {
+    expect(tx[0]?.creator).toBe('Lena_dv')
+    expect(tx[0]?.amount).toBeGreaterThan(0)
+    expect(tx[0]?.type).toBeTruthy()
   })
 })

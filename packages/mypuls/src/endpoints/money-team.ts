@@ -124,25 +124,26 @@ export function parseChatterSummary(html: string): ChatterSummary[] {
 }
 
 /**
- * Les VENTES de la page money-team (table `#sales-detail-table`), toujours rendues côté serveur —
- * elles ne dépendent que de PostgreSQL, c'est ce qui les a épargnées lors du changement du
- * 2026-09-03. Le résumé chatteur, lui, se lit par `parseChatterSummary`.
+ * Les VENTES de la page money-team, toujours rendues côté serveur — elles ne dépendent que de
+ * PostgreSQL, c'est ce qui les a épargnées lors du changement du 2026-09-03. Le résumé chatteur,
+ * lui, se lit par `parseChatterSummary`.
+ *
+ * ANCRÉ SUR `#sales-detail-table`, comme le parser du Worker, et plus « la première table dont un
+ * `th` contient Montant » : MyPuls a ajouté AVANT elle une `ranking-table` (classement des
+ * chatteurs) qui porte, elle aussi, un « Montant net » — et dont la première colonne est le RANG.
+ * Le sélecteur d'origine y lisait donc des créatrices nommées « 1 », « 2 », « 3 »… et rendait
+ * TOUTES les transactions non ventilables (constaté en rejouant le 2026-09-03 : 644 sur 644).
+ * Le Worker, ancré sur l'id, n'a jamais été touché — d'où un cron juste et un rattrapage manuel
+ * silencieusement faux, la pire des combinaisons.
  */
 export function parseMoneyTeamSales(html: string): MoneyTeamTx[] {
   const $ = cheerio.load(html)
-  const detailEl = $('table')
-    .toArray()
-    .find((t) =>
-      $(t)
-        .find('th')
-        .toArray()
-        .some((th) => $(th).text().includes('Montant')),
-    )
+  const detailEl = $('#sales-detail-table').get(0)
 
   const transactions: MoneyTeamTx[] = []
   if (detailEl)
     $(detailEl)
-      .find('tr')
+      .find('tbody tr')
       .each((_, tr) => {
         const td = $(tr).find('td')
         if (td.length < 6) return
@@ -159,16 +160,21 @@ export function parseMoneyTeamSales(html: string): MoneyTeamTx[] {
   return transactions
 }
 
-/** GET authentifié sur MyPuls, avec le contrôle de session commun aux deux requêtes du jour. */
-async function getHtml(url: string, cookie: string, what: string): Promise<string> {
+/**
+ * GET authentifié sur MyPuls, avec le contrôle de session commun aux deux requêtes du jour.
+ *
+ * `xhr` ne part que sur le FRAGMENT, parce que c'est là que leur JavaScript le pose : la page,
+ * elle, est demandée par le navigateur comme une page. Sans effet mesuré sur la réponse (les deux
+ * URL répondent avec ou sans), mais on demande ce qu'ils attendent plutôt que de compter sur leur
+ * tolérance.
+ */
+async function getHtml(url: string, cookie: string, what: string, xhr = false): Promise<string> {
   const res = await fetch(url, {
     headers: {
       Cookie: cookie,
       'User-Agent': UA,
       Accept: 'text/html',
-      // Ce que leur `fetch()` envoie. Vérifié non requis (la capture répond 200 sans), mais
-      // envoyé quand même : c'est la requête qu'ils attendent, et ça ne coûte rien.
-      'X-Requested-With': 'XMLHttpRequest',
+      ...(xhr ? { 'X-Requested-With': 'XMLHttpRequest' } : {}),
     },
   })
   if (!res.ok) throw new Error(`GET ${what} ${res.status}`)
@@ -186,7 +192,7 @@ async function getHtml(url: string, cookie: string, what: string): Promise<strin
 export async function fetchMoneyTeamDay(day: string, cookie: string): Promise<MoneyTeamDay> {
   const [page, summary] = await Promise.all([
     getHtml(moneyTeamUrl(day), cookie, `messaging-money-team (${day})`),
-    getHtml(chatterSummaryUrl(day), cookie, `chatter-summary (${day})`),
+    getHtml(chatterSummaryUrl(day), cookie, `chatter-summary (${day})`, true),
   ])
   return { chatters: parseChatterSummary(summary), transactions: parseMoneyTeamSales(page) }
 }

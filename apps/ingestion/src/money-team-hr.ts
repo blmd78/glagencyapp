@@ -105,14 +105,18 @@ export async function parseMoneyTeamHR(res: Response): Promise<MoneyTeamDay> {
   return { chatters, transactions }
 }
 
-/** GET authentifié, avec le contrôle de session commun aux deux requêtes du jour. */
-async function get(url: string, cookie: string, what: string): Promise<Response> {
+/**
+ * GET authentifié, avec le contrôle de session commun aux deux requêtes du jour.
+ * `xhr` seulement sur le FRAGMENT, là où leur JavaScript le pose. Cf. le commentaire jumeau
+ * dans `@glagency/mypuls`.
+ */
+async function get(url: string, cookie: string, what: string, xhr = false): Promise<Response> {
   const res = await fetch(url, {
     headers: {
       Cookie: cookie,
       'User-Agent': UA,
       Accept: 'text/html',
-      'X-Requested-With': 'XMLHttpRequest',
+      ...(xhr ? { 'X-Requested-With': 'XMLHttpRequest' } : {}),
     },
   })
   if (!res.ok) throw new Error(`GET ${what} ${res.status}`)
@@ -128,7 +132,7 @@ async function get(url: string, cookie: string, what: string): Promise<Response>
 export async function fetchMoneyTeamDayHR(day: string, cookie: string): Promise<MoneyTeamDay> {
   const [page, summary] = await Promise.all([
     get(moneyTeamUrl(day), cookie, `messaging-money-team (${day})`),
-    get(chatterSummaryUrl(day), cookie, `chatter-summary (${day})`),
+    get(chatterSummaryUrl(day), cookie, `chatter-summary (${day})`, true),
   ])
   const [sales, chatters] = await Promise.all([parseMoneyTeamHR(page), parseMoneyTeamHR(summary)])
   return { chatters: chatters.chatters, transactions: sales.transactions }
