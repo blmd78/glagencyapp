@@ -51,7 +51,8 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-07,
   prod à **0148** — tout le relevé MyPuls y est passé avec les Releases 2.26→2.28, la mention
   `--include-all` n'a plus d'objet ; `0146`/`0147` sont passées avec la Release 2.36 et `0148`
-  (habitudes déposées) avec la 2.37 — prochaine migration = **0149**) : **catalogue**
+  (habitudes déposées) avec la 2.37 et `0149` (`chatter_daily.presence` nullable) est en attente
+  de release — prochaine migration = **0150**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
