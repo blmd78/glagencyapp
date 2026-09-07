@@ -2,6 +2,7 @@ import { revalidatePath } from 'next/cache'
 import { BusinessError, requireWriteProfileLive } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
+import { canEditHabit } from './habit-rules'
 
 /**
  * Gardes de propriété de la To-Do du tracker.
@@ -58,8 +59,11 @@ async function requireTodoAccess() {
  * SANS dérogation admin, sur la coche, le déplacement, les habitudes et les liens.
  *
  * Notre version autorisait l'admin partout — il pouvait donc cocher le travail d'un encadrant et
- * SIGNER SON DÉBRIEF à sa place. Les deux seules dérogations du legacy (déposer une tâche, la
- * retirer) vivent dans `assertCanAssign` / `assertCanUnassign`.
+ * SIGNER SON DÉBRIEF à sa place. Les deux dérogations du legacy (déposer une tâche, la retirer)
+ * vivent dans `assertCanAssign` / `assertCanUnassign` ; la troisième, les gabarits d'habitude,
+ * est de nous (`assertCanEditHabit`, 2026-09-07) et s'écarte donc du legacy en connaissance de
+ * cause. `assertOwner` garde tout le reste, habitudes matérialisées comprises : sauter une
+ * occurrence (« juste aujourd'hui ») reste un geste du seul titulaire.
  *
  * Vérifié UNE fois, dans le handler — jamais en double dans `guard`.
  */
@@ -174,6 +178,53 @@ export async function assertCanUnassign(ownerId: string, taskId: string): Promis
   if (!data) throw new BusinessError("Cette tâche n'existe plus.")
   if (data.created_by !== profile.id) {
     throw new BusinessError('Tu ne peux retirer que les tâches que tu as déposées.')
+  }
+  return profile.id
+}
+
+/**
+ * TOUCHER UNE HABITUDE (renommer, mettre en pause, supprimer) — 3ᵉ dérogation, ajoutée le
+ * 2026-09-07.
+ *
+ * Les deux premières (`assertCanAssign`, `assertCanUnassign`) portent sur une tâche : UNE
+ * occurrence, UN jour. Poser un rituel chez son sous-manager demandait donc de le reposer chaque
+ * semaine — « j'ai pas à le noter tout le temps » est exactement la demande. Créer une habitude
+ * chez un autre passe par `assertCanAssign` (même périmètre que le dépôt d'une tâche : rien de
+ * nouveau à autoriser) ; c'est l'ÉDITION du gabarit qui a besoin de cette garde-ci, parce qu'elle
+ * introduit un cas que la To-Do ne connaissait pas : une ligne dans la semaine de quelqu'un que
+ * son titulaire n'a pas le droit d'effacer.
+ *
+ * DEUX questions, dans cet ordre — le même enchaînement que `assertCanUnassign` :
+ *   1. ai-je affaire à cette semaine ? (la mienne, ou une où j'ai la dérogation de dépôt AUJOURD'HUI —
+ *      un rattachement retiré referme donc la porte, même sur ce qu'on avait déposé avant) ;
+ *   2. ce gabarit-là est-il à moi ? (`canEditHabit`, la règle pure).
+ *
+ * Lecture au client SESSION : `tracker_todo_habits_read` (0127) ouvre la lecture à tout porteur du
+ * droit `presence`, la RLS suffit donc et reste le filet. L'ÉCRITURE, elle, part en service-role
+ * dans l'action, comme partout sur ces tables.
+ */
+export async function assertCanEditHabit(ownerId: string, habitId: string): Promise<string> {
+  const profile = await requireTodoAccess()
+  if (profile.id !== ownerId && !(await canAssignTodoOf(profile, ownerId))) {
+    throw new BusinessError("Ce n'est pas ta semaine.")
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('tracker_todo_habits')
+    .select('created_by')
+    .eq('id', habitId)
+    .eq('owner_id', ownerId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new BusinessError("Cette habitude n'existe plus.")
+
+  if (!canEditHabit({ callerId: profile.id, callerRole: profile.role, ownerId, createdBy: data.created_by })) {
+    // Message écrit pour le TITULAIRE, qui est le seul à pouvoir buter ici de bonne foi : il voit
+    // une habitude dans SA semaine et ne comprendrait pas un « ce n'est pas ta semaine ».
+    throw new BusinessError(
+      "Cette habitude t'a été déposée par ton encadrement : tu peux la sauter un jour donné, pas la retirer.",
+    )
   }
   return profile.id
 }

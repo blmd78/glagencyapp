@@ -45,6 +45,17 @@ export interface TodoHabit {
   /** Jours ISO (1 = lundi … 7 = dimanche). */
   weekdays: number[]
   active: boolean
+  /**
+   * DÉPOSÉE par quelqu'un d'autre que son titulaire (`created_by` non nul). Même drapeau, même
+   * badge et même sens que `TodoTask.fromOther` : « ceci ne vient pas de moi ».
+   */
+  fromOther: boolean
+  /**
+   * L'appelant peut-il la renommer, la mettre en pause, la supprimer ? Calculé côté serveur par
+   * `canEditHabit` — la MÊME fonction que la garde de l'action. Le panneau n'a donc aucune règle
+   * à rejouer : il affiche les boutons là où le serveur dira oui.
+   */
+  canEdit: boolean
 }
 
 /** Un chatteur proposable dans « Session 1:1 avec » — borné au périmètre de l'appelant. */

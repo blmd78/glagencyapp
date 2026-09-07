@@ -25,12 +25,17 @@ export function TodoTemplate({ week }: { week: TodoWeek }) {
           <LinksCard week={week} />
           {/* Les habitudes se gèrent au même endroit que le reste du contexte de la semaine. Chez
               eux c'était un onglet de la fenêtre d'ajout ; ici la semaine est déjà à l'écran, et un
-              panneau évite d'enfermer un réglage durable dans une modale d'ajout ponctuel. */}
+              panneau évite d'enfermer un réglage durable dans une modale d'ajout ponctuel.
+
+              `canWrite || canAssign` : le panneau est aussi le point d'entrée du DÉPÔT d'un rituel
+              chez quelqu'un qu'on encadre (2026-09-07). Le reste de la semaine reste en lecture
+              seule pour lui — on ne coche pas le travail d'un autre. */}
           <HabitsPanel
             ownerId={week.ownerId}
             habits={week.habits}
             sections={[...new Set(week.days.flatMap((d) => d.sections.map((s) => s.name)))].sort()}
-            canWrite={week.canWrite}
+            canCreate={week.canWrite || week.canAssign}
+            depositing={week.canAssign && !week.canWrite}
           />
         </div>
       </div>

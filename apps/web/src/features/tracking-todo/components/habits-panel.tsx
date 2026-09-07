@@ -26,18 +26,28 @@ const DAYS = [
  * Écart de forme assumé : leur renommage passe par un `prompt()` natif et leur suppression par un
  * `confirm()`. On reste sur des champs et des boutons — même geste, sans dialogue bloquant du
  * navigateur (cf. la règle du projet sur les modales natives).
+ *
+ * DEPUIS LE 2026-09-07, le panneau s'ouvre aussi sur la semaine d'un AUTRE : c'est le seul endroit
+ * d'où la hiérarchie dépose un rituel plutôt que de le renoter chaque semaine. Le droit d'agir se
+ * lit ligne par ligne (`habit.canEdit`, calculé par le serveur avec la règle de la garde) et non
+ * plus au niveau du panneau — sur sa propre semaine, une habitude qu'on vous a déposée est visible
+ * mais verrouillée.
  */
 export function HabitsPanel({
   ownerId,
   habits,
   sections,
-  canWrite,
+  canCreate,
+  depositing,
 }: {
   ownerId: string
   habits: TodoHabit[]
   /** Sections existantes de la semaine, pour rattacher l'habitude — « Sans section » possible. */
   sections: string[]
-  canWrite: boolean
+  /** Peut-on en créer une ici ? Sa propre semaine, ou celle de quelqu'un qu'on encadre. */
+  canCreate: boolean
+  /** On garnit la semaine de QUELQU'UN D'AUTRE — le formulaire le dit, il n'a pas le même effet. */
+  depositing: boolean
 }) {
   const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
@@ -76,15 +86,19 @@ export function HabitsPanel({
     <div className="card">
       <div className="blockh">
         <h2>Habitudes</h2>
-        <span className="cnt">Une habitude crée sa tâche automatiquement, chaque jour choisi.</span>
-        {canWrite ? (
+        <span className="cnt">
+          {depositing
+            ? 'Une habitude déposée revient chaque jour choisi, sans que tu aies à la renoter.'
+            : 'Une habitude crée sa tâche automatiquement, chaque jour choisi.'}
+        </span>
+        {canCreate ? (
           <button type="button" className="btn sm" onClick={() => setOpen((v) => !v)}>
             {open ? 'Fermer' : 'Nouvelle habitude'}
           </button>
         ) : null}
       </div>
 
-      {open && canWrite ? (
+      {open && canCreate ? (
         <div className="cardpad hform">
           <div className="field">
             <label htmlFor="ht">Nouvelle habitude</label>
@@ -126,8 +140,14 @@ export function HabitsPanel({
             </div>
           </div>
           <button type="button" className="btn" onClick={create}>
-            Créer l’habitude
+            {depositing ? 'Déposer l’habitude' : 'Créer l’habitude'}
           </button>
+          {depositing ? (
+            // Dit ce que le serveur fera : l'habitude déposée est verrouillée pour son titulaire
+            // (`canEditHabit`), il ne pourra que sauter une occurrence. Une règle qui surprend se
+            // dit au moment du geste, pas dans un message d'erreur quinze jours plus tard.
+            <p className="cnt">Elle ne pourra pas être retirée par la personne — toi seul, ou un admin.</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -157,6 +177,8 @@ export function HabitsPanel({
                 <span className="hn">
                   {h.label}
                   {h.category ? <em className="cnt"> · {h.category}</em> : null}
+                  {/* Même badge et même mot que sur une tâche déposée (`task-item.tsx`). */}
+                  {h.fromOther ? <span className="asg">déposée</span> : null}
                 </span>
               )}
               <span className="hdots" aria-label={`Jours : ${h.weekdays.map((n) => DAYS[n - 1].long).join(', ')}`}>
@@ -166,7 +188,7 @@ export function HabitsPanel({
                   </span>
                 ))}
               </span>
-              {canWrite ? (
+              {h.canEdit ? (
                 <span className="hact">
                   <button
                     type="button"

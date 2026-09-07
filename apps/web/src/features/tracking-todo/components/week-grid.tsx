@@ -108,6 +108,14 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     startTransition(() => run(() => deleteTaskOccurrence({ ownerId: week.ownerId, taskId: task.id })))
   }
 
+  /**
+   * Le gabarit derrière une occurrence récurrente — `habit:<id>:<date>`. Sert à savoir si son
+   * arrêt est PROPOSABLE : une habitude déposée par la hiérarchie ne se supprime pas par son
+   * titulaire (`canEditHabit`), et le serveur refuserait le geste.
+   */
+  const habitOf = (task: TodoTask | null) =>
+    task?.virtual ? (week.habits.find((h) => h.id === task.id.split(':')[1]) ?? null) : null
+
   /** « Supprimer l'habitude » : le gabarit disparaît, ce qui est déjà coché reste dans l'historique. */
   const onDeleteHabit = (task: TodoTask): void => {
     const habitId = task.id.split(':')[1]
@@ -188,14 +196,24 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
       {recurring ? (
         <div className="recask" role="dialog" aria-label="Cette tâche revient chaque jour choisi">
           <p className="rt">Cette tâche revient chaque jour choisi</p>
-          <p className="rd">La retirer seulement aujourd’hui, ou arrêter l’habitude pour de bon ?</p>
+          {/* La question n'a DEUX issues que si l'arrêt est permis. Sur une habitude déposée par
+              l'encadrement, il ne reste que « juste aujourd'hui » : proposer « supprimer
+              l'habitude » à quelqu'un à qui le serveur va répondre non, c'est promettre une porte
+              qui n'ouvre pas. Le gabarit se retire depuis le panneau Habitudes, par son déposant. */}
+          <p className="rd">
+            {habitOf(recurring)?.canEdit === false
+              ? 'Elle t’a été déposée par ton encadrement : tu peux la sauter aujourd’hui, pas l’arrêter.'
+              : 'La retirer seulement aujourd’hui, ou arrêter l’habitude pour de bon ?'}
+          </p>
           <div className="ra">
             <button type="button" className="btn sm" onClick={() => onDeleteOnce(recurring)}>
               Juste aujourd’hui
             </button>
-            <button type="button" className="btn sm danger" onClick={() => onDeleteHabit(recurring)}>
-              Supprimer l’habitude
-            </button>
+            {habitOf(recurring)?.canEdit === false ? null : (
+              <button type="button" className="btn sm danger" onClick={() => onDeleteHabit(recurring)}>
+                Supprimer l’habitude
+              </button>
+            )}
             <button type="button" className="btn sm" onClick={() => setRecurring(null)}>
               Fermer
             </button>

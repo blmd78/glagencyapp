@@ -2,6 +2,7 @@ import { addDays, isoWeekday, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getCreatorScope } from '@/lib/services/creator-scope'
+import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { defaultDebriefDay } from '../debrief-day'
 import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 
@@ -70,7 +71,7 @@ export async function getTodoWeek(params: {
       // TOUTES les habitudes, actives ou non : le panneau de gestion doit montrer celles en pause
       // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
       // bas, au moment de projeter les occurrences dans la semaine.
-      supabase.from('tracker_todo_habits').select('id, category, label, weekdays, active, position')
+      supabase.from('tracker_todo_habits').select('id, category, label, weekdays, active, position, created_by')
         .eq('owner_id', params.ownerId).order('position'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
@@ -146,7 +147,14 @@ export async function getTodoWeek(params: {
             label: h.label,
             done: false,
             virtual: true,
-            fromOther: false,
+            // L'occurrence porte le badge « déposée » dès le gabarit, avant même d'exister en
+            // base : sinon la même tâche l'aurait au premier geste (`materialize` recopie
+            // `created_by`) et pas avant — un badge qui apparaît en cochant.
+            fromOther: h.created_by != null && h.created_by !== params.ownerId,
+            // `false` MÊME pour son déposant, et c'est délibéré : ce drapeau n'ouvre que la croix
+            // de suppression sur la semaine d'un autre (`task-item.tsx`), or supprimer une
+            // occurrence virtuelle passe par `deleteTaskOccurrence`, réservé au titulaire. Le
+            // gabarit se retire depuis le panneau Habitudes, qui est l'endroit prévu pour ça.
             depositedByMe: false,
             // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
             chatterId: null,
@@ -174,6 +182,11 @@ export async function getTodoWeek(params: {
   // une tâche déposée hors de son périmètre serait inclôturable). Sans cette intersection, le
   // sélecteur proposerait des noms que le serveur refuserait ensuite : une liste qui ment.
   const isEncadrant = ENCADRANT_ROLES.includes(params.callerRole)
+  // Sortis de l'objet de retour parce que les habitudes en dépendent (`canEdit`) : deux copies de
+  // ces deux lignes, c'est deux occasions de les faire diverger. Leur commentaire est plus bas,
+  // sur les champs qu'elles alimentent.
+  const canWrite = params.callerId === params.ownerId && isEncadrant
+  const canAssignHere = params.canAssign && params.callerId !== params.ownerId
   const chatters: TodoChatter[] = []
   if (isEncadrant) {
     const admin = createAdminClient()
@@ -208,6 +221,19 @@ export async function getTodoWeek(params: {
       category: h.category,
       weekdays: h.weekdays.split(',').map(Number),
       active: h.active,
+      fromOther: h.created_by != null && h.created_by !== params.ownerId,
+      // `canWrite || canAssign` en garde d'entrée : `canEditHabit` ne tranche que la PROPRIÉTÉ du
+      // gabarit, pas le droit d'écrire sur cet écran (un chatteur à qui on a coché « Présence »
+      // est titulaire de ses habitudes sans pouvoir toucher à quoi que ce soit). Les deux
+      // questions de la garde serveur, dans le même ordre.
+      canEdit:
+        (canWrite || canAssignHere) &&
+        canEditHabit({
+          callerId: params.callerId,
+          callerRole: params.callerRole,
+          ownerId: params.ownerId,
+          createdBy: h.created_by,
+        }),
     })),
     chatters,
     notes: notesRes.data?.body ?? '',
@@ -224,8 +250,8 @@ export async function getTodoWeek(params: {
     // ou un policier à qui on a coché « Présence » voyait sinon un écran entièrement éditable dont
     // chaque geste part en « Accès refusé » — l'UI est optimiste, elle n'a pas le droit d'être
     // plus permissive que le serveur.
-    canWrite: params.callerId === params.ownerId && isEncadrant,
-    canAssign: params.canAssign && params.callerId !== params.ownerId,
+    canWrite,
+    canAssign: canAssignHere,
     // Le journal personnel du titulaire (débrief + bloc-notes) est-il lisible ici ? La RLS le
     // réserve à son auteur et aux admins (0132 / 0137) : sur la semaine d'un autre, un MANAGER les
     // reçoit VIDES. Sans ce drapeau, l'écran afficherait « Mon débrief — à remplir » et un

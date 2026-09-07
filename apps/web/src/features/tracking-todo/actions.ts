@@ -2,7 +2,9 @@
 
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { assertOwner, assertCanAssign, assertCanUnassign, revalidateTodo } from './actions-shared'
+import {
+  assertOwner, assertCanAssign, assertCanUnassign, assertCanEditHabit, revalidateTodo,
+} from './actions-shared'
 import {
   addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput,
   habitInput, moveTaskInput, renameHabitInput, renameSectionInput, sectionInput,
@@ -16,11 +18,12 @@ import {
  * aucune politique d'écriture, donc il n'existe qu'UN chemin d'écriture, celui qui passe par ici.
  *
  * PROPRIÉTÉ : le travail reste celui de son titulaire (`assertOwner` — coche, déplacement,
- * sections, habitudes, débrief : personne d'autre, admin compris). Deux dérogations seulement, et
- * elles ont chacune leur garde : DÉPOSER une tâche (`assertCanAssign` — admin, ou manager du
- * titulaire) et RETIRER CE QU'ON A DÉPOSÉ (`assertCanUnassign`). La vérification est faite UNE
- * fois, dans le handler — jamais en double dans `guard`, ce que la checklist des guidelines
- * interdit explicitement.
+ * sections, débrief : personne d'autre, admin compris). TROIS dérogations, et elles ont chacune
+ * leur garde : DÉPOSER une tâche ou une habitude (`assertCanAssign` — admin, ou manager du
+ * titulaire), RETIRER CE QU'ON A DÉPOSÉ (`assertCanUnassign`) et TOUCHER UN GABARIT D'HABITUDE
+ * (`assertCanEditHabit`, 2026-09-07 — le déposant, ou le titulaire pour les siennes). La
+ * vérification est faite UNE fois, dans le handler — jamais en double dans `guard`, ce que la
+ * checklist des guidelines interdit explicitement.
  */
 
 /** Une occurrence virtuelle d'habitude : `habit:<uuid>:<date>`. */
@@ -40,7 +43,7 @@ async function materialize(ownerId: string, taskId: string): Promise<string> {
   const admin = createAdminClient()
   const { data: habit, error } = await admin
     .from('tracker_todo_habits')
-    .select('category, label')
+    .select('category, label, created_by')
     .eq('id', virt.habitId)
     .eq('owner_id', ownerId)
     .maybeSingle()
@@ -49,7 +52,17 @@ async function materialize(ownerId: string, taskId: string): Promise<string> {
 
   const { data: created, error: insErr } = await admin
     .from('tracker_todo_tasks')
-    .insert({ owner_id: ownerId, date: virt.date, category: habit.category, label: habit.label })
+    .insert({
+      owner_id: ownerId,
+      date: virt.date,
+      category: habit.category,
+      label: habit.label,
+      // La tâche HÉRITE du déposant du gabarit. Sans ça, l'occurrence d'une habitude déposée par
+      // la hiérarchie naît avec `created_by: null`, c'est-à-dire « posée par le titulaire » : elle
+      // perd son badge « déposée » au premier geste, et son déposant ne peut plus la retirer
+      // (`assertCanUnassign` lit ce `created_by`). Le gabarit dit qui l'a voulue ; la tâche aussi.
+      created_by: habit.created_by,
+    })
     .select('id')
     .single()
   if (insErr) throw new Error(insErr.message)
@@ -266,13 +279,19 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      // `assertCanAssign` et non `assertOwner` : poser un rituel chez quelqu'un, c'est le même
+      // périmètre que d'y déposer une tâche (admin, ou manager du titulaire) — rien de nouveau à
+      // autoriser, juste la version récurrente d'un geste déjà permis.
+      const caller = await assertCanAssign(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_habits').insert({
         owner_id: d.ownerId,
         category: d.category,
         label: d.label,
         weekdays: d.weekdays.join(','),
+        // `null` quand on se la donne à soi-même — même convention que `addTask`, pour ne pas
+        // marquer d'un « déposée » les habitudes qu'on s'impose.
+        created_by: caller.id === d.ownerId ? null : caller.id,
       })
       if (error) throw new Error(error.message)
       revalidateTodo()
@@ -286,7 +305,7 @@ export async function deleteHabit(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      await assertCanEditHabit(d.ownerId, d.habitId)
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_todo_habits').delete().eq('id', d.habitId).eq('owner_id', d.ownerId)
@@ -304,7 +323,7 @@ export async function renameHabit(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      await assertCanEditHabit(d.ownerId, d.habitId)
       const { error } = await createAdminClient()
         .from('tracker_todo_habits')
         .update({ label: d.label })
@@ -327,7 +346,7 @@ export async function setHabitActive(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      await assertCanEditHabit(d.ownerId, d.habitId)
       const { error } = await createAdminClient()
         .from('tracker_todo_habits')
         .update({ active: d.active })
