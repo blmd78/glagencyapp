@@ -3740,6 +3740,7 @@ export type Database = {
           active: boolean
           category: string
           created_at: string
+          created_by: string | null
           id: string
           label: string
           owner_id: string
@@ -3750,6 +3751,7 @@ export type Database = {
           active?: boolean
           category: string
           created_at?: string
+          created_by?: string | null
           id?: string
           label: string
           owner_id: string
@@ -3760,6 +3762,7 @@ export type Database = {
           active?: boolean
           category?: string
           created_at?: string
+          created_by?: string | null
           id?: string
           label?: string
           owner_id?: string
@@ -3767,6 +3770,13 @@ export type Database = {
           weekdays?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tracker_todo_habits_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tracker_todo_habits_owner_id_fkey"
             columns: ["owner_id"]
