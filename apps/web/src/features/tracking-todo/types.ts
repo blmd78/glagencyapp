@@ -16,9 +16,9 @@ export interface TodoTask {
   /** Déposée par quelqu'un d'autre que le propriétaire — la hiérarchie, comme sur le planning. */
   fromOther: boolean
   /**
-   * Déposée par CELUI QUI REGARDE. C'est la seule tâche qu'un non-titulaire puisse retirer
-   * (`assertCanUnassign` : « retirer ce qu'il a déposé ») — sans ce drapeau, la dérogation
-   * existerait côté serveur sans aucun bouton pour l'exercer, comme c'était le cas du dépôt.
+   * Déposée par CELUI QUI REGARDE. Ne commande plus aucun droit depuis le 2026-09-07 (un
+   * encadrant retire n'importe quelle tâche de la semaine, cf. `assertCanOrganize`) : reste un
+   * repère d'affichage, pour distinguer ce qu'on a soi-même posé de ce que le titulaire s'est donné.
    */
   depositedByMe: boolean
   /**
@@ -130,8 +130,18 @@ export interface TodoWeek {
   today: string
   /** Jour proposé d'office dans la carte « Bilan du jour » (`defaultDebriefDay`). */
   debriefDay: string
-  /** L'utilisateur peut-il écrire ? (titulaire de la to-do, ET rôle d'encadrement.) */
+  /**
+   * ATTESTER — cocher, débriefer, écrire ses notes et ses liens : le titulaire seul (ET rôle
+   * d'encadrement). Ne pas l'employer pour un geste d'organisation : c'est `canOrganize`.
+   */
   canWrite: boolean
+  /**
+   * ORGANISER — le contenu du planning : déposer, déplacer, supprimer, sections, habitudes, jour
+   * de repos. Vrai pour le titulaire ET pour son encadrement (décision du 2026-09-07 : « les
+   * managers peuvent gérer l'emploi du temps de leurs sous-managers comme ils veulent »).
+   * Miroir de `assertCanOrganize` — un bouton d'organisation se conditionne à CE drapeau.
+   */
+  canOrganize: boolean
   /**
    * Le débrief du jour et le bloc-notes de la semaine sont-ils LISIBLES ? Faux pour un manager sur
    * la semaine d'un sous-manager : la RLS (0132 / 0137) réserve ce journal à son auteur et aux

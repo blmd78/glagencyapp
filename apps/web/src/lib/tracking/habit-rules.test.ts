@@ -21,9 +21,31 @@ describe('canEditHabit — qui peut renommer, mettre en pause ou supprimer une h
     expect(canEditHabit({ callerId: MANAGER, callerRole: 'manager', ...chez(MANAGER) })).toBe(true)
   })
 
-  it('un autre manager : rien, ni l’habitude perso du titulaire ni celle d’un confrère', () => {
+  it('un manager SANS dérogation sur cette semaine : rien, même sur l’habitude d’un confrère', () => {
     expect(canEditHabit({ callerId: MANAGER, callerRole: 'manager', ...chez(null) })).toBe(false)
     expect(canEditHabit({ callerId: MANAGER, callerRole: 'manager', ...chez('autre-manager') })).toBe(false)
+  })
+
+  // ————— Décision de Benoit, 2026-09-07 : « les managers ont tous les droits sur leurs
+  // sous-managers, ils peuvent gérer leur emploi du temps comme ils veulent ».
+  it('le manager DU titulaire : l’habitude que le sous-manager s’est donnée lui-même', () => {
+    expect(
+      canEditHabit({ callerId: MANAGER, callerRole: 'manager', ...chez(null), canOrganize: true }),
+    ).toBe(true)
+  })
+
+  it('le manager DU titulaire : même celle déposée par quelqu’un d’autre', () => {
+    expect(
+      canEditHabit({ callerId: MANAGER, callerRole: 'manager', ...chez('autre-manager'), canOrganize: true }),
+    ).toBe(true)
+  })
+
+  it('le titulaire reste verrouillé sur ce qu’on lui dépose — `canOrganize` est faux chez soi', () => {
+    // L'invariant que les deux appelants garantissent (`callerId !== ownerId`) : sans lui, un
+    // sous-manager qui encadre à son tour rouvrirait la porte sur SES propres habitudes déposées.
+    expect(
+      canEditHabit({ callerId: SOUS_MANAGER, callerRole: 'sous-manager', ...chez(MANAGER), canOrganize: false }),
+    ).toBe(false)
   })
 
   it('admin : partout, quel que soit le déposant (dérogation « corriger une erreur »)', () => {

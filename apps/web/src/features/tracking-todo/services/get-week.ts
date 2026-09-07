@@ -187,6 +187,12 @@ export async function getTodoWeek(params: {
   // sur les champs qu'elles alimentent.
   const canWrite = params.callerId === params.ownerId && isEncadrant
   const canAssignHere = params.canAssign && params.callerId !== params.ownerId
+  /**
+   * ORGANISER : le contenu du planning (déposer, déplacer, supprimer, sections, habitudes, jour de
+   * repos). Miroir exact de `assertCanOrganize` — titulaire OU encadrement — là où `canWrite`
+   * garde le sens plus étroit d'ATTESTER (cocher, débriefer), qui ne se délègue pas.
+   */
+  const canOrganize = canWrite || canAssignHere
   const chatters: TodoChatter[] = []
   if (isEncadrant) {
     const admin = createAdminClient()
@@ -222,17 +228,18 @@ export async function getTodoWeek(params: {
       weekdays: h.weekdays.split(',').map(Number),
       active: h.active,
       fromOther: h.created_by != null && h.created_by !== params.ownerId,
-      // `canWrite || canAssign` en garde d'entrée : `canEditHabit` ne tranche que la PROPRIÉTÉ du
-      // gabarit, pas le droit d'écrire sur cet écran (un chatteur à qui on a coché « Présence »
-      // est titulaire de ses habitudes sans pouvoir toucher à quoi que ce soit). Les deux
-      // questions de la garde serveur, dans le même ordre.
+      // `canOrganize` en garde d'entrée : `canEditHabit` ne tranche que la PROPRIÉTÉ du gabarit,
+      // pas le droit d'écrire sur cet écran (un chatteur à qui on a coché « Présence » est
+      // titulaire de ses habitudes sans pouvoir toucher à quoi que ce soit). Les deux questions de
+      // la garde serveur, dans le même ordre.
       canEdit:
-        (canWrite || canAssignHere) &&
+        canOrganize &&
         canEditHabit({
           callerId: params.callerId,
           callerRole: params.callerRole,
           ownerId: params.ownerId,
           createdBy: h.created_by,
+          canOrganize: canAssignHere,
         }),
     })),
     chatters,
@@ -241,10 +248,9 @@ export async function getTodoWeek(params: {
     dailyByDay,
     today,
     debriefDay: defaultDebriefDay(today, weekStart),
-    // La semaine d'un AUTRE est en lecture seule, même pour un admin — il ne coche pas, ne déplace
-    // pas, ne signe pas le débrief d'autrui (règle du legacy, cf. `assertOwner`). Il garde le droit
-    // d'y déposer et d'y retirer une tâche : ces deux gestes-là ont leur propre garde côté action.
-    // Le legacy faisait pareil à l'écran : « la page ne rend alors aucun bouton » (routes.js.txt:252-256).
+    // Sur la semaine d'un AUTRE, on organise mais on n'atteste pas : `canOrganize` ouvre le
+    // planning à l'encadrement (2026-09-07), `canWrite` reste la coche et le débrief, que personne
+    // ne signe à la place du titulaire — admin compris (cf. `assertOwner`).
     // `isEncadrant` en plus du titulaire : la garde d'écriture est `requireWriteProfileLive`
     // (admin, ou manager/sous-manager porteur du droit), pas le simple port du droit. Un chatteur
     // ou un policier à qui on a coché « Présence » voyait sinon un écran entièrement éditable dont
@@ -252,6 +258,7 @@ export async function getTodoWeek(params: {
     // plus permissive que le serveur.
     canWrite,
     canAssign: canAssignHere,
+    canOrganize,
     // Le journal personnel du titulaire (débrief + bloc-notes) est-il lisible ici ? La RLS le
     // réserve à son auteur et aux admins (0132 / 0137) : sur la semaine d'un autre, un MANAGER les
     // reçoit VIDES. Sans ce drapeau, l'écran afficherait « Mon débrief — à remplir » et un

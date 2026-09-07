@@ -287,10 +287,10 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      // `assertCanAssign` et non `assertOwner` : poser un rituel chez quelqu'un, c'est le même
+      // `assertCanOrganize` et non `assertOwner` : poser un rituel chez quelqu'un, c'est le même
       // périmètre que d'y déposer une tâche (admin, ou manager du titulaire) — rien de nouveau à
       // autoriser, juste la version récurrente d'un geste déjà permis.
-      const caller = await assertCanAssign(d.ownerId)
+      const caller = await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_habits').insert({
         owner_id: d.ownerId,

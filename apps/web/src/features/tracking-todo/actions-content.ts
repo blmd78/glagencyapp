@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, type ActionResult } from '@/lib/actions'
-import { assertOwner, revalidateTodo } from './actions-shared'
+import { assertOwner, assertCanOrganize, revalidateTodo } from './actions-shared'
 import { addLinkInput, dailyInput, dayOffInput, deleteLinkInput, notesInput } from './schema'
 
 /**
@@ -11,6 +11,10 @@ import { addLinkInput, dailyInput, dayOffInput, deleteLinkInput, notesInput } fr
  * lignes — même découpage que `training-catalog/actions.ts` / `actions-cases.ts`.
  *
  * Mêmes règles : écriture service-role après garde, propriété vérifiée dans le handler.
+ *
+ * La coupure ORGANISER / ATTESTER de `todo-guards.ts` traverse ce fichier : le jour de repos est
+ * de l'emploi du temps (`assertCanOrganize`), le débrief, les notes et les liens sont la parole du
+ * titulaire (`assertOwner`, admin compris).
  */
 
 export async function toggleDayOff(raw: unknown): Promise<ActionResult> {
@@ -19,7 +23,7 @@ export async function toggleDayOff(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       const { data: existing, error } = await admin
         .from('tracker_todo_dayoff').select('date')

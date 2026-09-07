@@ -22,18 +22,19 @@ function SectionGroup({
   onDelete,
   onAdd,
   chatters,
-  canAssign,
+  canOrganize,
   onDeleteSection,
 }: {
   day: TodoDay
   section: TodoSection
+  /** ATTESTER — cocher. Le titulaire seul. */
   canWrite: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
   chatters: TodoChatter[]
-  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin, ou son manager). */
-  canAssign: boolean
+  /** ORGANISER — ajouter, retirer, remanier. Le titulaire ou son encadrement. */
+  canOrganize: boolean
   onDeleteSection: (name: string) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
@@ -69,7 +70,7 @@ function SectionGroup({
         <em>
           {done}/{section.tasks.length}
         </em>
-        {canWrite || canAssign ? (
+        {canOrganize ? (
           <>
             <button
               type="button"
@@ -79,19 +80,17 @@ function SectionGroup({
             >
               +
             </button>
-            {/* Retirer une SECTION est réservé au titulaire (`saveSection`/`deleteSection` passent
-                par `assertOwner`) : un déposant qui verrait ce bouton se ferait refuser « Ce n'est
-                pas ta semaine ». Sa dérogation porte sur les tâches, pas sur la structure. */}
-            {canWrite ? (
-              <button
-                type="button"
-                className="gdel"
-                title="Retirer la section (ses tâches sont conservées)"
-                onClick={() => onDeleteSection(section.name)}
-              >
-                ✕
-              </button>
-            ) : null}
+            {/* La STRUCTURE de la semaine s'ouvre à l'encadrement depuis le 2026-09-07
+                (`assertCanOrganize`) : un manager qui ne pouvait pas retirer une section ne
+                pouvait pas réorganiser la semaine de son sous-manager, seulement la garnir. */}
+            <button
+              type="button"
+              className="gdel"
+              title="Retirer la section (ses tâches sont conservées)"
+              onClick={() => onDeleteSection(section.name)}
+            >
+              ✕
+            </button>
           </>
         ) : null}
       </div>
@@ -103,13 +102,13 @@ function SectionGroup({
           date={day.date}
           category={section.name}
           canWrite={canWrite}
-          canAssign={canAssign}
+          canOrganize={canOrganize}
           onToggle={onToggle}
           onDelete={onDelete}
         />
       ))}
 
-      {adding && (canWrite || canAssign) ? (
+      {adding && canOrganize ? (
         <div className="qadd">
           <input
             autoFocus
@@ -162,29 +161,29 @@ export function DayColumn({
   onDelete,
   onAdd,
   chatters,
-  canAssign,
+  canOrganize,
   onDayOff,
   onAddSection,
   onDeleteSection,
 }: {
   day: TodoDay
+  /** ATTESTER — cocher. Le titulaire seul. */
   canWrite: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
   onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
   chatters: TodoChatter[]
-  /** Dépôt d'une tâche chez le titulaire, sans autre droit d'écriture (admin, ou son manager). */
-  canAssign: boolean
+  /** ORGANISER — le planning de la semaine. Le titulaire ou son encadrement. */
+  canOrganize: boolean
   onDayOff: (date: string) => void
   onAddSection: (name: string, weekday: number) => void
   onDeleteSection: (name: string) => void
 }) {
   const [addingSection, setAddingSection] = useState(false)
 
-  // LE DÉPOSANT N'A PAS DE SECTION À REMPLIR. Le bouton « + » d'une tâche vit DANS une section, et
-  // créer une section passe par `assertOwner` : sur une journée sans section, un manager n'a donc
-  // aucun point d'entrée — et une semaine vierge est l'état de TOUTES les semaines au premier jour.
-  // La dérogation de dépôt serait arrivée morte.
+  // LE DÉPOSANT N'A PAS DE SECTION À REMPLIR. Le bouton « + » d'une tâche vit DANS une section :
+  // sur une journée qui n'en a aucune, il ne lui resterait que « + Section » — soit imposer de
+  // créer une structure chez quelqu'un d'autre pour y déposer une seule tâche.
   //
   // On lui pose donc un groupe d'accueil vide. C'est licite parce que `category` est du TEXTE
   // LIBRE et non une clé étrangère vers les sections (0127:44-45) : la catégorie d'une tâche
@@ -192,7 +191,7 @@ export function DayColumn({
   // sections ET des catégories déjà portées par une tâche. Si le titulaire a déjà une section de
   // ce nom, le dépôt s'y range naturellement.
   const sections =
-    canAssign && !canWrite && day.sections.length === 0
+    canOrganize && !canWrite && day.sections.length === 0
       ? [{ name: DEPOT_CATEGORY, recurring: false, tasks: [] }]
       : day.sections
 
@@ -212,7 +211,7 @@ export function DayColumn({
             {done}/{all.length}
           </span>
         ) : null}
-        {canWrite ? (
+        {canOrganize ? (
           <button
             type="button"
             className={day.dayOff ? 'dayoff on' : 'dayoff'}
@@ -238,7 +237,7 @@ export function DayColumn({
               onDelete={onDelete}
               onAdd={onAdd}
               chatters={chatters}
-              canAssign={canAssign}
+              canOrganize={canOrganize}
               onDeleteSection={onDeleteSection}
             />
           ))
@@ -246,7 +245,7 @@ export function DayColumn({
 
         {/* Sans ce bouton, une semaine vierge est un cul-de-sac : pas de section, donc pas de
             bouton « + » de tâche, donc aucun moyen de commencer. */}
-        {canWrite ? (
+        {canOrganize ? (
           addingSection ? (
             <div className="qadd">
               <input

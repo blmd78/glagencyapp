@@ -27,14 +27,15 @@ export function TodoTemplate({ week }: { week: TodoWeek }) {
               eux c'était un onglet de la fenêtre d'ajout ; ici la semaine est déjà à l'écran, et un
               panneau évite d'enfermer un réglage durable dans une modale d'ajout ponctuel.
 
-              `canWrite || canAssign` : le panneau est aussi le point d'entrée du DÉPÔT d'un rituel
-              chez quelqu'un qu'on encadre (2026-09-07). Le reste de la semaine reste en lecture
-              seule pour lui — on ne coche pas le travail d'un autre. */}
+              `canOrganize` : le panneau est aussi le point d'entrée du DÉPÔT d'un rituel chez
+              quelqu'un qu'on encadre (2026-09-07). Ce qui reste hors de portée d'un encadrant sur
+              la semaine d'un autre, c'est l'ATTESTATION — on ne coche pas, on ne débriefe pas le
+              travail d'un autre. */}
           <HabitsPanel
             ownerId={week.ownerId}
             habits={week.habits}
             sections={[...new Set(week.days.flatMap((d) => d.sections.map((s) => s.name)))].sort()}
-            canCreate={week.canWrite || week.canAssign}
+            canCreate={week.canOrganize}
             depositing={week.canAssign && !week.canWrite}
           />
         </div>
