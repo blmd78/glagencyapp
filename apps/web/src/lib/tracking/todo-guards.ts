@@ -51,19 +51,21 @@ async function requireTodoAccess() {
 }
 
 /**
- * LE TRAVAIL RESTE CELUI DE SON TITULAIRE — l'admin est ici volontairement BLOQUÉ.
+ * L'ATTESTATION RESTE CELLE DE SON TITULAIRE — l'admin est ici volontairement BLOQUÉ.
  *
- * C'est la règle du tracker d'origine, dont le commentaire est sans ambiguïté : « Il ne coche pas,
- * ne déplace pas, ne touche ni aux habitudes ni au debrief » (routes.js.txt:277-281). Son
- * décorateur `todoApi` répond 403 « ce n'est pas ta semaine » dès que `owner !== v.accountId`,
- * SANS dérogation admin, sur la coche, le déplacement, les habitudes et les liens.
+ * Ce qu'il reste de la règle du tracker d'origine (« Il ne coche pas, ne déplace pas, ne touche ni
+ * aux habitudes ni au debrief », routes.js.txt:277-281) après la décision de Benoit du
+ * 2026-09-07 : « les managers ont tous les droits sur leurs sous-managers, ils peuvent gérer leur
+ * emploi du temps comme ils veulent ». La frontière n'est donc plus « titulaire / pas titulaire »
+ * mais ORGANISER / ATTESTER :
  *
- * Notre version autorisait l'admin partout — il pouvait donc cocher le travail d'un encadrant et
- * SIGNER SON DÉBRIEF à sa place. Les deux dérogations du legacy (déposer une tâche, la retirer)
- * vivent dans `assertCanAssign` / `assertCanUnassign` ; la troisième, les gabarits d'habitude,
- * est de nous (`assertCanEditHabit`, 2026-09-07) et s'écarte donc du legacy en connaissance de
- * cause. `assertOwner` garde tout le reste, habitudes matérialisées comprises : sauter une
- * occurrence (« juste aujourd'hui ») reste un geste du seul titulaire.
+ * • ORGANISER — ce qu'il y a à faire et quand : déposer, déplacer, supprimer, les sections, les
+ *   habitudes, le jour de repos. Ouvert à l'encadrement par `assertCanOrganize`.
+ * • ATTESTER — dire que c'est fait, et avec quels mots : la coche (`toggleTask`), le débrief
+ *   quotidien et les notes de la semaine (`saveDaily`, `saveNotes`), les liens personnels. C'est
+ *   la parole du titulaire, et elle ne se délègue pas : cocher une tâche « 1:1 » crée une SESSION
+ *   NOTÉE dans la fiche du chatteur, signée au nom de quelqu'un qui n'a pas mené l'entretien. Ces
+ *   gestes-là gardent `assertOwner`, admin compris.
  *
  * Vérifié UNE fois, dans le handler — jamais en double dans `guard`.
  */
@@ -136,14 +138,26 @@ export function canOpenTodo(role: string | null, pages: string[] | null): boolea
 }
 
 /**
- * DÉPOSER une tâche : sur sa propre semaine, ou sur celle de quelqu'un qu'on encadre
- * (`assignTarget`, routes.js.txt:282-304).
+ * ORGANISER une semaine : la sienne, ou celle de quelqu'un qu'on encadre.
+ *
+ * LA garde de tout ce qui touche au contenu du planning — déposer une tâche ou une habitude
+ * (`assignTarget`, routes.js.txt:282-304), la déplacer, la supprimer, créer et remanier les
+ * sections, poser un jour de repos. Le legacy n'ouvrait que le dépôt et le retrait de ce qu'on
+ * avait soi-même déposé ; le reste tombait sur `assertOwner`, si bien qu'un manager pouvait
+ * garnir la semaine de son sous-manager sans pouvoir la RÉORGANISER — pas même créer la section
+ * où ranger ce qu'il déposait. Décision de Benoit, 2026-09-07 : « ils peuvent gérer leur emploi
+ * du temps comme ils veulent ».
+ *
+ * Ce que cette ouverture emporte, et qui est assumé : la suppression d'une tâche que le titulaire
+ * s'était donnée lui-même devient possible, alors qu'il n'existe AUCUN journal sur les tables
+ * `tracker_todo_*` — un retrait est donc muet. La contrepartie serait un journal ; ce n'est pas
+ * ce qui a été demandé.
  *
  * Rend le PROFIL de l'appelant, et non son seul id : le handler a besoin de son `baseRole` pour
  * calculer le périmètre modèles d'une tâche 1:1. Le lui rendre ici évite un second `getProfile()`
  * dans le handler — la garde l'a déjà résolu, et les guidelines interdisent le double contrôle.
  */
-export async function assertCanAssign(ownerId: string): Promise<Profile> {
+export async function assertCanOrganize(ownerId: string): Promise<Profile> {
   const profile = await requireTodoAccess()
   if (profile.id === ownerId) return profile
   if (!(await canAssignTodoOf(profile, ownerId))) throw new BusinessError("Ce n'est pas ta semaine.")
@@ -151,53 +165,20 @@ export async function assertCanAssign(ownerId: string): Promise<Profile> {
 }
 
 /**
- * RETIRER une tâche de la semaine d'un autre — « l'admin peut retirer ce qu'il a déposé, ou
- * corriger une erreur » (routes.js.txt:306-315).
+ * TOUCHER UNE HABITUDE (renommer, mettre en pause, supprimer).
  *
- * La règle « ce qu'il a déposé » n'avait jamais été codée : `deleteTask` partageait la garde du
- * dépôt et ne regardait pas `created_by`. Tant que la dérogation était admin-only, c'était sans
- * portée. Étendue au manager, elle lui donnerait la suppression de N'IMPORTE QUELLE tâche de son
- * sous-manager — y compris une tâche « 1:1 » déjà rattachée à une session (0133) — et il n'existe
- * AUCUN journal sur les tables `tracker_todo_*` : la suppression serait muette. D'où la condition
- * `created_by = moi` pour tout non-admin. L'admin, lui, garde le droit de corriger.
- */
-export async function assertCanUnassign(ownerId: string, taskId: string): Promise<string> {
-  const profile = await requireTodoAccess()
-  if (profile.id === ownerId) return profile.id
-  if (!(await canAssignTodoOf(profile, ownerId))) throw new BusinessError("Ce n'est pas ta semaine.")
-  if (profile.role === 'admin') return profile.id
-
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('tracker_todo_tasks')
-    .select('created_by')
-    .eq('id', taskId)
-    .eq('owner_id', ownerId)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  if (!data) throw new BusinessError("Cette tâche n'existe plus.")
-  if (data.created_by !== profile.id) {
-    throw new BusinessError('Tu ne peux retirer que les tâches que tu as déposées.')
-  }
-  return profile.id
-}
-
-/**
- * TOUCHER UNE HABITUDE (renommer, mettre en pause, supprimer) — 3ᵉ dérogation, ajoutée le
- * 2026-09-07.
+ * Une garde à part de `assertCanOrganize`, pour UN cas qu'elle ne sait pas dire : l'habitude
+ * déposée est verrouillée POUR SON TITULAIRE (décision de Benoit, 2026-09-07 — si le sous-manager
+ * peut éteindre le rituel qu'on lui pose, on est revenu à devoir le renoter chaque semaine). Le
+ * titulaire passe `assertCanOrganize` par définition ; c'est donc ici, et seulement ici, qu'on
+ * regarde à QUI est le gabarit.
  *
- * Les deux premières (`assertCanAssign`, `assertCanUnassign`) portent sur une tâche : UNE
- * occurrence, UN jour. Poser un rituel chez son sous-manager demandait donc de le reposer chaque
- * semaine — « j'ai pas à le noter tout le temps » est exactement la demande. Créer une habitude
- * chez un autre passe par `assertCanAssign` (même périmètre que le dépôt d'une tâche : rien de
- * nouveau à autoriser) ; c'est l'ÉDITION du gabarit qui a besoin de cette garde-ci, parce qu'elle
- * introduit un cas que la To-Do ne connaissait pas : une ligne dans la semaine de quelqu'un que
- * son titulaire n'a pas le droit d'effacer.
- *
- * DEUX questions, dans cet ordre — le même enchaînement que `assertCanUnassign` :
- *   1. ai-je affaire à cette semaine ? (la mienne, ou une où j'ai la dérogation de dépôt AUJOURD'HUI —
+ * DEUX questions, dans cet ordre :
+ *   1. ai-je affaire à cette semaine ? (la mienne, ou une où j'ai la dérogation AUJOURD'HUI —
  *      un rattachement retiré referme donc la porte, même sur ce qu'on avait déposé avant) ;
- *   2. ce gabarit-là est-il à moi ? (`canEditHabit`, la règle pure).
+ *   2. ce gabarit-là, ai-je le droit d'y toucher ? (`canEditHabit`, la règle pure) — oui pour
+ *      l'encadrement du titulaire, oui pour le titulaire sur les SIENNES, non sur celles qu'on
+ *      lui a déposées.
  *
  * Lecture au client SESSION : `tracker_todo_habits_read` (0127) ouvre la lecture à tout porteur du
  * droit `presence`, la RLS suffit donc et reste le filet. L'ÉCRITURE, elle, part en service-role
@@ -205,9 +186,10 @@ export async function assertCanUnassign(ownerId: string, taskId: string): Promis
  */
 export async function assertCanEditHabit(ownerId: string, habitId: string): Promise<string> {
   const profile = await requireTodoAccess()
-  if (profile.id !== ownerId && !(await canAssignTodoOf(profile, ownerId))) {
-    throw new BusinessError("Ce n'est pas ta semaine.")
-  }
+  // Retenu plutôt que jeté : c'est LA réponse à la 2ᵉ question pour un encadrant, et la
+  // redemander plus bas coûterait une seconde lecture de profil.
+  const canOrganize = profile.id !== ownerId && (await canAssignTodoOf(profile, ownerId))
+  if (profile.id !== ownerId && !canOrganize) throw new BusinessError("Ce n'est pas ta semaine.")
 
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -219,7 +201,15 @@ export async function assertCanEditHabit(ownerId: string, habitId: string): Prom
   if (error) throw new Error(error.message)
   if (!data) throw new BusinessError("Cette habitude n'existe plus.")
 
-  if (!canEditHabit({ callerId: profile.id, callerRole: profile.role, ownerId, createdBy: data.created_by })) {
+  if (
+    !canEditHabit({
+      callerId: profile.id,
+      callerRole: profile.role,
+      ownerId,
+      createdBy: data.created_by,
+      canOrganize,
+    })
+  ) {
     // Message écrit pour le TITULAIRE, qui est le seul à pouvoir buter ici de bonne foi : il voit
     // une habitude dans SA semaine et ne comprendrait pas un « ce n'est pas ta semaine ».
     throw new BusinessError(

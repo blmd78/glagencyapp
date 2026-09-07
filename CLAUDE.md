@@ -51,7 +51,8 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-07,
   prod à **0148** — tout le relevé MyPuls y est passé avec les Releases 2.26→2.28, la mention
   `--include-all` n'a plus d'objet ; `0146`/`0147` sont passées avec la Release 2.36 et `0148`
-  (habitudes déposées) avec la 2.37 — prochaine migration = **0149**) : **catalogue**
+  (habitudes déposées) avec la 2.37 et `0149` (`chatter_daily.presence` nullable) est en attente
+  de release — prochaine migration = **0150**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -132,18 +133,27 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 - **To-Do du tracker** (≠ la to-do personnelle ci-dessus) : `/chatter/presence/todo`, grille
   hebdo des encadrants reprise de GLA (`tracker_todo_*`, `0127`) — slug `presence`, partagé
   avec Suivi chatters et le Récap. **Aucune policy d'écriture** : tout passe en service-role
-  après garde dans les Server Actions. Le travail reste celui de son titulaire (`assertOwner` :
-  ni coche, ni déplacement, ni débrief par autrui, admin compris) ; **trois dérogations
-  seulement** — déposer une tâche (`assertCanAssign`), retirer **ce qu'on a déposé**
-  (`assertCanUnassign`, `created_by = moi` pour un non-admin) et **déposer une habitude**
-  (2026-09-07, `0148` : `tracker_todo_habits.created_by`, création par `assertCanAssign`, édition
-  du gabarit par `assertCanEditHabit`). Une **habitude déposée est verrouillée pour son
-  titulaire** — il la voit avec le badge « déposée » et ne peut que sauter une occurrence
-  (« juste aujourd'hui ») ; seuls son déposant et un admin la renomment, la mettent en pause ou la
-  suppriment. La règle vit UNE fois, pure et testée, en `lib/tracking/habit-rules.ts`
+  après garde dans les Server Actions. La frontière est **ORGANISER / ATTESTER** (décision Benoit
+  2026-09-07 : « les managers ont tous les droits sur leurs sous-managers, ils peuvent gérer leur
+  emploi du temps comme ils veulent ») : **organiser** = le contenu du planning (déposer,
+  déplacer, supprimer **n'importe quelle** tâche, sections, habitudes, jour de repos) →
+  `assertCanOrganize`, ouvert au titulaire, à son encadrement et à l'admin ; **attester** = dire
+  que c'est fait et avec quels mots (coche, débrief, bloc-notes, liens, clôture 1:1) →
+  `assertOwner`, **le titulaire seul, admin compris** — cocher un « 1:1 » crée une session notée
+  dans la fiche du chatteur, on ne la signe pas pour autrui. Côté UI le drapeau est
+  `TodoWeek.canOrganize` (`canWrite` = attester) ; ne pas conditionner un geste d'organisation à
+  `canWrite`. Prix assumé de l'ouverture : un retrait est **muet** (aucun journal sur
+  `tracker_todo_*`). Une **habitude déposée reste verrouillée pour son
+  titulaire** (`0148`, `tracker_todo_habits.created_by`) — il la voit avec le badge « déposée » et
+  ne peut que sauter une occurrence (« juste aujourd'hui ») ; son encadrement, lui, touche à
+  **toutes** les habitudes de la semaine. La règle vit UNE fois, pure et testée, en `lib/tracking/habit-rules.ts`
   (`canEditHabit`), lue par la garde ET par `getTodoWeek` (qui rend un `canEdit` par habitude, pour
   que le panneau n'affiche que des boutons qui marchent) ; `materialize()` recopie `created_by` du
-  gabarit sur la tâche qu'il crée. Périmètre de la dérogation =
+  gabarit sur la tâche qu'il crée. **`category` est du texte libre** (`0127`), et la chaîne vide
+  (« sans section », le défaut de `habitInput`) en est une valeur **légitime** : les schémas
+  d'ajout et de déplacement doivent l'accepter, sinon le groupe qu'une habitude sans section fait
+  apparaître devient un cul-de-sac où tout geste répond « Saisie invalide » (bug du 2026-09-07).
+  Périmètre de la dérogation =
   `canAssignTodoOf` (`lib/tracking/todo-guards.ts`), **source unique** lue aussi par la page
   (validation de `?owner=` — sans elle, la RLS laisserait ouvrir la semaine de n'importe qui)
   et par `getTodoHolders` : admin → tous les encadrants, manager → **ses sous-managers

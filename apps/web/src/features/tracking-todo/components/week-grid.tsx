@@ -184,7 +184,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
               onDelete={onDelete}
               onAdd={onAdd}
               chatters={week.chatters}
-              canAssign={week.canAssign}
+              canOrganize={week.canOrganize}
               onDayOff={onDayOff}
               onAddSection={onAddSection}
               onDeleteSection={onDeleteSection}

@@ -19,23 +19,24 @@ export function TaskItem({
   date,
   category,
   canWrite,
-  canAssign,
+  canOrganize,
   onToggle,
   onDelete,
 }: {
   task: TodoTask
   date: string
   category: string
+  /** ATTESTER — cocher. Le titulaire seul. */
   canWrite: boolean
-  /** Dépôt sans droit d'écriture : on ne retire alors QUE ce qu'on a soi-même déposé. */
-  canAssign: boolean
+  /** ORGANISER — déplacer, supprimer. Le titulaire ou son encadrement. */
+  canOrganize: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: task.id,
     data: { date, category },
-    disabled: !canWrite,
+    disabled: !canOrganize,
   })
 
   const cls = ['task', task.done ? 'done' : '', isDragging ? 'dragging' : ''].filter(Boolean).join(' ')
@@ -68,19 +69,19 @@ export function TaskItem({
       {/* Un 1:1 qui a rendu son bilan ne se supprime plus : la session resterait orpheline dans la
           fiche du chatteur, et refaire le 1:1 en créerait une seconde. Le serveur le refuse
           (`deleteTask`) ; ne pas rendre la croix évite de proposer un geste qui échoue. */}
-      {!task.hasBilan && (canWrite || (canAssign && task.depositedByMe)) ? (
+      {!task.hasBilan && canOrganize ? (
         // La croix s'affiche AUSSI sur une occurrence récurrente : `onDelete` la route vers la boîte
         // à deux issues (« juste aujourd'hui » / « supprimer l'habitude »). La masquer rendait ce
         // choix injoignable — le dialogue était du code mort.
         //
-        // Sur la semaine d'un AUTRE, elle n'apparaît que sur ce qu'on y a déposé soi-même : c'est
-        // exactement ce que `assertCanUnassign` autorise (« retirer ce qu'il a déposé »), et sans
-        // ce bouton cette moitié de la dérogation restait injoignable.
+        // Sur la semaine d'un AUTRE, elle s'affiche sur TOUTE tâche depuis le 2026-09-07 : un
+        // encadrant réorganise la semaine de son sous-manager, il n'est plus limité à ce qu'il y
+        // avait lui-même déposé (`assertCanOrganize`).
         <button
           type="button"
           className="x"
           onClick={() => onDelete(task)}
-          title={canWrite ? 'Supprimer' : 'Retirer la tâche que tu as déposée'}
+          title={canWrite ? 'Supprimer' : 'Retirer cette tâche'}
         >
           ✕
         </button>

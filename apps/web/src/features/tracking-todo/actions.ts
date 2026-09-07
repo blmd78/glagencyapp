@@ -3,7 +3,7 @@
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
 import {
-  assertOwner, assertCanAssign, assertCanUnassign, assertCanEditHabit, revalidateTodo,
+  assertOwner, assertCanOrganize, assertCanEditHabit, revalidateTodo,
 } from './actions-shared'
 import {
   addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput,
@@ -17,12 +17,18 @@ import {
  * ÉCRITURES EN SERVICE-ROLE APRÈS GARDE, comme toute la face Formation : la migration 0127 ne pose
  * aucune politique d'écriture, donc il n'existe qu'UN chemin d'écriture, celui qui passe par ici.
  *
- * PROPRIÉTÉ : le travail reste celui de son titulaire (`assertOwner` — coche, déplacement,
- * sections, débrief : personne d'autre, admin compris). TROIS dérogations, et elles ont chacune
- * leur garde : DÉPOSER une tâche ou une habitude (`assertCanAssign` — admin, ou manager du
- * titulaire), RETIRER CE QU'ON A DÉPOSÉ (`assertCanUnassign`) et TOUCHER UN GABARIT D'HABITUDE
- * (`assertCanEditHabit`, 2026-09-07 — le déposant, ou le titulaire pour les siennes). La
- * vérification est faite UNE fois, dans le handler — jamais en double dans `guard`, ce que la
+ * DEUX FAMILLES DE GESTES, deux gardes — la frontière est ORGANISER / ATTESTER (décision de
+ * Benoit du 2026-09-07, raisonnement complet dans `lib/tracking/todo-guards.ts`) :
+ *
+ * • `assertCanOrganize` — le contenu du planning : déposer, déplacer, supprimer, les sections,
+ *   les habitudes, le jour de repos. Le titulaire, son encadrement (manager du titulaire), l'admin.
+ * • `assertOwner` — l'attestation : la coche, le débrief, les notes, les liens. Le titulaire seul,
+ *   admin compris.
+ *
+ * Seule exception au partage ci-dessus : `assertCanEditHabit`, qui ajoute à `assertCanOrganize` la
+ * question « à qui est ce gabarit ? » — une habitude déposée est verrouillée pour son titulaire.
+ *
+ * La vérification est faite UNE fois, dans le handler — jamais en double dans `guard`, ce que la
  * checklist des guidelines interdit explicitement.
  */
 
@@ -59,8 +65,7 @@ async function materialize(ownerId: string, taskId: string): Promise<string> {
       label: habit.label,
       // La tâche HÉRITE du déposant du gabarit. Sans ça, l'occurrence d'une habitude déposée par
       // la hiérarchie naît avec `created_by: null`, c'est-à-dire « posée par le titulaire » : elle
-      // perd son badge « déposée » au premier geste, et son déposant ne peut plus la retirer
-      // (`assertCanUnassign` lit ce `created_by`). Le gabarit dit qui l'a voulue ; la tâche aussi.
+      // perd son badge « déposée » au premier geste. Le gabarit dit qui l'a voulue ; la tâche aussi.
       created_by: habit.created_by,
     })
     .select('id')
@@ -77,14 +82,14 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      const caller = await assertCanAssign(d.ownerId)
+      const caller = await assertCanOrganize(d.ownerId)
       // AUCUN PÉRIMÈTRE MODÈLES sur la cible d'un 1:1 depuis le 2026-09-05. Deux tests vivaient ici
       // — celui du déposant et celui du TITULAIRE — et ils n'avaient qu'une raison d'être : éviter
       // des tâches ZOMBIES, puisque `completeOneToOne` re-testait alors le périmètre du titulaire.
       // Ce test-là a sauté avec le décloisonnement du suivi (décision de Benoit ; raisonnement dans
       // `features/tracking-coaching/services/get-coaching-list.ts`) : n'importe quel encadrant peut
       // désormais clore n'importe quel 1:1, donc plus aucune tâche déposée ne peut être zombie, et
-      // il ne reste rien à vérifier. `assertCanAssign` continue de dire QUI peut déposer chez QUI.
+      // il ne reste rien à vérifier. `assertCanOrganize` continue de dire QUI peut déposer chez QUI.
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_tasks').insert({
         owner_id: d.ownerId,
@@ -151,15 +156,15 @@ export async function deleteTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      // Contrôle de FORME avant la garde, et c'est délibéré : une occurrence virtuelle n'existe
-      // pas en base (`deleteTaskOccurrence`, « Juste aujourd'hui », la matérialise avant de la
-      // retirer), or `assertCanUnassign` a besoin d'une vraie ligne pour lire son `created_by`.
-      // Aucune information ne fuit : ce test ne regarde que la forme de l'id fourni.
+      // Une occurrence virtuelle n'existe pas en base : elle se retire par « Juste aujourd'hui »
+      // (`deleteTaskOccurrence`, qui la matérialise d'abord). Aucune information ne fuit — ce test
+      // ne regarde que la forme de l'id fourni.
       if (parseVirtual(d.taskId)) throw new BusinessError("Utilise « Juste aujourd'hui » pour cette occurrence.")
-      // 2e dérogation du legacy : « retirer ce qu'il a déposé (ou corriger une erreur) » —
-      // `task-delete` est la SEULE suppression possible chez autrui (routes.js.txt:306-315, qui
-      // refait le contrôle à la main au lieu d'utiliser `ownTask`).
-      await assertCanUnassign(d.ownerId, d.taskId)
+      // N'IMPORTE QUELLE tâche de la semaine, et plus seulement celles qu'on y avait déposées : le
+      // legacy limitait le retrait à `created_by = moi`, ce qui interdisait à un manager d'enlever
+      // une tâche que son sous-manager s'était donnée — donc de réorganiser sa semaine. Ouvert le
+      // 2026-09-07 avec le reste de l'organisation.
+      await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       // Une tâche 1:1 CLÔTURÉE ne se supprime pas : sa session resterait dans la fiche du chatteur
       // sans plus rien pour la rattacher, et `deleteSession` n'aurait plus de tâche à rouvrir.
@@ -187,7 +192,8 @@ export async function moveTask(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      // Déplacer = organiser : c'est le geste même de « gérer leur emploi du temps ».
+      await assertCanOrganize(d.ownerId)
       const id = await materialize(d.ownerId, d.taskId)
       const admin = createAdminClient()
       const { error } = await admin
@@ -209,7 +215,9 @@ export async function saveSection(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      // Créer une section chez son sous-manager : sans ça, un manager pouvait déposer une tâche
+      // mais pas créer l'endroit où la ranger — c'est ce qui bloquait Remi le 2026-09-07.
+      await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_todo_sections')
@@ -229,7 +237,7 @@ export async function renameSection(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_todo_sections').update({ name: d.to })
@@ -256,7 +264,7 @@ export async function deleteSection(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin
         .from('tracker_todo_sections').delete().eq('owner_id', d.ownerId).eq('name', d.name)
@@ -279,10 +287,10 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      // `assertCanAssign` et non `assertOwner` : poser un rituel chez quelqu'un, c'est le même
+      // `assertCanOrganize` et non `assertOwner` : poser un rituel chez quelqu'un, c'est le même
       // périmètre que d'y déposer une tâche (admin, ou manager du titulaire) — rien de nouveau à
       // autoriser, juste la version récurrente d'un geste déjà permis.
-      const caller = await assertCanAssign(d.ownerId)
+      const caller = await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       const { error } = await admin.from('tracker_todo_habits').insert({
         owner_id: d.ownerId,
@@ -372,7 +380,9 @@ export async function deleteTaskOccurrence(raw: unknown): Promise<ActionResult> 
     input: raw,
     guard: noGuard,
     handler: async (d) => {
-      await assertOwner(d.ownerId)
+      // Le titulaire garde ce geste sur une habitude DÉPOSÉE (c'est sa seule issue, cf.
+      // `canEditHabit`) ; son encadrement l'a au même titre que le reste de l'organisation.
+      await assertCanOrganize(d.ownerId)
       const id = await materialize(d.ownerId, d.taskId)
       const { error } = await createAdminClient()
         .from('tracker_todo_tasks').delete().eq('id', id).eq('owner_id', d.ownerId)

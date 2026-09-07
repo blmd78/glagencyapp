@@ -11,8 +11,14 @@
  * Les trois cas, dans l'ordre :
  *
  * • admin/superadmin : partout — c'est la dérogation historique du legacy, celle qui lui laisse
- *   « corriger une erreur » (routes.js.txt:306-315, reprise dans `assertCanUnassign`) ;
- * • le DÉPOSANT : ce qu'il a posé, et cela seul ;
+ *   « corriger une erreur » (routes.js.txt:306-315) ;
+ * • L'ENCADRANT du titulaire (`canOrganize`) : partout sur cette semaine-là. Décision de Benoit,
+ *   2026-09-07 — « les managers ont tous les droits sur leurs sous-managers, ils peuvent gérer
+ *   leur emploi du temps comme ils veulent ». Un rituel EST de l'emploi du temps : le limiter à
+ *   ce que le manager avait posé lui-même l'empêchait de mettre en pause une habitude devenue
+ *   inutile, ou d'en corriger l'intitulé ;
+ * • le DÉPOSANT : ce qu'il a posé, et cela seul — ce qui ne concerne plus que le cas d'un
+ *   déposant qui a PERDU sa dérogation depuis (rattachement retiré) ;
  * • le TITULAIRE : ses propres habitudes (`created_by is null`) — mais PAS celles qu'on lui a
  *   déposées. Décision de Benoit, 2026-09-07 : « l'habitude déposée est verrouillée pour lui ».
  *   C'est le sens même de la demande — si le sous-manager peut éteindre le rituel qu'on lui pose,
@@ -35,8 +41,19 @@ export function canEditHabit(params: {
   ownerId: string
   /** `created_by` du gabarit — `null` = le titulaire se l'est donnée lui-même. */
   createdBy: string | null
+  /**
+   * L'appelant a-t-il la dérogation d'organisation SUR CETTE SEMAINE (`canAssignTodoOf`) ?
+   *
+   * PIÈGE : il faut le passer `false` quand l'appelant EST le titulaire, sinon la dernière règle
+   * ci-dessous ne s'applique plus et le sous-manager peut retirer les habitudes qu'on lui dépose
+   * — l'inverse exact de ce que la garde protège. Les deux appelants s'en assurent : `getTodoWeek`
+   * calcule `canAssignHere` avec `callerId !== ownerId`, et `assertCanEditHabit` n'interroge
+   * `canAssignTodoOf` que dans cette même branche.
+   */
+  canOrganize?: boolean
 }): boolean {
   if (params.callerRole === 'admin' || params.callerRole === 'superadmin') return true
+  if (params.canOrganize) return true
   if (params.createdBy !== null) return params.createdBy === params.callerId
   return params.callerId === params.ownerId
 }

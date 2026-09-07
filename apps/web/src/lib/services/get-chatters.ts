@@ -91,11 +91,14 @@ export async function getChatters(
   // Restreint : `totals` vide → somme de la ventilation par modèle visible.
   const agg = new Map<
     string,
-    { ca: number; ppv: number; tips: number; propose: number; vendu: number; pa: number; pi: number; react: number | null }
+    // `pa`/`pi` NULLABLES : la présence n'a plus de source depuis le 2026-09-03 (0149), et
+    // `null` doit traverser jusqu'à la colonne, qui rend « — ». Un `?? 0` ici afficherait
+    // « 0h / 0h », c'est-à-dire « n'a pas travaillé ».
+    { ca: number; ppv: number; tips: number; propose: number; vendu: number; pa: number | null; pi: number | null; react: number | null }
   >()
   if (restricted) {
     for (const r of rep.by_creator) {
-      const a = agg.get(r.chatter_id) ?? { ca: 0, ppv: 0, tips: 0, propose: 0, vendu: 0, pa: 0, pi: 0, react: null }
+      const a = agg.get(r.chatter_id) ?? { ca: 0, ppv: 0, tips: 0, propose: 0, vendu: 0, pa: null, pi: null, react: null }
       a.ca += r.ca ?? 0
       a.ppv += r.ppv ?? 0
       a.tips += r.tips ?? 0
@@ -110,8 +113,8 @@ export async function getChatters(
         tips: r.tips ?? 0,
         propose: r.propose ?? 0,
         vendu: r.vendu ?? 0,
-        pa: r.presence_active_h ?? 0,
-        pi: r.presence_idle_h ?? 0,
+        pa: r.presence_active_h,
+        pi: r.presence_idle_h,
         react: r.reactivite_avg,
       })
     }
@@ -173,8 +176,8 @@ export async function getChatters(
         propose: restricted ? null : a.propose,
         vendu: a.vendu,
         tauxConv: restricted ? null : conv(a.vendu, a.propose),
-        presenceActiveH: restricted ? null : round1(a.pa),
-        presenceIdleH: restricted ? null : round1(a.pi),
+        presenceActiveH: restricted || a.pa == null ? null : round1(a.pa),
+        presenceIdleH: restricted || a.pi == null ? null : round1(a.pi),
         reactiviteS: a.react != null ? Math.round(a.react) : null,
         caUnattributed: round2(a.ca - attributed),
         models,

@@ -11,7 +11,16 @@ const taskId = z.union([z.uuid(), z.string().regex(/^habit:[0-9a-f-]{36}:\d{4}-\
 export const addTaskInput = z.object({
   ownerId: owner,
   date: day,
-  category: z.string().trim().min(1, 'Section requise').max(60),
+  /**
+   * VIDE = « sans section », et c'en est une. C'est la première option de leur sélecteur
+   * d'habitude (todo.html:1365) et le défaut de `habitInput` — mais `min(1)` la refusait ici,
+   * alors que `get-week.ts:109` fait bien apparaître son groupe dans la semaine. Le « + » de ce
+   * groupe répondait donc « Saisie invalide », et un déposant s'y retrouvait sans AUCUN point
+   * d'entrée sur la journée : le groupe d'accueil de `DayColumn` ne se pose que sur une journée
+   * SANS groupe, or celui-ci en est un. `category` est du texte libre et non une clé étrangère
+   * vers les sections (0127:44-45) : la chaîne vide y est une valeur comme une autre.
+   */
+  category: z.string().trim().max(60),
   label: z.string().trim().min(1, 'Écris quelque chose').max(200, '200 caractères maximum'),
   /**
    * Tâche « 1:1 avec un chatter » : cocher exigera un compte-rendu et créera une session dans sa
@@ -38,7 +47,8 @@ export const moveTaskInput = z.object({
   ownerId: owner,
   taskId,
   date: day,
-  category: z.string().trim().min(1).max(60),
+  /** Même « sans section » qu'à l'ajout : on doit pouvoir y glisser une tâche comme ailleurs. */
+  category: z.string().trim().max(60),
 })
 
 export const sectionInput = z.object({

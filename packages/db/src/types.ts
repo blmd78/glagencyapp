@@ -166,8 +166,8 @@ export type Database = {
           ca_tips: number
           chatter_id: string
           date: string
-          presence_active_h: number
-          presence_idle_h: number
+          presence_active_h: number | null
+          presence_idle_h: number | null
           propose: number
           reactivite_sec: number | null
           vendu: number
@@ -178,8 +178,8 @@ export type Database = {
           ca_tips?: number
           chatter_id: string
           date: string
-          presence_active_h?: number
-          presence_idle_h?: number
+          presence_active_h?: number | null
+          presence_idle_h?: number | null
           propose?: number
           reactivite_sec?: number | null
           vendu?: number
@@ -190,8 +190,8 @@ export type Database = {
           ca_tips?: number
           chatter_id?: string
           date?: string
-          presence_active_h?: number
-          presence_idle_h?: number
+          presence_active_h?: number | null
+          presence_idle_h?: number | null
           propose?: number
           reactivite_sec?: number | null
           vendu?: number

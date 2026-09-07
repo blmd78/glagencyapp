@@ -2,5 +2,5 @@
 // (clôture d'une tâche « 1:1 ») et avec la page de la To-Do (validation de `?owner=`), et la
 // frontière ESLint interdit le cross-feature.
 export {
-  assertOwner, assertCanAssign, assertCanUnassign, assertCanEditHabit, revalidateTodo,
+  assertOwner, assertCanOrganize, assertCanEditHabit, revalidateTodo,
 } from '@/lib/tracking/todo-guards'
