@@ -37,14 +37,28 @@ export default function DashLayout({ children }: { children: ReactNode }) {
 }
 
 async function DashDynamic({ children }: { children: ReactNode }) {
+  const profile = await getProfile()
+  if (!profile) redirect('/login')
   // Le badge insights est SORTI du chemin bloquant : la promesse (non attendue) est
   // passée à la sidebar qui la lit via use() sous Suspense — le shell n'attend que le
   // profil, le badge streame ensuite. Vaut sur chaque hard load ET chaque réponse de
   // Server Action (ce layout re-rend aux deux).
   // .catch inline : une erreur du badge ne doit pas casser la page (0 = pas de badge).
-  const insightsCountPromise = getOpenInsightsCount().catch(() => 0)
-  const profile = await getProfile()
-  if (!profile) redirect('/login')
+  //
+  // GATÉ SUR LE DROIT depuis le 2026-09-07, comme les deux pastilles ci-dessous — c'était la
+  // seule des trois à partir pour TOUT LE MONDE. Ce n'est pas une requête, c'en est TROIS
+  // (dernière génération, puis les cartes et leurs états en parallèle, dont un `fetchAll`
+  // paginé), et elles partaient à chaque rendu de chaque page pour les ~245 chatteurs en
+  // formation, qui n'ont pas le slug et ne voient donc jamais ce badge. Mesuré en production
+  // pendant l'incident du 2026-09-07 : 2 191 appels/heure à 243 ms, soit ~530 s de CPU par
+  // heure — 15 % d'un vCPU en permanence, pour une pastille invisible.
+  //
+  // L'appel passe donc APRÈS `getProfile()`, qui était de toute façon attendu à la ligne
+  // suivante : le badge démarre le temps d'une lecture de profil plus tard, il reste streamé.
+  const insightsCountPromise =
+    profile.role === 'admin' || profile.pages.includes('insights')
+      ? getOpenInsightsCount().catch(() => 0)
+      : Promise.resolve(0)
   // Idem pour la pastille « Recrutement », mais gate ADMIN (l'item de nav est `adminOnly` sans
   // slug — le recrutement ne s'attribue pas page par page). `role === 'admin'` couvre le
   // superadmin (cf. getProfile). La RPC s'auto-restreint de toute façon ; ce test évite juste

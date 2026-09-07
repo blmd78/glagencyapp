@@ -46,7 +46,13 @@ export function CasesList({
     const cases = allSolos.filter((c) => c.sectionId === competence.id)
     return (
       <div className="flex flex-col gap-4">
-        <Link href={`/formation/modules/${module.code}` as Route} className="gla-back w-fit">
+        {/* Même raison que les liens de compétence ci-dessous : ce retour vise la page COURANTE
+            sans son `?competence=`, et le préfetch en referait un rendu serveur complet. */}
+        <Link
+          href={`/formation/modules/${module.code}` as Route}
+          prefetch={false}
+          className="gla-back w-fit"
+        >
           ← {module.title}
         </Link>
         <section className="gla-clist">
@@ -103,8 +109,16 @@ export function CasesList({
               const done = cases.filter((c) => bests.has(c.id)).length
               return (
                 <li key={sec.id}>
+                  {/* `prefetch={false}` — ces liens ne changent qu'un searchParam de la page COURANTE,
+                      mais Next les préfetche comme des navigations, et chaque préfetch relance ici un
+                      rendu serveur ENTIER : module, cas, records perso, persona, classement. Setting
+                      a six compétences, donc six rendus fantômes à chaque affichage — mesuré en
+                      production le 2026-09-07 pendant l'incident de latence : 9 911 requêtes sur
+                      `/formation/modules/setting` en une heure, contre 536 pour `relance` qui en a
+                      moins. Le préfetch n'apporte rien de toute façon : on est déjà sur la page. */}
                   <Link
                     href={`/formation/modules/${module.code}?competence=${sec.id}` as Route}
+                    prefetch={false}
                     className="gla-lrow"
                   >
                     {sec.emoji && <span aria-hidden className="text-lg">{sec.emoji}</span>}
