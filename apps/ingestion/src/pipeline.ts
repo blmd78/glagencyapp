@@ -192,18 +192,16 @@ async function ingestChatterDay(
   // via une variante de label). ca = ppv + tips → respecte le CHECK.
   const cdAgg = new Map<
     string,
-    { ppv: number; tips: number; propose: number; vendu: number; pa: number; pi: number; react: number[] }
+    { ppv: number; tips: number; propose: number; vendu: number; react: number[] }
   >()
   for (const c of mt.chatters) {
     const cid = resolved.get(labelOf(c.name))
     if (!cid) continue
-    const a = cdAgg.get(cid) ?? { ppv: 0, tips: 0, propose: 0, vendu: 0, pa: 0, pi: 0, react: [] }
+    const a = cdAgg.get(cid) ?? { ppv: 0, tips: 0, propose: 0, vendu: 0, react: [] }
     a.ppv += c.caPpv
     a.tips += c.caTips
     a.propose += c.propose
     a.vendu += c.vendu
-    a.pa += c.presenceActiveH
-    a.pi += c.presenceIdleH
     if (c.reactiviteSec != null) a.react.push(c.reactiviteSec)
     cdAgg.set(cid, a)
   }
@@ -218,8 +216,10 @@ async function ingestChatterDay(
       ca_tips: tips,
       propose: a.propose,
       vendu: a.vendu,
-      presence_active_h: round(a.pa),
-      presence_idle_h: round(a.pi),
+      // `null` et NON 0 : le tableau MyPuls a perdu sa colonne « Présence » le 2026-09-03 (0149).
+      // 0 se lirait « n'a pas travaillé » sur l'onglet Chatteurs, qui affiche « — » sur null.
+      presence_active_h: null,
+      presence_idle_h: null,
       reactivite_sec: a.react.length
         ? Math.round(a.react.reduce((s, x) => s + x, 0) / a.react.length)
         : null,
