@@ -21,9 +21,10 @@ export const maxDuration = 300
 /**
  * To-Do hebdomadaire des encadrants — port de `/todo` du tracker GLA.
  *
- * Chacun voit SA semaine ; un admin — et depuis 2026-08-31 un manager, pour ses sous-managers
- * rattachés — peut ouvrir celle d'un autre via `?owner=` pour y déposer une tâche. La semaine
- * affichée vit dans l'URL (`?week=`), donc elle se partage et revient au retour arrière.
+ * Chacun voit SA semaine ; un admin — depuis 2026-08-31 un manager pour ses sous-managers
+ * rattachés, depuis 2026-09-08 un policier pour TOUS les sous-managers — peut ouvrir celle d'un
+ * autre via `?owner=` pour y déposer une tâche. La semaine affichée vit dans l'URL (`?week=`),
+ * donc elle se partage et revient au retour arrière.
  */
 export default async function PresenceTodoPage({
   searchParams,
@@ -115,10 +116,10 @@ async function Header({
       title="To Do"
       crumb={<b>semaine du {label(d.weekStart)}</b>}
       // Bouton de récupération à l'extrême droite : il n'a de sens que sur SA propre semaine, et
-      // que si on peut y écrire. `d.canWrite` en plus de `ownWeek` : un porteur du droit qui n'est
-      // pas encadrant (chatteur, policier) voit un écran entièrement en lecture seule — lui laisser
-      // le seul bouton d'écriture de la page, que le serveur refuse désormais, serait la dernière
-      // promesse non tenue de cet écran.
+      // que si on peut y écrire. `d.canWrite` en plus de `ownWeek` : un porteur du droit qui n'a
+      // pas de to-do (un chatteur à qui on a coché « Présence ») voit un écran entièrement en
+      // lecture seule — lui laisser le seul bouton d'écriture de la page, que le serveur refuse,
+      // serait la dernière promesse non tenue de cet écran.
       right={ownWeek && d.canWrite ? <TrackerImportButton /> : undefined}
     >
       {/* Nav de semaine SEGMENTÉE, à l'identique du tracker (`.datenav.seg` : ‹ / cette semaine / ›). */}
@@ -127,8 +128,8 @@ async function Header({
         <Link href={href(weekStartOf(d.today))}>cette semaine</Link>
         <Link href={href(addDays(d.weekStart, 7))} aria-label="Semaine suivante">›</Link>
       </div>
-      {/* Sélecteur de compte (notre Combobox) : admin, ou manager avec des sous-managers rattachés —
-          `holders` est vide pour tous les autres, le sélecteur ne se rend alors pas. */}
+      {/* Sélecteur de compte (notre Combobox) : admin, policier, ou manager avec des sous-managers
+          rattachés — `holders` est vide pour tous les autres, le sélecteur ne se rend alors pas. */}
       {people.length > 0 ? (
         <TodoAccountSelect week={d.weekStart} viewerId={viewerId} current={owner ?? viewerId} people={people} />
       ) : null}

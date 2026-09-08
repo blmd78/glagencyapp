@@ -88,6 +88,7 @@ async function DashDynamic({ children }: { children: ReactNode }) {
         isAdmin={profile.role === 'admin'}
         isSuperadmin={profile.superadmin}
         isManager={profile.manager}
+        isPolice={profile.baseRole === 'police'}
         allowedPages={profile.pages}
         insightsCountPromise={insightsCountPromise}
         recruitPendingPromise={recruitPendingPromise}

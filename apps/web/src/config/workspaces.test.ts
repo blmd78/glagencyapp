@@ -16,6 +16,7 @@ const user = (pages: string[]): NavAccess => ({
   isAdmin: false,
   isSuperadmin: false,
   isManager: false,
+  isPolice: false,
   pages: new Set(pages),
 })
 const formation = WORKSPACES.find((w) => w.id === 'formation')!
@@ -111,11 +112,12 @@ describe('face Formation — droits', () => {
 // `bottom`, `landingHref` le rendait comme page d'atterrissage : `requireAccess('presence')`
 // renvoyait alors vers `landingHref`, soit la même URL. Boucle de redirection, CRM entier verrouillé.
 // Même famille que le bug 2026-08-19 ci-dessus : une nav plus permissive que la garde de la page.
-describe('Récap du tracker — adminOnly + managerAccess + slug', () => {
+describe('Récap du tracker — adminOnly + managerAccess/policeAccess + slug', () => {
   const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
   const recap = chatter.nav.find((n) => n.href === '/chatter/presence/recap')!
   const membres = chatter.nav.find((n) => n.href === '/chatter/members')!
   const encadrant = (pages: string[]): NavAccess => ({ ...user(pages), isManager: true })
+  const policier = (pages: string[]): NavAccess => ({ ...user(pages), isPolice: true })
   const profil = (pages: string[]) => ({ role: 'chatteur', superadmin: false, manager: true, pages })
 
   it('reste invisible de l’encadrant qui n’a pas le droit Présence', () => {
@@ -126,6 +128,29 @@ describe('Récap du tracker — adminOnly + managerAccess + slug', () => {
   it('s’affiche pour l’encadrant qui a le droit, et pour l’admin', () => {
     expect(canAccessNav(recap, encadrant(['presence']))).toBe(true)
     expect(canAccessNav(recap, { ...user([]), isAdmin: true })).toBe(true)
+  })
+
+  // Décision de Benoit, 2026-09-08 : le policier organise la To-Do de tous les sous-managers,
+  // l'écran qui en compte les résultats est donc le sien — mais toujours sous le même droit.
+  it('s’affiche pour le POLICIER qui a le droit Présence, jamais sans', () => {
+    expect(canAccessNav(recap, policier(['presence']))).toBe(true)
+    expect(canAccessNav(recap, policier(['police']))).toBe(false)
+  })
+
+  it('reste fermé au policier ailleurs : Membres porte managerAccess, pas policeAccess', () => {
+    expect(canAccessNav(membres, policier(['presence']))).toBe(false)
+  })
+
+  it('n’est pas l’atterrissage d’un policier sans le droit, et l’est avec', () => {
+    const policierProfil = (pages: string[]) => ({
+      role: 'chatteur',
+      superadmin: false,
+      manager: false,
+      baseRole: 'police',
+      pages,
+    })
+    expect(landingHref(policierProfil(['police']))).toBe('/chatter/police')
+    expect(landingHref(policierProfil(['presence']))).toBe('/chatter/presence')
   })
 
   it('ne devient jamais la page d’atterrissage d’un encadrant sans le droit', () => {

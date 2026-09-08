@@ -25,7 +25,7 @@
  *   on est revenu à devoir le renoter. Il garde une issue, « juste aujourd'hui »
  *   (`deleteTaskOccurrence`), qui saute UNE occurrence sans toucher au gabarit.
  *
- * Ce que cette règle NE dit PAS : le droit d'ouvrir la page (`requireWriteProfileLive('presence')`)
+ * Ce que cette règle NE dit PAS : le droit d'écrire sur la To-Do (`requireTodoAccess`)
  * ni la dérogation de dépôt sur cette semaine-là (`canAssignTodoOf`). Les deux gardes qui
  * l'appellent posent ces questions AVANT — ici on ne tranche que la propriété du gabarit.
  */

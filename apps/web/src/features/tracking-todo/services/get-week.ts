@@ -3,6 +3,7 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getCreatorScope } from '@/lib/services/creator-scope'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
+import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
 import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 
@@ -14,12 +15,13 @@ const isDay = (s: string): boolean =>
   /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`))
 
 /**
- * Les rôles qui ÉCRIVENT sur une to-do — miroir applicatif de `hasWriteAccess` (lib/auth), dont
- * dépend la garde serveur `requireWriteProfileLive('presence')`. `superadmin` en fait partie : il
- * hérite de tout (son absence de cette liste privait le propriétaire du sélecteur « 1:1 avec »).
- * `police` en est absent, comme dans `hasWriteAccess` — il lit la page, il n'y écrit pas.
+ * Les rôles qui ÉCRIVENT sur une to-do — `TODO_ROLES`, la même liste que la garde serveur
+ * (`requireTodoAccess` → `canWriteTodo`). `police` y est entré le 2026-09-08 avec le reste de la
+ * feature ; il n'y était pas tant que la garde dérivait de `hasWriteAccess` (lib/auth).
+ *
+ * Le droit `presence`, lui, n'est pas retesté ici : la page l'a exigé (`requireAccess`).
  */
-const ENCADRANT_ROLES = ['superadmin', 'admin', 'manager', 'sous-manager']
+const ENCADRANT_ROLES: readonly string[] = TODO_ROLES
 
 /**
  * Rôle EXACT du TITULAIRE de la semaine — `getCreatorScope` en a besoin pour savoir s'il faut
@@ -251,11 +253,11 @@ export async function getTodoWeek(params: {
     // Sur la semaine d'un AUTRE, on organise mais on n'atteste pas : `canOrganize` ouvre le
     // planning à l'encadrement (2026-09-07), `canWrite` reste la coche et le débrief, que personne
     // ne signe à la place du titulaire — admin compris (cf. `assertOwner`).
-    // `isEncadrant` en plus du titulaire : la garde d'écriture est `requireWriteProfileLive`
-    // (admin, ou manager/sous-manager porteur du droit), pas le simple port du droit. Un chatteur
-    // ou un policier à qui on a coché « Présence » voyait sinon un écran entièrement éditable dont
-    // chaque geste part en « Accès refusé » — l'UI est optimiste, elle n'a pas le droit d'être
-    // plus permissive que le serveur.
+    // `isEncadrant` en plus du titulaire : la garde d'écriture est `requireTodoAccess`
+    // (un rôle qui a une to-do, porteur du droit), pas le simple port du droit. Un chatteur à qui
+    // on a coché « Présence » voyait sinon un écran entièrement éditable dont chaque geste part en
+    // « Accès refusé » — l'UI est optimiste, elle n'a pas le droit d'être plus permissive que le
+    // serveur.
     canWrite,
     canAssign: canAssignHere,
     canOrganize,
