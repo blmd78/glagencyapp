@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SHIFTS, currentShift, shiftByKey, shiftWindow, shiftWindowOn } from './shifts'
+import { SHIFTS, currentShift, serviceDayParis, shiftByKey, shiftWindow, shiftWindowOn } from './shifts'
 
 const at = (iso: string): number => Date.parse(iso)
 
@@ -84,5 +84,31 @@ describe('shiftWindowOn', () => {
     const now = Date.parse('2026-08-26T14:05:00Z')
     const a = shiftWindow(shiftByKey('aprem')!, now)
     expect(shiftWindowOn(shiftByKey('aprem')!, a.date)).toEqual(a)
+  })
+})
+
+describe('serviceDayParis — la journée de service, qui ne finit pas à minuit', () => {
+  // Le service de nuit court jusqu'à 05:00 (SHIFTS.nuit.endH). Tant qu'il n'est pas fini, la
+  // journée de travail en cours est celle de la VEILLE civile — c'est ce que l'encadrant vient
+  // de faire, et ce qu'il débriefe.
+  it('avant 05:00, rend la veille', () => {
+    // 02:52 Paris (UTC+2 en septembre) — le cas réel remonté le 2026-09-08.
+    expect(serviceDayParis(new Date('2026-09-08T00:52:00Z'))).toBe('2026-09-07')
+    // 04:59:59 Paris, la dernière minute du service de nuit.
+    expect(serviceDayParis(new Date('2026-09-08T02:59:59Z'))).toBe('2026-09-07')
+  })
+
+  it('à partir de 05:00, rend le jour civil', () => {
+    expect(serviceDayParis(new Date('2026-09-08T03:00:00Z'))).toBe('2026-09-08')
+    expect(serviceDayParis(new Date('2026-09-08T21:30:00Z'))).toBe('2026-09-08')
+  })
+
+  it('suit l’heure de PARIS, pas UTC — en hiver comme en été', () => {
+    // 04:30 Paris en décembre (UTC+1) → encore la veille.
+    expect(serviceDayParis(new Date('2026-12-01T03:30:00Z'))).toBe('2026-11-30')
+    // 05:30 Paris en décembre → le jour civil.
+    expect(serviceDayParis(new Date('2026-12-01T04:30:00Z'))).toBe('2026-12-01')
+    // 23:30 UTC en septembre = 01:30 Paris le LENDEMAIN civil, donc journée du jour même.
+    expect(serviceDayParis(new Date('2026-09-08T23:30:00Z'))).toBe('2026-09-08')
   })
 })

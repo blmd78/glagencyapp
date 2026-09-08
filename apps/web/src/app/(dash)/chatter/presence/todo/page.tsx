@@ -2,7 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { Route } from 'next'
-import { addDays, todayParis } from '@glagency/core'
+import { addDays, serviceDayParis } from '@glagency/core'
 import { requireAccess } from '@/lib/auth'
 import { canAssignTodoOf } from '@/lib/tracking/todo-guards'
 import { CtxBar } from '@/components/tracking/ctx-bar'
@@ -44,7 +44,7 @@ export default async function PresenceTodoPage({
   if (!week) {
     const q = new URLSearchParams()
     for (const [k, v] of Object.entries(sp)) if (typeof v === 'string') q.set(k, v)
-    q.set('week', weekStartOf(todayParis()))
+    q.set('week', weekStartOf(serviceDayParis()))
     redirect(`/chatter/presence/todo?${q.toString()}`)
   }
 
