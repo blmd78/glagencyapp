@@ -1,4 +1,4 @@
-import { addDays, isoWeekday, todayParis } from '@glagency/core'
+import { addDays, isoWeekday, serviceDayParis, todayParis } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import { getCreatorScope } from '@/lib/services/creator-scope'
@@ -249,7 +249,16 @@ export async function getTodoWeek(params: {
     links: (linksRes.data ?? []) as TodoLink[],
     dailyByDay,
     today,
-    debriefDay: defaultDebriefDay(today, weekStart),
+    // JOUR PROPOSÉ POUR LE BILAN = la journée de SERVICE, pas le jour civil. Entre minuit et 5 h,
+    // l'encadrant qui débriefe termine la journée d'hier (`serviceDayParis`) ; lui proposer la
+    // date du calendrier, c'était compter son bilan sur le lendemain — signalé le 2026-09-08, et
+    // visible en base : deux débriefs sur huit écrits après minuit portaient la mauvaise date,
+    // les six autres avaient été recalés à la main dans le sélecteur.
+    //
+    // `today` juste au-dessus reste le jour CIVIL, à dessein : c'est lui qui surligne la colonne
+    // du jour dans la grille et qui grise les jours à venir dans le sélecteur. La veille doit y
+    // rester sélectionnable — elle est passée.
+    debriefDay: defaultDebriefDay(serviceDayParis(), weekStart),
     // Sur la semaine d'un AUTRE, on organise mais on n'atteste pas : `canOrganize` ouvre le
     // planning à l'encadrement (2026-09-07), `canWrite` reste la coche et le débrief, que personne
     // ne signe à la place du titulaire — admin compris (cf. `assertOwner`).

@@ -1,5 +1,5 @@
-import { addDays } from '../domain/dates'
-import { parisDay, parisWallUtcMs } from './time'
+import { addDays, todayParis } from '../domain/dates'
+import { parisDay, parisOffsetMs, parisWallUtcMs } from './time'
 
 // ⚠️ Les colonnes `shift_key` de la base acceptent aussi `'jour'` (la vue journalière de
 // l'incrément 4). Ce type ne couvre que les 3 shifts : la ligne journalière exigera un élargissement.
@@ -65,6 +65,32 @@ export function shiftWindowOn(shift: Shift, endDay: string): ShiftWindow {
     label: shift.label,
     range: `${String(shift.startH).padStart(2, '0')}h → ${String(shift.endH).padStart(2, '0')}h`,
   }
+}
+
+/**
+ * LA JOURNÉE DE SERVICE EN COURS — celle qu'on vient de travailler, pas celle qu'affiche le
+ * calendrier.
+ *
+ * Le service de nuit finit à 05:00 (`SHIFTS.nuit.endH`, la même borne que le relevé MyPuls, dont
+ * le créneau du soir court jusqu'à 05:00 Paris). Tant qu'il n'est pas fini, la journée de travail
+ * en cours est celle de la VEILLE civile : un encadrant qui range son poste à 02:52 termine la
+ * journée d'hier.
+ *
+ * D'où ça vient : le 2026-09-08, un manager a signalé que son bilan écrit après minuit était
+ * compté sur le lendemain. Le choix du jour existait déjà (2026-09-03) mais la valeur PROPOSÉE
+ * restait le jour civil — six débriefs sur huit écrits entre 0 h et 7 h avaient été recalés à la
+ * main, deux ne l'avaient pas été. Cette fonction ne décide RIEN : elle ne sert qu'à proposer, la
+ * date écrite reste celle que l'encadrant choisit (décision de Benoit du 2026-09-03, « laisse-les
+ * mettre comme ils veulent, sans les embêter »).
+ *
+ * L'heure vient de `parisOffsetMs` (mémoïsé à l'heure) et non d'un `Intl` reconstruit : cette
+ * fonction est appelée à chaque rendu de la To-Do.
+ */
+export function serviceDayParis(now: Date = new Date()): string {
+  const nightEnd = (shiftByKey('nuit') as Shift).endH
+  const parisHour = new Date(now.getTime() + parisOffsetMs(now)).getUTCHours()
+  const civil = todayParis(now)
+  return parisHour < nightEnd ? addDays(civil, -1) : civil
 }
 
 /** Le shift en cours à `nowMs` (heure de Paris). */
