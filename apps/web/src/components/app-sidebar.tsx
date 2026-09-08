@@ -53,6 +53,7 @@ export function AppSidebar({
   isAdmin,
   isSuperadmin,
   isManager,
+  isPolice,
   allowedPages,
   insightsCountPromise,
   recruitPendingPromise,
@@ -66,6 +67,8 @@ export function AppSidebar({
   isSuperadmin?: boolean
   /** Rôle manager : voit en plus les items adminOnly marqués managerAccess (Membres). */
   isManager?: boolean
+  /** Rôle police : voit en plus les items adminOnly marqués policeAccess (Récap). */
+  isPolice?: boolean
   /** Slugs autorisés pour un rôle `user` (ignoré si admin). */
   allowedPages?: string[]
   /** Cartes insights « à traiter » (badge streamé hors du chemin bloquant du layout). */
@@ -110,9 +113,10 @@ export function AppSidebar({
       isAdmin: !!isAdmin,
       isSuperadmin: !!isSuperadmin,
       isManager: !!isManager,
+      isPolice: !!isPolice,
       pages: new Set(pagesKey ? pagesKey.split(',') : []),
     }),
-    [isAdmin, isSuperadmin, isManager, pagesKey],
+    [isAdmin, isSuperadmin, isManager, isPolice, pagesKey],
   )
   const items = useMemo(() => active.nav.filter((item) => canAccessNav(item, access)), [active, access])
   // Items directs au-dessus, puis les sous-onglets, puis les directs `bottom` (Membres) —

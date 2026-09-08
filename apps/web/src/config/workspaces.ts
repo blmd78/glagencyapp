@@ -69,6 +69,14 @@ export interface NavItem {
   superadminOnly?: boolean
   /** Item adminOnly AUSSI visible des managers (ex. Membres face chatteurs). */
   managerAccess?: boolean
+  /**
+   * Item adminOnly AUSSI visible des POLICIERS (rôle `police`) — le Récap, et lui seul : depuis
+   * le 2026-09-08 un policier organise la To-Do de tous les sous-managers, il lui faut donc
+   * l'écran qui en compte les résultats. Un flag distinct de `managerAccess` parce que la police
+   * n'est PAS de l'encadrement (ni `is_admin` ni `is_manager`, 0070) : Membres, qui porte
+   * `managerAccess`, doit lui rester fermé.
+   */
+  policeAccess?: boolean
   /** Sous-onglet (id d'un NavGroup de la face) — sans groupe, l'item est affiché direct. */
   group?: string
   /** Item direct rendu SOUS les sous-onglets (ex. Membres), au lieu d'au-dessus. */
@@ -146,12 +154,13 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
       // Le Récap : COMPTEURS pour tout l'encadrement, VERBATIM des débriefs pour les seuls admins
-      // (RPC `tracker_todo_week_recap` en definer, 0137 ; `tracker_todo_daily_read` reste fermée
-      // par 0132). D'où `adminOnly` + `managerAccess` : l'item reste invisible d'un chatteur ou
-      // d'un policier porteur du slug — la page les rejetterait — mais s'affiche pour les
-      // managers ET sous-managers (`isManager` = `profile.manager`, qui couvre les deux), chacun
-      // n'y voyant que son périmètre. Un sous-manager n'encadre personne : il y lit SON récap.
-      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence', adminOnly: true, managerAccess: true },
+      // (RPC `tracker_todo_week_recap` en definer, 0137/0150 ; `tracker_todo_daily_read` reste
+      // fermée par 0132). D'où `adminOnly` + `managerAccess` + `policeAccess` : l'item reste
+      // invisible d'un chatteur porteur du slug — la page le rejetterait — mais s'affiche pour les
+      // managers ET sous-managers (`isManager` = `profile.manager`, qui couvre les deux) et, depuis
+      // le 2026-09-08, pour les policiers, chacun n'y voyant que son périmètre. Un sous-manager
+      // n'encadre personne : il y lit SON récap.
+      { href: '/chatter/presence/recap', label: 'Récap', icon: ClipboardCheck, slug: 'presence', group: 'presence', adminOnly: true, managerAccess: true, policeAccess: true },
       // Vue d'orga de l'agence (manager → sous-managers → modèles → chatters par shift),
       // DÉRIVÉE de Membres/Chatters — cf. features/organisation/.
       { href: '/chatter/organisation', label: 'Organisation', icon: Network, group: 'equipe' },
@@ -428,6 +437,8 @@ export interface NavAccess {
   isAdmin: boolean
   isSuperadmin: boolean
   isManager: boolean
+  /** Rôle `police` — voit en plus les items adminOnly marqués `policeAccess` (le Récap). */
+  isPolice: boolean
   pages: Set<string>
 }
 
@@ -460,7 +471,8 @@ export function canAccessNav(item: NavItem, a: NavAccess): boolean {
   // même URL → boucle de redirection. Membres (`/chatter/members`) n'a pas de `slug` explicite et
   // reste donc inchangé ; il y échappait de toute façon par `bottom: true`, ce que le Récap n'a pas.
   if (item.adminOnly) {
-    return !!item.managerAccess && a.isManager && (!item.slug || a.pages.has(item.slug))
+    const derogation = (!!item.managerAccess && a.isManager) || (!!item.policeAccess && a.isPolice)
+    return derogation && (!item.slug || a.pages.has(item.slug))
   }
   if (item.anyOf) return item.anyOf.some((s) => a.pages.has(s))
   return a.pages.has(navSlug(item))
@@ -476,12 +488,15 @@ export function landingHref(p: {
   role: string
   superadmin: boolean
   manager: boolean
+  /** Rôle EXACT en base (`Profile.baseRole`) — seul à distinguer un policier d'un chatteur. */
+  baseRole?: string
   pages: string[]
 }): Route {
   const access: NavAccess = {
     isAdmin: p.role === 'admin',
     isSuperadmin: p.superadmin,
     isManager: p.manager,
+    isPolice: p.baseRole === 'police',
     pages: new Set(p.pages),
   }
   for (const w of WORKSPACES) {

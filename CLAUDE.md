@@ -51,8 +51,9 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-07,
   prod à **0148** — tout le relevé MyPuls y est passé avec les Releases 2.26→2.28, la mention
   `--include-all` n'a plus d'objet ; `0146`/`0147` sont passées avec la Release 2.36 et `0148`
-  (habitudes déposées) avec la 2.37 et `0149` (`chatter_daily.presence` nullable) est en attente
-  de release — prochaine migration = **0150**) : **catalogue**
+  (habitudes déposées) avec la 2.37 ; `0149` (`chatter_daily.presence` nullable), `0150` (index
+  `spender_conversations`) et `0151` (Récap de la To-Do ouvert à la police) sont en attente de
+  release — prochaine migration = **0152**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -153,15 +154,27 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   (« sans section », le défaut de `habitInput`) en est une valeur **légitime** : les schémas
   d'ajout et de déplacement doivent l'accepter, sinon le groupe qu'une habitude sans section fait
   apparaître devient un cul-de-sac où tout geste répond « Saisie invalide » (bug du 2026-09-07).
-  Périmètre de la dérogation =
-  `canAssignTodoOf` (`lib/tracking/todo-guards.ts`), **source unique** lue aussi par la page
-  (validation de `?owner=` — sans elle, la RLS laisserait ouvrir la semaine de n'importe qui)
-  et par `getTodoHolders` : admin → tous les encadrants, manager → **ses sous-managers
-  rattachés** (`manager_ids`), personne d'autre. Une tâche « 1:1 » ne demande **aucun périmètre
+  **La POLICE a une to-do, et c'est un ORGANISATEUR** (décision Benoit 2026-09-08 : « policier
+  c'est comme manager, ils peuvent faire pareil sur tous les sous-mana ») : le rôle `police` est
+  entré dans `TODO_ROLES`, et son périmètre est **TOUS les sous-managers** — sans rattachement,
+  puisqu'il n'en porte aucun (`ATTACHABLE_ROLES.police` est vide depuis 0095 et Benoit a refusé de
+  le rouvrir pour 3 comptes). Conséquence : la garde d'écriture n'est plus `requireWriteProfileLive`
+  (miroir de `can_write_page()`, qui ignore la police) mais **`requireTodoAccess`** →
+  `canWriteTodo` ; ne pas élargir `hasWriteAccess`, dix-huit policies en dépendent. La règle vit
+  UNE fois, pure et testée, en **`lib/tracking/todo-roles.ts`** (`TODO_ROLES`, `canWriteTodo`,
+  `canOrganizeTodoOf`) et a **trois miroirs à garder alignés** : `canAssignTodoOf`
+  (`todo-guards.ts`, la décision + la validation de `?owner=` — sans elle la RLS laisserait ouvrir
+  la semaine de n'importe qui), `getTodoHolders` (le sélecteur, filtré EN SQL) et la RPC du Récap
+  (`tracker_todo_week_recap`, **0151**). Périmètres : admin → tout le monde, manager → **ses
+  sous-managers rattachés** (`manager_ids`), police → **tous les sous-managers**, personne d'autre.
+  `can_manage_planning_of` (0102) reste `role = 'manager'` STRICT — l'élargir aurait donné au
+  policier le planning journalier et les repos, qui n'ont pas été demandés. Le Récap s'ouvre au
+  policier (`NavItem.policeAccess`, distinct de `managerAccess` — Membres, qui porte ce dernier,
+  lui reste fermé) ; le **verbatim** des débriefs y reste admin + soi. Une tâche « 1:1 » ne demande **aucun périmètre
   modèles** (ni titulaire, ni déposant) depuis le 2026-09-05 : les deux tests n'existaient que
   pour éviter des tâches inclôturables, et la clôture ne teste plus rien (cf. Suivi chatters).
   **Récap**
-  (`/chatter/presence/recap`, `0137`) : RPC `tracker_todo_week_recap` en **`security definer`
+  (`/chatter/presence/recap`, `0137` + `0151`) : RPC `tracker_todo_week_recap` en **`security definer`
   à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
   l'encadrement (chacun son périmètre), **verbatim pour l'admin et son propre journal
   seulement**. `tracker_todo_daily` (`0132`) et `tracker_todo_notes` (`0137`) restent fermées :

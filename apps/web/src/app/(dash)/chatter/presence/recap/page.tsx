@@ -21,21 +21,24 @@ export default async function PresenceRecapPage({
 }: {
   searchParams: Promise<{ week?: string }>
 }) {
-  // ENCADREMENT, chacun dans son périmètre (2026-08-31) — et non plus admin strict.
+  // ENCADREMENT — ET LA POLICE —, chacun dans son périmètre (2026-08-31, élargi le 2026-09-08).
   //
   // Ce qui reste de la fermeture d'origine : le VERBATIM. Le tracker réservait cet écran aux
   // admins (`requireAdminView`, routes.js.txt:436) et l'ouvrir à tout porteur du slug `presence`
   // donnait à un sous-manager le journal intime de ses pairs — c'est ce que 0132 a refermé, et
   // `tracker_todo_daily_read` reste fermée. Ce qui change : les COMPTEURS. La RPC (definer, 0137)
   // rend à chacun son périmètre — admin → tout, manager → lui + ses sous-managers rattachés,
-  // sous-manager → lui seul — et ne joint le texte des débriefs que pour un admin ou soi-même.
+  // POLICE → lui + TOUS les sous-managers (0150), sous-manager → lui seul — et ne joint le texte
+  // des débriefs que pour un admin ou soi-même.
   //
-  // La garde ne fait donc que refuser les NON-ENCADRANTS (chatteur, police) à qui on aurait coché
-  // « Présence » : la RPC leur rendrait de toute façon leur seule ligne, mais un écran de suivi
-  // d'équipe n'est pas à eux. `profile.manager` couvre manager ET sous-manager — exactement ce que
-  // la sidebar lit pour afficher l'item (`managerAccess`, config/workspaces.ts).
+  // La garde ne fait donc que refuser le CHATTEUR à qui on aurait coché « Présence » : la RPC lui
+  // rendrait de toute façon sa seule ligne, mais un écran de suivi d'équipe n'est pas à lui. Le
+  // policier, lui, y entre depuis le 2026-09-08 : il organise la To-Do de tous les sous-managers,
+  // l'écran qui en compte les résultats est le sien. `profile.manager` couvre manager ET
+  // sous-manager — exactement ce que la sidebar lit pour afficher l'item (`managerAccess` +
+  // `policeAccess`, config/workspaces.ts).
   const profile = await requireAccess('presence')
-  if (profile.role !== 'admin' && !profile.manager) notFound()
+  if (profile.role !== 'admin' && !profile.manager && profile.baseRole !== 'police') notFound()
   const { week } = await searchParams
 
   const data = getWeekRecap({ id: profile.id, isAdmin: profile.role === 'admin' }, week)

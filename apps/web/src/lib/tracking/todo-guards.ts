@@ -1,8 +1,9 @@
 import { revalidatePath } from 'next/cache'
-import { BusinessError, requireWriteProfileLive } from '@/lib/actions'
+import { BusinessError, DENY_WRITE, requirePageProfileLive } from '@/lib/actions'
 import { createClient } from '@/lib/supabase/server'
 import type { Profile } from '@/lib/auth'
 import { canEditHabit } from './habit-rules'
+import { canOrganizeTodoOf, canWriteTodo } from './todo-roles'
 
 /**
  * Gardes de propriété de la To-Do du tracker.
@@ -35,19 +36,26 @@ export function revalidateTodo(): void {
 }
 
 /**
- * Le droit d'écrire quoi que ce soit sur une to-do de tracker : la page, et un rôle d'encadrement.
+ * Le droit d'écrire quoi que ce soit sur une to-do de tracker : la page, et un rôle qui a une
+ * to-do (`canWriteTodo`).
  *
- * `requireWriteProfileLive` et NON `requirePageProfileLive` : le commentaire d'origine disait déjà
- * « la to-do est réservée aux ENCADRANTS », mais le prédicat employé (`hasPageAccess`) se contente
- * de « admin OU slug ». Or la case « Présence » de Membres n'est bornée par aucun rôle
- * (`config/workspaces.ts:137`) : un chatteur à qui on la coche obtenait les dix-huit Server
- * Actions d'écriture en service-role. `hasWriteAccess` ajoute la condition manquante (admin, ou
- * manager/sous-manager porteur du slug) — miroir applicatif de `can_write_page()` (0060).
+ * Ce n'est PLUS `requireWriteProfileLive` depuis le 2026-09-08. Cette garde-là dérivait de
+ * `hasWriteAccess`, miroir applicatif de `can_write_page()` (0060) — admin, ou
+ * manager/sous-manager porteur du slug — et le rôle `police` n'y est pas : le policier se voyait
+ * refuser jusqu'à la coche de SA propre tâche. Or il a désormais une to-do comme un manager
+ * (décision de Benoit du 2026-09-08). Élargir `hasWriteAccess` était exclu : c'est le miroir
+ * d'une fonction SQL que dix-huit policies d'écriture utilisent, et la police n'a rien à y faire.
+ * La To-Do porte donc sa propre règle, `canWriteTodo` (`todo-roles.ts`), qui garde la condition
+ * qui comptait : la case « Présence » de Membres n'est bornée par aucun rôle
+ * (`config/workspaces.ts:137`), un chatteur à qui on la coche reste sans écriture.
+ *
  * Le suffixe `Live` refuse en plus la consultation « en tant que » : on ne coche pas la to-do de
  * quelqu'un sous son identité.
  */
-async function requireTodoAccess() {
-  return requireWriteProfileLive('presence')
+export async function requireTodoAccess(): Promise<Profile> {
+  const profile = await requirePageProfileLive('presence')
+  if (!canWriteTodo(profile.baseRole, profile.pages)) throw new BusinessError(DENY_WRITE)
+  return profile
 }
 
 /**
@@ -86,12 +94,12 @@ export async function assertOwner(ownerId: string): Promise<string> {
  * `getTodoHolders` en est un MIROIR, en SQL et non en JS : il liste, il ne décide pas — la garde
  * repasse derrière sur chaque écriture. Le filtre y est fait dans la requête parce qu'il tourne en
  * service-role : un `.filter()` après coup aurait quand même rapatrié tout l'annuaire de
- * l'encadrement. Miroir à garder aligné si la règle change ; c'est le prix assumé.
+ * l'encadrement. Miroir à garder aligné si la règle change ; c'est le prix assumé. Le troisième
+ * miroir est SQL : la RPC du Récap (`tracker_todo_week_recap`, 0150) rend les mêmes périmètres.
  *
- * • admin/superadmin : tout le monde (dérogation historique du legacy) ;
- * • manager : ses sous-managers RATTACHÉS — miroir applicatif de `can_manage_planning_of`
- *   (0092:70-85), `baseRole` strict pour que la règle ne déborde pas sur les sous-managers ;
- * • quiconque d'autre : personne.
+ * La règle elle-même vit en `todo-roles.ts` (`canOrganizeTodoOf`, pure et testée) — admin → tout
+ * le monde, manager → ses sous-managers rattachés, police → tous les sous-managers. Ici on ne
+ * fait que deux choses qu'elle ne peut pas faire : valider la FORME de l'id, et lire la cible.
  *
  * Client SESSION (et non service-role) : `profiles_self_admin_or_team_read` (0097) laisse tout
  * encadrant lire les profils, la RLS suffit donc ici et reste le filet.
@@ -103,7 +111,10 @@ export async function canAssignTodoOf(profile: Profile, ownerId: string): Promis
   // page tombe sur son error boundary au lieu d'ignorer le paramètre. Un paramètre d'URL bricolé
   // doit être sans effet, pas fatal.
   if (!UUID.test(ownerId)) return false
-  if (profile.role !== 'admin' && profile.baseRole !== 'manager') return false
+  // Court-circuit : les rôles qui n'ont AUCUNE dérogation, quelle que soit la cible — inutile
+  // d'aller lire un profil pour eux. La liste est celle de `canOrganizeTodoOf`, qui retranche
+  // ensuite ce que chacun peut réellement viser.
+  if (!['admin', 'superadmin', 'manager', 'police'].includes(profile.baseRole)) return false
 
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -115,26 +126,13 @@ export async function canAssignTodoOf(profile: Profile, ownerId: string): Promis
   if (error) throw new Error(error.message)
   if (!data) return false
 
-  // LA CIBLE DOIT POUVOIR OUVRIR SA TO-DO. Sans ce test, on assigne du travail dans un outil que
-  // la personne ne peut pas ouvrir — et la tâche déposée la fait ensuite apparaître au Récap de
-  // son manager en « 0/N débriefs », c'est-à-dire le reproche structurel que 0137 dit justement
-  // vouloir éviter. Le droit est la règle UNIQUE de toute la feature : qui l'a est attendu, qui ne
-  // l'a pas n'existe pas encore pour cet écran. Vaut aussi pour l'admin, dont le `?owner=` visait
-  // sinon n'importe quel uuid bien formé, chatteur compris.
-  if (!canOpenTodo(data.role, data.pages)) return false
-
-  if (profile.role === 'admin') return true
-  return data.role === 'sous-manager' && (data.manager_ids ?? []).includes(profile.id)
-}
-
-/**
- * La personne peut-elle ouvrir la To-Do ? Miroir EXACT de `hasPageAccess` (lib/auth) appliqué à
- * QUELQU'UN D'AUTRE que l'appelant — les admins passent sans porter le slug. Exporté parce que
- * `getTodoHolders` doit trancher la même question sur une liste, et que deux formulations de cette
- * règle divergeraient.
- */
-export function canOpenTodo(role: string | null, pages: string[] | null): boolean {
-  return role === 'admin' || role === 'superadmin' || (pages ?? []).includes('presence')
+  return canOrganizeTodoOf({
+    callerId: profile.id,
+    // `baseRole` et NON `role` : ce dernier écrase manager/sous-manager/police en 'chatteur'
+    // (lib/auth) — la dérogation du manager et celle du policier disparaîtraient toutes deux.
+    callerRole: profile.baseRole,
+    target: { role: data.role, pages: data.pages, managerIds: data.manager_ids },
+  })
 }
 
 /**
