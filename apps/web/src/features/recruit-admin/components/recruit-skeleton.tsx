@@ -18,6 +18,8 @@ export function RecruitSkeleton() {
             <Skeleton key={i} className="h-36 w-full" />
           ))}
         </div>
+        {/* La barre d'onglets Dossiers / Intégrations, puis la file. */}
+        <Skeleton className="h-9 w-56" />
         <div className="overflow-hidden rounded-md border">
           <Skeleton className="h-10 w-full rounded-none" />
           {Array.from({ length: 8 }, (_, i) => (

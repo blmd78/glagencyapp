@@ -99,12 +99,44 @@ export interface CandidateRow {
   source: string | null
 }
 
-/** Compteurs EXACTS de la file (requêtes `count` dédiées — pas dérivés des lignes bornées à 500). */
+/**
+ * L'ENTONNOIR du recrutement (compteurs `count` dédiés — pas dérivés des lignes bornées à 500).
+ *
+ * Remplace Total/Nouveau/Validé/Refusé le 2026-09-09 : les 195 dossiers de la base sont TOUS en
+ * statut « nouveau », le workflow valider/refuser n'ayant jamais été utilisé — deux cartes
+ * affichaient donc 0 en permanence. Les quatre chiffres ci-dessous existent vraiment et
+ * répondent à la question posée : combien de monde on fait entrer.
+ *
+ * `passed` ≠ `members` À DESSEIN, et l'écart est l'information : 25 dossiers ont réussi le test
+ * pour 77 comptes créés. Le test n'est pas ce qui décide qui entre, et la page doit le montrer
+ * plutôt que de le lisser.
+ */
 export interface RecruitKpis {
+  /** Dossiers reçus, tous statuts. */
   total: number
-  nouveau: number
-  valide: number
-  refuse: number
+  /** Dossiers ayant passé les seuils du test (`passed`, figé à la soumission). */
+  passed: number
+  /** Dossiers rattachés à un compte membre (`profile_id` non nul). */
+  members: number
+  /** Membres issus du recrutement dont `integrated_at` tombe dans le mois courant. */
+  integratedThisMonth: number
+}
+
+/**
+ * Un mois d'entrées à l'agence : les candidats dont le compte a été rattaché à une modèle ce
+ * mois-là (`profiles.integrated_at`, posé au PREMIER rattachement et jamais réécrit).
+ *
+ * C'est la seule date qui dise « il a fini sa formation et il a rejoint » : `in_training` ne
+ * peut pas servir à ça — le backfill de la migration 0147 a re-marqué « en formation » 43
+ * personnes déjà intégrées dont on avait retiré la modèle.
+ */
+export interface IntegrationMonth {
+  /** `YYYY-MM`. */
+  month: string
+  /** « septembre 2026 ». */
+  label: string
+  /** Les entrées du mois, la plus récente en tête. */
+  rows: CandidateRow[]
 }
 
 /**
@@ -123,6 +155,8 @@ export interface CandidateDay {
 export interface CandidatesData {
   /** Journées de la plus récente à la plus ancienne, chacune classée par note (`byQueueOrder`). */
   days: CandidateDay[]
+  /** Les entrées à l'agence, groupées par mois — onglet « Intégrations ». */
+  integrations: IntegrationMonth[]
   gates: RecruitGates
   kpis: RecruitKpis
 }
