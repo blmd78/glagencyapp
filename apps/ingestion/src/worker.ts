@@ -378,6 +378,11 @@ const handler = {
     }
     // Awaité (pas de waitUntil) : un crash marque l'invocation cron en échec côté
     // Cloudflare, est capturé par withSentry, et passe le check-in du monitor en error.
+    //
+    // L'erreur est MÉMORISÉE et relancée plus bas, pas propagée tout de suite : le fan-out
+    // marketing qui suit doit partir même quand le scrape chatteurs a échoué. Les deux jobs
+    // lisent des pages MyPuls différentes — l'un peut réussir quand l'autre casse.
+    let chatterErr: unknown
     try {
       await Sentry.withMonitor(MONITOR_SLUG, () => runAndRecord('cron'), MONITOR_CONFIG)
     } catch (err) {
@@ -386,8 +391,43 @@ const handler = {
       if (/parse|html|selector|introuvable|invalide/i.test((err as Error)?.message ?? '')) {
         controller.noRetry()
       }
-      throw err
+      chatterErr = err
     }
+
+    // ── Fan-out MARKETING (liens de tracking) ────────────────────────────────────────
+    // Rebranché le 2026-09-08 SANS ajouter de Cron Trigger : le plan Free plafonne à 5 crons
+    // par COMPTE et les 3 slots sont pris (chatteurs, spenders, shifts). Un appel SELF est une
+    // invocation SÉPARÉE, à son propre budget 10 ms CPU / 50 sous-requêtes — même mécanique
+    // que le fan-out spenders plus haut, et la raison pour laquelle ce job tient malgré tout.
+    //
+    // 23h05 UTC reste sûr : été comme hiver, c'est APRÈS minuit à Paris (cf. wrangler.toml),
+    // donc la journée capturée est complète. Le marketing tournait à 23h20 pour la même raison.
+    //
+    // Instagram (`?job=social`) et Telegram (`?job=telegram`) restent en pause : le premier
+    // rappelle Apify et consomme des crédits. Les rebrancher = un `self.fetch` de plus.
+    //
+    // Son échec ne fait PAS échouer l'invocation : il est signalé à Sentry, et la fenêtre
+    // glissante de 8 jours du run (`marketing.ts:70`) rattrape d'elle-même la nuit suivante.
+    try {
+      const { SELF: self, WORKER_SELF_URL: selfUrl, TRIGGER_TOKEN: token } = env
+      if (self && selfUrl && token) {
+        const r = await self.fetch(`${selfUrl}?job=marketing`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!r.ok) {
+          Sentry.captureMessage(`[marketing] fan-out KO (HTTP ${r.status})`, 'warning')
+        }
+      } else {
+        Sentry.captureMessage(
+          '[marketing] fan-out impossible : binding SELF / WORKER_SELF_URL / TRIGGER_TOKEN manquant',
+          'warning',
+        )
+      }
+    } catch (err) {
+      Sentry.captureException(err)
+    }
+
+    if (chatterErr) throw chatterErr
   },
 
   async fetch(req: Request, env: Bindings, ctx: Ctx): Promise<Response> {

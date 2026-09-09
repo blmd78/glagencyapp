@@ -2,10 +2,7 @@ import type { Route } from 'next'
 import type { LucideIcon } from 'lucide-react'
 import {
   Send,
-  Instagram,
   Link2,
-  Twitter,
-  Wallet,
   ChartColumn,
   CalendarOff,
   CalendarCheck,
@@ -207,18 +204,32 @@ export const WORKSPACES: Workspace[] = [
     // le filtrage sidebar est fait au niveau de la face, pas page par page.
     groups: [
       { id: 'reseaux', label: 'Réseaux', icon: Globe },
-      { id: 'gestion', label: 'Gestion', icon: Briefcase },
+      // Sous-onglet « Gestion » RETIRÉ avec ses deux pages (décision Benoit 2026-09-08) —
+      // un groupe sans item affiché serait un tiroir vide. Restaurer = décommenter ici ET
+      // les deux items plus bas.
+      // { id: 'gestion', label: 'Gestion', icon: Briefcase },
     ],
     nav: [
       { href: '/marketing/overview', label: 'Overview', icon: LayoutDashboard, slug: 'mkt-overview' },
       { href: '/marketing/liens', label: 'Liens tracking', icon: Link2, slug: 'mkt-liens', group: 'reseaux' },
-      { href: '/marketing/instagram', label: 'Instagram', icon: Instagram, slug: 'mkt-instagram', group: 'reseaux' },
-      { href: '/marketing/twitter', label: 'Twitter / X', icon: Twitter, slug: 'mkt-twitter', group: 'reseaux' },
-      { href: '/marketing/telegram', label: 'Telegram', icon: Send, slug: 'mkt-telegram', group: 'reseaux' },
+      // Ce que les liens rapportent, RAMENÉ au CA et aux abonnés de chaque modèle — le pôle
+      // sait ce que ses liens gagnent, pas ce que ça pèse. Le CA total passe par la RPC 0152.
+      { href: '/marketing/modeles', label: 'Modèles', icon: UsersRound, slug: 'mkt-modeles', group: 'reseaux' },
+      // ── MASQUÉS TEMPORAIREMENT (décision Benoit 2026-09-08) ──────────────────────────
+      // Les trois pages sociales lisent `mkt_social_daily`, dont l'ingestion est à l'arrêt
+      // depuis le 2026-07-11 (crons Apify/Telegram en pause, cf. wrangler.toml) : elles
+      // n'affichent plus rien. Les ROUTES restent en place, seuls les items de nav partent —
+      // et les slugs restent dans PAGE_SLUGS pour ne pas invalider les droits déjà accordés
+      // en base. Restaurer = décommenter, rien d'autre.
+      // (restaurer aussi les imports `Instagram` et `Twitter` de lucide-react, retirés avec eux)
+      // { href: '/marketing/instagram', label: 'Instagram', icon: Instagram, slug: 'mkt-instagram', group: 'reseaux' },
+      // { href: '/marketing/twitter', label: 'Twitter / X', icon: Twitter, slug: 'mkt-twitter', group: 'reseaux' },
+      // { href: '/marketing/telegram', label: 'Telegram', icon: Send, slug: 'mkt-telegram', group: 'reseaux' },
       // Même patron que la face chatteurs : « VA » = les fiches (comme « Chatters »),
       // la Compta ne fait que payer.
-      { href: '/marketing/staff', label: 'VA', icon: Users, slug: 'mkt-staff', group: 'gestion' },
-      { href: '/marketing/compta', label: 'Compta', icon: Wallet, slug: 'mkt-compta', group: 'gestion' },
+      // { href: '/marketing/staff', label: 'VA', icon: Users, slug: 'mkt-staff', group: 'gestion' },
+      // { href: '/marketing/compta', label: 'Compta', icon: Wallet, slug: 'mkt-compta', group: 'gestion' },
+      // (restaurer aussi l'import `Wallet`)
       { href: '/marketing/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
     ],
   },
@@ -288,7 +299,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

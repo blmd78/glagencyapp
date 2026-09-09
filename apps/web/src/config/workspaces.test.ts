@@ -245,3 +245,31 @@ describe('Relevé d’équipe en tête du groupe Présence', () => {
     expect(presence[0]!.label).toBe('Présence')
   })
 })
+
+describe('face Marketing — page Modèles', () => {
+  const marketing = WORKSPACES.find((w) => w.id === 'marketing')!
+  const modeles = () => marketing.nav.find((n) => n.href === '/marketing/modeles')!
+
+  it('expose le slug mkt-modeles', () => {
+    expect(PAGE_SLUGS).toContain('mkt-modeles')
+  })
+
+  it('range Modèles dans le sous-onglet Réseaux, sans restriction admin', () => {
+    expect(modeles().group).toBe('reseaux')
+    expect(modeles().slug).toBe('mkt-modeles')
+    expect(modeles().adminOnly).toBeUndefined()
+  })
+
+  it('le slug appartient bien à la face marketing', () => {
+    expect(slugFace('mkt-modeles')).toBe('marketing')
+  })
+
+  it('est une case à cocher de la page Membres du pôle marketing', () => {
+    expect(pageChoicesFor('marketing').map((c) => c.slug)).toContain('mkt-modeles')
+  })
+
+  it("s'ouvre à qui porte le droit, pas aux autres", () => {
+    expect(canAccessNav(modeles(), user(['mkt-modeles']))).toBe(true)
+    expect(canAccessNav(modeles(), user(['mkt-liens']))).toBe(false)
+  })
+})

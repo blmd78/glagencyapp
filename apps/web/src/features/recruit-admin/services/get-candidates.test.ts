@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parisDay } from '@glagency/core'
-import { byQueueOrder, groupByDay, toCandidateRow } from './get-candidates'
+import { byQueueOrder, groupByDay, groupByIntegrationMonth, toCandidateRow } from './get-candidates'
 import type { CandidateRow, CandidateStatus } from '../types'
 
 /** Une ligne minimale : seuls jour de réception, note globale, QI et heure pèsent sur l'ordre. */
@@ -76,5 +76,45 @@ describe('groupByDay — une section par journée de réception', () => {
 
   it('rend une liste vide sans journée', () => {
     expect(groupByDay([])).toEqual([])
+  })
+})
+
+/** Une ligne réduite à ce qui compte pour le groupement des entrées. */
+const entree = (first: string, integratedAt: string | null): CandidateRow =>
+  ({ id: first, firstName: first, integratedAt, models: [] }) as unknown as CandidateRow
+
+describe('groupByIntegrationMonth — les entrées à l\'agence', () => {
+  it('groupe par mois, le plus récent en tête', () => {
+    const r = groupByIntegrationMonth([
+      entree('a', '2026-08-04'),
+      entree('b', '2026-09-02'),
+      entree('c', '2026-08-30'),
+    ])
+    expect(r.map((m) => m.month)).toEqual(['2026-09', '2026-08'])
+    expect(r[0].rows.map((x) => x.firstName)).toEqual(['b'])
+    expect(r[1].rows.map((x) => x.firstName)).toEqual(['c', 'a'])
+  })
+
+  it('écarte les membres sans date : ils sont encore en formation, pas entrés', () => {
+    const r = groupByIntegrationMonth([entree('a', null), entree('b', '2026-09-02')])
+    expect(r).toHaveLength(1)
+    expect(r[0].rows.map((x) => x.firstName)).toEqual(['b'])
+  })
+
+  it('ne rend aucun mois quand personne n\'est entré', () => {
+    expect(groupByIntegrationMonth([entree('a', null)])).toEqual([])
+  })
+
+  it('libelle le mois en toutes lettres', () => {
+    expect(groupByIntegrationMonth([entree('a', '2026-09-02')])[0].label).toBe('septembre 2026')
+  })
+
+  it('classe la plus récente en tête DANS le mois', () => {
+    const r = groupByIntegrationMonth([
+      entree('debut', '2026-09-01'),
+      entree('fin', '2026-09-28'),
+      entree('milieu', '2026-09-15'),
+    ])
+    expect(r[0].rows.map((x) => x.firstName)).toEqual(['fin', 'milieu', 'debut'])
   })
 })

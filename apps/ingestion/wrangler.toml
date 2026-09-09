@@ -27,9 +27,13 @@ compatibility_flags = ["nodejs_compat"]
 # restaurer telle quelle ferait 6 avec le relevé des shifts et serait REFUSÉE. Réactiver
 # le marketing impose donc d'arbitrer un slot.
 [triggers]
-# Crons marketing DÉSACTIVÉS temporairement (2026-07-12) — réactiver en restaurant la
-# ligne complète ci-dessous. ⚠️ Mettre les monitors Sentry ingestion-marketing-* en pause
-# (Crons → monitor → Pause), sinon ils alertent « missed check-in » chaque nuit.
+# Liens de tracking : REBRANCHÉS le 2026-09-08, mais PAS par un cron — en FAN-OUT depuis le
+# cron chatteurs (5 23 * * *), cf. worker.ts section « Fan-out MARKETING ». Un appel SELF est
+# une invocation séparée : le job retrouve son budget sans consommer un des 5 slots du compte.
+# Instagram (Apify, payant) et Telegram restent en pause : les rebrancher = un self.fetch de
+# plus dans la même section. ⚠️ Au déploiement, réactiver le monitor Sentry
+# ingestion-marketing sur la crontab du PORTEUR (5 23), pas sur son ancienne (20 23) ; les
+# monitors -social et -telegram restent en pause. Ligne d'origine, pour mémoire :
 # crons = ["5 23 * * *", "20 23 * * *", "35 23 * * *", "50 23 * * *", "0 0 * * *"]
 # 04h30 UTC : relevé « Contrôle des shifts » MyPuls (3 sous-requêtes, deux jours par run).
 # ⚠️ Cette heure n'est PAS interchangeable avec les autres crons : le créneau du soir de la

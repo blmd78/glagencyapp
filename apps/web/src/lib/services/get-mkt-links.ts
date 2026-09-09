@@ -9,6 +9,8 @@ const r2 = (v: number) => Math.round(v * 100) / 100
 /** Ligne journalière `mkt_link_daily` minimale requise par l'agrégat par lien. */
 export interface MktLinkDailyRow {
   link_id: string
+  /** Jour du relevé — nécessaire à tout agrégat PAR JOUR (cf. marketing-modeles). */
+  date: string
   clicks: number
   conversions: number
   revenue_eur: number
@@ -48,7 +50,7 @@ export async function getLinkRows(
       fetchAll((f, t) =>
         supabase
           .from('mkt_link_daily')
-          .select('link_id, clicks, conversions, revenue_eur')
+          .select('date, link_id, clicks, conversions, revenue_eur')
           .gte('date', period.from)
           .lte('date', period.to)
           .order('link_id')
@@ -89,6 +91,7 @@ export async function getLinkRows(
         name: l.name,
         type: (l.type ?? 'other') as MktLinkRow['type'],
         url: l.url,
+        creatorId: l.creator_id,
         creator: l.creator_id ? (crName.get(l.creator_id) ?? null) : null,
         staff: staffByLink.get(l.id) ?? [],
         active: l.active,

@@ -1,8 +1,16 @@
-import { frWeekdayDate, parisDay } from '@glagency/core'
+import { frMonthLong, frWeekdayDate, parisDay } from '@glagency/core'
 import type { Database } from '@glagency/db'
 import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import type { CandidateDay, CandidateRow, CandidatesData, CandidateStatus, RecruitGates, RecruitKpis } from '../types'
+import type {
+  CandidateDay,
+  CandidateRow,
+  CandidatesData,
+  CandidateStatus,
+  IntegrationMonth,
+  RecruitGates,
+  RecruitKpis,
+} from '../types'
 
 /**
  * Borne EXPLICITE de la file des candidats (guidelines-data-loading §2 : jamais de `select` nu —
@@ -114,6 +122,33 @@ export function toCandidateRow(r: CandidateCols): CandidateRow {
 }
 
 /**
+ * Les ENTRÉES à l'agence, groupées par mois d'intégration (le plus récent en tête), et dans le
+ * mois la plus récente d'abord.
+ *
+ * Ne retient que les dossiers portant une `integratedAt` : un compte créé mais jamais rattaché à
+ * une modèle n'est pas une entrée — c'est quelqu'un encore en formation. Cette date est posée au
+ * PREMIER rattachement et jamais réécrite, ce qui en fait la seule mesure fiable de « il a fini
+ * et il a rejoint » (cf. `IntegrationMonth`).
+ *
+ * Exportée pour être TESTÉE : avec deux mois en base, le groupement ne se vérifie pas à l'œil.
+ */
+export function groupByIntegrationMonth(rows: CandidateRow[]): IntegrationMonth[] {
+  const byMonth = new Map<string, CandidateRow[]>()
+  for (const r of rows) {
+    if (!r.integratedAt) continue
+    const month = r.integratedAt.slice(0, 7)
+    byMonth.set(month, [...(byMonth.get(month) ?? []), r])
+  }
+  return [...byMonth.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([month, list]) => ({
+      month,
+      label: frMonthLong(`${month}-01`),
+      rows: list.sort((a, b) => (b.integratedAt ?? '').localeCompare(a.integratedAt ?? '')),
+    }))
+}
+
+/**
  * File des candidats + seuils courants pour l'affichage des gates, en deux lectures parallèles
  * (client SESSION : la RLS de `recruit_candidates` / `recruit_config` est `is_admin()` en lecture,
  * un non-admin lit zéro ligne — la garde `requireAdmin()` de la page est la défense en profondeur).
@@ -126,11 +161,8 @@ export async function getCandidates(): Promise<CandidatesData> {
   const supabase = await createClient()
   // Compteurs en HEAD (`count: 'exact'`, aucune ligne rapatriée) : les cartes KPI doivent rester
   // justes même le jour où la file dépasse `MAX_ROWS` — les dériver des lignes bornées mentirait.
-  const countWhere = (status?: CandidateStatus) => {
-    const q = supabase.from('recruit_candidates').select('id', { count: 'exact', head: true })
-    return status ? q.eq('status', status) : q
-  }
-  const [candidates, config, total, valide, refuse] = await Promise.all([
+  const head = () => supabase.from('recruit_candidates').select('id', { count: 'exact', head: true })
+  const [candidates, config, total, passed, members] = await Promise.all([
     supabase.from('recruit_candidates').select(COLS).order('created_at', { ascending: false }).limit(MAX_ROWS),
     // Client ADMIN, à dessein. `recruit_config` reste fermée à `is_admin()` — sa ligne porte
     // `qi_bank`, c'est-à-dire LA CLÉ DE CORRECTION du QI. L'ouvrir en RLS pour que l'encadrant
@@ -141,13 +173,13 @@ export async function getCandidates(): Promise<CandidatesData> {
     // `config.data` null → « Configuration introuvable » → boundary d'erreur. La page plantait
     // pour exactement le public à qui 0135 venait de l'ouvrir.
     createAdminClient().from('recruit_config').select('qi_min, frappe_min, connexion_min, global_threshold').eq('id', 1).maybeSingle(),
-    countWhere(),
-    countWhere('valide'),
-    countWhere('refuse'),
+    head(),
+    head().eq('passed', true),
+    head().not('profile_id', 'is', null),
   ])
   if (candidates.error) throw new Error(candidates.error.message)
   if (config.error) throw new Error(config.error.message)
-  for (const c of [total, valide, refuse]) if (c.error) throw new Error(c.error.message)
+  for (const c of [total, passed, members]) if (c.error) throw new Error(c.error.message)
   if (!config.data) throw new Error('Configuration du test de recrutement introuvable (ligne 1)')
 
   const gates: RecruitGates = {
@@ -186,11 +218,16 @@ export async function getCandidates(): Promise<CandidatesData> {
       r.models = (models.get(pid) ?? []).sort((a, b) => a.localeCompare(b, 'fr'))
     }
   }
+  // Les intégrations dérivent des lignes CHARGÉES, pas d'un `count` : la date vit sur le profil,
+  // pas sur le dossier, et un compteur exact demanderait une jointure que PostgREST ne fait pas.
+  // Même borne que la file (`MAX_ROWS`) — les deux vues montrent donc le même ensemble.
+  const integrations = groupByIntegrationMonth(rows)
+  const thisMonth = parisDay(new Date().toISOString()).slice(0, 7)
   const kpis: RecruitKpis = {
     total: total.count ?? 0,
-    nouveau: Math.max(0, (total.count ?? 0) - (valide.count ?? 0) - (refuse.count ?? 0)),
-    valide: valide.count ?? 0,
-    refuse: refuse.count ?? 0,
+    passed: passed.count ?? 0,
+    members: members.count ?? 0,
+    integratedThisMonth: integrations.find((m) => m.month === thisMonth)?.rows.length ?? 0,
   }
-  return { days: groupByDay(rows), gates, kpis }
+  return { days: groupByDay(rows), integrations, gates, kpis }
 }

@@ -18,12 +18,19 @@ import type { CandidateFileData, CandidatesData } from '@/features/recruit-admin
  * SENSIBLES (bloquer, débloquer, supprimer) restent admin : masqués ici, et refusés côté Server
  * Action, qui reste la seule barrière qui compte.
  */
-export default async function RecrutementPage({ searchParams }: { searchParams: Promise<{ dossier?: string }> }) {
-  const [profile, { dossier }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
+export default async function RecrutementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ dossier?: string; vue?: string }>
+}) {
+  const [profile, { dossier, vue }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
   // `?dossier=` validé AVANT la requête : un uuid mal formé ferait échouer Postgres (22P02) et
   // tomberait sur la boundary d'erreur au lieu d'être ignoré (précédent : Overview).
   const parsed = z.uuid().safeParse(dossier)
   const selectedId = parsed.success ? parsed.data : null
+  // `?vue=` normalisé ICI, jamais relu dans UrlTabs : sinon un `?vue=nimportequoi` viderait
+  // l'écran au lieu de retomber sur la file.
+  const onglet = vue === 'integrations' ? 'integrations' : 'dossiers'
 
   // Kickoff SANS await : le h1 s'affiche immédiatement, les deux lectures partent en parallèle et
   // streament dans leur boundary. La file est chargée même quand un dossier est ouvert — la fiche
@@ -41,7 +48,13 @@ export default async function RecrutementPage({ searchParams }: { searchParams: 
           </SectionFallback>
         }
       >
-        <RecruitContent data={data} candidate={candidate} hasSelection={selectedId !== null} isAdmin={profile.role === 'admin'} />
+        <RecruitContent
+          data={data}
+          candidate={candidate}
+          hasSelection={selectedId !== null}
+          isAdmin={profile.role === 'admin'}
+          vue={onglet}
+        />
       </Suspense>
     </div>
   )
@@ -52,16 +65,18 @@ async function RecruitContent({
   candidate,
   hasSelection,
   isAdmin,
+  vue,
 }: {
   data: Promise<CandidatesData>
   candidate: Promise<CandidateFileData | null> | null
   hasSelection: boolean
   /** Bloquer, débloquer et supprimer un dossier restent réservés aux admins (gardés côté action). */
   isAdmin: boolean
+  vue: string
 }) {
   const [list, file] = await Promise.all([data, candidate])
   // Uuid valide mais dossier inconnu (supprimé entre-temps, lien périmé) : 404 franc plutôt qu'une
   // fiche vide. Ici et pas dans la page : c'est la lecture, résolue seulement maintenant, qui sait.
   if (hasSelection && !file) notFound()
-  return <RecruitTemplate data={list} candidate={file ?? null} isAdmin={isAdmin} />
+  return <RecruitTemplate data={list} candidate={file ?? null} isAdmin={isAdmin} vue={vue} />
 }

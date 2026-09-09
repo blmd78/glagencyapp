@@ -1,47 +1,58 @@
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { CandidateFile } from './components/candidate-file'
 import { CandidatesTable } from './components/candidates-table'
+import { IntegrationsView } from './components/integrations-view'
+import { UrlTabs } from '@/components/url-tabs'
 import { CopyTestLink } from './components/recruit-actions'
 import type { CandidateFileData, CandidatesData, RecruitKpis } from './types'
 
 // Liseré des cartes, dans l'ordre des KPIs : bleu (candidats), vert (validés), violet (taux), rouge (refusés).
 const KPI_ACCENTS = ['border-t-blue-500', 'border-t-emerald-500', 'border-t-violet-500', 'border-t-red-500']
 
-/** Les 4 cartes GLA : Candidats / Validés / Taux de validation / Refusés (compteurs exacts). */
+/**
+ * Les 4 cartes de l'ENTONNOIR : reçus → ont réussi le test → devenus membres → entrés ce mois.
+ *
+ * Remplacent Candidats / Validés / Taux / Refusés le 2026-09-09. Les 195 dossiers sont tous en
+ * statut « nouveau » — le workflow valider/refuser n'a jamais servi — et deux cartes sur quatre
+ * affichaient donc 0 en permanence, la troisième un taux de 0 %.
+ *
+ * L'écart entre « ont réussi » et « devenus membres » est VOULU à l'écran : 25 réussites pour
+ * 77 comptes créés. Le test ne décide pas qui entre, et la carte le dit.
+ */
 function toKpis(k: RecruitKpis): Kpi[] {
-  const taux = k.total > 0 ? `${Math.round((k.valide / k.total) * 100)} %` : '—'
+  const tauxTest = k.total > 0 ? `${Math.round((k.passed / k.total) * 100)} %` : '—'
   return [
     {
       key: 'total',
-      label: 'Candidats',
+      label: 'Dossiers reçus',
       value: String(k.total),
       deltaPct: null,
-      trendLabel: k.nouveau > 0 ? `${k.nouveau} à traiter` : 'File à jour',
-      hint: 'dossiers soumis, tous statuts',
+      trendLabel: '',
+      hint: 'toutes sessions confondues',
     },
     {
-      key: 'valides',
-      label: 'Validés',
-      value: String(k.valide),
+      key: 'passed',
+      label: 'Ont réussi le test',
+      value: String(k.passed),
       deltaPct: null,
       trendLabel: '',
-      hint: 'acceptés à la main',
+      hint: `${tauxTest} des dossiers`,
     },
     {
-      key: 'taux',
-      label: 'Taux de validation',
-      value: taux,
+      key: 'members',
+      label: 'Devenus membres',
+      value: String(k.members),
       deltaPct: null,
       trendLabel: '',
-      hint: k.total > 0 ? `${k.valide} validé${k.valide > 1 ? 's' : ''} sur ${k.total}` : 'aucun dossier',
+      hint: 'un compte a été créé',
     },
     {
-      key: 'refuses',
-      label: 'Refusés',
-      value: String(k.refuse),
+      key: 'integres',
+      label: 'Entrés ce mois',
+      value: String(k.integratedThisMonth),
       deltaPct: null,
       trendLabel: '',
-      hint: 'écartés à la main',
+      hint: 'rattachés à une modèle',
     },
   ]
 }
@@ -57,11 +68,15 @@ export function RecruitTemplate({
   data,
   candidate,
   isAdmin,
+  vue,
 }: {
   data: CandidatesData
   candidate: CandidateFileData | null
   isAdmin: boolean
+  /** Onglet actif, validé par la page (`?vue=`). */
+  vue: string
 }) {
+  const total = data.integrations.reduce((n, m) => n + m.rows.length, 0)
   return (
     <div className="flex flex-col gap-6">
       <div className="-mt-4 flex justify-end">
@@ -72,7 +87,29 @@ export function RecruitTemplate({
       ) : (
         <>
           <KpiGrid kpis={toKpis(data.kpis)} accents={KPI_ACCENTS} />
-          <CandidatesTable days={data.days} gates={data.gates} />
+          {/* Deux lectures, deux onglets : juger des dossiers (par session de test) et suivre
+              les entrées (par mois) ne se regardent pas au même rythme. */}
+          <UrlTabs
+            value={vue}
+            defaultValue="dossiers"
+            items={[
+              {
+                value: 'dossiers',
+                label: 'Dossiers',
+                content: <CandidatesTable days={data.days} gates={data.gates} />,
+              },
+              {
+                value: 'integrations',
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    Intégrations
+                    {total > 0 && <span className="tabular-nums opacity-60">{total}</span>}
+                  </span>
+                ),
+                content: <IntegrationsView months={data.integrations} />,
+              },
+            ]}
+          />
         </>
       )}
     </div>
