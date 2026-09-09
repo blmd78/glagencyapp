@@ -5254,6 +5254,10 @@ export type Database = {
       is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       manages: { Args: { target: string }; Returns: boolean }
+      mkt_creator_revenue: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }
         Returns: undefined
