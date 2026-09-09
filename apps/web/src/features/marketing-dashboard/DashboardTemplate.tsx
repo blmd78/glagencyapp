@@ -6,17 +6,26 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { KpiCard } from '@/components/kpi-card'
+import { KpiGrid } from '@/components/kpi-card'
 import { modelColor } from '@/lib/model-color'
 import { conv, eur, num, pct } from '@/lib/format'
 import { MktDailyChart } from './components/mkt-daily-chart'
 import { typeBadge } from '@/lib/type-badge'
 import type { MktDashboardData } from './types'
 
-/** Dashboard marketing : KPIs de la période, revenus/jour, top liens, poids par créatrice. */
-export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardData; expenses: number }) {
-  const net = Math.round((data.totals.revenueEur - expenses) * 100) / 100
-  const base = { deltaPct: null as number | null, trendLabel: '', hint: '', accent: undefined as string | undefined }
+/**
+ * Dashboard marketing : KPIs de la période, revenus/jour, top liens, poids par créatrice.
+ *
+ * « Dépenses période » et « Bénéfice net » ont été RETIRÉS le 2026-09-08 (décision Benoit).
+ * Ils dérivaient de `mkt_staff`, qui ne contient qu'un VA à 100 € de fixe et aucun lien
+ * assigné : les dépenses valaient ~1 % des revenus et le « net » recopiait le KPI Revenus à
+ * 100 € près. Les deux écrans qui les alimentaient (VA, Compta) sont par ailleurs sortis de
+ * la sidebar. Restaurer = remettre les deux entrées ci-dessous et repasser `expenses` depuis
+ * `getMktStaff` dans page.tsx.
+ */
+export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
+  // Plus d'`accent` par KPI : KpiGrid applique la séquence de couleurs partagée.
+  const base = { deltaPct: null as number | null, trendLabel: '', hint: '' }
   const kpis = [
     // Pas de badge « vs période précédente » : avec 5 semaines d'historique et une
     // journée en cours partielle, ce % induisait en erreur — à réactiver plus tard.
@@ -52,27 +61,6 @@ export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardDat
       hint: 'subs ÷ clics, tous liens',
       info: 'Abonnés ÷ clics sur la période, tous liens confondus — calculé chez nous, pas fourni par MyPuls.',
     },
-    {
-      ...base,
-      key: 'exp',
-      label: 'Dépenses période',
-      value: eur(expenses),
-      hint: 'payes staff (fixe + variable)',
-      accent: 'border-t-red-400 dark:border-t-red-600',
-      info: 'Payes du staff actif sur la période : fixes proratés (jours ÷ 30) + variables (subs de leurs liens × taux TW, vues IG ÷ 1000 × taux) + primes + % du pôle pour le manager. Détail par personne : page Compta.',
-    },
-    {
-      ...base,
-      key: 'net',
-      label: 'Bénéfice net',
-      value: eur(net),
-      hint: 'revenus − dépenses staff',
-      accent:
-        net >= 0
-          ? 'border-t-green-400 dark:border-t-green-600'
-          : 'border-t-red-400 dark:border-t-red-600',
-      info: 'Revenus des liens de la période − dépenses staff de la période. Ne compte que le pôle marketing (pas le CA chatters).',
-    },
   ]
 
   return (
@@ -81,11 +69,9 @@ export function MktDashboardTemplate({ data, expenses }: { data: MktDashboardDat
         {data.period} · liens de tracking MyPuls
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {kpis.map(({ accent, ...k }) => (
-          <KpiCard key={k.key} kpi={k} accent={accent} />
-        ))}
-      </div>
+      {/* KpiGrid (partagé) : 4 sur une ligne et les accents colorés du reste de l'app.
+          La grille custom à 3 colonnes datait des 6 KPI — avec 4, elle laissait un orphelin. */}
+      <KpiGrid kpis={kpis} />
 
       <Card className="pt-0">
         <CardHeader className="border-b py-5">
