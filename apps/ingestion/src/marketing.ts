@@ -65,7 +65,9 @@ export function detectLinkType(name: string): 'twitter' | 'instagram' | 'telegra
 const r2 = (v: number) => Math.round(v * 100) / 100
 const isoDaysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
 
-export async function runMarketing(opts: { backfillFrom?: string } = {}): Promise<MarketingRunSummary> {
+export async function runMarketing(
+  opts: { backfillFrom?: string; cookie?: string } = {},
+): Promise<MarketingRunSummary> {
   const db = createAdminClient()
   const from = opts.backfillFrom ?? isoDaysAgo(8)
   const warnings: string[] = []
@@ -81,7 +83,13 @@ export async function runMarketing(opts: { backfillFrom?: string } = {}): Promis
   const keyOf = (mp: string | null, name: string) => `${mp ?? ''}::${name}`
   const linkIdByKey = new Map((links ?? []).map((l) => [keyOf(l.mypuls_creator_id, l.name), l.id]))
 
-  const { cookie } = await login()
+  // Session PARTAGÉE en priorité (`ingest_session`, 0109) : depuis que MyPuls a posé un CAPTCHA
+  // au login (~2026-08-12), `login()` ne passe plus sur le Worker — il rendait un 302 et le job
+  // échouait avant la première requête. Les trois autres jobs (chatteurs, shifts, spenders)
+  // reçoivent déjà ce cookie ; celui-ci était le seul à tenter un login en propre.
+  //
+  // Le fallback `login()` reste pour le CLI local, où `MYPULS_SESSION_COOKIE` est lu du `.env`.
+  const cookie = opts.cookie ?? (await login()).cookie
   const headers = { Cookie: cookie, 'User-Agent': UA, Accept: 'application/json' }
 
   // Scrape séquentiel (6 connexions simultanées max sur Workers).

@@ -263,7 +263,11 @@ async function runJobAndLog<T extends { status: string; warnings: string[] }>(
 async function runMarketingAndLog(triggeredBy: IngestTrigger): Promise<Awaited<ReturnType<typeof runMarketing>>> {
   const startedAt = new Date()
   try {
-    const summary = await runMarketing()
+    // `loadCookie` et pas `refreshCookie` : en cron, le run chatteurs vient de rafraîchir la
+    // session quelques secondes plus tôt (fan-out), et un second refresh coûterait des
+    // sous-requêtes pour rien. Le remember-me est glissant sur 7 jours, une lecture suffit.
+    const cookie = await loadCookie(createAdminClient())
+    const summary = await runMarketing({ cookie })
     console.log(`[marketing] ${summary.status.toUpperCase()} (${triggeredBy})`, JSON.stringify(summary))
     if (summary.status === 'degraded') {
       Sentry.captureMessage(`[marketing] run dégradé : ${summary.warnings.join(' | ')}`, 'warning')
