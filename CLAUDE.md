@@ -48,12 +48,12 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   batch 0 : Sentry serveur, cache/`api/revalidate`, headers, `env`, config Next).
 - **3 faces du CRM = préfixe d'URL** : `Chatteurs` (`/chatter/*`), `Marketing`
   (`/marketing/*`) et `Formation` (`/formation/*` — reprise de Good Luck Agency ; TOUTE la face tient dans la
-  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-07,
-  prod à **0148** — tout le relevé MyPuls y est passé avec les Releases 2.26→2.28, la mention
-  `--include-all` n'a plus d'objet ; `0146`/`0147` sont passées avec la Release 2.36 et `0148`
-  (habitudes déposées) avec la 2.37 ; `0149` (`chatter_daily.presence` nullable), `0150` (index
-  `spender_conversations`) et `0151` (Récap de la To-Do ouvert à la police) sont en attente de
-  release — prochaine migration = **0152**) : **catalogue**
+  migration consolidée **`0113_formation.sql`** (fusion 2026-08-21 des ex-0113→0127 ; au 2026-09-09,
+  prod à **0152** — tout le relevé MyPuls y est passé avec les Releases 2.26→2.28, la mention
+  `--include-all` n'a plus d'objet ; `0146`/`0147` sont passées avec la Release 2.36, `0148`
+  (habitudes déposées) avec la 2.37, `0149`/`0150`/`0151` avec les 2.40-2.41, et `0152`
+  (`mkt_creator_revenue`, le CA des modèles ouvert au pôle marketing) avec la release du
+  2026-09-09 — prochaine migration = **0153**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
