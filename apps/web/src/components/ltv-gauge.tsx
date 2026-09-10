@@ -4,16 +4,17 @@
 // Free) via `ssr: false`. Implémentation dans ltv-gauge.client.tsx. Le conteneur réserve la
 // taille exacte (selon `size`) pour éviter tout layout shift pendant le chargement client.
 import dynamic from 'next/dynamic'
-import type { LtvStatus } from '../types'
 
 const LtvGaugeImpl = dynamic(() => import('./ltv-gauge.client').then((m) => m.LtvGauge), {
   ssr: false,
 })
 
 export function LtvGauge(props: {
-  ltv: number | null
-  status: LtvStatus | null
-  target: number
+  value: number | null
+  /** Repère de remplissage — la jauge sature ici, le chiffre écrit reste la vraie valeur. */
+  max: number
+  color: string
+  caption?: string
   size?: 'lg' | 'sm'
 }) {
   const lg = props.size !== 'sm'

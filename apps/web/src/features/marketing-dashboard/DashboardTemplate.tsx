@@ -7,6 +7,8 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { KpiGrid } from '@/components/kpi-card'
+import { LtvGauge } from '@/components/ltv-gauge'
+import { HeaderInfo } from '@/components/data-table/header-info'
 import { modelColor } from '@/lib/model-color'
 import { conv, eur, num, pct } from '@/lib/format'
 import { MktDailyChart } from './components/mkt-daily-chart'
@@ -54,14 +56,6 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
     },
     {
       ...base,
-      key: 'ltv',
-      label: 'LTV',
-      value: data.totals.ltv === null ? '—' : eur(data.totals.ltv),
-      hint: 'revenus ÷ abonnés des liens',
-      info: "Revenus des liens de tracking ÷ abonnés qu'ils ont amenés, sur la période. Ce que rapporte un abonné venu du marketing — à ne pas confondre avec la LTV d'une modèle, qui rapporte TOUT son CA à TOUS ses nouveaux abonnés (page Modèles).",
-    },
-    {
-      ...base,
       key: 'taux',
       label: 'Taux de conversion',
       value:
@@ -79,7 +73,31 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
 
       {/* KpiGrid (partagé) : 4 sur une ligne et les accents colorés du reste de l'app.
           La grille custom à 3 colonnes datait des 6 KPI — avec 4, elle laissait un orphelin. */}
-      <KpiGrid kpis={kpis} cols={5} />
+      <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+        <KpiGrid kpis={kpis} />
+        {/* La LTV en jauge (même demi-cercle que la page Santé), remplie par rapport à la
+            période PRÉCÉDENTE : sans repère, une jauge à une seule valeur est décorative. La
+            cible de 10 € de la Santé ne convient pas — elle vaut pour tout le CA d'une modèle,
+            quand celle-ci ne compte que ce que les liens ont rapporté. */}
+        <Card className="flex flex-col justify-center gap-1 border-t-4 border-t-violet-500 px-6 py-4">
+          <CardDescription className="flex items-center gap-1.5">
+            LTV des liens
+            <HeaderInfo text="Revenus des liens de tracking ÷ abonnés qu'ils ont amenés, sur la période. Ce que rapporte un abonné venu du marketing — à ne pas confondre avec le « € / abonné » de la page Modèles, qui rapporte TOUT le CA d'une modèle à TOUS ses nouveaux abonnés." />
+          </CardDescription>
+          <LtvGauge
+            value={data.totals.ltv}
+            max={data.prevLtv ?? data.totals.ltv ?? 0.01}
+            color="#8b5cf6"
+            caption="€ / abonné"
+            size="lg"
+          />
+          <p className="text-center text-xs text-muted-foreground">
+            {data.prevLtv === null
+              ? 'aucun repère sur la période précédente'
+              : `période précédente : ${eur(data.prevLtv)}`}
+          </p>
+        </Card>
+      </div>
 
       <Card className="pt-0">
         <CardHeader className="border-b py-5">

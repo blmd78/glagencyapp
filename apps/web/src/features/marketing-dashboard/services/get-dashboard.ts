@@ -34,7 +34,9 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
     fetchAll((f, t) =>
       supabase
         .from('mkt_link_daily')
-        .select('revenue_eur')
+        // `conversions` en plus : la LTV de la période précédente sert de REPÈRE à la jauge
+        // de l'Overview — sans elle, une jauge à une seule valeur ne dit rien.
+        .select('revenue_eur, conversions')
         .gte('date', prevFrom)
         .lte('date', prevTo)
         .order('link_id')
@@ -90,6 +92,11 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
       ltv: conversions > 0 ? r2(revenueEur / conversions) : null,
     },
     prevRevenueEur: r2((prevDaily ?? []).reduce((s, d) => s + Number(d.revenue_eur), 0)),
+    prevLtv: (() => {
+      const rev = (prevDaily ?? []).reduce((s, d) => s + Number(d.revenue_eur), 0)
+      const conv = (prevDaily ?? []).reduce((s, d) => s + d.conversions, 0)
+      return conv > 0 ? r2(rev / conv) : null
+    })(),
     days,
     avgRevenuePerDay: r2(revenueEur / days),
     bestDay: best,

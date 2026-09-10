@@ -8,7 +8,8 @@ import { cn } from '@/lib/utils'
 import { modelColor } from '@/lib/model-color'
 import { eur, eur2, num, pct } from '@/lib/format'
 import type { ModelHealth } from '../types'
-import { LtvGauge } from './ltv-gauge'
+import { LtvGauge } from '@/components/ltv-gauge'
+import { ltvColor, ltvGaugeMax } from '../ltv-color'
 import { StatusBadge } from './status-badge'
 
 /**
@@ -22,7 +23,12 @@ export function ModelHealthCard({ model, target }: { model: ModelHealth; target:
     <Card className="py-4">
       <CardContent className="flex flex-col gap-3 px-4">
         <div className="flex items-start gap-4">
-          <LtvGauge ltv={model.ltv} status={model.status} target={target} size="sm" />
+          <LtvGauge
+            value={model.ltv}
+            max={ltvGaugeMax(target)}
+            color={ltvColor(model.status)}
+            size="sm"
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className={modelColor(model.name)}>{model.name}</Badge>

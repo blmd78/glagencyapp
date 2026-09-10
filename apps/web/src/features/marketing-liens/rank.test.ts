@@ -37,6 +37,22 @@ describe('groupBySource', () => {
     expect(g.taux).toBe(2)
   })
 
+  it('calcule la LTV du canal sur les SOMMES, pas la moyenne des LTV des liens', () => {
+    // 100 €/1 abonné et 10 €/9 abonnés : la moyenne des LTV dirait 50,6 €, la vérité est 11 €.
+    const g = groupBySource(
+      [
+        link({ id: 'a', clicks: 5, conversions: 1, revenueEur: 100 }),
+        link({ id: 'b', clicks: 5, conversions: 9, revenueEur: 10 }),
+      ],
+      'subs',
+    )[0]
+    expect(g.ltv).toBe(11)
+  })
+
+  it('rend une LTV null (pas 0) pour un canal sans abonné', () => {
+    expect(groupBySource([link({ id: 'a', clicks: 8 })], 'subs')[0].ltv).toBeNull()
+  })
+
   it('ne rend que les sources dont un lien a bougé', () => {
     const links = [
       link({ id: 'tw', type: 'twitter', clicks: 3 }),

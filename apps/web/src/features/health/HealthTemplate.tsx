@@ -2,7 +2,8 @@ import { TrendingUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { eur, num } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
-import { LtvGauge } from './components/ltv-gauge'
+import { LtvGauge } from '@/components/ltv-gauge'
+import { ltvColor, ltvGaugeMax } from './ltv-color'
 import { ModelHealthCard } from './components/model-health-card'
 import { StatusBadge } from './components/status-badge'
 import type { HealthData } from './types'
@@ -26,7 +27,13 @@ export function HealthTemplate({ data }: { data: HealthData }) {
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {data.restricted ? 'LTV — tes modèles' : 'LTV agence'}
             </span>
-            <LtvGauge ltv={data.ltv} status={data.status} target={data.target} size="lg" />
+            <LtvGauge
+              value={data.ltv}
+              max={ltvGaugeMax(data.target)}
+              color={ltvColor(data.status)}
+              caption="€ / new sub"
+              size="lg"
+            />
             <StatusBadge status={data.status} />
           </CardContent>
         </Card>

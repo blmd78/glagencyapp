@@ -16,10 +16,11 @@ export function MktLiensSkeleton() {
         <Skeleton className="h-9 w-64" />
         <Skeleton className="ml-auto h-9 w-56" />
       </div>
-      <Skeleton className="h-[104px] w-full" />
+      {/* Le camembert de répartition, puis les quatre canaux REPLIÉS (résumé seul). */}
+      <Skeleton className="h-[260px] w-full" />
       <div className="flex flex-col gap-4">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-[180px] w-full" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-[108px] w-full" />
         ))}
       </div>
     </>
