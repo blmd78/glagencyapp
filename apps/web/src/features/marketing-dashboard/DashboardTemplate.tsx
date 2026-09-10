@@ -54,6 +54,14 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
     },
     {
       ...base,
+      key: 'ltv',
+      label: 'LTV',
+      value: data.totals.ltv === null ? '—' : eur(data.totals.ltv),
+      hint: 'revenus ÷ abonnés des liens',
+      info: "Revenus des liens de tracking ÷ abonnés qu'ils ont amenés, sur la période. Ce que rapporte un abonné venu du marketing — à ne pas confondre avec la LTV d'une modèle, qui rapporte TOUT son CA à TOUS ses nouveaux abonnés (page Modèles).",
+    },
+    {
+      ...base,
       key: 'taux',
       label: 'Taux de conversion',
       value:
@@ -71,7 +79,7 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
 
       {/* KpiGrid (partagé) : 4 sur une ligne et les accents colorés du reste de l'app.
           La grille custom à 3 colonnes datait des 6 KPI — avec 4, elle laissait un orphelin. */}
-      <KpiGrid kpis={kpis} />
+      <KpiGrid kpis={kpis} cols={5} />
 
       <Card className="pt-0">
         <CardHeader className="border-b py-5">
