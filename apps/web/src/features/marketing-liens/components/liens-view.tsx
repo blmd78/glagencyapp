@@ -2,6 +2,16 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner'
+import { ChevronDown } from 'lucide-react'
+import { Cell, Label, Pie, PieChart } from 'recharts'
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { LtvGauge } from '@/components/ltv-gauge'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { modelColor } from '@/lib/model-color'
 import { conv, eur, num, pct } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from '../actions'
 import { typeBadge } from '@/lib/type-badge'
@@ -22,6 +33,12 @@ import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktLinksData } from '../types'
 
 const TYPE_LABELS = { twitter: 'Twitter', instagram: 'Instagram', telegram: 'Telegram', other: 'Autre' } as const
+
+// Les couleurs viennent de SOURCES (rank.ts, passées au validateur dataviz) ; ce config ne sert
+// qu'à satisfaire ChartContainer, qui exige une clé par série.
+const donutConfig = {
+  value: { label: 'Part' },
+} satisfies ChartConfig
 
 /** Sélecteur de type inline (correction manuelle — remplace link_type_overrides legacy).
  *  Changer le type déplace le lien de section : c'est le geste de rangement de la page. */
@@ -105,61 +122,97 @@ function LinkRow({ l, rang, best, critere }: { l: MktLinkRow; rang: number; best
   )
 }
 
-/** Une source de trafic : ses totaux, sa part, et ses liens classés. */
+/** Une métrique du résumé d'un canal : libellé au-dessus, valeur en dessous. */
+function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <span className="flex flex-col">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={cn('tabular-nums', strong ? 'text-base font-semibold' : 'text-sm')}>
+        {value}
+      </span>
+    </span>
+  )
+}
+
+/**
+ * Un canal : son RÉSUMÉ complet, et ses liens à la demande.
+ *
+ * Replié par défaut (décision Benoit 2026-09-10 : « ça fait long à descendre ») — les quatre
+ * canaux tiennent alors sur un écran, et on ouvre celui qu'on veut fouiller. Ouvrir les 91
+ * liens actifs d'office noyait la seule question qui se pose d'abord : quel canal marche.
+ */
 function SourceSection({
   g,
   critere,
   partAgence,
+  ltvAgence,
 }: {
   g: SourceGroup
   critere: Critere
   partAgence: number | null
+  /** Repère de la jauge : la LTV de TOUS les liens sur la période. Un canal au-dessus sature —
+   *  le chiffre exact reste écrit au centre. C'est la seule comparaison qui ait du sens ici :
+   *  la cible LTV de la page Santé (10 €) vaut pour une modèle entière, pas pour un lien. */
+  ltvAgence: number
 }) {
   const [voirMuets, setVoirMuets] = useState(false)
   return (
-    <section className="overflow-hidden rounded-lg border bg-card">
-      <header className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-4 py-3">
-        <span className="flex items-center gap-2">
-          <span className="size-2.5 rounded-full" style={{ background: g.color }} />
+    <Collapsible className="overflow-hidden rounded-lg border bg-card">
+      <CollapsibleTrigger className="group w-full px-4 py-3 text-left hover:bg-accent/30">
+        <div className="flex items-center gap-3">
+          <span className="size-2.5 shrink-0 rounded-full" style={{ background: g.color }} />
           <span className="font-medium">{g.label}</span>
-        </span>
-        <span className="text-sm text-muted-foreground tabular-nums">
-          {g.links.length} lien{g.links.length > 1 ? 's' : ''} actif{g.links.length > 1 ? 's' : ''}
-        </span>
-        <span className="ml-auto flex flex-wrap items-baseline gap-x-4 text-sm tabular-nums">
-          <span className="font-semibold">{num(g.conversions)} abonnés</span>
-          <span className="text-muted-foreground">{eur(g.revenueEur)}</span>
-          <span className="text-muted-foreground">{num(g.clicks)} clics</span>
-          <span className="text-muted-foreground">{g.taux === null ? '—' : pct(g.taux)}</span>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            {g.links.length} lien{g.links.length > 1 ? 's' : ''}
+            {g.dormants.length > 0 && ` · ${g.dormants.length} muet${g.dormants.length > 1 ? 's' : ''}`}
+          </span>
           {partAgence !== null && (
-            <span className="text-muted-foreground">{pct(partAgence)} de l&apos;agence</span>
+            <Badge variant="secondary" className="tabular-nums">
+              {pct(partAgence)} de l&apos;agence
+            </Badge>
           )}
-        </span>
-      </header>
-      <div className="border-t">
-        {g.links.map((l, i) => (
-          <LinkRow key={l.id} l={l} rang={i + 1} best={g.best} critere={critere} />
-        ))}
-      </div>
-      {/* Les liens muets sur la période sont ANNONCÉS puis dépliables — les afficher d'office
-          noierait le classement sous des lignes à zéro, les cacher sans le dire serait pire. */}
-      {g.dormants.length > 0 && (
-        <div className="border-t">
-          <button
-            type="button"
-            onClick={() => setVoirMuets((v) => !v)}
-            className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-accent/30"
-          >
-            {voirMuets ? 'Masquer' : 'Afficher'} les {g.dormants.length} lien
-            {g.dormants.length > 1 ? 's' : ''} sans activité sur la période
-          </button>
-          {voirMuets &&
-            g.dormants.map((l) => (
-              <LinkRow key={l.id} l={l} rang={0} best={0} critere={critere} />
-            ))}
+          <ChevronDown className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
         </div>
-      )}
-    </section>
+        {/* Le résumé : tout ce qu'on veut savoir d'un canal sans l'ouvrir. */}
+        <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-2">
+          <Stat label="Abonnés" value={num(g.conversions)} strong />
+          <Stat label="Revenus" value={eur(g.revenueEur)} strong />
+          <Stat label="Clics" value={num(g.clicks)} />
+          <Stat label="Taux de conversion" value={g.taux === null ? '—' : pct(g.taux)} />
+          {/* La LTV passe en jauge : remplie par rapport à la moyenne de tous les liens, on
+              voit d'un coup d'œil quel canal amène des abonnés qui dépensent. */}
+          <span className="ml-auto flex flex-col items-center">
+            <LtvGauge value={g.ltv} max={ltvAgence} color={g.color} size="sm" />
+            <span className="-mt-1 text-xs text-muted-foreground">LTV</span>
+          </span>
+        </div>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="border-t">
+          {g.links.map((l, i) => (
+            <LinkRow key={l.id} l={l} rang={i + 1} best={g.best} critere={critere} />
+          ))}
+        </div>
+        {/* Les liens muets sur la période sont ANNONCÉS puis dépliables — les afficher d'office
+            noierait le classement sous des lignes à zéro, les cacher sans le dire serait pire. */}
+        {g.dormants.length > 0 && (
+          <div className="border-t">
+            <button
+              type="button"
+              onClick={() => setVoirMuets((v) => !v)}
+              className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-accent/30"
+            >
+              {voirMuets ? 'Masquer' : 'Afficher'} les {g.dormants.length} lien
+              {g.dormants.length > 1 ? 's' : ''} sans activité sur la période
+            </button>
+            {voirMuets &&
+              g.dormants.map((l) => (
+                <LinkRow key={l.id} l={l} rang={0} best={0} critere={critere} />
+              ))}
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -198,6 +251,10 @@ export function LiensView({ data }: { data: MktLinksData }) {
   const partBase: 'subs' | 'revenus' = critere === 'revenus' ? 'revenus' : 'subs'
   const partTotal = partBase === 'revenus' ? totals.revenueEur : totals.conversions
   const partOf = (g: SourceGroup) => (partBase === 'revenus' ? g.revenueEur : g.conversions)
+
+  // Repère des jauges LTV : la moyenne de TOUS les liens de la période (Σrevenus ÷ Σabonnés),
+  // jamais la moyenne des LTV par canal. `0.01` en garde-fou pour ne pas diviser par zéro.
+  const ltvAgence = totals.conversions > 0 ? totals.revenueEur / totals.conversions : 0.01
 
   // Dérivés des groupes, pas de `links` : seuls les liens qui ont bougé sont classés.
   const nbClasses = groups.reduce((n, g) => n + g.links.length, 0)
@@ -275,38 +332,88 @@ export function LiensView({ data }: { data: MktLinksData }) {
         />
       </div>
 
-      {/* Répartition par source : une barre empilée plutôt que quatre anneaux — quatre parts
-          se comparent sur une longueur commune, pas entre quatre cercles. */}
+      {/* Camembert de répartition (demande Benoit 2026-09-10). Quatre parts est la limite haute
+          d'un anneau lisible : chacune porte donc son libellé ET sa valeur en dessous, jamais la
+          couleur seule. Il suit le critère quand celui-ci est additif — le taux ne l'étant pas,
+          on retombe sur les abonnés et le titre le dit. */}
       {partTotal > 0 && (
         <div className="rounded-lg border bg-card p-4">
           <p className="text-sm text-muted-foreground">
-            Répartition {partBase === 'revenus' ? 'des revenus' : 'des abonnés'} par source
+            Répartition {partBase === 'revenus' ? 'des revenus' : 'des abonnés'} par canal
           </p>
-          <div className="mt-2 flex h-3 w-full overflow-hidden rounded-full bg-muted">
-            {groups.map((g) => (
-              <div
-                key={g.type}
-                className="h-full"
-                style={{
-                  width: `${(partOf(g) / partTotal) * 100}%`,
-                  background: g.color,
-                  // 2 px de fond entre les segments : ils se séparent sans filet.
-                  marginRight: 2,
-                }}
-                title={`${g.label} — ${pct((partOf(g) / partTotal) * 100)}`}
-              />
-            ))}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-            {groups.map((g) => (
-              <span key={g.type} className="flex items-center gap-1.5">
-                <span className="size-2 rounded-full" style={{ background: g.color }} />
-                <span className="text-muted-foreground">{g.label}</span>
-                <span className="font-medium tabular-nums">
-                  {pct((partOf(g) / partTotal) * 100)}
-                </span>
-              </span>
-            ))}
+          <div className="flex flex-col items-center gap-6 sm:flex-row">
+            <ChartContainer config={donutConfig} className="aspect-square h-[200px] shrink-0">
+              <PieChart>
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      hideLabel
+                      formatter={(v, name) => (
+                        <span className="flex w-full items-baseline justify-between gap-3">
+                          <span className="text-muted-foreground">{String(name)}</span>
+                          <span className="tabular-nums">
+                            {partBase === 'revenus' ? eur(Number(v)) : num(Number(v))}
+                          </span>
+                        </span>
+                      )}
+                    />
+                  }
+                />
+                <Pie
+                  data={groups.map((g) => ({ key: g.label, value: partOf(g), color: g.color }))}
+                  dataKey="value"
+                  nameKey="key"
+                  innerRadius={58}
+                  outerRadius={92}
+                  paddingAngle={2}
+                  strokeWidth={0}
+                >
+                  {groups.map((g) => (
+                    <Cell key={g.type} fill={g.color} />
+                  ))}
+                  <Label
+                    content={({ viewBox }) =>
+                      viewBox && 'cx' in viewBox && 'cy' in viewBox ? (
+                        <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
+                          <tspan className="fill-foreground text-lg font-semibold tabular-nums">
+                            {partBase === 'revenus' ? eur(partTotal) : num(partTotal)}
+                          </tspan>
+                          <tspan
+                            x={viewBox.cx}
+                            y={(viewBox.cy ?? 0) + 20}
+                            className="fill-muted-foreground text-xs"
+                          >
+                            {partBase === 'revenus' ? 'au total' : 'abonnés'}
+                          </tspan>
+                        </text>
+                      ) : null
+                    }
+                  />
+                </Pie>
+              </PieChart>
+            </ChartContainer>
+            {/* La légende porte toutes les infos du canal : la couleur ne fait que rappeler
+                quelle part de l'anneau est laquelle. */}
+            <div className="grid w-full gap-x-6 gap-y-2 sm:grid-cols-2">
+              {groups.map((g) => (
+                <div key={g.type} className="flex items-baseline gap-2">
+                  <span className="size-2 shrink-0 translate-y-1 rounded-full" style={{ background: g.color }} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span className="truncate text-sm font-medium">{g.label}</span>
+                      <span className="text-sm tabular-nums">
+                        {pct((partOf(g) / partTotal) * 100)}
+                      </span>
+                    </span>
+                    <span className="block text-xs text-muted-foreground tabular-nums">
+                      {num(g.conversions)} ab. · {eur(g.revenueEur)} · LTV{' '}
+                      {g.ltv === null ? '—' : eur(g.ltv)} · {g.taux === null ? '—' : pct(g.taux)}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -318,6 +425,7 @@ export function LiensView({ data }: { data: MktLinksData }) {
             g={g}
             critere={critere}
             partAgence={partTotal > 0 ? (partOf(g) / partTotal) * 100 : null}
+            ltvAgence={ltvAgence}
           />
         ))}
         {groups.length === 0 && (

@@ -2,39 +2,40 @@
 
 import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from 'recharts'
 import { ChartContainer, type ChartConfig } from '@/components/ui/chart'
-import type { LtvStatus } from '../types'
 import { eur } from '@/lib/format'
 
-// Couleurs de statut alignées sur lib/status-color.ts (green/amber/red) — recharts exige
-// un fill littéral, d'où les hex (tailwind green-500 / amber-500 / red-500).
-const FILL: Record<LtvStatus, string> = {
-  sain: '#22c55e',
-  moyen: '#f59e0b',
-  critique: '#ef4444',
-}
-
-const chartConfig = { ltv: { label: 'LTV' }, rest: { label: 'Reste' } } satisfies ChartConfig
+const chartConfig = { value: { label: 'Valeur' }, rest: { label: 'Reste' } } satisfies ChartConfig
 
 /**
- * Jauge LTV — shadcn Radial Chart (stacked, demi-cercle 180°) : segment coloré selon le
- * statut + piste grise jusqu'à ~120 % de la cible (une LTV ≥ 12 € sature la jauge).
+ * Jauge en DEMI-CERCLE (shadcn Radial Chart, 180°) : segment coloré + piste grise jusqu'au
+ * repère. Partagée — Santé (LTV d'une modèle contre la cible agence) et Marketing (LTV d'un
+ * canal contre la moyenne des liens).
+ *
+ * `max` est le REPÈRE, pas un plafond d'affichage : la barre sature à `max` mais le chiffre
+ * écrit au centre reste la vraie valeur. Sans repère explicite la jauge ne dit rien — c'est
+ * pour ça que ce n'est pas une valeur par défaut.
  */
 export function LtvGauge({
-  ltv,
-  status,
-  target,
+  value,
+  max,
+  color,
+  caption,
   size = 'lg',
 }: {
-  ltv: number | null
-  status: LtvStatus | null
-  target: number
+  value: number | null
+  /** Repère de remplissage (la jauge sature ici). */
+  max: number
+  /** Couleur du segment — statut côté Santé, couleur du canal côté Marketing. */
+  color: string
+  /** Ligne sous le chiffre (taille `lg` seulement) — ex. « € / abonné ». */
+  caption?: string
   size?: 'lg' | 'sm'
 }) {
-  const max = target * 1.2
-  const value = ltv === null ? 0 : Math.min(ltv, max)
-  const data = [{ ltv: value, rest: max - value }]
+  const borne = Math.max(max, 0.01)
+  const rempli = value === null ? 0 : Math.min(Math.max(value, 0), borne)
+  const data = [{ value: rempli, rest: borne - rempli }]
   const lg = size === 'lg'
-  // Demi-cercle haut : centre polaire posé vers le bas du conteneur (hauteur ≈ 0.62 × largeur).
+  // Demi-cercle haut : centre polaire posé vers le bas du conteneur (hauteur ≈ 0,62 × largeur).
   const w = lg ? 180 : 96
   const h = lg ? 112 : 60
   const cy = lg ? 96 : 50
@@ -65,13 +66,11 @@ export function LtvGauge({
                         : 'fill-foreground text-sm font-semibold tabular-nums'
                     }
                   >
-                    {ltv === null
-                      ? '—'
-                      : eur(ltv)}
+                    {value === null ? '—' : eur(value)}
                   </tspan>
-                  {lg && (
+                  {lg && caption && (
                     <tspan x={cx} y={y + 8} className="fill-muted-foreground text-xs">
-                      € / new sub
+                      {caption}
                     </tspan>
                   )}
                 </text>
@@ -79,12 +78,7 @@ export function LtvGauge({
             }}
           />
         </PolarRadiusAxis>
-        <RadialBar
-          dataKey="ltv"
-          stackId="gauge"
-          cornerRadius={6}
-          fill={status ? FILL[status] : 'var(--muted)'}
-        />
+        <RadialBar dataKey="value" stackId="gauge" cornerRadius={6} fill={color} />
         <RadialBar dataKey="rest" stackId="gauge" cornerRadius={6} fill="var(--muted)" />
       </RadialBarChart>
     </ChartContainer>

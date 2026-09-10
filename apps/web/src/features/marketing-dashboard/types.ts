@@ -21,6 +21,9 @@ export interface MktDashboardData {
   totals: { clicks: number; conversions: number; revenueEur: number; ltv: number | null }
   /** Revenus de la période précédente (même durée), pour le badge d'évolution. */
   prevRevenueEur: number
+  /** LTV de la période précédente — REPÈRE de la jauge, pas un badge : une jauge à une seule
+   *  valeur ne dit rien. `null` si la période précédente n'a amené aucun abonné. */
+  prevLtv: number | null
   days: number
   avgRevenuePerDay: number
   bestDay: { date: string; revenue: number } | null

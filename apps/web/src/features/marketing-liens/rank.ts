@@ -55,6 +55,9 @@ export interface SourceGroup {
   revenueEur: number
   /** Taux global de la source — RECALCULÉ Σconv/Σclics, jamais la moyenne des taux. */
   taux: number | null
+  /** € par abonné du canal (Σrevenus ÷ Σabonnés) — `null` sans abonné. Même remarque que le
+   *  taux : c'est un ratio de sommes, jamais la moyenne des €/abonné des liens. */
+  ltv: number | null
   /** Valeur de la source pour le critère : sert au tri des sections ET à leur part. */
   score: number
   /** Meilleure valeur du critère dans cette source — référence des barres relatives. */
@@ -77,6 +80,7 @@ export function groupBySource(links: MktLinkRow[], critere: Critere): SourceGrou
     const conversions = own.reduce((s, l) => s + l.conversions, 0)
     const revenueEur = round2(own.reduce((s, l) => s + l.revenueEur, 0))
     const taux = clicks > 0 ? round1((conversions / clicks) * 100) : null
+    const ltv = conversions > 0 ? round2(revenueEur / conversions) : null
     const classes = own
       .filter(aBouge)
       // Un lien sans score pour CE critère (taux d'un lien sans clic) tombe en fin de liste
@@ -93,6 +97,7 @@ export function groupBySource(links: MktLinkRow[], critere: Critere): SourceGrou
       conversions,
       revenueEur,
       taux,
+      ltv,
       score: critere === 'subs' ? conversions : critere === 'revenus' ? revenueEur : (taux ?? 0),
       best: classes.length > 0 ? (valeur(classes[0], critere) ?? 0) : 0,
     }
