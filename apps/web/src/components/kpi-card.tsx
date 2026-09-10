@@ -75,10 +75,29 @@ const DEFAULT_ACCENTS = [
   'border-t-amber-500',
 ]
 
-/** Grille responsive de cartes KPI — wrapper partagé (overview, health…). */
-export function KpiGrid({ kpis, accents = DEFAULT_ACCENTS }: { kpis: Kpi[]; accents?: string[] }) {
+/**
+ * Grille responsive de cartes KPI — wrapper partagé (overview, health…).
+ *
+ * `cols` : 4 par défaut. À 5, le dernier palier passe à cinq colonnes plutôt que de laisser une
+ * carte orpheline sous une rangée de quatre — c'est le seul intérêt du paramètre, et la raison
+ * pour laquelle il n'accepte que ces deux valeurs.
+ */
+export function KpiGrid({
+  kpis,
+  accents = DEFAULT_ACCENTS,
+  cols = 4,
+}: {
+  kpis: Kpi[]
+  accents?: string[]
+  cols?: 4 | 5
+}) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div
+      className={cn(
+        'grid grid-cols-1 gap-4 sm:grid-cols-2',
+        cols === 5 ? 'lg:grid-cols-3 xl:grid-cols-5' : 'lg:grid-cols-4',
+      )}
+    >
       {kpis.map((kpi, i) => (
         <KpiCard key={kpi.key} kpi={kpi} accent={accents[i % accents.length]} />
       ))}
