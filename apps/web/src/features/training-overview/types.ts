@@ -84,6 +84,8 @@ export interface CaseProgress {
   bestTotal: number | null
   attempts: number
   lastAt: string | null
+  /** Dernière session jouée sur ce cas — cible du lien « Voir » de la ligne. `null` = jamais tenté. */
+  lastSessionId: string | null
 }
 
 /** Une compétence (`training_module_sections`) ou, pour un module sans compétence, son seul groupe. */

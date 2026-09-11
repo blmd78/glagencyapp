@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 
 export interface MyBest {
   bestTotal: number
@@ -38,4 +39,35 @@ export async function getMyBests(profileId: string): Promise<MyBests> {
     // `numeric` Postgres : supabase-js peut le rendre en chaîne selon la version → Number().
     avgTotal: stats.data?.avg_total == null ? null : Number(stats.data.avg_total),
   }
+}
+
+/**
+ * La DERNIÈRE session jouée par cas, pour le visiteur — cible du lien « Voir » des listes de cas.
+ *
+ * SÉPARÉE de `getMyBests` À DESSEIN : celui-ci sert aussi « Ma formation » et « Ma roue », qui
+ * n'affichent pas ce lien et n'ont pas à payer la lecture. Seule la page Modules l'appelle.
+ *
+ * Le coût est borné par l'index `training_sessions_profile_started_idx` (profile_id, started_at) :
+ * 67 sessions pour le chatteur médian, 511 au 95ᵉ centile, 745 au maximum en production — trois
+ * colonnes, lues une fois par rendu de module. `fetchAll` plutôt qu'une limite : une coupe
+ * silencieuse priverait de leur lien les cas les plus anciens, précisément ceux qu'on revient
+ * relire.
+ */
+export async function getMyLastSessionByCase(profileId: string): Promise<Map<string, string>> {
+  const supabase = await createClient()
+  const { data, error } = await fetchAll((f, t) =>
+    supabase
+      .from('training_sessions')
+      .select('id, case_id, started_at')
+      .eq('profile_id', profileId)
+      .order('started_at', { ascending: false })
+      .range(f, t),
+  )
+  if (error) throw new Error(error.message)
+  // Lignes déjà triées du plus récent au plus ancien : la PREMIÈRE vue pour un cas est la bonne.
+  const out = new Map<string, string>()
+  for (const r of data ?? []) {
+    if (r.case_id && !out.has(r.case_id)) out.set(r.case_id, r.id)
+  }
+  return out
 }

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { CASE_KIND_LABELS, type CaseKind } from '@/lib/types/training'
 import type { CaseGroup, CaseProgress, ChatterDetail, ModuleProgress } from '../types'
 
@@ -36,7 +37,7 @@ function orphanTitle(rows: { kind: CaseKind }[]): string {
  */
 export async function getChatter(profileId: string): Promise<ChatterDetail> {
   const supabase = await createClient()
-  const [bestsRes, sessionsRes, axesRes, catalogRes] = await Promise.all([
+  const [bestsRes, sessionsRes, axesRes, lastByCaseRes, catalogRes] = await Promise.all([
     supabase
       .from('training_case_bests')
       // Plus de jointure de titres : ils viennent du CATALOGUE, lu juste en dessous.
@@ -51,6 +52,19 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
       .order('started_at', { ascending: false })
       .limit(50),
     supabase.rpc('training_axis_profile', { p_profile: profileId }),
+    // La DERNIÈRE session de chaque cas, pour que la ligne d'un cas ouvre sa conversation
+    // (demande Benoit 2026-09-11). `training_case_bests` ne porte pas de `session_id`, et le
+    // select des 50 sessions ci-dessus n'a pas de `case_id` — aucun des deux ne permet le lien.
+    // `fetchAll` plutôt qu'une limite : un chatteur assidu dépasse les 600 sessions (mesuré en
+    // prod), et une coupe silencieuse priverait ses cas les plus anciens de leur lien.
+    fetchAll((f, t) =>
+      supabase
+        .from('training_sessions')
+        .select('id, case_id, started_at')
+        .eq('profile_id', profileId)
+        .order('started_at', { ascending: false })
+        .range(f, t),
+    ),
     // Le catalogue : modules actifs, leurs compétences et leurs cas actifs. RLS `*_read` — ouverte
     // à qui porte la face `formation`, ce qu'un encadrant Suivi a forcément.
     supabase
@@ -62,7 +76,15 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
   if (bestsRes.error) throw new Error(bestsRes.error.message)
   if (sessionsRes.error) throw new Error(sessionsRes.error.message)
   if (axesRes.error) throw new Error(axesRes.error.message)
+  if (lastByCaseRes.error) throw new Error(lastByCaseRes.error.message)
   if (catalogRes.error) throw new Error(catalogRes.error.message)
+
+  // Lignes déjà triées du plus récent au plus ancien : la PREMIÈRE vue pour un cas est la
+  // dernière jouée. `set` seulement si absent — pas de `Map` reconstruite à chaque ligne.
+  const lastSessionOf = new Map<string, string>()
+  for (const r of lastByCaseRes.data ?? []) {
+    if (r.case_id && !lastSessionOf.has(r.case_id)) lastSessionOf.set(r.case_id, r.id)
+  }
 
   // Les meilleures notes, indexées par cas — la fiche les CROISE avec le catalogue plutôt que de
   // les lister : un cas absent de cette table est un cas jamais tenté, pas un cas inexistant.
@@ -82,6 +104,7 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
         bestTotal: b?.best_total ?? null,
         attempts: b?.attempts ?? 0,
         lastAt: b?.last_at ?? null,
+        lastSessionId: lastSessionOf.get(c.id) ?? null,
       }
     }
     // Par DIFFICULTÉ croissante, comme la page Modules côté chatter (`cases-list.tsx:16-18`) :
