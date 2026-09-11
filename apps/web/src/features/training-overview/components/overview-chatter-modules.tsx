@@ -1,4 +1,6 @@
-import { frDateNumeric } from '@glagency/core'
+import Link from 'next/link'
+import type { Route } from 'next'
+import { frDateNumeric, parisDay } from '@glagency/core'
 import { DifficultyBars } from '@/components/training/difficulty-bars'
 import { ScoreBadge } from '@/components/training/score-badge'
 import { CollapsibleSection } from '@/components/collapsible-section'
@@ -137,8 +139,24 @@ function CaseLine({ c, index, total }: { c: CaseProgress; index: number; total: 
           <ScoreBadge total={c.bestTotal ?? 0} />
         </span>
       )}
-      <span className="w-20 text-right text-xs tabular-nums text-muted-foreground">
-        {c.lastAt ? frDateNumeric(c.lastAt) : ''}
+      {/* BUG corrigé le 2026-09-11 : `frDateNumeric` attend un JOUR (`YYYY-MM-DD`) — elle
+          construit `new Date(`${day}T00:00:00Z`). `lastAt` est un timestamptz complet, d'où
+          `…T14:12:32+00:00T00:00:00Z` et un « Invalid Date » sur CHAQUE ligne de la fiche.
+          `parisDay` le projette d'abord sur son jour Europe/Paris — pas un `slice(0,10)`, qui
+          rendrait le jour UTC et décalerait toute session jouée après 22 h. */}
+      <span className="w-24 text-right text-xs tabular-nums text-muted-foreground">
+        {c.lastAt ? frDateNumeric(parisDay(c.lastAt)) : ''}
+      </span>
+      {/* Accès direct à la conversation depuis la ligne du cas (demande Benoit) — le tableau
+          des sessions en bas de fiche reste, il sert à parcourir dans l'ordre chronologique. */}
+      <span className="w-12 text-right text-xs">
+        {c.lastSessionId ? (
+          <Link href={`/formation/session/${c.lastSessionId}` as Route} className="hover:underline">
+            Voir
+          </Link>
+        ) : (
+          <span className="text-muted-foreground/50">—</span>
+        )}
       </span>
     </li>
   )

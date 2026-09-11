@@ -26,6 +26,7 @@ export function ModuleTemplate({
   module,
   canPlay,
   bests,
+  lastSessions,
   avgTotal,
   ranking,
   myProfileId,
@@ -36,6 +37,8 @@ export function ModuleTemplate({
   canPlay: boolean
   /** Meilleurs résultats du visiteur par cas — vide sans droit Entraînement. */
   bests: Map<string, MyBest>
+  /** Dernière session par cas — cible du lien « Voir ». Vide sans droit Entraînement. */
+  lastSessions: Map<string, string>
   avgTotal: number | null
   ranking: Promise<ModuleRankRow[]>
   myProfileId: string
@@ -49,7 +52,7 @@ export function ModuleTemplate({
   // Dans une COMPÉTENCE, l'écran ne porte que ses exercices (GLA `formationSousCat` remplace la
   // page entière) : ni podium, ni cours — on est venu travailler une compétence précise.
   if (competenceId) {
-    return <CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} competenceId={competenceId} />
+    return <CasesList module={module} canPlay={canPlay} bests={bests} lastSessions={lastSessions} avgTotal={avgTotal} competenceId={competenceId} />
   }
 
   return (
@@ -85,7 +88,7 @@ export function ModuleTemplate({
         )}
       </section>
 
-      <CasesList module={module} canPlay={canPlay} bests={bests} avgTotal={avgTotal} competenceId={null} />
+      <CasesList module={module} canPlay={canPlay} bests={bests} lastSessions={lastSessions} avgTotal={avgTotal} competenceId={null} />
     </div>
   )
 }

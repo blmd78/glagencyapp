@@ -28,12 +28,15 @@ export function CasesList({
   module,
   canPlay,
   bests,
+  lastSessions,
   avgTotal,
   competenceId,
 }: {
   module: ModuleDetail
   canPlay: boolean
   bests: Map<string, MyBest>
+  /** Dernière session jouée par cas — cible du lien « Voir » à côté de « Rejouer ». */
+  lastSessions: Map<string, string>
   avgTotal: number | null
   /** Compétence ouverte (`?competence=`) — `null` = vue du module. */
   competenceId: string | null
@@ -76,7 +79,7 @@ export function CasesList({
           ) : (
             <ul>
               {cases.map((c, i) => (
-                <CaseRow key={c.id} c={c} index={i} total={cases.length} canPlay={canPlay} best={bests.get(c.id) ?? null} />
+                <CaseRow key={c.id} c={c} index={i} total={cases.length} canPlay={canPlay} best={bests.get(c.id) ?? null} lastSessionId={lastSessions.get(c.id)} />
               ))}
             </ul>
           )}
@@ -151,7 +154,7 @@ export function CasesList({
           </div>
           <ul>
             {solos.map((c, i) => (
-              <CaseRow key={c.id} c={c} index={i} total={solos.length} canPlay={canPlay} best={bests.get(c.id) ?? null} />
+              <CaseRow key={c.id} c={c} index={i} total={solos.length} canPlay={canPlay} best={bests.get(c.id) ?? null} lastSessionId={lastSessions.get(c.id)} />
             ))}
           </ul>
         </section>
@@ -172,6 +175,7 @@ export function CasesList({
                   </span>
                 </span>
                 <Medal best={bests.get(c.id) ?? null} />
+                {canPlay && <ReviewLink sessionId={lastSessions.get(c.id)} />}
                 {canPlay && <PlayButton caseId={c.id} label={bests.has(c.id) ? 'Rejouer' : 'Jouer'} className="gla-btn border-0" />}
               </li>
             ))}
@@ -197,12 +201,17 @@ export function CasesList({
                   ici on le rend LISIBLE avant le clic — bouton désactivé + moyenne actuelle. */}
               {canPlay && (
                 <div className="flex flex-col gap-1">
-                  <PlayButton
-                    caseId={c.id}
-                    label={best ? 'Réaffronter le boss' : 'Affronter le boss'}
-                    className="w-fit gla-btn border-0"
-                    disabled={!unlocked}
-                  />
+                  <div className="flex items-center gap-2">
+                    <PlayButton
+                      caseId={c.id}
+                      label={best ? 'Réaffronter le boss' : 'Affronter le boss'}
+                      className="w-fit gla-btn border-0"
+                      disabled={!unlocked}
+                    />
+                    {/* Relire le boss reste possible même verrouillé : le verrou porte sur le
+                        fait de le REJOUER, pas sur la relecture de ce qu'on a déjà fait. */}
+                    <ReviewLink sessionId={lastSessions.get(c.id)} />
+                  </div>
                   {!unlocked && (
                     <p className="text-[11.5px] text-[var(--gla-muted)]">
                       Se débloque à {BOSS_UNLOCK_AVG}/100 de moyenne (actuelle :{' '}
@@ -238,6 +247,23 @@ function chipsOf(cases: PublicCase[], bests: Map<string, MyBest>) {
 }
 
 /** La médaille d'un cas, façon GLA : la note colorée par palier, pas un badge à libellé. */
+/**
+ * « Voir » : ouvre la conversation de la DERNIÈRE session jouée sur ce cas (demande Benoit
+ * 2026-09-11 — « qu'il revoit facilement leur formation »). Rien à afficher tant que le cas
+ * n'a jamais été joué : le bouton « Jouer » est alors la seule action qui a du sens.
+ */
+function ReviewLink({ sessionId }: { sessionId: string | undefined }) {
+  if (!sessionId) return null
+  return (
+    <Link
+      href={`/formation/session/${sessionId}` as Route}
+      className="gla-link px-3 py-1.5 text-xs font-bold"
+    >
+      Voir
+    </Link>
+  )
+}
+
 function Medal({ best }: { best: MyBest | null }) {
   if (!best) return <span className="text-[11px] text-[var(--gla-faint)]">—</span>
   const medal = medalFor(best.bestTotal)
@@ -252,12 +278,15 @@ function Medal({ best }: { best: MyBest | null }) {
 }
 
 function CaseRow({
+  lastSessionId,
   c,
   index,
   total,
   canPlay,
   best,
 }: {
+  /** Dernière session jouée sur ce cas — `undefined` si jamais joué. */
+  lastSessionId: string | undefined
   c: PublicCase
   index: number
   total: number
@@ -275,6 +304,7 @@ function CaseRow({
         </span>
       </span>
       <Medal best={best} />
+      {canPlay && <ReviewLink sessionId={lastSessionId} />}
       {canPlay && <PlayButton caseId={c.id} label={best ? 'Rejouer' : 'Jouer'} className="gla-btn border-0" />}
     </li>
   )

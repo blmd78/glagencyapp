@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { hasPageAccess, requireAccess } from '@/lib/auth'
-import { getMyBests, type MyBests } from '@/lib/services/training-bests'
+import { getMyBests, getMyLastSessionByCase, type MyBests } from '@/lib/services/training-bests'
 import { getModule, getPersona } from '@/lib/services/training-public'
 import { getModuleRanking } from '@/features/training-modules/services/get-module-ranking'
 import { ModuleTemplate } from '@/features/training-modules/ModuleTemplate'
@@ -34,6 +34,11 @@ export default async function ModulePage({
   const modulePromise = getModule(code)
   // Sans droit Entraînement, pas de progression personnelle à afficher : on n'interroge même pas.
   const bests = canPlay ? getMyBests(profile.id) : Promise.resolve(NO_BESTS)
+  // La dernière session de chaque cas, pour le lien « Voir » à côté de « Rejouer ». Même garde
+  // que les bests : sans droit Entraînement, pas de sessions à soi, on n'interroge pas.
+  const lastSessions = canPlay
+    ? getMyLastSessionByCase(profile.id)
+    : Promise.resolve(new Map<string, string>())
   // Une ligne unique, sans dépendance au module : lancée en parallèle, attendue dans le contenu.
   const persona = getPersona()
   return (
@@ -41,6 +46,7 @@ export default async function ModulePage({
       <ModuleContent
         module={modulePromise}
         bests={bests}
+        lastSessions={lastSessions}
         canPlay={canPlay}
         myProfileId={profile.id}
         competenceId={competence ?? null}
@@ -53,6 +59,7 @@ export default async function ModulePage({
 async function ModuleContent({
   module,
   bests,
+  lastSessions,
   canPlay,
   myProfileId,
   competenceId,
@@ -60,12 +67,13 @@ async function ModuleContent({
 }: {
   module: Promise<ModuleDetail | null>
   bests: Promise<MyBests>
+  lastSessions: Promise<Map<string, string>>
   canPlay: boolean
   myProfileId: string
   competenceId: string | null
   persona: Promise<TrainingPersona | null>
 }) {
-  const [m, my, fiche] = await Promise.all([module, bests, persona])
+  const [m, my, last, fiche] = await Promise.all([module, bests, lastSessions, persona])
   if (!m) notFound()
   // Vraie dépendance séquentielle : la RPC a besoin de l'id du module. Lancée SANS `await` — le
   // titre et les onglets s'affichent, le classement streame dans ses boundaries (`ModuleTemplate`).
@@ -81,6 +89,7 @@ async function ModuleContent({
         module={m}
         canPlay={canPlay}
         bests={my.bests}
+        lastSessions={last}
         avgTotal={my.avgTotal}
         ranking={ranking}
         myProfileId={myProfileId}
