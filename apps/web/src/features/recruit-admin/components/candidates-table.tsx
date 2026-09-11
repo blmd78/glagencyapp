@@ -102,7 +102,11 @@ export function CandidatesTable({
                   href={{ pathname: '/formation/recrutement', query: { dossier: c.id } }}
                   className="flex flex-wrap items-center gap-2 font-medium hover:underline"
                 >
-                  {c.firstName} {c.lastName}
+                  {/* Le PSEUDO DISCORD d'abord (décision Benoit 2026-09-11) : c'est sous ce
+                      nom qu'on parle d'un chatteur au quotidien, et celui qui s'affiche dans
+                      toute la Formation. Le nom civil descend en seconde ligne — il reste
+                      nécessaire ici, c'est un dossier de candidature. */}
+                  {c.discord ?? `${c.firstName} ${c.lastName}`}
                   {c.repeat && (
                     <Badge variant="outline" title="Cet e-mail portait déjà un dossier">
                       2ᵉ passage
@@ -110,7 +114,10 @@ export function CandidatesTable({
                   )}
                   {c.isMember && <Badge variant="secondary">devenu membre</Badge>}
                 </Link>
-                <span className="text-xs text-muted-foreground">{c.email}</span>
+                <span className="block text-xs text-muted-foreground">
+                  {c.discord ? `${c.firstName} ${c.lastName} · ` : ''}
+                  {c.email}
+                </span>
               </TableCell>
               <TableCell className="text-center">
                 <Badge className={cn('tabular-nums', c.passed ? STATUS_COLORS.positive : STATUS_COLORS.danger)}>

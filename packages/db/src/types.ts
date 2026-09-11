@@ -2063,6 +2063,7 @@ export type Database = {
           closing_role: string | null
           closing_team: string | null
           created_at: string
+          discord: string | null
           created_by: string | null
           display_name: string | null
           email: string | null
@@ -2088,6 +2089,7 @@ export type Database = {
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
+          discord?: string | null
           created_by?: string | null
           display_name?: string | null
           email?: string | null
@@ -2113,6 +2115,7 @@ export type Database = {
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
+          discord?: string | null
           created_by?: string | null
           display_name?: string | null
           email?: string | null

@@ -26,6 +26,12 @@ const workLink = z
 const scope = z.enum(['chatter', 'marketing', 'formation'] satisfies WorkspaceId[])
 const memberFields = {
   displayName: z.string().trim().min(1, 'Nom requis').max(60),
+  // Pseudo Discord (0153) — le nom sous lequel un chatteur apparaît dans TOUTE la Formation,
+  // classements compris. Repris du dossier de candidature à la création ; ce champ sert aux
+  // 216 chatteurs entrés sans passer par /postuler, et aux pseudos qui changent. Vide → null
+  // (le check SQL veut 1..60 ou NULL, jamais la chaîne vide), minuscules comme à la
+  // soumission du test.
+  discord: z.string().trim().max(60, '60 caractères max'),
   // `admin` n'est posable que par un SUPERADMIN (vérif serveur) ; `superadmin` reste
   // piloté par l'allowlist (trigger handle_new_user), jamais posé ici. `police` = rôle
   // fonctionnel non hiérarchique (tracker « Police »), pas d'encadrement.

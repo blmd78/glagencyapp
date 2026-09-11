@@ -52,7 +52,7 @@ export async function getMembers(): Promise<MembersData> {
       supabase
         .from('profiles')
         .select(
-          'id, email, display_name, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, in_training, org_excluded, left_at, left_reason, left_note, left_by, chatter_id, created_at, created_by',
+          'id, email, display_name, discord, role, pages, work_link, manager_ids, closing_role, closing_team, shift, arrived_at, is_new, in_training, org_excluded, left_at, left_reason, left_note, left_by, chatter_id, created_at, created_by',
         )
         .order('created_at')
         .order('id')
@@ -179,6 +179,7 @@ export async function getMembers(): Promise<MembersData> {
       id: p.id,
       email: p.email ?? '—',
       displayName: p.display_name ?? (p.email ?? '').split('@')[0] ?? '—',
+      discord: p.discord,
       role:
         p.role === 'superadmin'
           ? 'superadmin'

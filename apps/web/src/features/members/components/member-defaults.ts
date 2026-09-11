@@ -39,6 +39,9 @@ export function memberDefaults({
     scope,
     email: member?.email ?? '',
     displayName: member?.displayName ?? '',
+    // Pseudo Discord (0153) — vide à la création : il arrive du dossier de candidature au
+    // rattachement par e-mail, ou se saisit ici pour qui n'est pas passé par /postuler.
+    discord: member?.discord ?? '',
     // Un appelant MANAGER ne pose que des chatteurs (le serveur le force aussi) ; sinon on
     // reprend le rôle en base, avec repli sur `chatteur` pour les valeurs hors liste (le `user`
     // transitoire de 0059).

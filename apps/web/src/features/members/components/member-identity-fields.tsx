@@ -72,6 +72,20 @@ export function MemberIdentityFields({
       </div>
       <div className="grid gap-1.5">
         <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Pseudo Discord
+        </label>
+        <Input placeholder="ex : sylvain0234" disabled={isSubmitting} {...register('discord')} />
+        {errors.discord ? (
+          <p className="text-xs text-red-600 dark:text-red-400">{errors.discord.message}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Nom affiché dans toute la Formation, classements compris. Repris du dossier de
+            candidature — à renseigner pour qui n&apos;est pas passé par le test.
+          </p>
+        )}
+      </div>
+      <div className="grid gap-1.5">
+        <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Lien outil de travail (optionnel)
         </label>
         <Input

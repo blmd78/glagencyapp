@@ -52,6 +52,12 @@ const revalidateMembers = () => {
 // 2026-08-17 : « il reste dans les deux »).
 
 /** Crée le compte auth (email confirmé → OTP direct), le profil, pages + modèles. */
+/** Pseudo Discord prêt pour la base : minuscules, vide → `null` (check SQL : 1..60 ou NULL). */
+const normDiscord = (v: string | undefined): string | null => {
+  const t = (v ?? '').trim().toLowerCase()
+  return t === '' ? null : t
+}
+
 export async function createMember(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: memberInput,
@@ -116,6 +122,10 @@ export async function createMember(raw: unknown): Promise<ActionResult> {
         .from('profiles')
         .update({
           display_name: displayName,
+          // Pseudo Discord (0153) : minuscules comme à la soumission de /postuler, vide → null
+          // (le check SQL veut 1..60 ou NULL). Pas de règle de rôle : un encadrant en a un aussi,
+          // et le pseudo ne sert qu'à l'affichage.
+          discord: normDiscord(values.discord),
           pages: mergePages([], pages, scope),
           work_link: workLink,
           // Désignation closing : uniquement pour un chatteur, null sinon (un manager/police
@@ -235,6 +245,7 @@ export async function updateMember(raw: unknown): Promise<ActionResult> {
         .from('profiles')
         .update({
           display_name: displayName,
+          discord: normDiscord(values.discord),
           role,
           pages: merged,
           work_link: workLink,
