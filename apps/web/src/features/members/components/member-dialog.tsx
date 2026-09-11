@@ -39,7 +39,7 @@ import { MemberPermissionFields } from './member-permission-fields'
 /** Champs affichant un message d'erreur juste sous eux (les autres — role/managerIds/
  *  creatorIds — n'ont pas de zone dédiée) : un `fieldErrors` server-side dessus est remonté
  *  au message global plutôt qu'avalé silencieusement (cf. remap dans `submit`). */
-const DISPLAYED_FIELDS = ['email', 'displayName', 'workLink', 'pages', 'arrivedAt'] as const satisfies readonly (keyof MemberForm)[]
+const DISPLAYED_FIELDS = ['email', 'displayName', 'discord', 'workLink', 'pages', 'arrivedAt'] as const satisfies readonly (keyof MemberForm)[]
 const isDisplayedField = (field: string): field is (typeof DISPLAYED_FIELDS)[number] =>
   (DISPLAYED_FIELDS as readonly string[]).includes(field)
 

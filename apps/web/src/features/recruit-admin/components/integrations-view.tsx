@@ -42,8 +42,10 @@ export function IntegrationsView({ months }: { months: IntegrationMonth[] }) {
                 <Link
                   href={{ pathname: '/formation/recrutement', query: { dossier: r.id } }}
                   className="font-medium hover:underline"
+                  title={`${r.firstName} ${r.lastName}`}
                 >
-                  {r.firstName} {r.lastName}
+                  {/* Pseudo Discord d'abord — le nom civil reste au survol. */}
+                  {r.discord ?? `${r.firstName} ${r.lastName}`}
                 </Link>
                 {/* Le score du test, pour mémoire : il ne conditionne pas l'entrée (52 des
                     comptes créés viennent de dossiers en échec), mais il la contextualise. */}

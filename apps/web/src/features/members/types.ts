@@ -31,6 +31,8 @@ export interface Member {
   id: string
   email: string
   displayName: string
+  /** Pseudo Discord (0153) — nom affiché dans toute la Formation. `null` = pas encore renseigné. */
+  discord: string | null
   role: 'superadmin' | 'admin' | 'manager' | 'sous-manager' | 'police' | 'chatteur'
   /** Slugs des pages autorisées (cf. PAGE_CHOICES) — vide pour un admin = tout. */
   pages: string[]

@@ -96,7 +96,10 @@ export const identityForm = z.object({
   // `.trim()` AVANT le format : `z.email()` refuse les espaces de bord (ils font partie de la
   // chaîne validée), et un candidat qui colle son adresse en amène presque toujours un.
   email: z.string('Email invalide').trim().pipe(z.email('Email invalide').max(160, '160 caractères max')),
-  discord: z.string().trim().max(60, '60 caractères max'),
+  // OBLIGATOIRE depuis le 2026-09-11 (décision Benoit) : c'est le pseudo qui identifie un
+  // chatteur dans toute la Formation — classement compris, où il remplace le nom civil. Le
+  // laisser optionnel revenait à fabriquer des recrues sans identité affichable.
+  discord: z.string().trim().min(1, 'Pseudo Discord requis').max(60, '60 caractères max'),
   // L'âge reste une CHAÎNE ici (RHF ne rend que du texte) — la conversion en nombre vit dans
   // `submitCandidateInput`. Message du minimum = celui de GLA, mot pour mot.
   age: z
@@ -117,19 +120,24 @@ export const identityForm = z.object({
   source: z.string().trim().min(2, 'Dis-nous comment tu as connu l’agence').max(500, '500 caractères max'),
 })
 
-/** Valeurs du formulaire d'identité (RHF) — Discord optionnel arrive en chaîne vide, pas en null. */
+/** Valeurs du formulaire d'identité (RHF) — toutes les chaînes arrivent vides, jamais en null. */
 export type IdentityFormValues = z.infer<typeof identityForm>
 
 /**
  * Identité — demandée À LA FIN (différence voulue vs GLA, cf. spec §1). E-mail et Discord sont
  * NORMALISÉS ICI (trim + minuscules) : c'est le point de passage unique avant la base, qui refuse
- * désormais toute casse (`check (email = lower(email))`, migration 0126). Discord vide → `null`
- * (le `check` SQL veut 1..60 ou NULL, pas la chaîne vide).
+ * désormais toute casse (`check (email = lower(email))`, migration 0126).
+ *
+ * Le Discord est REQUIS depuis le 2026-09-11 : c'est le nom sous lequel un chatteur apparaît
+ * dans toute la Formation, classement compris. La colonne reste nullable — les dossiers d'avant
+ * cette date n'en ont pas — mais plus aucun nouveau dossier ne peut s'en passer.
  */
 export const submitCandidateInput = identityForm.extend({
   attemptId,
   email: identityForm.shape.email.transform((v) => v.toLowerCase()),
-  discord: identityForm.shape.discord.optional().transform((v) => (v ? v.toLowerCase() : null)),
+  // Pas de `.optional()` : il court-circuitait le `min(1)` quand la clé est simplement ABSENTE
+  // du payload (un client qui ne l'envoie pas), et laissait passer un dossier sans pseudo.
+  discord: identityForm.shape.discord.transform((v) => v.toLowerCase()),
   // La chaîne validée du formulaire devient l'entier de la colonne `age` (check 18..99, 0127).
   age: identityForm.shape.age.transform(Number),
 })

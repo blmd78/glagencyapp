@@ -75,8 +75,13 @@ export function StepIdentity({ onSubmit }: { onSubmit: (values: IdentityForm) =>
         <Input id="email" type="email" autoComplete="email" placeholder="ton@email.fr" aria-invalid={!!errors.email} {...register('email')} />
       </Field>
 
-      <Field id="discord" label="Pseudo Discord (optionnel)" error={errors.discord?.message}>
-        <Input id="discord" placeholder="monpseudo" aria-invalid={!!errors.discord} {...register('discord')} />
+      <Field
+        id="discord"
+        label="Ton pseudo Discord"
+        hint="Celui de ton compte Discord, à l’identique — c’est sous ce nom que tu apparaîtras pendant la formation."
+        error={errors.discord?.message}
+      >
+        <Input id="discord" placeholder="ex : sylvain0234" aria-invalid={!!errors.discord} {...register('discord')} />
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -124,17 +129,23 @@ export function StepIdentity({ onSubmit }: { onSubmit: (values: IdentityForm) =>
 function Field({
   id,
   label,
+  hint,
   error,
   children,
 }: {
   id: string
   label: string
+  /** Aide sous le libellé — pour un champ dont l'intitulé seul ne dit pas à quoi il sert. */
+  hint?: string
   error?: string
   children: React.ReactNode
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>{label}</Label>
+      <div className="flex flex-col gap-1">
+        <Label htmlFor={id}>{label}</Label>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
       {children}
       <FieldError message={error} />
     </div>

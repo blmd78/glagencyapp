@@ -145,14 +145,20 @@ describe('submitCandidateInput', () => {
     expect(submitCandidateInput.safeParse({ ...base, source: ' ' }).success).toBe(false)
   })
 
-  it('Discord absent ou vide → null (le check SQL veut 1..60 ou NULL, pas la chaîne vide)', () => {
+  it('REFUSE un Discord absent ou vide — c\'est le nom affiché dans toute la Formation', () => {
     const absent = submitCandidateInput.safeParse({ attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', ...PROFILE })
-    expect(absent.success).toBe(true)
-    if (absent.success) expect(absent.data.discord).toBeNull()
+    expect(absent.success).toBe(false)
 
     const vide = submitCandidateInput.safeParse({ attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', discord: '   ', ...PROFILE })
-    expect(vide.success).toBe(true)
-    if (vide.success) expect(vide.data.discord).toBeNull()
+    expect(fieldErrors(vide).discord).toContain('Pseudo Discord requis')
+  })
+
+  it('normalise le Discord en minuscules', () => {
+    const r = submitCandidateInput.safeParse({
+      attemptId: UUID, firstName: 'Léa', lastName: 'Martin', email: 'a@b.fr', discord: '  LeaM#1234 ', ...PROFILE,
+    })
+    expect(r.success).toBe(true)
+    if (r.success) expect(r.data.discord).toBe('leam#1234')
   })
 
   it('refuse un e-mail invalide, une identité vide ou trop longue, un Discord > 60', () => {
