@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { avgLabel, bossUnlocked, computeTrophies, effectiveStreak, medalFor, moduleProgress, TROPHIES } from './rules'
+import { attemptState, avgLabel, bossUnlocked, computeTrophies, DEFAULT_MAX_ATTEMPTS, effectiveStreak, medalFor, moduleProgress, TROPHIES } from './rules'
 
 describe('medalFor (GLA medalFor : Or ≥ 85, Argent ≥ 75, Bronze ≥ 60)', () => {
   it('seuils inclus', () => {
@@ -21,6 +21,25 @@ describe('avgLabel (moyenne affichée face à un seuil : tronquée, jamais arron
   })
   it('un entier reste lui-même, sans moyenne → tiret', () => {
     expect(avgLabel(60)).toBe('60'); expect(avgLabel(72)).toBe('72'); expect(avgLabel(null)).toBe('—')
+  })
+})
+
+describe('attemptState (limite d’essais par exercice, 0161)', () => {
+  it('3 essais par défaut', () => {
+    expect(DEFAULT_MAX_ATTEMPTS).toBe(3)
+  })
+  it('rien de joué → tous les essais restent, pas bloqué', () => {
+    expect(attemptState(3, 0, 0)).toEqual({ used: 0, allowed: 3, left: 3, locked: false })
+  })
+  it('3 essais consommés sur 3 → bloqué', () => {
+    expect(attemptState(3, 3, 0)).toEqual({ used: 3, allowed: 3, left: 0, locked: true })
+  })
+  it('l’historique dépasse déjà le maximum → bloqué, jamais un reste négatif', () => {
+    expect(attemptState(3, 9, 0)).toMatchObject({ left: 0, locked: true })
+  })
+  it('les essais redonnés par un manager s’ajoutent au maximum de l’exercice', () => {
+    expect(attemptState(3, 3, 2)).toEqual({ used: 3, allowed: 5, left: 2, locked: false })
+    expect(attemptState(4, 9, 2)).toMatchObject({ allowed: 6, left: 0, locked: true })
   })
 })
 

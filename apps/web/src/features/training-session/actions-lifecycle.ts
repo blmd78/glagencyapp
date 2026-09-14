@@ -66,27 +66,9 @@ export async function endSession(raw: unknown): Promise<ActionResult> {
   })
 }
 
-/** « Abandonner » : session non notée, libère le slot « une seule active ». */
-export async function abandonSession(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: sessionIdInput,
-    input: raw,
-    guard: noGuard,
-    handler: async ({ sessionId }) => {
-      const { s } = await requireOwnSession(sessionId)
-      if (s.status !== 'active') throw new BusinessError('Cette session est déjà terminée')
-      const admin = createAdminClient()
-      const { error } = await admin
-        .from('training_sessions')
-        .update({ status: 'abandoned', ended_at: new Date().toISOString() })
-        .eq('id', sessionId)
-      if (error) throw new Error(error.message)
-      const { error: tErr } = await admin.from('training_threads').update({ next_due_at: null }).eq('session_id', sessionId)
-      if (tErr) throw new Error(tErr.message)
-      revalidateSession(sessionId)
-    },
-  })
-}
+// « Abandonner » a été RETIRÉ avec la limite d'essais (0161, décision Benoit 2026-09-14) : une
+// session lancée va au bout. Seule `expireSession` ci-dessous ferme encore un défi/boss en
+// `abandoned` — tous ses chronos dépassés, threads `lost` — et ce cas-là compte comme un essai.
 
 /**
  * Spec §5 « Interruption » — défi/boss : le chatter revient alors que TOUS ses chronos sont

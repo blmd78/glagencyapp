@@ -1,9 +1,10 @@
-import { avgLabel, BOSS_UNLOCK_AVG, bossUnlocked, medalFor } from '@glagency/core'
+import { attemptState, avgLabel, BOSS_UNLOCK_AVG, bossUnlocked, medalFor, type AttemptState } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { DifficultyBars } from '@/components/training/difficulty-bars'
 import { MedalBar } from '@/components/training/medal-bar'
 import { PlayButton } from '@/components/training/play-button'
+import type { CaseAttempts } from '@/lib/services/training-attempts'
 import type { MyBest } from '@/lib/services/training-bests'
 import { MEDAL_EMOJI } from '@/lib/types/training'
 import type { ModuleDetail, PublicCase } from '../types'
@@ -31,6 +32,7 @@ export function CasesList({
   lastSessions,
   avgTotal,
   competenceId,
+  attempts,
 }: {
   module: ModuleDetail
   canPlay: boolean
@@ -40,7 +42,15 @@ export function CasesList({
   avgTotal: number | null
   /** Compétence ouverte (`?competence=`) — `null` = vue du module. */
   competenceId: string | null
+  /** Essais consommés / redonnés par cas (0161) — vide sans droit Entraînement. */
+  attempts: Map<string, CaseAttempts>
 }) {
+  // LIMITE D'ESSAIS (0161) : l'état de chaque cas, lisible AVANT le clic. La garde réelle est
+  // `startSession`, qui refuse le lancement quand il ne reste rien.
+  const stateOf = (c: PublicCase): AttemptState => {
+    const a = attempts.get(c.id)
+    return attemptState(c.maxAttempts, a?.used ?? 0, a?.granted ?? 0)
+  }
   const allSolos = [...module.cases.filter((c) => c.kind === 'solo')].sort((a, b) => a.difficulty - b.difficulty)
   const competence = competenceId ? module.sections.find((sec) => sec.id === competenceId) : null
 
@@ -79,7 +89,7 @@ export function CasesList({
           ) : (
             <ul>
               {cases.map((c, i) => (
-                <CaseRow key={c.id} c={c} index={i} total={cases.length} canPlay={canPlay} best={bests.get(c.id) ?? null} lastSessionId={lastSessions.get(c.id)} />
+                <CaseRow key={c.id} c={c} index={i} total={cases.length} canPlay={canPlay} best={bests.get(c.id) ?? null} lastSessionId={lastSessions.get(c.id)} state={stateOf(c)} />
               ))}
             </ul>
           )}
@@ -154,7 +164,7 @@ export function CasesList({
           </div>
           <ul>
             {solos.map((c, i) => (
-              <CaseRow key={c.id} c={c} index={i} total={solos.length} canPlay={canPlay} best={bests.get(c.id) ?? null} lastSessionId={lastSessions.get(c.id)} />
+              <CaseRow key={c.id} c={c} index={i} total={solos.length} canPlay={canPlay} best={bests.get(c.id) ?? null} lastSessionId={lastSessions.get(c.id)} state={stateOf(c)} />
             ))}
           </ul>
         </section>
@@ -166,25 +176,30 @@ export function CasesList({
             <h3 className="text-sm font-bold">Test final</h3>
           </div>
           <ul>
-            {arenas.map((c) => (
-              <li key={c.id} className="gla-lrow">
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[14.5px] font-semibold">{c.title}</span>
-                  <span className="mt-0.5 block text-xs text-[var(--gla-faint)]">
-                    {c.maxTurns} échanges max{c.reactionMaxS ? ` · ${c.reactionMaxS} s pour répondre` : ''}
+            {arenas.map((c) => {
+              const st = stateOf(c)
+              return (
+                <li key={c.id} className="gla-lrow">
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14.5px] font-semibold">{c.title}</span>
+                    <span className="mt-0.5 block text-xs text-[var(--gla-faint)]">
+                      {c.maxTurns} échanges max{c.reactionMaxS ? ` · ${c.reactionMaxS} s pour répondre` : ''}
+                      {canPlay && <AttemptsHint state={st} />}
+                    </span>
                   </span>
-                </span>
-                <Medal best={bests.get(c.id) ?? null} />
-                {canPlay && <ReviewLink sessionId={lastSessions.get(c.id)} />}
-                {canPlay && <PlayButton caseId={c.id} label={bests.has(c.id) ? 'Rejouer' : 'Jouer'} className="gla-btn border-0" />}
-              </li>
-            ))}
+                  <Medal best={bests.get(c.id) ?? null} />
+                  {canPlay && <ReviewLink sessionId={lastSessions.get(c.id)} />}
+                  {canPlay && <PlayButton caseId={c.id} {...playProps(st, bests.has(c.id) ? 'Rejouer' : 'Jouer')} className="gla-btn border-0" />}
+                </li>
+              )
+            })}
           </ul>
         </section>
       )}
 
       {bosses.map((c) => {
         const best = bests.get(c.id) ?? null
+        const st = stateOf(c)
         return (
           <section key={c.id} className="gla-clist">
             <div className="gla-clist-hd">
@@ -204,9 +219,9 @@ export function CasesList({
                   <div className="flex items-center gap-2">
                     <PlayButton
                       caseId={c.id}
-                      label={best ? 'Réaffronter le boss' : 'Affronter le boss'}
+                      label={st.locked ? 'Essais épuisés' : best ? 'Réaffronter le boss' : 'Affronter le boss'}
                       className="w-fit gla-btn border-0"
-                      disabled={!unlocked}
+                      disabled={!unlocked || st.locked}
                     />
                     {/* Relire le boss reste possible même verrouillé : le verrou porte sur le
                         fait de le REJOUER, pas sur la relecture de ce qu'on a déjà fait. */}
@@ -218,6 +233,9 @@ export function CasesList({
                       {avgLabel(avgTotal)}).
                     </p>
                   )}
+                  <p className={st.locked ? 'text-[11.5px] text-[var(--gla-danger)]' : 'text-[11.5px] text-[var(--gla-muted)]'}>
+                    {st.locked ? 'Essais épuisés — demande à ton manager de t’en redonner.' : `Essais ${st.used}/${st.allowed}`}
+                  </p>
                 </div>
               )}
               <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -277,6 +295,21 @@ function Medal({ best }: { best: MyBest | null }) {
   )
 }
 
+/** « · Essais 2/3 », ou l'état bloqué — la limite d'essais (0161) lisible avant le clic. */
+function AttemptsHint({ state }: { state: AttemptState }) {
+  if (state.locked) return <span className="text-[var(--gla-danger)]"> · Essais épuisés — demande à ton manager</span>
+  return (
+    <span className="tabular-nums">
+      {' '}· Essais {state.used}/{state.allowed}
+    </span>
+  )
+}
+
+/** Le bouton suit la limite : désactivé et explicite quand il ne reste aucun essai. */
+function playProps(state: AttemptState, label: string): { label: string; disabled?: boolean } {
+  return state.locked ? { label: 'Essais épuisés', disabled: true } : { label }
+}
+
 function CaseRow({
   lastSessionId,
   c,
@@ -284,6 +317,7 @@ function CaseRow({
   total,
   canPlay,
   best,
+  state,
 }: {
   /** Dernière session jouée sur ce cas — `undefined` si jamais joué. */
   lastSessionId: string | undefined
@@ -292,6 +326,7 @@ function CaseRow({
   total: number
   canPlay: boolean
   best: MyBest | null
+  state: AttemptState
 }) {
   return (
     <li className="gla-lrow">
@@ -301,11 +336,12 @@ function CaseRow({
         <span className="mt-0.5 block text-xs text-[var(--gla-faint)]">
           {c.phase ? `${c.phase} · ` : ''}
           {c.maxTurns} échanges max
+          {canPlay && <AttemptsHint state={state} />}
         </span>
       </span>
       <Medal best={best} />
       {canPlay && <ReviewLink sessionId={lastSessionId} />}
-      {canPlay && <PlayButton caseId={c.id} label={best ? 'Rejouer' : 'Jouer'} className="gla-btn border-0" />}
+      {canPlay && <PlayButton caseId={c.id} {...playProps(state, best ? 'Rejouer' : 'Jouer')} className="gla-btn border-0" />}
     </li>
   )
 }

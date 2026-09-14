@@ -11,7 +11,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { avgLabel, bossUnlocked } from '@glagency/core'
+import { attemptState, avgLabel, bossUnlocked } from '@glagency/core'
 import { createAdminClient, type Json } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { dueAtFrom } from '@/lib/services/training-engine'
@@ -27,7 +27,8 @@ const speakerOf = (s: string): MessageSpeaker => (s === 'fan' ? 'fan' : 'chatter
 
 /**
  * Démarre une session sur un cas (ou reprend l'ACTIVE du chatter : une seule à la fois).
- * Boss verrouillé sous 60/100 de moyenne. Crée session (snapshot visible) + threads + messages
+ * Boss verrouillé sous 60/100 de moyenne ; tout cas verrouillé quand ses essais sont épuisés (0161).
+ * Crée session (snapshot visible) + threads + messages
  * d'ouverture (défi/boss : ouvertures échelonnées 0/20/45/75/110 s ; chrono armé si l'ouverture
  * finit par le fan).
  */
@@ -53,12 +54,27 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
         .from('training_cases')
         // Un seul littéral : supabase-js type les embeds depuis le littéral exact.
         .select(
-          'id, module_id, section_id, code, kind, title, phase, difficulty, max_turns, reaction_max_s, is_sale, context, objective, fan_name, active, training_modules(code, title, objective_label, active), training_case_messages(position, speaker, body), training_case_arena_slots!case_id(position, ref_case_id, display_name), training_case_boss_fans(id, name, position, opening_message)',
+          'id, module_id, section_id, code, kind, title, phase, difficulty, max_turns, max_attempts, reaction_max_s, is_sale, context, objective, fan_name, active, training_modules(code, title, objective_label, active), training_case_messages(position, speaker, body), training_case_arena_slots!case_id(position, ref_case_id, display_name), training_case_boss_fans(id, name, position, opening_message)',
         )
         .eq('id', caseId)
         .maybeSingle()
       if (error) throw new Error(error.message)
       if (!c || !c.active || !c.training_modules.active) throw new BusinessError('Ce cas n’est plus disponible')
+      // LIMITE D'ESSAIS (0161, décision Benoit 2026-09-14). APRÈS la reprise d'une session active
+      // (plus haut), qui reste toujours possible : seul le lancement d'un NOUVEL essai est refusé.
+      // Une seule session active à la fois (index unique) : pas de double lancement qui passerait
+      // la garde en même temps.
+      const { data: att, error: attErr } = await supabase
+        .rpc('training_attempts', { p_profile: profile.id })
+        .eq('case_id', c.id)
+        .maybeSingle()
+      if (attErr) throw new Error(attErr.message)
+      const attempts = attemptState(c.max_attempts, att?.used ?? 0, att?.granted ?? 0)
+      if (attempts.locked) {
+        throw new BusinessError(
+          `Tu as utilisé tes ${attempts.allowed} essais sur cet exercice — demande à ton manager de t’en redonner`,
+        )
+      }
       const kind = c.kind as CaseKind
       if (kind === 'boss') {
         const { data: st, error: sErr } = await supabase

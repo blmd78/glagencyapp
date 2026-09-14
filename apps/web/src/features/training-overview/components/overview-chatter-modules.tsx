@@ -6,6 +6,7 @@ import { ScoreBadge } from '@/components/training/score-badge'
 import { CollapsibleSection } from '@/components/collapsible-section'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { CaseProgress, ModuleProgress } from '../types'
+import { GrantAttempts } from './grant-attempts.client'
 
 /**
  * Le parcours d'un chatter, MODULE PAR MODULE — la reprise, côté encadrant, de l'organisation que
@@ -30,7 +31,7 @@ import type { CaseProgress, ModuleProgress } from '../types'
  * `tentés/total` — la même définition que le `12/40` du roster (`cases_done`, 0113:1211), pour ne
  * pas avoir deux sens de « fait » sur le même écran.
  */
-export function OverviewChatterModules({ modules }: { modules: ModuleProgress[] }) {
+export function OverviewChatterModules({ modules, profileId }: { modules: ModuleProgress[]; profileId: string }) {
   if (modules.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucun module actif dans le catalogue.</p>
   }
@@ -51,7 +52,7 @@ export function OverviewChatterModules({ modules }: { modules: ModuleProgress[] 
         >
           {/* Un seul groupe anonyme = module sans compétence : on saute un niveau de dépliage. */}
           {m.groups.length === 1 && m.groups[0].id === null ? (
-            <Levels cases={m.groups[0].cases} />
+            <Levels cases={m.groups[0].cases} profileId={profileId} />
           ) : (
             <div className="flex flex-col gap-2 p-3">
               {m.groups.map((g) => (
@@ -59,7 +60,7 @@ export function OverviewChatterModules({ modules }: { modules: ModuleProgress[] 
                   key={g.id ?? 'hors-competence'}
                   trigger={<Summary title={g.title} avg={g.avg} attempted={g.attempted} total={g.total} />}
                 >
-                  <Levels cases={g.cases} />
+                  <Levels cases={g.cases} profileId={profileId} />
                 </CollapsibleSection>
               ))}
             </div>
@@ -105,21 +106,27 @@ function Summary({
  * les cas. Les barres de signal disent le même niveau, à leur place, sur la ligne du cas — et
  * c'est déjà ce que le chatter voit dans Modules.
  */
-function Levels({ cases }: { cases: CaseProgress[] }) {
+function Levels({ cases, profileId }: { cases: CaseProgress[]; profileId: string }) {
   if (cases.length === 0) {
     return <p className="px-4 py-3 text-sm text-muted-foreground">Aucun cas ici.</p>
   }
   return (
     <ul className="divide-y">
       {cases.map((c, i) => (
-        <CaseLine key={c.caseId} c={c} index={i} total={cases.length} />
+        <CaseLine key={c.caseId} c={c} index={i} total={cases.length} profileId={profileId} />
       ))}
     </ul>
   )
 }
 
-/** Une ligne de cas. Jamais tenté = tout en gris, un tiret à la place de la note. */
-function CaseLine({ c, index, total }: { c: CaseProgress; index: number; total: number }) {
+/**
+ * Une ligne de cas. Jamais tenté = tout en gris, un tiret à la place de la note.
+ *
+ * LIMITE D'ESSAIS (0161) : `utilisés/disponibles`, en rouge quand l'exercice est bloqué, et le
+ * déblocage « + N · Redonner » dès qu'un essai a été joué — c'est là que l'encadrant intervient
+ * après avoir expliqué.
+ */
+function CaseLine({ c, index, total, profileId }: { c: CaseProgress; index: number; total: number; profileId: string }) {
   const untouched = c.bestTotal == null
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm">
@@ -133,12 +140,18 @@ function CaseLine({ c, index, total }: { c: CaseProgress; index: number; total: 
         <span className="w-32 text-right text-muted-foreground">jamais tenté</span>
       ) : (
         <span className="flex w-32 items-center justify-end gap-2">
-          <span className="text-xs tabular-nums text-muted-foreground">
-            {c.attempts} essai{c.attempts > 1 ? 's' : ''}
-          </span>
           <ScoreBadge total={c.bestTotal ?? 0} />
         </span>
       )}
+      <span
+        className={c.locked ? 'w-24 text-right text-xs font-medium tabular-nums text-red-600 dark:text-red-400' : 'w-24 text-right text-xs tabular-nums text-muted-foreground'}
+        title={c.locked ? 'Plus d’essai : le chatteur ne peut plus lancer cet exercice' : undefined}
+      >
+        {c.attemptsUsed}/{c.attemptsAllowed} essai{c.attemptsAllowed > 1 ? 's' : ''}
+      </span>
+      <span className="w-36">
+        {c.attemptsUsed > 0 && <GrantAttempts profileId={profileId} caseId={c.caseId} />}
+      </span>
       {/* BUG corrigé le 2026-09-11 : `frDateNumeric` attend un JOUR (`YYYY-MM-DD`) — elle
           construit `new Date(`${day}T00:00:00Z`). `lastAt` est un timestamptz complet, d'où
           `…T14:12:32+00:00T00:00:00Z` et un « Invalid Date » sur CHAQUE ligne de la fiche.

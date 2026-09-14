@@ -8,9 +8,11 @@ import * as Sentry from '@sentry/nextjs'
 import { aiMessage } from '@/lib/ai/errors'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
+import { grantAttemptsInput } from './schema'
 
 // Schémas INLINE (guidelines §5) : ces deux actions n'ont pas de formulaire, un `schema.ts` de
 // feature pour deux `z.object({ … z.uuid() })` n'apportait rien.
@@ -37,6 +39,39 @@ export async function resolveReport(raw: unknown): Promise<ActionResult> {
         .is('resolved_at', null)
       if (error) throw new Error(error.message)
       revalidatePath('/formation/overview')
+    },
+  })
+}
+
+/**
+ * Redonner des essais sur un exercice (0161) — l'encadrant a expliqué, le chatteur peut retenter.
+ * Droit Suivi (managers, sous-managers, admins), sur tous les chatteurs. Écriture en SERVICE-ROLE
+ * après garde : `training_attempt_grants` n'a aucune politique d'écriture, comme le reste de la
+ * Formation (0121). La ligne insérée EST la trace : qui (`granted_by`), quand, combien, pour qui.
+ */
+export async function grantAttempts(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: grantAttemptsInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ profileId, caseId, extra }) => {
+      const profile = await requirePageProfileLive('frm-suivi')
+      const admin = createAdminClient()
+      // Un id forgé ne crée rien : le compte et l'exercice doivent exister.
+      const [{ data: target, error: pErr }, { data: exercise, error: cErr }] = await Promise.all([
+        admin.from('profiles').select('id').eq('id', profileId).maybeSingle(),
+        admin.from('training_cases').select('id').eq('id', caseId).maybeSingle(),
+      ])
+      if (pErr) throw new Error(pErr.message)
+      if (cErr) throw new Error(cErr.message)
+      if (!target) throw new BusinessError('Chatteur introuvable')
+      if (!exercise) throw new BusinessError('Exercice introuvable')
+      const { error } = await admin
+        .from('training_attempt_grants')
+        .insert({ profile_id: profileId, case_id: caseId, extra, granted_by: profile.id })
+      if (error) throw new Error(error.message)
+      revalidatePath('/formation/overview')
+      revalidatePath('/formation/modules', 'layout')
     },
   })
 }
