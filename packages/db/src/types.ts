@@ -5403,6 +5403,63 @@ export type Database = {
           output_tokens: number
         }[]
       }
+      training_ai_by_case: {
+        Args: { p_since: string; p_until: string }
+        Returns: {
+          case_id: string
+          case_title: string
+          chatters: number
+          fan_cache_read: number
+          fan_calls: number
+          fan_input: number
+          fan_name: string
+          fan_output: number
+          kind: string
+          module_title: string
+          score_cache_read: number
+          score_cache_write: number
+          score_input: number
+          score_output: number
+          sessions: number
+        }[]
+      }
+      training_ai_by_chatter: {
+        Args: { p_since: string; p_until: string }
+        Returns: {
+          active_days: number
+          fan_cache_read: number
+          fan_calls: number
+          fan_input: number
+          fan_output: number
+          name: string
+          profile_id: string
+          score_cache_read: number
+          score_cache_write: number
+          score_calls: number
+          score_input: number
+          score_output: number
+          sessions: number
+        }[]
+      }
+      training_ai_daily: {
+        Args: { p_since: string; p_until: string }
+        Returns: {
+          chatters: number
+          day: string
+          failed: number
+          fan_cache_read: number
+          fan_calls: number
+          fan_input: number
+          fan_output: number
+          p95_latency_ms: number
+          score_cache_read: number
+          score_cache_write: number
+          score_calls: number
+          score_input: number
+          score_output: number
+          sessions: number
+        }[]
+      }
       training_axis_profile: {
         Args: { p_profile: string }
         Returns: {
