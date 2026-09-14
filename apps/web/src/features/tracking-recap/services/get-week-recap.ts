@@ -13,8 +13,9 @@ export interface RecapDay {
   negative: string
   notes: string
   /**
-   * « lundi 14/09 à 03:05 » — heure du DERNIER enregistrement (`updated_at`), lue à Paris. La table
-   * n'a pas de `created_at` : `saveDaily` réécrit la ligne à chaque sauvegarde. `null` sans ligne.
+   * « lundi 14/09 à 03:05 » — heure du DERNIER enregistrement (`updatedAt`, rendu par la RPC depuis
+   * 0159), lue à Paris. La table n'a pas de `created_at` : `saveDaily` réécrit la ligne à chaque
+   * sauvegarde. `null` sans ligne.
    */
   savedLabel: string | null
 }
@@ -30,10 +31,10 @@ export interface RecapPerson {
   debriefs: number
   expectedDebriefs: number
   /**
-   * Le VERBATIM des débriefs de cette personne est-il lisible par le spectateur ? Miroir EXACT du
-   * `case` de `tracker_todo_week_recap` (0137) : un admin, et chacun sur son propre journal.
-   * Sans ce drapeau, `days` vide serait indiscernable de « aucun débrief déposé » et la carte
-   * afficherait « Pas de débrief » à côté d'un compteur qui dit le contraire.
+   * Le VERBATIM des débriefs de cette personne est-il lisible par le spectateur ? DÉCIDÉ ET RENDU
+   * par `tracker_todo_week_recap` (0159) : un admin, l'intéressé, et le manager de ses
+   * sous-managers rattachés. Sans ce drapeau, `days` vide serait indiscernable de « aucun débrief
+   * déposé » et la carte afficherait « Pas de débrief » à côté d'un compteur qui dit le contraire.
    */
   verbatim: boolean
   days: RecapDay[]
@@ -58,7 +59,17 @@ interface RawPerson {
   planned: number
   done: number
   debriefs: number
-  days: { date: string; focus: string; problem: string; positive: string; negative: string; notes: string }[]
+  /** 0159 — absent d'une RPC antérieure : `undefined` se lit alors « pas de verbatim ». */
+  verbatim?: boolean
+  days: {
+    date: string
+    focus: string
+    problem: string
+    positive: string
+    negative: string
+    notes: string
+    updatedAt?: string | null
+  }[]
 }
 
 /**
@@ -73,16 +84,10 @@ interface RawPerson {
  * dispose : le rôle, et l'existence de modèles assignés. À confronter à leur `recappage.js` si on
  * remet un jour la main dessus.
  */
-export async function getWeekRecap(
-  /**
-   * Le SPECTATEUR. Il ne sert pas à filtrer — c'est la RPC (definer, 0137) qui borne le périmètre
-   * et décide du verbatim ; il sert à SAVOIR ce qu'elle vient de rendre, pour que la carte ne
-   * mente pas sur un `days` vide. La règle est écrite deux fois, en SQL et ici, à dessein : le
-   * SQL autorise, celui-ci raconte.
-   */
-  viewer: { id: string; isAdmin: boolean },
-  week?: string,
-): Promise<RecapData> {
+export async function getWeekRecap(week?: string): Promise<RecapData> {
+  // Plus de SPECTATEUR en paramètre : la RPC (definer) borne le périmètre, décide du verbatim ET
+  // le dit (`verbatim`, 0159). La règle était écrite une seconde fois ici — « admin ou soi » — et
+  // aurait tu le texte au manager que 0159 autorise.
   const today = todayParis()
   const weekStart = addDays(week ?? today, -(isoWeekday(week ?? today) - 1))
   const weekEnd = addDays(weekStart, 6)
@@ -100,17 +105,10 @@ export async function getWeekRecap(
   const lastDay = today < weekEnd ? today : weekEnd
   const expected = Math.max(0, Math.round((Date.parse(lastDay) - Date.parse(weekStart)) / 86_400_000) + 1)
 
-  // L'HEURE D'ENREGISTREMENT est lue à côté de la RPC, pas dans sa réponse : la policy
-  // `tracker_todo_daily_read` (admin, ou son propre journal) couvre EXACTEMENT les personnes dont
-  // le verbatim est rendu — aucune migration pour une colonne que le client a déjà le droit de lire.
-  const verbatimIds = raw.filter((p) => viewer.isAdmin || p.profileId === viewer.id).map((p) => p.profileId)
-  const [withModels, savedAt] = await Promise.all([
-    profilesWithModels(raw.map((p) => p.profileId)),
-    debriefSavedAt(verbatimIds, weekStart, weekEnd),
-  ])
+  const withModels = await profilesWithModels(raw.map((p) => p.profileId))
 
   const people: RecapPerson[] = raw.map((p) => {
-    const verbatim = viewer.isAdmin || p.profileId === viewer.id
+    const verbatim = p.verbatim === true
     const byDate = new Map(p.days.map((d) => [d.date, d]))
     const days: RecapDay[] = []
     // Aucune colonne de jours à construire quand le verbatim n'est pas rendu : elles seraient
@@ -118,7 +116,6 @@ export async function getWeekRecap(
     for (let i = 0; verbatim && i < expected; i++) {
       const date = addDays(weekStart, i)
       const d = byDate.get(date)
-      const at = savedAt.get(`${p.profileId}|${date}`)
       days.push({
         date,
         label: new Intl.DateTimeFormat('fr-FR', {
@@ -135,7 +132,7 @@ export async function getWeekRecap(
         positive: d?.positive ?? '',
         negative: d?.negative ?? '',
         notes: d?.notes ?? '',
-        savedLabel: d != null && at ? savedLabel(at) : null,
+        savedLabel: d?.updatedAt ? savedLabel(d.updatedAt) : null,
       })
     }
     return {
@@ -174,24 +171,6 @@ export async function getWeekRecap(
     },
     groups,
   }
-}
-
-/**
- * `updated_at` des débriefs de la semaine, par `owner_id|date`. Client UTILISATEUR : la RLS borne.
- * Pas de `fetchAll` : borné par la CLÉ (owner_id, date), au plus sept lignes par personne rendue —
- * très loin du plafond de 1 000 de PostgREST (même raisonnement que `get-members.ts`).
- */
-async function debriefSavedAt(ids: string[], from: string, to: string): Promise<Map<string, string | null>> {
-  if (ids.length === 0) return new Map()
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('tracker_todo_daily')
-    .select('owner_id, date, updated_at')
-    .in('owner_id', ids)
-    .gte('date', from)
-    .lte('date', to)
-  if (error) throw new Error(error.message)
-  return new Map((data ?? []).map((r) => [`${r.owner_id}|${r.date}`, r.updated_at]))
 }
 
 /**

@@ -29,7 +29,8 @@ export default async function PresenceRecapPage({
   // `tracker_todo_daily_read` reste fermée. Ce qui change : les COMPTEURS. La RPC (definer, 0137)
   // rend à chacun son périmètre — admin → tout, manager → lui + ses sous-managers rattachés,
   // POLICE → lui + TOUS les sous-managers (0150), sous-manager → lui seul — et ne joint le texte
-  // des débriefs que pour un admin ou soi-même.
+  // des débriefs que pour un admin, soi-même et, depuis 0159, le manager de ses sous-managers
+  // rattachés (demande Benoit 2026-09-14). Le policier lit toujours les compteurs sans le texte.
   //
   // La garde ne fait donc que refuser le CHATTEUR à qui on aurait coché « Présence » : la RPC lui
   // rendrait de toute façon sa seule ligne, mais un écran de suivi d'équipe n'est pas à lui. Le
@@ -41,7 +42,7 @@ export default async function PresenceRecapPage({
   if (profile.role !== 'admin' && !profile.manager && profile.baseRole !== 'police') notFound()
   const { week } = await searchParams
 
-  const data = getWeekRecap({ id: profile.id, isAdmin: profile.role === 'admin' }, week)
+  const data = getWeekRecap(week)
 
   return (
     <div className="trk trk-page">

@@ -15,9 +15,10 @@ const debClass = (done: number, expected: number): string =>
  * Une carte d'encadrant : sa complétion, ses compteurs, ses débriefs — et le détail jour par jour
  * quand on la déplie. `<details>` natif, comme partout ailleurs.
  *
- * Le détail n'existe que pour un admin et pour son propre journal (`person.verbatim`, miroir de
- * la RPC 0137). Un manager lit les COMPTEURS de ses sous-managers, jamais le texte : on le dit
- * en clair plutôt que de servir sept colonnes « Pas de débrief » qui contrediraient le compteur.
+ * Le détail n'existe que pour un admin, pour son propre journal et pour le manager de ses
+ * sous-managers rattachés (`person.verbatim`, décidé par la RPC, 0159). Un policier lit les
+ * COMPTEURS des sous-managers, jamais le texte : on le dit en clair plutôt que de servir sept
+ * colonnes « Pas de débrief » qui contrediraient le compteur.
  */
 export function RecapCard({ person }: { person: RecapPerson }) {
   return (
@@ -48,7 +49,7 @@ export function RecapCard({ person }: { person: RecapPerson }) {
       <div className="rdays">
         {!person.verbatim ? (
           <div className="rday vide">
-            <p className="bnone">Détail des débriefs réservé à la direction.</p>
+            <p className="bnone">Détail des débriefs réservé à la direction et au manager direct.</p>
           </div>
         ) : null}
         {person.days.map((d) => (
