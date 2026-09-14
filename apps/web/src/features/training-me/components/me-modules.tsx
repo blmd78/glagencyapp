@@ -1,4 +1,4 @@
-import { BOSS_UNLOCK_AVG } from '@glagency/core'
+import { avgLabel, BOSS_UNLOCK_AVG } from '@glagency/core'
 import Link from 'next/link'
 import { ModuleCard } from '@/components/training/module-card'
 import { ScoreBadge } from '@/components/training/score-badge'
@@ -18,7 +18,7 @@ export function MeModules({ data }: { data: MeData }) {
       <h2 className="mb-[14px] flex items-center gap-2 text-[15px] font-bold">
         <span aria-hidden>⚔️</span> Tes modules
         <span className="ml-auto text-[11.5px] font-semibold tabular-nums text-[var(--gla-muted)]">
-          {stats.casesDone}/{totalCases} cas validés
+          {stats.casesDone}/{totalCases} cas joués
         </span>
       </h2>
 
@@ -49,7 +49,7 @@ export function MeModules({ data }: { data: MeData }) {
             ? stats.bossDone
               ? 'Réussi — tu peux le refaire pour améliorer ta note.'
               : 'Débloqué : 5 conversations en même temps, une seule tentative à la fois.'
-            : `Se débloque à ${BOSS_UNLOCK_AVG}/100 de moyenne (actuelle : ${stats.avgTotal == null ? '—' : Math.round(stats.avgTotal)}).`}
+            : `Se débloque à ${BOSS_UNLOCK_AVG}/100 de moyenne (actuelle : ${avgLabel(stats.avgTotal)}).`}
         </p>
         {/* Le boss se joue depuis SON module (avec ses 5 fans) : sans ce lien, un chatteur débloqué
             n'a aucun chemin vers lui depuis Ma formation. */}

@@ -1,4 +1,4 @@
-import { daysBetweenParis, frDateNumeric, frDayMonthParis } from '@glagency/core'
+import { avgLabel, daysBetweenParis, frDateNumeric, frDayMonthParis } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { ScoreBadge } from '@/components/training/score-badge'
@@ -205,7 +205,7 @@ export function OverviewRosterTable({
                       </span>
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {r.avgTotal == null ? '—' : Math.round(r.avgTotal)}
+                      {avgLabel(r.avgTotal)}
                     </TableCell>
                     <TableCell className="text-center tabular-nums">
                       {r.bossBest == null ? '—' : <ScoreBadge total={r.bossBest} />}

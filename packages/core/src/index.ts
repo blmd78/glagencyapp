@@ -107,6 +107,7 @@ export {
   OBJECTIVE_CAP,
   medalFor,
   bossUnlocked,
+  avgLabel,
   moduleProgress,
   computeTrophies,
   effectiveStreak,

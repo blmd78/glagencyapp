@@ -144,7 +144,7 @@ export function MeCelebrate({ profileId, level, rankTier, rankName, rankEmoji, a
           <DialogDescription className="text-base">
             {shown === 'done' ? (
               <>
-                Tu as validé <b className="text-foreground">tous les cas du catalogue</b>. Préviens ton manager 🎉
+                Tu as joué <b className="text-foreground">tous les cas du catalogue</b>. Préviens ton manager 🎉
               </>
             ) : (
               <>
