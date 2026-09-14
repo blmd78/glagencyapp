@@ -15,6 +15,7 @@ import { modelColor } from '@/lib/model-color'
 import { pageChoicesFor, subChoicesFor, type WorkspaceId } from '@/config/workspaces'
 import { ROLE_NAME, ROLE_TONE } from '@/lib/roles'
 import { RowActions } from './member-row-actions'
+import { memberMatches } from '../member-search'
 import type { Member } from '../types'
 
 const initials = (name: string) =>
@@ -93,6 +94,9 @@ export function buildMembersColumns({
     {
       id: 'displayName',
       accessorKey: 'displayName',
+      // Le champ « Filtrer » de la table vise cette colonne : il cherche aussi l'e-mail et le
+      // pseudo Discord, qu'elle affiche (`memberMatches`).
+      filterFn: (row, _columnId, value) => memberMatches(row.original, String(value ?? '')),
       header: ({ column }) => <Sortable column={column} label="Membre" />,
       cell: ({ row }) => (
         <div className="flex items-center gap-2.5">
