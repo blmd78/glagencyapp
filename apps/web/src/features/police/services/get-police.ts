@@ -3,6 +3,7 @@ import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
 import type { Period } from '@/lib/period'
 import { getCreatorScope } from '@/lib/services/creator-scope'
+import { creatorsByProfile, inCreatorScope } from '@/lib/services/creator-scope-rules'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { ERROR_LABEL } from '@/lib/types/police-errors'
 import type { PoliceData, PoliceEntry } from '../types'
@@ -60,7 +61,7 @@ export async function getPolice(
       .range(from, to),
   )
 
-  const [entriesRes, recentWarnsRes, profilesRes, assignRes, scope] = await Promise.all([
+  const [entriesRes, recentWarnsRes, profilesRes, assignRes, chatterAssignRes, scope] = await Promise.all([
     entriesQuery,
     // Compteur réservé aux ÉCRIVAINS : pour un lecteur seul la saisie est masquée → requête
     // inutile, on la saute (l'audit 2026-08-17 a relevé la branche perdue au passage à la
@@ -80,11 +81,24 @@ export async function getPolice(
       : Promise.resolve(null),
     // Membres (client admin, `fetchAll` anti-troncature) : résolution des NOMS — chatteur (chatter_id)
     // ET contrôleur (controller_id) sont tous deux des `profiles` — et OPTIONS (role chatteur).
-    fetchAll((from, to) => admin.from('profiles').select('id, display_name, role').order('id').range(from, to)),
+    // `chatter_id` : la clé du chatteur MyPuls, pour lire son SECOND rattachement ci-dessous.
+    fetchAll((from, to) =>
+      admin.from('profiles').select('id, display_name, role, chatter_id').order('id').range(from, to),
+    ),
     // Assignations chatteur ↔ modèle (client admin — usage INTERNE au service uniquement : rien
     // de tout ça ne part au navigateur, l'audit 2026-08-06 a retiré les champs qui fuyaient).
     fetchAll((from, to) =>
       admin.from('profile_creators').select('profile_id, creator_id').order('profile_id').range(from, to),
+    ),
+    // …et côté MyPuls (`chatter_creators`), que le Relevé lisait déjà : sans elle, un chatteur de
+    // la ligne « Signaler » manquait aux options et le lien pré-rempli n'en sélectionnait aucun.
+    fetchAll((from, to) =>
+      admin
+        .from('chatter_creators')
+        .select('chatter_id, creator_id')
+        .order('chatter_id')
+        .order('creator_id')
+        .range(from, to),
     ),
     scopePromise,
   ])
@@ -92,6 +106,7 @@ export async function getPolice(
   if (recentWarnsRes?.error) throw new Error(recentWarnsRes.error.message)
   if (profilesRes.error) throw new Error(profilesRes.error.message)
   if (assignRes.error) throw new Error(assignRes.error.message)
+  if (chatterAssignRes.error) throw new Error(chatterAssignRes.error.message)
   const rows = entriesRes.data
   const recentWarns = recentWarnsRes?.data
   const profileRows = profilesRes.data
@@ -101,12 +116,11 @@ export async function getPolice(
   const nameById: Record<string, string> = {}
   for (const p of profileRows ?? []) if (p.id && p.display_name) nameById[p.id] = p.display_name
 
-  // Assignations chatteur → modèles : support du périmètre (interne, jamais renvoyé).
-  const creatorsByChatter: Record<string, string[]> = {}
-  for (const a of assignRows ?? []) (creatorsByChatter[a.profile_id] ??= []).push(a.creator_id)
+  // Modèles de chaque chatteur, par ses DEUX rattachements (compte + MyPuls) — support du
+  // périmètre (interne, jamais renvoyé). Même règle que la garde d'écriture `isChatterInScope`.
+  const creatorsOf = creatorsByProfile(assignRows ?? [], chatterAssignRes.data ?? [], profileRows ?? [])
 
-  const inScope = (chatterId: string) =>
-    !scope || (creatorsByChatter[chatterId] ?? []).some((c) => scope.has(c))
+  const inScope = (chatterId: string) => inCreatorScope(scope, creatorsOf.get(chatterId))
 
   // Compteur d'avertissements récents — borné au périmètre comme tout le reste (l'audit y a
   // trouvé la seule dérivation qui l'oubliait).

@@ -64,7 +64,7 @@ export function MembersTable({
       data={rows}
       columns={columns}
       filterColumnId="displayName"
-      filterPlaceholder="Filtrer par nom…"
+      filterPlaceholder="Filtrer par nom, e-mail ou Discord…"
       pageSize={20}
       // Identité STABLE des lignes : sans elle TanStack keye par index — après une
       // suppression, les MemberDialog montés en ligne se réapparient par position et

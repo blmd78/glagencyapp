@@ -1,4 +1,5 @@
 import { createAdminClient } from '@glagency/db'
+import { creatorsByProfile, inCreatorScope } from './creator-scope-rules'
 
 /**
  * Périmètre MODÈLES de l'appelant pour les pages Police (décision Benoit 2026-08-06, appliquée
@@ -13,7 +14,10 @@ import { createAdminClient } from '@glagency/db'
  * qu'on lit ici les assignations de l'appelant pour décider de l'affichage.
  *
  * Le Tracker (`features/police/services/get-police.ts`) dérive le MÊME périmètre des
- * assignations qu'il charge déjà en entier — miroir à garder aligné si la règle change.
+ * assignations qu'il charge déjà en entier — par la même règle pure (`creator-scope-rules.ts`).
+ *
+ * Ce scope est celui de l'APPELANT (ses modèles, par son compte). Le CHATTEUR visé, lui, appartient
+ * aux modèles de ses DEUX rattachements, compte et MyPuls (`creatorsByProfile`, 2026-09-14).
  */
 export async function getCreatorScope(
   callerId: string,
@@ -33,10 +37,11 @@ export async function getCreatorScope(
 }
 
 /**
- * Le CHATTEUR cible est-il dans le périmètre ? (assigné à au moins un des modèles du scope.)
- * Pour les ÉCRITURES du Tracker (audit 2026-08-06 : le cloisonnement ne vivait que dans les
- * options de l'UI — un appel forgé sanctionnait n'importe quel chatteur de l'agence, malus de
- * paie compris). `scope` null = pas de borne → toujours vrai.
+ * Le CHATTEUR cible est-il dans le périmètre ? (rattaché à au moins un des modèles du scope, par
+ * son compte OU par son chatteur MyPuls — `creatorsByProfile`.) Pour les ÉCRITURES du Tracker
+ * (audit 2026-08-06 : le cloisonnement ne vivait que dans les options de l'UI — un appel forgé
+ * sanctionnait n'importe quel chatteur de l'agence, malus de paie compris) et l'accès à la fiche
+ * d'activité. `scope` null = pas de borne → toujours vrai.
  */
 export async function isChatterInScope(
   scope: Set<string> | null,
@@ -44,12 +49,23 @@ export async function isChatterInScope(
 ): Promise<boolean> {
   if (!scope) return true
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('profile_creators')
-    .select('creator_id')
-    .eq('profile_id', chatterId)
-  if (error) throw new Error(error.message)
-  return (data ?? []).some((r) => scope.has(r.creator_id))
+  const [links, profile] = await Promise.all([
+    admin.from('profile_creators').select('profile_id, creator_id').eq('profile_id', chatterId),
+    admin.from('profiles').select('id, chatter_id').eq('id', chatterId).maybeSingle(),
+  ])
+  if (links.error) throw new Error(links.error.message)
+  if (profile.error) throw new Error(profile.error.message)
+  let chatterLinks: { chatter_id: string; creator_id: string }[] = []
+  if (profile.data?.chatter_id) {
+    const { data, error } = await admin
+      .from('chatter_creators')
+      .select('chatter_id, creator_id')
+      .eq('chatter_id', profile.data.chatter_id)
+    if (error) throw new Error(error.message)
+    chatterLinks = data ?? []
+  }
+  const creators = creatorsByProfile(links.data ?? [], chatterLinks, profile.data ? [profile.data] : [])
+  return inCreatorScope(scope, creators.get(chatterId))
 }
 
 /**
