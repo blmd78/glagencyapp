@@ -7,3 +7,6 @@ export interface MktLinksData {
   links: MktLinkRow[]
   totals: { clicks: number; conversions: number; revenueEur: number }
 }
+
+/** Onglet affiché — `?vue=`, validé par la page (un `?vue=nawak` retombe sur le classement). */
+export type MktLiensVue = 'classement' | 'graph'
