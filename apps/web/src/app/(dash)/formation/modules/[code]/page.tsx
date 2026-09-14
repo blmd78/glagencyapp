@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
 import { hasPageAccess, requireAccess } from '@/lib/auth'
+import { getAttempts, type CaseAttempts } from '@/lib/services/training-attempts'
 import { getMyBests, getMyLastSessionByCase, type MyBests } from '@/lib/services/training-bests'
 import { getModule, getPersona } from '@/lib/services/training-public'
 import { getModuleRanking } from '@/features/training-modules/services/get-module-ranking'
@@ -39,6 +40,8 @@ export default async function ModulePage({
   const lastSessions = canPlay
     ? getMyLastSessionByCase(profile.id)
     : Promise.resolve(new Map<string, string>())
+  // Essais consommés / redonnés par cas (0161) — même garde : sans droit Entraînement, rien à soi.
+  const attempts = canPlay ? getAttempts(profile.id) : Promise.resolve(new Map<string, CaseAttempts>())
   // Une ligne unique, sans dépendance au module : lancée en parallèle, attendue dans le contenu.
   const persona = getPersona()
   return (
@@ -47,6 +50,7 @@ export default async function ModulePage({
         module={modulePromise}
         bests={bests}
         lastSessions={lastSessions}
+        attempts={attempts}
         canPlay={canPlay}
         myProfileId={profile.id}
         competenceId={competence ?? null}
@@ -60,6 +64,7 @@ async function ModuleContent({
   module,
   bests,
   lastSessions,
+  attempts,
   canPlay,
   myProfileId,
   competenceId,
@@ -68,12 +73,13 @@ async function ModuleContent({
   module: Promise<ModuleDetail | null>
   bests: Promise<MyBests>
   lastSessions: Promise<Map<string, string>>
+  attempts: Promise<Map<string, CaseAttempts>>
   canPlay: boolean
   myProfileId: string
   competenceId: string | null
   persona: Promise<TrainingPersona | null>
 }) {
-  const [m, my, last, fiche] = await Promise.all([module, bests, lastSessions, persona])
+  const [m, my, last, att, fiche] = await Promise.all([module, bests, lastSessions, attempts, persona])
   if (!m) notFound()
   // Vraie dépendance séquentielle : la RPC a besoin de l'id du module. Lancée SANS `await` — le
   // titre et les onglets s'affichent, le classement streame dans ses boundaries (`ModuleTemplate`).
@@ -90,6 +96,7 @@ async function ModuleContent({
         canPlay={canPlay}
         bests={my.bests}
         lastSessions={last}
+        attempts={att}
         avgTotal={my.avgTotal}
         ranking={ranking}
         myProfileId={myProfileId}

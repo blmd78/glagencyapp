@@ -65,7 +65,7 @@ export async function getModule(code: string): Promise<ModuleDetail | null> {
   const { data: cases, error: cErr } = await supabase
     .from('training_cases')
     .select(
-      'id, code, kind, title, phase, difficulty, max_turns, reaction_max_s, is_sale, section_id, position, training_case_boss_fans(id, name, age, job, city, color, persona, position)',
+      'id, code, kind, title, phase, difficulty, max_turns, max_attempts, reaction_max_s, is_sale, section_id, position, training_case_boss_fans(id, name, age, job, city, color, persona, position)',
     )
     .eq('module_id', m.id)
     .eq('active', true)
@@ -91,6 +91,7 @@ export async function getModule(code: string): Promise<ModuleDetail | null> {
       phase: c.phase,
       difficulty: c.difficulty,
       maxTurns: c.max_turns,
+      maxAttempts: c.max_attempts,
       reactionMaxS: c.reaction_max_s,
       isSale: c.is_sale,
       sectionId: c.section_id,

@@ -1,5 +1,7 @@
+import { attemptState } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
+import { getAttempts } from '@/lib/services/training-attempts'
 import { CASE_KIND_LABELS, type CaseKind } from '@/lib/types/training'
 import type { CaseGroup, CaseProgress, ChatterDetail, ModuleProgress } from '../types'
 
@@ -37,7 +39,7 @@ function orphanTitle(rows: { kind: CaseKind }[]): string {
  */
 export async function getChatter(profileId: string): Promise<ChatterDetail> {
   const supabase = await createClient()
-  const [bestsRes, sessionsRes, axesRes, lastByCaseRes, catalogRes] = await Promise.all([
+  const [bestsRes, sessionsRes, axesRes, lastByCaseRes, catalogRes, attemptsOf] = await Promise.all([
     supabase
       .from('training_case_bests')
       // Plus de jointure de titres : ils viennent du CATALOGUE, lu juste en dessous.
@@ -69,9 +71,11 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
     // à qui porte la face `formation`, ce qu'un encadrant Suivi a forcément.
     supabase
       .from('training_modules')
-      .select('code, title, emoji, position, training_module_sections(id, title, position), training_cases(id, title, kind, difficulty, position, section_id, active)')
+      .select('code, title, emoji, position, training_module_sections(id, title, position), training_cases(id, title, kind, difficulty, position, section_id, active, max_attempts)')
       .eq('active', true)
       .order('position'),
+    // Essais consommés / redonnés par exercice (0161) — ce que l'encadrant débloque ligne à ligne.
+    getAttempts(profileId),
   ])
   if (bestsRes.error) throw new Error(bestsRes.error.message)
   if (sessionsRes.error) throw new Error(sessionsRes.error.message)
@@ -96,7 +100,12 @@ export async function getChatter(profileId: string): Promise<ChatterDetail> {
 
     const toProgress = (c: (typeof cases)[number]): CaseProgress => {
       const b = bestOf.get(c.id)
+      const a = attemptsOf.get(c.id)
+      const st = attemptState(c.max_attempts, a?.used ?? 0, a?.granted ?? 0)
       return {
+        attemptsUsed: st.used,
+        attemptsAllowed: st.allowed,
+        locked: st.locked,
         caseId: c.id,
         title: c.title,
         kind: c.kind as CaseKind,

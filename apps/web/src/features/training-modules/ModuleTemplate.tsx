@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { MarkdownView } from '@/components/markdown-view'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { CaseAttempts } from '@/lib/services/training-attempts'
 import type { MyBest } from '@/lib/services/training-bests'
 import { CasesList } from './components/cases-list'
 import { ModulePodium } from './components/module-podium'
@@ -27,6 +28,7 @@ export function ModuleTemplate({
   canPlay,
   bests,
   lastSessions,
+  attempts,
   avgTotal,
   ranking,
   myProfileId,
@@ -39,6 +41,8 @@ export function ModuleTemplate({
   bests: Map<string, MyBest>
   /** Dernière session par cas — cible du lien « Voir ». Vide sans droit Entraînement. */
   lastSessions: Map<string, string>
+  /** Essais consommés / redonnés par cas (0161) — vide sans droit Entraînement. */
+  attempts: Map<string, CaseAttempts>
   avgTotal: number | null
   ranking: Promise<ModuleRankRow[]>
   myProfileId: string
@@ -52,7 +56,7 @@ export function ModuleTemplate({
   // Dans une COMPÉTENCE, l'écran ne porte que ses exercices (GLA `formationSousCat` remplace la
   // page entière) : ni podium, ni cours — on est venu travailler une compétence précise.
   if (competenceId) {
-    return <CasesList module={module} canPlay={canPlay} bests={bests} lastSessions={lastSessions} avgTotal={avgTotal} competenceId={competenceId} />
+    return <CasesList module={module} canPlay={canPlay} bests={bests} lastSessions={lastSessions} attempts={attempts} avgTotal={avgTotal} competenceId={competenceId} />
   }
 
   return (
@@ -88,7 +92,7 @@ export function ModuleTemplate({
         )}
       </section>
 
-      <CasesList module={module} canPlay={canPlay} bests={bests} lastSessions={lastSessions} avgTotal={avgTotal} competenceId={null} />
+      <CasesList module={module} canPlay={canPlay} bests={bests} lastSessions={lastSessions} attempts={attempts} avgTotal={avgTotal} competenceId={null} />
     </div>
   )
 }

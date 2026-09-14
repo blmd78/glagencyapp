@@ -82,7 +82,14 @@ export interface CaseProgress {
   /** 1 → 10, l'échelle de `training_cases.difficulty` : le « niveau » d'un module. */
   difficulty: number
   bestTotal: number | null
+  /** Compteur de `training_case_bests` — reprise GLA comprise, il ne sert plus à la limite d'essais. */
   attempts: number
+  /** Limite d'essais (0161) : sessions terminées hors reprise GLA… */
+  attemptsUsed: number
+  /** …sur le total disponible (maximum de l'exercice + essais redonnés). */
+  attemptsAllowed: number
+  /** Plus aucun essai : le chatteur ne peut plus lancer cet exercice. */
+  locked: boolean
   lastAt: string | null
   /** Dernière session jouée sur ce cas — cible du lien « Voir » de la ligne. `null` = jamais tenté. */
   lastSessionId: string | null

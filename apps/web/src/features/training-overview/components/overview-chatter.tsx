@@ -61,7 +61,7 @@ export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail
 
       <section className="flex flex-col gap-3">
         <h3 className="text-base font-semibold tracking-tight">Parcours</h3>
-        <OverviewChatterModules modules={detail.modules} />
+        <OverviewChatterModules modules={detail.modules} profileId={detail.profileId} />
       </section>
 
       <section className="flex flex-col gap-3">
