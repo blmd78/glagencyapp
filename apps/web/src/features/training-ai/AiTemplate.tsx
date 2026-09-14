@@ -70,7 +70,7 @@ export function AiTemplate({ data }: { data: AiUsageData }) {
         <>
           <Card>
             <CardHeader>
-              <CardDescription>Coût par jour — fan et notation</CardDescription>
+              <CardDescription>Par jour : le coût (fan + notation) et le nombre de chatteurs</CardDescription>
             </CardHeader>
             <CardContent>
               <AiDailyChart days={data.days} />
