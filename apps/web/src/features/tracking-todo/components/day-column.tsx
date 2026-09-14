@@ -7,11 +7,77 @@ import { TaskItem } from './task-item'
 import type { TodoDay, TodoSection, TodoTask, TodoChatter } from '../types'
 
 /**
- * Catégorie d'accueil d'une tâche déposée sur une journée qui n'a encore aucune section.
- * Volontairement neutre : la tâche porte déjà son badge « déposée », l'en-tête du groupe n'a pas
- * à le répéter — et si le titulaire a déjà une section de ce nom, le dépôt s'y range.
+ * Catégorie d'une tâche ajoutée depuis le « + Tâche » d'une journée — par le titulaire comme par
+ * son encadrement. Volontairement neutre : une tâche déposée porte déjà son badge « déposée », l'en-tête
+ * du groupe n'a pas à le répéter — et si le titulaire a déjà une section de ce nom, la tâche s'y range.
+ *
+ * Aucune section n'est créée pour autant : `category` est du TEXTE LIBRE et non une clé étrangère
+ * vers les sections (0127:44-45), et `getTodoWeek` reconstruit les groupes du jour à partir des
+ * sections ET des catégories déjà portées par une tâche.
  */
-const DEPOT_CATEGORY = 'À faire'
+const DAY_TASK_CATEGORY = 'À faire'
+
+/**
+ * Saisie rapide d'une tâche — la même pour le « + » d'une section et le « + Tâche » d'une journée.
+ * Démontée à la fermeture : le brouillon et le 1:1 repartent à vide d'eux-mêmes.
+ */
+function QuickAddTask({
+  chatters,
+  onSubmit,
+  onClose,
+}: {
+  chatters: TodoChatter[]
+  onSubmit: (label: string, chatterId: string | null) => void
+  onClose: () => void
+}) {
+  const [draft, setDraft] = useState('')
+  const [withChatter, setWithChatter] = useState('')
+  const submit = (): void => {
+    const value = draft.trim()
+    if (!value) return
+    onSubmit(value, withChatter || null)
+    onClose()
+  }
+
+  return (
+    <div className="qadd">
+      <input
+        autoFocus
+        placeholder="Nouvelle tâche…"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose()
+          if (e.key !== 'Enter') return
+          submit()
+        }}
+      />
+      {/* « Session 1:1 avec (impose un bilan pour cocher) » — viser un chatter transforme la
+          tâche : elle ne se cochera qu'en rendant son bilan sur la fiche du chatter. */}
+      {chatters.length > 0 ? (
+        <select
+          className="q1a1"
+          value={withChatter}
+          onChange={(e) => setWithChatter(e.target.value)}
+          title="Session 1:1 avec (impose un bilan pour cocher)"
+        >
+          <option value="">Aucun 1:1</option>
+          {chatters.map((c) => (
+            <option key={c.id} value={c.id}>
+              1:1 avec {c.name}
+            </option>
+          ))}
+        </select>
+      ) : null}
+      <button type="button" className="btn sm" onClick={submit} disabled={!draft.trim()}>
+        Ajouter
+      </button>
+      <button type="button" className="btn sm" onClick={onClose}>
+        Annuler
+      </button>
+    </div>
+  )
+}
 
 /** Une section = une zone de dépôt. Leur feuille l'éclaire avec `.tgroup.over`. */
 function SectionGroup({
@@ -42,19 +108,6 @@ function SectionGroup({
     data: { date: day.date, category: section.name },
   })
   const [adding, setAdding] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [withChatter, setWithChatter] = useState('')
-  const closeAdd = (): void => {
-    setAdding(false)
-    setDraft('')
-    setWithChatter('')
-  }
-  const submitAdd = (): void => {
-    const value = draft.trim()
-    if (!value) return
-    onAdd(day.date, section.name, value, withChatter || null)
-    closeAdd()
-  }
 
   const done = section.tasks.filter((t) => t.done).length
 
@@ -82,15 +135,19 @@ function SectionGroup({
             </button>
             {/* La STRUCTURE de la semaine s'ouvre à l'encadrement depuis le 2026-09-07
                 (`assertCanOrganize`) : un manager qui ne pouvait pas retirer une section ne
-                pouvait pas réorganiser la semaine de son sous-manager, seulement la garnir. */}
-            <button
-              type="button"
-              className="gdel"
-              title="Retirer la section (ses tâches sont conservées)"
-              onClick={() => onDeleteSection(section.name)}
-            >
-              ✕
-            </button>
+                pouvait pas réorganiser la semaine de son sous-manager, seulement la garnir.
+                Masqué sur un groupe qui n'est qu'une CATÉGORIE de tâches (« À faire » du
+                « + Tâche ») : il n'y a aucune section à retirer, le clic ne ferait rien. */}
+            {section.recurring ? (
+              <button
+                type="button"
+                className="gdel"
+                title="Retirer la section (ses tâches sont conservées)"
+                onClick={() => onDeleteSection(section.name)}
+              >
+                ✕
+              </button>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -109,42 +166,11 @@ function SectionGroup({
       ))}
 
       {adding && canOrganize ? (
-        <div className="qadd">
-          <input
-            autoFocus
-            placeholder="Nouvelle tâche…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') closeAdd()
-              if (e.key !== 'Enter') return
-              submitAdd()
-            }}
-          />
-          {/* « Session 1:1 avec (impose un bilan pour cocher) » — viser un chatter transforme la
-              tâche : elle ne se cochera qu'en rendant son bilan sur la fiche du chatter. */}
-          {chatters.length > 0 ? (
-            <select
-              className="q1a1"
-              value={withChatter}
-              onChange={(e) => setWithChatter(e.target.value)}
-              title="Session 1:1 avec (impose un bilan pour cocher)"
-            >
-              <option value="">Aucun 1:1</option>
-              {chatters.map((c) => (
-                <option key={c.id} value={c.id}>
-                  1:1 avec {c.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <button type="button" className="btn sm" onClick={submitAdd} disabled={!draft.trim()}>
-            Ajouter
-          </button>
-          <button type="button" className="btn sm" onClick={closeAdd}>
-            Annuler
-          </button>
-        </div>
+        <QuickAddTask
+          chatters={chatters}
+          onSubmit={(label, chatterId) => onAdd(day.date, section.name, label, chatterId)}
+          onClose={() => setAdding(false)}
+        />
       ) : null}
     </div>
   )
@@ -179,21 +205,8 @@ export function DayColumn({
   onAddSection: (name: string, weekday: number) => void
   onDeleteSection: (name: string) => void
 }) {
+  const [addingTask, setAddingTask] = useState(false)
   const [addingSection, setAddingSection] = useState(false)
-
-  // LE DÉPOSANT N'A PAS DE SECTION À REMPLIR. Le bouton « + » d'une tâche vit DANS une section :
-  // sur une journée qui n'en a aucune, il ne lui resterait que « + Section » — soit imposer de
-  // créer une structure chez quelqu'un d'autre pour y déposer une seule tâche.
-  //
-  // On lui pose donc un groupe d'accueil vide. C'est licite parce que `category` est du TEXTE
-  // LIBRE et non une clé étrangère vers les sections (0127:44-45) : la catégorie d'une tâche
-  // déposée existe d'elle-même, et `getTodoWeek` reconstruit les groupes du jour à partir des
-  // sections ET des catégories déjà portées par une tâche. Si le titulaire a déjà une section de
-  // ce nom, le dépôt s'y range naturellement.
-  const sections =
-    canOrganize && !canWrite && day.sections.length === 0
-      ? [{ name: DEPOT_CATEGORY, recurring: false, tasks: [] }]
-      : day.sections
 
   const all = day.sections.flatMap((s) => s.tasks)
   const done = all.filter((t) => t.done).length
@@ -224,10 +237,10 @@ export function DayColumn({
       </h3>
 
       <div className="dayb" data-drop-date={day.date}>
-        {sections.length === 0 ? (
+        {day.sections.length === 0 ? (
           <p className="bnone">Rien de prévu.</p>
         ) : (
-          sections.map((section) => (
+          day.sections.map((section) => (
             <SectionGroup
               key={section.name}
               day={day}
@@ -243,14 +256,25 @@ export function DayColumn({
           ))
         )}
 
-        {/* Sans ce bouton, une semaine vierge est un cul-de-sac : pas de section, donc pas de
-            bouton « + » de tâche, donc aucun moyen de commencer. */}
+        {/* UNE action visible par jour : « + Tâche ». Jusqu'au 2026-09-14, le seul bouton de la
+            colonne était « + Section » : sur une journée vide, des encadrants y tapaient leur
+            tâche et créaient une section RÉCURRENTE vide — sans case à cocher, absente de
+            « Pas faites », que seul le ✕ savait retirer (5 en prod ce jour-là). La section reste
+            possible, en lien discret, et dit qu'elle revient chaque semaine.
+            Le « + Tâche » sert aussi le déposant, qui n'a ainsi aucune structure à créer chez
+            quelqu'un d'autre pour y poser une seule tâche. */}
         {canOrganize ? (
-          addingSection ? (
+          addingTask ? (
+            <QuickAddTask
+              chatters={chatters}
+              onSubmit={(label, chatterId) => onAdd(day.date, DAY_TASK_CATEGORY, label, chatterId)}
+              onClose={() => setAddingTask(false)}
+            />
+          ) : addingSection ? (
             <div className="qadd">
               <input
                 autoFocus
-                placeholder="Nom de la section…"
+                placeholder={`Section, revient chaque ${day.weekdayLabel}…`}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') setAddingSection(false)
                   if (e.key !== 'Enter') return
@@ -263,9 +287,19 @@ export function DayColumn({
               />
             </div>
           ) : (
-            <button type="button" className="addrow" onClick={() => setAddingSection(true)}>
-              + Section
-            </button>
+            <div className="addrows">
+              <button type="button" className="addrow" onClick={() => setAddingTask(true)}>
+                + Tâche
+              </button>
+              <button
+                type="button"
+                className="addsec"
+                title={`Une section revient chaque ${day.weekdayLabel} — pour une tâche ponctuelle, « + Tâche »`}
+                onClick={() => setAddingSection(true)}
+              >
+                + section récurrente
+              </button>
+            </div>
           )
         ) : null}
       </div>
