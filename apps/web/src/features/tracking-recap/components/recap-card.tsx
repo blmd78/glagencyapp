@@ -53,7 +53,17 @@ export function RecapCard({ person }: { person: RecapPerson }) {
         ) : null}
         {person.days.map((d) => (
           <div key={d.date} className={d.filled ? 'rday' : 'rday vide'}>
-            <div className="rdlab">{d.label}</div>
+            <div className="rdlab">
+              {d.label}
+              {/* En bout de ligne (demande du 2026-09-14) : un débrief rangé au lundi mais enregistré
+                  lundi à 03:05 a été écrit pendant la nuit du dimanche. L'auteur est toujours le
+                  titulaire — `saveDaily` n'écrit que pour soi (`assertOwner`). */}
+              {d.filled && d.savedLabel ? (
+                <span className="rdsaved">
+                  enregistré {d.savedLabel} par {person.name}
+                </span>
+              ) : null}
+            </div>
             {/* `rdbrief` et NON `rdetail` : cette dernière est un `display:flex` en ligne, posé
                 pour la saisie des compétences du suivi — les cinq champs du débrief s'y
                 affichaient côte à côte sur une seule ligne au lieu de s'empiler. */}
