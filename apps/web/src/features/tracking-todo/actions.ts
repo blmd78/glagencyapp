@@ -10,6 +10,7 @@ import {
   habitInput, moveTaskInput, renameHabitInput, renameSectionInput, sectionInput,
   setHabitActiveInput, toggleTaskInput,
 } from './schema'
+import { mergeWeekdays } from './weekdays'
 
 /**
  * Mutations de la to-do hebdomadaire.
@@ -219,10 +220,25 @@ export async function saveSection(raw: unknown): Promise<ActionResult> {
       // mais pas créer l'endroit où la ranger — c'est ce qui bloquait Remi le 2026-09-07.
       await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
+      // Les jours s'AJOUTENT à ceux que la section avait déjà. L'upsert écrasait la colonne :
+      // retaper le nom d'une section existante depuis un autre jour la déplaçait au lieu de
+      // l'étendre, et le jour d'origine perdait sa section en silence — sans aucun écran pour
+      // le rattraper. Règle pure et testée dans `weekdays.ts`.
+      const { data: existing, error: readErr } = await admin
+        .from('tracker_todo_sections')
+        .select('weekdays')
+        .eq('owner_id', d.ownerId)
+        .eq('name', d.name)
+        .maybeSingle()
+      if (readErr) throw new Error(readErr.message)
       const { error } = await admin
         .from('tracker_todo_sections')
         .upsert(
-          { owner_id: d.ownerId, name: d.name, weekdays: d.weekdays.join(',') },
+          {
+            owner_id: d.ownerId,
+            name: d.name,
+            weekdays: mergeWeekdays(existing?.weekdays ?? '', d.weekdays),
+          },
           { onConflict: 'owner_id,name' },
         )
       if (error) throw new Error(error.message)
