@@ -175,14 +175,17 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `can_manage_planning_of` (0102) reste `role = 'manager'` STRICT — l'élargir aurait donné au
   policier le planning journalier et les repos, qui n'ont pas été demandés. Le Récap s'ouvre au
   policier (`NavItem.policeAccess`, distinct de `managerAccess` — Membres, qui porte ce dernier,
-  lui reste fermé) ; le **verbatim** des débriefs y reste admin + soi. Une tâche « 1:1 » ne demande **aucun périmètre
+  lui reste fermé) ; le **verbatim** des débriefs y reste fermé au policier (admin, soi, et le manager
+  sur ses sous-managers rattachés depuis `0159`). Une tâche « 1:1 » ne demande **aucun périmètre
   modèles** (ni titulaire, ni déposant) depuis le 2026-09-05 : les deux tests n'existaient que
   pour éviter des tâches inclôturables, et la clôture ne teste plus rien (cf. Suivi chatters).
   **Récap**
-  (`/chatter/presence/recap`, `0137` + `0151`) : RPC `tracker_todo_week_recap` en **`security definer`
+  (`/chatter/presence/recap`, `0137` + `0151` + `0159`) : RPC `tracker_todo_week_recap` en **`security definer`
   à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
-  l'encadrement (chacun son périmètre), **verbatim pour l'admin et son propre journal
-  seulement**. `tracker_todo_daily` (`0132`) et `tracker_todo_notes` (`0137`) restent fermées :
+  l'encadrement (chacun son périmètre), **verbatim pour l'admin, son propre journal et — demande
+  Benoit 2026-09-14, `0159` — le manager sur ses sous-managers rattachés** (`can_manage_planning_of`,
+  jamais le policier). La RPC REND sa décision (`verbatim`) et l'heure (`updatedAt`) : l'app ne
+  recopie plus la règle. `tracker_todo_daily` (`0132`) et `tracker_todo_notes` (`0137`) restent fermées :
   journal personnel. Les autres tables `tracker_todo_*` sont lisibles par tout porteur de
   `presence` — assumé (`0127`).
 - **Rapport du soir police** : page `/chatter/rapport-police`, catégorie « Police », **sous**
