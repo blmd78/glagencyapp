@@ -25,6 +25,7 @@ interface DailyRow {
   fan_input: number | string
   fan_output: number | string
   fan_cache_read: number | string
+  fan_cache_write: number | string
   score_input: number | string
   score_output: number | string
   score_cache_read: number | string
@@ -86,7 +87,7 @@ export async function getAiUsage(period: Period): Promise<AiUsageData> {
         inputTokens: n(r.fan_input),
         outputTokens: n(r.fan_output),
         cacheReadTokens: n(r.fan_cache_read),
-        cacheWriteTokens: 0,
+        cacheWriteTokens: n(r.fan_cache_write),
       },
     ])
     const usdScore = usdOf([
@@ -200,6 +201,7 @@ export async function getAiUsage(period: Period): Promise<AiUsageData> {
     fan_input: number | string
     fan_output: number | string
     fan_cache_read: number | string
+  fan_cache_write: number | string
     score_input: number | string
     score_output: number | string
     score_cache_read: number | string
@@ -214,7 +216,7 @@ export async function getAiUsage(period: Period): Promise<AiUsageData> {
           inputTokens: n(r.fan_input),
           outputTokens: n(r.fan_output),
           cacheReadTokens: n(r.fan_cache_read),
-          cacheWriteTokens: 0,
+          cacheWriteTokens: n(r.fan_cache_write),
         },
         {
           model: 'claude-sonnet-5',
@@ -253,6 +255,7 @@ export async function getAiUsage(period: Period): Promise<AiUsageData> {
     fan_input: number | string
     fan_output: number | string
     fan_cache_read: number | string
+  fan_cache_write: number | string
     score_input: number | string
     score_output: number | string
     score_cache_read: number | string
@@ -282,7 +285,7 @@ export async function getAiUsage(period: Period): Promise<AiUsageData> {
                 inputTokens: fanIn,
                 outputTokens: n(r.fan_output),
                 cacheReadTokens: fanCache,
-                cacheWriteTokens: 0,
+                cacheWriteTokens: n(r.fan_cache_write),
               },
               {
                 model: 'claude-sonnet-5',
