@@ -73,10 +73,16 @@ describe('face Formation — droits', () => {
 
   // Le sous-onglet est rendu dans le CORPS de la sidebar (`SidebarMenuSub`) : un item de groupe
   // encore marqué `bottom` serait simplement invisible (app-sidebar.tsx sépare les deux listes).
-  it('le sous-onglet Configuration range Catalogue + Config du test, aucun en bottom', () => {
+  it('le sous-onglet Configuration range Catalogue + Analytics IA + Config du test, aucun en bottom', () => {
     expect(formation.groups?.map((g) => g.id)).toEqual(['config'])
     const inGroup = formation.nav.filter((n) => n.group === 'config')
-    expect(inGroup.map((n) => n.href)).toEqual(['/formation/catalogue', '/formation/recrutement/config'])
+    expect(inGroup.map((n) => n.href)).toEqual([
+      '/formation/catalogue',
+      '/formation/ia',
+      '/formation/recrutement/config',
+    ])
+    // Tous admin-only : le catalogue porte les secrets des cas, Analytics IA la dépense.
+    expect(inGroup.every((n) => n.adminOnly)).toBe(true)
     expect(inGroup.some((n) => n.bottom)).toBe(false)
     // Recrutement reste un item DIRECT — c'est lui qui porte la pastille (`renderDirect`).
     expect(item('/formation/recrutement').group).toBeUndefined()

@@ -1,6 +1,9 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
+import type { Route } from 'next'
 import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import { Cell, Label, Pie, PieChart } from 'recharts'
@@ -78,6 +81,14 @@ const fmt = (v: number | null, c: Critere) =>
 function LinkRow({ l, rang, best, critere }: { l: MktLinkRow; rang: number; best: number; critere: Critere }) {
   const v = valeur(l, critere)
   const largeur = best > 0 && v !== null ? Math.max((v / best) * 100, 1.5) : 0
+  const searchParams = useSearchParams()
+  // `?lien=` s'AJOUTE aux paramètres courants : la période du header doit survivre à l'ouverture
+  // du détail, sinon la modale montrerait un mois et le tableau un autre.
+  const detail = useMemo(() => {
+    const p = new URLSearchParams(searchParams)
+    p.set('lien', l.id)
+    return `/marketing/liens?${p.toString()}` as Route
+  }, [searchParams, l.id])
   return (
     <div className="flex items-center gap-3 border-t px-4 py-2 first:border-t-0 hover:bg-accent/30">
       <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
@@ -85,9 +96,16 @@ function LinkRow({ l, rang, best, critere }: { l: MktLinkRow; rang: number; best
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium" title={l.name}>
+          {/* Le NOM seul ouvre le détail, pas la ligne entière : elle porte déjà le sélecteur de
+              type, qui deviendrait inatteignable sous une zone cliquable. */}
+          <Link
+            href={detail}
+            scroll={false}
+            className="truncate text-sm font-medium hover:underline"
+            title={`${l.name} — voir le jour par jour`}
+          >
             {l.name}
-          </span>
+          </Link>
           {!l.active && (
             <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
               disparu

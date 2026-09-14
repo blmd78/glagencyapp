@@ -22,7 +22,7 @@ export function ModulesTemplate({ data }: { data: ModulesData }) {
           <div className="min-w-[200px] flex-1">
             <p className="text-[11px] font-extrabold uppercase tracking-[0.6px] text-[#c4b5fd]">Ta progression</p>
             <p className="mt-0.5 text-[14.5px] font-bold">
-              {overall.done}/{overall.total} cas validés
+              {overall.done}/{overall.total} cas joués
               <span className="ml-2 text-[12px] font-semibold tabular-nums text-[var(--gla-muted)]">
                 {overall.points.toLocaleString('fr-FR')} pts · moy. {overall.avg ?? '—'}
               </span>

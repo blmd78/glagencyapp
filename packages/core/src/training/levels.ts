@@ -100,11 +100,15 @@ export function rankTier(avgTotal: number | null | undefined): number {
   return RANKS.indexOf(rankOf(avgTotal))
 }
 
-/** Le rang suivant et l'écart en points de moyenne — `null` au rang max (ou sans moyenne). */
+/**
+ * Le rang suivant et l'écart en points de moyenne — `null` au rang max (ou sans moyenne). Écart
+ * arrondi vers le HAUT, pendant d'`avgLabel` qui tronque : à 64,6 on lit « 64 · plus que 1 pt »,
+ * et non « 65 · plus que 0 pts ».
+ */
 export function nextRank(avgTotal: number | null | undefined): { rank: Rank; gap: number } | null {
   if (avgTotal == null) return null
   const next = RANKS.find((r) => avgTotal < r.min)
-  return next ? { rank: next, gap: Math.round(next.min - avgTotal) } : null
+  return next ? { rank: next, gap: Math.ceil(next.min - avgTotal) } : null
 }
 
 export type ObjectiveKind = 'module' | 'boss' | 'gold' | 'done'

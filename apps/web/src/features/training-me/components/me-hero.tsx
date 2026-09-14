@@ -1,4 +1,4 @@
-import { nextRank, rankOf, xpLevelOf, xpOf } from '@glagency/core'
+import { avgLabel, nextRank, rankOf, xpLevelOf, xpOf } from '@glagency/core'
 import { AnimatedNumber } from '@/components/animated-number'
 import type { MeData, RankScope } from '../types'
 
@@ -49,7 +49,7 @@ export function MeHero({ data }: { data: MeData }) {
             </b>
           </p>
           <p className="mt-0.5 text-[13px] text-[var(--gla-muted)]">
-            Note globale {stats.avgTotal == null ? '—' : `${Math.round(stats.avgTotal)}/100`}
+            Note globale {stats.avgTotal == null ? '—' : `${avgLabel(stats.avgTotal)}/100`}
             {next && (
               <>
                 {' · plus que '}
@@ -94,7 +94,7 @@ export function MeHero({ data }: { data: MeData }) {
             </Chip>
           )}
           <Chip icon="✅" iconClass="text-[var(--gla-accent)]">
-            {stats.casesDone}/{data.totalCases} cas validés
+            {stats.casesDone}/{data.totalCases} cas joués
           </Chip>
         </div>
       </div>

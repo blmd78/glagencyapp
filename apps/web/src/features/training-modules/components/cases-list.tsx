@@ -1,4 +1,4 @@
-import { BOSS_UNLOCK_AVG, bossUnlocked, medalFor } from '@glagency/core'
+import { avgLabel, BOSS_UNLOCK_AVG, bossUnlocked, medalFor } from '@glagency/core'
 import Link from 'next/link'
 import type { Route } from 'next'
 import { DifficultyBars } from '@/components/training/difficulty-bars'
@@ -64,7 +64,7 @@ export function CasesList({
               {competence.emoji && <span aria-hidden>{competence.emoji}</span>}
               {competence.title}
               <span className="ml-auto text-[11.5px] font-semibold tabular-nums text-[var(--gla-muted)]">
-                {cases.filter((c) => bests.has(c.id)).length}/{cases.length} validés
+                {cases.filter((c) => bests.has(c.id)).length}/{cases.length} joués
               </span>
             </p>
             <div className="mt-2">
@@ -215,7 +215,7 @@ export function CasesList({
                   {!unlocked && (
                     <p className="text-[11.5px] text-[var(--gla-muted)]">
                       Se débloque à {BOSS_UNLOCK_AVG}/100 de moyenne (actuelle :{' '}
-                      {avgTotal == null ? '—' : Math.round(avgTotal)}).
+                      {avgLabel(avgTotal)}).
                     </p>
                   )}
                 </div>

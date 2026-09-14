@@ -284,6 +284,10 @@ export const WORKSPACES: Workspace[] = [
       // Sous-onglet « Configuration » : les items de groupe sont rendus dans le CORPS de la
       // sidebar — donc jamais `bottom` (Catalogue l'était quand il était direct).
       { href: '/formation/catalogue', label: 'Catalogue', icon: BookOpen, adminOnly: true, group: 'config' },
+      // Ce que l'entraînement coûte, qui l'utilise, et POURQUOI la facture est ce qu'elle est.
+      // `adminOnly` sans slug : la dépense d'un outil n'a pas à circuler dans l'encadrement, et
+      // il n'y a donc pas de case à cocher dans Membres.
+      { href: '/formation/ia', label: 'Analytics IA', icon: Sparkles, adminOnly: true, group: 'config' },
       { href: '/formation/recrutement/config', label: 'Config du test', icon: SlidersHorizontal, adminOnly: true, group: 'config' },
       { href: '/formation/members', label: 'Membres', icon: UserCog, adminOnly: true, bottom: true },
     ],

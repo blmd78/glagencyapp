@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bossUnlocked, computeTrophies, effectiveStreak, medalFor, moduleProgress, TROPHIES } from './rules'
+import { avgLabel, bossUnlocked, computeTrophies, effectiveStreak, medalFor, moduleProgress, TROPHIES } from './rules'
 
 describe('medalFor (GLA medalFor : Or ≥ 85, Argent ≥ 75, Bronze ≥ 60)', () => {
   it('seuils inclus', () => {
@@ -12,6 +12,15 @@ describe('medalFor (GLA medalFor : Or ≥ 85, Argent ≥ 75, Bronze ≥ 60)', ()
 describe('bossUnlocked (moyenne ≥ 60)', () => {
   it('60 débloque, 59.9 non, null non', () => {
     expect(bossUnlocked(60)).toBe(true); expect(bossUnlocked(59.9)).toBe(false); expect(bossUnlocked(null)).toBe(false)
+  })
+})
+
+describe('avgLabel (moyenne affichée face à un seuil : tronquée, jamais arrondie)', () => {
+  it('59,63 s’affiche 59 — un « 60 » sous le bouton grisé du boss contredirait le verrou', () => {
+    expect(avgLabel(59.63)).toBe('59'); expect(avgLabel(59.99)).toBe('59')
+  })
+  it('un entier reste lui-même, sans moyenne → tiret', () => {
+    expect(avgLabel(60)).toBe('60'); expect(avgLabel(72)).toBe('72'); expect(avgLabel(null)).toBe('—')
   })
 })
 

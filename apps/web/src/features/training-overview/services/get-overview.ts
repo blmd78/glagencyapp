@@ -49,6 +49,9 @@ const num = (v: number | string | null | undefined): number => (v == null ? 0 : 
 export async function getOverview(isAdmin: boolean): Promise<OverviewData> {
   const supabase = await createClient()
   const since = new Date(Date.now() - COST_WINDOW_DAYS * 86_400_000).toISOString()
+  // Borne haute EXCLUE depuis 0157 : DEMAIN, et non `now()` — la fenêtre est glissante, et un
+  // appel passé pendant le rendu de la page tomberait sinon juste après la borne.
+  const until = new Date(Date.now() + 86_400_000).toISOString()
   const [rosterRes, reportsRes, casesRes, costRes] = await Promise.all([
     supabase.rpc('training_overview_roster'),
     supabase
@@ -61,7 +64,7 @@ export async function getOverview(isAdmin: boolean): Promise<OverviewData> {
       .order('created_at', { ascending: false })
       .limit(100),
     supabase.from('training_cases').select('id', { count: 'exact', head: true }).eq('active', true).neq('kind', 'boss'),
-    isAdmin ? supabase.rpc('training_ai_cost', { p_since: since }) : null,
+    isAdmin ? supabase.rpc('training_ai_cost', { p_since: since, p_until: until }) : null,
   ])
   if (rosterRes.error) throw new Error(rosterRes.error.message)
   if (reportsRes.error) throw new Error(reportsRes.error.message)

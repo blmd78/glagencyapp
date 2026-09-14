@@ -48,6 +48,9 @@ describe('rankOf / rankTier / nextRank (sur la moyenne, pas l’XP)', () => {
     expect(nextRank(85)).toBeNull()
     expect(nextRank(null)).toBeNull()
   })
+  it('l’écart s’arrondit vers le HAUT : à 64,6 il manque encore 1 pt, pas 0', () => {
+    expect(nextRank(64.6)).toEqual({ rank: RANKS[2], gap: 1 })
+  })
 })
 
 describe('nextObjective (cascade GLA)', () => {

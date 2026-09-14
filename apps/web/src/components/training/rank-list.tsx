@@ -1,3 +1,4 @@
+import { avgLabel } from '@glagency/core'
 import { cn } from '@/lib/utils'
 
 export interface RankListRow {
@@ -74,7 +75,7 @@ export function RankList({ rows, myProfileId }: { rows: RankListRow[]; myProfile
             </span>
             <span className="hidden text-xs tabular-nums text-[var(--gla-faint)] sm:inline">{r.casesDone} cas</span>
             <span className="w-9 text-right text-[13px] font-bold tabular-nums" style={{ color: avgColor(r.avgTotal) }}>
-              {r.avgTotal == null ? '—' : Math.round(r.avgTotal)}
+              {avgLabel(r.avgTotal)}
             </span>
             <span className="w-14 text-right text-sm font-extrabold tabular-nums text-[var(--gla-accent)]">
               {r.points.toLocaleString('fr-FR')}

@@ -11,7 +11,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { bossUnlocked } from '@glagency/core'
+import { avgLabel, bossUnlocked } from '@glagency/core'
 import { createAdminClient, type Json } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
 import { dueAtFrom } from '@/lib/services/training-engine'
@@ -69,7 +69,7 @@ export async function startSession(raw: unknown): Promise<ActionResult<{ session
         if (sErr) throw new Error(sErr.message)
         if (!bossUnlocked(st?.avg_total == null ? null : Number(st.avg_total))) {
           throw new BusinessError(
-            `Le boss final se débloque à 60/100 de moyenne — ta moyenne : ${st?.avg_total == null ? '—' : Math.round(Number(st.avg_total))}/100`,
+            `Le boss final se débloque à 60/100 de moyenne — ta moyenne : ${avgLabel(st?.avg_total == null ? null : Number(st.avg_total))}/100`,
           )
         }
       }

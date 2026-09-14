@@ -55,8 +55,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   (`mkt_creator_revenue`, le CA des modèles ouvert au pôle marketing) avec la release du
   2026-09-09, et `0153` (`profiles.discord` : le pseudo Discord devient le nom affiché dans
   TOUTE la Formation, classements compris — les 4 RPC rendent `coalesce(discord, display_name)`,
-  et le fallback e-mail réintroduit par 0119 disparaît) avec celle du 2026-09-11 — prochaine
-  migration = **0154**) : **catalogue**
+  et le fallback e-mail réintroduit par 0119 disparaît) avec celle du 2026-09-11. **`0154`→`0157`
+  (analytics IA) sont sur l'UAT SEULEMENT au 2026-09-14 — la prod est restée à `0153`, et
+  `/formation/ia` y PLANTE tant qu'elles n'y sont pas (le service lève sur une RPC absente).
+  Prochaine migration = `0158`**) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection

@@ -31,6 +31,13 @@ export function medalFor(total: number | null | undefined): Medal | null {
 /** Le boss final se débloque à 60/100 de moyenne sur les meilleurs totaux (hors boss). */
 export const bossUnlocked = (avgTotal: number | null | undefined): boolean => avgTotal != null && avgTotal >= BOSS_UNLOCK_AVG
 
+/**
+ * Moyenne AFFICHÉE — tronquée, jamais arrondie : tout ce qui la compare à un seuil (verrou du boss,
+ * rangs, couleur du classement) lit la valeur brute, et 59,63 arrondi en « 60 » s'affichait sous un
+ * bouton de boss grisé. Tronquer garantit qu'on n'affiche jamais un palier que la moyenne n'a pas atteint.
+ */
+export const avgLabel = (avgTotal: number | null | undefined): string => (avgTotal == null ? '—' : String(Math.floor(avgTotal)))
+
 export type ModuleProgress = { total: number; done: number; pct: number; avg: number | null; points: number }
 
 /** Progression d'un module depuis les meilleurs totaux par cas (GLA formation_progress : pct, avg, points = Σ). */
@@ -55,13 +62,13 @@ export type Trophy = { key: string; label: string; emoji: string; description: s
  * d’origine : les chatteurs formés là-bas retrouvent les mêmes trophées sous les mêmes noms.
  */
 export const TROPHIES: { key: string; label: string; emoji: string; description: string; test: (i: TrophyInput) => boolean }[] = [
-  { key: 'first_case', label: 'Premier pas', emoji: '👣', description: 'Un premier cas validé', test: (i) => i.casesDone >= 1 },
+  { key: 'first_case', label: 'Premier pas', emoji: '👣', description: 'Un premier cas joué', test: (i) => i.casesDone >= 1 },
   { key: 'streak_3', label: 'En feu', emoji: '🔥', description: 'Une notation 3 jours de suite', test: (i) => i.streakDays >= 3 },
   { key: 'streak_7', label: 'Assidu', emoji: '📅', description: 'Une notation 7 jours de suite', test: (i) => i.streakDays >= 7 },
   { key: 'gold_5', label: 'Orfèvre', emoji: '🥇', description: 'Cinq cas à 85 ou plus', test: (i) => i.goldCount >= 5 },
   { key: 'gold_15', label: 'Perfectionniste', emoji: '💎', description: 'Quinze cas à 85 ou plus', test: (i) => i.goldCount >= 15 },
-  { key: 'module_complete', label: 'Module bouclé', emoji: '✅', description: 'Tous les cas d’un module validés', test: (i) => i.modulesComplete >= 1 },
-  { key: 'all_done', label: 'Marathonien', emoji: '🏆', description: 'Tous les cas validés', test: (i) => i.allDone },
+  { key: 'module_complete', label: 'Module bouclé', emoji: '✅', description: 'Tous les cas d’un module joués', test: (i) => i.modulesComplete >= 1 },
+  { key: 'all_done', label: 'Marathonien', emoji: '🏆', description: 'Tous les cas joués', test: (i) => i.allDone },
   { key: 'boss', label: 'Boss dompté', emoji: '👑', description: 'Le boss final réussi', test: (i) => i.bossDone },
 ]
 
