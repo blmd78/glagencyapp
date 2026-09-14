@@ -90,6 +90,7 @@ function toCase(c: CaseRow): CatalogCase {
     phase: c.phase,
     difficulty: c.difficulty,
     maxTurns: c.max_turns,
+    maxAttempts: c.max_attempts,
     reactionMaxS: c.reaction_max_s,
     isSale: c.is_sale,
     context: c.context,

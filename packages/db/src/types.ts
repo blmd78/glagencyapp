@@ -2063,8 +2063,8 @@ export type Database = {
           closing_role: string | null
           closing_team: string | null
           created_at: string
-          discord: string | null
           created_by: string | null
+          discord: string | null
           display_name: string | null
           email: string | null
           id: string
@@ -2089,8 +2089,8 @@ export type Database = {
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
-          discord?: string | null
           created_by?: string | null
+          discord?: string | null
           display_name?: string | null
           email?: string | null
           id: string
@@ -2115,8 +2115,8 @@ export type Database = {
           closing_role?: string | null
           closing_team?: string | null
           created_at?: string
-          discord?: string | null
           created_by?: string | null
+          discord?: string | null
           display_name?: string | null
           email?: string | null
           id?: string
@@ -4019,6 +4019,55 @@ export type Database = {
           },
         ]
       }
+      training_attempt_grants: {
+        Row: {
+          case_id: string
+          created_at: string
+          extra: number
+          granted_by: string | null
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          extra: number
+          granted_by?: string | null
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          extra?: number
+          granted_by?: string | null
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_attempt_grants_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "training_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attempt_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "training_attempt_grants_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       training_boss_fan_secrets: {
         Row: {
           budget_cap: number | null
@@ -4257,6 +4306,7 @@ export type Database = {
           id: string
           is_sale: boolean
           kind: string
+          max_attempts: number
           max_turns: number
           module_id: string
           objective: string
@@ -4279,6 +4329,7 @@ export type Database = {
           id?: string
           is_sale?: boolean
           kind?: string
+          max_attempts?: number
           max_turns: number
           module_id: string
           objective: string
@@ -4301,6 +4352,7 @@ export type Database = {
           id?: string
           is_sale?: boolean
           kind?: string
+          max_attempts?: number
           max_turns?: number
           module_id?: string
           objective?: string
@@ -5287,11 +5339,21 @@ export type Database = {
         Returns: Json
       }
       mypuls_shift_board_range: {
-        Args: { p_from: string; p_slot?: string; p_threshold?: number; p_to: string }
+        Args: {
+          p_from: string
+          p_slot?: string
+          p_threshold?: number
+          p_to: string
+        }
         Returns: Json
       }
       mypuls_shift_chatter: {
-        Args: { p_chatter?: string; p_from: string; p_profile: string; p_to: string }
+        Args: {
+          p_chatter?: string
+          p_from: string
+          p_profile: string
+          p_to: string
+        }
         Returns: Json
       }
       mypuls_shift_segments_range: {
@@ -5390,19 +5452,6 @@ export type Database = {
         }
         Returns: Json
       }
-      training_ai_cost: {
-        Args: { p_since: string }
-        Returns: {
-          cache_read_tokens: number
-          cache_write_tokens: number
-          calls: number
-          day: string
-          input_tokens: number
-          kind: string
-          model: string
-          output_tokens: number
-        }[]
-      }
       training_ai_by_case: {
         Args: { p_since: string; p_until: string }
         Returns: {
@@ -5410,6 +5459,7 @@ export type Database = {
           case_title: string
           chatters: number
           fan_cache_read: number
+          fan_cache_write: number
           fan_calls: number
           fan_input: number
           fan_name: string
@@ -5428,6 +5478,7 @@ export type Database = {
         Returns: {
           active_days: number
           fan_cache_read: number
+          fan_cache_write: number
           fan_calls: number
           fan_input: number
           fan_output: number
@@ -5441,6 +5492,19 @@ export type Database = {
           sessions: number
         }[]
       }
+      training_ai_cost: {
+        Args: { p_since: string; p_until: string }
+        Returns: {
+          cache_read_tokens: number
+          cache_write_tokens: number
+          calls: number
+          day: string
+          input_tokens: number
+          kind: string
+          model: string
+          output_tokens: number
+        }[]
+      }
       training_ai_daily: {
         Args: { p_since: string; p_until: string }
         Returns: {
@@ -5448,6 +5512,7 @@ export type Database = {
           day: string
           failed: number
           fan_cache_read: number
+          fan_cache_write: number
           fan_calls: number
           fan_input: number
           fan_output: number
@@ -5458,6 +5523,14 @@ export type Database = {
           score_input: number
           score_output: number
           sessions: number
+        }[]
+      }
+      training_attempts: {
+        Args: { p_profile: string }
+        Returns: {
+          case_id: string
+          granted: number
+          used: number
         }[]
       }
       training_axis_profile: {

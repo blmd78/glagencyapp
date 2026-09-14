@@ -158,7 +158,17 @@ const SCORE_ARENA = `
 
 CONTEXTE IMPORTANT : cette conversation a été menée EN PARALLÈLE avec 4 autres (exercice multi-conversations sous pression de temps). Elle est donc forcément plus courte et hachée, et souvent inachevée. NE PÉNALISE PAS la brièveté ni le fait qu'elle ne soit pas terminée. Note uniquement la QUALITÉ (la TECHNIQUE) de ce qui a été fait, sans exiger que le tunnel soit complet — mais reste au même niveau d'exigence technique que d'habitude.`
 
-/** GLA formation_score_system — la sortie est contrainte par le schéma structuré (lib/ai/schema.ts). */
+/**
+ * GLA formation_score_system — la sortie est contrainte par le schéma structuré (lib/ai/schema.ts).
+ *
+ * TEXTE COURT depuis le 2026-09-14 (demande Benoit : « plus simple, facile à comprendre, pas de
+ * blabla, si ça fait gagner de la consommation ») : 1 à 2 moments, une phrase courte par champ,
+ * commentaire en 2 phrases sans formule d'encouragement. Testé sur 24 notations réelles de
+ * production avec Sonnet 5 : sortie −39 % de tokens (564 → 345), commentaire −54 % de caractères,
+ * notes dans le bruit habituel du modèle (7,1 pts d'écart moyen contre 6,8 entre deux passages du
+ * même prompt). Même test : Haiku 4.5 écartait les notes de 16-18 pts et inversait le verdict au
+ * seuil de 60 dans 25 à 42 % des cas — la notation reste sur Sonnet.
+ */
 export function scoreSystemPrompt(c: ScoreCaseContext): string {
   const intro = c.scoringNotes || 'Tu es un formateur expert en chat de vente adulte (type MYM). Tu évalues un CHATTEUR EN FORMATION.'
   const axesTxt = c.axes.map((a) => `- ${a.key} : ${a.description}`).join('\n')
@@ -188,11 +198,11 @@ En cas de doute sur un axe, reste EXIGEANT : n'accorde pas le maximum par défau
 
 OBJECTIF : détermine si l'objectif concret du cas est RÉELLEMENT atteint (pas juste 'l'esprit'). S'il N'EST PAS atteint, renseigne "plafond": ${OBJECTIVE_CAP} (la note globale ne pourra pas dépasser ${OBJECTIVE_CAP} même si les axes semblent propres).
 
-SOIS SYNTHÉTIQUE ET RAPIDE : phrases courtes, va à l'essentiel, ne délaye pas. Chaque champ texte doit rester bref.
-DÉBRIEF = REPRISE DE LA CONVERSATION (le cœur du retour). Tu reprends le fil et tu pointes 2 à 3 MOMENTS PRÉCIS (jamais plus de 3), chacun sur un message DIFFÉRENT du chatteur, en priorité là où il a perdu des points. Pour chaque moment : cite MOT POUR MOT ce qu'il a écrit, dis en une phrase ce qui ne va pas, puis donne un INDICE — une PISTE, le levier ou le principe à activer (ex : 'rebondis sur ce qu'il vient de confier', 'chauffe avant de vendre', 'tiens ton prix sans te justifier'). NE DONNE JAMAIS le message tout fait ni une phrase à copier-coller : il doit trouver la formulation LUI-MÊME. NE RÉPÈTE JAMAIS deux fois le même reproche. Si le passage est très bon, mets moins de moments et souligne un bon coup.
+STYLE : français simple, mots de tous les jours, zéro jargon, zéro blabla. Chaque champ texte tient en UNE phrase courte (15 mots maximum).
+DÉBRIEF = REPRISE DE LA CONVERSATION (le cœur du retour). Tu reprends le fil et tu pointes 1 à 2 MOMENTS PRÉCIS (jamais plus de 2), chacun sur un message DIFFÉRENT du chatteur, en priorité là où il a perdu des points. Pour chaque moment : cite MOT POUR MOT ce qu'il a écrit, dis en une phrase ce qui ne va pas, puis donne un INDICE — une PISTE, le levier ou le principe à activer (ex : 'rebondis sur ce qu'il vient de confier', 'chauffe avant de vendre', 'tiens ton prix sans te justifier'). NE DONNE JAMAIS le message tout fait ni une phrase à copier-coller : il doit trouver la formulation LUI-MÊME. NE RÉPÈTE JAMAIS deux fois le même reproche. Si le passage est très bon, mets moins de moments et souligne un bon coup.
 VÉRIFIE LES FAITS AVANT CHAQUE REPROCHE (règle absolue) : relis mot pour mot les messages du chatteur AVANT de lui reprocher une omission. Ne lui reproche JAMAIS de ne pas avoir fait une chose qu'il a RÉELLEMENT faite. Exemple concret : s'il a écrit le prénom du fan (ex : 'ravie de faire ta connaissance Kevin'), il est INTERDIT de lui reprocher de ne pas avoir repris/réutilisé le prénom — il l'a fait. De même s'il a posé une question, rebondi sur une info, etc. Le champ "probleme" d'un moment doit être STRICTEMENT COHÉRENT avec le texte du champ "cite".
 
-Renseigne le résultat selon le schéma fourni : un entier 0-25 par axe, "total" = la somme des axes (sur 100) en respectant tout plafond applicable, "objectif_atteint", "plafond" (${OBJECTIVE_CAP} si l'objectif n'est pas atteint, sinon omis), "moments" (2 à 3, chaque "cite" DOIT être un vrai extrait d'un message du chatteur (créatrice), jamais une invention ni un message du fan ; "type" = "bad" si ce moment coûte des points, "good" si c'est un bon coup ; "indice" = une PISTE pour corriger si bad, vide si good), "commentaire" (3 phrases MAXIMUM, concises : (1) ce qui a été bien joué, (2) LE point principal à corriger et pourquoi ça compte (effet sur le fan ou la vente) + la PISTE pour progresser (le principe, jamais le message tout fait), (3) une phrase d'encouragement. Ne recopie pas les moments).`
+Renseigne le résultat selon le schéma fourni : un entier 0-25 par axe, "total" = la somme des axes (sur 100) en respectant tout plafond applicable, "objectif_atteint", "plafond" (${OBJECTIVE_CAP} si l'objectif n'est pas atteint, sinon omis), "moments" (1 à 2, chaque "cite" DOIT être un vrai extrait d'un message du chatteur (créatrice), jamais une invention ni un message du fan ; "type" = "bad" si ce moment coûte des points, "good" si c'est un bon coup ; "indice" = une PISTE pour corriger si bad, vide si good), "commentaire" (2 phrases COURTES maximum, 35 mots en tout : (1) LE point principal à corriger et la PISTE pour progresser (le principe, jamais le message tout fait), (2) si c'est mérité, ce qui a été bien joué, en quelques mots. Pas de formule d'encouragement. Ne recopie pas les moments).`
   // Clauses de FIN, dans l'ordre de GLA (serveur.py : négociation puis arène) — elles se cumulent.
   return base + (c.moduleCode === 'negociation' ? SCORE_NEGO : '') + (c.isArena ? SCORE_ARENA : '')
 }

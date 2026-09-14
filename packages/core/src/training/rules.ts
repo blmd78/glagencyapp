@@ -38,6 +38,23 @@ export const bossUnlocked = (avgTotal: number | null | undefined): boolean => av
  */
 export const avgLabel = (avgTotal: number | null | undefined): string => (avgTotal == null ? '—' : String(Math.floor(avgTotal)))
 
+/** Essais par défaut d'un exercice — le défaut de `training_cases.max_attempts` (0161). */
+export const DEFAULT_MAX_ATTEMPTS = 3
+
+export type AttemptState = { used: number; allowed: number; left: number; locked: boolean }
+
+/**
+ * Les essais d'un chatteur sur un exercice (0161) : le maximum de l'exercice plus ce qu'un manager
+ * a redonné ; bloqué quand tout est consommé. Règle UNIQUE, lue par la garde de `startSession`, la
+ * liste des exercices et la fiche de l'Overview. L'historique peut déjà dépasser le maximum (les
+ * rejeux d'avant la limite comptent) : le reste est borné à 0, jamais négatif.
+ */
+export function attemptState(maxAttempts: number, used: number, granted: number): AttemptState {
+  const allowed = Math.max(0, maxAttempts) + Math.max(0, granted)
+  const left = Math.max(0, allowed - Math.max(0, used))
+  return { used, allowed, left, locked: left === 0 }
+}
+
 export type ModuleProgress = { total: number; done: number; pct: number; avg: number | null; points: number }
 
 /** Progression d'un module depuis les meilleurs totaux par cas (GLA formation_progress : pct, avg, points = Σ). */

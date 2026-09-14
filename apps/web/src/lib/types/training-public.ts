@@ -37,6 +37,8 @@ export interface PublicCase {
   phase: string
   difficulty: number
   maxTurns: number
+  /** Essais par chatteur sur ce cas (0161, 3 par défaut). */
+  maxAttempts: number
   reactionMaxS: number | null
   isSale: boolean
   sectionId: string | null

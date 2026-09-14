@@ -66,6 +66,8 @@ export interface CatalogCase {
   phase: string
   difficulty: number
   maxTurns: number
+  /** Essais par chatteur (0161, 3 par défaut). */
+  maxAttempts: number
   reactionMaxS: number | null
   isSale: boolean
   context: string

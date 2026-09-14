@@ -4,7 +4,7 @@ import { caseForm, moduleForm } from './schema'
 
 const base = {
   id: null, moduleId: '11111111-1111-4111-8111-111111111111', kind: 'solo', sectionId: null,
-  title: 'Cas', phase: 'Qualification', difficulty: '3', maxTurns: '6', isSale: false,
+  title: 'Cas', phase: 'Qualification', difficulty: '3', maxTurns: '6', maxAttempts: '3', isSale: false,
   context: 'ctx', objective: 'obj', targetLine: '',
   fanName: 'Tony', fanBrief: 'brief', expected: 'att', messages: [{ speaker: 'fan', body: 'cc' }],
   reactionMaxS: '', slots: [], fans: [],
@@ -19,6 +19,7 @@ describe('caseForm', () => {
     if (r.success) {
       expect(r.data.difficulty).toBe(3)
       expect(r.data.maxTurns).toBe(6)
+      expect(r.data.maxAttempts).toBe(3)
       expect(r.data.targetLine).toBeNull()
       expect(r.data.reactionMaxS).toBeNull()
     }
@@ -45,6 +46,7 @@ describe('caseForm', () => {
   })
   it('difficulté hors 1-10 refusée', () => {
     expect(caseForm.safeParse({ ...base, difficulty: '11' }).success).toBe(false)
+    expect(caseForm.safeParse({ ...base, maxAttempts: '0' }).success).toBe(false)
   })
 })
 

@@ -108,11 +108,13 @@ export {
   medalFor,
   bossUnlocked,
   avgLabel,
+  DEFAULT_MAX_ATTEMPTS,
+  attemptState,
   moduleProgress,
   computeTrophies,
   effectiveStreak,
 } from './training/rules'
-export type { Medal, ModuleProgress, Trophy } from './training/rules'
+export type { AttemptState, Medal, ModuleProgress, Trophy } from './training/rules'
 export {
   LEVEL_XP,
   xpOf,

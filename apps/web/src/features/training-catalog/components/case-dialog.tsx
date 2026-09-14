@@ -27,13 +27,13 @@ const NONE = 'none'
 // Les nombres partent en CHAÎNES : un `<input>` ne rend que du texte, et `requiredInt` refuse le
 // champ VIDÉ (un `0` silencieux) — même parti pris que le dialog de la Roue et la config du test.
 const emptyCase = (moduleId: string): CaseFormValues => ({
-  id: null, moduleId, kind: 'solo', sectionId: null, title: '', phase: '', difficulty: '3', maxTurns: '8', isSale: false,
+  id: null, moduleId, kind: 'solo', sectionId: null, title: '', phase: '', difficulty: '3', maxTurns: '8', maxAttempts: '3', isSale: false,
   context: '', objective: '', targetLine: '', fanName: '', fanBrief: '', expected: '', messages: [],
   reactionMaxS: '', slots: [], fans: [],
 })
 const toForm = (c: CatalogCase): CaseFormValues => ({
   id: c.id, moduleId: c.moduleId, kind: c.kind, sectionId: c.sectionId, title: c.title, phase: c.phase,
-  difficulty: String(c.difficulty), maxTurns: String(c.maxTurns), isSale: c.isSale, context: c.context, objective: c.objective,
+  difficulty: String(c.difficulty), maxTurns: String(c.maxTurns), maxAttempts: String(c.maxAttempts), isSale: c.isSale, context: c.context, objective: c.objective,
   targetLine: c.targetLine ?? '', fanName: c.fanName ?? '', fanBrief: c.fanBrief ?? '', expected: c.expected ?? '',
   messages: c.messages.map((m) => ({ speaker: m.speaker, body: m.body })),
   reactionMaxS: c.reactionMaxS ?? '',
@@ -144,7 +144,7 @@ export function CaseDialog({
                 <FieldError message={errors.title?.message} />
               </div>
             </div>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-5">
               <div className="grid gap-1.5">
                 <Label htmlFor="case-phase">Phase (étiquette)</Label>
                 <Input id="case-phase" placeholder="Qualification" disabled={isSubmitting} {...register('phase')} />
@@ -159,6 +159,11 @@ export function CaseDialog({
                 <Label htmlFor="case-turns">Messages max{kind === 'boss' ? ' (par fan)' : ''}</Label>
                 <Input id="case-turns" type="number" min={1} max={50} disabled={isSubmitting} aria-invalid={!!errors.maxTurns} {...register('maxTurns')} />
                 <FieldError message={errors.maxTurns?.message} />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="case-attempts">Essais max (par chatteur)</Label>
+                <Input id="case-attempts" type="number" min={1} max={50} disabled={isSubmitting} aria-invalid={!!errors.maxAttempts} {...register('maxAttempts')} />
+                <FieldError message={errors.maxAttempts?.message} />
               </div>
               <div className="grid gap-1.5">
                 <Label>Section</Label>

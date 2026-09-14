@@ -1,19 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import { callAction } from '@/lib/actions-client'
-import { abandonSession, endSession } from '../actions-lifecycle'
+import { endSession } from '../actions-lifecycle'
 import type { SessionData, SessionThread } from '../types'
 
 /**
- * En-tête de la session : le retour vers le module, le titre du cas, et les deux sorties —
- * « Terminer » (→ notation) et « Abandonner » (→ rien n'est noté). `ConfirmDialog` garde le dialog
- * ouvert sur erreur serveur.
+ * En-tête de la session : le retour vers le module, le titre du cas, et UNE sortie — « Terminer »
+ * (→ notation). `ConfirmDialog` garde le dialog ouvert sur erreur serveur.
+ *
+ * PLUS D'« ABANDONNER » depuis la limite d'essais (0161, décision Benoit 2026-09-14 : « il ne peut
+ * pas abandonner et relancer, l'exercice doit aller au bout ») : une session lancée se termine, et
+ * quitter la page ne la perd pas — « Jouer » la reprend.
  *
  * La consigne N'EST PLUS ICI : elle vit dans la colonne collante de gauche (`SessionContext`,
  * structure GLA). Repliée au-dessus du chat, elle était fermée et oubliée dès le premier message.
@@ -27,7 +29,6 @@ export function SessionHeader({
   threads: SessionThread[]
   onEnded: () => void
 }) {
-  const router = useRouter()
   const s = data.snapshot
   const closed = threads.filter((t) => t.status !== 'open').length
 
@@ -38,14 +39,6 @@ export function SessionHeader({
       return r.error
     }
     onEnded()
-  }
-  const abandon = async () => {
-    const r = await callAction(abandonSession({ sessionId: data.id }))
-    if (!r.success) {
-      toast.error(r.error)
-      return r.error
-    }
-    router.push('/formation/ma-formation')
   }
 
   // Snapshot d'avant l'ajout de `sectionId` (sessions déjà en base) → `undefined` → repli module.
@@ -70,17 +63,6 @@ export function SessionHeader({
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <ConfirmDialog
-            trigger={
-              <Button variant="ghost" size="sm">
-                Abandonner
-              </Button>
-            }
-            title="Abandonner ?"
-            description="Rien ne sera noté."
-            confirmLabel="Abandonner"
-            onConfirm={abandon}
-          />
           <ConfirmDialog
             trigger={<Button size="sm">Terminer</Button>}
             title="Terminer la session ?"

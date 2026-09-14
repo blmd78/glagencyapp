@@ -111,6 +111,8 @@ const caseFields = z.object({
   phase: text(60),
   difficulty: requiredInt(1, 10),
   maxTurns: requiredInt(1, 50),
+  // Essais par chatteur (0161) — les essais redonnés par un manager s'y ajoutent.
+  maxAttempts: requiredInt(1, 50),
   isSale: z.boolean(),
   context: required(4000, 'Contexte requis'),
   objective: required(2000, 'Objectif requis'),
