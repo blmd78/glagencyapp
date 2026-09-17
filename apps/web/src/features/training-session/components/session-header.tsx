@@ -1,8 +1,9 @@
 'use client'
 
-import Link from 'next/link'
+import type { Route } from 'next'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { HoverPrefetchLink } from '@/components/hover-prefetch-link'
 import { Button } from '@/components/ui/button'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import { callAction } from '@/lib/actions-client'
@@ -50,10 +51,16 @@ export function SessionHeader({
           la COMPÉTENCE quand le cas en a une (`sous_cat` → `go3`), le module sinon. Le lien pointait
           sur `/formation/modules` (la liste des modules) : deux crans trop haut.
           Le littéral doit rester INLINE dans `href` — un `const` intermédiaire s'élargit en `string`
-          et casse le typage `Route` (TS2769). */}
-      <Link href={`/formation/modules/${s.moduleCode}${backQuery}`} className="gla-back w-fit">
+          et casse le typage `Route` (TS2769) ; `backQuery` étant déjà un `string`, le cast est ici
+          obligatoire.
+          Pas de prefetch de fond (cf. `HoverPrefetchLink`) : ce retour est affiché en haut de CHAQUE
+          session, donc préchargé à chaque ouverture — 62 104 vues de session le 2026-09-17. */}
+      <HoverPrefetchLink
+        href={`/formation/modules/${s.moduleCode}${backQuery}` as Route}
+        className="gla-back w-fit"
+      >
         ← Retour aux cas
-      </Link>
+      </HoverPrefetchLink>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-[-0.3px]">{s.title}</h1>

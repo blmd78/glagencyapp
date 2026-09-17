@@ -1,4 +1,5 @@
-import Link from 'next/link'
+import type { Route } from 'next'
+import { HoverPrefetchLink } from '@/components/hover-prefetch-link'
 import { cn } from '@/lib/utils'
 import type { ModulesData } from './services/get-modules-progress'
 
@@ -47,8 +48,8 @@ export function ModulesTemplate({ data }: { data: ModulesData }) {
             const started = showProgress && p.done > 0
             return (
               <li key={m.id}>
-                <Link
-                  href={`/formation/modules/${m.code}`}
+                <HoverPrefetchLink
+                  href={`/formation/modules/${m.code}` as Route}
                   className={cn('gla-card flex h-full flex-col gap-2 p-4', complete && 'border-[var(--gla-accent)]')}
                 >
                   <span className="flex items-center gap-2.5 text-sm font-bold">
@@ -85,7 +86,7 @@ export function ModulesTemplate({ data }: { data: ModulesData }) {
                       </span>
                     )}
                   </div>
-                </Link>
+                </HoverPrefetchLink>
               </li>
             )
           })}
