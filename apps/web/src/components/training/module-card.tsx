@@ -1,7 +1,7 @@
 import type { ModuleProgress } from '@glagency/core'
-import Link from 'next/link'
 import type { Route } from 'next'
 import type { ReactNode } from 'react'
+import { HoverPrefetchLink } from '@/components/hover-prefetch-link'
 
 export interface ModuleCardProps {
   /** Code du module — cible du lien (`/formation/modules/{code}?vue=cas`). */
@@ -44,7 +44,10 @@ export function ModuleCard({ code, title, emoji, progress, right, complete }: Mo
   const done = complete ?? (progress.total > 0 && progress.done === progress.total)
   return (
     <li>
-      <Link href={`/formation/modules/${code}?vue=cas` as Route} className="gla-card flex items-center gap-[13px] p-3">
+      <HoverPrefetchLink
+        href={`/formation/modules/${code}?vue=cas` as Route}
+        className="gla-card flex items-center gap-[13px] p-3"
+      >
         <span className="gla-tile grid size-11 flex-none place-items-center rounded-[13px] text-[21px]" aria-hidden>
           {emoji ?? '🎯'}
         </span>
@@ -74,7 +77,7 @@ export function ModuleCard({ code, title, emoji, progress, right, complete }: Mo
           // la ligne plutôt qu'écraser le titre du module.
           <span className="max-w-[40%] flex-none text-right">{right}</span>
         )}
-      </Link>
+      </HoverPrefetchLink>
     </li>
   )
 }
