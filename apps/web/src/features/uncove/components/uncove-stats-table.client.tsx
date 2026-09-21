@@ -12,10 +12,8 @@ import type { UncoveAccountStat } from '../types'
 /** Tableau des modèles (DataTable : tri + filtre), même patron que la Compta / les Insights. */
 export function UncoveStatsTable({
   accounts,
-  periodDays,
 }: {
   accounts: UncoveAccountStat[]
-  periodDays: number
 }) {
   const columns: ColumnDef<UncoveAccountStat>[] = [
     {
@@ -50,7 +48,7 @@ export function UncoveStatsTable({
     },
     {
       accessorKey: 'revenue',
-      header: ({ column }) => <Sortable column={column} label={`CA (${periodDays} j)`} />,
+      header: ({ column }) => <Sortable column={column} label="CA" />,
       cell: ({ row }) => <span className="tabular-nums">{eur(row.original.revenue)}</span>,
       meta: { align: 'right' },
     },

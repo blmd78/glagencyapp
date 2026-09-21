@@ -4,7 +4,7 @@ import { UncoveStatsTable } from './uncove-stats-table.client'
 import type { UncoveDashboardData } from '../types'
 
 export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
-  const { totals, accounts, periodDays } = data
+  const { totals, accounts, periodLabel } = data
   const base = { deltaPct: null as number | null, trendLabel: '' }
   const kpis: Kpi[] = [
     {
@@ -12,18 +12,18 @@ export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
       key: 'subs',
       label: 'Abonnés actifs',
       value: num(totals.currentSubs),
-      hint: 'tous comptes confondus',
-      info: 'Somme des abonnés actifs (« current ») au dernier jour relevé de chaque compte Uncove.',
+      hint: 'fin de période, tous comptes',
+      info: 'Abonnés actifs (« current ») au dernier jour de la période, sommés sur tous les comptes.',
     },
-    { ...base, key: 'new', label: 'Nouveaux abonnés', value: num(totals.newSubs), hint: `${periodDays} derniers jours` },
-    { ...base, key: 'cancel', label: 'Désabonnements', value: num(totals.canceledSubs), hint: `${periodDays} derniers jours` },
+    { ...base, key: 'new', label: 'Nouveaux abonnés', value: num(totals.newSubs), hint: periodLabel },
+    { ...base, key: 'cancel', label: 'Désabonnements', value: num(totals.canceledSubs), hint: periodLabel },
     {
       ...base,
       key: 'ca',
       label: 'CA',
       value: eur(totals.revenue),
-      hint: `${periodDays} derniers jours`,
-      info: 'Somme du CA quotidien (transactions/volumes) de tous les comptes sur la période.',
+      hint: periodLabel,
+      info: 'Somme du CA quotidien (transactions/volumes) de tous les comptes sur la période choisie.',
     },
   ]
 
@@ -34,14 +34,14 @@ export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
       {/* Invariant : un relevé absent s'annonce, il ne se déguise pas en zéros. */}
       {accounts.length === 0 ? (
         <div className="rounded-lg border bg-card p-6">
-          <p className="text-sm font-medium">Aucun compte Uncove relevé.</p>
+          <p className="text-sm font-medium">Aucun compte Uncove sur cette période.</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ajoute un modèle dans l&apos;onglet « Modèles » (colle son <code>user_token</code>) — les
-            chiffres apparaîtront au prochain relevé.
+            Ajoute un modèle dans l&apos;onglet « Modèles » (colle son <code>user_token</code>), ou choisis
+            une autre période — les chiffres apparaissent au fil des relevés.
           </p>
         </div>
       ) : (
-        <UncoveStatsTable accounts={accounts} periodDays={periodDays} />
+        <UncoveStatsTable accounts={accounts} />
       )}
     </div>
   )

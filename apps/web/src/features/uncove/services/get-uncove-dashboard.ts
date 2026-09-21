@@ -1,23 +1,23 @@
 import { createClient } from '@/lib/supabase/server'
+import type { Period } from '@/lib/period'
 import type { UncoveDashboardData, UncoveAccountStat, UncoveStatus } from '../types'
 
-const PERIOD_DAYS = 30
-
 /**
- * Dashboard Uncove : agrégat Subs + CA par compte sur les {PERIOD_DAYS} derniers jours.
- * Lecture via le client serveur (RLS `has_page('uncove')` / admin). Volume borné (comptes ×
- * ~30 jours ≪ 1000) → pas de fetchAll. Tables 0163 pas encore typées → `as never` + cast.
+ * Dashboard Uncove : agrégat Subs + CA par compte sur la PÉRIODE choisie au header
+ * (`?from=&to=` → resolvePeriod). Lecture via le client serveur (RLS `has_page('uncove')` /
+ * admin). Volume borné (comptes × jours de la période ≪ 1000) → pas de fetchAll. Tables 0163
+ * pas encore typées → `as never` + cast.
  */
-export async function getUncoveDashboard(): Promise<UncoveDashboardData> {
+export async function getUncoveDashboard(period: Period): Promise<UncoveDashboardData> {
   const supabase = await createClient()
-  const cutoff = new Date(Date.now() - PERIOD_DAYS * 86_400_000).toISOString().slice(0, 10)
 
   const [accRes, dailyRes] = await Promise.all([
     supabase.from('uncove_accounts' as never).select('id, label, status').order('label'),
     supabase
       .from('uncove_daily' as never)
       .select('account_id, day, subs_new, subs_canceled, subs_current, revenue')
-      .gte('day', cutoff)
+      .gte('day', period.from)
+      .lte('day', period.to)
       .order('day'),
   ])
   if (accRes.error) throw new Error(accRes.error.message)
@@ -35,7 +35,7 @@ export async function getUncoveDashboard(): Promise<UncoveDashboardData> {
 
   const stats: UncoveAccountStat[] = accounts.map((a) => {
     const rows = daily.filter((d) => d.account_id === a.id)
-    const last = rows.at(-1) // trié par day croissant → dernier = jour le plus récent
+    const last = rows.at(-1) // trié par day croissant → dernier jour DE LA PÉRIODE
     return {
       id: a.id,
       label: a.label,
@@ -53,5 +53,5 @@ export async function getUncoveDashboard(): Promise<UncoveDashboardData> {
     canceledSubs: stats.reduce((s, a) => s + a.canceledSubs, 0),
     revenue: stats.reduce((s, a) => s + a.revenue, 0),
   }
-  return { accounts: stats, totals, periodDays: PERIOD_DAYS }
+  return { accounts: stats, totals, periodLabel: period.label }
 }

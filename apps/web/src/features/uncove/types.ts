@@ -27,5 +27,5 @@ export interface UncoveAccountStat {
 export interface UncoveDashboardData {
   accounts: UncoveAccountStat[]
   totals: { currentSubs: number; newSubs: number; canceledSubs: number; revenue: number }
-  periodDays: number
+  periodLabel: string
 }
