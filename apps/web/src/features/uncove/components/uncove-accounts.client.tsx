@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
+import type { ColumnDef } from '@tanstack/react-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,14 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { DataTable } from '@/components/data-table/data-table'
+import { Sortable } from '@/components/data-table/sortable'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { addUncoveAccountSchema, type AddUncoveAccountInput } from '../uncove.schema'
@@ -69,6 +64,52 @@ export function UncoveAccounts({ accounts }: { accounts: UncoveAccountRow[] }) {
       setToken('')
     })
 
+  const columns: ColumnDef<UncoveAccountRow>[] = [
+    {
+      accessorKey: 'label',
+      header: ({ column }) => <Sortable column={column} label="Modèle" />,
+      cell: ({ row }) => <span className="font-medium">{row.original.label}</span>,
+    },
+    {
+      accessorKey: 'uncoveUserId',
+      header: 'Identifiant Uncove',
+      cell: ({ row }) => <span className="text-muted-foreground">{row.original.uncoveUserId}</span>,
+    },
+    {
+      accessorKey: 'status',
+      header: 'Statut',
+      cell: ({ row }) => (
+        <Badge className={cn('text-xs', row.original.status === 'ok' ? STATUS_COLORS.positive : STATUS_COLORS.danger)}>
+          {row.original.status === 'ok' ? 'OK' : 'à reconnecter'}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: 'lastSyncedAt',
+      header: ({ column }) => <Sortable column={column} label="Dernier relevé" />,
+      cell: ({ row }) => (
+        <span className="text-muted-foreground">
+          {row.original.lastSyncedAt ? new Date(row.original.lastSyncedAt).toLocaleDateString('fr-FR') : '—'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: '',
+      meta: { align: 'right' },
+      cell: ({ row }) => (
+        <div className="flex justify-end gap-1">
+          <Button variant="ghost" size="sm" onClick={() => { setReconnecting(row.original); setToken('') }} disabled={pending}>
+            Reconnecter
+          </Button>
+          <Button variant="ghost" size="sm" className="text-destructive" onClick={() => remove(row.original)} disabled={pending}>
+            Supprimer
+          </Button>
+        </div>
+      ),
+    },
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       <Card>
@@ -97,43 +138,15 @@ export function UncoveAccounts({ accounts }: { accounts: UncoveAccountRow[] }) {
       </Card>
 
       {accounts.length > 0 && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Modèle</TableHead>
-              <TableHead>Identifiant Uncove</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead>Dernier relevé</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {accounts.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium">{a.label}</TableCell>
-                <TableCell className="text-muted-foreground">{a.uncoveUserId}</TableCell>
-                <TableCell>
-                  <Badge className={cn('text-xs', a.status === 'ok' ? STATUS_COLORS.positive : STATUS_COLORS.danger)}>
-                    {a.status === 'ok' ? 'OK' : 'à reconnecter'}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  {a.lastSyncedAt ? new Date(a.lastSyncedAt).toLocaleDateString('fr-FR') : '—'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => { setReconnecting(a); setToken('') }} disabled={pending}>
-                      Reconnecter
-                    </Button>
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => remove(a)} disabled={pending}>
-                      Supprimer
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable
+          data={accounts}
+          columns={columns}
+          getRowId={(r) => r.id}
+          filterColumnId="label"
+          filterPlaceholder="Filtrer par modèle…"
+          initialSorting={[{ id: 'label', desc: false }]}
+          countLabel={(n) => `${n} modèle${n > 1 ? 's' : ''}`}
+        />
       )}
 
       <Dialog open={!!reconnecting} onOpenChange={(o) => { if (!o) { setReconnecting(null); setToken('') } }}>

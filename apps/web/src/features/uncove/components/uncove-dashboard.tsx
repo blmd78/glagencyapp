@@ -1,16 +1,6 @@
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
-import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { cn } from '@/lib/utils'
 import { eur, num } from '@/lib/format'
-import { STATUS_COLORS } from '@/lib/status-color'
+import { UncoveStatsTable } from './uncove-stats-table.client'
 import type { UncoveDashboardData } from '../types'
 
 export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
@@ -51,35 +41,7 @@ export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
           </p>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Modèle</TableHead>
-              <TableHead className="text-right">Abonnés</TableHead>
-              <TableHead className="text-right">Nouveaux</TableHead>
-              <TableHead className="text-right">Désabos</TableHead>
-              <TableHead className="text-right">CA ({periodDays} j)</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {accounts.map((a) => (
-              <TableRow key={a.id}>
-                <TableCell className="font-medium">
-                  <span className="inline-flex items-center gap-2">
-                    {a.label}
-                    {a.status === 'reconnect' && (
-                      <Badge className={cn('text-xs', STATUS_COLORS.danger)}>à reconnecter</Badge>
-                    )}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right tabular-nums">{num(a.currentSubs)}</TableCell>
-                <TableCell className="text-right tabular-nums">{num(a.newSubs)}</TableCell>
-                <TableCell className="text-right tabular-nums">{num(a.canceledSubs)}</TableCell>
-                <TableCell className="text-right tabular-nums">{eur(a.revenue)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <UncoveStatsTable accounts={accounts} periodDays={periodDays} />
       )}
     </div>
   )
