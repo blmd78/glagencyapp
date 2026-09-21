@@ -302,7 +302,12 @@
 .trk .rday { background:var(--trk-surface);padding:12px 15px }
 .trk .rday.vide { background:var(--trk-bg) }
 .trk .rdlab { font-size:11px;font-weight:700;text-transform:capitalize;color:var(--trk-muted);margin-bottom:8px }
-.trk .rdsaved { float:right;font-weight:400;text-transform:none;color:var(--trk-faint) }
+/* La mention « enregistré … » vit SOUS le débrief, en bloc, et surtout PAS en `float:right` dans
+   `.rdlab` (bug de prod du 2026-09-21) : elle est plus large qu'une colonne de grille, son float
+   dépassait donc sous le label, et `.rdbrief` — un `display:flex`, donc un BFC, qui par spec ne
+   peut pas chevaucher un float — se rétrécissait à l'espace restant à gauche de ce float, SUR
+   TOUTE SA HAUTEUR : le débrief s'affichait en colonne de trois caractères. */
+.trk .rdsaved { display:block;margin-top:8px;font-size:11px;font-weight:400;color:var(--trk-faint) }
 /* Le détail d'un débrief : les cinq champs s'EMPILENT. Ils portaient `.rdetail`, un flex en ligne
    destiné à la saisie des compétences (plus bas) — les cinq réponses tenaient sur une ligne. */
 .trk .rdbrief { display:flex;flex-direction:column;gap:6px }
