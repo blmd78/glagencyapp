@@ -63,6 +63,9 @@ importers:
       '@glagency/mypuls':
         specifier: workspace:*
         version: link:../../packages/mypuls
+      '@glagency/uncove':
+        specifier: workspace:*
+        version: link:../../packages/uncove
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.80.0(react@19.2.8))
