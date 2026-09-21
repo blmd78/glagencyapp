@@ -4,7 +4,7 @@ import { UncoveStatsTable } from './uncove-stats-table.client'
 import type { UncoveDashboardData } from '../types'
 
 export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
-  const { totals, accounts, periodLabel } = data
+  const { totals, accounts, periodLabel, asOf } = data
   const base = { deltaPct: null as number | null, trendLabel: '' }
   const kpis: Kpi[] = [
     {
@@ -12,7 +12,7 @@ export function UncoveDashboard({ data }: { data: UncoveDashboardData }) {
       key: 'subs',
       label: 'Abonnés actifs',
       value: num(totals.currentSubs),
-      hint: 'fin de période, tous comptes',
+      hint: asOf ? `au ${asOf}` : 'aucun relevé',
       info: 'Abonnés actifs (« current ») au dernier jour de la période, sommés sur tous les comptes.',
     },
     { ...base, key: 'new', label: 'Nouveaux abonnés', value: num(totals.newSubs), hint: periodLabel },

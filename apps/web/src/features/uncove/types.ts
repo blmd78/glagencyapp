@@ -28,4 +28,6 @@ export interface UncoveDashboardData {
   accounts: UncoveAccountStat[]
   totals: { currentSubs: number; newSubs: number; canceledSubs: number; revenue: number }
   periodLabel: string
+  /** Date du dernier relevé présent dans la plage (pour « abonnés actifs au … »), null si aucun. */
+  asOf: string | null
 }

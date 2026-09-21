@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { format } from 'date-fns'
+import { fr } from 'date-fns/locale'
 import type { Period } from '@/lib/period'
 import type { UncoveDashboardData, UncoveAccountStat, UncoveStatus } from '../types'
 
@@ -53,5 +55,7 @@ export async function getUncoveDashboard(period: Period): Promise<UncoveDashboar
     canceledSubs: stats.reduce((s, a) => s + a.canceledSubs, 0),
     revenue: stats.reduce((s, a) => s + a.revenue, 0),
   }
-  return { accounts: stats, totals, periodLabel: period.label }
+  const lastDay = daily.length ? daily[daily.length - 1]!.day : null
+  const asOf = lastDay ? format(new Date(`${lastDay}T00:00:00`), 'd MMM yyyy', { locale: fr }) : null
+  return { accounts: stats, totals, periodLabel: period.label, asOf }
 }
