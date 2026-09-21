@@ -125,6 +125,7 @@ export const WORKSPACES: Workspace[] = [
       { id: 'acces', label: 'Accès', icon: KeyRound },
       { id: 'spenders', label: 'Spenders', icon: Banknote },
       { id: 'gestion', label: 'Gestion', icon: Briefcase },
+      { id: 'uncove', label: 'Uncove', icon: Gem },
     ],
     nav: [
       { href: '/chatter/overview', label: 'Overview', icon: LayoutDashboard },
@@ -181,7 +182,8 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/spenders/archive', label: 'Archive', icon: Archive, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/stats', label: 'Stats subs', icon: ChartColumn, group: 'performance' },
       { href: '/chatter/stat-chatteur', label: 'Stat chatter', icon: Trophy, group: 'performance' },
-      { href: '/chatter/uncove', label: 'Uncove', icon: Gem, group: 'performance' },
+      { href: '/chatter/uncove/stats', label: 'Stats', icon: ChartColumn, slug: 'uncove', group: 'uncove' },
+      { href: '/chatter/uncove/modeles', label: 'Modèles', icon: UsersRound, slug: 'uncove', group: 'uncove', adminOnly: true },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse, group: 'performance' },
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
