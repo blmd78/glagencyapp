@@ -15,14 +15,16 @@
     "cf:dev": "wrangler dev --test-scheduled --port 8799",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "insights": "tsx src/gen-insights.ts"
+    "insights": "tsx src/gen-insights.ts",
+    "uncove": "tsx src/uncove.ts"
   },
   "dependencies": {
     "@glagency/core": "workspace:*",
     "@glagency/db": "workspace:*",
     "@glagency/mypuls": "workspace:*",
     "@sentry/cloudflare": "^10.63.0",
-    "@sentry/node": "^10.63.0"
+    "@sentry/node": "^10.63.0",
+    "@glagency/uncove": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",

@@ -4,3 +4,5 @@ export { parseSubsVolumes, subscribeVolumesUrl, fetchSubsVolumes } from './endpo
 export type { SubsDay } from './endpoints/subscriptions'
 export { parseTxVolumes, transactionsVolumesUrl, fetchTxVolumes } from './endpoints/transactions'
 export type { RevenueDay } from './endpoints/transactions'
+export { mergeDaily } from './daily'
+export type { DailyRow } from './daily'

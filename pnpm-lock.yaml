@@ -23,6 +23,9 @@ importers:
       '@glagency/mypuls':
         specifier: workspace:*
         version: link:../../packages/mypuls
+      '@glagency/uncove':
+        specifier: workspace:*
+        version: link:../../packages/uncove
       '@sentry/cloudflare':
         specifier: ^10.63.0
         version: 10.63.0
