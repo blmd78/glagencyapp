@@ -17,6 +17,7 @@ import {
   UserCog,
   Megaphone,
   Banknote,
+  Gem,
   CalendarClock,
   ChartLine,
   Network,
@@ -124,6 +125,7 @@ export const WORKSPACES: Workspace[] = [
       { id: 'acces', label: 'Accès', icon: KeyRound },
       { id: 'spenders', label: 'Spenders', icon: Banknote },
       { id: 'gestion', label: 'Gestion', icon: Briefcase },
+      { id: 'uncove', label: 'Uncove', icon: Gem },
     ],
     nav: [
       { href: '/chatter/overview', label: 'Overview', icon: LayoutDashboard },
@@ -180,6 +182,8 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/spenders/archive', label: 'Archive', icon: Archive, slug: 'crm-spenders', group: 'spenders' },
       { href: '/chatter/stats', label: 'Stats subs', icon: ChartColumn, group: 'performance' },
       { href: '/chatter/stat-chatteur', label: 'Stat chatter', icon: Trophy, group: 'performance' },
+      { href: '/chatter/uncove/stats', label: 'Stats', icon: ChartColumn, slug: 'uncove', group: 'uncove' },
+      { href: '/chatter/uncove/modeles', label: 'Modèles', icon: UsersRound, slug: 'uncove', group: 'uncove', adminOnly: true },
       { href: '/chatter/health', label: 'Santé (LTV)', icon: HeartPulse, group: 'performance' },
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
@@ -303,7 +307,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

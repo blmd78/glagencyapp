@@ -16,6 +16,7 @@ import {
 import { loadCookie, refreshCookie } from './session'
 import { ingestShiftsDay, loadSettings, recordShiftRun, type DayRunResult } from './shifts-core'
 import { createAdminClient } from '@glagency/db'
+import { loadActiveAccounts, ingestAccount } from './uncove-core'
 
 /**
  * Entrypoint Cloudflare Worker.
@@ -65,6 +66,36 @@ const MONITOR_SHIFTS_SLUG = 'ingestion-shifts-nightly'
 const SHIFTS_CRON = '30 4 * * *'
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
+
+const MONITOR_UNCOVE_SLUG = 'ingestion-uncove-nightly'
+const UNCOVE_CRON = '0 5 * * *'
+const UNCOVE_WINDOW_DAYS = 35
+
+/**
+ * Relevé Uncove nightly : Subs + CA par compte ACTIF, fenêtre glissante jusqu'à J-1.
+ * 05h00 UTC = après le relevé des shifts (04h30) pour ne pas empiler les invocations.
+ * Observabilité = monitor Sentry (withMonitor) + logs ; un 401 bascule le compte en
+ * « reconnect » sans casser le run (cf. uncove-core.ts). Dynamique : un compte ajouté
+ * dans Modèles est relevé au run suivant, sans redéploiement.
+ */
+async function runUncove(): Promise<void> {
+  const db = createAdminClient()
+  const accounts = await loadActiveAccounts(db)
+  if (accounts.length === 0) {
+    console.log('[uncove] aucun compte actif.')
+    return
+  }
+  const yesterday = addDays(todayParis(), -1)
+  const startIso = `${addDays(yesterday, -(UNCOVE_WINDOW_DAYS - 1))}T00:00:00.000Z`
+  const endIso = `${yesterday}T23:59:59.999Z`
+  let reconnect = 0
+  for (const acc of accounts) {
+    const r = await ingestAccount(db, acc, startIso, endIso)
+    if (r.reconnect) reconnect++
+    else console.log(`[uncove] ${r.label}: ${r.days} jour(s)`)
+  }
+  if (reconnect) console.log(`[uncove] ${reconnect} compte(s) à reconnecter.`)
+}
 
 /**
  * Orchestrateur du scrape spenders (fan-out). Le plan Free plafonne à 10 ms CPU + 50
@@ -376,6 +407,14 @@ const handler = {
       await Sentry.withMonitor(MONITOR_SHIFTS_SLUG, () => runShifts(), {
         ...MONITOR_CONFIG,
         schedule: { type: 'crontab', value: SHIFTS_CRON },
+        maxRuntime: 60,
+      })
+      return
+    }
+    if (controller.cron === UNCOVE_CRON) {
+      await Sentry.withMonitor(MONITOR_UNCOVE_SLUG, () => runUncove(), {
+        ...MONITOR_CONFIG,
+        schedule: { type: 'crontab', value: UNCOVE_CRON },
         maxRuntime: 60,
       })
       return

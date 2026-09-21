@@ -40,7 +40,9 @@ compatibility_flags = ["nodejs_compat"]
 # veille court jusqu'à 05h00 Paris, et MyPuls calcule sa couverture sur le temps écoulé tant
 # qu'il n'est pas fini. Un run avant 05h00 écrit une journée plafonnée à ~65 % et la marque
 # `ok`. 04h30 UTC = 05h30 (hiver) ou 06h30 (été) à Paris : toujours après.
-crons = ["5 23 * * *", "0 0 * * *", "30 4 * * *"]
+# 05h00 UTC : relevé Uncove (Subs + CA par compte actif) — après les shifts. Aligné avec
+# UNCOVE_CRON / MONITOR_UNCOVE_SLUG dans worker.ts.
+crons = ["5 23 * * *", "0 0 * * *", "30 4 * * *", "0 5 * * *"]
 
 # URL publique du worker : sert de base d'URL aux mini-requêtes du fan-out spenders.
 # ⚠️ Les appels passent par le Service Binding SELF ci-dessous, PAS par un fetch() public :
