@@ -5,14 +5,20 @@ import type { Period } from '@/lib/period'
 import { eur, int } from '@/lib/format'
 import type { DailyPoint, Insight, Kpi, ModelCa, ModelSubs, OverviewData } from '../types'
 
-/** Forme brute renvoyée par le RPC `overview_report` (migration 0052) — agrégée EN BASE. */
+/** Forme brute renvoyée par le RPC `overview_report` (0052, étendu par 0164) — agrégée EN BASE. */
 interface OverviewReport {
-  /** Par modèle sur la période (CA + nouveaux abonnés). */
+  /** Par modèle sur la période (CA + nouveaux abonnés). MyPuls + Uncove RATTACHÉ (0164). */
   by_model: Array<{ creator_id: string; ca: number | null; new_subs: number | null }>
-  /** CA total par jour sur le(s) mois du graphe. */
+  /** CA total par jour sur le(s) mois du graphe. MyPuls + Uncove (0164). */
   daily: Array<{ date: string; ca: number | null }>
-  /** CA par chatteur sur la période (source selon le rôle). */
+  /** CA par chatteur sur la période (source selon le rôle). Jamais Uncove : aucun chatteur derrière. */
   by_chatter: Array<{ chatter_id: string; ca: number | null }>
+  /**
+   * Totaux de la période par SOURCE (0164). `uncove` vaut `null` — et non 0 — quand il n'y a
+   * rien à compter (non-admin, ou aucun compte marqué « CA hors MyPuls ») : c'est ce qui décide
+   * de l'AFFICHAGE des cartes « CA MyPuls » / « CA Uncove ». Un compte relevé sans CA rend 0.
+   */
+  totals: { mypuls: number | null; uncove: number | null }
 }
 
 /**
@@ -111,7 +117,12 @@ export async function getOverview(
   if (rpcRes.error) throw new Error(rpcRes.error.message)
   // Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
   // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
-  const rep = (rpcRes.data as OverviewReport | null) ?? { by_model: [], daily: [], by_chatter: [] }
+  const rep = (rpcRes.data as OverviewReport | null) ?? {
+    by_model: [],
+    daily: [],
+    by_chatter: [],
+    totals: { mypuls: null, uncove: null },
+  }
 
   if (globalRes?.error) throw new Error(globalRes.error.message)
   // Retour `Returns: Json` → même cast documenté que `rep` ci-dessus. `total`/`daily` valent
@@ -125,7 +136,14 @@ export async function getOverview(
   // lui, lit `kpiCa` — deux variables distinctes, pour qu'accorder `overview:ca` ne redéfinisse
   // pas en douce ce que « part » veut dire.
   const totalCa = rep.by_model.reduce((s, r) => s + (Number(r.ca) || 0), 0)
-  const kpiCa = glob?.total != null ? Number(glob.total) : totalCa
+  // CA par source (0164). `caUncove` non nul = il y a un CA Uncove à montrer → 2 cartes de plus.
+  // Le KPI « CA total » les additionne ; `totalCa` (dénominateur des parts) reste le CA VENTILÉ,
+  // donc l'Uncove non rattaché manque au classement sans fausser les pourcentages.
+  // Repli sur le CA ventilé si `totals` manque : la RPC d'avant 0164 ne le rend pas, et le code
+  // peut se déployer avant la migration — sans ce repli le KPI « CA total » afficherait 0 €.
+  const caMypuls = rep.totals?.mypuls == null ? totalCa : Number(rep.totals.mypuls)
+  const caUncove = rep.totals?.uncove == null ? null : Number(rep.totals.uncove)
+  const kpiCa = glob?.total != null ? Number(glob.total) : caMypuls + (caUncove ?? 0)
 
   // Agrégat par modèle (déjà sommé par le RPC, regroupé par nom).
   const byModel = new Map<string, { ca: number; subs: number; isPrivate: boolean }>()
@@ -202,7 +220,32 @@ export async function getOverview(
 
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
-    { key: 'ca', label: 'CA total', value: eur(kpiCa), deltaPct: null, trendLabel: caGlobal ? 'Total agence' : restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
+    {
+      key: 'ca',
+      label: 'CA total',
+      value: eur(kpiCa),
+      deltaPct: null,
+      trendLabel: caGlobal ? 'Total agence' : restricted ? 'Total (tes modèles)' : 'Total',
+      hint: period.label,
+      ...(caUncove == null ? {} : { info: 'CA MyPuls + CA Uncove. Uncove n’est pas relevé par MyPuls : les deux sources s’additionnent, aucun jour n’est compté deux fois.' }),
+    },
+    // Les deux sources détaillées, demandées par Benoit le 2026-09-22 (« le CA global, et le CA
+    // MyPuls, et le CA Uncove »). Réservées à l'admin par la RPC : un encadrant garde un CA
+    // 100 % MyPuls, et ces cartes-là n'auraient rien à lui dire.
+    ...(caUncove == null
+      ? []
+      : [
+          { key: 'caMypuls', label: 'CA MyPuls', value: eur(caMypuls), deltaPct: null, trendLabel: 'Relevé MyPuls', hint: period.label } satisfies Kpi,
+          {
+            key: 'caUncove',
+            label: 'CA Uncove',
+            value: eur(caUncove),
+            deltaPct: null,
+            trendLabel: 'Relevé Uncove',
+            hint: period.label,
+            info: 'Comptes Uncove marqués « CA hors MyPuls » dans Uncove › Modèles. Un compte sans modèle rattachée compte ici et dans le CA total, mais sur aucune ligne du classement par modèle.',
+          } satisfies Kpi,
+        ]),
     // KPIs CHATTEURS retirés dès qu'un bout `overview:*` est accordé (décision Benoit
     // 2026-09-02, « si je coche ces 2 droits ils n'ont rien à faire là ») : ces bouts donnent le
     // CA de l'agence, et ces deux cartes-là comptent sur les modèles assignés. Les laisser, c'est

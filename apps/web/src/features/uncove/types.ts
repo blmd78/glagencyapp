@@ -1,6 +1,6 @@
-// Types de la feature Uncove (analytics par compte). Les tables uncove_* (migration 0163) ne
-// sont pas encore dans les types Supabase générés → services/actions accèdent en `as never`
-// (précédent ingest_session) ; ces types-ci décrivent la forme APPLICATIVE consommée par l'UI.
+// Types de la feature Uncove (analytics par compte). Les tables uncove_* sont typées depuis la
+// régénération de packages/db/src/types.ts (0163 + 0164) ; ces types-ci décrivent la forme
+// APPLICATIVE consommée par l'UI.
 
 export type UncoveStatus = 'ok' | 'reconnect'
 
@@ -11,6 +11,17 @@ export interface UncoveAccountRow {
   uncoveUserId: string
   status: UncoveStatus
   lastSyncedAt: string | null
+  /** Modèle CRM rattachée — null = le CA compte au total agence, sans ligne au classement (0164). */
+  creatorId: string | null
+  creatorName: string | null
+  /** « CA hors MyPuls » : ce CA s'ajoute au CA de l'agence dans l'Overview (0164). */
+  countsInCa: boolean
+}
+
+/** Option du sélecteur « Modèle CRM ». */
+export interface CreatorOption {
+  id: string
+  name: string
 }
 
 /** Agrégat d'un compte sur la période (dashboard). */

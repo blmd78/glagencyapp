@@ -242,6 +242,22 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   `getCreatorScope` en tête de `saveSnapCode`, écriture service-role — la RLS `snap_codes_admin_all`
   de 0047 reste admin-only et son commentaire SQL est périmé).
 
+- **Uncove** (`/chatter/uncove`, `uncove_*` de `0163`/`0164`) : 2ᵉ plateforme de CA, **que MyPuls
+  ne relève PAS**. Relevé quotidien Subs + CA par compte (cron 05h00 UTC, fenêtre 35 j) via l'API
+  REST Uncove rejouée avec un `user_token` collé à la main (le login est sous Turnstile, non
+  rejouable côté serveur) et chiffré en table admin-only ; rattrapage
+  `pnpm --filter @glagency/ingestion uncove <jours>` — l'API rend ~400 jours en UNE requête, sans
+  pagination. **Le CA entre dans l'Overview, pour l'ADMIN seul** (`0164`, demande Benoit
+  2026-09-22) : 3 cartes `CA total` / `CA MyPuls` / `CA Uncove`, alimentées par le nouveau
+  `totals {mypuls, uncove}` de `overview_report` — `uncove = null` veut dire « rien à montrer »
+  (non-admin, aucun compte comptabilisé) et `0` veut dire « relevé, mais sans CA » : c'est cette
+  distinction qui décide de l'affichage des deux cartes de détail. Deux réglages par compte dans
+  Uncove › Modèles : **`creator_id`** (rattachement **MANUEL** — jamais par nom, « Carla » existe
+  en 3 exemplaires côté `creators` ; **null est légitime**, le CA compte alors au global sans
+  ligne au classement par modèle) et **`counts_in_ca`** (« CA hors MyPuls », l'interrupteur
+  anti-double-comptage pour le jour où MyPuls relèvera Uncove). La Compta et les commissions
+  restent **100 % MyPuls** : ce CA n'est le travail d'aucun chatteur.
+
 ## Données MyPuls — workflow d'ajout
 
 Benoit donne les URLs MyPuls **dans le chat** (pas de fichier d'inventaire). Pour chaque page :
@@ -265,6 +281,15 @@ Ajouter une migration :
    prévisualiser — doit dire « Remote database is up to date » quand tout est à jour). Le
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
+
+**État au 2026-09-22** : UAT = **0164**, prod = **0163** (`0164` s'applique au moment du
+déploiement de la release, cf. son en-tête). **Prochaine migration = `0165`**.
+
+**Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
+route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le
+**pooler en mode session** (IPv4, port 5432, région `eu-west-3`) :
+`postgresql://postgres.<ref>:<mot-de-passe>@aws-0-eu-west-3.pooler.supabase.com:5432/postgres`
+— le mot de passe s'extrait de `DATABASE_URL`. Même URL pour `supabase gen types typescript`.
 
 **Piège à l'origine du nettoyage `36ae438`** : appliquer une migration à la main
 (`psql "$DATABASE_URL" -f …`) SANS l'enregistrer dans `schema_migrations` désaligne

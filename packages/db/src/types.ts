@@ -5218,6 +5218,124 @@ export type Database = {
           },
         ]
       }
+      uncove_account_tokens: {
+        Row: {
+          account_id: string
+          token_encrypted: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          token_encrypted: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          token_encrypted?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uncove_account_tokens_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: true
+            referencedRelation: "uncove_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uncove_accounts: {
+        Row: {
+          counts_in_ca: boolean
+          created_at: string
+          created_by: string | null
+          creator_id: string | null
+          currency: string
+          id: string
+          label: string
+          last_synced_at: string | null
+          status: string
+          uncove_user_id: string
+        }
+        Insert: {
+          counts_in_ca?: boolean
+          created_at?: string
+          created_by?: string | null
+          creator_id?: string | null
+          currency?: string
+          id?: string
+          label?: string
+          last_synced_at?: string | null
+          status?: string
+          uncove_user_id: string
+        }
+        Update: {
+          counts_in_ca?: boolean
+          created_at?: string
+          created_by?: string | null
+          creator_id?: string | null
+          currency?: string
+          id?: string
+          label?: string
+          last_synced_at?: string | null
+          status?: string
+          uncove_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uncove_accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uncove_accounts_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uncove_daily: {
+        Row: {
+          account_id: string
+          day: string
+          revenue: number
+          subs_canceled: number
+          subs_current: number
+          subs_new: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          day: string
+          revenue?: number
+          subs_canceled?: number
+          subs_current?: number
+          subs_new?: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          day?: string
+          revenue?: number
+          subs_canceled?: number
+          subs_current?: number
+          subs_new?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uncove_daily_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "uncove_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

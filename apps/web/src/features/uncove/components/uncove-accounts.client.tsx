@@ -21,13 +21,31 @@ import {
 } from '@/components/ui/dialog'
 import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
+import { HeaderInfo } from '@/components/data-table/header-info'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { STATUS_COLORS } from '@/lib/status-color'
 import { addUncoveAccountSchema, type AddUncoveAccountInput } from '../uncove.schema'
-import { addUncoveAccount, removeUncoveAccount, reconnectUncoveAccount } from '../actions'
-import type { UncoveAccountRow } from '../types'
+import { addUncoveAccount, removeUncoveAccount, reconnectUncoveAccount, setUncoveAccountLink } from '../actions'
+import type { CreatorOption, UncoveAccountRow } from '../types'
 
-export function UncoveAccounts({ accounts }: { accounts: UncoveAccountRow[] }) {
+// Radix Select refuse la chaîne vide comme valeur d'item → sentinelle pour « pas de modèle ».
+const NO_CREATOR = 'none'
+
+export function UncoveAccounts({
+  accounts,
+  creators,
+}: {
+  accounts: UncoveAccountRow[]
+  creators: CreatorOption[]
+}) {
   'use no memo'
   const [pending, start] = useTransition()
   const [reconnecting, setReconnecting] = useState<UncoveAccountRow | null>(null)
@@ -54,6 +72,19 @@ export function UncoveAccounts({ accounts }: { accounts: UncoveAccountRow[] }) {
       toast.success('Modèle supprimé.')
     })
 
+  // Rattachement + « CA hors MyPuls » : un seul geste côté serveur, la valeur non touchée est
+  // renvoyée telle quelle (l'action écrit les deux colonnes).
+  const saveLink = (a: UncoveAccountRow, patch: { creatorId?: string | null; countsInCa?: boolean }) =>
+    start(async () => {
+      const res = await setUncoveAccountLink({
+        id: a.id,
+        creatorId: patch.creatorId === undefined ? a.creatorId : patch.creatorId,
+        countsInCa: patch.countsInCa === undefined ? a.countsInCa : patch.countsInCa,
+      })
+      if (!res.success) return void toast.error(res.error)
+      toast.success('Enregistré.')
+    })
+
   const confirmReconnect = () =>
     start(async () => {
       if (!reconnecting) return
@@ -69,6 +100,58 @@ export function UncoveAccounts({ accounts }: { accounts: UncoveAccountRow[] }) {
       accessorKey: 'label',
       header: ({ column }) => <Sortable column={column} label="Modèle" />,
       cell: ({ row }) => <span className="font-medium">{row.original.label}</span>,
+    },
+    {
+      id: 'creator',
+      header: () => (
+        <span className="inline-flex items-center gap-1.5">
+          Modèle CRM
+          <HeaderInfo text="Sur quelle modèle imputer ce CA dans l'Overview. Sans rattachement, le CA compte quand même dans le CA total de l'agence — il n'apparaît simplement sur aucune ligne du classement par modèle." />
+        </span>
+      ),
+      cell: ({ row }) => (
+        <Select
+          value={row.original.creatorId ?? NO_CREATOR}
+          onValueChange={(v) => saveLink(row.original, { creatorId: v === NO_CREATOR ? null : v })}
+          disabled={pending}
+        >
+          <SelectTrigger className="h-8 w-52 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_CREATOR} className="text-sm text-muted-foreground">
+              Aucune
+            </SelectItem>
+            {creators.map((c) => (
+              <SelectItem key={c.id} value={c.id} className="text-sm">
+                {c.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ),
+    },
+    {
+      id: 'countsInCa',
+      header: () => (
+        <span className="inline-flex items-center gap-1.5">
+          CA hors MyPuls
+          <HeaderInfo text="Coché : ce CA n'est pas relevé par MyPuls, il s'ajoute au CA de l'agence dans l'Overview (admin). Décoché : le compte reste informatif, visible dans la section Uncove seulement." />
+        </span>
+      ),
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={row.original.countsInCa}
+            onCheckedChange={(v) => saveLink(row.original, { countsInCa: v === true })}
+            disabled={pending}
+            aria-label="Compter ce CA dans le CA de l'agence"
+          />
+          <span className="text-xs text-muted-foreground">
+            {row.original.countsInCa ? 'compté dans le CA' : 'informatif'}
+          </span>
+        </div>
+      ),
     },
     {
       accessorKey: 'uncoveUserId',
