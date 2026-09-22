@@ -1,4 +1,4 @@
-import { eur, num } from '@/lib/format'
+import { eur, num, pct } from '@/lib/format'
 import type { LinkTotalsValues } from '../link-options'
 
 /** Une valeur du bandeau : libellé au-dessus, chiffre en dessous, pastille à la couleur de sa série. */
@@ -27,6 +27,11 @@ export function LinkTotals({ totals }: { totals: LinkTotalsValues }) {
       <Total label="Revenus" value={eur(totals.revenueEur)} color="#8b5cf6" />
       <Total label="Subs" value={num(totals.conversions)} color="#22c55e" />
       <Total label="Clics" value={num(totals.clicks)} color="#0ea5e9" />
+      <Total
+        label="Taux"
+        value={totals.taux === null ? '—' : pct(totals.taux)}
+        color="var(--muted-foreground)"
+      />
       <Total
         label="Par abonné"
         value={totals.ltv === null ? '—' : eur(totals.ltv)}

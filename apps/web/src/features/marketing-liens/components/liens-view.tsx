@@ -30,6 +30,8 @@ import { conv, eur, num, pct } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from '../actions'
+import { filterByModele, type LinkOption, type Modele } from '../link-options'
+import { ModelePicker } from './modele-picker'
 import { typeBadge } from '@/lib/type-badge'
 import { CRITERES, groupBySource, valeur, type Critere, type SourceGroup } from '../rank'
 import type { MktLinkRow } from '@/lib/types/marketing'
@@ -243,14 +245,26 @@ function SourceSection({
  * page dont la question est « quels liens marchent », trois lectures explicites valent mieux
  * que neuf colonnes triables dont personne ne sait laquelle regarder.
  */
-export function LiensView({ data }: { data: MktLinksData }) {
+export function LiensView({
+  data,
+  modele,
+  modeleOptions,
+}: {
+  data: MktLinksData
+  modele: Modele
+  modeleOptions: LinkOption[]
+}) {
   const [critere, setCritere] = useState<Critere>('subs')
   const [q, setQ] = useState('')
 
+  // Le filtre MODÈLE passe avant la recherche par nom, et TOUT ce qui suit se dérive de
+  // `links` — totaux, KPIs, camembert, jauges LTV. C'est ce qui évite l'écran faux « le
+  // tableau de Carla au-dessus des chiffres de l'agence ».
   const links = useMemo(() => {
+    const duModele = filterByModele(data.links, modele)
     const t = q.trim().toLowerCase()
-    return t ? data.links.filter((l) => l.name.toLowerCase().includes(t)) : data.links
-  }, [data.links, q])
+    return t ? duModele.filter((l) => l.name.toLowerCase().includes(t)) : duModele
+  }, [data.links, modele, q])
 
   const groups = useMemo(() => groupBySource(links, critere), [links, critere])
 
@@ -342,12 +356,15 @@ export function LiensView({ data }: { data: MktLinksData }) {
             </span>
           )}
         </span>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Filtrer par nom…"
-          className="ml-auto h-9 w-56"
-        />
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <ModelePicker options={modeleOptions} modele={modele} className="h-9 w-full sm:w-52" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filtrer par nom…"
+            className="h-9 w-56"
+          />
+        </div>
       </div>
 
       {/* Camembert de répartition (demande Benoit 2026-09-10). Quatre parts est la limite haute
