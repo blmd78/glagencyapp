@@ -4,7 +4,13 @@ import { getLinkDaily } from '@/features/marketing-liens/services/get-link-daily
 import { MktLiensTemplate } from '@/features/marketing-liens/LiensTemplate'
 import { MktLiensSkeleton } from '@/features/marketing-liens/components/liens-skeleton'
 import { LinkDailyDialog } from '@/features/marketing-liens/components/link-daily-dialog'
-import { ALL, parseReseau, resolveGraphSelection } from '@/features/marketing-liens/link-options'
+import {
+  ALL,
+  modeleOptions,
+  parseModele,
+  parseReseau,
+  resolveGraphSelection,
+} from '@/features/marketing-liens/link-options'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 import { SectionFallback } from '@/components/skeletons/route-loading'
@@ -16,13 +22,22 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 export default async function MktLiensPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string; lien?: string; vue?: string; reseau?: string }>
+  searchParams: Promise<{
+    from?: string
+    to?: string
+    lien?: string
+    vue?: string
+    reseau?: string
+    modele?: string
+  }>
 }) {
   await requireAccess('mkt-liens')
   const sp = await searchParams
   const period = resolvePeriod(sp)
   const vue: MktLiensVue = sp.vue === 'graph' ? 'graph' : 'classement'
   const reseau = parseReseau(sp.reseau)
+  // `?modele=` se valide contre les liens CHARGÉS (une modèle sans lien n'est pas proposable),
+  // donc plus bas, une fois la lecture résolue — la page ne fait ici que transmettre le brut.
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, KPIs + table streament
   // dans leur boundary quand la lecture répond.
   const data = getMktLinks(period)
@@ -38,7 +53,14 @@ export default async function MktLiensPage({
           </SectionFallback>
         }
       >
-        <MktLiensContent data={data} vue={vue} linkId={linkId} reseau={reseau} period={period} />
+        <MktLiensContent
+        data={data}
+        vue={vue}
+        linkId={linkId}
+        reseau={reseau}
+        modeleRaw={sp.modele}
+        period={period}
+      />
       </Suspense>
       {/* La MODALE, réservée à l'onglet Classement : en mode Graphique, `?lien=` désigne déjà la
           courbe affichée en pleine page — l'ouvrir par-dessus la doublerait. Sa propre frontière,
@@ -57,27 +79,39 @@ async function MktLiensContent({
   vue,
   linkId,
   reseau,
+  modeleRaw,
   period,
 }: {
   data: Promise<MktLinksData>
   vue: MktLiensVue
   linkId: string | null
   reseau: ReturnType<typeof parseReseau>
+  modeleRaw: string | undefined
   period: ReturnType<typeof resolvePeriod>
 }) {
   const d = await data
+  const modele = parseModele(modeleRaw, d.links)
+  const modeles = modeleOptions(d.links)
   let detail: Parameters<typeof MktLiensTemplate>[0]['detail'] = null
   if (vue === 'graph') {
-    // La sélection est tranchée par UNE règle pure, partagée avec le sélecteur : le réseau borne
-    // les liens proposés, et un lien hors de ce réseau retombe sur « tous ».
-    const sel = resolveGraphSelection(d.links, reseau, linkId ?? ALL)
+    // La sélection est tranchée par UNE règle pure, partagée avec les sélecteurs : réseau puis
+    // modèle bornent les liens proposés, et un lien hors de cette sélection retombe sur « tous ».
+    const sel = resolveGraphSelection(d.links, reseau, modele, linkId ?? ALL)
     // Le classement doit être connu pour résoudre la sélection : les deux lectures s'enchaînent
     // donc ici au lieu de partir ensemble. `null` quand TOUT est retenu — on ne filtre alors pas
     // la requête plutôt que d'y écrire 183 uuid.
     const ids = sel.selected.length === d.links.length ? null : sel.selected.map((l) => l.id)
     detail = { ...sel, points: await getLinkDaily(ids, period) }
   }
-  return <MktLiensTemplate data={d} vue={vue} detail={detail} />
+  return (
+    <MktLiensTemplate
+      data={d}
+      vue={vue}
+      modele={modele}
+      modeleOptions={modeles}
+      detail={detail}
+    />
+  )
 }
 
 /**

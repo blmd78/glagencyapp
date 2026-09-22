@@ -2,7 +2,7 @@ import { UrlTabs } from '@/components/url-tabs'
 import { LiensView } from './components/liens-view'
 import { LinkGraphView } from './components/link-graph-view'
 import type { DailyPoint } from './daily-series'
-import type { LinkOption, Reseau } from './link-options'
+import type { LinkOption, Modele, Reseau } from './link-options'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktLinksData, MktLiensVue } from './types'
 
@@ -16,16 +16,23 @@ import type { MktLinksData, MktLiensVue } from './types'
 export function MktLiensTemplate({
   data,
   vue,
+  modele,
+  modeleOptions,
   detail,
 }: {
   data: MktLinksData
   vue: MktLiensVue
+  /** Le filtre Modèle (`?modele=`) : commun aux deux onglets, pour qu'en basculant de l'un à
+   *  l'autre on retrouve la même sélection. */
+  modele: Modele
+  modeleOptions: LinkOption[]
   /** Chargé par la page uniquement en mode Graphique — `null` sur l'onglet Classement. */
   detail: {
     selected: MktLinkRow[]
     points: DailyPoint[]
     options: LinkOption[]
     reseau: Reseau
+    modele: Modele
     lien: string
   } | null
 }) {
@@ -45,7 +52,7 @@ export function MktLiensTemplate({
             // Le conteneur qu'ils attendent les suit donc ici.
             content: (
               <div className="flex flex-col gap-6">
-                <LiensView data={data} />
+                <LiensView data={data} modele={modele} modeleOptions={modeleOptions} />
               </div>
             ),
           },
@@ -54,7 +61,7 @@ export function MktLiensTemplate({
             label: 'Graphique',
             // Rendu SEULEMENT quand l'onglet est actif : sans `detail`, la page n'a pas lu de
             // série, et un graphe vide serait un mensonge plutôt qu'un chargement.
-            content: detail ? <LinkGraphView {...detail} /> : null,
+            content: detail ? <LinkGraphView {...detail} modeleOptions={modeleOptions} /> : null,
           },
         ]}
       />

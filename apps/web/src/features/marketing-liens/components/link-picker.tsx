@@ -3,10 +3,11 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { Combobox } from '@/components/ui/combobox'
-import { ALL, RESEAU_OPTIONS, type LinkOption, type Reseau } from '../link-options'
+import { ALL, RESEAU_OPTIONS, type LinkOption, type Modele, type Reseau } from '../link-options'
+import { ModelePicker } from './modele-picker'
 
 /**
- * Les deux champs du mode Graphique : le RÉSEAU, puis le LIEN qu'il laisse passer.
+ * Les trois champs du mode Graphique : le RÉSEAU, la MODÈLE, puis le LIEN qu'ils laissent passer.
  *
  * Ils NAVIGUENT (`?reseau=`, `?lien=`) au lieu de tenir un état local : la série est lue par le
  * serveur, et la vue reste partageable. Même patron que `TodoAccountSelect`. `replace` et non
@@ -18,11 +19,15 @@ import { ALL, RESEAU_OPTIONS, type LinkOption, type Reseau } from '../link-optio
  */
 export function LinkPicker({
   options,
+  modeleOptions,
   reseau,
+  modele,
   lien,
 }: {
   options: LinkOption[]
+  modeleOptions: LinkOption[]
   reseau: Reseau
+  modele: Modele
   lien: string
 }) {
   const router = useRouter()
@@ -50,6 +55,7 @@ export function LinkPicker({
         emptyText="Aucun réseau."
         className="w-full sm:w-56"
       />
+      <ModelePicker options={modeleOptions} modele={modele} />
       <Combobox
         options={options}
         value={lien}
