@@ -21,8 +21,9 @@ packages/db/supabase/.temp/
 # test / coverage
 coverage/
 
-# claude code (local uniquement — ne pas push)
-.claude/
+# Claude — tout ignoré sauf les skills (source de vérité archi, partagée avec Codex via .agents/skills)
+.claude/*
+!.claude/skills/
 
 # misc
 .DS_Store
