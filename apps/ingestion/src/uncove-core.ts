@@ -4,10 +4,6 @@ import { fetchSubsVolumes, fetchTxVolumes, mergeDaily } from '@glagency/uncove'
 
 type Db = ReturnType<typeof createAdminClient>
 
-// Les tables uncove_* (migration 0163) ne sont pas encore dans les types générés (0163 non
-// appliquée) : accès via cast `as never`, comme ingest_session (cf. session.ts). À retirer
-// après application + régénération de packages/db/src/types.ts.
-
 export interface UncoveAccount {
   id: string
   label: string
@@ -25,24 +21,19 @@ export interface AccountRunResult {
 /** Comptes actifs (status='ok') + token déchiffré. Ignore ceux dont le token est illisible. */
 export async function loadActiveAccounts(db: Db): Promise<UncoveAccount[]> {
   const { data: accs, error } = await db
-    .from('uncove_accounts' as never)
+    .from('uncove_accounts')
     .select('id, label, uncove_user_id, currency')
     .eq('status', 'ok')
   if (error) throw new Error(`uncove_accounts lecture : ${error.message}`)
-  const rows = (accs ?? []) as unknown as Array<{ id: string; label: string; uncove_user_id: string; currency: string }>
+  const rows = accs ?? []
   if (rows.length === 0) return []
 
   const { data: toks, error: e2 } = await db
-    .from('uncove_account_tokens' as never)
+    .from('uncove_account_tokens')
     .select('account_id, token_encrypted')
     .in('account_id', rows.map((a) => a.id))
   if (e2) throw new Error(`uncove_account_tokens lecture : ${e2.message}`)
-  const encByAccount = new Map(
-    ((toks ?? []) as unknown as Array<{ account_id: string; token_encrypted: string }>).map((t) => [
-      t.account_id,
-      t.token_encrypted,
-    ]),
-  )
+  const encByAccount = new Map((toks ?? []).map((t) => [t.account_id, t.token_encrypted]))
 
   const out: UncoveAccount[] = []
   for (const a of rows) {
@@ -81,16 +72,16 @@ export async function ingestAccount(
     }))
     if (rows.length) {
       const { error } = await db
-        .from('uncove_daily' as never)
-        .upsert(rows as never, { onConflict: 'account_id,day' })
+        .from('uncove_daily')
+        .upsert(rows, { onConflict: 'account_id,day' })
       if (error) throw new Error(`uncove_daily upsert : ${error.message}`)
     }
-    await db.from('uncove_accounts' as never).update({ last_synced_at: now } as never).eq('id', acc.id)
+    await db.from('uncove_accounts').update({ last_synced_at: now }).eq('id', acc.id)
     return { label: acc.label, days: rows.length, reconnect: false }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('401') || msg.includes('403')) {
-      await db.from('uncove_accounts' as never).update({ status: 'reconnect' } as never).eq('id', acc.id)
+      await db.from('uncove_accounts').update({ status: 'reconnect' }).eq('id', acc.id)
       console.error(`[uncove] « ${acc.label} » : jeton rejeté (${msg}) → statut « reconnect »`)
       return { label: acc.label, days: 0, reconnect: true }
     }
