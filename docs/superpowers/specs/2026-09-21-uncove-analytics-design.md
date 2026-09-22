@@ -77,3 +77,67 @@ run suivant. Journalisation via le mécanisme de run existant. `401` → bascule
 - Unité des montants (€ vs centimes) — confirmer sur un compte actif.
 - Ventilation CA par type — confirmer si `transactions/own` la porte.
 - Fréquence cron + taille de fenêtre glissante — à caler (défaut : quotidien / 35 j).
+
+---
+
+## Avenant 2026-09-22 — le CA Uncove entre dans l'Overview (`0164`)
+
+**Constat qui déclenche l'avenant** : MyPuls ne relève pas Uncove (confirmé par Benoit). Le CA
+Uncove manquait donc purement et simplement au CA de l'agence — 1 689 € sur septembre 2026,
+79 359 € sur 13 mois pour le seul compte Carla.
+
+**Deux colonnes sur `uncove_accounts`** :
+- `creator_id` (nullable) — la modèle CRM, rattachée **à la main** dans Uncove › Modèles. Aucun
+  rattachement automatique par nom : « Carla » existe en 3 exemplaires côté `creators`.
+  **Null est légitime** : le CA compte alors dans le total de l'agence *sans* ligne au classement
+  par modèle (décision Benoit : « si pas rattaché on les assigne pas, juste les chiffres
+  remontent dans le CA global »). Écart assumé : somme des lignes du classement ≤ CA total.
+- `counts_in_ca` (« CA hors MyPuls », défaut `true`) — l'interrupteur anti double comptage, pour
+  le jour où MyPuls relèvera Uncove. Décoché = compte informatif, section Uncove seulement.
+
+**`overview_report` (0052 → 0164)**, mêmes arguments, toujours `security invoker` :
+`by_model` += Uncove **rattaché**, `daily` += Uncove (tout), et un nouveau `totals {mypuls,
+uncove}` qui alimente les **3 cartes CA** de l'Overview (`CA total` / `CA MyPuls` / `CA Uncove`).
+`totals.uncove` vaut `null` — et non `0` — quand il n'y a rien à compter : c'est ce qui décide de
+l'affichage des deux cartes de détail. Un compte relevé sans CA rend bien `0`.
+
+**Périmètre : admin seulement** (`not p_restricted`). Un encadrant garde un CA 100 % MyPuls. La
+RLS `uncove_daily_read` (0163) reste le vrai garde-fou ; le paramètre n'est qu'un aiguillage.
+
+**Hors périmètre, volontairement** : la Compta et le CA par chatteur (commissions) restent
+100 % MyPuls — ce CA n'est le travail d'aucun chatteur ; et le classement « nouveaux abonnés »
+reste MyPuls (la branche Uncove rend `new_subs = 0`).
+
+**Déploiement** : appliquer `0164` en prod **au moment** du déploiement du code, pas avant — la
+RPC seule gonflerait le KPI « CA total » sans afficher les cartes qui l'expliquent. L'inverse
+(code avant migration) est couvert : `get-overview.ts` retombe sur le CA ventilé si `totals`
+manque.
+
+**Points ouverts fermés au passage** : montants en **euros** (unité confirmée, pas de centimes) ;
+l'API rend **386 jours en une requête** (backfill 400 j fait le 2026-09-22, du 18/08/2025 au
+21/09/2026) ; `currency=usd` existe mais reste ignoré (420,80 USD chez Carla en sept. 2025) —
+cohérent avec la décision « tout en euros » du 2026-09-21.
+
+### Borne du 2026-09-22 (`0165`)
+
+`uncove_daily` remonte au **18/08/2025**, `creator_daily` seulement au **01/06/2026**. Sans
+borne, une période antérieure à juin affichait un « CA total » **100 % Uncove** — 94 563 € sur
+9 mois — qui se lit comme le CA de l'agence alors qu'il ne décrit qu'une plateforme. La branche
+Uncove des trois agrégats (`by_model`, `daily`, `totals`) est donc bornée à
+`>= (select min(date) from creator_daily)`. Borne **dynamique** : le jour où l'historique MyPuls
+sera repris plus loin, le CA Uncove correspondant s'ouvre tout seul. Vérifié sur UAT —
+octobre 2025 → `{mypuls: null, uncove: null}` (aucune carte de détail, Overview comme avant
+Uncove) ; septembre 2026 → `{mypuls: 115 049,75, uncove: 0}`.
+
+Impact mesuré en prod une fois la borne posée : juin +1,8 %, juillet +1,8 %, août +0,7 %,
+septembre +0,7 % du CA MyPuls.
+
+### Périmètre du rattachement — décision Benoit 2026-09-22
+
+Le rattachement d'un compte Uncove à une modèle **ne sert qu'aux CHIFFRES DE L'AGENCE, jamais à
+un chatteur** : pas de liaison chatteur → compte Uncove dans Membres, et rien à en déduire. La
+raison n'est pas un manque de temps mais un manque de donnée — l'API Uncove rend un total par
+jour et par compte (`transactions/volumes`), **jamais par opérateur**. Tout CA Uncove imputé à un
+chatteur serait donc une convention et non une mesure ; s'il remontait un jour dans les
+commissions, on paierait sur une hypothèse. « Pour le moment » : à rouvrir seulement si Uncove
+expose une ventilation par conversation ou par opérateur.

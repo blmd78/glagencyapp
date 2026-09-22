@@ -7,16 +7,15 @@ import type { UncoveDashboardData, UncoveAccountStat, UncoveStatus } from '../ty
 /**
  * Dashboard Uncove : agrégat Subs + CA par compte sur la PÉRIODE choisie au header
  * (`?from=&to=` → resolvePeriod). Lecture via le client serveur (RLS `has_page('uncove')` /
- * admin). Volume borné (comptes × jours de la période ≪ 1000) → pas de fetchAll. Tables 0163
- * pas encore typées → `as never` + cast.
+ * admin). Volume borné (comptes × jours de la période ≪ 1000) → pas de fetchAll.
  */
 export async function getUncoveDashboard(period: Period): Promise<UncoveDashboardData> {
   const supabase = await createClient()
 
   const [accRes, dailyRes] = await Promise.all([
-    supabase.from('uncove_accounts' as never).select('id, label, status').order('label'),
+    supabase.from('uncove_accounts').select('id, label, status').order('label'),
     supabase
-      .from('uncove_daily' as never)
+      .from('uncove_daily')
       .select('account_id, day, subs_new, subs_canceled, subs_current, revenue')
       .gte('day', period.from)
       .lte('day', period.to)
@@ -25,15 +24,8 @@ export async function getUncoveDashboard(period: Period): Promise<UncoveDashboar
   if (accRes.error) throw new Error(accRes.error.message)
   if (dailyRes.error) throw new Error(dailyRes.error.message)
 
-  const accounts = (accRes.data ?? []) as unknown as Array<{ id: string; label: string; status: UncoveStatus }>
-  const daily = (dailyRes.data ?? []) as unknown as Array<{
-    account_id: string
-    day: string
-    subs_new: number
-    subs_canceled: number
-    subs_current: number
-    revenue: number
-  }>
+  const accounts = accRes.data ?? []
+  const daily = dailyRes.data ?? []
 
   const stats: UncoveAccountStat[] = accounts.map((a) => {
     const rows = daily.filter((d) => d.account_id === a.id)
@@ -41,7 +33,7 @@ export async function getUncoveDashboard(period: Period): Promise<UncoveDashboar
     return {
       id: a.id,
       label: a.label,
-      status: a.status,
+      status: a.status as UncoveStatus,
       currentSubs: last?.subs_current ?? 0,
       newSubs: rows.reduce((s, r) => s + r.subs_new, 0),
       canceledSubs: rows.reduce((s, r) => s + r.subs_canceled, 0),

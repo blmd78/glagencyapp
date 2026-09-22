@@ -75,10 +75,26 @@ const DEFAULT_ACCENTS = [
   'border-t-amber-500',
 ]
 
-/** Grille responsive de cartes KPI — wrapper partagé (overview, health…). */
-export function KpiGrid({ kpis, accents = DEFAULT_ACCENTS }: { kpis: Kpi[]; accents?: string[] }) {
+// Largeurs autorisées. Classes ÉCRITES EN DUR : Tailwind ne compile pas un nom de classe
+// construit à l'exécution (`lg:grid-cols-${n}` ne produirait aucun style).
+const GRID_COLS = { 4: 'lg:grid-cols-4', 5: 'lg:grid-cols-5' } as const
+
+/**
+ * Grille responsive de cartes KPI — wrapper partagé (overview, health…).
+ * `columns` reste à 4 pour tous les écrans historiques ; l'Overview demande 5 depuis le
+ * 2026-09-22 (ses trois cartes de CA + les deux cartes chatteurs tiennent sur une ligne).
+ */
+export function KpiGrid({
+  kpis,
+  accents = DEFAULT_ACCENTS,
+  columns = 4,
+}: {
+  kpis: Kpi[]
+  accents?: string[]
+  columns?: 4 | 5
+}) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className={cn('grid grid-cols-1 gap-4 sm:grid-cols-2', GRID_COLS[columns])}>
       {kpis.map((kpi, i) => (
         <KpiCard key={kpi.key} kpi={kpi} accent={accents[i % accents.length]} />
       ))}

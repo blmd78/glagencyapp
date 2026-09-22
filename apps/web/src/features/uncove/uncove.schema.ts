@@ -6,3 +6,12 @@ export const addUncoveAccountSchema = z.object({
   token: z.string().trim().min(20, 'Jeton trop court (colle le user_token complet)'),
 })
 export type AddUncoveAccountInput = z.infer<typeof addUncoveAccountSchema>
+
+// Rattachement d'un compte à une modèle CRM + « CA hors MyPuls » (0164). `creatorId` nullable :
+// un compte non rattaché compte quand même dans le CA global (décision Benoit 2026-09-22).
+export const setUncoveLinkSchema = z.object({
+  id: z.uuid(),
+  creatorId: z.uuid().nullable(),
+  countsInCa: z.boolean(),
+})
+export type SetUncoveLinkInput = z.infer<typeof setUncoveLinkSchema>

@@ -5,14 +5,20 @@ import type { Period } from '@/lib/period'
 import { eur, int } from '@/lib/format'
 import type { DailyPoint, Insight, Kpi, ModelCa, ModelSubs, OverviewData } from '../types'
 
-/** Forme brute renvoyée par le RPC `overview_report` (migration 0052) — agrégée EN BASE. */
+/** Forme brute renvoyée par le RPC `overview_report` (0052, étendu par 0164) — agrégée EN BASE. */
 interface OverviewReport {
-  /** Par modèle sur la période (CA + nouveaux abonnés). */
+  /** Par modèle sur la période (CA + nouveaux abonnés). MyPuls + Uncove RATTACHÉ (0164). */
   by_model: Array<{ creator_id: string; ca: number | null; new_subs: number | null }>
-  /** CA total par jour sur le(s) mois du graphe. */
+  /** CA total par jour sur le(s) mois du graphe. MyPuls + Uncove (0164). */
   daily: Array<{ date: string; ca: number | null }>
-  /** CA par chatteur sur la période (source selon le rôle). */
+  /** CA par chatteur sur la période (source selon le rôle). Jamais Uncove : aucun chatteur derrière. */
   by_chatter: Array<{ chatter_id: string; ca: number | null }>
+  /**
+   * Totaux de la période par SOURCE (0164). `uncove` vaut `null` — et non 0 — quand il n'y a
+   * rien à compter (non-admin, ou aucun compte marqué « CA hors MyPuls ») : c'est ce qui décide
+   * de l'AFFICHAGE des cartes « CA MyPuls » / « CA Uncove ». Un compte relevé sans CA rend 0.
+   */
+  totals: { mypuls: number | null; uncove: number | null }
 }
 
 /**
@@ -23,8 +29,7 @@ interface OverviewReport {
  *
  * Mode `restricted` (rôle `user`) : `chatter_daily` est admin-only en RLS (retournerait
  * [] SANS erreur → KPIs à 0 mensongers). Les KPIs chatteurs se calculent alors depuis
- * `chatter_creator_daily` (limité par la RLS à SES modèles) et la carte « Sous 200 € de
- * com » disparaît (la com se définit sur le CA TOTAL d'un chatteur, incalculable ici).
+ * `chatter_creator_daily` (limité par la RLS à SES modèles).
  */
 export async function getOverview(
   period: Period,
@@ -111,7 +116,12 @@ export async function getOverview(
   if (rpcRes.error) throw new Error(rpcRes.error.message)
   // Retour `Returns: Json` → cast documenté vers le contrat local (pas `.overrideTypes`,
   // inapplicable sur l'union Json avec postgrest-js 2.110 — cf. docs/guidelines-data-loading.md §1).
-  const rep = (rpcRes.data as OverviewReport | null) ?? { by_model: [], daily: [], by_chatter: [] }
+  const rep = (rpcRes.data as OverviewReport | null) ?? {
+    by_model: [],
+    daily: [],
+    by_chatter: [],
+    totals: { mypuls: null, uncove: null },
+  }
 
   if (globalRes?.error) throw new Error(globalRes.error.message)
   // Retour `Returns: Json` → même cast documenté que `rep` ci-dessus. `total`/`daily` valent
@@ -125,7 +135,14 @@ export async function getOverview(
   // lui, lit `kpiCa` — deux variables distinctes, pour qu'accorder `overview:ca` ne redéfinisse
   // pas en douce ce que « part » veut dire.
   const totalCa = rep.by_model.reduce((s, r) => s + (Number(r.ca) || 0), 0)
-  const kpiCa = glob?.total != null ? Number(glob.total) : totalCa
+  // CA par source (0164). `caUncove` non nul = il y a un CA Uncove à montrer → 2 cartes de plus.
+  // Le KPI « CA total » les additionne ; `totalCa` (dénominateur des parts) reste le CA VENTILÉ,
+  // donc l'Uncove non rattaché manque au classement sans fausser les pourcentages.
+  // Repli sur le CA ventilé si `totals` manque : la RPC d'avant 0164 ne le rend pas, et le code
+  // peut se déployer avant la migration — sans ce repli le KPI « CA total » afficherait 0 €.
+  const caMypuls = rep.totals?.mypuls == null ? totalCa : Number(rep.totals.mypuls)
+  const caUncove = rep.totals?.uncove == null ? null : Number(rep.totals.uncove)
+  const kpiCa = glob?.total != null ? Number(glob.total) : caMypuls + (caUncove ?? 0)
 
   // Agrégat par modèle (déjà sommé par le RPC, regroupé par nom).
   const byModel = new Map<string, { ca: number; subs: number; isPrivate: boolean }>()
@@ -164,23 +181,20 @@ export async function getOverview(
     })
   }
 
-  // Chatteurs : actifs, CA moyen et commission. Com = 10 % du CA en dur (cf. spec design —
-  // à remplacer par la config de barème quand elle existera).
+  // Chatteurs : actifs et CA moyen. La carte « Sous 200 € de com » a été RETIRÉE le 2026-09-22
+  // (demande Benoit) — le barème de commission n'a jamais été celui de l'app (10 % en dur) et la
+  // place sert aux trois cartes de CA.
   //
   // TOUS les KPIs « personnes » se calculent sur les MEMBRES rôle chatteur (demande Benoit
   // 2026-07-29 : « des vraies données ») : le CA d'un membre se lit via son lien MyPuls
-  // (profiles.chatter_id → by_chatter) ; membre non lié ou sans donnée = 0 € (donc actif non,
-  // et sous les 200 € de com — c'est la vérité). En restricted (chatteur, profiles self-only
-  // sous RLS), on garde l'ancien calcul par comptes MyPuls scopés à ses modèles.
-  const COM_RATE = 0.1
-  const COM_FLOOR = 200
+  // (profiles.chatter_id → by_chatter) ; membre non lié ou sans donnée = 0 € (donc actif non —
+  // c'est la vérité). En restricted (chatteur, profiles self-only sous RLS), on garde l'ancien
+  // calcul par comptes MyPuls scopés à ses modèles.
   const caByChatter = new Map<string, number>()
   for (const r of rep.by_chatter) caByChatter.set(r.chatter_id, Number(r.ca) || 0)
   let active: number
   let avgCa: number
   let totalChatters: number
-  let lowCom: number
-  let lowComDen: number
   if (denomBase instanceof Set) {
     // Restricted : ids MyPuls des liaisons actives ∪ chatteurs avec CA (X ≤ Y garanti).
     const activeCas = [...caByChatter.values()].filter((v) => v > 0)
@@ -188,21 +202,42 @@ export async function getOverview(
     avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
     const withCa = [...caByChatter.entries()].filter(([, v]) => v > 0).map(([id]) => id)
     totalChatters = new Set([...denomBase, ...withCa]).size
-    lowCom = [...caByChatter.values()].filter((v) => v * COM_RATE < COM_FLOOR).length
-    lowComDen = caByChatter.size
   } else {
     const cas = denomBase.map((chatterId) => (chatterId ? (caByChatter.get(chatterId) ?? 0) : 0))
     const actives = cas.filter((v) => v > 0)
     active = actives.length
     avgCa = active ? actives.reduce((s, v) => s + v, 0) / active : 0
     totalChatters = cas.length
-    lowCom = cas.filter((v) => v * COM_RATE < COM_FLOOR).length
-    lowComDen = cas.length
   }
 
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
   const kpis: Kpi[] = [
-    { key: 'ca', label: 'CA total', value: eur(kpiCa), deltaPct: null, trendLabel: caGlobal ? 'Total agence' : restricted ? 'Total (tes modèles)' : 'Total', hint: period.label },
+    {
+      key: 'ca',
+      label: 'CA total',
+      value: eur(kpiCa),
+      deltaPct: null,
+      trendLabel: caGlobal ? 'Total agence' : restricted ? 'Total (tes modèles)' : 'Total',
+      hint: period.label,
+      ...(caUncove == null ? {} : { info: 'CA MyPuls + CA Uncove. Uncove n’est pas relevé par MyPuls : les deux sources s’additionnent, aucun jour n’est compté deux fois.' }),
+    },
+    // Les deux sources détaillées, demandées par Benoit le 2026-09-22 (« le CA global, et le CA
+    // MyPuls, et le CA Uncove »). Réservées à l'admin par la RPC : un encadrant garde un CA
+    // 100 % MyPuls, et ces cartes-là n'auraient rien à lui dire.
+    ...(caUncove == null
+      ? []
+      : [
+          { key: 'caMypuls', label: 'CA MyPuls', value: eur(caMypuls), deltaPct: null, trendLabel: 'Relevé MyPuls', hint: period.label } satisfies Kpi,
+          {
+            key: 'caUncove',
+            label: 'CA Uncove',
+            value: eur(caUncove),
+            deltaPct: null,
+            trendLabel: 'Relevé Uncove',
+            hint: period.label,
+            info: 'Comptes Uncove marqués « CA hors MyPuls » dans Uncove › Modèles. Un compte sans modèle rattachée compte ici et dans le CA total, mais sur aucune ligne du classement par modèle.',
+          } satisfies Kpi,
+        ]),
     // KPIs CHATTEURS retirés dès qu'un bout `overview:*` est accordé (décision Benoit
     // 2026-09-02, « si je coche ces 2 droits ils n'ont rien à faire là ») : ces bouts donnent le
     // CA de l'agence, et ces deux cartes-là comptent sur les modèles assignés. Les laisser, c'est
@@ -213,10 +248,6 @@ export async function getOverview(
           { key: 'active', label: 'Chatters actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: restricted ? scopeHint : 'effectif = membres rôle chatter' } satisfies Kpi,
           { key: 'avgCa', label: 'CA moyen / chatter', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatters, ${scopeHint}` : `${int(active)} chatters avec CA` } satisfies Kpi,
         ]),
-    // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
-    ...(restricted
-      ? []
-      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(lowComDen)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'membres rôle chatter sous le seuil' } satisfies Kpi]),
   ]
 
   // Insights : vides tant que le moteur de règles @glagency/core n'est pas branché.
