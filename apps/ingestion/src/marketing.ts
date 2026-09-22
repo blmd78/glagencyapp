@@ -1,4 +1,5 @@
 import { login, BASE_URL, UA } from '@glagency/mypuls'
+import { detectLinkType } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
 
 /**
@@ -49,18 +50,6 @@ interface TrackingData {
   daily?: TrackingDataset[]
 }
 
-// Portage des règles de typage du scraper Python (+ canal telegram, absent du legacy).
-const TG_RE = /_tg($|_)|telegram|^tel[a-z]/i
-const OTHER_RE = /trafficstar|subs_test/i
-const TW_RE = /twitter|^tw[a-z_]|^roro|^keller|^ara[a-z]/i
-const IG_RE = /insta|threads/i
-export function detectLinkType(name: string): 'twitter' | 'instagram' | 'telegram' | 'other' {
-  if (TG_RE.test(name)) return 'telegram'
-  if (OTHER_RE.test(name)) return 'other'
-  if (TW_RE.test(name)) return 'twitter'
-  if (IG_RE.test(name)) return 'instagram'
-  return 'other'
-}
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 const isoDaysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)

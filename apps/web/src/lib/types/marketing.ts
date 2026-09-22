@@ -1,3 +1,4 @@
+import type { LinkType } from '@glagency/core'
 // Types du pôle « marketing » PARTAGÉS entre plusieurs features (marketing-liens,
 // marketing-dashboard, marketing-social) — le reste (par domaine) vit dans le
 // types.ts de chaque feature.
@@ -5,7 +6,8 @@
 export interface MktLinkRow {
   id: string
   name: string
-  type: 'twitter' | 'instagram' | 'telegram' | 'other'
+  /** Source de trafic — l'union vit dans `@glagency/core`, avec la règle qui la pose (0166). */
+  type: LinkType
   url: string
   /** Id de la modèle rattachée — la jointure se fait par ID, jamais par nom : sous RLS
    *  `creators_scoped_read`, un non-admin ne lit aucun nom (get-mkt-links.ts:42). */

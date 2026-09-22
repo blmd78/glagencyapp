@@ -14,16 +14,14 @@ import {
 import { typeBadge } from '@/lib/type-badge'
 import { eur, num, pct } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { LINK_TYPE_LABELS } from '@/lib/type-badge'
 import type { MktModeleRow } from '../types'
 
 const VIA = '#8b5cf6'
 
-const TYPE_LABEL: Record<MktModeleRow['links'][number]['type'], string> = {
-  twitter: 'X',
-  instagram: 'Insta',
-  telegram: 'Telegram',
-  other: 'Autre',
-}
+// Les libellés vivent en un seul endroit depuis les neuf sources de 0166 : trois tableaux à
+// tenir alignés à la main, c'était un de trop.
+const TYPE_LABEL = LINK_TYPE_LABELS
 
 /** Une valeur, ou « — » si elle n'a pas de sens (pas de base de calcul). Jamais « 0 % ». */
 const part = (v: number | null) => (v === null ? '—' : pct(v))

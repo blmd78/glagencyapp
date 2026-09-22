@@ -32,12 +32,12 @@ import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from '../actions'
 import { filterByModele, type LinkOption, type Modele } from '../link-options'
 import { ModelePicker } from './modele-picker'
-import { typeBadge } from '@/lib/type-badge'
+import { typeBadge, LINK_TYPE_LABELS } from '@/lib/type-badge'
 import { CRITERES, groupBySource, valeur, type Critere, type SourceGroup } from '../rank'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktLinksData } from '../types'
 
-const TYPE_LABELS = { twitter: 'Twitter', instagram: 'Instagram', telegram: 'Telegram', other: 'Autre' } as const
+const TYPE_LABELS = LINK_TYPE_LABELS
 
 // Les couleurs viennent de SOURCES (rank.ts, passées au validateur dataviz) ; ce config ne sert
 // qu'à satisfaire ChartContainer, qui exige une clé par série.
@@ -284,6 +284,24 @@ export function LiensView({
   const partTotal = partBase === 'revenus' ? totals.revenueEur : totals.conversions
   const partOf = (g: SourceGroup) => (partBase === 'revenus' ? g.revenueEur : g.conversions)
 
+  // L'ANNEAU ne montre que les quatre premières sources de la période, le reste agrégé.
+  // Ce n'est pas un choix de goût : au-delà de 4-5 parts, aucune palette ne tient — sur les 9
+  // sources, le validateur dataviz mesure ΔE 1,3 entre le bleu et le violet en deutéranopie
+  // (indiscernables) et 10,8 entre le lime et l'émeraude en vision NORMALE. Le détail complet
+  // des neuf groupes est juste en dessous, avec ses libellés.
+  const donutParts = useMemo(() => {
+    const parts = groups
+      .map((g) => ({ key: g.label, value: partOf(g), color: g.color }))
+      .filter((p) => p.value > 0)
+      .sort((a, b) => b.value - a.value)
+    if (parts.length <= 5) return parts
+    const reste = parts.slice(4).reduce((s, p) => s + p.value, 0)
+    return [...parts.slice(0, 4), { key: `${parts.length - 4} autres sources`, value: reste, color: 'var(--muted-foreground)' }]
+    // `partOf` se redéfinit à chaque rendu (closure sur `partBase`) : c'est `partBase` qui est
+    // la vraie dépendance.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, partBase])
+
   // Repère des jauges LTV : la moyenne de TOUS les liens de la période (Σrevenus ÷ Σabonnés),
   // jamais la moyenne des LTV par canal. `0.01` en garde-fou pour ne pas diviser par zéro.
   const ltvAgence = totals.conversions > 0 ? totals.revenueEur / totals.conversions : 0.01
@@ -369,8 +387,9 @@ export function LiensView({
 
       {/* Camembert de répartition (demande Benoit 2026-09-10). Quatre parts est la limite haute
           d'un anneau lisible : chacune porte donc son libellé ET sa valeur en dessous, jamais la
-          couleur seule. Il suit le critère quand celui-ci est additif — le taux ne l'étant pas,
-          on retombe sur les abonnés et le titre le dit. */}
+          couleur seule ; au-delà, le reste est agrégé (cf. `donutParts`). Il suit le critère
+          quand celui-ci est additif — le taux ne l'étant pas, on retombe sur les abonnés et le
+          titre le dit. */}
       {partTotal > 0 && (
         <div className="rounded-lg border bg-card p-4">
           <p className="text-sm text-muted-foreground">
@@ -396,7 +415,7 @@ export function LiensView({
                   }
                 />
                 <Pie
-                  data={groups.map((g) => ({ key: g.label, value: partOf(g), color: g.color }))}
+                  data={donutParts}
                   dataKey="value"
                   nameKey="key"
                   innerRadius={58}
@@ -404,8 +423,8 @@ export function LiensView({
                   paddingAngle={2}
                   strokeWidth={0}
                 >
-                  {groups.map((g) => (
-                    <Cell key={g.type} fill={g.color} />
+                  {donutParts.map((p) => (
+                    <Cell key={p.key} fill={p.color} />
                   ))}
                   <Label
                     content={({ viewBox }) =>

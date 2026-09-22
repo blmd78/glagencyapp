@@ -13,12 +13,22 @@ export const CRITERES: { key: Critere; label: string; hint: string }[] = [
 export type Source = MktLinkRow['type']
 
 export const SOURCES: { key: Source; label: string; color: string }[] = [
-  // Palette passée au validateur dataviz : violet/rose/cyan séparés en vision normale ET sous
-  // deutéranopie (ΔE 8,9 au pire). Les teintes des badges (sky ↔ blue) échouaient. « Autres »
-  // garde un neutre ASSUMÉ : c'est la catégorie résiduelle, elle ne doit pas attirer l'œil.
+  // Palette passée au validateur dataviz, dans CET ordre : c'est lui qui a été validé (paires
+  // adjacentes, ΔE 8,3 au pire sous protanopie, 20,5 en vision normale). Les réordonner sans
+  // repasser le validateur casserait la garantie. « Autres » garde un neutre ASSUMÉ : c'est la
+  // catégorie résiduelle, elle ne doit pas attirer l'œil.
+  //
+  // Neuf sources depuis le 2026-09-22 (demande Benoit) : « Autres » était un fourre-tout de 64
+  // liens sur 361. TikTok et TikTok Ads sont deux entrées, pas une — un lien organique de la
+  // farm et une campagne payée ne se pilotent pas pareil.
   { key: 'twitter', label: 'Twitter / X', color: '#8b5cf6' },
   { key: 'instagram', label: 'Instagram', color: '#ec4899' },
   { key: 'telegram', label: 'Telegram', color: '#06b6d4' },
+  { key: 'snapchat', label: 'Snapchat', color: '#ca8a04' },
+  { key: 'tiktok', label: 'TikTok', color: '#059669' },
+  { key: 'tiktok_ads', label: 'TikTok Ads', color: '#ea580c' },
+  { key: 'fb_ads', label: 'Facebook Ads', color: '#3b82f6' },
+  { key: 'seo', label: 'SEO', color: '#65a30d' },
   { key: 'other', label: 'Autres', color: 'var(--muted-foreground)' },
 ]
 
