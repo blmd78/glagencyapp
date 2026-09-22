@@ -29,8 +29,7 @@ interface OverviewReport {
  *
  * Mode `restricted` (rôle `user`) : `chatter_daily` est admin-only en RLS (retournerait
  * [] SANS erreur → KPIs à 0 mensongers). Les KPIs chatteurs se calculent alors depuis
- * `chatter_creator_daily` (limité par la RLS à SES modèles) et la carte « Sous 200 € de
- * com » disparaît (la com se définit sur le CA TOTAL d'un chatteur, incalculable ici).
+ * `chatter_creator_daily` (limité par la RLS à SES modèles).
  */
 export async function getOverview(
   period: Period,
@@ -182,23 +181,20 @@ export async function getOverview(
     })
   }
 
-  // Chatteurs : actifs, CA moyen et commission. Com = 10 % du CA en dur (cf. spec design —
-  // à remplacer par la config de barème quand elle existera).
+  // Chatteurs : actifs et CA moyen. La carte « Sous 200 € de com » a été RETIRÉE le 2026-09-22
+  // (demande Benoit) — le barème de commission n'a jamais été celui de l'app (10 % en dur) et la
+  // place sert aux trois cartes de CA.
   //
   // TOUS les KPIs « personnes » se calculent sur les MEMBRES rôle chatteur (demande Benoit
   // 2026-07-29 : « des vraies données ») : le CA d'un membre se lit via son lien MyPuls
-  // (profiles.chatter_id → by_chatter) ; membre non lié ou sans donnée = 0 € (donc actif non,
-  // et sous les 200 € de com — c'est la vérité). En restricted (chatteur, profiles self-only
-  // sous RLS), on garde l'ancien calcul par comptes MyPuls scopés à ses modèles.
-  const COM_RATE = 0.1
-  const COM_FLOOR = 200
+  // (profiles.chatter_id → by_chatter) ; membre non lié ou sans donnée = 0 € (donc actif non —
+  // c'est la vérité). En restricted (chatteur, profiles self-only sous RLS), on garde l'ancien
+  // calcul par comptes MyPuls scopés à ses modèles.
   const caByChatter = new Map<string, number>()
   for (const r of rep.by_chatter) caByChatter.set(r.chatter_id, Number(r.ca) || 0)
   let active: number
   let avgCa: number
   let totalChatters: number
-  let lowCom: number
-  let lowComDen: number
   if (denomBase instanceof Set) {
     // Restricted : ids MyPuls des liaisons actives ∪ chatteurs avec CA (X ≤ Y garanti).
     const activeCas = [...caByChatter.values()].filter((v) => v > 0)
@@ -206,16 +202,12 @@ export async function getOverview(
     avgCa = active ? activeCas.reduce((s, v) => s + v, 0) / active : 0
     const withCa = [...caByChatter.entries()].filter(([, v]) => v > 0).map(([id]) => id)
     totalChatters = new Set([...denomBase, ...withCa]).size
-    lowCom = [...caByChatter.values()].filter((v) => v * COM_RATE < COM_FLOOR).length
-    lowComDen = caByChatter.size
   } else {
     const cas = denomBase.map((chatterId) => (chatterId ? (caByChatter.get(chatterId) ?? 0) : 0))
     const actives = cas.filter((v) => v > 0)
     active = actives.length
     avgCa = active ? actives.reduce((s, v) => s + v, 0) / active : 0
     totalChatters = cas.length
-    lowCom = cas.filter((v) => v * COM_RATE < COM_FLOOR).length
-    lowComDen = cas.length
   }
 
   const scopeHint = restricted ? 'sur tes modèles' : 'sur la période'
@@ -256,10 +248,6 @@ export async function getOverview(
           { key: 'active', label: 'Chatters actifs', value: `${active} / ${totalChatters}`, deltaPct: null, trendLabel: `${active} avec CA`, hint: restricted ? scopeHint : 'effectif = membres rôle chatter' } satisfies Kpi,
           { key: 'avgCa', label: 'CA moyen / chatter', value: eur(avgCa), deltaPct: null, trendLabel: 'Moyenne des actifs', hint: restricted ? `${int(active)} chatters, ${scopeHint}` : `${int(active)} chatters avec CA` } satisfies Kpi,
         ]),
-    // Com = définie sur le CA TOTAL d'un chatteur → incalculable sur un périmètre partiel.
-    ...(restricted
-      ? []
-      : [{ key: 'lowCom', label: 'Sous 200 € de com', value: `${int(lowCom)} / ${int(lowComDen)}`, deltaPct: null, trendLabel: 'Com = 10 % du CA', hint: 'membres rôle chatter sous le seuil' } satisfies Kpi]),
   ]
 
   // Insights : vides tant que le moteur de règles @glagency/core n'est pas branché.

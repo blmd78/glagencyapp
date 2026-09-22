@@ -117,3 +117,27 @@ manque.
 l'API rend **386 jours en une requête** (backfill 400 j fait le 2026-09-22, du 18/08/2025 au
 21/09/2026) ; `currency=usd` existe mais reste ignoré (420,80 USD chez Carla en sept. 2025) —
 cohérent avec la décision « tout en euros » du 2026-09-21.
+
+### Borne du 2026-09-22 (`0165`)
+
+`uncove_daily` remonte au **18/08/2025**, `creator_daily` seulement au **01/06/2026**. Sans
+borne, une période antérieure à juin affichait un « CA total » **100 % Uncove** — 94 563 € sur
+9 mois — qui se lit comme le CA de l'agence alors qu'il ne décrit qu'une plateforme. La branche
+Uncove des trois agrégats (`by_model`, `daily`, `totals`) est donc bornée à
+`>= (select min(date) from creator_daily)`. Borne **dynamique** : le jour où l'historique MyPuls
+sera repris plus loin, le CA Uncove correspondant s'ouvre tout seul. Vérifié sur UAT —
+octobre 2025 → `{mypuls: null, uncove: null}` (aucune carte de détail, Overview comme avant
+Uncove) ; septembre 2026 → `{mypuls: 115 049,75, uncove: 0}`.
+
+Impact mesuré en prod une fois la borne posée : juin +1,8 %, juillet +1,8 %, août +0,7 %,
+septembre +0,7 % du CA MyPuls.
+
+### Périmètre du rattachement — décision Benoit 2026-09-22
+
+Le rattachement d'un compte Uncove à une modèle **ne sert qu'aux CHIFFRES DE L'AGENCE, jamais à
+un chatteur** : pas de liaison chatteur → compte Uncove dans Membres, et rien à en déduire. La
+raison n'est pas un manque de temps mais un manque de donnée — l'API Uncove rend un total par
+jour et par compte (`transactions/volumes`), **jamais par opérateur**. Tout CA Uncove imputé à un
+chatteur serait donc une convention et non une mesure ; s'il remontait un jour dans les
+commissions, on paierait sur une hypothèse. « Pour le moment » : à rouvrir seulement si Uncove
+expose une ventilation par conversation ou par opérateur.
