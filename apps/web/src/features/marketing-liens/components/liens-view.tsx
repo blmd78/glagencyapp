@@ -32,12 +32,13 @@ import { KpiGrid } from '@/components/kpi-card'
 import { setLinkType } from '../actions'
 import { filterByModele, type LinkOption, type Modele } from '../link-options'
 import { ModelePicker } from './modele-picker'
-import { typeBadge, LINK_TYPE_LABELS } from '@/lib/type-badge'
+import { typeBadge } from '@/lib/type-badge'
+import { asSources, groupLabel } from '@/lib/mkt-groups'
 import { CRITERES, groupBySource, valeur, type Critere, type SourceGroup } from '../rank'
 import type { MktLinkRow } from '@/lib/types/marketing'
+import type { MktGroup } from '@/lib/types/marketing'
 import type { MktLinksData } from '../types'
 
-const TYPE_LABELS = LINK_TYPE_LABELS
 
 // Les couleurs viennent de SOURCES (rank.ts, passées au validateur dataviz) ; ce config ne sert
 // qu'à satisfaire ChartContainer, qui exige une clé par série.
@@ -47,7 +48,7 @@ const donutConfig = {
 
 /** Sélecteur de type inline (correction manuelle — remplace link_type_overrides legacy).
  *  Changer le type déplace le lien de section : c'est le geste de rangement de la page. */
-function TypeCell({ link }: { link: MktLinkRow }) {
+function TypeCell({ link, groups }: { link: MktLinkRow; groups: MktGroup[] }) {
   const [, startTransition] = useTransition()
   return (
     <Select
@@ -61,13 +62,13 @@ function TypeCell({ link }: { link: MktLinkRow }) {
     >
       <SelectTrigger className="h-7 w-28 border-0 bg-transparent shadow-none">
         <SelectValue asChild>
-          <Badge className={typeBadge(link.type)}>{TYPE_LABELS[link.type]}</Badge>
+          <Badge className={typeBadge(link.type)}>{groupLabel(groups, link.type)}</Badge>
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
-        {(['twitter', 'instagram', 'telegram', 'other'] as const).map((t) => (
-          <SelectItem key={t} value={t} className="text-xs">
-            {TYPE_LABELS[t]}
+        {groups.map((g) => (
+          <SelectItem key={g.key} value={g.key} className="text-xs">
+            {g.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -80,7 +81,19 @@ const fmt = (v: number | null, c: Critere) =>
   v === null ? '—' : c === 'revenus' ? eur(v) : c === 'taux' ? pct(v) : num(v)
 
 /** Une ligne de lien : rang, identité, et la barre de performance relative à sa source. */
-function LinkRow({ l, rang, best, critere }: { l: MktLinkRow; rang: number; best: number; critere: Critere }) {
+function LinkRow({
+  l,
+  rang,
+  best,
+  critere,
+  groups,
+}: {
+  l: MktLinkRow
+  rang: number
+  best: number
+  critere: Critere
+  groups: MktGroup[]
+}) {
   const v = valeur(l, critere)
   const largeur = best > 0 && v !== null ? Math.max((v / best) * 100, 1.5) : 0
   const searchParams = useSearchParams()
@@ -127,7 +140,7 @@ function LinkRow({ l, rang, best, critere }: { l: MktLinkRow; rang: number; best
         )}
       </div>
       <div className="hidden shrink-0 lg:block">
-        <TypeCell link={l} />
+        <TypeCell link={l} groups={groups} />
       </div>
       <span className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums">
         {fmt(v, critere)}
@@ -166,9 +179,12 @@ function SourceSection({
   critere,
   partAgence,
   ltvAgence,
+  groups,
 }: {
   g: SourceGroup
   critere: Critere
+  /** Les groupes de la base — descendus jusqu'au menu de déplacement de chaque ligne. */
+  groups: MktGroup[]
   partAgence: number | null
   /** Repère de la jauge : la LTV de TOUS les liens sur la période. Un canal au-dessus sature —
    *  le chiffre exact reste écrit au centre. C'est la seule comparaison qui ait du sens ici :
@@ -210,7 +226,7 @@ function SourceSection({
       <CollapsibleContent>
         <div className="border-t">
           {g.links.map((l, i) => (
-            <LinkRow key={l.id} l={l} rang={i + 1} best={g.best} critere={critere} />
+            <LinkRow key={l.id} l={l} rang={i + 1} best={g.best} critere={critere} groups={groups} />
           ))}
         </div>
         {/* Les liens muets sur la période sont ANNONCÉS puis dépliables — les afficher d'office
@@ -227,7 +243,7 @@ function SourceSection({
             </button>
             {voirMuets &&
               g.dormants.map((l) => (
-                <LinkRow key={l.id} l={l} rang={0} best={0} critere={critere} />
+                <LinkRow key={l.id} l={l} rang={0} best={0} critere={critere} groups={groups} />
               ))}
           </div>
         )}
@@ -249,10 +265,13 @@ export function LiensView({
   data,
   modele,
   modeleOptions,
+  groups,
 }: {
   data: MktLinksData
   modele: Modele
   modeleOptions: LinkOption[]
+  /** Les groupes de la base (0167) : libellés, couleurs, et les choix du menu de déplacement. */
+  groups: MktGroup[]
 }) {
   const [critere, setCritere] = useState<Critere>('subs')
   const [q, setQ] = useState('')
@@ -266,7 +285,7 @@ export function LiensView({
     return t ? duModele.filter((l) => l.name.toLowerCase().includes(t)) : duModele
   }, [data.links, modele, q])
 
-  const groups = useMemo(() => groupBySource(links, critere), [links, critere])
+  const sections = useMemo(() => groupBySource(links, critere, asSources(groups)), [links, critere, groups])
 
   const totals = useMemo(
     () => ({
@@ -290,7 +309,7 @@ export function LiensView({
   // (indiscernables) et 10,8 entre le lime et l'émeraude en vision NORMALE. Le détail complet
   // des neuf groupes est juste en dessous, avec ses libellés.
   const donutParts = useMemo(() => {
-    const parts = groups
+    const parts = sections
       .map((g) => ({ key: g.label, value: partOf(g), color: g.color }))
       .filter((p) => p.value > 0)
       .sort((a, b) => b.value - a.value)
@@ -300,14 +319,14 @@ export function LiensView({
     // `partOf` se redéfinit à chaque rendu (closure sur `partBase`) : c'est `partBase` qui est
     // la vraie dépendance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groups, partBase])
+  }, [sections, partBase])
 
   // Repère des jauges LTV : la moyenne de TOUS les liens de la période (Σrevenus ÷ Σabonnés),
   // jamais la moyenne des LTV par canal. `0.01` en garde-fou pour ne pas diviser par zéro.
   const ltvAgence = totals.conversions > 0 ? totals.revenueEur / totals.conversions : 0.01
 
   // Dérivés des groupes, pas de `links` : seuls les liens qui ont bougé sont classés.
-  const nbClasses = groups.reduce((n, g) => n + g.links.length, 0)
+  const nbClasses = sections.reduce((n, g) => n + g.links.length, 0)
   // Sur TOUS les liens filtrés, pas sur les groupes : une source dont aucun lien n'a bougé
   // est retirée de l'affichage, ses muets doivent quand même être comptés ici.
   const nbMuets = links.length - nbClasses
@@ -450,7 +469,7 @@ export function LiensView({
             {/* La légende porte toutes les infos du canal : la couleur ne fait que rappeler
                 quelle part de l'anneau est laquelle. */}
             <div className="grid w-full gap-x-6 gap-y-2 sm:grid-cols-2">
-              {groups.map((g) => (
+              {sections.map((g) => (
                 <div key={g.type} className="flex items-baseline gap-2">
                   <span className="size-2 shrink-0 translate-y-1 rounded-full" style={{ background: g.color }} />
                   <span className="min-w-0 flex-1">
@@ -473,16 +492,17 @@ export function LiensView({
       )}
 
       <div className="flex flex-col gap-4">
-        {groups.map((g) => (
+        {sections.map((g) => (
           <SourceSection
             key={g.type}
             g={g}
             critere={critere}
+            groups={groups}
             partAgence={partTotal > 0 ? (partOf(g) / partTotal) * 100 : null}
             ltvAgence={ltvAgence}
           />
         ))}
-        {groups.length === 0 && (
+        {sections.length === 0 && (
           <p className="text-sm text-muted-foreground">Aucun lien sur cette période.</p>
         )}
       </div>

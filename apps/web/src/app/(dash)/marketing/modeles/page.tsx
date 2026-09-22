@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import { getMktModeles } from '@/features/marketing-modeles/services/get-modeles'
 import { MktModelesTemplate } from '@/features/marketing-modeles/ModelesTemplate'
+import { getMktGroups } from '@/lib/services/get-mkt-groups'
 import { MktModelesSkeleton } from '@/features/marketing-modeles/components/modeles-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
@@ -35,5 +36,8 @@ export default async function MktModelesPage({
 }
 
 async function MktModelesContent({ data }: { data: Promise<MktModelesData> }) {
-  return <MktModelesTemplate data={await data} />
+  // Les deux lectures partent ensemble : les groupes (une dizaine de lignes) ne doivent pas
+  // retarder l'affichage des modèles.
+  const [d, groups] = await Promise.all([data, getMktGroups()])
+  return <MktModelesTemplate data={d} groups={groups} />
 }

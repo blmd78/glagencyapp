@@ -10,8 +10,10 @@ export const CRITERES: { key: Critere; label: string; hint: string }[] = [
   { key: 'taux', label: 'Taux', hint: 'abonnés ÷ clics' },
 ]
 
-export type Source = MktLinkRow['type']
+/** La clé d'un groupe — libre depuis 0167 : les groupes sont des lignes, plus une union. */
+export type Source = string
 
+/** Repli d'affichage si la table des groupes est vide ou illisible — la BASE fait foi. */
 export const SOURCES: { key: Source; label: string; color: string }[] = [
   // Palette passée au validateur dataviz, dans CET ordre : c'est lui qui a été validé (paires
   // adjacentes, ΔE 8,3 au pire sous protanopie, 20,5 en vision normale). Les réordonner sans
@@ -83,8 +85,12 @@ export interface SourceGroup {
  * Les sections sont triées par leur propre score, et une source sans lien disparaît — un
  * en-tête « Telegram · 0 lien » n'apprend rien tant qu'aucun lien n'est typé ainsi.
  */
-export function groupBySource(links: MktLinkRow[], critere: Critere): SourceGroup[] {
-  return SOURCES.map(({ key, label, color }) => {
+export function groupBySource(
+  links: MktLinkRow[],
+  critere: Critere,
+  sources: readonly { key: Source; label: string; color: string }[],
+): SourceGroup[] {
+  return sources.map(({ key, label, color }) => {
     const own = links.filter((l) => l.type === key)
     const clicks = own.reduce((s, l) => s + l.clicks, 0)
     const conversions = own.reduce((s, l) => s + l.conversions, 0)

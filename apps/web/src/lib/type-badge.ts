@@ -1,9 +1,7 @@
-import type { LinkType } from '@glagency/core'
-
 // Couleurs de badge par type de lien (recette shadcn docs, comme lib/status-color). Teintes
 // proches de celles du graphe (SOURCES, rank.ts) sans être les mêmes valeurs : ici le fond est
 // pâle et le texte foncé, là c'est un aplat — deux contraintes de contraste différentes.
-export function typeBadge(type: LinkType): string {
+export function typeBadge(type: string): string {
   switch (type) {
     case 'twitter':
       return 'bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300'
@@ -24,21 +22,4 @@ export function typeBadge(type: LinkType): string {
     default:
       return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
   }
-}
-
-/**
- * Libellé COURT d'une source, pour les cellules étroites (sélecteur de ligne de l'écran Liens,
- * tableau par modèle). Le graphe et les titres de groupe utilisent, eux, les libellés longs de
- * `SOURCES` (rank.ts) — « Twitter / X » ne tient pas dans 7 rem.
- */
-export const LINK_TYPE_LABELS: Record<LinkType, string> = {
-  twitter: 'Twitter',
-  instagram: 'Instagram',
-  telegram: 'Telegram',
-  snapchat: 'Snapchat',
-  tiktok: 'TikTok',
-  tiktok_ads: 'TikTok Ads',
-  fb_ads: 'FB Ads',
-  seo: 'SEO',
-  other: 'Autre',
 }

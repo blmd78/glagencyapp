@@ -8,14 +8,14 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
-import { LINK_TYPES } from '@glagency/core'
-import { runAction, adminGuard, type ActionResult } from '@/lib/actions'
+import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 
 const linkTypeInput = z.object({
   linkId: z.uuid(),
-  // Directement l'union de `@glagency/core` : une liste recopiée ici finirait par diverger de
-  // la contrainte SQL (`mkt_links_type_check`, 0166) et rendrait une 23514 illisible.
-  type: z.enum(LINK_TYPES),
+  // Clé LIBRE depuis 0167 : les groupes sont des lignes, une liste figée ici redeviendrait
+  // fausse au premier groupe créé. C'est la clé étrangère qui dit le vrai, et sa violation se
+  // traduit plus bas en refus lisible.
+  type: z.string().trim().min(1).max(60),
 })
 
 /** Correction manuelle du type d'un lien (équivalent des link_type_overrides legacy). */
@@ -27,6 +27,9 @@ export async function setLinkType(raw: unknown): Promise<ActionResult> {
     handler: async ({ linkId, type }) => {
       const supabase = await createClient()
       const { error } = await supabase.from('mkt_links').update({ type }).eq('id', linkId)
+      // 23503 = la clé étrangère `mkt_links_type_fkey` : le groupe a été supprimé entre
+      // l'affichage du menu et le clic. Message métier plutôt qu'une 500.
+      if (error?.code === '23503') throw new BusinessError('Ce groupe n’existe plus — rafraîchis la page.')
       if (error) throw new Error(error.message)
       revalidatePath('/marketing/liens')
     },

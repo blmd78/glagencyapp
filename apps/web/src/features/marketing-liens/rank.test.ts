@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aBouge, groupBySource, valeur } from './rank'
+import { aBouge, groupBySource, SOURCES, valeur } from './rank'
 import type { MktLinkRow } from '@/lib/types/marketing'
 
 const link = (o: Partial<MktLinkRow> & { id: string }): MktLinkRow => ({
@@ -13,8 +13,8 @@ describe('groupBySource', () => {
       link({ id: 'a', conversions: 2, revenueEur: 500 }),
       link({ id: 'b', conversions: 9, revenueEur: 10 }),
     ]
-    expect(groupBySource(links, 'subs')[0].links.map((l) => l.id)).toEqual(['b', 'a'])
-    expect(groupBySource(links, 'revenus')[0].links.map((l) => l.id)).toEqual(['a', 'b'])
+    expect(groupBySource(links, 'subs', SOURCES)[0].links.map((l) => l.id)).toEqual(['b', 'a'])
+    expect(groupBySource(links, 'revenus', SOURCES)[0].links.map((l) => l.id)).toEqual(['a', 'b'])
   })
 
   it('trie les SOURCES par leur propre score', () => {
@@ -22,7 +22,7 @@ describe('groupBySource', () => {
       link({ id: 'tw', type: 'twitter', conversions: 5 }),
       link({ id: 'ig', type: 'instagram', conversions: 50 }),
     ]
-    expect(groupBySource(links, 'subs').map((g) => g.type)).toEqual(['instagram', 'twitter'])
+    expect(groupBySource(links, 'subs', SOURCES).map((g) => g.type)).toEqual(['instagram', 'twitter'])
   })
 
   it('recalcule le taux de la source Σconv/Σclics, jamais la moyenne des taux', () => {
@@ -33,6 +33,7 @@ describe('groupBySource', () => {
         link({ id: 'b', clicks: 99, conversions: 1, taux: 1 }),
       ],
       'subs',
+      SOURCES,
     )[0]
     expect(g.taux).toBe(2)
   })
@@ -45,12 +46,13 @@ describe('groupBySource', () => {
         link({ id: 'b', clicks: 5, conversions: 9, revenueEur: 10 }),
       ],
       'subs',
+      SOURCES,
     )[0]
     expect(g.ltv).toBe(11)
   })
 
   it('rend une LTV null (pas 0) pour un canal sans abonné', () => {
-    expect(groupBySource([link({ id: 'a', clicks: 8 })], 'subs')[0].ltv).toBeNull()
+    expect(groupBySource([link({ id: 'a', clicks: 8 })], 'subs', SOURCES)[0].ltv).toBeNull()
   })
 
   it('ne rend que les sources dont un lien a bougé', () => {
@@ -58,7 +60,7 @@ describe('groupBySource', () => {
       link({ id: 'tw', type: 'twitter', clicks: 3 }),
       link({ id: 'ig', type: 'instagram' }), // muet : sa source ne doit pas apparaître
     ]
-    expect(groupBySource(links, 'subs').map((g) => g.type)).toEqual(['twitter'])
+    expect(groupBySource(links, 'subs', SOURCES).map((g) => g.type)).toEqual(['twitter'])
   })
 
   it('met de côté les liens muets sans les perdre', () => {
@@ -69,6 +71,7 @@ describe('groupBySource', () => {
         link({ id: 'muet2' }),
       ],
       'subs',
+      SOURCES,
     )[0]
     expect(g.links.map((l) => l.id)).toEqual(['vivant'])
     expect(g.dormants.map((l) => l.id)).toEqual(['muet1', 'muet2'])
@@ -82,6 +85,7 @@ describe('groupBySource', () => {
         link({ id: 'avec', clicks: 10, conversions: 1, taux: 10 }),
       ],
       'taux',
+      SOURCES,
     )[0]
     expect(g.links.map((l) => l.id)).toEqual(['avec', 'sans'])
     expect(g.links).toHaveLength(2)
@@ -91,13 +95,14 @@ describe('groupBySource', () => {
     const g = groupBySource(
       [link({ id: 'a', conversions: 3 }), link({ id: 'b', conversions: 12 })],
       'subs',
+      SOURCES,
     )[0]
     expect(g.best).toBe(12)
   })
 
   it('rend un taux null (pas 0) pour une source sans le moindre clic', () => {
     // Le lien a un revenu (donc il compte) mais aucun clic : le taux n'existe pas.
-    expect(groupBySource([link({ id: 'a', revenueEur: 12 })], 'subs')[0].taux).toBeNull()
+    expect(groupBySource([link({ id: 'a', revenueEur: 12 })], 'subs', SOURCES)[0].taux).toBeNull()
   })
 })
 

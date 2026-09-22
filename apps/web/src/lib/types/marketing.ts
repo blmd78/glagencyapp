@@ -1,4 +1,19 @@
-import type { LinkType } from '@glagency/core'
+/**
+ * Un groupe de liens (`mkt_link_groups`, 0167) : ce qui remplace l'union figée d'avant.
+ * `pattern` range les liens neufs, `priority` arbitre entre deux motifs qui reconnaissent le
+ * même nom, `isFallback` marque la file d'attente (« À classer »).
+ */
+export interface MktGroup {
+  key: string
+  label: string
+  color: string
+  pattern: string
+  priority: number
+  isFallback: boolean
+  /** Né d'un motif repéré par l'ingestion, pas d'une décision humaine — à relire. */
+  auto: boolean
+}
+
 // Types du pôle « marketing » PARTAGÉS entre plusieurs features (marketing-liens,
 // marketing-dashboard, marketing-social) — le reste (par domaine) vit dans le
 // types.ts de chaque feature.
@@ -6,8 +21,8 @@ import type { LinkType } from '@glagency/core'
 export interface MktLinkRow {
   id: string
   name: string
-  /** Source de trafic — l'union vit dans `@glagency/core`, avec la règle qui la pose (0166). */
-  type: LinkType
+  /** Clé du GROUPE (`mkt_link_groups.key`, 0167) — libre : les groupes sont des lignes. */
+  type: string
   url: string
   /** Id de la modèle rattachée — la jointure se fait par ID, jamais par nom : sous RLS
    *  `creators_scoped_read`, un non-admin ne lit aucun nom (get-mkt-links.ts:42). */

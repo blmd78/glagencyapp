@@ -1,5 +1,5 @@
 import { login, BASE_URL, UA } from '@glagency/mypuls'
-import { detectLinkType } from '@glagency/core'
+import { detectLinkGroup, suggestLinkGroups, type LinkGroupRule } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
 
 /**
@@ -30,6 +30,8 @@ export interface MarketingRunSummary {
   creatorsFailed: string[]
   links: number
   newLinks: number
+  /** Groupes nés d'un motif récurrent repéré dans le repli (0167). */
+  newGroups: string[]
   updatedDaily: number
   from: string
   warnings: string[]
@@ -108,7 +110,26 @@ export async function runMarketing(
   }
   if (byCreator.size === 0) throw new Error(`marketing : aucune créatrice lue (${warnings.join(' | ')})`)
 
-  // Nouveaux liens (type détecté UNIQUEMENT ici — les corrections manuelles restent).
+  // Les groupes viennent de la BASE (0167) : leurs motifs, leur ordre. Ajouter une source ne
+  // demande plus de déploiement — la ligne suffit. Les groupes supprimés (soft delete) sont
+  // exclus du rangement mais gardés plus bas, pour ne pas les faire renaître.
+  const { data: groupRows, error: gErr } = await db
+    .from('mkt_link_groups')
+    .select('key, pattern, priority, is_fallback, deleted_at')
+  if (gErr) throw new Error(`mkt_link_groups lecture : ${gErr.message}`)
+  const allGroups = (groupRows ?? []) as Array<{
+    key: string
+    pattern: string
+    priority: number
+    is_fallback: boolean
+    deleted_at: string | null
+  }>
+  const groupes: LinkGroupRule[] = allGroups
+    .filter((g) => !g.deleted_at)
+    .map((g) => ({ key: g.key, pattern: g.pattern, priority: g.priority, isFallback: g.is_fallback }))
+  const fallbackKey = groupes.find((g) => g.isFallback)?.key ?? 'other'
+
+  // Nouveaux liens (groupe rangé UNIQUEMENT ici — les corrections manuelles restent).
   const newRows: { name: string; type: string; mypuls_creator_id: string; creator_id: string; active: boolean }[] = []
   for (const [mp, { creatorId, data }] of byCreator) {
     for (const ds of data.daily ?? []) {
@@ -116,7 +137,7 @@ export async function runMarketing(
       if (!newRows.some((n) => n.mypuls_creator_id === mp && n.name === ds.label)) {
         newRows.push({
           name: ds.label,
-          type: detectLinkType(ds.label),
+          type: detectLinkGroup(ds.label, groupes),
           mypuls_creator_id: mp,
           creator_id: creatorId,
           active: true,
@@ -134,6 +155,47 @@ export async function runMarketing(
     if (rErr || !refreshed) throw new Error(`mkt_links relecture : ${rErr?.message}`)
     linkIdByKey.clear()
     for (const l of refreshed) linkIdByKey.set(keyOf(l.mypuls_creator_id, l.name), l.id)
+  }
+
+  // « Créés dynamiquement si besoin » : on relit ce qui dort dans le repli, et un préfixe qui
+  // revient au moins trois fois devient un groupe, avec son motif. Un groupe SUPPRIMÉ ne renaît
+  // pas — `allGroups` porte aussi les soft-deleted, et `suggestLinkGroups` les écarte.
+  //
+  // Après l'insertion des nouveaux liens, à dessein : la suggestion se fait sur l'état réel du
+  // repli, pas seulement sur l'arrivée du jour.
+  const newGroups: string[] = []
+  const { data: aClasser, error: fErr } = await db
+    .from('mkt_links')
+    .select('id, name')
+    .eq('type', fallbackKey)
+  if (fErr) throw new Error(`mkt_links repli : ${fErr.message}`)
+  const repli = aClasser ?? []
+  const suggestions = suggestLinkGroups(
+    repli.map((l) => l.name),
+    allGroups.map((g) => g.key),
+  )
+  if (suggestions.length) {
+    const { error: insErr } = await db.from('mkt_link_groups').insert(
+      // Priorité BASSE (après les groupes écrits à la main) : un motif deviné ne doit pas passer
+      // devant une règle que quelqu'un a pensée. Couleur laissée vide — l'app en attribue une de
+      // sa palette validée, plutôt qu'une teinte tirée au hasard qui casserait le contrôle CVD.
+      suggestions.map((sg, i) => ({
+        key: sg.key,
+        label: sg.label,
+        pattern: sg.pattern,
+        priority: 500 + i,
+        auto: true,
+      })),
+    )
+    if (insErr) throw new Error(`mkt_link_groups création : ${insErr.message}`)
+    for (const sg of suggestions) {
+      const ids = repli.filter((l) => new RegExp(sg.pattern, 'i').test(l.name)).map((l) => l.id)
+      if (!ids.length) continue
+      const { error: upErr } = await db.from('mkt_links').update({ type: sg.key }).in('id', ids)
+      if (upErr) throw new Error(`mkt_links reclassement : ${upErr.message}`)
+      newGroups.push(`${sg.label} (${ids.length})`)
+    }
+    if (newGroups.length) warnings.push(`groupes créés : ${newGroups.join(', ')}`)
   }
 
   // Par-jour DEPUIS LA SOURCE (fenêtre [from, aujourd'hui]) — écrit tel quel, lignes vides ignorées.
@@ -196,6 +258,7 @@ export async function runMarketing(
     creatorsFailed,
     links: cumUpdates.length,
     newLinks: newRows.length,
+    newGroups,
     updatedDaily: daily.length,
     from,
     warnings,
