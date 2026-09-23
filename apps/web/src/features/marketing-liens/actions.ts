@@ -26,7 +26,12 @@ export async function setLinkType(raw: unknown): Promise<ActionResult> {
     guard: adminGuard,
     handler: async ({ linkId, type }) => {
       const supabase = await createClient()
-      const { error } = await supabase.from('mkt_links').update({ type }).eq('id', linkId)
+      // `type_manual` (0169) : un lien déplacé à la main est ÉPINGLÉ — créer ou modifier un
+      // groupe rejoue les règles sur tous les autres liens, jamais sur celui-ci.
+      const { error } = await supabase
+        .from('mkt_links')
+        .update({ type, type_manual: true })
+        .eq('id', linkId)
       // 23503 = la clé étrangère `mkt_links_type_fkey` : le groupe a été supprimé entre
       // l'affichage du menu et le clic. Message métier plutôt qu'une 500.
       if (error?.code === '23503') throw new BusinessError('Ce groupe n’existe plus — rafraîchis la page.')

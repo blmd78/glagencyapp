@@ -85,3 +85,27 @@ groupe entier. C'est de la structure, pas un geste quotidien.
   reste dans la file d'attente jusqu'à ce que quelqu'un le déplace.
 - Modifier le motif d'un groupe ne reclasse pas les liens déjà rangés — c'est dit dans le
   dialogue d'édition.
+
+## Avenant 2026-09-23 — épingler le manuel, rejouer le reste (`0169`)
+
+**Bug** : un groupe « SNAP + DA » créé pour séparer les liens `SNAP_HAPPN` restait vide, donc
+absent de l'écran Liens (une section sans lien n'y est pas affichée) — recréé une seconde fois par
+dessus. Deux causes cumulées :
+
+1. Créer un groupe ne relisait que la file « À classer ». Les trois `SNAP_HAPPN`, rangés dans
+   Snapchat **par la règle**, n'avaient aucune raison d'en sortir : la promesse « un lien rangé
+   ailleurs ne bouge jamais » interdisait de découper un groupe.
+2. Le nouveau groupe partait en priorité 100, derrière Snapchat (10) : même les liens à venir
+   seraient restés dans Snapchat.
+
+**Correctif** :
+- `mkt_links.type_manual` : posé par le menu de la ligne. **Seuls les liens épinglés sont figés** ;
+  les autres suivent les règles, rejouées sur eux à chaque création ou modification de groupe.
+  La migration épingle les **13 liens** dont le groupe diffère de ce que donnent les règles
+  (mesuré sur la prod) — `funnel_tiktok_tg` en Telegram alors que la règle dit TikTok, etc. : ce
+  ne peut être qu'un choix humain.
+- Priorité **5** par défaut pour un groupe créé à la main, devant les groupes d'origine.
+- Nom unique parmi les groupes actifs.
+
+**Vérifié par simulation sur les 361 liens de la prod** : un groupe « happn » en priorité 100
+déplace 0 lien (le bug) ; en priorité 5, exactement les 3 `SNAP_HAPPN`, rien d'autre.
