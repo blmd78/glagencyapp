@@ -293,7 +293,19 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   ressusciterait un groupe écarté. Réglage admin sur `/marketing/liens/groupes` (bouton en haut à
   droite des Liens), déplacement lien par lien depuis le badge de la ligne. Couleurs **fermées** à
   8 teintes validées ensemble (`lib/mkt-groups.ts`) ; l'anneau ne montre que les 4 premières
-  sources. Spec : `docs/superpowers/specs/2026-09-22-mkt-groupes-liens-design.md`.
+  sources. Spec : `docs/superpowers/specs/2026-09-22-mkt-groupes-liens-design.md`. **Notes par source**
+  (`mkt_source_notes`, `0170`) : une note libre par (modèle × groupe), écrite depuis Marketing ›
+  Modèles › Sources de trafic (crayon, admin), **en clair** — si l'équipe y met des identifiants,
+  chiffrer comme les Codes Snap. Consultées en LECTURE côté Chatteurs sur **Équipe › Sources de
+  trafic** (`/chatter/sources-trafic`, droit `sources-trafic`, `0171`) — et non dans Équipe ›
+  Modèles, comparatif de CA ouvert à 2 chatteurs sur 403. Cloisonnement EN BASE par `creators`
+  (un chatteur ne lit que ses modèles, comme Infos modèles) : vérifié sous l'identité d'un
+  chatteur — 0 note sans le droit, la seule de sa modèle avec, aucune écriture possible. La page
+  liste TOUTES les modèles visibles et TOUTES leurs sources (réseaux où elles ont des liens), note
+  ou pas, une modèle par accordéon replié (`CollapsibleSection`, comme Infos modèles) ; une note s'ouvre en FENÊTRE (bouton œil encadré) — jamais en ligne, elle peut faire 20 000
+  caractères. Les réseaux d'une modèle viennent de `mkt_model_sources()` (`0172`, `security
+  definer`) : `mkt_links` reste fermée aux chatteurs, la fonction ne rend que des couples (modèle,
+  groupe), cloisonnés par une règle MIROIR de `creators_scoped_read` — à faire suivre si elle change.
 
 ## Données MyPuls — workflow d'ajout
 
@@ -319,7 +331,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-23** : prod = UAT = **0169**. **Prochaine migration = `0170`**.
+**État au 2026-09-23** : prod = UAT = **0172**. **Prochaine migration = `0173`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le
