@@ -35,6 +35,7 @@ import {
   Ghost,
   NotebookPen,
   IdCard,
+  Share2,
   ClipboardList,
   Trophy,
   GraduationCap,
@@ -169,6 +170,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/rapport-police', label: 'Rapport', icon: ClipboardList, slug: 'police', group: 'police' },
       { href: '/chatter/chatters', label: 'Chatters', icon: MessageSquare, group: 'equipe' },
       { href: '/chatter/modeles', label: 'Modèles', icon: Users, group: 'equipe' },
+      // Les notes du pôle marketing par (modèle × réseau), en LECTURE (0170/0171). Droit à part :
+      // Modèles, juste au-dessus, est un comparatif de CA ouvert à 2 chatteurs sur 403.
+      { href: '/chatter/sources-trafic', label: 'Sources de trafic', icon: Share2, group: 'equipe' },
       // Groupe Accès (porté de gla-workflow) : identifiants Snapchat + fiches modèles.
       // codes-snap : page ASSIGNABLE (lecture) ; écriture admin, ou encadrant sur SES modèles
       // assignés (`features/snap-codes/access.ts`).
@@ -307,7 +311,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'sources-trafic', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**
