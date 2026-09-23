@@ -1382,6 +1382,52 @@ export type Database = {
           },
         ]
       }
+      mkt_source_notes: {
+        Row: {
+          body: string
+          creator_id: string
+          group_key: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body: string
+          creator_id: string
+          group_key: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body?: string
+          creator_id?: string
+          group_key?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_source_notes_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_source_notes_group_key_fkey"
+            columns: ["group_key"]
+            isOneToOne: false
+            referencedRelation: "mkt_link_groups"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "mkt_source_notes_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mkt_staff: {
         Row: {
           active: boolean
@@ -5485,6 +5531,13 @@ export type Database = {
       mkt_creator_revenue: {
         Args: { p_from: string; p_to: string }
         Returns: Json
+      }
+      mkt_model_sources: {
+        Args: never
+        Returns: {
+          creator_id: string
+          group_key: string
+        }[]
       }
       mkt_save_staff_assignments: {
         Args: { p_accounts: string[]; p_links: string[]; p_staff: string }

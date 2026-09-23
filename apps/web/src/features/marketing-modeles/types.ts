@@ -65,3 +65,17 @@ export interface MktModelesData {
   }
   modeles: MktModeleRow[]
 }
+
+/** Onglet affiché — `?vue=`, validé par la page (un `?vue=nimporte` retombe sur Stats). */
+export type MktModelesVue = 'stats' | 'sources'
+
+/** La note libre d'une source (réseau) chez une modèle — `mkt_source_notes`, 0170. */
+export interface SourceNote {
+  body: string
+  updatedAt: string
+}
+
+/** Les notes de la page, indexées par `noteKey(creatorId, groupKey)`. */
+export type SourceNotes = Record<string, SourceNote>
+
+export const noteKey = (creatorId: string, groupKey: string) => `${creatorId}:${groupKey}`
