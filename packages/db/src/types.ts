@@ -1241,6 +1241,7 @@ export type Database = {
           mypuls_creator_id: string | null
           name: string
           type: string
+          type_manual: boolean
           url: string
         }
         Insert: {
@@ -1256,6 +1257,7 @@ export type Database = {
           mypuls_creator_id?: string | null
           name: string
           type?: string
+          type_manual?: boolean
           url?: string
         }
         Update: {
@@ -1271,6 +1273,7 @@ export type Database = {
           mypuls_creator_id?: string | null
           name?: string
           type?: string
+          type_manual?: boolean
           url?: string
         }
         Relationships: [

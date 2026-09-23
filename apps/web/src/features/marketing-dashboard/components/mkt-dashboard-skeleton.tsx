@@ -3,7 +3,7 @@ import { KpiSkeleton } from '@/components/skeletons/kpi-skeleton'
 
 /**
  * Silhouette du bloc de données Overview marketing (6 KPIs + graphe + 2 cartes), dimensions
- * ~ `MktDashboardTemplate` (anti-CLS) — graphe : ~390 px (carte + `MktDailyChart`, 280 px de
+ * ~ `MktDashboardTemplate` (anti-CLS) — graphe : ~390 px (carte + `MetricDailyPanel`, 280 px de
  * contenu). Source unique : importée par `loading.tsx` ET le fallback `<Suspense>` de
  * `page.tsx` (docs/guidelines-standard-feature.md §2 — jamais de markup dupliqué).
  */

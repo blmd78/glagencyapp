@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -34,6 +35,13 @@ const part = (v: number | null) => (v === null ? '—' : pct(v))
  */
 export function MktCreatorSection({ m, groups }: { m: MktModeleRow; groups: MktGroup[] }) {
   const vide = m.links.length === 0
+  // Les liens qui n'ont RIEN rapporté sur la période passent derrière un bouton (demande Benoit
+  // 2026-09-23, « comme dans les groupes ») : même geste que les liens sans activité de l'écran
+  // Liens, mais sur le critère d'ici — le revenu. Comptés et dépliables, jamais retirés.
+  const [voirSansRevenu, setVoirSansRevenu] = useState(false)
+  const rentables = m.links.filter((l) => l.revenueEur > 0)
+  const sansRevenu = m.links.filter((l) => l.revenueEur <= 0)
+  const lignes = voirSansRevenu ? [...rentables, ...sansRevenu] : rentables
 
   const entete = (
     <div className="flex flex-col gap-2 p-4 text-left">
@@ -100,54 +108,70 @@ export function MktCreatorSection({ m, groups }: { m: MktModeleRow; groups: MktG
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="border-t px-4 pb-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Lien</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-right">Abonnés</TableHead>
-                <TableHead className="text-right">CA</TableHead>
-                <TableHead className="text-right">Clics</TableHead>
-                <TableHead className="text-right">Conv.</TableHead>
-                <TableHead className="text-right">€/abonné</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {m.links.map((l) => (
-                <TableRow key={l.id} className={cn(!l.active && 'text-muted-foreground')}>
-                  <TableCell className="max-w-[220px] truncate font-medium" title={l.name}>
-                    {l.name}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={typeBadge(l.type)}>{groupLabel(groups, l.type)}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    <span className="flex items-center justify-end gap-2">
-                      {/* Micro-barre : le poids du lien DANS sa modèle, lisible d'un coup d'œil. */}
-                      <span className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
-                        <span
-                          className="block h-full rounded-full"
-                          style={{
-                            width: `${m.subsLiens > 0 ? Math.round((l.conversions / m.subsLiens) * 100) : 0}%`,
-                            background: VIA,
-                          }}
-                        />
-                      </span>
-                      {num(l.conversions)}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{eur(l.revenueEur)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{num(l.clicks)}</TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {l.taux === null ? '—' : pct(l.taux)}
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {l.ltv === null ? '—' : eur(l.ltv)}
-                  </TableCell>
+          {lignes.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Lien</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead className="text-right">Abonnés</TableHead>
+                  <TableHead className="text-right">CA</TableHead>
+                  <TableHead className="text-right">Clics</TableHead>
+                  <TableHead className="text-right">Conv.</TableHead>
+                  <TableHead className="text-right">€/abonné</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {lignes.map((l) => (
+                  <TableRow key={l.id} className={cn(!l.active && 'text-muted-foreground')}>
+                    <TableCell className="max-w-[220px] truncate font-medium" title={l.name}>
+                      {l.name}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={typeBadge(l.type)}>{groupLabel(groups, l.type)}</Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      <span className="flex items-center justify-end gap-2">
+                        {/* Micro-barre : le poids du lien DANS sa modèle, lisible d'un coup d'œil. */}
+                        <span className="h-1.5 w-12 overflow-hidden rounded-full bg-muted">
+                          <span
+                            className="block h-full rounded-full"
+                            style={{
+                              width: `${m.subsLiens > 0 ? Math.round((l.conversions / m.subsLiens) * 100) : 0}%`,
+                              background: VIA,
+                            }}
+                          />
+                        </span>
+                        {num(l.conversions)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{eur(l.revenueEur)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{num(l.clicks)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {l.taux === null ? '—' : pct(l.taux)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {l.ltv === null ? '—' : eur(l.ltv)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+          {/* Même bouton que les liens sans activité de l'écran Liens (liens-view.tsx) — `-mx-4`
+              pour qu'il prenne toute la largeur de la carte comme là-bas. */}
+          {sansRevenu.length > 0 && (
+            <div className={cn('-mx-4 -mb-4 overflow-hidden rounded-b-lg', lignes.length > 0 && 'border-t')}>
+              <button
+                type="button"
+                onClick={() => setVoirSansRevenu((v) => !v)}
+                className="w-full px-4 py-2 text-left text-sm text-muted-foreground hover:bg-accent/30"
+              >
+                {voirSansRevenu ? 'Masquer' : 'Afficher'} les {sansRevenu.length} lien
+                {sansRevenu.length > 1 ? 's' : ''} sans revenu sur la période
+              </button>
+            </div>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

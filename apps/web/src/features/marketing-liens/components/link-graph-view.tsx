@@ -1,11 +1,11 @@
 import { Badge } from '@/components/ui/badge'
 import { modelColor } from '@/lib/model-color'
-import { LinkDailyChart } from './link-daily-chart'
+import { MetricDailyPanel } from '@/components/metric-chart/metric-daily-panel.client'
 import { LinkPicker } from './link-picker'
 import { LinkTotals } from './link-totals'
-import { sumLinks, type LinkOption, type Modele, type Reseau } from '../link-options'
-import type { DailyPoint } from '../daily-series'
-import type { MktLinkRow } from '@/lib/types/marketing'
+import { commonGroup, reseauOptions, sumLinks, type LinkOption, type Modele, type Reseau } from '../link-options'
+import { toMetricPoints, type DailyPoint } from '../daily-series'
+import type { MktGroup, MktLinkRow } from '@/lib/types/marketing'
 
 /**
  * Le mode Graphique : on choisit un réseau, une modèle, puis un lien (ou tous), on lit le jour
@@ -20,6 +20,7 @@ export function LinkGraphView({
   points,
   options,
   modeleOptions,
+  groups,
   reseau,
   modele,
   lien,
@@ -29,6 +30,8 @@ export function LinkGraphView({
   points: DailyPoint[]
   options: LinkOption[]
   modeleOptions: LinkOption[]
+  /** Les groupes de la base : le sélecteur de réseau, et la couleur du graphe. */
+  groups: MktGroup[]
   reseau: Reseau
   modele: Modele
   lien: string
@@ -36,11 +39,15 @@ export function LinkGraphView({
   // Un seul lien retenu : on peut nommer sa modèle et dire s'il a disparu. Sur un cumul, ces
   // deux informations n'ont pas de valeur unique — on affiche le nombre de liens à la place.
   const seul = selected.length === 1 ? selected[0] : null
+  // Un seul réseau dans la sélection (choisi, ou parce que tous ses liens y sont) : le graphe en
+  // prend la couleur et le nom — demande Benoit 2026-09-23, « ils savent pas ce qu'ils regardent ».
+  const groupe = commonGroup(selected, groups)
 
   return (
     <div className="flex flex-col gap-6">
       <LinkPicker
         options={options}
+        reseauOptions={reseauOptions(groups)}
         modeleOptions={modeleOptions}
         reseau={reseau}
         modele={modele}
@@ -66,12 +73,16 @@ export function LinkGraphView({
       </div>
 
       <LinkTotals totals={sumLinks(selected)} />
-      <LinkDailyChart data={points} />
+      <MetricDailyPanel
+        daily={toMetricPoints(points)}
+        subtitle={`${selected.length} lien${selected.length > 1 ? 's' : ''} sur la période`}
+        identity={groupe ? { label: groupe.label, color: groupe.color } : null}
+      />
 
       {/* Cf. `dailySeries` : les jours sans ligne sont rendus à zéro, faute de quoi la courbe
           relierait deux points distants et ferait passer un lien muet pour un lien actif. */}
       <p className="text-xs text-muted-foreground">
-        Un jour sans barre est un jour sans activité — pas une donnée manquante.
+        Un jour à zéro est un jour sans activité — pas une donnée manquante.
       </p>
     </div>
   )

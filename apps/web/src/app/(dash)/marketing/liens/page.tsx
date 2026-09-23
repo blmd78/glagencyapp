@@ -39,9 +39,8 @@ export default async function MktLiensPage({
   const sp = await searchParams
   const period = resolvePeriod(sp)
   const vue: MktLiensVue = sp.vue === 'graph' ? 'graph' : 'classement'
-  const reseau = parseReseau(sp.reseau)
-  // `?modele=` se valide contre les liens CHARGÉS (une modèle sans lien n'est pas proposable),
-  // donc plus bas, une fois la lecture résolue — la page ne fait ici que transmettre le brut.
+  // `?reseau=` et `?modele=` se valident contre ce qui est CHARGÉ (les groupes, les liens), donc
+  // plus bas, une fois la lecture résolue — la page ne fait ici que transmettre le brut.
   // Kickoff SANS await : le shell (h1) s'affiche immédiatement, KPIs + table streament
   // dans leur boundary quand la lecture répond.
   const data = getMktLinks(period)
@@ -68,13 +67,13 @@ export default async function MktLiensPage({
         }
       >
         <MktLiensContent
-        data={data}
-        vue={vue}
-        linkId={linkId}
-        reseau={reseau}
-        modeleRaw={sp.modele}
-        period={period}
-      />
+          data={data}
+          vue={vue}
+          linkId={linkId}
+          reseauRaw={sp.reseau}
+          modeleRaw={sp.modele}
+          period={period}
+        />
       </Suspense>
       {/* La MODALE, réservée à l'onglet Classement : en mode Graphique, `?lien=` désigne déjà la
           courbe affichée en pleine page — l'ouvrir par-dessus la doublerait. Sa propre frontière,
@@ -92,18 +91,19 @@ async function MktLiensContent({
   data,
   vue,
   linkId,
-  reseau,
+  reseauRaw,
   modeleRaw,
   period,
 }: {
   data: Promise<MktLinksData>
   vue: MktLiensVue
   linkId: string | null
-  reseau: ReturnType<typeof parseReseau>
+  reseauRaw: string | undefined
   modeleRaw: string | undefined
   period: ReturnType<typeof resolvePeriod>
 }) {
   const [d, groups] = await Promise.all([data, getMktGroups()])
+  const reseau = parseReseau(reseauRaw, groups)
   const modele = parseModele(modeleRaw, d.links)
   const modeles = modeleOptions(d.links)
   let detail: Parameters<typeof MktLiensTemplate>[0]['detail'] = null
@@ -145,8 +145,8 @@ async function LinkDetailDialog({
   data: Promise<MktLinksData>
   period: ReturnType<typeof resolvePeriod>
 }) {
-  const d = await data
+  const [d, groups] = await Promise.all([data, getMktGroups()])
   const link = d.links.find((l) => l.id === linkId)
   if (!link) return null
-  return <LinkDailyDialog link={link} points={await getLinkDaily([linkId], period)} />
+  return <LinkDailyDialog link={link} groups={groups} points={await getLinkDaily([linkId], period)} />
 }

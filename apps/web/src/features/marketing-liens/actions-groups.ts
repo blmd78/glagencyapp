@@ -20,14 +20,19 @@ const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p))
 type Db = Awaited<ReturnType<typeof createClient>>
 
 /**
- * Range la FILE D'ATTENTE avec les règles du moment — appelé après chaque création ou
- * modification d'un groupe. Sans lui, créer « Reddit » laissait dans « À classer » les trois
- * liens `REDDIT_…` qui l'avaient justifié : la règle ne s'applique qu'aux liens NEUFS.
+ * Rejoue les règles du moment sur TOUS les liens qui ne sont pas épinglés à la main — appelé
+ * après chaque création ou modification de groupe.
  *
- * Seule la file d'attente est relue : un lien qu'un humain a rangé dans un groupe ne bouge
- * jamais. Rend le nombre de liens rangés, pour le dire à l'écran.
+ * Jusqu'au 2026-09-23 seule la file « À classer » était relue : c'était la promesse « un lien
+ * rangé ailleurs ne bouge jamais », et elle empêchait de DÉCOUPER un groupe — le groupe
+ * « SNAP + DA » créé pour séparer les SNAP_HAPPN restait vide, ces liens étant dans Snapchat.
+ * La promesse est désormais plus étroite, et juste : un lien rangé À LA MAIN (`type_manual`,
+ * 0169) ne bouge jamais ; le reste suit les règles.
+ *
+ * Comme la base est déjà conforme aux règles pour tout lien non épinglé, seuls bougent les liens
+ * que le groupe modifié concerne. Rend leur nombre, pour le dire à l'écran.
  */
-async function rangerFileDAttente(supabase: Db): Promise<number> {
+async function reappliquerRegles(supabase: Db): Promise<number> {
   const { data: rows, error } = await supabase
     .from('mkt_link_groups')
     .select('key, contains, starts_with, words, priority, is_fallback')
@@ -41,17 +46,20 @@ async function rangerFileDAttente(supabase: Db): Promise<number> {
     priority: g.priority,
     isFallback: g.is_fallback,
   }))
-  const repli = regles.find((r) => r.isFallback)?.key
-  if (!repli) return 0
 
   const { data: liens, error: lErr } = await fetchAll((f, t) =>
-    supabase.from('mkt_links').select('id, name').eq('type', repli).order('id').range(f, t),
+    supabase
+      .from('mkt_links')
+      .select('id, name, type')
+      .eq('type_manual', false)
+      .order('id')
+      .range(f, t),
   )
   if (lErr) throw new Error(lErr.message)
   const parGroupe = new Map<string, string[]>()
   for (const l of liens ?? []) {
     const cible = detectLinkGroup(l.name, regles)
-    if (cible !== repli) parGroupe.set(cible, [...(parGroupe.get(cible) ?? []), l.id])
+    if (cible !== l.type) parGroupe.set(cible, [...(parGroupe.get(cible) ?? []), l.id])
   }
   let ranges = 0
   for (const [cible, ids] of parGroupe) {
@@ -60,6 +68,23 @@ async function rangerFileDAttente(supabase: Db): Promise<number> {
     ranges += ids.length
   }
   return ranges
+}
+
+/**
+ * Deux groupes du même nom sont indiscernables à l'écran — c'est ce qui a produit deux « SNAP +
+ * DA » : le premier semblait ne pas exister (vide, donc absent de l'écran Liens), le second a
+ * été créé par-dessus. Comparaison sans casse ni espaces de bord, sur les groupes actifs.
+ */
+async function assertLabelLibre(supabase: Db, label: string, sauf?: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('mkt_link_groups')
+    .select('key, label')
+    .is('deleted_at', null)
+  if (error) throw new Error(error.message)
+  const pris = (data ?? []).find(
+    (g) => g.key !== sauf && g.label.trim().toLowerCase() === label.trim().toLowerCase(),
+  )
+  if (pris) throw new BusinessError(`Un groupe s’appelle déjà « ${pris.label} ».`)
 }
 
 export async function createLinkGroup(raw: unknown): Promise<ActionResult<{ ranges: number }>> {
@@ -77,6 +102,7 @@ export async function createLinkGroup(raw: unknown): Promise<ActionResult<{ rang
         .eq('key', values.key)
         .maybeSingle()
       if (ancien && !ancien.deleted_at) throw new BusinessError('Cette clé est déjà prise.')
+      await assertLabelLibre(supabase, values.label)
       const row = {
         label: values.label,
         contains: values.contains,
@@ -91,7 +117,7 @@ export async function createLinkGroup(raw: unknown): Promise<ActionResult<{ rang
         ? await supabase.from('mkt_link_groups').update(row).eq('key', values.key)
         : await supabase.from('mkt_link_groups').insert({ key: values.key, ...row })
       if (error) throw new Error(error.message)
-      const ranges = await rangerFileDAttente(supabase)
+      const ranges = await reappliquerRegles(supabase)
       revalidateAll()
       return { ranges }
     },
@@ -105,6 +131,7 @@ export async function updateLinkGroup(raw: unknown): Promise<ActionResult<{ rang
     guard: adminGuard,
     handler: async (values) => {
       const supabase = await createClient()
+      await assertLabelLibre(supabase, values.label, values.key)
       const { error } = await supabase
         .from('mkt_link_groups')
         .update({
@@ -119,7 +146,7 @@ export async function updateLinkGroup(raw: unknown): Promise<ActionResult<{ rang
         })
         .eq('key', values.key)
       if (error) throw new Error(error.message)
-      const ranges = await rangerFileDAttente(supabase)
+      const ranges = await reappliquerRegles(supabase)
       revalidateAll()
       return { ranges }
     },

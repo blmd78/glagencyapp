@@ -279,10 +279,15 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   parce que « contient » se trompe (« ara » attraperait Sarah, « ig » attraperait « hotgirl »).
   `priority` croissante départage (`SNAP_TIKTOK` → Snapchat). La règle vit UNE fois, pure et
   testée, en `@glagency/core` (`marketing/link-group.ts` : `detectLinkGroup`, `matchesLinkGroup`,
-  `suggestLinkGroups`). Elle ne range que les liens **neufs** (ingestion) et la **file d'attente**
-  « À classer » (`is_fallback`, non supprimable) — relue à chaque création/modification de groupe
-  et par l'ingestion, qui y crée un groupe dès qu'un préfixe revient 3 fois (`auto`) ; un lien rangé
-  ailleurs, à la main ou non, ne bouge jamais. « Autres » ne peut PAS disparaître : 306 des 361
+  `suggestLinkGroups`). Un lien **déplacé à la main** est épinglé
+  (`mkt_links.type_manual`, `0169` — posé par `setLinkType`) et **ne bouge plus jamais** ; tous les
+  autres suivent les règles, **rejouées sur eux à chaque création/modification de groupe**
+  (`reappliquerRegles`). Avant `0169` seule la file « À classer » était relue, ce qui interdisait de
+  DÉCOUPER un groupe (bug du 2026-09-23 : « SNAP + DA » restait vide, les SNAP_HAPPN étant dans
+  Snapchat). Un groupe créé à la main part en **priorité 5**, devant les groupes d'origine (10-90) :
+  c'est presque toujours un affinage. Deux groupes actifs ne peuvent pas porter le même nom.
+  L'ingestion range les liens **neufs** et crée un groupe dès qu'un préfixe revient 3 fois dans
+  « À classer » (`is_fallback`, non supprimable) — `auto`. « Autres » ne peut PAS disparaître : 306 des 361
   liens n'ont aucune url, les autres pointent vers mym.fans — le nom tapé dans MyPuls est la seule
   source, et un pseudo n'en dit rien. Suppression **douce** (`deleted_at`) : sans elle l'auto-création
   ressusciterait un groupe écarté. Réglage admin sur `/marketing/liens/groupes` (bouton en haut à
@@ -314,7 +319,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-23** : prod = UAT = **0168**. **Prochaine migration = `0169`**.
+**État au 2026-09-23** : prod = UAT = **0169**. **Prochaine migration = `0170`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

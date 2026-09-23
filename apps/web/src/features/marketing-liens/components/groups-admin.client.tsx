@@ -40,11 +40,18 @@ function keyOf(label: string): string {
 
 type GroupForm = UseFormReturn<GroupFormValues, unknown, GroupFormOutput>
 
-const EMPTY: GroupFormValues = { key: '', label: '', contains: '', startsWith: '', words: '', color: '', priority: 100 }
+// Priorité 5 par défaut : AVANT les groupes d'origine (10 à 90). Un groupe créé à la main est
+// presque toujours un affinage — « SNAP + DA » découpé dans Snapchat (10) — et à 100 il perdait
+// face au groupe qu'il voulait découper, même pour les liens à venir.
+const EMPTY: GroupFormValues = { key: '', label: '', contains: '', startsWith: '', words: '', color: '', priority: 5 }
 
-/** « 3 liens rangés depuis À classer » — ce que le rangement de la file vient de faire. */
-const rangesMsg = (n: number) =>
-  n > 0 ? ` ${n} lien${n > 1 ? 's' : ''} rangé${n > 1 ? 's' : ''} depuis « À classer ».` : ''
+/** Ce que le rejeu des règles vient de faire — dit, pour qu'un groupe vide ne passe pas pour raté. */
+const rangesMsg = (n: number, creation: boolean) =>
+  n > 0
+    ? ` ${n} lien${n > 1 ? 's' : ''} déplacé${n > 1 ? 's' : ''}.`
+    : creation
+      ? ' Aucun lien ne correspond pour l’instant : il apparaîtra dans l’écran Liens dès qu’un lien le rejoindra.'
+      : ''
 
 export function GroupsAdmin({ groups }: { groups: MktGroupAdminRow[] }) {
   'use no memo'
@@ -66,7 +73,7 @@ export function GroupsAdmin({ groups }: { groups: MktGroupAdminRow[] }) {
     start(async () => {
       const res = await createLinkGroup(form.getValues())
       if (!res.success) return void toast.error(res.error)
-      toast.success(`Groupe créé.${rangesMsg(res.data.ranges)}`)
+      toast.success(`Groupe créé.${rangesMsg(res.data.ranges, true)}`)
       form.reset(EMPTY)
     }),
   )
@@ -75,7 +82,7 @@ export function GroupsAdmin({ groups }: { groups: MktGroupAdminRow[] }) {
     start(async () => {
       const res = await updateLinkGroup(edit.getValues())
       if (!res.success) return void toast.error(res.error)
-      toast.success(`Groupe enregistré.${rangesMsg(res.data.ranges)}`)
+      toast.success(`Groupe enregistré.${rangesMsg(res.data.ranges, false)}`)
       setEditing(null)
     }),
   )
@@ -226,8 +233,8 @@ export function GroupsAdmin({ groups }: { groups: MktGroupAdminRow[] }) {
           <DialogHeader>
             <DialogTitle>Modifier « {editing?.label} »</DialogTitle>
             <DialogDescription>
-              Enregistrer range aussitôt les liens de « À classer » que ce groupe reconnaît. Les
-              liens déjà rangés dans un autre groupe ne bougent pas.
+              Enregistrer rejoue aussitôt les règles : les liens que ce groupe reconnaît le
+              rejoignent, sauf ceux qu’on a rangés à la main — ceux-là ne bougent jamais.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitEdit} className="flex flex-col gap-4">
