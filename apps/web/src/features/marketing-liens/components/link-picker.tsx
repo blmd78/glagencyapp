@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { Combobox } from '@/components/ui/combobox'
-import { ALL, RESEAU_OPTIONS, type LinkOption, type Modele, type Reseau } from '../link-options'
+import { ALL, type LinkOption, type Modele, type Reseau } from '../link-options'
 import { ModelePicker } from './modele-picker'
 
 /**
@@ -19,12 +19,15 @@ import { ModelePicker } from './modele-picker'
  */
 export function LinkPicker({
   options,
+  reseauOptions,
   modeleOptions,
   reseau,
   modele,
   lien,
 }: {
   options: LinkOption[]
+  /** Les groupes de la base (0167) — plus la liste figée des quatre sources d'avant. */
+  reseauOptions: LinkOption[]
   modeleOptions: LinkOption[]
   reseau: Reseau
   modele: Modele
@@ -47,7 +50,7 @@ export function LinkPicker({
   return (
     <div className="flex flex-wrap items-center gap-3">
       <Combobox
-        options={RESEAU_OPTIONS}
+        options={reseauOptions}
         value={reseau}
         onChange={(v) => v && v !== reseau && go({ reseau: v, lien: ALL })}
         placeholder="Réseau…"

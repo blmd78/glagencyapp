@@ -1,5 +1,6 @@
 import { addDays, round2 } from '@glagency/core'
 import type { MktLinkDailyRow } from '@/lib/services/get-mkt-links'
+import type { MetricPoint } from '@/components/metric-chart/options'
 
 /** Un jour de la courbe d'un lien. Toujours présent, même sans activité. */
 export interface DailyPoint {
@@ -47,4 +48,12 @@ export function dailySeries(
     points.push(byDate.get(d) ?? { date: d, clicks: 0, conversions: 0, revenueEur: 0 })
   }
   return points
+}
+
+/**
+ * La série au format du graphe PARTAGÉ (`components/metric-chart`), qui nomme le revenu
+ * `revenue` comme l'Overview. Renommage seul : aucune valeur ne change.
+ */
+export function toMetricPoints(points: readonly DailyPoint[]): MetricPoint[] {
+  return points.map((p) => ({ date: p.date, revenue: p.revenueEur, conversions: p.conversions, clicks: p.clicks }))
 }

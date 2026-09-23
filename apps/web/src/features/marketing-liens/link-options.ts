@@ -1,6 +1,6 @@
 import { round1, round2 } from '@glagency/core'
-import { aBouge, SOURCES, type Source } from './rank'
-import type { MktLinkRow } from '@/lib/types/marketing'
+import { aBouge, type Source } from './rank'
+import type { MktGroup, MktLinkRow } from '@/lib/types/marketing'
 
 /** La valeur « tout ce que le filtre au-dessus laisse passer » — pour le réseau ET pour le lien. */
 export const ALL = 'tous'
@@ -23,14 +23,35 @@ export interface LinkOption {
   label: string
 }
 
-export const RESEAU_OPTIONS: LinkOption[] = [
-  { value: ALL, label: 'Tous les réseaux' },
-  ...SOURCES.map((s) => ({ value: s.key, label: s.label })),
-]
+/**
+ * Les réseaux proposés au filtre : les GROUPES de la base (0167), dans leur ordre de priorité.
+ * La liste était figée sur les quatre sources d'avant — TrafficStars, ou tout groupe créé depuis
+ * l'écran Groupes, n'y apparaissait pas, et la file d'attente s'y appelait encore « Autres ».
+ */
+export function reseauOptions(groups: readonly Pick<MktGroup, 'key' | 'label'>[]): LinkOption[] {
+  return [{ value: ALL, label: 'Tous les réseaux' }, ...groups.map((g) => ({ value: g.key, label: g.label }))]
+}
 
-/** `?reseau=` vient de l'URL : tout ce qui n'est pas une source connue retombe sur « tous ». */
-export function parseReseau(raw: string | undefined): Reseau {
-  return SOURCES.some((s) => s.key === raw) ? (raw as Source) : ALL
+/** `?reseau=` vient de l'URL : tout ce qui n'est pas un groupe connu retombe sur « tous ». */
+export function parseReseau(raw: string | undefined, groups: readonly Pick<MktGroup, 'key'>[]): Reseau {
+  return groups.some((g) => g.key === raw) ? (raw as Source) : ALL
+}
+
+/**
+ * Le groupe COMMUN à toute la sélection — `null` dès qu'elle en mélange deux.
+ *
+ * C'est lui qui habille le graphe (sa couleur, son nom en tête du titre) : choisir Instagram
+ * doit se VOIR, sinon on regarde un graphe violet comme les autres sans savoir de quoi il parle.
+ * Vaut aussi pour un lien seul, ou une modèle dont tous les liens sont sur le même réseau.
+ */
+export function commonGroup<G extends Pick<MktGroup, 'key'>>(
+  selected: readonly Pick<MktLinkRow, 'type'>[],
+  groups: readonly G[],
+): G | null {
+  const types = new Set(selected.map((l) => l.type))
+  if (types.size !== 1) return null
+  const [seul] = types
+  return groups.find((g) => g.key === seul) ?? null
 }
 
 /**

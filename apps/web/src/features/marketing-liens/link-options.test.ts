@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { ALL, modeleOptions, parseModele, resolveGraphSelection, SANS_MODELE, sumLinks } from './link-options'
+import {
+  ALL,
+  commonGroup,
+  modeleOptions,
+  parseModele,
+  parseReseau,
+  reseauOptions,
+  resolveGraphSelection,
+  SANS_MODELE,
+  sumLinks,
+} from './link-options'
 import type { MktLinkRow } from '@/lib/types/marketing'
 
 const link = (o: Partial<MktLinkRow> & { id: string }): MktLinkRow => ({
@@ -164,5 +174,35 @@ describe('sumLinks', () => {
 
   it('rend un taux nul sans aucun clic', () => {
     expect(sumLinks([link({ id: 'a', conversions: 3 })]).taux).toBeNull()
+  })
+})
+
+describe('réseaux', () => {
+  const groupes = [
+    { key: 'snapchat', label: 'Snapchat' },
+    { key: 'instagram', label: 'Instagram' },
+    { key: 'other', label: 'À classer' },
+  ]
+
+  it('propose les groupes de la base, pas une liste figée', () => {
+    // TrafficStars et les groupes créés à la main n'apparaissaient pas avant 0167.
+    expect(reseauOptions(groupes).map((o) => o.label)).toEqual(['Tous les réseaux', 'Snapchat', 'Instagram', 'À classer'])
+  })
+
+  it('refuse un ?reseau= inconnu', () => {
+    expect(parseReseau('snapchat', groupes)).toBe('snapchat')
+    expect(parseReseau('myspace', groupes)).toBe(ALL)
+    expect(parseReseau(undefined, groupes)).toBe(ALL)
+  })
+
+  it('trouve le groupe commun à toute la sélection', () => {
+    const insta = [link({ id: 'a', type: 'instagram' }), link({ id: 'b', type: 'instagram' })]
+    expect(commonGroup(insta, groupes)?.key).toBe('instagram')
+  })
+
+  it('ne rend aucun groupe quand la sélection en mélange deux', () => {
+    const mix = [link({ id: 'a', type: 'instagram' }), link({ id: 'b', type: 'snapchat' })]
+    expect(commonGroup(mix, groupes)).toBeNull()
+    expect(commonGroup([], groupes)).toBeNull()
   })
 })

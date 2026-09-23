@@ -13,8 +13,8 @@ import { eur, num, pct } from '@/lib/format'
 import type { MktModelesData } from '../types'
 
 // DEUX couleurs sur toute la page. Le violet est déjà la teinte « revenus » du pôle
-// (mkt-daily-chart.client.tsx) ; le neutre passe par le token shadcn pour suivre le thème
-// sombre — un gris en dur resterait clair sur fond noir.
+// (`SERIES` de components/metric-chart/options.ts) ; le neutre passe par le token shadcn pour
+// suivre le thème sombre — un gris en dur resterait clair sur fond noir.
 const VIA = '#8b5cf6'
 const RESTE = 'var(--muted)'
 

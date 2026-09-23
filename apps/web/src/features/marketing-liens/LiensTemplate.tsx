@@ -64,7 +64,7 @@ export function MktLiensTemplate({
             label: 'Graphique',
             // Rendu SEULEMENT quand l'onglet est actif : sans `detail`, la page n'a pas lu de
             // série, et un graphe vide serait un mensonge plutôt qu'un chargement.
-            content: detail ? <LinkGraphView {...detail} modeleOptions={modeleOptions} /> : null,
+            content: detail ? <LinkGraphView {...detail} modeleOptions={modeleOptions} groups={groups} /> : null,
           },
         ]}
       />

@@ -11,7 +11,7 @@ import { LtvGauge } from '@/components/ltv-gauge'
 import { HeaderInfo } from '@/components/data-table/header-info'
 import { modelColor } from '@/lib/model-color'
 import { conv, eur, num, pct } from '@/lib/format'
-import { MktDailyChart } from './components/mkt-daily-chart'
+import { MetricDailyPanel } from '@/components/metric-chart/metric-daily-panel.client'
 import { typeBadge } from '@/lib/type-badge'
 import type { MktDashboardData } from './types'
 
@@ -99,32 +99,10 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
         </Card>
       </div>
 
-      <Card className="pt-0">
-        <CardHeader className="border-b py-5">
-          <CardTitle>Revenus & Subs / jour</CardTitle>
-          <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <span>{data.period}</span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#8b5cf6]" /> Revenus (€)
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#22c55e]" /> Subs
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="size-2 rounded-full bg-[#0ea5e9]" /> Clics
-            </span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="px-2 pt-4 sm:px-6">
-          {data.daily.length ? (
-            <MktDailyChart data={data.daily} />
-          ) : (
-            <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
-              Aucune donnée sur cette période.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* Le graphe par jour a ses réglages (métrique, rendu) : état client, donc dans sa propre
+          feuille client — le template reste un Server Component. Composant PARTAGÉ avec le mode
+          Graphique des Liens, qui doit montrer la même chose. */}
+      <MetricDailyPanel daily={data.daily} subtitle={data.period} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
