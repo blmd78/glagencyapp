@@ -261,8 +261,34 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   Uncove › Modèles : **`creator_id`** (rattachement **MANUEL** — jamais par nom, « Carla » existe
   en 3 exemplaires côté `creators` ; **null est légitime**, le CA compte alors au global sans
   ligne au classement par modèle) et **`counts_in_ca`** (« CA hors MyPuls », l'interrupteur
-  anti-double-comptage pour le jour où MyPuls relèvera Uncove). La Compta et les commissions
-  restent **100 % MyPuls** : ce CA n'est le travail d'aucun chatteur.
+  anti-double-comptage pour le jour où MyPuls relèvera Uncove). **Le CA Uncove est borné au
+  premier jour de `creator_daily`** (`0165`, borne dynamique) : Uncove remonte au 18/08/2025 et
+  MyPuls seulement au 01/06/2026 — sans elle, toute période antérieure à juin affichait un « CA
+  total » composé à 100 % d'Uncove (94 563 € sur 9 mois), qui se lit comme le CA de l'agence
+  alors qu'il ne décrit qu'une plateforme. La Compta et les commissions restent **100 % MyPuls** :
+  ce CA n'est le travail d'aucun chatteur. Le rattachement d'un compte à une modèle ne sert donc
+  **qu'aux chiffres de l'agence, jamais à un chatteur** (décision Benoit 2026-09-22) : l'API rend un
+  total par jour et par compte, jamais par opérateur — tout CA imputé à un chatteur serait inventé.
+
+- **Groupes de liens marketing** (`/marketing/liens`, `mkt_link_groups` de `0167`/`0168`) : les
+  sources de trafic d'un lien sont des **LIGNES**, plus une union TypeScript — `mkt_links.type` est
+  une clé étrangère vers `mkt_link_groups.key`, ajouter une source ne demande ni migration ni
+  déploiement. Chaque groupe se reconnaît par **trois listes de mots** (`contains`, `starts_with`,
+  `words` — jamais d'expression régulière exposée : `0167` en montrait, personne ne pouvait les
+  relire) comparées sans majuscules, accents ni séparateurs ; `starts_with` et `words` existent
+  parce que « contient » se trompe (« ara » attraperait Sarah, « ig » attraperait « hotgirl »).
+  `priority` croissante départage (`SNAP_TIKTOK` → Snapchat). La règle vit UNE fois, pure et
+  testée, en `@glagency/core` (`marketing/link-group.ts` : `detectLinkGroup`, `matchesLinkGroup`,
+  `suggestLinkGroups`). Elle ne range que les liens **neufs** (ingestion) et la **file d'attente**
+  « À classer » (`is_fallback`, non supprimable) — relue à chaque création/modification de groupe
+  et par l'ingestion, qui y crée un groupe dès qu'un préfixe revient 3 fois (`auto`) ; un lien rangé
+  ailleurs, à la main ou non, ne bouge jamais. « Autres » ne peut PAS disparaître : 306 des 361
+  liens n'ont aucune url, les autres pointent vers mym.fans — le nom tapé dans MyPuls est la seule
+  source, et un pseudo n'en dit rien. Suppression **douce** (`deleted_at`) : sans elle l'auto-création
+  ressusciterait un groupe écarté. Réglage admin sur `/marketing/liens/groupes` (bouton en haut à
+  droite des Liens), déplacement lien par lien depuis le badge de la ligne. Couleurs **fermées** à
+  8 teintes validées ensemble (`lib/mkt-groups.ts`) ; l'anneau ne montre que les 4 premières
+  sources. Spec : `docs/superpowers/specs/2026-09-22-mkt-groupes-liens-design.md`.
 
 ## Données MyPuls — workflow d'ajout
 
@@ -288,8 +314,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-22** : UAT = **0164**, prod = **0163** (`0164` s'applique au moment du
-déploiement de la release, cf. son en-tête). **Prochaine migration = `0165`**.
+**État au 2026-09-23** : prod = UAT = **0168**. **Prochaine migration = `0169`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

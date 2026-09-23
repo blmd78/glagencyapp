@@ -1,3 +1,25 @@
+/**
+ * Un groupe de liens (`mkt_link_groups`, 0167) : ce qui remplace l'union figée d'avant.
+ * Les trois listes de mots rangent les liens neufs (0168 — elles remplacent les expressions
+ * régulières), `priority` arbitre entre deux groupes qui reconnaissent le même nom,
+ * `isFallback` marque la file d'attente (« À classer »).
+ */
+export interface MktGroup {
+  key: string
+  label: string
+  color: string
+  /** Le nom CONTIENT l'un de ces mots. */
+  contains: string[]
+  /** Le nom COMMENCE par l'un de ces mots. */
+  startsWith: string[]
+  /** Le nom contient l'un de ces mots EN ENTIER (sigles courts : ig, tg, seo). */
+  words: string[]
+  priority: number
+  isFallback: boolean
+  /** Né d'un motif repéré par l'ingestion, pas d'une décision humaine — à relire. */
+  auto: boolean
+}
+
 // Types du pôle « marketing » PARTAGÉS entre plusieurs features (marketing-liens,
 // marketing-dashboard, marketing-social) — le reste (par domaine) vit dans le
 // types.ts de chaque feature.
@@ -5,7 +27,8 @@
 export interface MktLinkRow {
   id: string
   name: string
-  type: 'twitter' | 'instagram' | 'telegram' | 'other'
+  /** Clé du GROUPE (`mkt_link_groups.key`, 0167) — libre : les groupes sont des lignes. */
+  type: string
   url: string
   /** Id de la modèle rattachée — la jointure se fait par ID, jamais par nom : sous RLS
    *  `creators_scoped_read`, un non-admin ne lit aucun nom (get-mkt-links.ts:42). */

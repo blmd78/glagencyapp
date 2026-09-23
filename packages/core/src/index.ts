@@ -2,6 +2,14 @@ export * from './domain/types'
 export { planAssignmentSync } from './domain/assignments'
 export type { AssignmentSyncPlan } from './domain/assignments'
 export * from './impersonation/rules'
+export {
+  detectLinkGroup,
+  matchesLinkGroup,
+  normalizeKeyword,
+  suggestLinkGroups,
+  FALLBACK_KEY,
+} from './marketing/link-group'
+export type { LinkGroupRule } from './marketing/link-group'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
 export { runRules } from './insights/engine'

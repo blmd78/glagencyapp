@@ -14,16 +14,11 @@ import {
 import { typeBadge } from '@/lib/type-badge'
 import { eur, num, pct } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { groupLabel } from '@/lib/mkt-groups'
+import type { MktGroup } from '@/lib/types/marketing'
 import type { MktModeleRow } from '../types'
 
 const VIA = '#8b5cf6'
-
-const TYPE_LABEL: Record<MktModeleRow['links'][number]['type'], string> = {
-  twitter: 'X',
-  instagram: 'Insta',
-  telegram: 'Telegram',
-  other: 'Autre',
-}
 
 /** Une valeur, ou « — » si elle n'a pas de sens (pas de base de calcul). Jamais « 0 % ». */
 const part = (v: number | null) => (v === null ? '—' : pct(v))
@@ -37,7 +32,7 @@ const part = (v: number | null) => (v === null ? '—' : pct(v))
  * La LISTE TRIÉE est le graphique de comparaison entre modèles : pas de second graphe pour
  * classer, et pas de couleur par modèle.
  */
-export function MktCreatorSection({ m }: { m: MktModeleRow }) {
+export function MktCreatorSection({ m, groups }: { m: MktModeleRow; groups: MktGroup[] }) {
   const vide = m.links.length === 0
 
   const entete = (
@@ -124,7 +119,7 @@ export function MktCreatorSection({ m }: { m: MktModeleRow }) {
                     {l.name}
                   </TableCell>
                   <TableCell>
-                    <Badge className={typeBadge(l.type)}>{TYPE_LABEL[l.type]}</Badge>
+                    <Badge className={typeBadge(l.type)}>{groupLabel(groups, l.type)}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     <span className="flex items-center justify-end gap-2">

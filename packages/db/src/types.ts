@@ -1182,6 +1182,51 @@ export type Database = {
           },
         ]
       }
+      mkt_link_groups: {
+        Row: {
+          auto: boolean
+          color: string
+          contains: string[]
+          created_at: string
+          deleted_at: string | null
+          id: string
+          is_fallback: boolean
+          key: string
+          label: string
+          priority: number
+          starts_with: string[]
+          words: string[]
+        }
+        Insert: {
+          auto?: boolean
+          color?: string
+          contains?: string[]
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_fallback?: boolean
+          key: string
+          label: string
+          priority?: number
+          starts_with?: string[]
+          words?: string[]
+        }
+        Update: {
+          auto?: boolean
+          color?: string
+          contains?: string[]
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_fallback?: boolean
+          key?: string
+          label?: string
+          priority?: number
+          starts_with?: string[]
+          words?: string[]
+        }
+        Relationships: []
+      }
       mkt_links: {
         Row: {
           active: boolean
@@ -1235,6 +1280,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "creators"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_links_type_fkey"
+            columns: ["type"]
+            isOneToOne: false
+            referencedRelation: "mkt_link_groups"
+            referencedColumns: ["key"]
           },
         ]
       }

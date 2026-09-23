@@ -3,7 +3,7 @@ import { LiensView } from './components/liens-view'
 import { LinkGraphView } from './components/link-graph-view'
 import type { DailyPoint } from './daily-series'
 import type { LinkOption, Modele, Reseau } from './link-options'
-import type { MktLinkRow } from '@/lib/types/marketing'
+import type { MktGroup, MktLinkRow } from '@/lib/types/marketing'
 import type { MktLinksData, MktLiensVue } from './types'
 
 /**
@@ -18,6 +18,7 @@ export function MktLiensTemplate({
   vue,
   modele,
   modeleOptions,
+  groups,
   detail,
 }: {
   data: MktLinksData
@@ -26,6 +27,8 @@ export function MktLiensTemplate({
    *  l'autre on retrouve la même sélection. */
   modele: Modele
   modeleOptions: LinkOption[]
+  /** Les groupes de la base (0167) : libellés, couleurs et choix du menu de déplacement. */
+  groups: MktGroup[]
   /** Chargé par la page uniquement en mode Graphique — `null` sur l'onglet Classement. */
   detail: {
     selected: MktLinkRow[]
@@ -52,7 +55,7 @@ export function MktLiensTemplate({
             // Le conteneur qu'ils attendent les suit donc ici.
             content: (
               <div className="flex flex-col gap-6">
-                <LiensView data={data} modele={modele} modeleOptions={modeleOptions} />
+                <LiensView data={data} modele={modele} modeleOptions={modeleOptions} groups={groups} />
               </div>
             ),
           },

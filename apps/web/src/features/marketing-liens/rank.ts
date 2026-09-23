@@ -10,15 +10,27 @@ export const CRITERES: { key: Critere; label: string; hint: string }[] = [
   { key: 'taux', label: 'Taux', hint: 'abonnés ÷ clics' },
 ]
 
-export type Source = MktLinkRow['type']
+/** La clé d'un groupe — libre depuis 0167 : les groupes sont des lignes, plus une union. */
+export type Source = string
 
+/** Repli d'affichage si la table des groupes est vide ou illisible — la BASE fait foi. */
 export const SOURCES: { key: Source; label: string; color: string }[] = [
-  // Palette passée au validateur dataviz : violet/rose/cyan séparés en vision normale ET sous
-  // deutéranopie (ΔE 8,9 au pire). Les teintes des badges (sky ↔ blue) échouaient. « Autres »
-  // garde un neutre ASSUMÉ : c'est la catégorie résiduelle, elle ne doit pas attirer l'œil.
+  // Palette passée au validateur dataviz, dans CET ordre : c'est lui qui a été validé (paires
+  // adjacentes, ΔE 8,3 au pire sous protanopie, 20,5 en vision normale). Les réordonner sans
+  // repasser le validateur casserait la garantie. « Autres » garde un neutre ASSUMÉ : c'est la
+  // catégorie résiduelle, elle ne doit pas attirer l'œil.
+  //
+  // Neuf sources depuis le 2026-09-22 (demande Benoit) : « Autres » était un fourre-tout de 64
+  // liens sur 361. TikTok et TikTok Ads sont deux entrées, pas une — un lien organique de la
+  // farm et une campagne payée ne se pilotent pas pareil.
   { key: 'twitter', label: 'Twitter / X', color: '#8b5cf6' },
   { key: 'instagram', label: 'Instagram', color: '#ec4899' },
   { key: 'telegram', label: 'Telegram', color: '#06b6d4' },
+  { key: 'snapchat', label: 'Snapchat', color: '#ca8a04' },
+  { key: 'tiktok', label: 'TikTok', color: '#059669' },
+  { key: 'tiktok_ads', label: 'TikTok Ads', color: '#ea580c' },
+  { key: 'fb_ads', label: 'Facebook Ads', color: '#3b82f6' },
+  { key: 'seo', label: 'SEO', color: '#65a30d' },
   { key: 'other', label: 'Autres', color: 'var(--muted-foreground)' },
 ]
 
@@ -46,6 +58,8 @@ export interface SourceGroup {
   type: Source
   label: string
   color: string
+  /** Affichée même sans activité — la file d'attente « À classer ». */
+  keep: boolean
   /** Les liens ACTIFS sur la période, classés par le critère (décroissant). */
   links: MktLinkRow[]
   /** Les liens de la source restés muets sur la période — comptés, affichés à la demande. */
@@ -73,8 +87,13 @@ export interface SourceGroup {
  * Les sections sont triées par leur propre score, et une source sans lien disparaît — un
  * en-tête « Telegram · 0 lien » n'apprend rien tant qu'aucun lien n'est typé ainsi.
  */
-export function groupBySource(links: MktLinkRow[], critere: Critere): SourceGroup[] {
-  return SOURCES.map(({ key, label, color }) => {
+export function groupBySource(
+  links: MktLinkRow[],
+  critere: Critere,
+  /** `keep` : section affichée même sans activité sur la période (la file « À classer »). */
+  sources: readonly { key: Source; label: string; color: string; keep?: boolean }[],
+): SourceGroup[] {
+  return sources.map(({ key, label, color, keep }) => {
     const own = links.filter((l) => l.type === key)
     const clicks = own.reduce((s, l) => s + l.clicks, 0)
     const conversions = own.reduce((s, l) => s + l.conversions, 0)
@@ -91,6 +110,7 @@ export function groupBySource(links: MktLinkRow[], critere: Critere): SourceGrou
       type: key,
       label,
       color,
+      keep: keep ?? false,
       links: classes,
       dormants,
       clicks,
@@ -103,7 +123,9 @@ export function groupBySource(links: MktLinkRow[], critere: Critere): SourceGrou
     }
   })
     // Une source dont AUCUN lien n'a bougé disparaît : un en-tête « Telegram · 0 » n'apprend
-    // rien. Elle revient d'elle-même dès qu'un de ses liens collecte un clic.
-    .filter((g) => g.links.length > 0)
+    // rien. Elle revient d'elle-même dès qu'un de ses liens collecte un clic. SAUF la file
+    // d'attente (`keep`) : c'est là qu'on vient ranger les liens, et ils y sont le plus souvent
+    // muets — la masquer rendait le déplacement manuel impossible.
+    .filter((g) => g.links.length > 0 || (g.keep && g.dormants.length > 0))
     .sort((a, b) => b.score - a.score)
 }

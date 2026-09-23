@@ -1,5 +1,9 @@
+import Link from 'next/link'
+import { Tags } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Suspense } from 'react'
 import { getMktLinks } from '@/features/marketing-liens/services/get-links'
+import { getMktGroups } from '@/lib/services/get-mkt-groups'
 import { getLinkDaily } from '@/features/marketing-liens/services/get-link-daily'
 import { MktLiensTemplate } from '@/features/marketing-liens/LiensTemplate'
 import { MktLiensSkeleton } from '@/features/marketing-liens/components/liens-skeleton'
@@ -45,7 +49,17 @@ export default async function MktLiensPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Liens de tracking</h1>
+      {/* Le réglage des groupes vit hors sidebar : c'est de la maintenance, pas un écran
+          quotidien. Même bouton, même place que les Réglages du Relevé (presence/page.tsx). */}
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight">Liens de tracking</h1>
+        <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
+          <Link href="/marketing/liens/groupes" title="Créer, renommer et régler les groupes de liens">
+            <Tags className="size-4" />
+            Groupes
+          </Link>
+        </Button>
+      </div>
       <Suspense
         fallback={
           <SectionFallback subtitle="h-4 w-32">
@@ -89,7 +103,7 @@ async function MktLiensContent({
   modeleRaw: string | undefined
   period: ReturnType<typeof resolvePeriod>
 }) {
-  const d = await data
+  const [d, groups] = await Promise.all([data, getMktGroups()])
   const modele = parseModele(modeleRaw, d.links)
   const modeles = modeleOptions(d.links)
   let detail: Parameters<typeof MktLiensTemplate>[0]['detail'] = null
@@ -109,6 +123,7 @@ async function MktLiensContent({
       vue={vue}
       modele={modele}
       modeleOptions={modeles}
+      groups={groups}
       detail={detail}
     />
   )

@@ -3,13 +3,14 @@ import { eur, num, pct } from '@/lib/format'
 import { MktAgencySplit } from './components/agency-split.client'
 import { MktCreatorSection } from './components/creator-section.client'
 import type { MktModelesData } from './types'
+import type { MktGroup } from '@/lib/types/marketing'
 
 /**
  * Page Modèles : ce que les liens de tracking apportent à CHAQUE modèle, rapporté à son CA
  * et à ses abonnés. Le pôle marketing sait déjà ce que ses liens gagnent (page Liens,
  * Overview) — ce qu'il ignorait, c'est ce que ça pèse.
  */
-export function MktModelesTemplate({ data }: { data: MktModelesData }) {
+export function MktModelesTemplate({ data, groups }: { data: MktModelesData; groups: MktGroup[] }) {
   const t = data.totals
   const base = { deltaPct: null as number | null, trendLabel: '', hint: '' }
   // Pas de badge « vs période précédente » : même raison que le dashboard marketing — avec un
@@ -74,7 +75,7 @@ export function MktModelesTemplate({ data }: { data: MktModelesData }) {
 
       <div className="flex flex-col gap-2">
         {data.modeles.map((m) => (
-          <MktCreatorSection key={m.creatorId} m={m} />
+          <MktCreatorSection key={m.creatorId} m={m} groups={groups} />
         ))}
         {data.modeles.length === 0 && (
           <p className="text-sm text-muted-foreground">Aucune modèle sur cette période.</p>
