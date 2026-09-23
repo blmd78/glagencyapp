@@ -19,7 +19,7 @@ export async function getGroupsAdmin(): Promise<MktGroupAdminRow[]> {
   const [groupsRes, linksRes] = await Promise.all([
     supabase
       .from('mkt_link_groups')
-      .select('key, label, color, pattern, priority, is_fallback, auto')
+      .select('key, label, color, contains, starts_with, words, priority, is_fallback, auto')
       .is('deleted_at', null)
       .order('priority'),
     supabase.from('mkt_links').select('type'),
@@ -35,7 +35,9 @@ export async function getGroupsAdmin(): Promise<MktGroupAdminRow[]> {
       key: g.key,
       label: g.label,
       color: g.color,
-      pattern: g.pattern,
+      contains: g.contains,
+      startsWith: g.starts_with,
+      words: g.words,
       priority: g.priority,
       isFallback: g.is_fallback,
       auto: g.auto,

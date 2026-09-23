@@ -1186,38 +1186,44 @@ export type Database = {
         Row: {
           auto: boolean
           color: string
+          contains: string[]
           created_at: string
           deleted_at: string | null
           id: string
           is_fallback: boolean
           key: string
           label: string
-          pattern: string
           priority: number
+          starts_with: string[]
+          words: string[]
         }
         Insert: {
           auto?: boolean
           color?: string
+          contains?: string[]
           created_at?: string
           deleted_at?: string | null
           id?: string
           is_fallback?: boolean
           key: string
           label: string
-          pattern?: string
           priority?: number
+          starts_with?: string[]
+          words?: string[]
         }
         Update: {
           auto?: boolean
           color?: string
+          contains?: string[]
           created_at?: string
           deleted_at?: string | null
           id?: string
           is_fallback?: boolean
           key?: string
           label?: string
-          pattern?: string
           priority?: number
+          starts_with?: string[]
+          words?: string[]
         }
         Relationships: []
       }

@@ -58,6 +58,8 @@ export interface SourceGroup {
   type: Source
   label: string
   color: string
+  /** Affichée même sans activité — la file d'attente « À classer ». */
+  keep: boolean
   /** Les liens ACTIFS sur la période, classés par le critère (décroissant). */
   links: MktLinkRow[]
   /** Les liens de la source restés muets sur la période — comptés, affichés à la demande. */
@@ -88,9 +90,10 @@ export interface SourceGroup {
 export function groupBySource(
   links: MktLinkRow[],
   critere: Critere,
-  sources: readonly { key: Source; label: string; color: string }[],
+  /** `keep` : section affichée même sans activité sur la période (la file « À classer »). */
+  sources: readonly { key: Source; label: string; color: string; keep?: boolean }[],
 ): SourceGroup[] {
-  return sources.map(({ key, label, color }) => {
+  return sources.map(({ key, label, color, keep }) => {
     const own = links.filter((l) => l.type === key)
     const clicks = own.reduce((s, l) => s + l.clicks, 0)
     const conversions = own.reduce((s, l) => s + l.conversions, 0)
@@ -107,6 +110,7 @@ export function groupBySource(
       type: key,
       label,
       color,
+      keep: keep ?? false,
       links: classes,
       dormants,
       clicks,
@@ -119,7 +123,9 @@ export function groupBySource(
     }
   })
     // Une source dont AUCUN lien n'a bougé disparaît : un en-tête « Telegram · 0 » n'apprend
-    // rien. Elle revient d'elle-même dès qu'un de ses liens collecte un clic.
-    .filter((g) => g.links.length > 0)
+    // rien. Elle revient d'elle-même dès qu'un de ses liens collecte un clic. SAUF la file
+    // d'attente (`keep`) : c'est là qu'on vient ranger les liens, et ils y sont le plus souvent
+    // muets — la masquer rendait le déplacement manuel impossible.
+    .filter((g) => g.links.length > 0 || (g.keep && g.dormants.length > 0))
     .sort((a, b) => b.score - a.score)
 }

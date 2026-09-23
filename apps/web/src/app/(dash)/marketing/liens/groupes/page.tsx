@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { requireAccess } from '@/lib/auth'
 import { getGroupsAdmin } from '@/features/marketing-liens/services/get-groups-admin'
 import { GroupsAdmin } from '@/features/marketing-liens/components/groups-admin.client'
@@ -16,18 +15,11 @@ export default async function MktGroupesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Groupes de liens</h1>
-          <p className="text-sm text-muted-foreground">
-            Chaque groupe reconnaît les liens dont le nom contient son mot-clé, du plus prioritaire
-            au moins prioritaire. Un lien qu’aucun groupe ne reconnaît attend dans « À classer ».
-          </p>
-        </div>
-        <Link href="/marketing/liens" className="text-sm text-muted-foreground hover:underline">
-          ← Retour aux liens
-        </Link>
-      </div>
+      <h1 className="text-2xl font-semibold tracking-tight">Groupes de liens</h1>
+      <p className="max-w-2xl text-sm text-muted-foreground">
+        Un lien neuf rejoint le premier groupe qui reconnaît son nom, par priorité croissante — le
+        plus petit chiffre d’abord. Ce qu’aucun groupe ne reconnaît attend dans « À classer ».
+      </p>
       <GroupsAdmin groups={groups} />
     </div>
   )

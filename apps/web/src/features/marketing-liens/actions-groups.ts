@@ -8,14 +8,61 @@
 // ouvert comme avant.
 
 import { revalidatePath } from 'next/cache'
+import { detectLinkGroup, type LinkGroupRule } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAll } from '@/lib/supabase/fetch-all'
 import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
 import { createGroupSchema, deleteGroupSchema, updateGroupSchema } from './groups.schema'
 
 const PATHS = ['/marketing/liens', '/marketing/liens/groupes', '/marketing/modeles']
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p))
 
-export async function createLinkGroup(raw: unknown): Promise<ActionResult> {
+type Db = Awaited<ReturnType<typeof createClient>>
+
+/**
+ * Range la FILE D'ATTENTE avec les règles du moment — appelé après chaque création ou
+ * modification d'un groupe. Sans lui, créer « Reddit » laissait dans « À classer » les trois
+ * liens `REDDIT_…` qui l'avaient justifié : la règle ne s'applique qu'aux liens NEUFS.
+ *
+ * Seule la file d'attente est relue : un lien qu'un humain a rangé dans un groupe ne bouge
+ * jamais. Rend le nombre de liens rangés, pour le dire à l'écran.
+ */
+async function rangerFileDAttente(supabase: Db): Promise<number> {
+  const { data: rows, error } = await supabase
+    .from('mkt_link_groups')
+    .select('key, contains, starts_with, words, priority, is_fallback')
+    .is('deleted_at', null)
+  if (error) throw new Error(error.message)
+  const regles: LinkGroupRule[] = (rows ?? []).map((g) => ({
+    key: g.key,
+    contains: g.contains,
+    startsWith: g.starts_with,
+    words: g.words,
+    priority: g.priority,
+    isFallback: g.is_fallback,
+  }))
+  const repli = regles.find((r) => r.isFallback)?.key
+  if (!repli) return 0
+
+  const { data: liens, error: lErr } = await fetchAll((f, t) =>
+    supabase.from('mkt_links').select('id, name').eq('type', repli).order('id').range(f, t),
+  )
+  if (lErr) throw new Error(lErr.message)
+  const parGroupe = new Map<string, string[]>()
+  for (const l of liens ?? []) {
+    const cible = detectLinkGroup(l.name, regles)
+    if (cible !== repli) parGroupe.set(cible, [...(parGroupe.get(cible) ?? []), l.id])
+  }
+  let ranges = 0
+  for (const [cible, ids] of parGroupe) {
+    const { error: uErr } = await supabase.from('mkt_links').update({ type: cible }).in('id', ids)
+    if (uErr) throw new Error(uErr.message)
+    ranges += ids.length
+  }
+  return ranges
+}
+
+export async function createLinkGroup(raw: unknown): Promise<ActionResult<{ ranges: number }>> {
   return runAction({
     schema: createGroupSchema,
     input: raw,
@@ -32,7 +79,9 @@ export async function createLinkGroup(raw: unknown): Promise<ActionResult> {
       if (ancien && !ancien.deleted_at) throw new BusinessError('Cette clé est déjà prise.')
       const row = {
         label: values.label,
-        pattern: values.pattern,
+        contains: values.contains,
+        starts_with: values.startsWith,
+        words: values.words,
         color: values.color,
         priority: values.priority,
         auto: false,
@@ -42,12 +91,14 @@ export async function createLinkGroup(raw: unknown): Promise<ActionResult> {
         ? await supabase.from('mkt_link_groups').update(row).eq('key', values.key)
         : await supabase.from('mkt_link_groups').insert({ key: values.key, ...row })
       if (error) throw new Error(error.message)
+      const ranges = await rangerFileDAttente(supabase)
       revalidateAll()
+      return { ranges }
     },
   })
 }
 
-export async function updateLinkGroup(raw: unknown): Promise<ActionResult> {
+export async function updateLinkGroup(raw: unknown): Promise<ActionResult<{ ranges: number }>> {
   return runAction({
     schema: updateGroupSchema,
     input: raw,
@@ -58,7 +109,9 @@ export async function updateLinkGroup(raw: unknown): Promise<ActionResult> {
         .from('mkt_link_groups')
         .update({
           label: values.label,
-          pattern: values.pattern,
+          contains: values.contains,
+          starts_with: values.startsWith,
+          words: values.words,
           color: values.color,
           priority: values.priority,
           // Relu et réglé par un humain : le badge « créé automatiquement » n'a plus lieu d'être.
@@ -66,7 +119,9 @@ export async function updateLinkGroup(raw: unknown): Promise<ActionResult> {
         })
         .eq('key', values.key)
       if (error) throw new Error(error.message)
+      const ranges = await rangerFileDAttente(supabase)
       revalidateAll()
+      return { ranges }
     },
   })
 }

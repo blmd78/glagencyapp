@@ -16,7 +16,7 @@ export async function getMktGroups(): Promise<MktGroup[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('mkt_link_groups')
-    .select('key, label, color, pattern, priority, is_fallback, auto')
+    .select('key, label, color, contains, starts_with, words, priority, is_fallback, auto')
     .is('deleted_at', null)
     .order('priority')
   if (error) throw new Error(error.message)
@@ -25,7 +25,9 @@ export async function getMktGroups(): Promise<MktGroup[]> {
       key: g.key,
       label: g.label,
       color: g.color,
-      pattern: g.pattern,
+      contains: g.contains,
+      startsWith: g.starts_with,
+      words: g.words,
       priority: g.priority,
       isFallback: g.is_fallback,
       auto: g.auto,

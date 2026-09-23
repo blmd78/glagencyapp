@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { GROUP_PALETTE, NEUTRAL_COLOR, withColors } from './mkt-groups'
+import { describeRule, GROUP_PALETTE, NEUTRAL_COLOR, withColors } from './mkt-groups'
 import type { MktGroup } from '@/lib/types/marketing'
 
 const g = (o: Partial<MktGroup> & { key: string }): MktGroup => ({
-  label: o.key, color: '', pattern: '', priority: 100, isFallback: false, auto: false, ...o,
+  label: o.key, color: '', contains: [], startsWith: [], words: [], priority: 100, isFallback: false, auto: false, ...o,
 })
 
 describe('withColors', () => {
@@ -26,5 +26,17 @@ describe('withColors', () => {
     const groupes = [...GROUP_PALETTE].map((c, i) => g({ key: `pris${i}`, color: c }))
     const out = withColors([...groupes, g({ key: 'neuf' })])
     expect(out.at(-1)!.color).toBe(NEUTRAL_COLOR)
+  })
+})
+
+describe('describeRule', () => {
+  it('dit en français ce que le groupe reconnaît', () => {
+    expect(describeRule(g({ key: 'telegram', contains: ['telegram'], startsWith: ['tel'], words: ['tg'] }))).toBe(
+      'contient telegram · commence par tel · mot tg',
+    )
+  })
+
+  it('rend un tiret pour un groupe sans règle', () => {
+    expect(describeRule(g({ key: 'manuel' }))).toBe('—')
   })
 })

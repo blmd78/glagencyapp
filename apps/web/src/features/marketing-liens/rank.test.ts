@@ -106,6 +106,24 @@ describe('groupBySource', () => {
   })
 })
 
+describe('groupBySource — file d attente', () => {
+  it('garde « À classer » visible même quand aucun de ses liens n a bougé', () => {
+    // Sans ça la section disparaît, et avec elle le seul endroit où ranger ces liens.
+    const sources = [
+      { key: 'twitter', label: 'Twitter', color: '#000' },
+      { key: 'other', label: 'À classer', color: '#999', keep: true },
+    ]
+    const g = groupBySource([link({ id: 'muet', type: 'other' })], 'subs', sources)
+    expect(g.map((s) => s.type)).toEqual(['other'])
+    expect(g[0].dormants.map((l) => l.id)).toEqual(['muet'])
+  })
+
+  it('ne garde pas une file d attente vide', () => {
+    const sources = [{ key: 'other', label: 'À classer', color: '#999', keep: true }]
+    expect(groupBySource([], 'subs', sources)).toEqual([])
+  })
+})
+
 describe('valeur', () => {
   it('lit le champ du critère', () => {
     const l = link({ id: 'a', conversions: 4, revenueEur: 9, taux: 12 })

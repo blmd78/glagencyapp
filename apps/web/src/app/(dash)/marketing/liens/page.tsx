@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { Tags } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Suspense } from 'react'
 import { getMktLinks } from '@/features/marketing-liens/services/get-links'
 import { getMktGroups } from '@/lib/services/get-mkt-groups'
@@ -47,16 +49,16 @@ export default async function MktLiensPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Le réglage des groupes vit hors sidebar : c'est de la maintenance, pas un écran
+          quotidien. Même bouton, même place que les Réglages du Relevé (presence/page.tsx). */}
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-semibold tracking-tight">Liens de tracking</h1>
-        {/* Le réglage des groupes vit hors sidebar : c'est de la maintenance, pas un écran
-            quotidien (même parti pris que les Réglages du Relevé MyPuls). */}
-        <Link
-          href="/marketing/liens/groupes"
-          className="text-sm text-muted-foreground hover:underline"
-        >
-          Groupes
-        </Link>
+        <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
+          <Link href="/marketing/liens/groupes" title="Créer, renommer et régler les groupes de liens">
+            <Tags className="size-4" />
+            Groupes
+          </Link>
+        </Button>
       </div>
       <Suspense
         fallback={

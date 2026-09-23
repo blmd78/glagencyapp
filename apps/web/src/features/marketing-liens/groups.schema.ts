@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { normalizeKeyword } from '@glagency/core'
 
 // Partagé par le formulaire (RHF) ET les Server Actions — règle archi-web.
 
@@ -11,39 +12,40 @@ const key = z
   .regex(/^[a-z0-9_]+$/, 'Minuscules, chiffres et « _ » uniquement')
 
 /**
- * Le motif est lu par Postgres ET par JavaScript. On refuse ici ce que JS ne sait pas compiler :
- * une parenthèse oubliée passerait sinon en base, où elle ne casserait rien — la règle ignore
- * les motifs illisibles — mais ne rangerait jamais rien, sans que personne comprenne pourquoi.
+ * Une liste saisie « snap, snapchat » → `['snap', 'snapchat']`, enregistrée sous la forme même
+ * où la règle compare (`normalizeKeyword` : sans majuscules, accents ni séparateurs). Sans ça,
+ * « FB Ads » saisi à la main ne reconnaîtrait jamais rien.
+ *
+ * Coupée aux VIRGULES seulement : l'espace fait partie du mot (« fb ads » = « fbads »), le couper
+ * donnerait « fb » tout court, qui reconnaîtrait n'importe quoi.
  */
-const pattern = z
+const keywords = z
   .string()
-  .trim()
-  .max(200, 'Motif trop long')
-  .refine(
-    (p) => {
-      if (p === '') return true
-      try {
-        new RegExp(p, 'i')
-        return true
-      } catch {
-        return false
-      }
-    },
-    { message: 'Motif illisible (vérifie les parenthèses)' },
-  )
+  .max(400)
+  .transform((raw) => [...new Set(raw.split(/[,;]/).map(normalizeKeyword).filter(Boolean))])
+  .refine((kws) => kws.length <= 20, { message: '20 mots au plus' })
+  .refine((kws) => kws.every((k) => /^[a-z0-9]{1,30}$/.test(k)), {
+    message: 'Lettres et chiffres, séparés par des virgules',
+  })
 
 export const createGroupSchema = z.object({
   key,
   label: z.string().trim().min(1, 'Nom requis').max(40),
-  pattern,
+  contains: keywords,
+  startsWith: keywords,
+  words: keywords,
   color: z.string().trim().max(40),
   priority: z.coerce.number().int().min(1).max(998),
 })
-export type CreateGroupInput = z.infer<typeof createGroupSchema>
-/** Type d'ENTRÉE du formulaire : `priority` passe par `z.coerce`, son input est `unknown`. */
+/**
+ * Type d'ENTRÉE du formulaire (convention compta/schema.ts) : les mots-clés y sont des CHAÎNES,
+ * `priority` passe par `z.coerce` — l'entrée diffère de la sortie.
+ */
 export type GroupFormValues = z.input<typeof createGroupSchema>
+/** Sortie du resolver (mots-clés en tableaux) — ce que `handleSubmit` valide avant envoi. */
+export type GroupFormOutput = z.output<typeof createGroupSchema>
 
-export const updateGroupSchema = createGroupSchema.omit({ key: true }).extend({ key })
-export type UpdateGroupInput = z.infer<typeof updateGroupSchema>
+/** La clé identifie le groupe modifié — mêmes champs qu'à la création. */
+export const updateGroupSchema = createGroupSchema
 
 export const deleteGroupSchema = z.object({ key })

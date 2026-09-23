@@ -1,5 +1,5 @@
 import { login, BASE_URL, UA } from '@glagency/mypuls'
-import { detectLinkGroup, suggestLinkGroups, type LinkGroupRule } from '@glagency/core'
+import { detectLinkGroup, matchesLinkGroup, suggestLinkGroups, type LinkGroupRule } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
 
 /**
@@ -115,18 +115,19 @@ export async function runMarketing(
   // exclus du rangement mais gardés plus bas, pour ne pas les faire renaître.
   const { data: groupRows, error: gErr } = await db
     .from('mkt_link_groups')
-    .select('key, pattern, priority, is_fallback, deleted_at')
+    .select('key, contains, starts_with, words, priority, is_fallback, deleted_at')
   if (gErr) throw new Error(`mkt_link_groups lecture : ${gErr.message}`)
-  const allGroups = (groupRows ?? []) as Array<{
-    key: string
-    pattern: string
-    priority: number
-    is_fallback: boolean
-    deleted_at: string | null
-  }>
+  const allGroups = groupRows ?? []
   const groupes: LinkGroupRule[] = allGroups
     .filter((g) => !g.deleted_at)
-    .map((g) => ({ key: g.key, pattern: g.pattern, priority: g.priority, isFallback: g.is_fallback }))
+    .map((g) => ({
+      key: g.key,
+      contains: g.contains,
+      startsWith: g.starts_with,
+      words: g.words,
+      priority: g.priority,
+      isFallback: g.is_fallback,
+    }))
   const fallbackKey = groupes.find((g) => g.isFallback)?.key ?? 'other'
 
   // Nouveaux liens (groupe rangé UNIQUEMENT ici — les corrections manuelles restent).
@@ -182,14 +183,15 @@ export async function runMarketing(
       suggestions.map((sg, i) => ({
         key: sg.key,
         label: sg.label,
-        pattern: sg.pattern,
+        words: sg.words,
         priority: 500 + i,
         auto: true,
       })),
     )
     if (insErr) throw new Error(`mkt_link_groups création : ${insErr.message}`)
     for (const sg of suggestions) {
-      const ids = repli.filter((l) => new RegExp(sg.pattern, 'i').test(l.name)).map((l) => l.id)
+      const regle: LinkGroupRule = { key: sg.key, contains: [], startsWith: [], words: sg.words, priority: 500 }
+      const ids = repli.filter((l) => matchesLinkGroup(l.name, regle)).map((l) => l.id)
       if (!ids.length) continue
       const { error: upErr } = await db.from('mkt_links').update({ type: sg.key }).in('id', ids)
       if (upErr) throw new Error(`mkt_links reclassement : ${upErr.message}`)

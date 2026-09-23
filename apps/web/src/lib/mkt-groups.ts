@@ -48,7 +48,26 @@ export function groupLabel(groups: readonly MktGroup[], key: string): string {
   return groups.find((g) => g.key === key)?.label ?? key
 }
 
-/** Les groupes sous la forme attendue par `groupBySource` (clé, libellé, couleur). */
-export function asSources(groups: readonly MktGroup[]): { key: string; label: string; color: string }[] {
-  return groups.map((g) => ({ key: g.key, label: g.label, color: g.color }))
+/**
+ * Les groupes sous la forme attendue par `groupBySource`. `keep` sur la file d'attente : elle
+ * reste affichée même quand aucun de ses liens n'a bougé sur la période — c'est là qu'on vient
+ * les ranger, et 21 des 28 liens « À classer » n'ont jamais eu la moindre activité.
+ */
+export function asSources(
+  groups: readonly MktGroup[],
+): { key: string; label: string; color: string; keep: boolean }[] {
+  return groups.map((g) => ({ key: g.key, label: g.label, color: g.color, keep: g.isFallback }))
+}
+
+/**
+ * Ce que reconnaît un groupe, en français — la colonne de l'écran de réglage. « — » pour un
+ * groupe qu'on ne remplit qu'à la main (ou la file d'attente).
+ */
+export function describeRule(g: Pick<MktGroup, 'contains' | 'startsWith' | 'words'>): string {
+  const parts = [
+    g.contains.length ? `contient ${g.contains.join(', ')}` : '',
+    g.startsWith.length ? `commence par ${g.startsWith.join(', ')}` : '',
+    g.words.length ? `mot ${g.words.join(', ')}` : '',
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : '—'
 }

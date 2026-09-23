@@ -1,13 +1,19 @@
 /**
  * Un groupe de liens (`mkt_link_groups`, 0167) : ce qui remplace l'union figée d'avant.
- * `pattern` range les liens neufs, `priority` arbitre entre deux motifs qui reconnaissent le
- * même nom, `isFallback` marque la file d'attente (« À classer »).
+ * Les trois listes de mots rangent les liens neufs (0168 — elles remplacent les expressions
+ * régulières), `priority` arbitre entre deux groupes qui reconnaissent le même nom,
+ * `isFallback` marque la file d'attente (« À classer »).
  */
 export interface MktGroup {
   key: string
   label: string
   color: string
-  pattern: string
+  /** Le nom CONTIENT l'un de ces mots. */
+  contains: string[]
+  /** Le nom COMMENCE par l'un de ces mots. */
+  startsWith: string[]
+  /** Le nom contient l'un de ces mots EN ENTIER (sigles courts : ig, tg, seo). */
+  words: string[]
   priority: number
   isFallback: boolean
   /** Né d'un motif repéré par l'ingestion, pas d'une décision humaine — à relire. */
