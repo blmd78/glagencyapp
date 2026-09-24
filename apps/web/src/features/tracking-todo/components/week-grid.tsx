@@ -4,8 +4,10 @@ import { useId, useOptimistic, useState, useTransition } from 'react'
 import {
   DndContext,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
   type ScreenReaderInstructions,
 } from '@dnd-kit/core'
@@ -26,6 +28,18 @@ const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
   draggable:
     'Pour déplacer une tâche, faites-la glisser à la souris ou au doigt vers un autre jour ou une ' +
     'autre section.',
+}
+
+/**
+ * La cible est sous le POINTEUR, et une section l'emporte sur la journée qui la contient — leur
+ * `zoneOf` (todo.html:1592) : `.tgroup` d'abord, `.dayb` sinon. Les zones sont imbriquées : le
+ * calcul par défaut (recouvrement de rectangles) départagerait une section et sa journée au hasard
+ * des tailles.
+ */
+const collisionDetection: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  const section = hits.find((c) => c.data?.droppableContainer.data.current?.category !== undefined)
+  return section ? [section] : hits
 }
 
 /**
@@ -149,17 +163,19 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
   }
 
   const onDragEnd = (e: DragEndEvent): void => {
-    const target = e.over?.data.current as { date: string; category: string } | undefined
+    const target = e.over?.data.current as { date: string; category?: string } | undefined
     const source = e.active.data.current as { date: string; category: string } | undefined
     if (!target || !source) return
-    if (target.date === source.date && target.category === source.category) return
+    // Lâchée sur la journée et non sur une section : la tâche change de jour, pas de rubrique.
+    const category = target.category ?? source.category
+    if (target.date === source.date && category === source.category) return
     startTransition(() =>
       run(() =>
         moveTask({
           ownerId: week.ownerId,
           taskId: String(e.active.id),
           date: target.date,
-          category: target.category,
+          category,
         }),
       ),
     )
@@ -170,6 +186,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     <DndContext
       id={id}
       sensors={sensors}
+      collisionDetection={collisionDetection}
       onDragEnd={onDragEnd}
       accessibility={{ screenReaderInstructions: SCREEN_READER_INSTRUCTIONS }}
     >
