@@ -32,7 +32,8 @@ export interface InsightBilan {
 export interface InsightRow {
   key: string
   weekStart: string
-  severity: 'critical' | 'warning' | 'ok'
+  /** `unset` = aucune de ses modèles n'a de quotas : chiffres réels, aucun verdict (0173). */
+  severity: 'critical' | 'warning' | 'ok' | 'unset'
   title: string
   body: string
   actionPlan: string

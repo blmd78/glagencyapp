@@ -60,7 +60,8 @@ export interface InsightKpi {
   label: string
   value: string
   target: string
-  ok: boolean
+  /** `null` = aucun objectif (modèle sans quotas) : ni atteint ni manqué, affiché en neutre. */
+  ok: boolean | null
 }
 
 export interface DailyCa {
@@ -101,7 +102,8 @@ export interface WeekTracking {
 export interface InsightDraft {
   key: string
   weekStart: string
-  severity: 'critical' | 'warning' | 'ok'
+  /** `unset` = aucune de ses modèles n'a de quotas : chiffres réels, aucun verdict. */
+  severity: 'critical' | 'warning' | 'ok' | 'unset'
   chatterId: string
   title: string
   /** Synthèse S-1 en UNE ligne compacte (pas de prose). */
@@ -119,6 +121,9 @@ import { round1 as r1, round2 as r2 } from '../domain/dates'
 // la même carte Insight mélangeait « 600 € » (ce formateur) et « 600,00 € » (le web).
 const NF_EUR = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const eur = (n: number) => `${NF_EUR.format(n)} €`
+
+/** Cible d'une pastille quand la modèle n'a pas de quotas (cf. `ok: null`). */
+const SANS_OBJECTIF = 'non configuré'
 
 /** Niveau gamification hérité du legacy (mois-équivalent = CA moy/j × 30). */
 export function levelOf(caPerDay: number): string {
@@ -215,13 +220,17 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
   for (const [chatterId, agg] of evalAgg) {
     const days = agg.activeDays.length
     if (days === 0) continue
+    // `null` = aucune de ses modèles n'a de quotas (équipe sans ligne `quotas`, ou modèle sans
+    // équipe). Jusqu'au 2026-09-24 le chatteur était alors SAUTÉ sans rien dire : les 10
+    // chatteurs dédiés à Juliette n'avaient aucune carte. Il garde désormais la sienne — ses
+    // vrais chiffres, sans objectif ni verdict (`ok: null`, gravité `unset`), et un plan qui dit
+    // quoi faire.
     const t = dominantTargets(agg, targetsByModel)
-    if (!t) continue // aucun modèle avec quotas configurés → rien d'évaluable
 
     // ── Les 5 quotas. Présence = TOTAL hebdo vs 7h × 6 j (méthodo Benoit : 42h/sem
     // obligatoires) ; les autres en moyenne journalière sur jours actifs. ──
     const expectedDays = Math.min(6, evaluated.daysWithData)
-    const expectedPresence = t.presenceH * expectedDays
+    const expectedPresence = t ? t.presenceH * expectedDays : 0
     const idleTolerance = expectedDays * 1 // 1h de pause tolérée par jour
     const presenceAvg = agg.presence / days
     const mediasAvg = agg.propose / days
@@ -232,7 +241,15 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     const expected = expectedCa(agg, targetsByModel)
     const caPerDay = agg.ca / days
 
-    const kpis: InsightKpi[] = [
+    const kpis: InsightKpi[] = !t
+      ? [
+          { label: 'Présence', value: `${r1(agg.presence)}h`, target: SANS_OBJECTIF, ok: null },
+          { label: 'Réactivité', value: react === null ? '—' : `${Math.round(react)}s`, target: SANS_OBJECTIF, ok: null },
+          { label: 'Médias prop.', value: `${r1(mediasAvg)}/j`, target: SANS_OBJECTIF, ok: null },
+          { label: 'Taux conv.', value: conv === null ? '—' : `${r1(conv)} %`, target: SANS_OBJECTIF, ok: null },
+          { label: 'CA', value: eur(agg.ca), target: SANS_OBJECTIF, ok: null },
+        ]
+      : [
       {
         label: 'Présence',
         value: `${r1(agg.presence)}h`,
@@ -265,10 +282,16 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
       },
     ]
 
-    const missed = kpis.filter((k) => !k.ok).length
-    // Tout le monde a sa carte : sain (0 manqué), moyen (1-2), critique (3+).
-    const severity: InsightDraft['severity'] =
-      missed >= 3 ? 'critical' : missed >= 1 ? 'warning' : 'ok'
+    const missed = kpis.filter((k) => k.ok === false).length
+    // Tout le monde a sa carte : sain (0 manqué), moyen (1-2), critique (3+) — ou « sans
+    // quotas » quand il n'y a rien à quoi se mesurer.
+    const severity: InsightDraft['severity'] = !t
+      ? 'unset'
+      : missed >= 3
+        ? 'critical'
+        : missed >= 1
+          ? 'warning'
+          : 'ok'
     const name = chatterNames[chatterId] ?? '—'
 
     // ── Split par modèle (S-1 + semaine en cours) ──
@@ -324,32 +347,39 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     // ── Plan d'action : UNE section par case rouge, dans l'ordre des chips ──
     const plan: string[] = []
     const ko = (label: string) => kpis.find((k) => k.label === label)?.ok === false
-    if (ko('Présence')) {
+    if (!t) {
+      const noms = models.map((m) => m.name).join(', ') || 'aucune'
       plan.push(
-        `[PRÉSENCE] ${r1(agg.presence)}h sur ${r1(expectedPresence)}h attendues (${t.presenceH}h/j × ${expectedDays} j).\n- Vérifier l'idle MyPuls : 1h de pause/j tolérée, soit ${idleTolerance}h/semaine — ici ${r1(agg.idle)}h.\n- Idle > ${idleTolerance}h/sem : soit il erre sur son PC sans vraiment travailler, soit MyPuls reste allumé après déconnexion (ça fausse aussi la réactivité et les autres stats).\n- Sous les ${r1(expectedPresence)}h obligatoires : rendez-vous au bureau avec le manager + explication à Axel.`,
+        `[QUOTAS] Aucune modèle de ${name} n'a de quotas configurés (${noms}) : sa semaine ne peut pas être jugée.\n- Configurer les quotas de l'équipe dans Chatteurs › Quotas — la carte sera évaluée à la génération suivante.`,
       )
-    }
-    if (ko('Réactivité')) {
-      plan.push(
-        `[RÉACTIVITÉ] ${react === null ? '—' : Math.round(react) + 's'} de moyenne pour ≤ ${t.reactiviteS}s (5 min).\n- Regarder immédiatement ce qu'il fait : nombre d'assignations — trop de conversations = ingérable, rééquilibrer.\n- Vérifier qu'il se DÉCONNECTE bien de MyPuls en pause et en fin de shift (sinon le temps de réponse gonfle).\n- Vérifier la désassignation de toutes ses conversations en fin de shift.\n- Regarder le délai entre le dernier message et le média envoyé.\n- Analyser en partage d'écran sa vitesse d'écriture — si c'est le problème : exercices de frappe, 2/jour minimum pendant 7 jours, à chaque fin de shift.`,
-      )
-    }
-    if (ko('Médias prop.')) {
-      plan.push(
-        `[MÉDIAS PROPOSÉS] ${r1(mediasAvg)}/j pour ${t.mediasProposes}/j minimum (médias PAYANTS uniquement).\n- Comparer ses messages envoyés et ses médias proposés aux chiffres d'avant.\n- Vérifier son activité générale dans l'outil d'analyse MyPuls (était-il vraiment actif ?).\n- Sanctions déjà existantes → convocation directe ; sinon message personnel demandant une explication, puis bureau pour présenter le bilan si anomalie.`,
-      )
-    }
-    if (ko('Taux conv.')) {
-      plan.push(
-        `[CONVERSION] ${conv === null ? '—' : r1(conv) + ' %'} pour ${t.convPct} % minimum.\n- Croiser le taux avec le nombre de médias proposés : peu de médias + taux bas → proposer plus de médias payants ; beaucoup de médias + taux bas → travailler le closing au moment de la vente.\n- Analyser ce qui se passe après l'envoi du média : pourquoi le fan n'achète pas ? (script, temps de réponse).\n- Vérifier les euros reçus : un fan qui paye plus peut justifier une stratégie différente.`,
-      )
-    }
-    if (ko('CA')) {
-      plan.push(
-        expected > 0 && agg.ca < expected * 0.6
-          ? `[CA] Situation critique : ${eur(agg.ca)} réalisés pour ${eur(expected)} attendus (prorata modèles).\n- RDV avec ${name} en début de semaine : analyser les causes (présence ? scripts ? fans assignés ?).\n- Objectif minimal cette semaine : ${eur(caPerDay * 1.2)}/j (+20 % vs S-1).\n- Croiser le CA avec le taux de conv. et le nb de médias proposés.\n- Identifier les fans à fort potentiel non relancés ou mal suivis.\nSi situation récurrente (2ᵉ semaine consécutive) :\n- Convocation bureau + rapport à Axel.\n- Plan de redressement sur 2 semaines avec objectifs journaliers.`
-          : `[CA] Recul notable : ${eur(agg.ca)} réalisés pour ${eur(expected)} attendus (prorata modèles).\n- Point individuel en début de semaine avec ${name} — objectif : ${eur(agg.ca * 1.15)} cette semaine (+15 %).\n- Analyser si les fans assignés ont bien été relancés.\n- Vérifier les créneaux horaires : shifts complets et bien couverts.\n- Point de mi-semaine mercredi — ajuster si pas de reprise.`,
-      )
+    } else {
+      if (ko('Présence')) {
+        plan.push(
+          `[PRÉSENCE] ${r1(agg.presence)}h sur ${r1(expectedPresence)}h attendues (${t.presenceH}h/j × ${expectedDays} j).\n- Vérifier l'idle MyPuls : 1h de pause/j tolérée, soit ${idleTolerance}h/semaine — ici ${r1(agg.idle)}h.\n- Idle > ${idleTolerance}h/sem : soit il erre sur son PC sans vraiment travailler, soit MyPuls reste allumé après déconnexion (ça fausse aussi la réactivité et les autres stats).\n- Sous les ${r1(expectedPresence)}h obligatoires : rendez-vous au bureau avec le manager + explication à Axel.`,
+        )
+      }
+      if (ko('Réactivité')) {
+        plan.push(
+          `[RÉACTIVITÉ] ${react === null ? '—' : Math.round(react) + 's'} de moyenne pour ≤ ${t.reactiviteS}s (5 min).\n- Regarder immédiatement ce qu'il fait : nombre d'assignations — trop de conversations = ingérable, rééquilibrer.\n- Vérifier qu'il se DÉCONNECTE bien de MyPuls en pause et en fin de shift (sinon le temps de réponse gonfle).\n- Vérifier la désassignation de toutes ses conversations en fin de shift.\n- Regarder le délai entre le dernier message et le média envoyé.\n- Analyser en partage d'écran sa vitesse d'écriture — si c'est le problème : exercices de frappe, 2/jour minimum pendant 7 jours, à chaque fin de shift.`,
+        )
+      }
+      if (ko('Médias prop.')) {
+        plan.push(
+          `[MÉDIAS PROPOSÉS] ${r1(mediasAvg)}/j pour ${t.mediasProposes}/j minimum (médias PAYANTS uniquement).\n- Comparer ses messages envoyés et ses médias proposés aux chiffres d'avant.\n- Vérifier son activité générale dans l'outil d'analyse MyPuls (était-il vraiment actif ?).\n- Sanctions déjà existantes → convocation directe ; sinon message personnel demandant une explication, puis bureau pour présenter le bilan si anomalie.`,
+        )
+      }
+      if (ko('Taux conv.')) {
+        plan.push(
+          `[CONVERSION] ${conv === null ? '—' : r1(conv) + ' %'} pour ${t.convPct} % minimum.\n- Croiser le taux avec le nombre de médias proposés : peu de médias + taux bas → proposer plus de médias payants ; beaucoup de médias + taux bas → travailler le closing au moment de la vente.\n- Analyser ce qui se passe après l'envoi du média : pourquoi le fan n'achète pas ? (script, temps de réponse).\n- Vérifier les euros reçus : un fan qui paye plus peut justifier une stratégie différente.`,
+        )
+      }
+      if (ko('CA')) {
+        plan.push(
+          expected > 0 && agg.ca < expected * 0.6
+            ? `[CA] Situation critique : ${eur(agg.ca)} réalisés pour ${eur(expected)} attendus (prorata modèles).\n- RDV avec ${name} en début de semaine : analyser les causes (présence ? scripts ? fans assignés ?).\n- Objectif minimal cette semaine : ${eur(caPerDay * 1.2)}/j (+20 % vs S-1).\n- Croiser le CA avec le taux de conv. et le nb de médias proposés.\n- Identifier les fans à fort potentiel non relancés ou mal suivis.\nSi situation récurrente (2ᵉ semaine consécutive) :\n- Convocation bureau + rapport à Axel.\n- Plan de redressement sur 2 semaines avec objectifs journaliers.`
+            : `[CA] Recul notable : ${eur(agg.ca)} réalisés pour ${eur(expected)} attendus (prorata modèles).\n- Point individuel en début de semaine avec ${name} — objectif : ${eur(agg.ca * 1.15)} cette semaine (+15 %).\n- Analyser si les fans assignés ont bien été relancés.\n- Vérifier les créneaux horaires : shifts complets et bien couverts.\n- Point de mi-semaine mercredi — ajuster si pas de reprise.`,
+        )
+      }
     }
 
     drafts.push({
@@ -358,7 +388,7 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
       severity,
       chatterId,
       title: `${name} — S-1 : ${
-        missed === 0 ? 'tous les quotas atteints' : `${missed}/5 quotas manqués`
+        !t ? 'quotas non configurés' : missed === 0 ? 'tous les quotas atteints' : `${missed}/5 quotas manqués`
       }${partial ? ` · ${evaluated.daysWithData} j de données` : ''}`,
       body,
       actionPlan: plan.join('\n\n'),
@@ -368,8 +398,8 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     })
   }
 
-  // Critiques d'abord, puis moyens, puis sains ; alphabétique à sévérité égale.
-  const rank = { critical: 0, warning: 1, ok: 2 } as const
+  // Critiques d'abord, puis moyens, puis sains, puis sans quotas ; alphabétique à sévérité égale.
+  const rank = { critical: 0, warning: 1, ok: 2, unset: 3 } as const
   return drafts.sort(
     (a, b) => rank[a.severity] - rank[b.severity] || a.title.localeCompare(b.title),
   )

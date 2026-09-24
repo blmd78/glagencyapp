@@ -118,7 +118,8 @@ export async function getInsights(
     insights.push({
       key: r.insight_key,
       weekStart: r.week_start,
-      severity: r.severity === 'critical' ? 'critical' : r.severity === 'ok' ? 'ok' : 'warning',
+      severity:
+        r.severity === 'critical' || r.severity === 'ok' || r.severity === 'unset' ? r.severity : 'warning',
       title: r.title,
       body: r.body,
       actionPlan: r.action_plan,
@@ -135,7 +136,7 @@ export async function getInsights(
     })
   }
   // Critiques d'abord, puis moyens, puis sains (ordre du moteur conservé ensuite).
-  const rank = { critical: 0, warning: 1, ok: 2 } as const
+  const rank = { critical: 0, warning: 1, ok: 2, unset: 3 } as const
   insights.sort((a, b) => rank[a.severity] - rank[b.severity])
   return { weekStart, insights }
 }
@@ -158,13 +159,15 @@ export async function getOpenInsightsCount(): Promise<number> {
   const genAt = latest?.[0]?.generated_at
   if (!weekStart || !genAt) return 0
   const [{ data: rows, error: rowsErr }, { data: states, error: statesErr }] = await Promise.all([
-    // Dernière génération uniquement + les « saines » ne comptent pas comme « à traiter ».
+    // Dernière génération uniquement, et seulement les ALERTES : ni les « saines », ni les
+    // « sans quotas » (0173) — un chatteur qu'on ne peut pas juger n'est pas une alerte, et une
+    // modèle sans quotas en ajouterait une dizaine d'un coup au badge.
     supabase
       .from('insights')
       .select('insight_key')
       .eq('week_start', weekStart)
       .eq('generated_at', genAt)
-      .neq('severity', 'ok'),
+      .in('severity', ['critical', 'warning']),
     // Même table que `getInsights`, même borne par semaine (motif `quotas_<weekStart>_%`,
     // cf. commentaire là-bas) : l'intersection plus bas ne garde de toute façon que les clés
     // de LA semaine — filtrer ici évite de transférer les états de toutes les semaines.

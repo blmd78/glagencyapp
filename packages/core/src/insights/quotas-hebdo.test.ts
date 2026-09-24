@@ -207,3 +207,70 @@ describe('buildQuotaInsights', () => {
     expect(card.week?.deltaPct).toBe(-50)
   })
 })
+
+describe('buildQuotaInsights — modèle SANS quotas (bug Juliette, 2026-09-24)', () => {
+  // Juliette n'avait pas d'équipe, donc pas de quotas : ses 10 chatteurs dédiés n'avaient
+  // AUCUNE carte — le moteur les sautait sans rien dire (« rien d'évaluable »).
+  const JULIETTE = 'c-juliette'
+  const withJuliette = (modelDays: QuotaInsightsInput['evaluated']['modelDays']) =>
+    baseInput({
+      evaluated: {
+        start: '2026-06-30',
+        label: 'sem. 30/06–06/07',
+        daysWithData: 7,
+        days: ['2026-06-30', '2026-07-01'].map((d) => goodDay(d, 100)),
+        modelDays,
+      },
+      modelNames: { [CARLA]: 'Carla', [LOLA]: 'Lola', [JULIETTE]: 'Juliette' },
+    })
+
+  it('garde la carte d un chatteur qui ne travaille que sur une modèle sans quotas', () => {
+    const cards = buildQuotaInsights(
+      withJuliette([
+        { chatterId: JASUN, creatorId: JULIETTE, date: '2026-06-30', ca: 100 },
+        { chatterId: JASUN, creatorId: JULIETTE, date: '2026-07-01', ca: 100 },
+      ]),
+    )
+    expect(cards).toHaveLength(1)
+    expect(cards[0]!.severity).toBe('unset')
+    expect(cards[0]!.models.map((m) => m.name)).toEqual(['Juliette'])
+  })
+
+  it('montre les vrais chiffres, sans objectif ni verdict', () => {
+    const card = buildQuotaInsights(
+      withJuliette([{ chatterId: JASUN, creatorId: JULIETTE, date: '2026-06-30', ca: 200 }]),
+    )[0]!
+    // Ni vert ni rouge : un quota qui n'existe pas n'est ni atteint ni manqué.
+    expect(card.kpis.every((k) => k.ok === null)).toBe(true)
+    expect(card.kpis.find((k) => k.label === 'CA')?.value).toContain('200,00')
+    expect(card.title).toContain('quotas non configurés')
+    // Le plan dit quoi faire, et pour quelle modèle.
+    expect(card.actionPlan).toContain('Juliette')
+    expect(card.actionPlan).toContain('Quotas')
+  })
+
+  it('reste évalué normalement s il travaille AUSSI sur une modèle avec quotas', () => {
+    // Le cas Benj2p : Julie (quotas) + Juliette (sans) → carte évaluée, Juliette dans le split.
+    const card = buildQuotaInsights(
+      withJuliette([
+        { chatterId: JASUN, creatorId: CARLA, date: '2026-06-30', ca: 300 },
+        { chatterId: JASUN, creatorId: JULIETTE, date: '2026-07-01', ca: 100 },
+      ]),
+    )[0]!
+    expect(card.severity).not.toBe('unset')
+    expect(card.models.map((m) => m.name).sort()).toEqual(['Carla', 'Juliette'])
+    expect(card.kpis.every((k) => typeof k.ok === 'boolean')).toBe(true)
+  })
+
+  it('range les cartes sans quotas APRÈS les saines', () => {
+    const AUTRE = 'ch-autre'
+    const input = withJuliette([
+      { chatterId: JASUN, creatorId: JULIETTE, date: '2026-06-30', ca: 100 },
+      { chatterId: AUTRE, creatorId: CARLA, date: '2026-06-30', ca: 400 },
+    ])
+    input.evaluated.days.push({ ...goodDay('2026-06-30', 400), chatterId: AUTRE })
+    input.chatterNames[AUTRE] = 'Autre'
+    const cards = buildQuotaInsights(input)
+    expect(cards.map((c) => c.severity).at(-1)).toBe('unset')
+  })
+})
