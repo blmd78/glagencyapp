@@ -71,7 +71,11 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   publique — jamais `fan_brief`/`expected` côté chatter — projection APPLICATIVE seulement :
   la RLS du catalogue est par ligne, secrets durcis en tables admin-only `training_case_secrets` /
   `training_module_secrets` / `training_boss_fan_secrets`). **Entraînement** :
-  sessions/threads/messages/scores/signalements/`training_ai_calls`, stats/classement — moteur IA en `lib/ai/` uniquement (fan Haiku 4.5, notation Sonnet 5, tracé
+  sessions/threads/messages/scores/signalements/`training_ai_calls`, stats/classement — moteur IA en `lib/ai/` uniquement (fan Haiku 4.5 **puis Sonnet 5 à partir du lun.
+  28/09/2026 00h00 Paris** — bascule datée `trainingFanModels`, l'autre modèle en repli ; chaque
+  modèle reçoit SON prompt, celui de Sonnet avec garde-fous et partie fixe en cache 1 h : ne pas
+  toucher l'un sans rejouer le banc, cf. `prompts.ts` ; le bot du recrutement reste sur Haiku —
+  notation Sonnet 5, tracé
   dans `training_ai_calls`), **aucun streaming / Route Handler**, Server Actions partout.
   `startSession`, partagé par plusieurs features (Modules, écran de résultat de session), vit en
   `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent

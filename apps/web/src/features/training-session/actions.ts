@@ -13,7 +13,7 @@ import * as Sentry from '@sentry/nextjs'
 import { aiMessage, isAiOverloaded } from '@/lib/ai/errors'
 import { createAdminClient } from '@glagency/db'
 import { runAction, noGuard, requirePageProfileLive, BusinessError, type ActionResult } from '@/lib/actions'
-import { FAN_MODEL } from '@/lib/ai/client'
+import { trainingFanModels } from '@/lib/ai/client'
 import { replyAsFan } from '@/lib/ai/fan'
 import { logAiCall } from '@/lib/ai/log'
 import { buildFanSystem, dueAtFrom, revealDelayMs } from '@/lib/services/training-engine'
@@ -24,9 +24,10 @@ import { sendInput, threadIdInput } from './schema'
 import type { SendResult, SessionMessage } from './types'
 
 /**
- * Le chatter envoie un message (texte ou média verrouillé) ; le fan répond (Haiku). Chrono vérifié
- * CÔTÉ SERVEUR (solo 60 s, défi/boss reaction_max_s) ; faute grave `[[ELIM:code]]` → thread perdu
- * (solo → session `failed`). Défi/boss : la réponse est stockée avec `visible_at` différé.
+ * Le chatter envoie un message (texte ou média verrouillé) ; le fan répond (`trainingFanModels`).
+ * Chrono vérifié CÔTÉ SERVEUR (solo 60 s, défi/boss reaction_max_s) ; faute grave `[[ELIM:code]]`
+ * → thread perdu (solo → session `failed`). Défi/boss : la réponse est stockée avec `visible_at`
+ * différé.
  */
 export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult>> {
   return runAction({
@@ -120,14 +121,14 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
       const chatter: SessionMessage = { id: mine.id, threadId: t.id, position: mine.position, speaker: 'chatter', body, mediaPrice: d.mediaPrice, visibleAt: mine.visible_at }
 
       // Le fan (IA). Échec réseau/API → message métier ET tour annulé (cf. le catch ci-dessous).
-      const system = await buildFanSystem(admin, { kind, caseId: s.case_id, refCaseId: t.ref_case_id, bossFanId: t.boss_fan_id, fanName: t.fan_name, isSale: snap.isSale })
+      const prompts = await buildFanSystem(admin, { kind, caseId: s.case_id, refCaseId: t.ref_case_id, bossFanId: t.boss_fan_id, fanName: t.fan_name, isSale: snap.isSale })
       const hist = [
         ...(history ?? []).map((m) => ({ speaker: m.speaker as MessageSpeaker, body: m.body, mediaPrice: m.media_price })),
         { speaker: 'chatter' as const, body, mediaPrice: d.mediaPrice },
       ]
       let reply
       try {
-        reply = await replyAsFan({ system, history: hist, maxTokens: kind === 'boss' ? 260 : 200 })
+        reply = await replyAsFan({ prompts, history: hist, maxTokens: kind === 'boss' ? 260 : 200 })
       } catch (err) {
         // Panne IA : le tour est ANNULÉ, pas subi. On retire le message qu'on vient d'écrire (sinon
         // il resterait sans réponse et le renvoi empilerait deux messages du chatter) et on rouvre
@@ -146,7 +147,7 @@ export async function sendMessage(raw: unknown): Promise<ActionResult<SendResult
             .eq('status', 'open')
           if (dueErr) console.error('[training fan] chrono non réarmé', dueErr.message)
         }
-        await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: FAN_MODEL, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, latencyMs: 0, ok: false })
+        await logAiCall(admin, { sessionId: s.id, threadId: t.id, kind: 'fan', model: trainingFanModels().model, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 }, latencyMs: 0, ok: false })
         // Sentry AVANT le BusinessError : `runAction` ne capture QUE les erreurs techniques, et on
         // rend ici un message métier — sans ça, une panne du fournisseur IA n'existait que dans les
         // logs de la fonction (et dans training_ai_calls), jamais dans les alertes.

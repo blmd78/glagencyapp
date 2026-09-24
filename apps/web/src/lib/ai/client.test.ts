@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import Anthropic from '@anthropic-ai/sdk'
-import { withOverloadFallback } from './client'
+import { trainingFanModels, withOverloadFallback } from './client'
 
 /**
  * Vague du 2026-09-02 (14h28-14h45 Paris) : `529 overloaded_error` sans discontinuer sur le modèle
@@ -56,5 +56,12 @@ describe('withOverloadFallback', () => {
     const attempt = vi.fn().mockResolvedValue('ok')
     await withOverloadFallback(attempt, models)
     expect(attempt.mock.calls[0][1]).toEqual({ maxRetries: 2, timeout: 8_000 })
+  })
+})
+
+describe('trainingFanModels', () => {
+  it('Haiku jusqu’au dimanche 27/09 23h59 (Paris), Sonnet dès le lundi 00h00 — le repli est l’autre', () => {
+    expect(trainingFanModels(new Date('2026-09-27T23:59:59+02:00'))).toEqual({ model: 'claude-haiku-4-5', fallbackModel: 'claude-sonnet-5' })
+    expect(trainingFanModels(new Date('2026-09-28T00:00:00+02:00'))).toEqual({ model: 'claude-sonnet-5', fallbackModel: 'claude-haiku-4-5' })
   })
 })
