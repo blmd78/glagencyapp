@@ -263,8 +263,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   comme 0 → quota de présence manqué pour tout le monde. Cartes ET Classement lisent désormais
   `mypuls_presence_by_chatter` (somme des segments = le chiffre du Relevé d'équipe). Semaine dont
   un jour de stats n'a pas de run `ok` → aucun verdict de présence ; chatteur absent du relevé →
-  « — », jamais 0. Le seuil `idle_minutes` (3 min) décide du temps mesuré : médiane ~30 h/sem
-  pour 42 h attendues — calibrage (idle ou quota) à trancher par Benoit, pas par le code.
+  « — », jamais 0. **`idle_minutes` passé de 3 à 10 min le 2026-09-24** (décision Benoit : attendre
+  la réponse d'un fan, c'est travailler ; quota de 42 h/sem gardé), relevé rejoué du 14 au 23/09.
+  Semaine du 14/09 : médiane 29,8 h → 38,8 h, présence atteinte 30 → 58 cartes sur 144. Le même
+  réglage gouverne la couverture des créneaux (Police) — le changer change les sanctions.
 
 - **Codes Snap** (`/chatter/codes-snap`, table `snap_codes`, mot de passe chiffré AES) : lecture pour
   tout porteur de la page (RLS `snap_codes_read`, 0063 — un encadrant ne voit que SES modèles via
