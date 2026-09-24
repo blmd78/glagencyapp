@@ -370,6 +370,15 @@ doute :
 
 ---
 
+## 9. UI — reprendre le précédent de la DA
+
+Tout élément d'UI neuf reprend **à l'identique** le composant et les classes de son équivalent existant dans l'app : un élément improvisé se voit immédiatement et casse la DA (retour de Benoît du 2026-09-23, sur un bouton posé en lien texte gris alors que le précédent existait). Repères vérifiés :
+
+- accès d'en-tête vers un écran de maintenance → `Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5"` + icône lucide `size-4` + `title`, dans un en-tête `flex items-center justify-between gap-4` (`chatter/presence/page.tsx`) ;
+- page de réglage → `h1` seul (+ éventuel `p.max-w-2xl text-sm text-muted-foreground`), **aucun** lien « ← Retour » ;
+- tableau d'admin → `DataTable` + `Sortable` (Uncove › Modèles), jamais de `<table>` brut ;
+- choix de couleur → `Label` + pastilles `size-6 rounded-full border-2` (`va-dialog.tsx`).
+
 ## Checklist nouvelle feature
 
 - [ ] Squelette : `<Feature>Template.tsx` + `services/` + `components/` (+ `actions.ts`/`schema.ts` si mutations/forms)

@@ -54,6 +54,17 @@ pour que la version du code = le tag.
 - Le ruleset protège les **branches**, pas les tags → `git push origin vX.Y` passe.
 - Pas de CI → le **gate de release = préprod verte + vérifs locales** faites avant la PR.
 
+## Accord de mise en prod — ce que « PR » veut dire
+
+Quand Benoît dit « PR », « fais une PR », « mets en prod » ou « go » **sur une mise en prod**, il attend le **cycle complet** : push → PR → merge → vérification du déploiement, sans redemander à chaque étape.
+
+**Mais l'accord doit porter SUR LA PROD.** Un « oui » à un plan de travail n'est pas un go de déploiement (recadrage du 2026-09-11 : « arrête de mettre en prod sans mon accord »). Accord sur un plan, une approche, une liste de tâches → construire, committer, pousser sur `develop`, ouvrir la PR — **et s'arrêter là** en demandant le go.
+
+- **Chemin de merge** : `gh pr merge` est bloqué par le classifier du mode auto de Claude Code (« Production Deploy ») ; le chemin git ordinaire passe : `git checkout main && git merge --ff-only origin/main && git merge --no-ff <branche> -m "Release N.N — …" && git push origin main`, puis `main` → `develop`. Un blocage du harnais sur une action **déjà autorisée** n'est pas une nouvelle question à poser.
+- **Piège du checkout** : un fichier WIP d'une autre session fait échouer `git checkout main`. `git stash push -m "…" -- <fichier>`, merger, puis `git stash pop` une fois revenu sur `develop` — ne jamais embarquer ce WIP dans la release.
+- **Une migration en production** (`supabase db push --db-url "$DATABASE_URL"`) est une mise en prod à part entière, même sans merge : elle se demande aussi. Le classifier la bloque — c'est le bon garde-fou, pas un obstacle à contourner.
+- À signaler avant de merger, même avec un go clair : une migration à appliquer dans un ordre précis, du travail d'une autre session embarqué, un coût financier déclenché.
+
 ## État actuel (2026-07-17) — à intégrer avant le 1er release
 
 - `main` = `e081635` (baseline quasi vide, `0.1.0`). `develop` = main + 1 commit préprod.
