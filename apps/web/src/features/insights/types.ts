@@ -62,7 +62,8 @@ export interface RankingRow {
   /** Jours actifs (jours avec données MyPuls) — porte le seuil « classé » du score Général. */
   days: number
   ca: number
-  presenceH: number
+  /** Heures de chatting actif (relevé MyPuls) — null si le chatteur est absent du relevé. */
+  presenceH: number | null
   propose: number
   convPct: number | null // null si propose = 0
   reactSec: number | null // null si aucune journée mesurée

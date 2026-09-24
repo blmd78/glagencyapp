@@ -3,6 +3,7 @@ import {
   buildQuotaInsights,
   type QuotaInsightsInput,
   type QuotaTargets,
+  type WeekWindow,
 } from './quotas-hebdo'
 
 const CARLA = 'c-carla'
@@ -21,25 +22,32 @@ const goodDay = (date: string, ca: number) => ({
   ca,
   propose: 12,
   vendu: 4, // conv 33 % ≥ 25
-  presenceActiveH: 8, // ≥ 7
-  presenceIdleH: 0.5,
   reactiviteSec: 250, // ≤ 300
 })
 
-const baseInput = (over: Partial<QuotaInsightsInput> = {}): QuotaInsightsInput => ({
+/** Présence du relevé par défaut : 8 h de chatting actif par jour actif (≥ 7 h/j). */
+const relevé8h = (days: { chatterId: string }[]) => {
+  const h: Record<string, number> = {}
+  for (const d of days) h[d.chatterId] = (h[d.chatterId] ?? 0) + 8
+  return h
+}
+
+type Over = Omit<Partial<QuotaInsightsInput>, 'evaluated'> & { evaluated?: Partial<WeekWindow> }
+const baseInput = (over: Over = {}): QuotaInsightsInput => ({
+  currentWeek: null,
+  chatterNames: { [JASUN]: 'Jasun' },
+  modelNames: { [CARLA]: 'Carla', [LOLA]: 'Lola' },
+  targetsByModel: TARGETS,
+  ...over,
   evaluated: {
     start: '2026-06-30',
     label: 'sem. 30/06–06/07',
     daysWithData: 7,
     days: [],
     modelDays: [],
+    presenceH: relevé8h(over.evaluated?.days ?? []),
     ...over.evaluated,
   },
-  currentWeek: null,
-  chatterNames: { [JASUN]: 'Jasun' },
-  modelNames: { [CARLA]: 'Carla', [LOLA]: 'Lola' },
-  targetsByModel: TARGETS,
-  ...over,
 })
 
 describe('buildQuotaInsights', () => {
@@ -104,14 +112,12 @@ describe('buildQuotaInsights', () => {
       ca: 10,
       propose: 3,
       vendu: 2,
-      presenceActiveH: 4,
-      presenceIdleH: 2,
       reactiviteSec: 250,
     }
     const modelDays = [{ chatterId: JASUN, creatorId: CARLA, date: '2026-06-30', ca: 10 }]
     const critical = buildQuotaInsights(
       baseInput({
-        evaluated: { start: '2026-06-30', label: 'sem.', daysWithData: 7, days: [badDay], modelDays },
+        evaluated: { start: '2026-06-30', label: 'sem.', daysWithData: 7, days: [badDay], modelDays, presenceH: { [JASUN]: 4 } },
       }),
     )[0]!
     expect(critical.severity).toBe('critical')
@@ -198,6 +204,7 @@ describe('buildQuotaInsights', () => {
           daysWithData: 2,
           days: [{ ...goodDay('2026-07-07', 5) }],
           modelDays: [{ chatterId: JASUN, creatorId: CARLA, date: '2026-07-07', ca: 5 }],
+          presenceH: null,
         },
       }),
     )[0]!
@@ -205,6 +212,48 @@ describe('buildQuotaInsights', () => {
     expect(card.week?.label).toContain('07/07')
     // 5 €/j en cours vs 10 €/j en S-1 → −50 %.
     expect(card.week?.deltaPct).toBe(-50)
+  })
+})
+
+describe('buildQuotaInsights — présence du relevé MyPuls (bug « 0h partout », 2026-09-24)', () => {
+  // La présence de `chatter_daily` est vide depuis le 2026-09-03 ; lue comme 0, elle faisait manquer
+  // le quota de présence à TOUS les chatteurs. Elle vient désormais du relevé « Contrôle des shifts ».
+  const sixDays = ['2026-06-29', '2026-06-30', '2026-07-01', '2026-07-02', '2026-07-03', '2026-07-04'].map((d) => goodDay(d, 300))
+  const week = (presenceH: WeekWindow['presenceH']) =>
+    buildQuotaInsights(
+      baseInput({
+        evaluated: {
+          daysWithData: 7,
+          days: sixDays,
+          modelDays: sixDays.map((d) => ({ chatterId: JASUN, creatorId: CARLA, date: d.date, ca: 300 })),
+          presenceH,
+        },
+      }),
+    )[0]!
+  const presenceKpi = (card: ReturnType<typeof week>) => card.kpis.find((k) => k.label === 'Présence')!
+
+  it('juge les heures du relevé au TOTAL hebdo (41,5 h < 42 h → manqué)', () => {
+    const card = week({ [JASUN]: 41.5 })
+    expect(presenceKpi(card)).toMatchObject({ value: '41.5h', ok: false })
+    expect(card.actionPlan).toContain('[PRÉSENCE] 41.5h de chatting actif sur 42h')
+    expect(card.body).toContain('présence 41.5h')
+  })
+
+  it('relevé incomplet sur la semaine → « — », AUCUN verdict, jamais 0', () => {
+    const card = week(null)
+    expect(presenceKpi(card)).toMatchObject({ value: '—', ok: null })
+    expect(presenceKpi(card).target).toContain('relevé MyPuls incomplet')
+    // Les 4 autres quotas sont atteints : la carte reste saine, sans prétendre à la présence.
+    expect(card.severity).toBe('ok')
+    expect(card.title).toContain('présence non mesurée')
+    expect(card.actionPlan).not.toContain('[PRÉSENCE]')
+    expect(card.body).toContain('présence —')
+  })
+
+  it('chatteur absent du relevé (non rattaché) → présence inconnue, pas 0', () => {
+    const card = week({ 'ch-autre': 40 })
+    expect(presenceKpi(card)).toMatchObject({ value: '—', ok: null })
+    expect(presenceKpi(card).target).toContain('absent du relevé MyPuls')
   })
 })
 

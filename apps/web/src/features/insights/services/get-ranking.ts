@@ -8,6 +8,11 @@ import type { RankingData, RankingRow } from '../types'
  * Classement GLOBAL des chatteurs sur la semaine des insights — agrège chatter_daily via le
  * client admin (hors RLS, tous chatteurs). Chatteurs sans donnée la semaine exclus.
  *
+ * Présence = heures de chatting actif du relevé MyPuls (`mypuls_presence_by_chatter`, 0174), le
+ * même chiffre que la page Relevé d'équipe. `chatter_daily.presence_active_h` est vide depuis le
+ * 2026-09-03 (0149) : sommée, elle donnait 0 h à tous. Absent du relevé = `null` (« — », classé
+ * dernier sur ce critère), jamais 0.
+ *
  * `use cache` : SÛR car lecture 100 % GLOBALE (client admin, hors RLS) — le résultat est
  * identique pour tous les users, aucune fuite. Clé = `weekStart` (argument). Les données ne
  * bougent qu'à l'ingestion nocturne → cacheLife('hours'). Tag `facts-daily` : invalidé par
@@ -21,13 +26,17 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
   const admin = createAdminClient()
   const weekEnd = addDays(weekStart, 6)
 
-  const [{ data: daily, error: dailyErr }, { data: chatterRows, error: chattersErr }] = await Promise.all([
+  const [
+    { data: daily, error: dailyErr },
+    { data: chatterRows, error: chattersErr },
+    { data: presenceRows, error: presenceErr },
+  ] = await Promise.all([
     // Table journalière : fetchAll (pagination PostgREST, tri = PK). Borné à 7 jours,
     // mais >~140 chatteurs actifs sur la semaine suffiraient à tronquer en silence.
     fetchAll((f, t) =>
       admin
         .from('chatter_daily')
-        .select('chatter_id, ca, propose, vendu, presence_active_h, reactivite_sec')
+        .select('chatter_id, ca, propose, vendu, reactivite_sec')
         .gte('date', weekStart)
         .lte('date', weekEnd)
         .order('chatter_id')
@@ -36,26 +45,29 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
     ),
     // fetchAll : cap PostgREST silencieux — `chatters` grossit sans purge. `.order('id')` = la PK.
     fetchAll((f, t) => admin.from('chatters').select('id, display_name').order('id').range(f, t)),
+    // Agrégé en SQL : une ligne par chatteur (~170), pas les ~20 000 segments de la semaine.
+    admin.rpc('mypuls_presence_by_chatter', { p_from: weekStart, p_to: weekEnd }),
   ])
   if (dailyErr) throw new Error(dailyErr.message)
   if (chattersErr) throw new Error(chattersErr.message)
+  if (presenceErr) throw new Error(presenceErr.message)
+  const presenceById = new Map((presenceRows ?? []).map((p) => [p.chatter_id, p.active_minutes / 60]))
 
   const nameById: Record<string, string> = {}
   for (const c of chatterRows ?? []) if (c.id && c.display_name) nameById[c.id] = c.display_name
 
   const acc = new Map<
     string,
-    { days: number; ca: number; propose: number; vendu: number; presenceH: number; reactSum: number; reactN: number }
+    { days: number; ca: number; propose: number; vendu: number; reactSum: number; reactN: number }
   >()
   for (const d of daily ?? []) {
     const a =
       acc.get(d.chatter_id) ??
-      { days: 0, ca: 0, propose: 0, vendu: 0, presenceH: 0, reactSum: 0, reactN: 0 }
+      { days: 0, ca: 0, propose: 0, vendu: 0, reactSum: 0, reactN: 0 }
     a.days += 1 // une ligne chatter_daily = un jour actif (même à CA 0)
     a.ca += Number(d.ca) || 0
     a.propose += Number(d.propose) || 0
     a.vendu += Number(d.vendu) || 0
-    a.presenceH += Number(d.presence_active_h) || 0
     if (d.reactivite_sec != null) {
       a.reactSum += Number(d.reactivite_sec)
       a.reactN += 1
@@ -68,7 +80,7 @@ export async function getRanking(weekStart: string | null): Promise<RankingData>
     chatterName: nameById[chatterId] ?? '?',
     days: a.days,
     ca: round2(a.ca),
-    presenceH: round2(a.presenceH),
+    presenceH: presenceById.has(chatterId) ? round2(presenceById.get(chatterId)!) : null,
     propose: a.propose,
     convPct: a.propose > 0 ? round2((a.vendu / a.propose) * 100) : null,
     reactSec: a.reactN > 0 ? Math.round(a.reactSum / a.reactN) : null,
