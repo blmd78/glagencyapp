@@ -262,6 +262,10 @@ describe('buildQuotaInsights — modèle SANS quotas (bug Juliette, 2026-09-24)'
     expect(card.kpis.every((k) => typeof k.ok === 'boolean')).toBe(true)
   })
 
+  it('saute un chatteur rattaché à AUCUNE modèle (rien à juger, carte lue par personne)', () => {
+    expect(buildQuotaInsights(withJuliette([]))).toHaveLength(0)
+  })
+
   it('range les cartes sans quotas APRÈS les saines', () => {
     const AUTRE = 'ch-autre'
     const input = withJuliette([

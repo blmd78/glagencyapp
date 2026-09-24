@@ -220,6 +220,10 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
   for (const [chatterId, agg] of evalAgg) {
     const days = agg.activeDays.length
     if (days === 0) continue
+    // Aucune modèle cette semaine (managers, comptes sans CA attribué) : rien à juger, et une carte
+    // sans `creator_ids` n'est lue que par l'admin — 30 cartes vides à la 1re génération du
+    // 2026-09-24. Sautée, comme avant.
+    if (agg.perModel.size === 0) continue
     // `null` = aucune de ses modèles n'a de quotas (équipe sans ligne `quotas`, ou modèle sans
     // équipe). Jusqu'au 2026-09-24 le chatteur était alors SAUTÉ sans rien dire : les 10
     // chatteurs dédiés à Juliette n'avaient aucune carte. Il garde désormais la sienne — ses
