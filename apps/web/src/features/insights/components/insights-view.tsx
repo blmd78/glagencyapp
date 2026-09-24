@@ -43,7 +43,7 @@ export function InsightsView({
   currentUserId: string
 }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
-  const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning' | 'ok'>('all')
+  const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning' | 'ok' | 'unset'>('all')
   const [modelFilter, setModelFilter] = useState('all')
   const [rankBy, setRankBy] = useState<'none' | RankMetric>('none')
   const [search, setSearch] = useState('')
@@ -191,10 +191,11 @@ export function InsightsView({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all" className="text-xs">Tout (critique, moyen, sain)</SelectItem>
+                <SelectItem value="all" className="text-xs">Tout</SelectItem>
                 <SelectItem value="critical" className="text-xs">Critique</SelectItem>
                 <SelectItem value="warning" className="text-xs">Moyen</SelectItem>
                 <SelectItem value="ok" className="text-xs">Sain</SelectItem>
+                <SelectItem value="unset" className="text-xs">Sans quotas</SelectItem>
               </SelectContent>
             </Select>
             <Select value={rankBy} onValueChange={(v) => setRankBy(v as 'none' | RankMetric)}>

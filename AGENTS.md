@@ -241,6 +241,20 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   existant (`?chatteur&jour&creneau&motif`), jamais par un formulaire dupliqué. Spec :
   `docs/superpowers/specs/2026-09-01-releve-mypuls-design.md`.
 
+- **Équipes et quotas : 100 % automatiques** (`0173`, demande Benoit 2026-09-24 : « à chaque
+  création de modèle, tout auto »). Les quotas des Insights sont portés par l'ÉQUIPE
+  (`creators.team_id` → `quotas`) ; une modèle sans équipe rendait ses chatteurs **sans carte**
+  (bug Juliette : 11 chatteurs avec du CA, 1 seule carte). Désormais un **trigger**
+  (`creators_assign_team`) donne à toute modèle insérée sans équipe celle de son **nom de base**
+  (« Carla (privé) » → « Carla », `creator_base_name`), créée au besoin (`team_for_creator_name`) ;
+  une équipe **créée** ainsi naît avec les **quotas de base** — 7 h · 300 s · 10 médias · 25 % ·
+  80 €/j, la ligne commune à 6 équipes sur 13 et le plancher des autres — écrits en UN seul
+  endroit, `team_default_quotas()` (les changer = nouvelle migration). Une équipe existante n'en
+  reçoit **jamais** d'office : vider ses quotas dans Chatteurs › Quotas reste respecté. Ce cas
+  garde une carte **« Sans quotas »** (gravité `unset`, `quotas-hebdo.ts`) : vrais chiffres, aucun
+  verdict, hors du compteur d'alertes de la sidebar — jamais plus de chatteur sauté en silence.
+  Ne répare PAS les chatteurs invisibles du Relevé d'équipe (scrape money-team, autre chaîne).
+
 - **Codes Snap** (`/chatter/codes-snap`, table `snap_codes`, mot de passe chiffré AES) : lecture pour
   tout porteur de la page (RLS `snap_codes_read`, 0063 — un encadrant ne voit que SES modèles via
   `creators_scoped_read`) ; **écriture admin sur tout, manager / sous-manager sur SES modèles assignés**
@@ -331,7 +345,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-23** : prod = UAT = **0172**. **Prochaine migration = `0173`**.
+**État au 2026-09-24** : prod = UAT = **0173**. **Prochaine migration = `0174`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

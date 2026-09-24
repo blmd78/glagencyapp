@@ -26,6 +26,8 @@ const SEVERITY = {
   critical: { label: 'Critique', className: STATUS_COLORS.danger },
   warning: { label: 'Moyen', className: STATUS_COLORS.warning },
   ok: { label: 'Sain', className: STATUS_COLORS.positive },
+  // Aucune de ses modèles n'a de quotas (0173) : ni sain ni en alerte — gris.
+  unset: { label: 'Sans quotas', className: STATUS_COLORS.neutral },
 } as const
 
 /** Carte insight « quotas hebdo » : chips, split modèles S-1/semaine en cours, plan, statuts. */
@@ -150,13 +152,16 @@ export function InsightCard({
           ) : null}
           <Badge className={cn('shrink-0 text-xs uppercase', sev.className)}>{sev.label}</Badge>
           <span className="min-w-0 flex-1 truncate font-medium">{insight.title}</span>
-          {/* 5 pastilles quotas : vert = atteint, rouge = manqué. */}
+          {/* 5 pastilles quotas : vert = atteint, rouge = manqué, gris = pas d'objectif. */}
           <span className="hidden shrink-0 gap-1 sm:flex" aria-hidden>
             {insight.kpis.map((k) => (
               <span
                 key={k.label}
                 title={`${k.label} : ${k.value} (cible ${k.target})`}
-                className={cn('size-2 rounded-full', k.ok ? 'bg-green-500' : 'bg-red-500')}
+                className={cn(
+                  'size-2 rounded-full',
+                  k.ok === null ? 'bg-muted-foreground/40' : k.ok ? 'bg-green-500' : 'bg-red-500',
+                )}
               />
             ))}
           </span>
@@ -178,9 +183,11 @@ export function InsightCard({
               key={k.label}
               className={cn(
                 'rounded-md border px-2.5 py-1.5',
-                k.ok
-                  ? 'border-green-200 dark:border-green-900'
-                  : 'border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30',
+                k.ok === null
+                  ? 'border-border'
+                  : k.ok
+                    ? 'border-green-200 dark:border-green-900'
+                    : 'border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/30',
               )}
             >
               <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -189,7 +196,11 @@ export function InsightCard({
               <div
                 className={cn(
                   'text-sm font-semibold tabular-nums',
-                  k.ok ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300',
+                  k.ok === null
+                    ? 'text-foreground'
+                    : k.ok
+                      ? 'text-green-700 dark:text-green-300'
+                      : 'text-red-700 dark:text-red-300',
                 )}
               >
                 {k.value}
@@ -208,20 +219,29 @@ export function InsightCard({
               <div key={m.name} className="flex flex-wrap items-baseline gap-x-2 text-xs">
                 <Badge className={modelColor(m.name)}>{m.name}</Badge>
                 <DailyInfo label={m.name} weekStart={insight.weekStart} dailies={m.dailies} />
-                <span className="tabular-nums">
-                  S-1 : {eur(m.ca)} / {eur(m.expected)} attendus · {num(m.days)} j ·{' '}
-                  <b>{eur(m.days > 0 ? m.ca / m.days : 0)}/j</b>
-                  {m.days > 0 && m.expected > 0 && ` (cible ${eur(m.expected / m.days)}/j)`} —{' '}
-                  <b
-                    className={
-                      m.pct >= 100
-                        ? 'text-green-700 dark:text-green-300'
-                        : 'text-red-700 dark:text-red-300'
-                    }
-                  >
-                    {pct(m.pct)}
-                  </b>
-                </span>
+                {/* Modèle SANS quotas : pas d'« attendus » ni de pourcentage — elle affichait « 0,00 €
+                    attendus — 100 % » en vert, un objectif atteint qui n'existait pas. */}
+                {m.expected <= 0 ? (
+                  <span className="tabular-nums">
+                    S-1 : {eur(m.ca)} · {num(m.days)} j · <b>{eur(m.days > 0 ? m.ca / m.days : 0)}/j</b> —{' '}
+                    <span className="text-muted-foreground">sans quotas</span>
+                  </span>
+                ) : (
+                  <span className="tabular-nums">
+                    S-1 : {eur(m.ca)} / {eur(m.expected)} attendus · {num(m.days)} j ·{' '}
+                    <b>{eur(m.days > 0 ? m.ca / m.days : 0)}/j</b>
+                    {m.days > 0 && ` (cible ${eur(m.expected / m.days)}/j)`} —{' '}
+                    <b
+                      className={
+                        m.pct >= 100
+                          ? 'text-green-700 dark:text-green-300'
+                          : 'text-red-700 dark:text-red-300'
+                      }
+                    >
+                      {pct(m.pct)}
+                    </b>
+                  </span>
+                )}
               </div>
             ))}
           </div>

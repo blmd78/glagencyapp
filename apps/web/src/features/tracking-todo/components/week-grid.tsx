@@ -3,16 +3,22 @@
 import { useId, useOptimistic, useState, useTransition } from 'react'
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragStartEvent,
   type ScreenReaderInstructions,
 } from '@dnd-kit/core'
 import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
 import { toast } from 'sonner'
 import { DayColumn } from './day-column'
+import { TaskPreview } from './task-item'
+import { moveTaskInDays } from '../move-task'
 import { addTask, deleteHabit, deleteSection, deleteTask, deleteTaskOccurrence, moveTask, saveSection, toggleTask } from '../actions'
 import { toggleDayOff } from '../actions-content'
 import type { TodoTask, TodoWeek } from '../types'
@@ -29,29 +35,48 @@ const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
 }
 
 /**
+ * La cible est sous le POINTEUR, et une section l'emporte sur la journée qui la contient — leur
+ * `zoneOf` (todo.html:1592) : `.tgroup` d'abord, `.dayb` sinon. Les zones sont imbriquées : le
+ * calcul par défaut (recouvrement de rectangles) départagerait une section et sa journée au hasard
+ * des tailles.
+ */
+const collisionDetection: CollisionDetection = (args) => {
+  const hits = pointerWithin(args)
+  const section = hits.find((c) => c.data?.droppableContainer.data.current?.category !== undefined)
+  return section ? [section] : hits
+}
+
+/**
  * La semaine : sept colonnes, glisser-déposer entre jours et sections.
  *
  * Composant client assumé — contrairement au board, la donnée d'une semaine tient en quelques
  * dizaines de lignes, et tout ici est interactif (cocher, ajouter, déplacer). La sérialiser en
  * props coûte moins que d'inventer un aller-retour serveur par geste.
  *
- * `useOptimistic` : cocher une case doit répondre instantanément. La Server Action revalide
- * ensuite, et l'état optimiste est remplacé par la vérité serveur — en cas d'échec, la case
- * revient d'elle-même et un toast explique pourquoi.
+ * `useOptimistic` : cocher une case — et lâcher une tâche sur un autre jour — doit répondre
+ * instantanément. La Server Action revalide ensuite, et l'état optimiste est remplacé par la vérité
+ * serveur — en cas d'échec, la case ou la tâche revient d'elle-même et un toast explique pourquoi.
  */
 export function WeekGrid({ week }: { week: TodoWeek }) {
   const id = useId()
   const [, startTransition] = useTransition()
   const [days, applyOptimistic] = useOptimistic(
     week.days,
-    (state, patch: { taskId: string; done: boolean }) =>
-      state.map((d) => ({
-        ...d,
-        sections: d.sections.map((s) => ({
-          ...s,
-          tasks: s.tasks.map((t) => (t.id === patch.taskId ? { ...t, done: patch.done } : t)),
-        })),
-      })),
+    (
+      state,
+      patch:
+        | { kind: 'toggle'; taskId: string; done: boolean }
+        | { kind: 'move'; taskId: string; date: string; category: string },
+    ) =>
+      patch.kind === 'move'
+        ? moveTaskInDays(state, patch.taskId, patch.date, patch.category)
+        : state.map((d) => ({
+            ...d,
+            sections: d.sections.map((s) => ({
+              ...s,
+              tasks: s.tasks.map((t) => (t.id === patch.taskId ? { ...t, done: patch.done } : t)),
+            })),
+          })),
   )
   const [busy, setBusy] = useState(false)
 
@@ -81,7 +106,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
       return
     }
     startTransition(async () => {
-      applyOptimistic({ taskId: task.id, done })
+      applyOptimistic({ kind: 'toggle', taskId: task.id, done })
       await run(() => toggleTask({ ownerId: week.ownerId, taskId: task.id, done }))
     })
   }
@@ -148,21 +173,27 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     startTransition(() => run(() => deleteSection({ ownerId: week.ownerId, name, withTasks: false })))
   }
 
+  /** La tâche « attrapée » — celle que l'aperçu fait suivre au curseur. */
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const activeTask = activeId
+    ? (days.flatMap((d) => d.sections.flatMap((s) => s.tasks)).find((t) => t.id === activeId) ?? null)
+    : null
+
+  const onDragStart = (e: DragStartEvent): void => setActiveId(String(e.active.id))
+
   const onDragEnd = (e: DragEndEvent): void => {
-    const target = e.over?.data.current as { date: string; category: string } | undefined
+    setActiveId(null)
+    const target = e.over?.data.current as { date: string; category?: string } | undefined
     const source = e.active.data.current as { date: string; category: string } | undefined
     if (!target || !source) return
-    if (target.date === source.date && target.category === source.category) return
-    startTransition(() =>
-      run(() =>
-        moveTask({
-          ownerId: week.ownerId,
-          taskId: String(e.active.id),
-          date: target.date,
-          category: target.category,
-        }),
-      ),
-    )
+    // Lâchée sur la journée et non sur une section : la tâche change de jour, pas de rubrique.
+    const category = target.category ?? source.category
+    if (target.date === source.date && category === source.category) return
+    const taskId = String(e.active.id)
+    startTransition(async () => {
+      applyOptimistic({ kind: 'move', taskId, date: target.date, category })
+      await run(() => moveTask({ ownerId: week.ownerId, taskId, date: target.date, category }))
+    })
   }
 
   return (
@@ -170,7 +201,10 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     <DndContext
       id={id}
       sensors={sensors}
+      collisionDetection={collisionDetection}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onDragCancel={() => setActiveId(null)}
       accessibility={{ screenReaderInstructions: SCREEN_READER_INSTRUCTIONS }}
     >
       <div className="weekwrap" aria-busy={busy}>
@@ -192,6 +226,11 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
           ))}
         </div>
       </div>
+      {/* La tâche SUIT le curseur, comme une carte Trello qu'on a attrapée ; l'originale reste en
+          place, estompée. `dropAnimation={null}` : l'animation par défaut ramène l'aperçu vers la
+          carte source, or la tâche est DÉJÀ posée sur son nouveau jour (état optimiste) — on la
+          verrait repartir en arrière avant d'apparaître à destination. */}
+      <DragOverlay dropAnimation={null}>{activeTask ? <TaskPreview task={activeTask} /> : null}</DragOverlay>
     </DndContext>
       {recurring ? (
         <div className="recask" role="dialog" aria-label="Cette tâche revient chaque jour choisi">

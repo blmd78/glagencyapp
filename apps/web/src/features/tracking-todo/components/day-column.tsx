@@ -208,6 +208,13 @@ export function DayColumn({
   const [addingTask, setAddingTask] = useState(false)
   const [addingSection, setAddingSection] = useState(false)
 
+  // LA JOURNÉE ENTIÈRE est une zone de dépôt, comme chez eux (`zoneOf` : `.tgroup` sinon `.dayb`,
+  // todo.html:1592). Seules les sections l'étaient : une journée sans section — ou le vide sous
+  // ses groupes — refusait la tâche en silence. Depuis le « + Tâche » du 2026-09-14, les tâches
+  // vont dans « À faire », qui n'existe que là où il y en a déjà : semaine du 21/09, 16 journées
+  // sur 77 n'avaient plus aucune cible. Sans `category` : la tâche garde la sienne (`onDragEnd`).
+  const { setNodeRef, isOver } = useDroppable({ id: `day:${day.date}`, data: { date: day.date } })
+
   const all = day.sections.flatMap((s) => s.tasks)
   const done = all.filter((t) => t.done).length
   const cls = ['day', day.isToday ? 'now' : '', day.isWeekend ? 'we' : '', day.dayOff ? 'rest' : '']
@@ -236,7 +243,7 @@ export function DayColumn({
         ) : null}
       </h3>
 
-      <div className="dayb" data-drop-date={day.date}>
+      <div ref={setNodeRef} className={isOver ? 'dayb over' : 'dayb'} data-drop-date={day.date}>
         {day.sections.length === 0 ? (
           <p className="bnone">Rien de prévu.</p>
         ) : (
