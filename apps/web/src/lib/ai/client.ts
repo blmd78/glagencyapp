@@ -21,6 +21,29 @@ export const SCORE_MODEL = 'claude-sonnet-5'
 export const FAN_FALLBACK_MODEL = SCORE_MODEL
 
 /**
+ * Le fan de l'ENTRAÎNEMENT passe sur Sonnet 5 le lundi 28/09/2026 à 00h00 (Paris) — et pas au
+ * déploiement : c'est la frontière de semaine du classement (`training_weekly_ranking`), qui paie
+ * de vrais euros via la roue. Toute une semaine se joue donc face au même fan.
+ *
+ * Pourquoi : −25 % sur le coût du fan (~550 → ~410 $/mois au mix du 15-23/09), grâce au cache —
+ * Sonnet cache dès 1 024 tokens et le prompt du fan en fait ~2 100, là où Haiku en exige 4 096.
+ * Validé le 2026-09-24 sur de vraies conversations rejouées (575 tours pour régler le prompt,
+ * puis 373 tours NEUFS pour le vérifier, juge Opus 5.5 à l'aveugle) : Sonnet respecte mieux le
+ * brief (préféré 194 fois contre 120), n'est ni plus facile ni plus dur (134 contre 123), rompt
+ * aussi souvent que Haiku et se trompe moins sur la rupture. Prix : ~1,4 s d'attente de plus en
+ * médiane (2,7 s contre 1,4 s), hors chrono — le chrono part de la réponse affichée.
+ * Le bot du RECRUTEMENT ne bouge pas (`FAN_MODEL`) : il n'a pas été testé.
+ */
+export const TRAINING_FAN_SONNET_FROM = new Date('2026-09-28T00:00:00+02:00')
+
+/** Modèle du fan de l'entraînement à l'instant `at`, et son repli : l'autre des deux. */
+export function trainingFanModels(at: Date = new Date()): { model: string; fallbackModel: string } {
+  return at >= TRAINING_FAN_SONNET_FROM
+    ? { model: SCORE_MODEL, fallbackModel: FAN_MODEL }
+    : { model: FAN_MODEL, fallbackModel: FAN_FALLBACK_MODEL }
+}
+
+/**
  * Réglages du fan face à une saturation. Le SDK réessaie déjà les 5xx tout seul (`x-should-retry:
  * true` sur les 529), backoff 0,5 s puis 1 s — mais une vague dure des MINUTES : le 2026-09-02, les
  * 3 tentatives échouaient à chaque envoi, 17 minutes durant. Élargir la fenêtre de retry n'aurait

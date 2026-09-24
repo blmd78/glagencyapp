@@ -1,6 +1,6 @@
 import 'server-only'
 import type { createAdminClient } from '@glagency/db'
-import { bossFanSystemPrompt, fanSystemPrompt } from '@/lib/ai/prompts'
+import { bossFanSystemPrompt, fanSystemPrompt, sonnetBossFanSystem, sonnetFanSystem, type FanPrompts } from '@/lib/ai/prompts'
 import { ARENA_REVEAL_MAX_S, ARENA_REVEAL_MIN_S, reactionSecondsFor, type CaseKind } from '@/lib/types/training'
 
 type Admin = ReturnType<typeof createAdminClient>
@@ -16,8 +16,10 @@ export type FanThreadRef = {
 /**
  * Prompt système du fan pour un thread — lit les SECRETS (tables admin) avec le client service-role,
  * côté serveur uniquement. Solo : consigne du cas ; défi : consigne du solo rejoué ; boss : fan riche.
+ * Rend les DEUX prompts (Haiku et Sonnet) : `replyAsFan` donne à chaque modèle le sien, y compris
+ * quand il bascule sur le modèle de repli.
  */
-export async function buildFanSystem(admin: Admin, t: FanThreadRef): Promise<string> {
+export async function buildFanSystem(admin: Admin, t: FanThreadRef): Promise<FanPrompts> {
   if (t.kind === 'boss') {
     if (!t.bossFanId) throw new Error('thread boss sans fan')
     const { data, error } = await admin
@@ -27,7 +29,7 @@ export async function buildFanSystem(admin: Admin, t: FanThreadRef): Promise<str
       .single()
     if (error) throw new Error(error.message)
     const s = Array.isArray(data.training_boss_fan_secrets) ? data.training_boss_fan_secrets[0] : data.training_boss_fan_secrets
-    return bossFanSystemPrompt({
+    const boss = {
       name: data.name,
       age: data.age,
       job: data.job,
@@ -37,7 +39,8 @@ export async function buildFanSystem(admin: Admin, t: FanThreadRef): Promise<str
       budgetCap: s?.budget_cap ?? null,
       negoWhere: s?.nego_where ?? null,
       meetWhere: s?.meet_where ?? null,
-    })
+    }
+    return { haiku: bossFanSystemPrompt(boss), sonnet: sonnetBossFanSystem(boss) }
   }
   const briefCaseId = t.kind === 'arena' ? t.refCaseId : t.caseId
   if (!briefCaseId) throw new Error('thread défi sans cas de référence')
@@ -54,7 +57,8 @@ export async function buildFanSystem(admin: Admin, t: FanThreadRef): Promise<str
   if (error) throw new Error(error.message)
   if (refCase?.error) throw new Error(refCase.error.message)
   const isSale = t.kind === 'arena' ? (refCase?.data?.is_sale ?? t.isSale) : t.isSale
-  return fanSystemPrompt({ fanName: t.fanName, fanBrief: data?.fan_brief ?? '', isSale })
+  const c = { fanName: t.fanName, fanBrief: data?.fan_brief ?? '', isSale }
+  return { haiku: fanSystemPrompt(c), sonnet: sonnetFanSystem(c) }
 }
 
 /** Délai de révélation de la réponse du fan : immédiat en solo, 30-120 s (aléatoire) en défi/boss (GLA). */
