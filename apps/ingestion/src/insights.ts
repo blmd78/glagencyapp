@@ -27,11 +27,11 @@ async function fetchWindow(db: Db, start: string, end: string): Promise<Omit<Wee
   // bien plus pour chatter_creator_daily (multi-modèles) → dépasse le plafond PostgREST
   // (1000 lignes, silencieux) dès la fenêtre évaluée par cette fonction, faussant les
   // insights hebdo. `.order()` sur la PK complète de chaque table (migration 0001).
-  const [{ data: chd, error: e1 }, { data: ccd, error: e2 }] = await Promise.all([
+  const [{ data: chd, error: e1 }, { data: ccd, error: e2 }, presence] = await Promise.all([
     fetchAll((f, t) =>
       db
         .from('chatter_daily')
-        .select('chatter_id, date, ca, propose, vendu, presence_active_h, presence_idle_h, reactivite_sec')
+        .select('chatter_id, date, ca, propose, vendu, reactivite_sec')
         .gte('date', start)
         .lte('date', end)
         .order('chatter_id')
@@ -49,6 +49,7 @@ async function fetchWindow(db: Db, start: string, end: string): Promise<Omit<Wee
         .order('date')
         .range(f, t),
     ),
+    fetchPresence(db, start, end),
   ])
   if (e1) throw e1
   if (e2) throw e2
@@ -58,8 +59,6 @@ async function fetchWindow(db: Db, start: string, end: string): Promise<Omit<Wee
     ca: r.ca ?? 0,
     propose: r.propose ?? 0,
     vendu: r.vendu ?? 0,
-    presenceActiveH: r.presence_active_h ?? 0,
-    presenceIdleH: r.presence_idle_h ?? 0,
     reactiviteSec: r.reactivite_sec,
   }))
   const modelDays: ChatterModelDayInput[] = (ccd ?? []).map((r) => ({
@@ -68,8 +67,34 @@ async function fetchWindow(db: Db, start: string, end: string): Promise<Omit<Wee
     date: r.date,
     ca: r.ca ?? 0,
   }))
-  const daysWithData = new Set(days.map((d) => d.date)).size
-  return { start, daysWithData, days, modelDays }
+  const statDays = new Set(days.map((d) => d.date))
+  // Relevé complet = chaque jour de stats a un run « Contrôle des shifts » réussi. Sinon le total
+  // d'heures serait sous-estimé : le moteur ne rend alors aucun verdict de présence (`null`).
+  const complete = [...statDays].every((d) => presence.okDays.has(d))
+  return { start, daysWithData: statDays.size, days, modelDays, presenceH: complete ? presence.hours : null }
+}
+
+/**
+ * Présence de la fenêtre, depuis le relevé MyPuls « Contrôle des shifts » (0174) : heures de
+ * chatting actif par chatteur — le même chiffre que la page Relevé d'équipe — et les jours
+ * couverts par un run réussi. `chatter_daily.presence_active_h` n'a plus de source depuis le
+ * 2026-09-03 (0149) : la lire donnait 0 h à tout le monde, donc un quota de présence manqué
+ * sur chaque carte.
+ */
+async function fetchPresence(db: Db, start: string, end: string): Promise<{ hours: Record<string, number>; okDays: Set<string> }> {
+  const [{ data: rows, error: e1 }, { data: runs, error: e2 }] = await Promise.all([
+    db.rpc('mypuls_presence_by_chatter', { p_from: start, p_to: end }),
+    db.from('mypuls_shift_runs').select('day_from, day_to').eq('status', 'ok').lte('day_from', end).gte('day_to', start),
+  ])
+  if (e1) throw e1
+  if (e2) throw e2
+  const hours: Record<string, number> = {}
+  for (const r of rows ?? []) hours[r.chatter_id] = r.active_minutes / 60
+  const okDays = new Set<string>()
+  for (const r of runs ?? []) {
+    for (let d = r.day_from; d <= r.day_to; d = addDays(d, 1)) if (d >= start && d <= end) okDays.add(d)
+  }
+  return { hours, okDays }
 }
 
 export async function generateWeeklyInsights(
@@ -106,7 +131,7 @@ export async function generateWeeklyInsights(
   const currentWeek: WeekWindow =
     maxDate >= nextMonday
       ? { ...(await fetchWindow(db, nextMonday, maxDate)), label: weekLabel(nextMonday) }
-      : { start: nextMonday, daysWithData: 0, days: [], modelDays: [], label: weekLabel(nextMonday) }
+      : { start: nextMonday, daysWithData: 0, days: [], modelDays: [], presenceH: null, label: weekLabel(nextMonday) }
 
   // Référentiels : noms + quotas par modèle (creators.team_id → quotas).
   const [{ data: chatters }, { data: creators }, { data: quotas }] = await Promise.all([

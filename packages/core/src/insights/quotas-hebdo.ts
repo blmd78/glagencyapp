@@ -22,8 +22,6 @@ export interface ChatterDayInput {
   ca: number
   propose: number
   vendu: number
-  presenceActiveH: number
-  presenceIdleH: number
   reactiviteSec: number | null
 }
 
@@ -43,6 +41,16 @@ export interface WeekWindow {
   daysWithData: number
   days: ChatterDayInput[]
   modelDays: ChatterModelDayInput[]
+  /**
+   * Heures de CHATTING ACTIF par chatteur sur la fenêtre, d'après le relevé MyPuls (« Contrôle des
+   * shifts ») — le même chiffre que la page Relevé d'équipe. `null` = relevé INCOMPLET : au moins
+   * un jour de la fenêtre n'a pas de relevé réussi, le total serait sous-estimé → aucun verdict de
+   * présence. Un chatteur absent de la table (non rattaché au relevé) = présence inconnue, jamais 0.
+   *
+   * Remplace la présence journalière de `chatter_daily`, vide depuis que MyPuls a retiré la colonne
+   * de son résumé (2026-09-03) : lue comme 0, elle faisait manquer le quota à TOUT le monde.
+   */
+  presenceH: Record<string, number> | null
 }
 
 export interface QuotaInsightsInput {
@@ -139,8 +147,6 @@ interface ChatterAgg {
   ca: number
   propose: number
   vendu: number
-  presence: number
-  idle: number
   reacts: number[]
   /** creatorId → (date → ca du jour) : porte à la fois les jours actifs et le détail. */
   perModel: Map<string, Map<string, number>>
@@ -151,7 +157,7 @@ function aggregate(win: WeekWindow): Map<string, ChatterAgg> {
   const get = (id: string): ChatterAgg => {
     let a = out.get(id)
     if (!a) {
-      a = { activeDays: [], ca: 0, propose: 0, vendu: 0, presence: 0, idle: 0, reacts: [], perModel: new Map() }
+      a = { activeDays: [], ca: 0, propose: 0, vendu: 0, reacts: [], perModel: new Map() }
       out.set(id, a)
     }
     return a
@@ -162,8 +168,6 @@ function aggregate(win: WeekWindow): Map<string, ChatterAgg> {
     a.ca += d.ca
     a.propose += d.propose
     a.vendu += d.vendu
-    a.presence += d.presenceActiveH
-    a.idle += d.presenceIdleH
     if (d.reactiviteSec != null) a.reacts.push(d.reactiviteSec)
   }
   for (const m of win.modelDays) {
@@ -236,7 +240,10 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     const expectedDays = Math.min(6, evaluated.daysWithData)
     const expectedPresence = t ? t.presenceH * expectedDays : 0
     const idleTolerance = expectedDays * 1 // 1h de pause tolérée par jour
-    const presenceAvg = agg.presence / days
+    // Présence du relevé : `null` = on ne sait pas (relevé incomplet, ou chatteur absent du relevé).
+    // Jamais 0 par défaut — « n'a pas travaillé » et « pas mesuré » doivent rester distincts.
+    const presence = evaluated.presenceH === null ? null : (evaluated.presenceH[chatterId] ?? null)
+    const presenceUnknown = evaluated.presenceH === null ? 'relevé MyPuls incomplet' : 'absent du relevé MyPuls'
     const mediasAvg = agg.propose / days
     const conv = agg.propose > 0 ? (agg.vendu / agg.propose) * 100 : null
     const react = agg.reacts.length
@@ -247,19 +254,21 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
 
     const kpis: InsightKpi[] = !t
       ? [
-          { label: 'Présence', value: `${r1(agg.presence)}h`, target: SANS_OBJECTIF, ok: null },
+          { label: 'Présence', value: presence === null ? '—' : `${r1(presence)}h`, target: SANS_OBJECTIF, ok: null },
           { label: 'Réactivité', value: react === null ? '—' : `${Math.round(react)}s`, target: SANS_OBJECTIF, ok: null },
           { label: 'Médias prop.', value: `${r1(mediasAvg)}/j`, target: SANS_OBJECTIF, ok: null },
           { label: 'Taux conv.', value: conv === null ? '—' : `${r1(conv)} %`, target: SANS_OBJECTIF, ok: null },
           { label: 'CA', value: eur(agg.ca), target: SANS_OBJECTIF, ok: null },
         ]
       : [
-      {
-        label: 'Présence',
-        value: `${r1(agg.presence)}h`,
-        target: `${r1(expectedPresence)}h (${t.presenceH}h/j × ${expectedDays} j)`,
-        ok: agg.presence >= expectedPresence,
-      },
+      presence === null
+        ? { label: 'Présence', value: '—', target: `${r1(expectedPresence)}h attendues — ${presenceUnknown}`, ok: null }
+        : {
+            label: 'Présence',
+            value: `${r1(presence)}h`,
+            target: `${r1(expectedPresence)}h (${t.presenceH}h/j × ${expectedDays} j)`,
+            ok: presence >= expectedPresence,
+          },
       {
         label: 'Réactivité',
         value: react === null ? '—' : `${Math.round(react)}s`,
@@ -346,7 +355,7 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
 
     // ── Synthèse S-1 : UNE ligne compacte, zéro prose ──
     const level = levelOf(caPerDay)
-    const body = `${days} j actif${days > 1 ? 's' : ''} · ${eur(agg.ca)} (${eur(caPerDay)}/j) · niveau ${level} · présence ${r1(agg.presence)}h · idle ${r1(agg.idle)}h`
+    const body = `${days} j actif${days > 1 ? 's' : ''} · ${eur(agg.ca)} (${eur(caPerDay)}/j) · niveau ${level} · présence ${presence === null ? '—' : `${r1(presence)}h`}`
 
     // ── Plan d'action : UNE section par case rouge, dans l'ordre des chips ──
     const plan: string[] = []
@@ -359,7 +368,7 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
     } else {
       if (ko('Présence')) {
         plan.push(
-          `[PRÉSENCE] ${r1(agg.presence)}h sur ${r1(expectedPresence)}h attendues (${t.presenceH}h/j × ${expectedDays} j).\n- Vérifier l'idle MyPuls : 1h de pause/j tolérée, soit ${idleTolerance}h/semaine — ici ${r1(agg.idle)}h.\n- Idle > ${idleTolerance}h/sem : soit il erre sur son PC sans vraiment travailler, soit MyPuls reste allumé après déconnexion (ça fausse aussi la réactivité et les autres stats).\n- Sous les ${r1(expectedPresence)}h obligatoires : rendez-vous au bureau avec le manager + explication à Axel.`,
+          `[PRÉSENCE] ${r1(presence ?? 0)}h de chatting actif sur ${r1(expectedPresence)}h attendues (${t.presenceH}h/j × ${expectedDays} j), d'après le relevé MyPuls.\n- Vérifier l'idle sur sa fiche d'activité (Relevé d'équipe › son nom : temps connecté moins chatting actif) : 1h de pause/j tolérée, soit ${idleTolerance}h/semaine.\n- Idle > ${idleTolerance}h/sem : soit il erre sur son PC sans vraiment travailler, soit MyPuls reste allumé après déconnexion (ça fausse aussi la réactivité et les autres stats).\n- Sous les ${r1(expectedPresence)}h obligatoires : rendez-vous au bureau avec le manager + explication à Axel.`,
         )
       }
       if (ko('Réactivité')) {
@@ -392,7 +401,13 @@ export function buildQuotaInsights(input: QuotaInsightsInput): InsightDraft[] {
       severity,
       chatterId,
       title: `${name} — S-1 : ${
-        !t ? 'quotas non configurés' : missed === 0 ? 'tous les quotas atteints' : `${missed}/5 quotas manqués`
+        !t
+          ? 'quotas non configurés'
+          : missed > 0
+            ? `${missed}/5 quotas manqués`
+            : presence === null
+              ? 'aucun quota manqué · présence non mesurée'
+              : 'tous les quotas atteints'
       }${partial ? ` · ${evaluated.daysWithData} j de données` : ''}`,
       body,
       actionPlan: plan.join('\n\n'),

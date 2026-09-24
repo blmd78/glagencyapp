@@ -5466,6 +5466,7 @@ export type Database = {
       }
       chatters_report: { Args: { p_from: string; p_to: string }; Returns: Json }
       copy_repos_week: { Args: { p_to: string }; Returns: number }
+      creator_base_name: { Args: { p_name: string }; Returns: string }
       crm_spenders_daily: {
         Args: never
         Returns: {
@@ -5559,6 +5560,13 @@ export type Database = {
           p_to_manager_id: string
         }
         Returns: undefined
+      }
+      mypuls_presence_by_chatter: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          active_minutes: number
+          chatter_id: string
+        }[]
       }
       mypuls_shift_board: {
         Args: { p_day: string; p_slot?: string }
@@ -5664,6 +5672,8 @@ export type Database = {
         }
         Returns: undefined
       }
+      team_default_quotas: { Args: { p_team: string }; Returns: undefined }
+      team_for_creator_name: { Args: { p_name: string }; Returns: string }
       tracker_coaching_list: { Args: never; Returns: Json }
       tracker_todo_week_recap: {
         Args: { p_from: string; p_to: string }

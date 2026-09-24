@@ -258,6 +258,13 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   garde une carte **« Sans quotas »** (gravité `unset`, `quotas-hebdo.ts`) : vrais chiffres, aucun
   verdict, hors du compteur d'alertes de la sidebar — jamais plus de chatteur sauté en silence.
   Ne répare PAS les chatteurs invisibles du Relevé d'équipe (scrape money-team, autre chaîne).
+  **Présence des Insights = relevé MyPuls** (`0174`, bug du 2026-09-24 : « 0h » sur les 144 cartes) :
+  `chatter_daily.presence_active_h` est VIDE depuis le 2026-09-03 (0149) et l'ingestion la lisait
+  comme 0 → quota de présence manqué pour tout le monde. Cartes ET Classement lisent désormais
+  `mypuls_presence_by_chatter` (somme des segments = le chiffre du Relevé d'équipe). Semaine dont
+  un jour de stats n'a pas de run `ok` → aucun verdict de présence ; chatteur absent du relevé →
+  « — », jamais 0. Le seuil `idle_minutes` (3 min) décide du temps mesuré : médiane ~30 h/sem
+  pour 42 h attendues — calibrage (idle ou quota) à trancher par Benoit, pas par le code.
 
 - **Codes Snap** (`/chatter/codes-snap`, table `snap_codes`, mot de passe chiffré AES) : lecture pour
   tout porteur de la page (RLS `snap_codes_read`, 0063 — un encadrant ne voit que SES modèles via
@@ -349,7 +356,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-24** : prod = UAT = **0173**. **Prochaine migration = `0174`**.
+**État au 2026-09-24** : prod = UAT = **0174**. **Prochaine migration = `0175`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le
