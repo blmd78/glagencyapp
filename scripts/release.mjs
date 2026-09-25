@@ -151,7 +151,9 @@ function tag(target) {
   }
   const name = `${t.prefix}${release.version}`;
   if (git('tag', '--list', name)) fail(`le tag ${name} existe déjà`);
-  git('tag', '-a', name, '-m', `${name}\n\n${release.notes}`);
+  // `--cleanup=verbatim` : sans lui, git retire toute ligne qui commence par `#`,
+  // donc les rubriques « ### Ajouté / Corrigé » du changelog.
+  git('tag', '-a', '--cleanup=verbatim', name, '-m', `${name}\n\n${release.notes}`);
   console.log(`✓ tag ${name} posé. Le pousser (sur go) : git push origin ${name}`);
 }
 

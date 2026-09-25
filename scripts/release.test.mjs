@@ -142,6 +142,14 @@ test('CLI tag : pose le tag de la version publiée, refuse un doublon', () => {
   assert.equal(run(dir, 'tag').status, 1);
 });
 
+test('CLI tag : le message garde les rubriques « ### » du changelog', () => {
+  // Sans `--cleanup=verbatim`, git retire toute ligne qui commence par `#` :
+  // les tags mobile-v1.1.0 et mobile-v1.1.1 ont perdu « ### Ajouté / Corrigé ».
+  const { dir, g } = repo({ 'CHANGELOG.md': '## Non publié\n\n## [1.1] — 2026-09-28\n\n### Corrigé\n\n- Connexion\n' }, ['v1.0']);
+  assert.equal(run(dir, 'tag').status, 0);
+  assert.match(g('tag', '-l', '--format=%(contents)', 'v1.1'), /### Corrigé\n\n- Connexion/);
+});
+
 test('CLI tag (web) : refuse hors de main', () => {
   const { dir, g } = repo({ 'CHANGELOG.md': '## Non publié\n\n## [1.1] — 2026-09-28\n\n- x\n' }, ['v1.0']);
   g('checkout', '-q', '-b', 'dev');
