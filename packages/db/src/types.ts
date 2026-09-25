@@ -34,6 +34,73 @@ export type Database = {
   }
   public: {
     Tables: {
+      agency_events: {
+        Row: {
+          audience: string[]
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          remind_on_day: boolean
+          start_date: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: string[]
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          remind_on_day?: boolean
+          start_date: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: string[]
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          remind_on_day?: boolean
+          start_date?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_notification_seen: {
+        Row: {
+          profile_id: string
+          seen_at: string
+        }
+        Insert: {
+          profile_id: string
+          seen_at?: string
+        }
+        Update: {
+          profile_id?: string
+          seen_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_notification_seen_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatter_alias: {
         Row: {
           chatter_id: string
@@ -5442,6 +5509,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      agency_notifications: { Args: { p_limit?: number }; Returns: Json }
       bilan_report: {
         Args: {
           p_end: string
