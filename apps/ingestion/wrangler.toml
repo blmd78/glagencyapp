@@ -22,10 +22,10 @@ compatibility_flags = ["nodejs_compat"]
 # 00h00 UTC : scrape spenders. Une invocation ne peut pas traiter les 16 modèles (10 ms
 # CPU + 50 sous-req/invocation Free) → l'orchestrateur fait un FAN-OUT : 1 mini-requête
 # self par modèle (?job=spenders&model=…), chacune = invocation séparée à son propre budget.
-# 5 crons = plafond Free par COMPTE (pas par worker). Actifs : 3 (chatteurs, spenders,
-# shifts). ⚠️ La ligne marketing commentée ci-dessous en compte 5 à elle seule : la
-# restaurer telle quelle ferait 6 avec le relevé des shifts et serait REFUSÉE. Réactiver
-# le marketing impose donc d'arbitrer un slot.
+# 5 crons = plafond Free par COMPTE (pas par worker). Actifs : 4 (chatteurs, spenders,
+# shifts, Uncove). ⚠️ La ligne marketing commentée ci-dessous en compte 5 à elle seule : la
+# restaurer telle quelle ferait 7 avec les relevés des shifts et d'Uncove, et serait
+# REFUSÉE. Réactiver le marketing impose donc d'arbitrer des slots.
 [triggers]
 # Liens de tracking : REBRANCHÉS le 2026-09-08, mais PAS par un cron — en FAN-OUT depuis le
 # cron chatteurs (5 23 * * *), cf. worker.ts section « Fan-out MARKETING ». Un appel SELF est

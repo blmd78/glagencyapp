@@ -121,7 +121,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | App | Cible | Détail |
 | --- | --- | --- |
 | `apps/web` | **Vercel**, région `cdg1` (`apps/web/vercel.json`) | `main` → Production (DB prod), `develop` → Preview/préprod (DB UAT), `feature/*` → Preview par commit (`docs/git-workflow.md`) |
-| `apps/ingestion` | **Cloudflare Worker** `glagency-ingestion`, compte verrouillé `091614e1…` (`apps/ingestion/wrangler.toml`) | 4 Cron Triggers UTC : `23h05` (pipeline chatteurs + fan-out marketing liens), `00h00` (fan-out spenders), `04h30` (contrôle des shifts MyPuls), `05h00` (relevé Uncove) — 4 des 5 slots Cron autorisés par compte sur le plan Free (le commentaire « Actifs : 3 » en tête de `[triggers]` date d'avant le relevé Uncove) |
+| `apps/ingestion` | **Cloudflare Worker** `glagency-ingestion`, compte verrouillé `091614e1…` (`apps/ingestion/wrangler.toml`) | 4 Cron Triggers UTC : `23h05` (pipeline chatteurs + fan-out marketing liens), `00h00` (fan-out spenders), `04h30` (contrôle des shifts MyPuls), `05h00` (relevé Uncove) — 4 des 5 slots Cron autorisés par compte sur le plan Free |
 
 Le worker accepte aussi un déclenchement HTTP manuel (`fetch`), protégé par le secret `TRIGGER_TOKEN` (`Authorization: Bearer`) — sans lui, toujours 403 (`apps/ingestion/src/worker.ts`).
 
