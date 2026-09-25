@@ -6,7 +6,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
-import { noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { BusinessError, noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { eventIdInput, eventInput, eventRow } from './schema'
 
 /** Crée l'événement (sans `id`) ou le modifie. Une modification ne renotifie personne. */
@@ -18,13 +18,21 @@ export async function saveEvent(raw: unknown): Promise<ActionResult> {
     handler: async (v) => {
       const profile = await requireAdminProfileLive()
       const admin = createAdminClient()
-      const { error } = v.id
-        ? await admin
-            .from('agency_events')
-            .update({ ...eventRow(v), updated_at: new Date().toISOString() })
-            .eq('id', v.id)
-        : await admin.from('agency_events').insert({ ...eventRow(v), created_by: profile.id })
-      if (error) throw new Error(error.message)
+      if (v.id) {
+        // `.select('id')` détecte un événement supprimé entre-temps (un autre admin, un autre
+        // onglet) : sans ligne rendue, l'`update` a réussi sans rien changer — c'est un conflit
+        // MÉTIER, pas une erreur technique de `runAction`.
+        const { data, error } = await admin
+          .from('agency_events')
+          .update({ ...eventRow(v), updated_at: new Date().toISOString() })
+          .eq('id', v.id)
+          .select('id')
+        if (error) throw new Error(error.message)
+        if (data.length === 0) throw new BusinessError('Cet événement n’existe plus — il a sans doute été supprimé.')
+      } else {
+        const { error } = await admin.from('agency_events').insert({ ...eventRow(v), created_by: profile.id })
+        if (error) throw new Error(error.message)
+      }
       revalidatePath('/chatter/agence')
     },
   })

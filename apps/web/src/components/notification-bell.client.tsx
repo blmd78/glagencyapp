@@ -33,32 +33,53 @@ const dates = (s: string, e: string) => (s === e ? frDayMonthShort(s) : `${frDay
  * L'ouverture est aussi le moment « vu » : une fois la donnée fraîche arrivée, si elle contient
  * du non-lu, la pastille retombe à 0 localement et `markNotificationsSeen` est appelé avec le
  * `at` du plus récent item AFFICHÉ (pas `now()` — cf. commentaire de l'action).
+ *
+ * Sur ce chemin d'ouverture, deux cas dégradés sont couverts EXPRÈS (l'écriture est monotone
+ * côté action, un envoi tardif ne recule jamais) :
+ * - une réponse PÉRIMÉE (un refresh plus récent a démarré entre-temps, ex. clic sur un item avant
+ *   le retour du refresh d'ouverture) ne doit plus faire sauter `markNotificationsSeen` — seul
+ *   l'AFFICHAGE reste gardé par `requestId` ;
+ * - un refresh d'ouverture en ÉCHEC retombe sur la donnée déjà affichée : si elle a du non-lu, la
+ *   pastille tombe à 0 et `markNotificationsSeen` part avec son `at` le plus récent.
  */
 export function NotificationBell({ promise }: { promise: Promise<Notifications | null> }) {
   const initial = use(promise)
   const [data, setData] = useState<Notifications | null>(initial)
+  // Miroir synchrone de `data`, lu par le filet d'échec ci-dessous : `refresh` est mémoïsé sur
+  // `[supabase]` (essentiellement immuable), donc une fermeture directe sur `data` y resterait
+  // celle du premier rendu.
+  const dataRef = useRef(initial)
   const [supabase] = useState(() => createClient())
   const pathname = usePathname()
   // Compteur de requêtes partagé : une réponse qui arrive après qu'un refresh plus récent a
-  // démarré est une réponse PÉRIMÉE — on l'ignore (jamais d'écrasement d'un état plus frais par
-  // un aller-retour réseau plus lent parti avant).
+  // démarré est une réponse PÉRIMÉE — on ignore son AFFICHAGE (jamais d'écrasement d'un état plus
+  // frais par un aller-retour réseau plus lent parti avant), mais pas forcément son « vu ».
   const requestId = useRef(0)
 
+  const updateData = useCallback((next: Notifications) => {
+    dataRef.current = next
+    setData(next)
+  }, [])
+
   const refresh = useCallback(
-    (onFresh?: (fresh: Notifications) => void) => {
+    (onFresh?: (fresh: Notifications, stale: boolean) => void, onError?: () => void) => {
       const id = ++requestId.current
       void supabase
         .rpc('agency_notifications', { p_limit: 10 })
         .then(({ data: fresh, error }) => {
-          // Échec réseau/RPC ou réponse périmée : on garde l'affichage courant EN SILENCE — la
-          // cloche ne doit jamais clignoter une erreur.
-          if (error || id !== requestId.current) return
+          // Échec réseau/RPC : on garde l'affichage courant EN SILENCE — la cloche ne doit jamais
+          // clignoter une erreur — sauf filet dédié fourni par l'appelant (ouverture).
+          if (error) {
+            if (id === requestId.current) onError?.()
+            return
+          }
+          const stale = id !== requestId.current
           const parsed = fresh as unknown as Notifications
-          setData(parsed)
-          onFresh?.(parsed)
+          if (!stale) updateData(parsed)
+          onFresh?.(parsed, stale)
         })
     },
-    [supabase],
+    [supabase, updateData],
   )
 
   // Le premier rendu a déjà la donnée du hard load (`initial`, ci-dessus) : ne pas la redemander
@@ -79,15 +100,28 @@ export function NotificationBell({ promise }: { promise: Promise<Notifications |
     <DropdownMenu
       onOpenChange={(open) => {
         if (!open) return
-        refresh((fresh) => {
-          if (fresh.unread > 0) {
-            // `items[0]` existe forcément : `unread > 0` veut dire qu'au moins un item est plus
-            // récent que la dernière ouverture, et `items` est trié par `at` DESC — c'est donc
-            // le plus récent affiché, exactement ce que « vu » doit couvrir.
-            setData({ ...fresh, unread: 0 })
-            void callAction(markNotificationsSeen({ seenUpTo: fresh.items[0].at }))
-          }
-        })
+        refresh(
+          (fresh, stale) => {
+            if (fresh.unread > 0) {
+              // `items[0]` existe forcément : `unread > 0` veut dire qu'au moins un item est plus
+              // récent que la dernière ouverture, et `items` est trié par `at` DESC — c'est donc
+              // le plus récent affiché, exactement ce que « vu » doit couvrir. Le « vu » part
+              // MÊME PÉRIMÉ (écriture monotone, un envoi tardif ne recule jamais) — seul
+              // l'affichage attend une réponse encore fraîche.
+              if (!stale) updateData({ ...fresh, unread: 0 })
+              void callAction(markNotificationsSeen({ seenUpTo: fresh.items[0].at }))
+            }
+          },
+          () => {
+            // Le refresh d'ouverture a échoué : filet sur la donnée déjà affichée, même logique
+            // (pastille à 0 + `markNotificationsSeen` sur son item le plus récent).
+            const current = dataRef.current
+            if (current && current.unread > 0) {
+              updateData({ ...current, unread: 0 })
+              void callAction(markNotificationsSeen({ seenUpTo: current.items[0].at }))
+            }
+          },
+        )
       }}
     >
       <DropdownMenuTrigger asChild>

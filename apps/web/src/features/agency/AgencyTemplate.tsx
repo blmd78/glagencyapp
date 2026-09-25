@@ -16,14 +16,17 @@ export function AgencyTemplate({ month, today, events, canEdit }: { month: strin
         <h1 className="text-2xl font-semibold tracking-tight">Agence</h1>
         <div className="flex items-center gap-1">
           <Button asChild variant="outline" size="icon" className="size-8">
-            <Link href={monthHref(shiftMonth(month, -1))} aria-label="Mois précédent"><ChevronLeft className="size-4" /></Link>
+            <Link href={monthHref(shiftMonth(month, -1))} aria-label="Mois précédent" prefetch={false}><ChevronLeft className="size-4" /></Link>
           </Button>
           <span className="min-w-36 text-center text-sm font-medium capitalize">{frMonthLong(`${month}-01`)}</span>
           <Button asChild variant="outline" size="icon" className="size-8">
-            <Link href={monthHref(shiftMonth(month, 1))} aria-label="Mois suivant"><ChevronRight className="size-4" /></Link>
+            <Link href={monthHref(shiftMonth(month, 1))} aria-label="Mois suivant" prefetch={false}><ChevronRight className="size-4" /></Link>
           </Button>
           <Button asChild variant="ghost" size="sm">
-            <Link href="/chatter/agence">Aujourd’hui</Link>
+            {/* `prefetch={false}` sur les 3 liens de navigation mois : un `Link` nu se reprefetch
+                en fond ~ttes les 300 s tant que la page est ouverte — le coût Vercel corrigé en
+                Release 2.56 (`docs/perf-vercel-prefetch.md`). */}
+            <Link href="/chatter/agence" prefetch={false}>Aujourd’hui</Link>
           </Button>
         </div>
         {canEdit && (

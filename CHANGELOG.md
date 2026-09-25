@@ -11,6 +11,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Ajouté
 
 - Carte des projets (`docs/CARTE.md`), changelog et commandes `pnpm release:prepare` / `pnpm release:tag`.
+- Agence : calendrier des événements de l'agence (ajout par les admins, un jour ou une période, rappel le jour J, visible par rôle) et cloche de nouveautés dans la barre du haut, sur les trois faces.
 
 ## [2.62] — 2026-09-25
 

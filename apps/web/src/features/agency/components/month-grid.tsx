@@ -23,11 +23,11 @@ export function MonthGrid({ month, today, weeks, canEdit }: { month: string; tod
           ))}
           {w.bars.length > 0 && (
             <div
-              className="pointer-events-none absolute inset-x-0 top-7 grid grid-cols-7 gap-y-1 px-1"
+              className="pointer-events-none absolute inset-x-0 top-7 grid grid-cols-7 gap-y-1"
               style={{ gridTemplateRows: `repeat(${w.lanes}, 20px)` }}
             >
               {w.bars.map((b) => (
-                <div key={`${b.event.id}-${w.days[0]}`} className="pointer-events-auto" style={{ gridColumn: `${b.startCol + 1} / span ${b.span}`, gridRow: b.lane + 1 }}>
+                <div key={`${b.event.id}-${w.days[0]}`} className="pointer-events-auto px-0.5" style={{ gridColumn: `${b.startCol + 1} / span ${b.span}`, gridRow: b.lane + 1 }}>
                   <EventChip bar={b} canEdit={canEdit} />
                 </div>
               ))}
