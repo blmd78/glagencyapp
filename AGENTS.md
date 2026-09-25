@@ -345,6 +345,21 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   definer`) : `mkt_links` reste fermée aux chatteurs, la fonction ne rend que des couples (modèle,
   groupe), cloisonnés par une règle MIROIR de `creators_scoped_read` — à faire suivre si elle change.
 
+- **Agence** (`/chatter/agence`, `agency_*` de `0175`, spec
+  `docs/superpowers/specs/2026-09-25-agence-calendrier-notifications-design.md`) : calendrier des
+  événements de l'agence. **Écriture ADMIN** (service-role après la garde `requireAdminProfileLive`,
+  aucune policy d'écriture), **lecture pour tous** — l'item de nav porte `everyone: true` (visible
+  sans case à cocher, jamais page d'atterrissage). Un événement = nom + jour ou période + rappel
+  jour J optionnel + `audience` (rôles visés, tous par défaut ; RLS de lecture par rôle, admins =
+  tout). **La cloche** de la barre du haut est CALCULÉE À LA VOLÉE (RPC `agency_notifications`,
+  `security invoker`) depuis `agency_notification_seen.seen_at` : pas de ligne par personne, pas de
+  robot. Donnée initiale lue par le layout, puis **rafraîchie côté navigateur** (client Supabase,
+  RLS) à chaque changement de page et à l'ouverture — le layout `(dash)` ne se ré-exécute PAS en
+  navigation. L'ouverture marque vu **jusqu'à la nouveauté la plus récente affichée**
+  (`markNotificationsSeen({ seenUpTo })`, jamais en arrière, comparée par Postgres à la
+  microseconde — un aller-retour par `Date` JS la tronquait et bloquait la pastille). Rappel = 00:00
+  heure de Paris du 1er jour. En « en tant que », ouvrir la cloche n'écrit rien.
+
 **Tout le CA est en euros** (décision de Benoît, 2026-09-21) : aucune conversion, aucun taux de change, aucune colonne `currency` sur les tables de faits — même quand MyPuls étiquette un compte en USD (Carla, id `3623`) ; c'est lui qui sait ce qui est réellement encaissé.
 
 **Un ticket qu'un agent dépose dans la to-do CRM** (insert SQL, auteur « Claude ») se traite par l'agent lui-même dans la foulée, puis passe en `done` (transition permise par le trigger `0086`/`0087`) — la to-do est un journal, pas un backlog à relancer. Seuls restent ouverts, et signalés dans le chat, ceux qui exigent une décision produit.
@@ -373,7 +388,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-24** : prod = UAT = **0174**. **Prochaine migration = `0175`**.
+**État au 2026-09-25** : UAT = **0175** (Agence), prod = **0174** — `0175` part en prod avec la release Agence. **Prochaine migration = `0176`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le
