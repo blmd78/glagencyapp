@@ -158,7 +158,10 @@ export async function getShiftReport(params: {
     run: rpc.run,
     kpi: buildKpi(rows),
     groups: groupByModel(shown),
-    missingDays: rpc.missingDays,
+    // La RPC rend ces jours en `timestamptz` (« 2026-09-05 00:00:00+00 », issus d'un
+    // `generate_series` sur des dates) : l'écran les formate comme des `YYYY-MM-DD`, et tout le
+    // bandeau affichait « Invalid Date ». Le jour, c'est les 10 premiers caractères.
+    missingDays: rpc.missingDays.map((d) => d.slice(0, 10)),
     available: rpc.run !== null,
     threshold,
     totalRows: rows.length,

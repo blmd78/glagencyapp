@@ -153,6 +153,26 @@ describe('parseTeamReport', () => {
     )
   })
 
+  // INCIDENT DU 05 AU 09/09 : le relevé nocturne demande `[D-1, D+1]` (la veille, pour rendre
+  // entières les sessions qui passent minuit), mais le jour « mesuré » était déduit de
+  // `range.from` — la VEILLE. Quatre nuits sont tombées sur une ligne illisible d'un jour jeté.
+  it('plage [veille, lendemain] : le jour mesuré est celui qu’on lui désigne, pas le premier', () => {
+    const veille = fixture('team-report.html').replace(
+      '</table>',
+      '<tr><td>dim. 30 août</td><td>06:54</td><td><div class="shift-worker"></div></td></tr></table>',
+    )
+    const rows = parseTeamReport(veille, { from: '2026-08-30', to: '2026-09-01' }, '2026-08-31')
+    expect(new Set(rows.map((r) => r.day))).toEqual(new Set(['2026-08-31']))
+
+    const mesure = fixture('team-report.html').replace(
+      '</table>',
+      '<tr><td>lun. 31 août</td><td>06:54</td><td><div class="shift-worker"></div></td></tr></table>',
+    )
+    expect(() => parseTeamReport(mesure, { from: '2026-08-30', to: '2026-09-01' }, '2026-08-31')).toThrow(
+      /jour mesuré 2026-08-31/,
+    )
+  })
+
   it('refuse un mois ambigu plutôt que de choisir entre juin et juillet', () => {
     const html = fixture('team-report.html').replace('lun. 31 août', 'mar. 1 ju')
     expect(() => parseTeamReport(html, { from: '2026-06-01', to: '2026-07-31' })).toThrow(/ambigu/)

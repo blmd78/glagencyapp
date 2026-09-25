@@ -383,7 +383,18 @@ export function parseSegmentsCsv(csv: string): ShiftSegment[] {
  * Ces lignes ne portent que le NOM du chatteur, jamais son ID — la résolution se fait via le CSV
  * du même run, où le couple (nom, ID) est bijectif.
  */
-export function parseTeamReport(html: string, range: { from: string; to: string }): CoverageRow[] {
+export function parseTeamReport(
+  html: string,
+  range: { from: string; to: string },
+  /**
+   * Le jour dont les lignes seront ÉCRITES — les autres jours de la plage sont jetés par
+   * l'appelant. Explicite depuis le 2026-09-25 : le relevé nocturne demande `[D-1, D+1]`, et la
+   * règle « lever sur le jour mesuré » testait `range.from`, c'est-à-dire la VEILLE. Du 05 au
+   * 09/09 une ligne illisible de la veille a fait tomber quatre nuits, pendant qu'une ligne
+   * illisible du vrai jour mesuré aurait été ignorée en silence.
+   */
+  measuredDay: string = range.from,
+): CoverageRow[] {
   const table = /<table\b[^>]*class="[^"]*\bshift-table\b[^"]*"[\s\S]*?<\/table>/.exec(html)
   if (!table) throw new Error('shifts: tableau de couverture introuvable')
 
@@ -417,7 +428,7 @@ export function parseTeamReport(html: string, range: { from: string; to: string 
       // Sur le jour MESURÉ, en revanche, on lève : un créneau manquant fausserait le verdict de
       // quelqu'un, et un relevé incomplet marqué `ok` est exactement ce que le journal existe
       // pour empêcher.
-      if (currentDay === range.from) {
+      if (currentDay === measuredDay) {
         throw new Error(
           `shifts: bornes de créneau illisibles sur le jour mesuré ${currentDay} — ${JSON.stringify(slot)}`,
         )
@@ -593,9 +604,9 @@ export async function fetchSegments(cookie: string, q: ReportQuery): Promise<Shi
  * tout le reste est le détail par chatteur, que le CSV nous donne déjà en mieux. On coupe le flux
  * dès qu'on a le premier `</table>`.
  */
-export async function fetchTeamReport(cookie: string, q: ReportQuery): Promise<CoverageRow[]> {
+export async function fetchTeamReport(cookie: string, q: ReportQuery, measuredDay: string = q.from): Promise<CoverageRow[]> {
   const res = await get(`${BASE_URL}/stats/shifts/report?${reportQs(q)}`, cookie, 'text/html')
-  return parseTeamReport(await readUntilTableEnd(res), { from: q.from, to: q.to })
+  return parseTeamReport(await readUntilTableEnd(res), { from: q.from, to: q.to }, measuredDay)
 }
 
 async function readUntilTableEnd(res: Response): Promise<string> {

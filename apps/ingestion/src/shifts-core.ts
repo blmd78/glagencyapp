@@ -295,7 +295,9 @@ export async function ingestShiftsDay(
   }
 
   const allSegments: ShiftSegment[] = await fetchSegments(cookie, query)
-  const allCoverage: CoverageRow[] = await fetchTeamReport(cookie, query)
+  // `day` et non `from` : la plage commence la VEILLE (cf. ci-dessus), et c'est sur le jour
+  // MESURÉ seulement qu'une ligne illisible doit faire échouer le run.
+  const allCoverage: CoverageRow[] = await fetchTeamReport(cookie, query, day)
 
   const segments = allSegments.filter((s) => s.day === day)
   const coverage = allCoverage.filter((c) => c.day === day)
