@@ -226,6 +226,13 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   côté, pour ce qui exige un compte — créneau attendu, fiche d'activité, signalement. Le
   périmètre modèles se lit donc par les DEUX tables d'assignation (`allowedChatterIds` sur
   `chatter_creators` + `allowedProfileIds` sur `profile_creators`, `lib/services/creator-scope.ts`).
+  **`chatter_creators` est FIGÉE depuis son import du 2026-07-01** (rien ne l'écrit : ni l'ingestion,
+  ni Organisation) — les modèles créées depuis (Juliette, Elsa, Romy, comptes privés) y ont 0 ligne.
+  C'est **Organisation** (`profile_creators`) qui fait foi : depuis le 2026-09-25, `allowedChatterIds`
+  y ajoute les chatteurs MyPuls des comptes placés par Orga (`profiles.chatter_id`), ce qui rend le
+  placement effectif sur tout l'historique du relevé. Condition : le compte doit être RELIÉ à son
+  chatteur MyPuls (Compta › « Relier », admin) — sans ce lien, un chatteur placé dans Orga reste
+  invisible au relevé de son manager (cas Juliette : 12 comptes non reliés, 9 reliés le 2026-09-25).
   Ingestion : 3 sous-requêtes par jour dans `apps/ingestion/src/shifts-core.ts`, cron
   **04h30 UTC** (l'heure n'est PAS négociable — le créneau du soir court jusqu'à 05h00 Paris et
   MyPuls plafonne sa couverture tant qu'il n'est pas fini) ; rattrapage manuel

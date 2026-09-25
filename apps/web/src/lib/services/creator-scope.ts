@@ -101,14 +101,24 @@ export async function allowedProfileIds(scope: Set<string> | null): Promise<Set<
  *
  * `chatter_creators` est la table d'assignation côté chatteur, celle que money-team alimente.
  * `null` = aucune borne (admin, ou encadrant sans modèle assigné).
+ *
+ * S'y ajoutent les chatteurs MyPuls des COMPTES placés sur ces modèles par Organisation
+ * (`profile_creators` → `profiles.chatter_id`). `chatter_creators` n'a plus bougé depuis son
+ * import du 2026-07-01 : toute modèle créée depuis (Juliette, Elsa, Romy, les comptes privés) y
+ * a zéro ligne, et le relevé la cachait à son manager alors qu'Orga l'y avait placée — les lignes
+ * du relevé ne portent un `profile_id` que si le lien compte ↔ chatteur existait AU MOMENT de
+ * l'import. Passer par `chatter_id` rend le placement Orga effectif sur tout l'historique.
  */
 export async function allowedChatterIds(scope: Set<string> | null): Promise<Set<string> | null> {
   if (!scope) return null
   const admin = createAdminClient()
-  const { data, error } = await admin
-    .from('chatter_creators')
-    .select('chatter_id')
-    .in('creator_id', [...scope])
-  if (error) throw new Error(error.message)
-  return new Set((data ?? []).map((r) => r.chatter_id))
+  const [links, members] = await Promise.all([
+    admin.from('chatter_creators').select('chatter_id').in('creator_id', [...scope]),
+    admin.from('profile_creators').select('profiles(chatter_id)').in('creator_id', [...scope]),
+  ])
+  if (links.error) throw new Error(links.error.message)
+  if (members.error) throw new Error(members.error.message)
+  const out = new Set((links.data ?? []).map((r) => r.chatter_id))
+  for (const m of members.data ?? []) if (m.profiles?.chatter_id) out.add(m.profiles.chatter_id)
+  return out
 }
