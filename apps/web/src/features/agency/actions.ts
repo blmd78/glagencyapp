@@ -1,11 +1,12 @@
 'use server'
 
-// Écritures du calendrier Agence — ADMIN seul. Service-role après la garde : `agency_events` n'a
-// AUCUNE policy d'écriture (0175), comme le reste des écritures sensibles du projet.
+// Écritures du calendrier Agence — ADMIN seul. Service-role après vérification du profil
+// admin dans le handler : `agency_events` n'a AUCUNE policy d'écriture (0175), comme le reste
+// des écritures sensibles du projet.
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@glagency/db'
-import { adminGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { noGuard, requireAdminProfileLive, runAction, type ActionResult } from '@/lib/actions'
 import { eventIdInput, eventInput, eventRow } from './schema'
 
 /** Crée l'événement (sans `id`) ou le modifie. Une modification ne renotifie personne. */
@@ -13,7 +14,7 @@ export async function saveEvent(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: eventInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async (v) => {
       const profile = await requireAdminProfileLive()
       const admin = createAdminClient()
@@ -34,7 +35,7 @@ export async function deleteEvent(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: eventIdInput,
     input: raw,
-    guard: adminGuard,
+    guard: noGuard,
     handler: async ({ id }) => {
       await requireAdminProfileLive()
       const { error } = await createAdminClient().from('agency_events').delete().eq('id', id)
