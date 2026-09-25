@@ -12,6 +12,8 @@ couche analytics.
 
 **Docs** : `docs/git-workflow.md` (branches, releases, accord de prod) · `docs/guidelines-*.md` (standard feature, socle, data-loading, UI) · `docs/audit-normes.md` · `docs/dettes-ouvertes.md` · `docs/ia-formation-couts.md` · `docs/runbook-uncove.md` · `docs/perf-vercel-prefetch.md`.
 
+**Carte, changelog, release** : `docs/CARTE.md` dit où vit chaque feature — la lire avant d'explorer le code. Chaque merge sur `develop` ajoute sa ligne sous « Non publié » dans `CHANGELOG.md`. **Toute mise en prod passe par `pnpm release:prepare` puis `pnpm release:tag`** : `docs/git-workflow.md`.
+
 ## Architecture web — skill `archi-web`
 
 Ce projet suit **`.claude/skills/archi-web/SKILL.md`** (adapté Supabase). Invoque-le

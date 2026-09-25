@@ -1,0 +1,1 @@
+{ "racines": ["apps/web/src/features/*", "packages/*"] }

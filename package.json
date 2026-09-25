@@ -12,7 +12,11 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "ingest": "pnpm --filter @glagency/ingestion start",
-    "db:types": "supabase gen types typescript --local > packages/db/src/types.ts"
+    "db:types": "supabase gen types typescript --local > packages/db/src/types.ts",
+    "check:carte": "node scripts/check-carte.mjs",
+    "release:prepare": "node scripts/release.mjs prepare",
+    "release:tag": "node scripts/release.mjs tag",
+    "test:scripts": "node --test scripts/*.test.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.0"
