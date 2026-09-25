@@ -77,4 +77,6 @@ head_sampling_rate = 1
 #   wrangler secret put MYPULS_API_KEY
 #   wrangler secret put TRIGGER_TOKEN   # optionnel : autorise le déclenchement manuel par HTTP
 #   wrangler secret put SENTRY_DSN      # watcher : erreurs + cron monitor (absent → SDK inactif)
+#   wrangler secret put REVALIDATE_URL     # https://glagencyapp-web.vercel.app/api/revalidate
+#   wrangler secret put REVALIDATE_SECRET  # même valeur que REVALIDATE_SECRET sur Vercel (Production)
 # NE PAS mettre DATABASE_URL (inutile au Worker : supabase-js parle en REST via SUPABASE_URL).

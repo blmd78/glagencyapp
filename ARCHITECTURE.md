@@ -133,7 +133,7 @@ Le worker accepte aussi un déclenchement HTTP manuel (`fetch`), protégé par l
 
 **Aucune CI** (décision de Benoît, commit `847dc3c`) : les vérifications sont locales, par task — détail § 8. Cycle de branches, hotfix, versioning et accord de mise en prod : `docs/git-workflow.md`. Release : `pnpm release:prepare` puis `pnpm release:tag` (`AGENTS.md` § Carte, changelog, release).
 
-**Invalidation du cache après ingestion** : `apps/web` expose `POST /api/revalidate` (secret partagé `REVALIDATE_SECRET`, allow-list de tags fermée à `facts-daily`, comparaison timing-safe) — décrit dans `docs/guidelines-socle.md` § 2. Ce que l'appelle réellement en prod n'est pas prouvé : § 9.
+**Invalidation du cache après ingestion** : `apps/web` expose `POST /api/revalidate` (secret partagé `REVALIDATE_SECRET`, allow-list de tags fermée à `facts-daily`, comparaison timing-safe) — décrit dans `docs/guidelines-socle.md` § 2. Appelée par `pingRevalidate()` (`apps/ingestion/src/revalidate.ts`) : le Worker après le run chatteurs (23h05) et après le relevé des shifts (04h30), le CLI local en fin de run. Sans `REVALIDATE_URL` + `REVALIDATE_SECRET` côté Worker, l'appel est un no-op ; sans `REVALIDATE_SECRET` identique côté Vercel, la route répond 401 (§ 9).
 
 ## 6. Observabilité
 
@@ -170,7 +170,7 @@ Aucun hook git installé (pas de `core.hooksPath`, pas de dossier `.githooks`) �
 
 | Sujet | État |
 | --- | --- |
-| Invalidation du cache après un run **cron** (prod) | `docs/guidelines-socle.md` dit qu'« `apps/ingestion` l'appelle en fin de run », mais le seul appel à `REVALIDATE_URL` trouvé dans le code est `pingRevalidate()` dans `apps/ingestion/src/main.ts` (le CLI **local**) — `apps/ingestion/src/worker.ts` (le cron réel de prod) n'y fait aucune référence (grep sur le fichier, 2026-09-25). Si confirmé, le tag `facts-daily` ne se rafraîchit en prod qu'à l'expiration de `cacheLife('hours')`, jamais sur événement |
+| Invalidation du cache après un run **cron** (prod) | Le Worker appelle `/api/revalidate` depuis le 2026-09-25 (§ 5) — avant, seul le CLI local le faisait. Effectif seulement une fois `REVALIDATE_URL` et `REVALIDATE_SECRET` posés sur le Worker et le même `REVALIDATE_SECRET` sur Vercel (Production), secrets non vérifiables depuis le repo. En attendant, le classement ne se rafraîchit qu'à l'expiration de `cacheLife('hours')` |
 | Déploiement `apps/ingestion` | manuel (`wrangler deploy`, § 5) — aucun fichier du repo ne prouve un pipeline automatisé (type Cloudflare Workers Builds) |
 | `SENTRY_DSN` web en prod (Vercel) | non vérifiable depuis le repo (secret du dashboard Vercel) |
 | `TG_BOT_TOKEN`/`TG_CHAT_ID` | déclarés dans `.env.example`, aucune référence dans le code (§ 6) |

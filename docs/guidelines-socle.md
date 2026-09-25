@@ -34,8 +34,9 @@ code (vérifié 2026-07-18). En cas d'écart code↔doc, le code fait foi (corri
   secret partagé (header `x-revalidate-secret` + env `REVALIDATE_SECRET`), comparaison
   **timing-safe** (`crypto.timingSafeEqual`, garde de longueur), **allow-list fermée** de tags
   (`['facts-daily']`), `revalidateTag(tag, 'max')` (forme 2 args, profil SWR non bloquant).
-  `apps/ingestion` l'appelle en fin de run — sans lui, `get-ranking` sert des données périmées
-  jusqu'à expiration de `cacheLife`.
+  `apps/ingestion` l'appelle via `pingRevalidate()` (`src/revalidate.ts`) : le Worker après le
+  run chatteurs et le relevé des shifts, le CLI en fin de run — sans lui, `get-ranking` sert des
+  données périmées jusqu'à expiration de `cacheLife`.
 - Mutations : `revalidatePath` (+ `updateTag(tag)` si la donnée mutée alimente un cache taggé —
   pas encore de cas dans le repo). Détails : `guidelines-standard-feature.md` §4.
 
