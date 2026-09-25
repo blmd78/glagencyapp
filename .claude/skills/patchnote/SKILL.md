@@ -18,6 +18,8 @@ aujourd'hui, en trente secondes.
 git log <dernière-release>..main --oneline    # ou main..develop avant merge
 ```
 
+**Seulement ce qui est parti depuis le dernier patchnote rendu** (« ce qu'on a push depuis le dernier patchnote, on met dedans », Benoît, 2026-09-14) : repérer la dernière release couverte par le patchnote précédent — dans la conversation, ou demander — et ne lister que les merges `Release N.N` postérieurs (`git log <sha>..origin/main --merges`). Si rien n'est parti depuis, le dire plutôt que de recopier l'ancien. Un patchnote « complet » reste possible, sur demande explicite seulement.
+
 Ne garder que ce qui **se voit ou se fait** à l'écran. Écarter migrations, refactors,
 tests, renommages internes : ils n'existent pas pour l'équipe.
 

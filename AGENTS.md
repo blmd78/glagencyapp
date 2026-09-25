@@ -6,9 +6,11 @@ couche analytics.
 
 ## Multi-agent — Codex et Claude Code
 
-**Source unique : ce fichier.** `CLAUDE.md` n'est qu'un `@AGENTS.md`, ne jamais y écrire. Codex lit `AGENTS.md` nativement, de la racine git jusqu'au cwd ; Claude Code passe par le pointeur.
+**Source unique : ce fichier.** `CLAUDE.md` est un **symlink** vers ce fichier (`CLAUDE.md -> AGENTS.md`) : écrire dans l'un, c'est écrire dans l'autre — ne jamais le remplacer par une copie ni par un vrai fichier. Codex lit `AGENTS.md` nativement, de la racine git jusqu'au cwd ; Claude Code lit le `CLAUDE.md`, donc ce même contenu (symlink vérifié sur Claude Code 2.1.278).
 
 **Skills : un dossier, deux agents.** `.claude/skills/` porte les skills ; `.agents/skills` est un **symlink** vers lui (`-> ../.claude/skills`) et c'est le root que Codex scanne — ne jamais le supprimer ni le remplacer par une copie. Une nouvelle skill dans `.claude/skills/` apparaît dans les deux agents sans aucune action. Le sens inverse ne marche pas : Claude Code ne lit pas `.agents/skills`. `.claude/skills/` est **versionné** depuis le 2026-09-22 (`.gitignore` : `.claude/*` puis `!.claude/skills/`) — sans ça le symlink serait cassé sur toute autre machine.
+
+**Docs** : `docs/git-workflow.md` (branches, releases, accord de prod) · `docs/guidelines-*.md` (standard feature, socle, data-loading, UI) · `docs/audit-normes.md` · `docs/dettes-ouvertes.md` · `docs/ia-formation-couts.md` · `docs/runbook-uncove.md` · `docs/perf-vercel-prefetch.md`.
 
 ## Architecture web — skill `archi-web`
 
@@ -333,6 +335,10 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
   caractères. Les réseaux d'une modèle viennent de `mkt_model_sources()` (`0172`, `security
   definer`) : `mkt_links` reste fermée aux chatteurs, la fonction ne rend que des couples (modèle,
   groupe), cloisonnés par une règle MIROIR de `creators_scoped_read` — à faire suivre si elle change.
+
+**Tout le CA est en euros** (décision de Benoît, 2026-09-21) : aucune conversion, aucun taux de change, aucune colonne `currency` sur les tables de faits — même quand MyPuls étiquette un compte en USD (Carla, id `3623`) ; c'est lui qui sait ce qui est réellement encaissé.
+
+**Un ticket qu'un agent dépose dans la to-do CRM** (insert SQL, auteur « Claude ») se traite par l'agent lui-même dans la foulée, puis passe en `done` (transition permise par le trigger `0086`/`0087`) — la to-do est un journal, pas un backlog à relancer. Seuls restent ouverts, et signalés dans le chat, ceux qui exigent une décision produit.
 
 ## Données MyPuls — workflow d'ajout
 
