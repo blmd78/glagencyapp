@@ -11,6 +11,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Ajouté
 
 - Carte des projets (`docs/CARTE.md`), changelog et commandes `pnpm release:prepare` / `pnpm release:tag`.
+- Doc agents : `ARCHITECTURE.md` (description du système + règles métier par domaine), sorti d'`AGENTS.md` qui passe de 34 à 8 Ko.
 
 ## [2.62] — 2026-09-25
 
