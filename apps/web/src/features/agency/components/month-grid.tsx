@@ -1,12 +1,13 @@
 import { cn } from '@/lib/utils'
 import type { WeekRow } from '../month-layout'
+import type { Legend } from '../schema'
 import { EventChip } from './event-chip.client'
 
 const WEEKDAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.']
 /** Hauteur d'une ligne d'événements (barre 20 px + 4 px d'écart). */
 const LANE_PX = 24
 
-export function MonthGrid({ month, today, weeks, canEdit }: { month: string; today: string; weeks: WeekRow[]; canEdit: boolean }) {
+export function MonthGrid({ month, today, weeks, legend, canEdit }: { month: string; today: string; weeks: WeekRow[]; legend: Legend; canEdit: boolean }) {
   return (
     <div className="overflow-hidden rounded-lg border">
       <div className="grid grid-cols-7 border-b bg-muted/40 text-xs text-muted-foreground">
@@ -43,7 +44,7 @@ export function MonthGrid({ month, today, weeks, canEdit }: { month: string; tod
             >
               {w.bars.map((b) => (
                 <div key={`${b.event.id}-${w.days[0]}`} className="pointer-events-auto px-0.5" style={{ gridColumn: `${b.startCol + 1} / span ${b.span}`, gridRow: b.lane + 1 }}>
-                  <EventChip bar={b} canEdit={canEdit} />
+                  <EventChip bar={b} legend={legend} canEdit={canEdit} />
                 </div>
               ))}
             </div>

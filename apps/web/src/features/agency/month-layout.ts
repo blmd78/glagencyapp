@@ -1,5 +1,5 @@
 import { addDays, addMonths, endOfMonth, frDayMonthShort, frWeekdayDate, mondayOf } from '@glagency/core'
-import type { AgencyRole } from './schema'
+import type { AgencyRole, EventColor } from './schema'
 
 export type AgencyEvent = {
   id: string
@@ -8,6 +8,10 @@ export type AgencyEvent = {
   endDate: string
   remindOnDay: boolean
   audience: AgencyRole[]
+  color: EventColor | null
+  imagePath: string | null
+  /** URL signée de la photo, valable quelques heures — `null` sans photo. */
+  imageUrl: string | null
 }
 
 /** La part d'un événement dans UNE semaine de la grille. */

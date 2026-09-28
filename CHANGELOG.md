@@ -8,6 +8,12 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.64] — 2026-09-28
+
+### Ajouté
+
+- Agence : une couleur et une photo par événement (JPEG, PNG ou WebP, 5 Mo maximum), légende des couleurs réglée par les admins au-dessus du calendrier, et fiche de consultation au clic pour les non-admins.
+
 ## [2.63] — 2026-09-28
 
 ### Ajouté

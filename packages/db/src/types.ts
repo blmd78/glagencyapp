@@ -37,10 +37,12 @@ export type Database = {
       agency_events: {
         Row: {
           audience: string[]
+          color: string | null
           created_at: string
           created_by: string | null
           end_date: string
           id: string
+          image_path: string | null
           remind_on_day: boolean
           start_date: string
           title: string
@@ -48,10 +50,12 @@ export type Database = {
         }
         Insert: {
           audience?: string[]
+          color?: string | null
           created_at?: string
           created_by?: string | null
           end_date: string
           id?: string
+          image_path?: string | null
           remind_on_day?: boolean
           start_date: string
           title: string
@@ -59,10 +63,12 @@ export type Database = {
         }
         Update: {
           audience?: string[]
+          color?: string | null
           created_at?: string
           created_by?: string | null
           end_date?: string
           id?: string
+          image_path?: string | null
           remind_on_day?: boolean
           start_date?: string
           title?: string
@@ -77,6 +83,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      agency_legend: {
+        Row: {
+          color: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          color: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       agency_notification_seen: {
         Row: {
