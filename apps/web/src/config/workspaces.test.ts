@@ -279,3 +279,26 @@ describe('face Marketing — page Modèles', () => {
     expect(canAccessNav(modeles(), user(['mkt-liens']))).toBe(false)
   })
 })
+
+describe('Agence — visible par tous, au-dessus de Membres', () => {
+  const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
+  const agence = chatter.nav.find((n) => n.href === '/chatter/agence')
+
+  it("existe et se voit sans aucun droit coché", () => {
+    expect(agence).toBeDefined()
+    expect(canAccessNav(agence!, user([]))).toBe(true)
+  })
+
+  it("est placé juste au-dessus de Membres", () => {
+    const bottom = chatter.nav.filter((n) => !n.group && n.bottom).map((n) => n.href)
+    expect(bottom.indexOf('/chatter/agence')).toBe(bottom.indexOf('/chatter/members') - 1)
+  })
+
+  it("n'ajoute aucune case à cocher dans Membres", () => {
+    expect(pageChoicesFor('chatter').some((c) => (c.slug as string) === 'agence')).toBe(false)
+  })
+
+  it("ne devient jamais la page d'atterrissage", () => {
+    expect(landingHref({ role: 'chatteur', superadmin: false, manager: false, pages: [] })).not.toBe('/chatter/agence')
+  })
+})
