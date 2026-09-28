@@ -17,8 +17,23 @@ export function MonthGrid({ month, today, weeks, canEdit }: { month: string; tod
       {weeks.map((w) => (
         <div key={w.days[0]} className="relative grid grid-cols-7 border-b last:border-b-0" style={{ minHeight: 64 + w.lanes * LANE_PX }}>
           {w.days.map((d) => (
-            <div key={d} className={cn('border-r px-2 pt-1.5 text-xs last:border-r-0', d.slice(0, 7) !== month && 'text-muted-foreground/50')}>
-              <span className={cn(d === today && 'font-semibold text-primary underline underline-offset-4')}>{Number(d.slice(8))}</span>
+            <div
+              key={d}
+              className={cn(
+                'border-r px-2 pt-1.5 text-xs last:border-r-0',
+                d.slice(0, 7) !== month && 'text-muted-foreground/50',
+                // Aujourd'hui : le bleu des liserés KPI (`kpi-card.tsx`), demande Benoit 2026-09-28.
+                d === today && 'bg-blue-50/70 dark:bg-blue-950/30',
+              )}
+            >
+              <span
+                className={cn(
+                  d === today &&
+                    'inline-flex size-5 items-center justify-center rounded-full bg-blue-500 font-semibold text-white',
+                )}
+              >
+                {Number(d.slice(8))}
+              </span>
             </div>
           ))}
           {w.bars.length > 0 && (
