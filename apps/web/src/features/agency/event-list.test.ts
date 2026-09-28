@@ -3,7 +3,7 @@ import { parseListTab, splitEvents, untilLabel } from './event-list'
 import type { AgencyEvent } from './month-layout'
 
 const ev = (id: string, startDate: string, endDate = startDate): AgencyEvent => ({
-  id, title: id, startDate, endDate, remindOnDay: false, audience: ['chatteur'],
+  id, title: id, startDate, endDate, remindOnDay: false, audience: ['chatteur'], color: null, imagePath: null, imageUrl: null,
 })
 const ids = (list: AgencyEvent[]) => list.map((e) => e.id)
 const TODAY = '2026-09-28'

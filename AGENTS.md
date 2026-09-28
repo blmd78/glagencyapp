@@ -87,7 +87,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-25** : UAT = **0175** (Agence), prod = **0174**. **`0175` s'applique en prod AVANT le merge `develop` → `main`** : sans elle, la page Agence lève une erreur (visible par tous) et la cloche disparaît sans bruit. Additive, elle ne gêne pas le code déjà en prod. **Prochaine migration = `0176`**.
+**État au 2026-09-28** : UAT = **0176** (Agence : couleurs, légende, photos), prod = **0175**. **`0176` s'applique en prod AVANT le merge `develop` → `main`** : la page Agence lit `color` / `image_path` et `agency_legend` — sans elle, elle lève une erreur visible par tous. Additive, elle ne gêne pas le code déjà en prod. **Prochaine migration = `0177`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

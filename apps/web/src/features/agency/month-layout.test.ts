@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { layoutMonth, monthGrid, parseMonth, shiftMonth, type AgencyEvent } from './month-layout'
 
 const ev = (id: string, startDate: string, endDate = startDate): AgencyEvent => ({
-  id, title: id, startDate, endDate, remindOnDay: false, audience: ['chatteur'],
+  id, title: id, startDate, endDate, remindOnDay: false, audience: ['chatteur'], color: null, imagePath: null, imageUrl: null,
 })
 const rowOf = (weeks: ReturnType<typeof layoutMonth>, day: string) => weeks.find((w) => w.days.includes(day))!
 

@@ -5,15 +5,32 @@ import { Button } from '@/components/ui/button'
 import { MonthGrid } from './components/month-grid'
 import { EventDialog } from './components/event-dialog.client'
 import { EventList } from './components/event-list'
+import { LegendBar } from './components/legend'
+import { LegendDialog } from './components/legend-dialog.client'
 import type { ListTab } from './event-list'
 import { layoutMonth, shiftMonth, type AgencyEvent } from './month-layout'
+import type { Legend } from './schema'
 
 /**
  * Agence — le calendrier des événements de l'agence, et leur liste en dessous. Écriture admin,
  * lecture pour tous. Changer de mois garde l'onglet de la liste (`?vue=`) : les deux sont
  * indépendants.
  */
-export function AgencyTemplate({ month, today, events, tab, canEdit }: { month: string; today: string; events: AgencyEvent[]; tab: ListTab; canEdit: boolean }) {
+export function AgencyTemplate({
+  month,
+  today,
+  events,
+  legend,
+  tab,
+  canEdit,
+}: {
+  month: string
+  today: string
+  events: AgencyEvent[]
+  legend: Legend
+  tab: ListTab
+  canEdit: boolean
+}) {
   const vue = tab === 'a-venir' ? {} : { vue: tab }
   const monthHref = (mois: string) => ({ pathname: '/chatter/agence' as const, query: { mois, ...vue } })
   return (
@@ -36,13 +53,15 @@ export function AgencyTemplate({ month, today, events, tab, canEdit }: { month: 
           </Button>
         </div>
         {canEdit && (
-          <div className="ml-auto">
-            <EventDialog />
+          <div className="ml-auto flex items-center gap-2">
+            <LegendDialog legend={legend} />
+            <EventDialog legend={legend} />
           </div>
         )}
       </div>
-      <MonthGrid month={month} today={today} weeks={layoutMonth(month, events)} canEdit={canEdit} />
-      <EventList events={events} today={today} tab={tab} canEdit={canEdit} />
+      <LegendBar legend={legend} />
+      <MonthGrid month={month} today={today} weeks={layoutMonth(month, events)} legend={legend} canEdit={canEdit} />
+      <EventList events={events} today={today} tab={tab} legend={legend} canEdit={canEdit} />
     </div>
   )
 }
