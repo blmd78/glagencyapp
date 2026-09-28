@@ -9,6 +9,8 @@ import { getImpersonationState } from '@/features/impersonation/services/read-st
 import { AppSidebar } from '@/components/app-sidebar'
 import { HeaderPeriod } from '@/components/header-period'
 import { LoadingDots } from '@/components/loading-dots'
+import { NotificationBell } from '@/components/notification-bell.client'
+import { getNotifications } from '@/lib/notifications/get-notifications'
 import { NavPendingOverlay, NavTransitionProvider } from '@/components/nav-transition'
 import {
   SidebarInset,
@@ -75,6 +77,10 @@ async function DashDynamic({ children }: { children: ReactNode }) {
     profile.pages.includes('frm-entrainement') || profile.role === 'admin'
       ? getModuleWheelPending(profile.id).catch(() => 0)
       : Promise.resolve(0)
+  // La cloche (spec Agence 2026-09-25) : pour TOUT le monde — l'annonce d'agence concerne chacun,
+  // la RLS trie par rôle. Une seule requête légère, lancée sans attendre et streamée sous Suspense
+  // comme les pastilles ; `null` en cas d'échec = cloche absente, jamais une page cassée.
+  const notificationsPromise = getNotifications().catch(() => null)
   // Chargé UNE fois (peut rediriger si expiré/tripwire — cf. `getImpersonationState`) puis
   // partagé : `.active` au NavUser (sidebar), l'objet complet au bandeau. Ne pas dupliquer
   // l'appel — pendant une consultation active il fait un aller-retour DB à chaque navigation.
@@ -102,6 +108,9 @@ async function DashDynamic({ children }: { children: ReactNode }) {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium">glagency</span>
           <div className="ml-auto flex items-center gap-2">
+            <Suspense fallback={<div className="size-8" />}>
+              <NotificationBell promise={notificationsPromise} />
+            </Suspense>
             <Suspense fallback={<div className="h-8 w-44 rounded-md border bg-muted/40" />}>
               <HeaderPeriod />
             </Suspense>

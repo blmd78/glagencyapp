@@ -47,6 +47,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Gauge,
+  CalendarDays,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -80,6 +81,11 @@ export interface NavItem {
   group?: string
   /** Item direct rendu SOUS les sous-onglets (ex. Membres), au lieu d'au-dessus. */
   bottom?: boolean
+  /**
+   * Visible par TOUT profil connecté, sans droit à cocher dans Membres (ex. Agence : le calendrier
+   * de l'agence se lit par tous). Pas un `PageSlug` : la page n'exige que la session.
+   */
+  everyone?: boolean
 }
 
 /** Sous-onglet dépliable de la sidebar (« Performance › », « Équipe › »…). */
@@ -199,6 +205,9 @@ export const WORKSPACES: Workspace[] = [
       // hiérarchique (manager → ses rattachés directs, admin/superadmin → tout). Pas adminOnly
       // → cochable dans Membres via PAGE_CHOICES (feature `reports`, table daily_reports).
       { href: '/chatter/dashboard', label: 'Dashboard', icon: NotebookPen, bottom: true },
+      // Calendrier de l'agence (spec 2026-09-25) : lecture pour TOUS, écriture admin dans la page.
+      // `bottom` : jamais page d'atterrissage (`landingHref` saute les items du bas).
+      { href: '/chatter/agence', label: 'Agence', icon: CalendarDays, everyone: true, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
@@ -484,6 +493,7 @@ export function workspaceHome(w: Workspace, access: NavAccess): Route {
  */
 export function canAccessNav(item: NavItem, a: NavAccess): boolean {
   if (item.superadminOnly && !a.isSuperadmin) return false
+  if (item.everyone) return true
   if (a.isAdmin) return true
   // `adminOnly` + `managerAccess` : visible d'un encadrant — mais SEULEMENT s'il a le droit de la
   // page quand l'item en déclare un explicitement.

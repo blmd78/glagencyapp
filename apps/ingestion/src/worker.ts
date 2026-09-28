@@ -17,6 +17,7 @@ import { loadCookie, refreshCookie } from './session'
 import { ingestShiftsDay, loadSettings, recordShiftRun, type DayRunResult } from './shifts-core'
 import { createAdminClient } from '@glagency/db'
 import { loadActiveAccounts, ingestAccount } from './uncove-core'
+import { pingRevalidate } from './revalidate'
 
 /**
  * Entrypoint Cloudflare Worker.
@@ -254,6 +255,8 @@ async function runShiftsRange(from: string, to: string): Promise<DayRunResult[]>
   for (const r of results) {
     console.log(`[shifts] ${r.day} : ${r.segments} segments, ${r.coverageRows} couverture`)
   }
+  // La présence alimente le classement (`get-ranking`, tag `facts-daily`).
+  await pingRevalidate()
   return results
 }
 
@@ -352,6 +355,8 @@ async function runAndRecord(triggeredBy: IngestTrigger, day?: string): Promise<I
     } catch (e) {
       console.warn('[insights] génération échouée (run OK par ailleurs) :', (e as Error).message)
     }
+    // `chatter_daily` vient d'être réécrit : le classement taggé `facts-daily` expire.
+    await pingRevalidate()
     return summary
   } catch (err) {
     console.error(`[ingestion] ÉCHEC (${triggeredBy})`, err)

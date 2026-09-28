@@ -14,11 +14,9 @@ aujourd'hui, en trente secondes.
 
 ## Rassembler la matière
 
-```bash
-git log <dernière-release>..main --oneline    # ou main..develop avant merge
-```
+Source : `CHANGELOG.md` — les sections publiées **après** la dernière version annoncée dans un patchnote. Chaque section = une release, datée et numérotée. `git log vA..vB --oneline` ne sert qu'à préciser une ligne floue.
 
-**Seulement ce qui est parti depuis le dernier patchnote rendu** (« ce qu'on a push depuis le dernier patchnote, on met dedans », Benoît, 2026-09-14) : repérer la dernière release couverte par le patchnote précédent — dans la conversation, ou demander — et ne lister que les merges `Release N.N` postérieurs (`git log <sha>..origin/main --merges`). Si rien n'est parti depuis, le dire plutôt que de recopier l'ancien. Un patchnote « complet » reste possible, sur demande explicite seulement.
+**Seulement ce qui est parti depuis le dernier patchnote rendu** (« ce qu'on a push depuis le dernier patchnote, on met dedans », Benoît, 2026-09-14) : repérer la dernière release couverte par le patchnote précédent — dans la conversation, ou demander — et ne lister que les sections de `CHANGELOG.md` postérieures. Si rien n'est parti depuis, le dire plutôt que de recopier l'ancien. Un patchnote « complet » reste possible, sur demande explicite seulement.
 
 Ne garder que ce qui **se voit ou se fait** à l'écran. Écarter migrations, refactors,
 tests, renommages internes : ils n'existent pas pour l'équipe.
