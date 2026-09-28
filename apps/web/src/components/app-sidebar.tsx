@@ -30,6 +30,7 @@ import { WorkspaceSwitcher } from '@/components/workspace-switcher'
 import { NavUser } from '@/components/nav-user'
 import { useNavTransition } from '@/components/nav-transition-context'
 import { prefetchFull, withPeriod } from '@/lib/nav'
+import { useUnread } from '@/lib/notifications/unread-store'
 
 /**
  * Badge compteur générique : lit la promesse du layout via use() sous Suspense — le compteur
@@ -39,6 +40,15 @@ import { prefetchFull, withPeriod } from '@/lib/nav'
 function CountBadge({ promise }: { promise: Promise<number> }) {
   const count = use(promise)
   return count > 0 ? <SidebarMenuBadge>{count}</SidebarMenuBadge> : null
+}
+
+/**
+ * Pastille « Agence » : le non-lu de la cloche, lu EN DIRECT (`unread-store.ts`) et non par une
+ * promesse du layout — elle retombe à 0 avec la cloche, sans attendre un F5. Même plafond « 9+ ».
+ */
+function UnreadBadge() {
+  const unread = useUnread()
+  return unread ? <SidebarMenuBadge>{unread > 9 ? '9+' : unread}</SidebarMenuBadge> : null
 }
 
 /**
@@ -261,6 +271,7 @@ export function AppSidebar({
             <CountBadge promise={moduleWheelPendingPromise} />
           </Suspense>
         )}
+        {item.href === '/chatter/agence' && <UnreadBadge />}
       </SidebarMenuItem>
     )
   }

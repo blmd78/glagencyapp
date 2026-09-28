@@ -4,12 +4,18 @@ import { frMonthLong } from '@glagency/core'
 import { Button } from '@/components/ui/button'
 import { MonthGrid } from './components/month-grid'
 import { EventDialog } from './components/event-dialog.client'
+import { EventList } from './components/event-list'
+import type { ListTab } from './event-list'
 import { layoutMonth, shiftMonth, type AgencyEvent } from './month-layout'
 
-const monthHref = (mois: string) => ({ pathname: '/chatter/agence' as const, query: { mois } })
-
-/** Agence — le calendrier des événements de l'agence. Écriture admin, lecture pour tous. */
-export function AgencyTemplate({ month, today, events, canEdit }: { month: string; today: string; events: AgencyEvent[]; canEdit: boolean }) {
+/**
+ * Agence — le calendrier des événements de l'agence, et leur liste en dessous. Écriture admin,
+ * lecture pour tous. Changer de mois garde l'onglet de la liste (`?vue=`) : les deux sont
+ * indépendants.
+ */
+export function AgencyTemplate({ month, today, events, tab, canEdit }: { month: string; today: string; events: AgencyEvent[]; tab: ListTab; canEdit: boolean }) {
+  const vue = tab === 'a-venir' ? {} : { vue: tab }
+  const monthHref = (mois: string) => ({ pathname: '/chatter/agence' as const, query: { mois, ...vue } })
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -26,7 +32,7 @@ export function AgencyTemplate({ month, today, events, canEdit }: { month: strin
             {/* `prefetch={false}` sur les 3 liens de navigation mois : un `Link` nu se reprefetch
                 en fond ~ttes les 300 s tant que la page est ouverte — le coût Vercel corrigé en
                 Release 2.56 (`docs/perf-vercel-prefetch.md`). */}
-            <Link href="/chatter/agence" prefetch={false}>Aujourd’hui</Link>
+            <Link href={{ pathname: '/chatter/agence', query: vue }} prefetch={false}>Aujourd’hui</Link>
           </Button>
         </div>
         {canEdit && (
@@ -36,6 +42,7 @@ export function AgencyTemplate({ month, today, events, canEdit }: { month: strin
         )}
       </div>
       <MonthGrid month={month} today={today} weeks={layoutMonth(month, events)} canEdit={canEdit} />
+      <EventList events={events} today={today} tab={tab} canEdit={canEdit} />
     </div>
   )
 }
