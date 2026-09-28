@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.63] — 2026-09-28
+
 ### Ajouté
 
 - Carte des projets (`docs/CARTE.md`), changelog et commandes `pnpm release:prepare` / `pnpm release:tag`.
