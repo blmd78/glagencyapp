@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.67] — 2026-09-29
+
 ### Ajouté
 
 - Marketing › comptes X : le relevé garde tout le profil, au même prix — nombre de listes, texte de la bio, certification, pays où le compte est bridé, et sur le compte son nom, sa photo et sa date de création.
