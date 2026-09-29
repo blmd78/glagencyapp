@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.65] — 2026-09-29
+
 ### Ajouté
 
 - Marketing : relevé nocturne des comptes X (Twitter) par l'API officielle X (abonnés, abonnés vérifiés, abonnements, tweets publiés, lien de la bio, date du dernier tweet, statut), lancé avec les liens à 23h05, et commande `pnpm x` pour le relancer à la main.
