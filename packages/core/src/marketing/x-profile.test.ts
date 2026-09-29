@@ -25,6 +25,12 @@ const user = (over: Partial<XUser> = {}): XUser => ({
   verified_followers_count: '42',
   public_metrics: { followers_count: 1200, following_count: 300, tweet_count: 5400, listed_count: 3 },
   entities: { url: { urls: [{ url: 'https://t.co/abc', expanded_url: 'https://mym.fans/app/t/xyz' }] } },
+  name: 'Carla 💋',
+  description: 'Ma page privée 👇',
+  profile_image_url: 'https://pbs.twimg.com/profile_images/1/a_normal.jpg',
+  created_at: '2024-03-02T10:00:00.000Z',
+  verified_type: 'blue',
+  withheld: { country_codes: ['DE', 'FR'] },
   ...over,
 })
 
@@ -50,6 +56,13 @@ describe('parseXUser', () => {
       bioUrl: 'https://mym.fans/app/t/xyz',
       lastPostAt: '2026-09-28T21:15:00.000Z',
       status: 'ok',
+      listed: 3,
+      name: 'Carla 💋',
+      bioText: 'Ma page privée 👇',
+      avatarUrl: 'https://pbs.twimg.com/profile_images/1/a_normal.jpg',
+      accountCreatedAt: '2024-03-02T10:00:00.000Z',
+      verifiedType: 'blue',
+      withheldCountries: ['DE', 'FR'],
     })
   })
   it('un compte protégé garde ses chiffres, statut « privé »', () => {
@@ -58,6 +71,21 @@ describe('parseXUser', () => {
   it('sans lien, sans tweet, sans métriques : des null, jamais des zéros', () => {
     const s = parseXUser({ id: '1', username: 'vide' })
     expect(s).toMatchObject({ followers: null, following: null, verifiedFollowers: null, postsTotal: null, bioUrl: null, lastPostAt: null })
+  })
+  it('profil sans les champs facultatifs : des null — et une bio vide reste une bio vide', () => {
+    const s = parseXUser({ id: '1', username: 'vide', description: '' })
+    expect(s).toMatchObject({
+      listed: null,
+      name: null,
+      bioText: '',
+      avatarUrl: null,
+      accountCreatedAt: null,
+      verifiedType: null,
+      withheldCountries: null,
+    })
+  })
+  it('un compte bridé nulle part : aucune liste de pays', () => {
+    expect(parseXUser(user({ withheld: { country_codes: [] } })).withheldCountries).toBeNull()
   })
 })
 

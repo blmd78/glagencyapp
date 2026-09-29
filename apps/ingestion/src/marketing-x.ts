@@ -41,7 +41,7 @@ export interface XRunSummary {
   warnings: string[]
 }
 
-/** Une ligne `mkt_social_daily` du relevé X (colonnes de 0018 + 0177). */
+/** Une ligne `mkt_social_daily` du relevé X (colonnes de 0018 + 0177 + 0178). */
 interface XDailyRow {
   account_id: string
   date: string
@@ -54,6 +54,21 @@ interface XDailyRow {
   bio_url: string | null
   last_post_at: string | null
   status: string
+  listed: number | null
+  bio_text: string | null
+  x_verified_type: string | null
+  withheld_countries: string[] | null
+}
+
+/** La fiche du compte, réécrite à chaque relevé (0177 : identifiant et pseudo ; 0178 : profil). */
+interface XAccountUpdate {
+  id: string
+  platform: 'twitter'
+  handle: string
+  x_user_id: string
+  x_name: string | null
+  x_avatar_url: string | null
+  x_created_at: string | null
 }
 
 const X_API = 'https://api.x.com/2'
@@ -134,7 +149,7 @@ export async function runMarketingX(): Promise<XRunSummary> {
 
   const byAccount = new Map(accounts.map((a) => [a.id, a]))
   const daily: XDailyRow[] = []
-  const accountUpdates: { id: string; platform: 'twitter'; handle: string; x_user_id: string }[] = []
+  const accountUpdates: XAccountUpdate[] = []
   const missing: string[] = []
   const renamed: string[] = []
   for (const r of matchXLookup(accounts, users, errors)) {
@@ -154,6 +169,10 @@ export async function runMarketingX(): Promise<XRunSummary> {
         bio_url: null,
         last_post_at: null,
         status: r.status,
+        listed: null,
+        bio_text: null,
+        x_verified_type: null,
+        withheld_countries: null,
       })
       continue
     }
@@ -171,11 +190,23 @@ export async function runMarketingX(): Promise<XRunSummary> {
       bio_url: s.bioUrl,
       last_post_at: s.lastPostAt,
       status: s.status,
+      listed: s.listed,
+      bio_text: s.bioText,
+      x_verified_type: s.verifiedType,
+      withheld_countries: s.withheldCountries,
     })
-    if (acc.xUserId !== s.xUserId || acc.handle !== s.username) {
-      if (acc.handle.toLowerCase() !== s.username.toLowerCase()) renamed.push(`${acc.handle} → ${s.username}`)
-      accountUpdates.push({ id: acc.id, platform: 'twitter', handle: s.username, x_user_id: s.xUserId })
-    }
+    if (acc.handle.toLowerCase() !== s.username.toLowerCase()) renamed.push(`${acc.handle} → ${s.username}`)
+    // Chaque compte trouvé : nom, photo et âge suivent le profil (0178), en plus de l'identifiant
+    // et du pseudo (0177). Une seule instruction pour tous les comptes.
+    accountUpdates.push({
+      id: acc.id,
+      platform: 'twitter',
+      handle: s.username,
+      x_user_id: s.xUserId,
+      x_name: s.name,
+      x_avatar_url: s.avatarUrl,
+      x_created_at: s.accountCreatedAt,
+    })
   }
 
   const { error: dErr } = await db.from('mkt_social_daily').upsert(daily, { onConflict: 'account_id,date' })
@@ -184,7 +215,7 @@ export async function runMarketingX(): Promise<XRunSummary> {
     // Un pseudo repris par un autre compte déclaré ferait échouer l'unicité (platform, handle) :
     // on le signale plutôt que de perdre le relevé du jour, déjà écrit.
     const { error: uErr } = await db.from('mkt_social_accounts').upsert(accountUpdates, { onConflict: 'id' })
-    if (uErr) warnings.push(`mise à jour des comptes (identifiant X / pseudo) : ${uErr.message}`)
+    if (uErr) warnings.push(`mise à jour des comptes (identifiant X / pseudo / profil) : ${uErr.message}`)
   }
   if (missing.length) warnings.push(`sans relevé : ${missing.join(', ')}`)
   if (renamed.length) warnings.push(`renommés : ${renamed.join(', ')}`)

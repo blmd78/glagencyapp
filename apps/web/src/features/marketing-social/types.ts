@@ -14,6 +14,23 @@ export interface MktSocialRow {
   deltaFollowers: number | null
   viewsPeriod: number | null
   engagementPeriod: number | null
+  // ── X : le global du compte (relevé par l'API X, 0177/0178) ──
+  /** Tweets publiés sur la période : dernier − premier total de tweets relevé. */
+  postsPeriod: number | null
+  /** Au dernier relevé. */
+  following: number | null
+  listed: number | null
+  bioUrl: string | null
+  bioText: string | null
+  /** Dernier tweet, ISO. */
+  lastPostAt: string | null
+  verifiedType: string | null
+  /** Pays où X bride le compte ; `null` : nulle part. */
+  withheldCountries: string[] | null
+  /** Sur le compte (réécrits chaque nuit). */
+  name: string | null
+  avatarUrl: string | null
+  accountCreatedAt: string | null
 }
 
 export interface MktSocialData {

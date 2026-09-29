@@ -428,7 +428,11 @@ en **fan-out `?job=x`** du cron de 23h05 juste après les liens (aucun slot cron
 sans rien écrire. Un profil ne rend que les valeurs **du moment** : la courbe n'existe que parce
 qu'on relève chaque nuit. Écrit dans `mkt_social_daily` (abonnés, abonnés vérifiés, abonnements,
 total de tweets → `posts_24h`, lien **déployé** de la bio, date du dernier tweet déduite de son
-identifiant, statut) ; un compte absent a un **statut** (`suspendu`, `introuvable`) et **aucun
+identifiant, statut ; depuis `0178` : nombre de listes, texte de la bio, type de certification,
+pays où le compte est bridé) et, sur le compte, nom affiché, photo et date de création (`0178`,
+réécrits chaque nuit) — **tout ce que rend un profil au même prix**, sauf l'abonnement Premium
+(toujours « None » hors du compte authentifié) ; les « abonnés vérifiés » reviennent vides avec un
+jeton applicatif. Un compte absent a un **statut** (`suspendu`, `introuvable`) et **aucun
 chiffre**. Un compte est suivi par son **identifiant X** (`x_user_id`, `0177`) : renommé, il reste
 le même compte et son `handle` est mis à jour. Règles pures et testées : `@glagency/core`,
 `marketing/x-profile.ts`. Ce qui est lu est ce que déclare l'app X (profils publics de nos
