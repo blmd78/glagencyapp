@@ -87,7 +87,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-29** : prod = **0176** (Agence : couleurs, légende, photos — passée en prod avec la Release 2.64) ; UAT = **0177** (relevé des comptes X, branche `feat/releve-x` — en prod, `0177` passe AVANT le `wrangler deploy` du worker). **Prochaine migration = `0178`**.
+**État au 2026-09-29** : prod = UAT = **0177** (relevé des comptes X — passée en prod avec la Release 2.65). **Prochaine migration = `0178`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le
