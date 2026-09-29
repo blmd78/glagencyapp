@@ -6,12 +6,12 @@ import type { MktSocialData } from './types'
 export function MktSocialTemplate({
   data,
   links,
-  canAddAccounts = false,
+  canManageAccounts = false,
 }: {
   data: MktSocialData
   /** Absent = pas d'onglet Liens (Twitter / X). */
   links?: MktLinkRow[]
-  canAddAccounts?: boolean
+  canManageAccounts?: boolean
 }) {
   const unit = data.platform === 'telegram' ? 'canaux' : 'comptes'
   const person = data.platform === 'telegram' ? 'Membres' : 'Followers'
@@ -25,7 +25,7 @@ export function MktSocialTemplate({
         {person.toLowerCase()} cumulés
       </p>
 
-      <SocialView data={data} links={links} canAddAccounts={canAddAccounts} />
+      <SocialView data={data} links={links} canManageAccounts={canManageAccounts} />
     </div>
   )
 }

@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Marketing › Twitter / X : les comptes que le relevé ne trouve pas sont signalés (« ⚠ introuvable » ou « ⚠ suspendu » en jaune, filtre « N non identifiés » comme dans la Compta), et les admins corrigent leur pseudo au crayon — le compte est recherché sous ce nom au relevé suivant.
+
 ## [2.65] — 2026-09-29
 
 ### Ajouté

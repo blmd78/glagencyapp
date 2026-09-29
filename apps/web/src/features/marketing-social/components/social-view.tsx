@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { frDateNumeric } from '@glagency/core'
 import { type ColumnDef } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
@@ -15,13 +17,20 @@ import { KpiGrid } from '@/components/kpi-card'
 import { todayLocal } from '@/lib/dates-client'
 import { LinksCard } from './links-card'
 import { AddXAccountsDialog } from './add-x-accounts-dialog.client'
+import { EditXHandleDialog } from './edit-x-handle-dialog.client'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktSocialData, MktSocialRow } from '../types'
 
 const signed = (v: number | null) =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toLocaleString('fr-FR')}`
 
-function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<MktSocialRow>[] {
+/** Compte X que le dernier relevé n'a pas trouvé (statuts écrits par le job `marketing-x`). */
+const isUnidentified = (status: string | null) => status === 'introuvable' || status === 'suspendu'
+
+function makeColumns(
+  platform: 'instagram' | 'twitter' | 'telegram',
+  canManage: boolean,
+): ColumnDef<MktSocialRow>[] {
   const cols: ColumnDef<MktSocialRow>[] = [
     {
       id: 'handle',
@@ -106,8 +115,20 @@ function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<
   cols.push({
     accessorKey: 'status',
     header: 'Statut',
-    cell: ({ getValue }) => {
-      const v = (getValue() as string | null) ?? '—'
+    cell: ({ row }) => {
+      const a = row.original
+      // X non identifié : même mention que le « ⚠ non relié » de la Compta (compta-columns.tsx),
+      // et le crayon pour corriger le pseudo. stopPropagation : le dialog est portalé mais reste
+      // enfant de la cellule côté React (même motif que la Compta).
+      if (platform === 'twitter' && isUnidentified(a.status)) {
+        return (
+          <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+            <span className="text-xs text-amber-700 dark:text-amber-400">⚠ {a.status}</span>
+            {canManage && <EditXHandleDialog accountId={a.id} handle={a.handle} status={a.status ?? ''} />}
+          </div>
+        )
+      }
+      const v = a.status ?? '—'
       return (
         <Badge className={v === 'ok' ? STATUS_COLORS.positive : STATUS_COLORS.neutral}>{v}</Badge>
       )
@@ -120,18 +141,22 @@ function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<
 export function SocialView({
   data,
   links,
-  canAddAccounts = false,
+  canManageAccounts = false,
 }: {
   data: MktSocialData
   /** Absent = page sans onglet Liens (Twitter / X : que les comptes, demande Benoit 2026-09-29). */
   links?: MktLinkRow[]
-  /** Bouton « Ajouter des comptes » (X, admin seul — chaque compte relevé coûte). */
-  canAddAccounts?: boolean
+  /** X, admin seul : « Ajouter des comptes » et correction du pseudo d'un compte non identifié
+   *  (chaque compte relevé coûte). */
+  canManageAccounts?: boolean
 }) {
   const ig = data.platform === 'instagram'
   const tg = data.platform === 'telegram'
   const person = tg ? 'Membres' : 'Followers'
   const [tab, setTab] = useState<'comptes' | 'liens'>('comptes')
+  // Filtre « ⚠ N non identifiés » — même bouton que « non reliés » de la Compta (compta-table.tsx).
+  const [onlyUnidentified, setOnlyUnidentified] = useState(false)
+  const unidentified = data.platform === 'twitter' ? data.accounts.filter((a) => isUnidentified(a.status)) : []
   const active = data.accounts.filter((a) => a.active)
   const ok = active.filter((a) => a.status === 'ok').length
   const deltaFollowers = active.reduce((s, a) => s + (a.deltaFollowers ?? 0), 0)
@@ -203,10 +228,10 @@ export function SocialView({
               </TabsTrigger>
             </TabsList>
           </Tabs>
-          {canAddAccounts && tab === 'comptes' && <AddXAccountsDialog />}
+          {canManageAccounts && tab === 'comptes' && <AddXAccountsDialog />}
         </div>
       ) : (
-        canAddAccounts && (
+        canManageAccounts && (
           <div className="flex justify-end">
             <AddXAccountsDialog />
           </div>
@@ -215,14 +240,30 @@ export function SocialView({
 
       {!links || tab === 'comptes' ? (
         <DataTable
-          data={data.accounts}
-          columns={makeColumns(data.platform)}
+          data={onlyUnidentified && unidentified.length ? unidentified : data.accounts}
+          columns={makeColumns(data.platform, canManageAccounts)}
           filterColumnId="handle"
           filterPlaceholder="Filtrer par compte…"
           initialSorting={[{ id: 'followers', desc: true }]}
           pageSize={15}
           getRowId={(a) => a.id}
           countLabel={(n) => (tg ? `${n} canal/aux` : `${n} compte(s)`)}
+          toolbar={
+            unidentified.length > 0 && (
+              <Button
+                type="button"
+                variant={onlyUnidentified ? 'secondary' : 'outline'}
+                size="sm"
+                aria-pressed={onlyUnidentified}
+                onClick={() => setOnlyUnidentified((v) => !v)}
+                className="gap-1.5"
+                title="Comptes que le dernier relevé X n'a pas trouvés — corrige leur pseudo avec le crayon"
+              >
+                <AlertTriangle className="size-3.5 text-amber-500" />
+                {unidentified.length} non identifié{unidentified.length > 1 ? 's' : ''}
+              </Button>
+            )
+          }
         />
       ) : (
         <LinksCard links={links} period={data.period} />

@@ -8,7 +8,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { parseXHandleList } from '@glagency/core'
+import { normalizeXHandle, parseXHandleList } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
@@ -81,6 +81,54 @@ export async function addXAccounts(raw: unknown): Promise<ActionResult<AddXAccou
       }
       if (added.length || reactivated.length) revalidatePath('/marketing/twitter')
       return { added, reactivated, existing, invalid }
+    },
+  })
+}
+
+const updateXHandleSchema = z.object({ accountId: z.uuid(), handle: z.string().max(200) })
+
+const TAKEN = 'Ce pseudo est déjà dans la liste.'
+
+/**
+ * Corrige le pseudo d'un compte X que le relevé n'a pas trouvé (« ⚠ introuvable » ou
+ * « ⚠ suspendu », demande Benoit 2026-09-29). ADMIN seul, comme l'ajout. L'identifiant X est
+ * EFFACÉ : le compte est cherché sous son nouveau pseudo au relevé suivant, qui reposera
+ * l'identifiant — sans ça, un identifiant périmé ferait chercher l'ancien compte.
+ */
+export async function updateXHandle(raw: unknown): Promise<ActionResult<{ handle: string }>> {
+  return runAction({
+    schema: updateXHandleSchema,
+    input: raw,
+    guard: adminGuard,
+    handler: async ({ accountId, handle: typed }) => {
+      const handle = normalizeXHandle(typed)
+      if (!handle) throw new BusinessError('Ce n’est pas un pseudo X : 1 à 15 lettres, chiffres ou « _ ».')
+      const supabase = await createClient()
+      const known = await fetchAll((f, t) =>
+        supabase
+          .from('mkt_social_accounts')
+          .select('id, handle')
+          .eq('platform', 'twitter')
+          .order('id')
+          .range(f, t),
+      )
+      if (known.error) throw new Error(known.error.message)
+      if ((known.data ?? []).some((a) => a.id !== accountId && a.handle.toLowerCase() === handle.toLowerCase())) {
+        throw new BusinessError(TAKEN)
+      }
+
+      const { data, error } = await supabase
+        .from('mkt_social_accounts')
+        .update({ handle, x_user_id: null })
+        .eq('id', accountId)
+        .eq('platform', 'twitter')
+        .select('id')
+      // 23505 : pris entre notre lecture et l'écriture (index sans la casse de 0177).
+      if (error?.code === '23505') throw new BusinessError(TAKEN)
+      if (error) throw new Error(error.message)
+      if (!data?.length) throw new BusinessError('Ce compte n’est plus dans la liste : recharge la page.')
+      revalidatePath('/marketing/twitter')
+      return { handle }
     },
   })
 }

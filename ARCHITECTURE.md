@@ -437,7 +437,10 @@ déclaration. **La liste des comptes relevés** se gère sur Marketing › Twitt
 bouton « Ajouter des comptes » (**admin seul** : chaque compte coûte chaque nuit) — une liste de
 pseudos collée, nettoyée par `parseXHandleList` (`@`, liens x.com, doublons), un compte désactivé
 réactivé plutôt que dupliqué. Un pseudo est unique par plateforme **sans la casse** (index de
-`0177`). Pas de retrait depuis l'écran (non demandé).
+`0177`). Pas de retrait depuis l'écran (non demandé). Un compte **non identifié** au dernier relevé
+(`introuvable`, `suspendu`) porte un « ⚠ » jaune et un filtre « N non identifiés » (précédent :
+« non reliés » de la Compta) ; le crayon (admin) corrige son pseudo et **efface son `x_user_id`** —
+il est cherché sous son nouveau nom au relevé suivant.
 
 ### Agence
 
