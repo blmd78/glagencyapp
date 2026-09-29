@@ -6,6 +6,7 @@ import { recordRun, type IngestTrigger } from './record-run'
 import { runMarketing } from './marketing'
 import { runMarketingSocial } from './marketing-social'
 import { runMarketingTelegram } from './marketing-telegram'
+import { runMarketingX } from './marketing-x'
 import { generateWeeklyInsights } from './insights'
 import {
   chatterResolver,
@@ -271,7 +272,7 @@ const MONITOR_CONFIG = {
 
 /** Run marketing (liens ou social) + log + trace ingest_runs + warning Sentry si dégradé. */
 async function runJobAndLog<T extends { status: string; warnings: string[] }>(
-  job: 'marketing' | 'marketing-social' | 'marketing-telegram',
+  job: 'marketing' | 'marketing-social' | 'marketing-telegram' | 'marketing-x',
   run: () => Promise<T>,
   triggeredBy: IngestTrigger,
 ): Promise<T> {
@@ -453,6 +454,7 @@ const handler = {
     //
     // Instagram (`?job=social`) et Telegram (`?job=telegram`) restent en pause : le premier
     // rappelle Apify et consomme des crédits. Les rebrancher = un `self.fetch` de plus.
+    // X (`?job=x`) part juste après les liens, cf. bloc suivant.
     //
     // Son échec ne fait PAS échouer l'invocation : il est signalé à Sentry, et la fenêtre
     // glissante de 8 jours du run (`marketing.ts:70`) rattrape d'elle-même la nuit suivante.
@@ -470,6 +472,18 @@ const handler = {
           '[marketing] fan-out impossible : binding SELF / WORKER_SELF_URL / TRIGGER_TOKEN manquant',
           'warning',
         )
+      }
+    } catch (err) {
+      Sentry.captureException(err)
+    }
+
+    // ── Fan-out X (comptes Twitter) — même mécanique que les liens, aucun slot cron. Le job
+    // coûte 0,010 $ par compte rendu par X ; sans crédits il échoue en 402, signalé à Sentry.
+    try {
+      const { SELF: self, WORKER_SELF_URL: selfUrl, TRIGGER_TOKEN: token } = env
+      if (self && selfUrl && token) {
+        const r = await self.fetch(`${selfUrl}?job=x`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!r.ok) Sentry.captureMessage(`[marketing-x] fan-out KO (HTTP ${r.status})`, 'warning')
       }
     } catch (err) {
       Sentry.captureException(err)
@@ -511,6 +525,16 @@ const handler = {
       } catch (err) {
         Sentry.captureException(err)
         return new Response(`échec telegram : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
+    // `?job=x` : relevé des comptes X seul — relancé le même jour UTC, il ne coûte rien de plus.
+    if (url.searchParams.get('job') === 'x') {
+      try {
+        const summary = await runJobAndLog('marketing-x', runMarketingX, 'http')
+        return Response.json(summary)
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec x : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
       }
     }
     // `?job=social` : déclenche le scrape Instagram seul (idempotent).

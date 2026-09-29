@@ -1,25 +1,23 @@
 import { Suspense } from 'react'
 import { getMktSocial } from '@/features/marketing-social/services/get-social'
-import { getLinkRows } from '@/lib/services/get-mkt-links'
 import { MktSocialTemplate } from '@/features/marketing-social/SocialTemplate'
 import { MktSocialSkeleton } from '@/features/marketing-social/components/social-skeleton'
 import { requireAccess } from '@/lib/auth'
 import { resolvePeriod } from '@/lib/period'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { MktSocialData } from '@/features/marketing-social/types'
-import type { MktLinkRow } from '@/lib/types/marketing'
 
 export default async function MktTwitterPage({
   searchParams,
 }: {
   searchParams: Promise<{ from?: string; to?: string }>
 }) {
-  await requireAccess('mkt-twitter')
+  const profile = await requireAccess('mkt-twitter')
   const period = resolvePeriod(await searchParams)
-  // Kickoff SANS await (requêtes indépendantes) : le shell (h1) s'affiche immédiatement,
-  // KPIs + table streament dans leur boundary une fois les deux résolues.
+  // Kickoff SANS await : le shell (h1) s'affiche immédiatement, KPIs + table streament dans
+  // leur boundary. Pas d'onglet Liens ici (demande Benoit 2026-09-29 : « on veut juste du
+  // Twitter / X ») — les liens X restent sur l'écran Liens de tracking.
   const data = getMktSocial('twitter', period)
-  const links = getLinkRows(period)
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,7 +29,7 @@ export default async function MktTwitterPage({
           </SectionFallback>
         }
       >
-        <MktTwitterContent data={data} links={links} />
+        <MktTwitterContent data={data} canAddAccounts={profile.role === 'admin'} />
       </Suspense>
     </div>
   )
@@ -39,11 +37,10 @@ export default async function MktTwitterPage({
 
 async function MktTwitterContent({
   data,
-  links,
+  canAddAccounts,
 }: {
   data: Promise<MktSocialData>
-  links: Promise<MktLinkRow[]>
+  canAddAccounts: boolean
 }) {
-  const [d, l] = await Promise.all([data, links])
-  return <MktSocialTemplate data={d} links={l.filter((x) => x.type === 'twitter')} />
+  return <MktSocialTemplate data={await data} canAddAccounts={canAddAccounts} />
 }

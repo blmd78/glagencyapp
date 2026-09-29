@@ -48,6 +48,7 @@ import {
   Sparkles,
   Gauge,
   CalendarDays,
+  Twitter,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -232,15 +233,17 @@ export const WORKSPACES: Workspace[] = [
       // Ce que les liens rapportent, RAMENÉ au CA et aux abonnés de chaque modèle — le pôle
       // sait ce que ses liens gagnent, pas ce que ça pèse. Le CA total passe par la RPC 0152.
       { href: '/marketing/modeles', label: 'Modèles', icon: UsersRound, slug: 'mkt-modeles', group: 'reseaux' },
+      // Twitter / X revient le 2026-09-29 (demande Benoit) : première brique du chantier
+      // comptes X (docs/superpowers/specs/2026-09-28-comptes-x-design.md).
+      { href: '/marketing/twitter', label: 'Twitter / X', icon: Twitter, slug: 'mkt-twitter', group: 'reseaux' },
       // ── MASQUÉS TEMPORAIREMENT (décision Benoit 2026-09-08) ──────────────────────────
-      // Les trois pages sociales lisent `mkt_social_daily`, dont l'ingestion est à l'arrêt
+      // Les pages sociales lisent `mkt_social_daily`, dont l'ingestion est à l'arrêt
       // depuis le 2026-07-11 (crons Apify/Telegram en pause, cf. wrangler.toml) : elles
       // n'affichent plus rien. Les ROUTES restent en place, seuls les items de nav partent —
       // et les slugs restent dans PAGE_SLUGS pour ne pas invalider les droits déjà accordés
       // en base. Restaurer = décommenter, rien d'autre.
-      // (restaurer aussi les imports `Instagram` et `Twitter` de lucide-react, retirés avec eux)
+      // (restaurer aussi l'import `Instagram` de lucide-react, retiré avec lui)
       // { href: '/marketing/instagram', label: 'Instagram', icon: Instagram, slug: 'mkt-instagram', group: 'reseaux' },
-      // { href: '/marketing/twitter', label: 'Twitter / X', icon: Twitter, slug: 'mkt-twitter', group: 'reseaux' },
       // { href: '/marketing/telegram', label: 'Telegram', icon: Send, slug: 'mkt-telegram', group: 'reseaux' },
       // Même patron que la face chatteurs : « VA » = les fiches (comme « Chatters »),
       // la Compta ne fait que payer.

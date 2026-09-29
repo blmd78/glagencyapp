@@ -10,6 +10,28 @@ export {
   FALLBACK_KEY,
 } from './marketing/link-group'
 export type { LinkGroupRule } from './marketing/link-group'
+export {
+  X_MAX_ACCOUNTS,
+  X_USER_FIELDS,
+  capXAccounts,
+  chunk,
+  isValidXHandle,
+  matchXLookup,
+  normalizeXHandle,
+  parseXHandleList,
+  parseXUser,
+  tweetDate,
+  xDeltas,
+  xStatusFromError,
+} from './marketing/x-profile'
+export type {
+  XAccountRef,
+  XAccountResult,
+  XLookupError,
+  XPrevSnapshot,
+  XProfileSnapshot,
+  XUser,
+} from './marketing/x-profile'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
 export { runRules } from './insights/engine'
