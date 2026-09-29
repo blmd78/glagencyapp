@@ -14,6 +14,7 @@ import { num } from '@/lib/format'
 import { KpiGrid } from '@/components/kpi-card'
 import { todayLocal } from '@/lib/dates-client'
 import { LinksCard } from './links-card'
+import { AddXAccountsDialog } from './add-x-accounts-dialog.client'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktSocialData, MktSocialRow } from '../types'
 
@@ -116,7 +117,17 @@ function makeColumns(platform: 'instagram' | 'twitter' | 'telegram'): ColumnDef<
   return cols
 }
 
-export function SocialView({ data, links }: { data: MktSocialData; links: MktLinkRow[] }) {
+export function SocialView({
+  data,
+  links,
+  canAddAccounts = false,
+}: {
+  data: MktSocialData
+  /** Absent = page sans onglet Liens (Twitter / X : que les comptes, demande Benoit 2026-09-29). */
+  links?: MktLinkRow[]
+  /** Bouton « Ajouter des comptes » (X, admin seul — chaque compte relevé coûte). */
+  canAddAccounts?: boolean
+}) {
   const ig = data.platform === 'instagram'
   const tg = data.platform === 'telegram'
   const person = tg ? 'Membres' : 'Followers'
@@ -176,21 +187,33 @@ export function SocialView({ data, links }: { data: MktSocialData; links: MktLin
         </p>
       )}
 
-      {/* Onglets Comptes / Liens : évite l'empilement vertical des deux tables. */}
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'comptes' | 'liens')}>
-        <TabsList>
-          <TabsTrigger value="comptes">
-            {tg ? 'Canaux' : 'Comptes'}
-            <span className="ml-1.5 tabular-nums opacity-60">{data.accounts.length}</span>
-          </TabsTrigger>
-          <TabsTrigger value="liens">
-            Liens
-            <span className="ml-1.5 tabular-nums opacity-60">{links.length}</span>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Onglets Comptes / Liens : évite l'empilement vertical des deux tables. Sans liens
+          (Twitter / X), pas d'onglets : la liste des comptes seule. */}
+      {links ? (
+        <div className="flex items-center justify-between gap-4">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as 'comptes' | 'liens')}>
+            <TabsList>
+              <TabsTrigger value="comptes">
+                {tg ? 'Canaux' : 'Comptes'}
+                <span className="ml-1.5 tabular-nums opacity-60">{data.accounts.length}</span>
+              </TabsTrigger>
+              <TabsTrigger value="liens">
+                Liens
+                <span className="ml-1.5 tabular-nums opacity-60">{links.length}</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {canAddAccounts && tab === 'comptes' && <AddXAccountsDialog />}
+        </div>
+      ) : (
+        canAddAccounts && (
+          <div className="flex justify-end">
+            <AddXAccountsDialog />
+          </div>
+        )
+      )}
 
-      {tab === 'comptes' ? (
+      {!links || tab === 'comptes' ? (
         <DataTable
           data={data.accounts}
           columns={makeColumns(data.platform)}

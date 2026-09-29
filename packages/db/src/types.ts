@@ -1393,6 +1393,7 @@ export type Database = {
           id: string
           platform: string
           staff_id: string | null
+          x_user_id: string | null
         }
         Insert: {
           active?: boolean
@@ -1402,6 +1403,7 @@ export type Database = {
           id?: string
           platform: string
           staff_id?: string | null
+          x_user_id?: string | null
         }
         Update: {
           active?: boolean
@@ -1411,6 +1413,7 @@ export type Database = {
           id?: string
           platform?: string
           staff_id?: string | null
+          x_user_id?: string | null
         }
         Relationships: [
           {
@@ -1432,34 +1435,49 @@ export type Database = {
       mkt_social_daily: {
         Row: {
           account_id: string
+          bio_url: string | null
           date: string
           delta_followers: number | null
           engagement_24h: number | null
           followers: number | null
+          following: number | null
+          last_post_at: string | null
           posts_24h: number | null
+          posts_total: number | null
           status: string | null
+          verified_followers: number | null
           views_24h: number | null
           views_total: number | null
         }
         Insert: {
           account_id: string
+          bio_url?: string | null
           date: string
           delta_followers?: number | null
           engagement_24h?: number | null
           followers?: number | null
+          following?: number | null
+          last_post_at?: string | null
           posts_24h?: number | null
+          posts_total?: number | null
           status?: string | null
+          verified_followers?: number | null
           views_24h?: number | null
           views_total?: number | null
         }
         Update: {
           account_id?: string
+          bio_url?: string | null
           date?: string
           delta_followers?: number | null
           engagement_24h?: number | null
           followers?: number | null
+          following?: number | null
+          last_post_at?: string | null
           posts_24h?: number | null
+          posts_total?: number | null
           status?: string | null
+          verified_followers?: number | null
           views_24h?: number | null
           views_total?: number | null
         }
@@ -5641,6 +5659,7 @@ export type Database = {
         Returns: {
           account_id: string
           followers: number
+          posts_total: number
           views_total: number
         }[]
       }

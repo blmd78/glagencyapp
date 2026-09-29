@@ -3,7 +3,16 @@ import { num } from '@/lib/format'
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktSocialData } from './types'
 
-export function MktSocialTemplate({ data, links }: { data: MktSocialData; links: MktLinkRow[] }) {
+export function MktSocialTemplate({
+  data,
+  links,
+  canAddAccounts = false,
+}: {
+  data: MktSocialData
+  /** Absent = pas d'onglet Liens (Twitter / X). */
+  links?: MktLinkRow[]
+  canAddAccounts?: boolean
+}) {
   const unit = data.platform === 'telegram' ? 'canaux' : 'comptes'
   const person = data.platform === 'telegram' ? 'Membres' : 'Followers'
 
@@ -16,7 +25,7 @@ export function MktSocialTemplate({ data, links }: { data: MktSocialData; links:
         {person.toLowerCase()} cumulés
       </p>
 
-      <SocialView data={data} links={links} />
+      <SocialView data={data} links={links} canAddAccounts={canAddAccounts} />
     </div>
   )
 }

@@ -121,7 +121,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | App | Cible | Détail |
 | --- | --- | --- |
 | `apps/web` | **Vercel**, région `cdg1` (`apps/web/vercel.json`) | `main` → Production (DB prod), `develop` → Preview/préprod (DB UAT), `feature/*` → Preview par commit (`docs/git-workflow.md`) |
-| `apps/ingestion` | **Cloudflare Worker** `glagency-ingestion`, compte verrouillé `091614e1…` (`apps/ingestion/wrangler.toml`) | 4 Cron Triggers UTC : `23h05` (pipeline chatteurs + fan-out marketing liens), `00h00` (fan-out spenders), `04h30` (contrôle des shifts MyPuls), `05h00` (relevé Uncove) — 4 des 5 slots Cron autorisés par compte sur le plan Free |
+| `apps/ingestion` | **Cloudflare Worker** `glagency-ingestion`, compte verrouillé `091614e1…` (`apps/ingestion/wrangler.toml`) | 4 Cron Triggers UTC : `23h05` (pipeline chatteurs + fan-out marketing : liens, puis comptes X), `00h00` (fan-out spenders), `04h30` (contrôle des shifts MyPuls), `05h00` (relevé Uncove) — 4 des 5 slots Cron autorisés par compte sur le plan Free |
 
 Le worker accepte aussi un déclenchement HTTP manuel (`fetch`), protégé par le secret `TRIGGER_TOKEN` (`Authorization: Bearer`) — sans lui, toujours 403 (`apps/ingestion/src/worker.ts`).
 
@@ -148,7 +148,7 @@ Historique durable indépendant de Sentry : chaque run d'ingestion insère une l
 
 ## 7. Variables d'environnement
 
-Un seul `.env` à la racine (pas de fichier par app), modèle documenté dans `.env.example` : Supabase (web + migrations), MyPuls (cookie de session / identifiants), Good Luck Agency (lecture seule, reprise historique), IA (`ANTHROPIC_API_KEY`), alertes, Sentry, Uncove (`UNCOVE_TOKEN_SECRET` — chiffrement des `user_token`, même valeur web/ingestion).
+Un seul `.env` à la racine (pas de fichier par app), modèle documenté dans `.env.example` : Supabase (web + migrations), MyPuls (cookie de session / identifiants), Good Luck Agency (lecture seule, reprise historique), IA (`ANTHROPIC_API_KEY`), alertes, Sentry, Uncove (`UNCOVE_TOKEN_SECRET` — chiffrement des `user_token`, même valeur web/ingestion), X (`X_BEARER_TOKEN` — Bearer Token de l'app console.x.com, ingestion seule ; absent : le relevé X est sauté et signalé).
 
 - **Web (Vercel)** : secrets serveur et `NEXT_PUBLIC_*` posés dans le dashboard Vercel du projet (Production/Preview) — non vérifiable depuis le repo.
 - **Ingestion (Cloudflare)** : secrets injectés en bindings (`wrangler secret put <VAR>`), jamais dans `wrangler.toml` (liste commentée en bas du fichier). Le code lit `process.env` : le handler recopie les bindings dedans au démarrage (`apps/ingestion/src/worker.ts`).
@@ -416,6 +416,28 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   caractères. Les réseaux d'une modèle viennent de `mkt_model_sources()` (`0172`, `security
   definer`) : `mkt_links` reste fermée aux chatteurs, la fonction ne rend que des couples (modèle,
   groupe), cloisonnés par une règle MIROIR de `creators_scoped_read` — à faire suivre si elle change.
+
+### Comptes X
+
+Relevé nocturne des profils des comptes X (Twitter) de l'agence, par l'**API officielle X v2** et
+un Bearer Token applicatif (secret `X_BEARER_TOKEN`, app de Benoit sur console.x.com) — spec
+`docs/superpowers/specs/2026-09-28-comptes-x-design.md`. Job `apps/ingestion/src/marketing-x.ts`,
+en **fan-out `?job=x`** du cron de 23h05 juste après les liens (aucun slot cron) ; à la main :
+`?job=x` ou `pnpm --filter @glagency/ingestion x`. **Coût : 0,010 $ par compte rendu par X**
+(relire le même jour UTC est gratuit), plafond dur de 200 comptes par run ; crédits prépayés sur console.x.com — consigne d'exploitation : **laisser la recharge automatique désactivée**, le solde prépayé tient alors lieu de plafond (réglage de la console, non vérifiable depuis le code, à contrôler sur console.x.com) ; sans crédits, X répond 402 et le run échoue
+sans rien écrire. Un profil ne rend que les valeurs **du moment** : la courbe n'existe que parce
+qu'on relève chaque nuit. Écrit dans `mkt_social_daily` (abonnés, abonnés vérifiés, abonnements,
+total de tweets → `posts_24h`, lien **déployé** de la bio, date du dernier tweet déduite de son
+identifiant, statut) ; un compte absent a un **statut** (`suspendu`, `introuvable`) et **aucun
+chiffre**. Un compte est suivi par son **identifiant X** (`x_user_id`, `0177`) : renommé, il reste
+le même compte et son `handle` est mis à jour. Règles pures et testées : `@glagency/core`,
+`marketing/x-profile.ts`. Ce qui est lu est ce que déclare l'app X (profils publics de nos
+comptes, rien d'autre) : lire des tweets ou des messages demanderait de mettre à jour cette
+déclaration. **La liste des comptes relevés** se gère sur Marketing › Twitter / X, onglet Comptes,
+bouton « Ajouter des comptes » (**admin seul** : chaque compte coûte chaque nuit) — une liste de
+pseudos collée, nettoyée par `parseXHandleList` (`@`, liens x.com, doublons), un compte désactivé
+réactivé plutôt que dupliqué. Un pseudo est unique par plateforme **sans la casse** (index de
+`0177`). Pas de retrait depuis l'écran (non demandé).
 
 ### Agence
 

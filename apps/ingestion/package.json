@@ -16,7 +16,8 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "insights": "tsx src/gen-insights.ts",
-    "uncove": "tsx src/uncove.ts"
+    "uncove": "tsx src/uncove.ts",
+    "x": "tsx src/x.ts"
   },
   "dependencies": {
     "@glagency/core": "workspace:*",
