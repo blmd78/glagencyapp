@@ -29,7 +29,7 @@ export default async function MktTwitterPage({
           </SectionFallback>
         }
       >
-        <MktTwitterContent data={data} canAddAccounts={profile.role === 'admin'} />
+        <MktTwitterContent data={data} canManageAccounts={profile.role === 'admin'} />
       </Suspense>
     </div>
   )
@@ -37,10 +37,10 @@ export default async function MktTwitterPage({
 
 async function MktTwitterContent({
   data,
-  canAddAccounts,
+  canManageAccounts,
 }: {
   data: Promise<MktSocialData>
-  canAddAccounts: boolean
+  canManageAccounts: boolean
 }) {
-  return <MktSocialTemplate data={await data} canAddAccounts={canAddAccounts} />
+  return <MktSocialTemplate data={await data} canManageAccounts={canManageAccounts} />
 }
