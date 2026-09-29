@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { frDateNumeric } from '@glagency/core'
+import { addDays, frDateNumeric } from '@glagency/core'
 import { type ColumnDef } from '@tanstack/react-table'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -27,10 +28,90 @@ const signed = (v: number | null) =>
 /** Compte X que le dernier relevé n'a pas trouvé (statuts écrits par le job `marketing-x`). */
 const isUnidentified = (status: string | null) => status === 'introuvable' || status === 'suspendu'
 
+/** Un nombre, ou « — » quand il n'y a pas de relevé (jamais un faux zéro). */
+const numOrDash = (v: number | null) => (v != null ? num(v) : '—')
+
+const initials = (s: string) =>
+  s
+    .replace(/[^\p{L}\p{N} ]/gu, '')
+    .trim()
+    .slice(0, 2)
+    .toUpperCase() || '?'
+
+/** Le domaine d'un lien de bio (« heyliiink.com ») ; l'URL brute si elle est mal formée. */
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+/** Colonne chiffrée triable, alignée à droite — même rendu que Followers. */
+function numberColumn(key: 'following' | 'postsPeriod' | 'listed', label: string): ColumnDef<MktSocialRow> {
+  return {
+    accessorKey: key,
+    header: ({ column }) => <Sortable column={column} label={label} className="justify-end" />,
+    cell: ({ getValue }) => <span className="tabular-nums">{numOrDash(getValue() as number | null)}</span>,
+    meta: { align: 'right' },
+  }
+}
+
+/**
+ * X : le global du compte (demande Benoit 2026-09-29 — « on veut le global du compte », pas les
+ * stats par tweet). Remplace Vues et Engagement, qu'un profil X ne rend pas, et la colonne VA.
+ */
+function xAccountColumns(): ColumnDef<MktSocialRow>[] {
+  return [
+    numberColumn('following', 'Abonnements'),
+    numberColumn('postsPeriod', 'Tweets période'),
+    numberColumn('listed', 'Listes'),
+    {
+      accessorKey: 'lastPostAt',
+      header: ({ column }) => <Sortable column={column} label="Dernier tweet" className="justify-end" />,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="tabular-nums text-muted-foreground">{v ? frDateNumeric(v.slice(0, 10)) : '—'}</span>
+      },
+      meta: { align: 'right' },
+    },
+    {
+      accessorKey: 'bioUrl',
+      header: 'Lien en bio',
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return v ? (
+          <a
+            href={v}
+            target="_blank"
+            rel="noreferrer"
+            className="text-sm underline-offset-4 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {hostOf(v)}
+          </a>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )
+      },
+    },
+    {
+      accessorKey: 'accountCreatedAt',
+      header: ({ column }) => <Sortable column={column} label="Créé le" className="justify-end" />,
+      cell: ({ getValue }) => {
+        const v = getValue() as string | null
+        return <span className="tabular-nums text-muted-foreground">{v ? frDateNumeric(v.slice(0, 10)) : '—'}</span>
+      },
+      meta: { align: 'right' },
+    },
+  ]
+}
+
 function makeColumns(
   platform: 'instagram' | 'twitter' | 'telegram',
   canManage: boolean,
 ): ColumnDef<MktSocialRow>[] {
+  const x = platform === 'twitter'
   const cols: ColumnDef<MktSocialRow>[] = [
     {
       id: 'handle',
@@ -38,7 +119,36 @@ function makeColumns(
       header: ({ column }) => (
         <Sortable column={column} label={platform === 'telegram' ? 'Canal' : 'Compte'} />
       ),
-      cell: ({ getValue }) => <span className="font-medium">@{getValue() as string}</span>,
+      cell: ({ row }) => {
+        const a = row.original
+        if (!x) return <span className="font-medium">@{a.handle}</span>
+        // X : photo, nom affiché, @pseudo vers le profil ; la bio au survol. Même cellule que la
+        // liste des Membres (members-columns.tsx).
+        const certified = a.verifiedType && a.verifiedType !== 'none'
+        return (
+          <div className="flex items-center gap-2.5" title={a.bioText || undefined}>
+            <Avatar className="size-8">
+              {a.avatarUrl && <AvatarImage src={a.avatarUrl} alt="" />}
+              <AvatarFallback className="text-xs font-medium">{initials(a.name ?? a.handle)}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-medium">{a.name ?? `@${a.handle}`}</span>
+                {certified && <span className="shrink-0 text-xs text-muted-foreground">✓ {a.verifiedType}</span>}
+              </div>
+              <a
+                href={`https://x.com/${a.handle}`}
+                target="_blank"
+                rel="noreferrer"
+                className="truncate text-xs text-muted-foreground underline-offset-4 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+              >
+                @{a.handle}
+              </a>
+            </div>
+          </div>
+        )
+      },
     },
     {
       id: 'creator',
@@ -49,14 +159,18 @@ function makeColumns(
         return v ? <Badge className={modelColor(v)}>{v}</Badge> : <span className="text-muted-foreground">—</span>
       },
     },
-    {
-      id: 'staff',
-      accessorKey: 'staff',
-      header: 'VA',
-      cell: ({ getValue }) => (
-        <span className="text-muted-foreground">{(getValue() as string | null) ?? '—'}</span>
-      ),
-    },
+    ...(x
+      ? []
+      : [
+          {
+            id: 'staff',
+            accessorKey: 'staff',
+            header: 'VA',
+            cell: ({ getValue }) => (
+              <span className="text-muted-foreground">{(getValue() as string | null) ?? '—'}</span>
+            ),
+          } satisfies ColumnDef<MktSocialRow>,
+        ]),
     {
       accessorKey: 'followers',
       header: ({ column }) => (
@@ -91,27 +205,20 @@ function makeColumns(
       },
       meta: { align: 'right' },
     },
-    {
-      accessorKey: 'viewsPeriod',
-      header: ({ column }) => <Sortable column={column} label="Vues période" className="justify-end" />,
-      cell: ({ getValue }) => {
-        const v = getValue() as number | null
-        return <span className="tabular-nums">{v != null && v > 0 ? num(v) : '—'}</span>
-      },
-      meta: { align: 'right' },
-    },
+    ...(x
+      ? xAccountColumns()
+      : [
+          {
+            accessorKey: 'viewsPeriod',
+            header: ({ column }) => <Sortable column={column} label="Vues période" className="justify-end" />,
+            cell: ({ getValue }) => {
+              const v = getValue() as number | null
+              return <span className="tabular-nums">{v != null && v > 0 ? num(v) : '—'}</span>
+            },
+            meta: { align: 'right' },
+          } satisfies ColumnDef<MktSocialRow>,
+        ]),
   ]
-  if (platform === 'twitter') {
-    cols.push({
-      accessorKey: 'engagementPeriod',
-      header: ({ column }) => <Sortable column={column} label="Engagement" className="justify-end" />,
-      cell: ({ getValue }) => {
-        const v = getValue() as number | null
-        return <span className="tabular-nums text-muted-foreground">{v != null && v > 0 ? num(v) : '—'}</span>
-      },
-      meta: { align: 'right' },
-    })
-  }
   cols.push({
     accessorKey: 'status',
     header: 'Statut',
@@ -129,9 +236,19 @@ function makeColumns(
         )
       }
       const v = a.status ?? '—'
-      return (
-        <Badge className={v === 'ok' ? STATUS_COLORS.positive : STATUS_COLORS.neutral}>{v}</Badge>
-      )
+      const badge = <Badge className={v === 'ok' ? STATUS_COLORS.positive : STATUS_COLORS.neutral}>{v}</Badge>
+      // Compte bridé par X dans certains pays : même mention jaune, les pays en clair.
+      if (x && a.withheldCountries?.length) {
+        return (
+          <div className="flex flex-col items-center gap-0.5">
+            {badge}
+            <span className="text-xs text-amber-700 dark:text-amber-400">
+              ⚠ bridé : {a.withheldCountries.join(', ')}
+            </span>
+          </div>
+        )
+      }
+      return badge
     },
     meta: { align: 'center' },
   })
@@ -152,6 +269,7 @@ export function SocialView({
 }) {
   const ig = data.platform === 'instagram'
   const tg = data.platform === 'telegram'
+  const x = data.platform === 'twitter'
   const person = tg ? 'Membres' : 'Followers'
   const [tab, setTab] = useState<'comptes' | 'liens'>('comptes')
   // Filtre « ⚠ N non identifiés » — même bouton que « non reliés » de la Compta (compta-table.tsx).
@@ -168,9 +286,11 @@ export function SocialView({
       label: `${person} cumulés`,
       value: num(data.totals.followers),
       hint: `somme du dernier relevé de chaque ${tg ? 'canal' : 'compte'}`,
-      info: ig
-        ? 'Photo quotidienne prise par le scrape Apify de chaque nuit (23h35).'
-        : 'Dernier relevé saisi par l’équipe (bouton « Saisie du jour »).',
+      info: x
+        ? 'Photo prise chaque nuit par l’API officielle X (relevé de 23h05).'
+        : ig
+          ? 'Photo quotidienne prise par le scrape Apify de chaque nuit (23h35).'
+          : 'Dernier relevé saisi par l’équipe (bouton « Saisie du jour »).',
     },
     {
       ...base,
@@ -180,16 +300,26 @@ export function SocialView({
       hint: 'sur la période affichée',
       info: 'Somme des variations de followers de chaque compte entre son premier et son dernier relevé de la période.',
     },
-    {
-      ...base,
-      key: 'views',
-      label: 'Vues (période)',
-      value: num(data.totals.viewsPeriod),
-      hint: 'somme des vues 24 h',
-      info: ig
-        ? 'Somme des « vues 24 h » quotidiennes : différence jour à jour du cumul de vues des ~12 derniers posts de chaque compte (Apify).'
-        : 'Somme des « vues 24 h » saisies par l’équipe.',
-    },
+    // X : un profil ne rend pas de vues — la tuile montre les tweets publiés à la place.
+    x
+      ? {
+          ...base,
+          key: 'posts',
+          label: 'Tweets publiés',
+          value: num(active.reduce((s, a) => s + (a.postsPeriod ?? 0), 0)),
+          hint: 'sur la période affichée',
+          info: 'Différence du total de tweets de chaque compte entre son premier et son dernier relevé de la période (API X, chaque nuit).',
+        }
+      : {
+          ...base,
+          key: 'views',
+          label: 'Vues (période)',
+          value: num(data.totals.viewsPeriod),
+          hint: 'somme des vues 24 h',
+          info: ig
+            ? 'Somme des « vues 24 h » quotidiennes : différence jour à jour du cumul de vues des ~12 derniers posts de chaque compte (Apify).'
+            : 'Somme des « vues 24 h » saisies par l’équipe.',
+        },
     {
       ...base,
       key: 'accounts',
@@ -203,12 +333,16 @@ export function SocialView({
     <>
       <KpiGrid kpis={kpis} />
 
-      {/* La collecte quotidienne (Apify / API X) n'est pas encore branchée : les relevés
-          s'arrêtent au dernier jour du flux Discord legacy. */}
-      {data.lastDate && data.lastDate < todayLocal() && (
+      {/* Relevé en retard. X : le relevé de 23h05 UTC porte la date UTC de la veille à Paris,
+          d'où la tolérance d'un jour — au-delà, une nuit a sauté (clé ou crédits X). */}
+      {data.lastDate && data.lastDate < (x ? addDays(todayLocal(), -1) : todayLocal()) && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
-          Dernier relevé : {frDateNumeric(data.lastDate)} —{' '}
-          {ig ? 'la collecte Apify tourne chaque nuit.' : 'pense à la saisie du jour.'}
+          Dernier relevé{x ? ' X' : ''} : {frDateNumeric(data.lastDate)} —{' '}
+          {x
+            ? 'le relevé tourne chaque nuit ; un retard signale un souci (clé ou crédits X).'
+            : ig
+              ? 'la collecte Apify tourne chaque nuit.'
+              : 'pense à la saisie du jour.'}
         </p>
       )}
 

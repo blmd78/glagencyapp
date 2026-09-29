@@ -1393,6 +1393,9 @@ export type Database = {
           id: string
           platform: string
           staff_id: string | null
+          x_avatar_url: string | null
+          x_created_at: string | null
+          x_name: string | null
           x_user_id: string | null
         }
         Insert: {
@@ -1403,6 +1406,9 @@ export type Database = {
           id?: string
           platform: string
           staff_id?: string | null
+          x_avatar_url?: string | null
+          x_created_at?: string | null
+          x_name?: string | null
           x_user_id?: string | null
         }
         Update: {
@@ -1413,6 +1419,9 @@ export type Database = {
           id?: string
           platform?: string
           staff_id?: string | null
+          x_avatar_url?: string | null
+          x_created_at?: string | null
+          x_name?: string | null
           x_user_id?: string | null
         }
         Relationships: [
@@ -1435,6 +1444,7 @@ export type Database = {
       mkt_social_daily: {
         Row: {
           account_id: string
+          bio_text: string | null
           bio_url: string | null
           date: string
           delta_followers: number | null
@@ -1442,15 +1452,19 @@ export type Database = {
           followers: number | null
           following: number | null
           last_post_at: string | null
+          listed: number | null
           posts_24h: number | null
           posts_total: number | null
           status: string | null
           verified_followers: number | null
           views_24h: number | null
           views_total: number | null
+          withheld_countries: string[] | null
+          x_verified_type: string | null
         }
         Insert: {
           account_id: string
+          bio_text?: string | null
           bio_url?: string | null
           date: string
           delta_followers?: number | null
@@ -1458,15 +1472,19 @@ export type Database = {
           followers?: number | null
           following?: number | null
           last_post_at?: string | null
+          listed?: number | null
           posts_24h?: number | null
           posts_total?: number | null
           status?: string | null
           verified_followers?: number | null
           views_24h?: number | null
           views_total?: number | null
+          withheld_countries?: string[] | null
+          x_verified_type?: string | null
         }
         Update: {
           account_id?: string
+          bio_text?: string | null
           bio_url?: string | null
           date?: string
           delta_followers?: number | null
@@ -1474,12 +1492,15 @@ export type Database = {
           followers?: number | null
           following?: number | null
           last_post_at?: string | null
+          listed?: number | null
           posts_24h?: number | null
           posts_total?: number | null
           status?: string | null
           verified_followers?: number | null
           views_24h?: number | null
           views_total?: number | null
+          withheld_countries?: string[] | null
+          x_verified_type?: string | null
         }
         Relationships: [
           {

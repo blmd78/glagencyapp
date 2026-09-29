@@ -4,8 +4,14 @@
  * MOMENT : la courbe n'existe que parce qu'on relève chaque nuit.
  */
 
-/** Les SEULS champs demandés à X — ceux que déclare l'app (console.x.com). */
-export const X_USER_FIELDS = 'public_metrics,url,entities,most_recent_tweet_id,protected,verified_followers_count'
+/**
+ * Les SEULS champs demandés à X — ceux que déclare l'app (console.x.com). Même appel, même prix :
+ * depuis 0178, TOUT ce que rend un profil (demande Benoit 2026-09-29), sauf `subscription_type`,
+ * toujours « None » hors du compte authentifié. `id`, `name` et `username` viennent d'office.
+ */
+export const X_USER_FIELDS =
+  'public_metrics,url,entities,most_recent_tweet_id,protected,verified_followers_count,' +
+  'description,profile_image_url,created_at,verified_type,withheld'
 
 /** Plafond dur par run : X facture chaque compte rendu, le coût reste borné même si la table grossit. */
 export const X_MAX_ACCOUNTS = 200
@@ -26,6 +32,16 @@ export interface XUser {
     listed_count?: number
   }
   entities?: { url?: { urls?: { url?: string; expanded_url?: string }[] } }
+  name?: string
+  /** Texte de la bio. */
+  description?: string
+  profile_image_url?: string
+  /** Création du compte X, ISO. */
+  created_at?: string
+  /** « blue », « business », « government »… */
+  verified_type?: string
+  /** Pays où X bride le compte. */
+  withheld?: { country_codes?: string[] }
 }
 
 /** Erreur partielle d'une recherche groupée : HTTP 200, tableau `errors` à côté de `data`. */
@@ -56,6 +72,17 @@ export interface XProfileSnapshot {
   /** Date du dernier tweet, ISO — déduite de son identifiant. */
   lastPostAt: string | null
   status: 'ok' | 'privé'
+  /** Nombre de listes publiques où figure le compte. */
+  listed: number | null
+  name: string | null
+  /** Texte de la bio — `''` quand elle est vide, `null` quand X ne l'a pas rendue. */
+  bioText: string | null
+  avatarUrl: string | null
+  /** Création du compte X, ISO. */
+  accountCreatedAt: string | null
+  verifiedType: string | null
+  /** Pays où le compte est bridé ; `null` s'il ne l'est nulle part. */
+  withheldCountries: string[] | null
 }
 
 export type XAccountResult =
@@ -94,6 +121,13 @@ export function parseXUser(u: XUser): XProfileSnapshot {
     bioUrl: bio?.expanded_url || bio?.url || u.url || null,
     lastPostAt: u.most_recent_tweet_id ? tweetDate(u.most_recent_tweet_id) : null,
     status: u.protected ? 'privé' : 'ok',
+    listed: count(m.listed_count),
+    name: u.name ?? null,
+    bioText: u.description ?? null,
+    avatarUrl: u.profile_image_url ?? null,
+    accountCreatedAt: u.created_at ?? null,
+    verifiedType: u.verified_type ?? null,
+    withheldCountries: u.withheld?.country_codes?.length ? u.withheld.country_codes : null,
   }
 }
 

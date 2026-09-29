@@ -8,6 +8,11 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Marketing › comptes X : le relevé garde tout le profil, au même prix — nombre de listes, texte de la bio, certification, pays où le compte est bridé, et sur le compte son nom, sa photo et sa date de création.
+- Marketing › Twitter / X : la page montre le global de chaque compte — photo, nom et @pseudo (bio au survol), abonnés et leur évolution, abonnements, tweets publiés sur la période, listes, dernier tweet, lien en bio, date de création, et « ⚠ bridé » avec les pays concernés. La tuile Vues devient « Tweets publiés » et les colonnes Vues, Engagement et VA sortent (un profil X ne les donne pas) ; le bandeau signale une nuit sans relevé.
+
 ## [2.66] — 2026-09-29
 
 ### Ajouté
