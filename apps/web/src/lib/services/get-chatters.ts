@@ -170,6 +170,7 @@ export async function getChatters(
         isNew: closingByChatter.get(id)?.isNew ?? false,
         arrivedAt: closingByChatter.get(id)?.arrivedAt ?? null,
         leftAt: closingByChatter.get(id)?.leftAt ?? null,
+        isChatter: closingByChatter.get(id)?.isChatter ?? false,
         ca: a.ca,
         ppv: a.ppv,
         tips: a.tips,

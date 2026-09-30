@@ -72,6 +72,9 @@ export interface ChatterRow {
   /** Date de sortie du membre lié (0101) — éteint le badge « nouveau » sur une fiche dont le
    *  membre a quitté l'agence. */
   leftAt: string | null
+  /** Fiche liée à un membre au rôle `chatteur`. `false` : fiche sans membre lié (comptes managers,
+   *  e-mails, fiches pas encore rattachées dans Membres) — exclue du classement Stat chatter. */
+  isChatter: boolean
   // Sommables (= Σ modèles)
   ca: number
   ppv: number

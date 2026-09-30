@@ -1,18 +1,17 @@
-import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
+import type { Period } from '@/lib/period'
 
-/** Une ligne du classement : un chatteur closing (rôle setter/closer non nul) + ses ventes période. */
-export interface ClosingChatterRow {
+/** Une ligne du classement : un chatteur qui a généré du CA sur la période. */
+export interface RankedChatter {
   id: string
   name: string
-  closingRole: CrmRole // 'setter' | 'closer' — non nul (seuls les chatteurs closing sont classés)
-  closingTeam: CrmTeam | null // 'rouge' | 'bleue' | null (un setter peut ne pas avoir d'équipe)
-  vendu: number
+  ca: number
+  /** 1 = en tête. Rang = position dans la liste triée (pas d'ex æquo). */
+  rank: number
 }
 
 export interface StatChatteurData {
-  period: string
-  /** Comptage de MEMBRES par désignation (indépendant de la période). */
-  kpis: { nbSetters: number; nbClosers: number; nbRouge: number; nbBleue: number }
-  /** Chatteurs closing, triés par `vendu` décroissant. */
-  rows: ClosingChatterRow[]
+  /** Bornes (clé des confettis, nom du fichier exporté) + libellé humain. */
+  period: Period
+  /** Chatteurs avec du CA sur la période, triés par CA décroissant. */
+  rows: RankedChatter[]
 }

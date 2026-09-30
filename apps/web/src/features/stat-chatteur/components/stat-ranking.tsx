@@ -1,118 +1,122 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { type ColumnDef } from '@tanstack/react-table'
-import { RoleBadge } from '@/components/role-badge'
-import { TeamBadge } from '@/components/team-badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { DataTable } from '@/components/data-table/data-table'
-import { Sortable } from '@/components/data-table/sortable'
-import type { ClosingChatterRow } from '../types'
+import { useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { eur } from '@/lib/format'
+import type { RankedChatter } from '../types'
+import { initials, nameHue } from './podium-art'
 
-type RoleFiltre = 'tous' | 'setter' | 'closer'
-type TeamFiltre = 'toutes' | 'rouge' | 'bleue'
-
-const ROLE_OPTS: { value: RoleFiltre; label: string }[] = [
-  { value: 'tous', label: 'Tous les rôles' },
-  { value: 'setter', label: 'Setter' },
-  { value: 'closer', label: 'Closer' },
-]
-const TEAM_OPTS: { value: TeamFiltre; label: string }[] = [
-  { value: 'toutes', label: 'Toutes les équipes' },
-  { value: 'rouge', label: 'Rouge' },
-  { value: 'bleue', label: 'Bleue' },
-]
-
-const columns: ColumnDef<ClosingChatterRow>[] = [
-  {
-    accessorKey: 'name',
-    header: ({ column }) => <Sortable column={column} label="Chatter" />,
-    cell: ({ getValue }) => <span className="font-medium">{getValue() as string}</span>,
-  },
-  {
-    accessorKey: 'closingRole',
-    header: 'Rôle',
-    cell: ({ getValue }) => <RoleBadge role={getValue() as ClosingChatterRow['closingRole']} />,
-  },
-  {
-    accessorKey: 'closingTeam',
-    header: 'Équipe',
-    cell: ({ getValue }) => {
-      const team = getValue() as ClosingChatterRow['closingTeam']
-      return team ? <TeamBadge team={team} /> : <span className="text-muted-foreground">—</span>
-    },
-  },
-  {
-    accessorKey: 'vendu',
-    header: ({ column }) => <Sortable column={column} label="Ventes" className="justify-end" />,
-    cell: ({ getValue }) => (
-      <span className="font-medium tabular-nums">{(getValue() as number).toLocaleString('fr-FR')}</span>
-    ),
-    meta: { align: 'right' },
-  },
-]
+/** Deux tableaux de 25 lignes côte à côte : 50 places par page. */
+const PER_TABLE = 25
+const PER_PAGE = PER_TABLE * 2
 
 /**
- * Classement des chatteurs closing par ventes — 2 filtres INDÉPENDANTS 100% CLIENT (Rôle + Équipe),
- * combinés en ET : on peut ne filtrer sur rien (Tous + Toutes), sur l'un, ou sur les deux (ex.
- * Setter + Rouge). Aucun round-trip serveur (`rows` déjà chargées par la page). Tri par défaut sur
- * `vendu` décroissant (les `rows` arrivent déjà triées côté service ; la DataTable permute au clic).
+ * Classement sous le podium (à partir de la 4e place) : deux tableaux shadcn côte à côte, une seule
+ * pagination pour les deux — la page 1 montre les places 4 à 28 à gauche et 29 à 53 à droite. Rendu
+ * sur la scène noire : le parent porte la classe `dark`, les primitives shadcn prennent donc leurs
+ * couleurs sombres.
  */
-export function StatRanking({ rows }: { rows: ClosingChatterRow[] }) {
-  const [roleFiltre, setRoleFiltre] = useState<RoleFiltre>('tous')
-  const [teamFiltre, setTeamFiltre] = useState<TeamFiltre>('toutes')
+export function StatRanking({ rows }: { rows: RankedChatter[] }) {
+  const [page, setPage] = useState(0)
+  if (rows.length === 0) return null
 
-  const filtered = useMemo(
-    () =>
-      rows.filter(
-        (r) =>
-          (roleFiltre === 'tous' || r.closingRole === roleFiltre) &&
-          (teamFiltre === 'toutes' || r.closingTeam === teamFiltre),
-      ),
-    [rows, roleFiltre, teamFiltre],
-  )
+  const pageCount = Math.ceil(rows.length / PER_PAGE)
+  // Une période plus courte peut compter moins de pages que celle qu'on regardait.
+  const current = Math.min(page, pageCount - 1)
+  const slice = rows.slice(current * PER_PAGE, (current + 1) * PER_PAGE)
+  const tables = [slice.slice(0, PER_TABLE), slice.slice(PER_TABLE)].filter((t) => t.length > 0)
 
   return (
-    <DataTable
-      data={filtered}
-      columns={columns}
-      initialSorting={[{ id: 'vendu', desc: true }]}
-      getRowId={(r) => r.id}
-      countLabel={(n) => `${n} chatter(s)`}
-      toolbar={
-        <div className="flex flex-wrap gap-2">
-          <Select value={roleFiltre} onValueChange={(v) => setRoleFiltre(v as RoleFiltre)}>
-            <SelectTrigger className="h-9 w-44 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ROLE_OPTS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={teamFiltre} onValueChange={(v) => setTeamFiltre(v as TeamFiltre)}>
-            <SelectTrigger className="h-9 w-44 text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TEAM_OPTS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-4 lg:grid-cols-2">
+        {tables.map((t) => (
+          <RankTable key={t[0]?.id} rows={t} />
+        ))}
+      </div>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Places {slice[0]?.rank}–{slice.at(-1)?.rank}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Page {current + 1} / {pageCount}
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setPage(current - 1)} disabled={current === 0}>
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(current + 1)}
+              disabled={current >= pageCount - 1}
+            >
+              Suivant
+            </Button>
+          </div>
         </div>
-      }
-    />
+      )}
+    </div>
+  )
+}
+
+function RankTable({ rows }: { rows: RankedChatter[] }) {
+  return (
+    <div className="rounded-xl border">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50">
+            <TableHead className="w-14">#</TableHead>
+            <TableHead>Chatter</TableHead>
+            <TableHead className="text-right">CA généré</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <RankRow key={r.id} row={r} />
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  )
+}
+
+function RankRow({ row }: { row: RankedChatter }) {
+  const hue = nameHue(row.name)
+  const top10 = row.rank <= 10
+  return (
+    <TableRow>
+      <TableCell>
+        <span
+          className={`grid h-6 w-9 place-items-center rounded-md text-xs font-bold tabular-nums ${
+            top10 ? 'bg-amber-400/15 text-amber-300' : 'bg-white/[0.06] text-zinc-400'
+          }`}
+        >
+          {row.rank}
+        </span>
+      </TableCell>
+      {/* `w-full max-w-0` : la colonne du nom prend la place restante et tronque au lieu d'élargir le tableau. */}
+      <TableCell className="w-full max-w-0">
+        <div className="flex items-center gap-2">
+          <span
+            aria-hidden
+            className="grid size-7 shrink-0 place-items-center rounded-full text-[10px] font-bold"
+            style={{
+              background: `hsl(${hue} 55% 14%)`,
+              color: `hsl(${hue} 85% 72%)`,
+              boxShadow: `inset 0 0 0 1.5px hsl(${hue} 70% 50% / 0.75)`,
+            }}
+          >
+            {initials(row.name)}
+          </span>
+          <span className="truncate font-medium" title={row.name}>
+            {row.name}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell className="text-right font-medium tabular-nums">{eur(row.ca)}</TableCell>
+    </TableRow>
   )
 }

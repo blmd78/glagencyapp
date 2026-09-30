@@ -3,7 +3,7 @@ import type { CrmTeam } from '@/lib/types/chatters'
 
 /**
  * Badge d'équipe closing (rouge/bleue). Source unique du rendu — évite la duplication
- * du markup + des classes de couleur (Chatteurs, Spenders, Stat chatteur). `null`/`undefined`
+ * du markup + des classes de couleur (Chatteurs, Spenders). `null`/`undefined`
  * (chatteur non lié / sans désignation) → ne rend rien ; l'appelant gère le placeholder (« — »).
  */
 export function TeamBadge({ team }: { team: CrmTeam | null | undefined }) {
