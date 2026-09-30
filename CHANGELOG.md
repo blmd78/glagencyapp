@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.68] — 2026-09-30
+
 ### Modifié
 
 - Chatteurs › Stat chatter : la page devient le classement des chatteurs par CA sur la période — podium des trois premiers sur une scène noir et or (couronne, lauriers, montants qui défilent, confettis dorés une fois par période), puis deux tableaux de 25 places côte à côte ; « Exporter » télécharge l'image du classement à partager (podium + places 4 à 33). Les KPI setters/closers et les filtres rôle/équipe sortent ; seules les fiches MyPuls liées à un membre « chatteur » sont classées.
