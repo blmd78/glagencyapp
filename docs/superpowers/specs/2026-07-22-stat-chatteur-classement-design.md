@@ -1,7 +1,8 @@
 # Page « Stat chatteur » — KPIs closing + classement des setters/closers — Design
 
 **Date** : 2026-07-22
-**Statut** : validé (Benoit)
+**Statut** : validé (Benoit) — **remplacé le 2026-09-30** : la page classe désormais tous les chatteurs par CA
+(podium + colonnes + export PNG), sans KPI ni filtres rôle/équipe. Ce document ne décrit plus le code.
 
 ## Objectif
 

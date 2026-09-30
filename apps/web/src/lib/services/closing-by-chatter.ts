@@ -4,7 +4,8 @@ import type { CrmRole, CrmTeam } from '@/lib/types/chatters'
 
 /**
  * Map `chatterId → attributs CRM du MEMBRE lié`, résolue depuis `profiles.chatter_id` : le closing
- * (rôle setter/closer + équipe rouge/bleue, 0077/0079) et le drapeau « nouvel arrivant » (0101).
+ * (rôle setter/closer + équipe rouge/bleue, 0077/0079), le drapeau « nouvel arrivant » (0101) et
+ * `isChatter` (le membre a le rôle `chatteur` — le classement Stat chatter ne garde que ceux-là).
  * Source UNIQUE de cette résolution côté Chatteurs et Spenders (évite la duplication et le drift
  * entre les deux services).
  *
@@ -22,6 +23,7 @@ export async function getClosingByChatter(): Promise<
       isNew: boolean
       arrivedAt: string | null
       leftAt: string | null
+      isChatter: boolean
     }
   >
 > {
@@ -32,7 +34,7 @@ export async function getClosingByChatter(): Promise<
   const { data, error } = await fetchAll((f, t) =>
     admin
       .from('profiles')
-      .select('chatter_id, closing_role, closing_team, is_new, arrived_at, left_at')
+      .select('chatter_id, role, closing_role, closing_team, is_new, arrived_at, left_at')
       .not('chatter_id', 'is', null)
       .order('id')
       .range(f, t),
@@ -46,6 +48,7 @@ export async function getClosingByChatter(): Promise<
       isNew: boolean
       arrivedAt: string | null
       leftAt: string | null
+      isChatter: boolean
     }
   >()
   for (const m of data ?? [])
@@ -56,6 +59,7 @@ export async function getClosingByChatter(): Promise<
         isNew: m.is_new ?? false,
         arrivedAt: m.arrived_at ?? null,
         leftAt: m.left_at ?? null,
+        isChatter: m.role === 'chatteur',
       })
   return map
 }

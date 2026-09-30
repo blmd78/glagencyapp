@@ -23,8 +23,9 @@ const reducedMotion = (): boolean =>
 /**
  * Pluie de confettis. `bursts` = nombre de salves (une toutes les 230 ms, 44 particules chacune),
  * `maxFrames` = durée avant de couper le robinet — les particules déjà en l'air finissent leur chute.
+ * `colors` = palette (défaut : celle de la Formation ; le podium Stat chatter passe la sienne, or).
  */
-export function burstConfetti(bursts = 7, maxFrames = 190): void {
+export function burstConfetti(bursts = 7, maxFrames = 190, colors: readonly string[] = COLORS): void {
   if (typeof document === 'undefined' || reducedMotion()) return
 
   const canvas = document.createElement('canvas')
@@ -47,7 +48,7 @@ export function burstConfetti(bursts = 7, maxFrames = 190): void {
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed,
         life: 1,
-        color: COLORS[i % COLORS.length] ?? '#ffffff',
+        color: colors[i % colors.length] ?? '#ffffff',
       })
     }
   }

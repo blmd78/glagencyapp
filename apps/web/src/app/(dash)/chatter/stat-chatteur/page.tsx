@@ -15,7 +15,7 @@ export default async function StatChatteurPage({
   const profile = await requireAccess('stat-chatteur')
   const period = resolvePeriod(await searchParams)
   // Kickoff SANS await (pattern streaming, cf. chatters/page.tsx) : le shell (h1) s'affiche
-  // immédiatement, le bloc KPIs + classement streame dans son boundary quand la donnée répond.
+  // immédiatement, le podium + classement streame dans son boundary quand la donnée répond.
   const data = getStatChatteur(period, { restricted: profile.role !== 'admin' })
 
   return (

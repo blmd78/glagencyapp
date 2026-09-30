@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge'
 import { CRM_ROLES, type CrmRole } from '@/lib/types/chatters'
 
 /**
- * Badge de rôle closing. Source unique du rendu (Chatteurs, Stat chatteur, Membres) — évite la
+ * Badge de rôle closing. Source unique du rendu (Chatteurs, Membres) — évite la
  * duplication du markup et des classes. `null`/`undefined` (chatteur sans désignation) → ne rend
  * rien ; l'appelant gère l'absence.
  *

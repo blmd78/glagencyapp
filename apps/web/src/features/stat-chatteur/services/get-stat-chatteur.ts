@@ -1,83 +1,32 @@
-import { createAdminClient } from '@glagency/db'
 import { getChatters } from '@/lib/services/get-chatters'
-import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
-import type { CrmRole } from '@/lib/types/chatters'
 import type { StatChatteurData } from '../types'
 
-/** Compte les 4 désignations closing (rôle setter/closer + équipe rouge/bleue) sur une liste. */
-function countDesignations(
-  items: readonly { closingRole: string | null; closingTeam: string | null }[],
-) {
-  let nbSetters = 0
-  let nbClosers = 0
-  let nbRouge = 0
-  let nbBleue = 0
-  for (const it of items) {
-    if (it.closingRole === 'setter') nbSetters++
-    else if (it.closingRole === 'closer') nbClosers++
-    if (it.closingTeam === 'rouge') nbRouge++
-    else if (it.closingTeam === 'bleue') nbBleue++
-  }
-  return { nbSetters, nbClosers, nbRouge, nbBleue }
-}
-
 /**
- * Données de la page Stat chatteur : 4 KPI (compteurs de désignation closing) + le classement des
- * chatteurs closing par ventes (`vendu`), réutilisant `getChatters()` (qui porte déjà
- * `closingRole`/`closingTeam`/`vendu` par chatteur, agrégé sur la période du datepicker).
+ * Classement des chatteurs par CA sur la période du datepicker — tous les chatteurs qui ont
+ * rapporté quelque chose, sans filtre setter/closer ni d'équipe (refonte du 2026-09-30 : l'ancienne
+ * version ne classait que les setters/closers, par nombre de ventes).
  *
- * KPI : en mode **restreint**, on compte sur le périmètre VISIBLE (les chatteurs déjà cloisonnés par
- * RLS) → KPI et classement décrivent la même population. En mode **admin**, on compte tous les
- * MEMBRES agence-wide (client admin sur `profiles`), y compris ceux non encore liés à un chatteur
- * (la désignation existe même sans lien).
+ * « Chatteur » = fiche MyPuls liée à un membre au rôle `chatteur` (`isChatter`). Les fiches sans
+ * membre lié sortent du classement : c'est là que vivent les comptes managers (« Remi manager
+ * chat »), les e-mails et les accès révoqués — aucun manager n'est lié à une fiche. Une vraie
+ * chatteuse absente du podium se rattache dans Membres. Le lien est lu AUJOURD'HUI : un membre
+ * promu (manager, police…) perd son `chatter_id` et sort aussi des classements passés ; un départ
+ * (`left_at`) garde le lien et reste classé.
+ *
+ * Réutilise `getChatters()` (RPC `chatters_report`, agrégé en base) : en mode restreint, le CA
+ * d'un chatteur se limite aux modèles visibles par la RLS — même périmètre que la page Chatters.
  */
 export async function getStatChatteur(
   period: Period,
   opts: { restricted?: boolean } = {},
 ): Promise<StatChatteurData> {
-  // Le SELECT profiles (mode admin) est indépendant du RPC de getChatters — lancé tout de
-  // suite, awaité après. `fetchAll` (async) exécute son corps jusqu'au premier `await` dès
-  // l'appel — même effet de déclenchement immédiat que `Promise.resolve` sur un builder
-  // PromiseLike mais PARESSEUX (même patron que get-insights.ts), en plus de contourner le
-  // cap PostgREST silencieux à 1000 lignes : `profiles` est agence-wide et grossit avec
-  // l'équipe. `.order('id')` = la PK (colonne non sélectionnée, PostgREST l'accepte — même
-  // patron que `compta-sources.ts`).
-  const membersPromise = opts.restricted
-    ? null
-    : fetchAll<{ closing_role: string | null; closing_team: string | null }>((f, t) =>
-        createAdminClient()
-          .from('profiles')
-          .select('closing_role, closing_team')
-          .order('id')
-          .range(f, t),
-      )
-  const chattersData = await getChatters(period, opts)
+  const { chatters } = await getChatters(period, opts)
 
-  const rows = chattersData.chatters
-    .filter((c) => c.closingRole !== null)
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      closingRole: c.closingRole as CrmRole,
-      closingTeam: c.closingTeam,
-      vendu: c.vendu,
-    }))
-    .sort((a, b) => b.vendu - a.vendu)
+  const rows = chatters
+    .filter((c) => c.isChatter && c.ca > 0)
+    .sort((a, b) => b.ca - a.ca || a.name.localeCompare(b.name, 'fr'))
+    .map((c, i) => ({ id: c.id, name: c.name, ca: c.ca, rank: i + 1 }))
 
-  let kpis
-  if (membersPromise) {
-    const membersRes = await membersPromise
-    if (membersRes.error) throw new Error(membersRes.error.message)
-    kpis = countDesignations(
-      (membersRes.data ?? []).map((m) => ({
-        closingRole: m.closing_role,
-        closingTeam: m.closing_team,
-      })),
-    )
-  } else {
-    kpis = countDesignations(chattersData.chatters)
-  }
-
-  return { period: chattersData.period, kpis, rows }
+  return { period, rows }
 }
