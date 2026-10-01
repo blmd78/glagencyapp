@@ -1,6 +1,6 @@
 # Architecture — glagencyapp
 
-> Révision : 2026-09-25
+> Révision : 2026-10-01
 
 **Ce fichier décrit le système.** Les règles pour coder dedans vivent dans `AGENTS.md` ; où vit chaque feature : `docs/CARTE.md` ; ce qui a changé : `CHANGELOG.md`.
 
@@ -40,7 +40,7 @@ Monorepo pnpm workspaces (`apps/*`, `packages/*`), pas de Turborepo. Le détail 
   et le fallback e-mail réintroduit par 0119 disparaît) avec celle du 2026-09-11, et `0154`→`0157`
   (analytics IA, `/formation/ia`) avec la Release 2.50 du 2026-09-14 — `0154`-`0156` avant le
   merge, `0157` APRÈS le déploiement (elle droppe `training_ai_cost(1 arg)`, qu'appelait l'ancienne
-  Overview). **Prod = UAT = `0157`, prochaine migration = `0158`**) : **catalogue**
+  Overview ; dernière migration et prochaine : `AGENTS.md` § Migrations) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -114,7 +114,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | prod (`main`) | `cqmfpsnqaxymswijdnfz` | eu-west-3 (`docs/runbook-uncove.md`) | `db.<ref>.supabase.co` injoignable IPv6-only depuis un poste de dev — passer par le pooler `aws-0-eu-west-3.pooler.supabase.com:5432` |
 | UAT (`develop`) | `ihkksdmgtrbbjugeboks` | eu-west-3 | même pooler |
 
-174 migrations séquentielles au 2026-09-24 (`packages/db/supabase/migrations/0001..0174`), prod = UAT à cette date. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
+178 migrations séquentielles au 2026-10-01 (`packages/db/supabase/migrations/0001..0178`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
 
 ## 4. Hébergement et environnements
 
