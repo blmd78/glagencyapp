@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "insights": "tsx src/gen-insights.ts",
     "uncove": "tsx src/uncove.ts",
-    "x": "tsx src/x.ts"
+    "x": "tsx src/x.ts",
+    "linkscale": "tsx src/linkscale.ts"
   },
   "dependencies": {
     "@glagency/core": "workspace:*",

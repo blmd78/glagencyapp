@@ -1384,6 +1384,107 @@ export type Database = {
           },
         ]
       }
+      mkt_ls_daily: {
+        Row: {
+          bots: number
+          date: string
+          link_id: string
+          mym_clicks: number | null
+          visitors: number
+        }
+        Insert: {
+          bots?: number
+          date: string
+          link_id: string
+          mym_clicks?: number | null
+          visitors?: number
+        }
+        Update: {
+          bots?: number
+          date?: string
+          link_id?: string
+          mym_clicks?: number | null
+          visitors?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_ls_daily_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_ls_links"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_ls_links: {
+        Row: {
+          created_at: string
+          creator_id: string | null
+          destination: string | null
+          first_seen: string | null
+          folders: string[]
+          id: string
+          kind: string
+          last_seen: string | null
+          ls_id: string
+          manual: boolean
+          note: string
+          operator: string | null
+          platform: string
+          social_account_id: string | null
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          creator_id?: string | null
+          destination?: string | null
+          first_seen?: string | null
+          folders?: string[]
+          id?: string
+          kind?: string
+          last_seen?: string | null
+          ls_id: string
+          manual?: boolean
+          note?: string
+          operator?: string | null
+          platform?: string
+          social_account_id?: string | null
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          creator_id?: string | null
+          destination?: string | null
+          first_seen?: string | null
+          folders?: string[]
+          id?: string
+          kind?: string
+          last_seen?: string | null
+          ls_id?: string
+          manual?: boolean
+          note?: string
+          operator?: string | null
+          platform?: string
+          social_account_id?: string | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_ls_links_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_ls_links_social_account_id_fkey"
+            columns: ["social_account_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_social_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mkt_social_accounts: {
         Row: {
           active: boolean
