@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Hook de push : un commit de code n'est poussé qu'après une revue (`review-feature`, tampon par commit) ; doc seule, releases et tags passent. Activé au `pnpm install`. Échappatoire d'urgence : `git push --no-verify`.
+
 ## [2.69] — 2026-10-01
 
 ### Ajouté

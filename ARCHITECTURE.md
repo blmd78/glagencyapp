@@ -164,7 +164,7 @@ Un seul `.env` à la racine (pas de fichier par app), modèle documenté dans `.
 | local, `pnpm release:prepare` (avant PR `develop` → `main`) | arbre git propre, section « Non publié » du `CHANGELOG.md` non vide, `node scripts/check-carte.mjs` | oui — le script lève une erreur et s'arrête (`scripts/release.mjs`) |
 | local | `pnpm test:scripts` (`node --test scripts/*.test.mjs`) — teste `check-carte.mjs` et `release.mjs` eux-mêmes | à jouer à la main, non branché ailleurs |
 
-Aucun hook git installé (pas de `core.hooksPath`, pas de dossier `.githooks`) — la protection de `main` (push direct refusé) est un ruleset GitHub, pas un hook local.
+Hook local `scripts/hooks/pre-push` (activé par `prepare` au `pnpm install` : `core.hooksPath = scripts/hooks`) : refuse un push direct sur `main`, et tout commit de code non couvert par le tampon de revue du skill `review-feature` (doc seule, releases, tags : acceptés) — tests `scripts/pre-push.test.mjs`. Contournable (`git push --no-verify`) — la protection de `main` reste le ruleset GitHub.
 
 ## 9. Ce qui n'est pas prouvé
 
