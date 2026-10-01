@@ -17,7 +17,7 @@
     "release:prepare": "node scripts/release.mjs prepare",
     "release:tag": "node scripts/release.mjs tag",
     "test:scripts": "node --test scripts/*.test.mjs",
-    "prepare": "git config core.hooksPath scripts/hooks"
+    "prepare": "git config core.hooksPath scripts/hooks || true"
   },
   "devDependencies": {
     "typescript": "^5.7.0"
