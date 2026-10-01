@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.69] — 2026-10-01
+
 ### Ajouté
 
 - Marketing : relevé quotidien du trafic LinkScale (visiteurs, bots et clics vers MYM par lien, attribués à une modèle, un réseau et un profil), avec `pnpm linkscale` pour remplir l'historique depuis mai — base de la page Trafic.
