@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#
+# pre-push — deux refus. Installation : `git config core.hooksPath scripts/hooks`
+# (fait par le script `prepare` au `pnpm install`). Tests : scripts/pre-push.test.mjs.
+#
+# 1. Push direct sur `main` : refusé. `main` ne reçoit que des PR.
+#
+# 2. Code non relu : refusé. Chaque commit NOUVEAU pour le distant doit être couvert
+#    par le tampon que pose le skill `review-feature` quand son verdict est OK
+#    (`$(git rev-parse --git-dir)/review-stamp`, propre à chaque worktree), ou ne
+#    toucher que de la doc (`*.md` : changelog, carte, PR de doc), ou être un commit
+#    de release (`chore(release): …`). Tags et suppressions de branche passent.
+#
+# ⚠️ Ce hook n'est pas une protection : il ne vit que sur la machine, et
+# `git push --no-verify` le contourne — échappatoire réservée à l'urgence assumée.
+
+remote="$1"
+zero=0000000000000000000000000000000000000000
+stamp="$(cat "$(git rev-parse --git-dir)/review-stamp" 2>/dev/null)"
+
+refuse() {
+  printf '\n\033[1;31m⛔ %s\033[0m\n' "$1" >&2
+  printf '%b\n' "$2" >&2
+  printf 'Urgence assumée : git push --no-verify\n\n' >&2
+  exit 1
+}
+
+while read -r _local_ref local_sha remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  case "$remote_ref" in refs/tags/*) continue ;; esac
+
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    refuse "Push direct sur main refusé." \
+      "main ne reçoit que des PR.\n  git switch -c <branche> && git push -u origin <branche>\n  gh pr create"
+  fi
+
+  for c in $(git rev-list "$local_sha" --not --remotes="$remote"); do
+    if [ -n "$stamp" ] && git merge-base --is-ancestor "$c" "$stamp" 2>/dev/null; then continue; fi
+    case "$(git log -1 --format=%s "$c")" in "chore(release):"*) continue ;; esac
+    if ! git diff-tree --no-commit-id --name-only -r "$c" | grep -qv '\.md$'; then continue; fi
+    refuse "Code non relu : $(git log -1 --format='%h %s' "$c")" \
+      "Lance le skill review-feature dans ce worktree : son verdict OK pose le tampon\nde revue. Un commit de code ajouté après le tampon impose une nouvelle revue."
+  done
+done
+
+exit 0
