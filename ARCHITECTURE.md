@@ -446,6 +446,27 @@ réactivé plutôt que dupliqué. Un pseudo est unique par plateforme **sans la 
 « non reliés » de la Compta) ; le crayon (admin) corrige son pseudo et **efface son `x_user_id`** —
 il est cherché sous son nouveau nom au relevé suivant.
 
+### Trafic LinkScale
+
+Relevé nocturne du trafic des liens de bio **LinkScale** (projet « GoodLuck »), par leur API et une
+clé de projet **en lecture seule** (secret `LINKSCALE_API_KEY`) — spec
+`docs/superpowers/specs/2026-09-30-trafic-linkscale-design.md`. Job
+`apps/ingestion/src/marketing-linkscale.ts`, en **fan-out `?job=linkscale`** du cron de 23h05,
+après X (aucun slot cron) ; J-2 et J-1 à Paris, un appel stats par jour (`dailyTraffic` revient
+vide). Remplissage : `pnpm --filter @glagency/ingestion linkscale <début> <fin>` (historique
+disponible au moins depuis mai 2026). Écrit `mkt_ls_links` (un lien LinkScale = une ligne) et
+`mkt_ls_daily` (visiteurs humains uniques, bots, clics de boutons vers mym.fans ; `null` pour une
+redirection directe). **L'attribution se déduit** de la note et du dossier tapés par l'équipe :
+dossier = modèle, `TW <opérateur> [modèle]`, `IN <pseudo Instagram>`, destination Snapchat ; un lien
+corrigé à la main (`manual`) n'est plus touché. `TW JADE` = l'opérateur JADE, jamais la modèle Jade.
+**Pas de CA ni d'abonnés sur la page Trafic** (décision Benoit, 2026-10-01) : LinkScale ne les
+expose pas par API, MyPuls reste la source, et le raccord lien MYM → lien de tracking MyPuls est
+abandonné.
+Page **Marketing › Trafic** (`/marketing/trafic`, droit `mkt-trafic`) : période et période
+précédente de même durée ; signaux « À regarder » calculés par `trafficFlags` (core) — le taux de
+référence d'un lien est celui de son réseau s'il compte au moins deux liens à boutons, sinon le
+taux global.
+
 ### Agence
 
 Route `/chatter/agence`, tables `agency_*` de `0175`, spec `docs/superpowers/specs/2026-09-25-agence-calendrier-notifications-design.md`. Calendrier des événements de l'agence. **Écriture ADMIN** (service-role après la garde `requireAdminProfileLive`, aucune policy d'écriture), **lecture pour tous** — l'item de nav porte `everyone: true` (visible sans case à cocher, jamais page d'atterrissage). Un événement = nom + jour ou période + rappel jour J optionnel + `audience` (rôles visés, tous par défaut ; RLS de lecture par rôle, admins = tout). **La cloche** de la barre du haut est CALCULÉE À LA VOLÉE (RPC `agency_notifications`, `security invoker`) depuis `agency_notification_seen.seen_at` : pas de ligne par personne, pas de robot. Donnée initiale lue par le layout, puis **rafraîchie côté navigateur** (client Supabase, RLS) à chaque changement de page et à l'ouverture — le layout `(dash)` ne se ré-exécute PAS en navigation. L'ouverture marque vu **jusqu'à la nouveauté la plus récente affichée** (`markNotificationsSeen({ seenUpTo })`, jamais en arrière, comparée par Postgres à la microseconde — un aller-retour par `Date` JS la tronquait et bloquait la pastille). Rappel = 00:00 heure de Paris du 1er jour. En « en tant que », ouvrir la cloche n'écrit rien. Le non-lu s'affiche aussi en **pastille sur l'onglet Agence**, lue en direct dans `lib/notifications/unread-store.ts` (la cloche est seule à écrire) ; arriver sur la page Agence vaut ouverture de la cloche. Sous la grille, la liste **À venir** (aujourd'hui / prochainement) / **Passé** (onglets `?vue=`) ; une seule lecture (`getAgencyEvents`, `fetchAll`) sert les deux. **Couleurs et photos** (`0176`, 2026-09-28) : couleur = palette FERMÉE des 8 teintes de `lib/mkt-groups.ts`, recopiée dans le `check` SQL (`null` = gris) ; **légende** = le nom de chaque couleur (`agency_legend`, réglée par l'admin, lisible par tous). Photo dans le bucket Storage **PRIVÉ** `agency-events`, **5 Mo max, JPEG / PNG / WebP** (limites posées sur le bucket ET revérifiées par `createImageUpload` ; pas de SVG, il peut porter du script), clé `<uuid>.<ext>` tirée par le serveur. Envoi direct navigateur → Storage par URL signée d'upload (jamais par le corps d'une Server Action, plafonné par Vercel) ; lecture par URLs signées **1 h** (une URL servie survit à un « Visible par » resserré jusqu'à expiration — fenêtre courte à dessein) générées en service-role **pour les seuls événements que la RLS rend** — une photo suit « Visible par ». Aucune policy sur `storage.objects`. Photo remplacée ou événement supprimé → l'objet part ; une fenêtre qui n'a pas touché à la photo n'envoie PAS `imagePath` (`undefined`) et le serveur ne l'écrit pas — sinon un onglet périmé réécrivait l'ancienne clé et effaçait la nouvelle ; une photo envoyée dont l'enregistrement échoue reste orpheline (assumé). Clic sur un événement : l'édition chez l'admin, la **fiche en lecture** (`EventView`) chez les autres.

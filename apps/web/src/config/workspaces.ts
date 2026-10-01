@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Send,
   Link2,
+  MousePointerClick,
   ChartColumn,
   CalendarOff,
   CalendarCheck,
@@ -230,6 +231,9 @@ export const WORKSPACES: Workspace[] = [
     nav: [
       { href: '/marketing/overview', label: 'Overview', icon: LayoutDashboard, slug: 'mkt-overview' },
       { href: '/marketing/liens', label: 'Liens tracking', icon: Link2, slug: 'mkt-liens', group: 'reseaux' },
+      // Trafic des liens de bio LinkScale : d'où viennent les visiteurs, par profil, modèle et
+      // réseau, et quels profils décrochent (docs/superpowers/specs/2026-09-30-trafic-linkscale-design.md).
+      { href: '/marketing/trafic', label: 'Trafic', icon: MousePointerClick, slug: 'mkt-trafic', group: 'reseaux' },
       // Ce que les liens rapportent, RAMENÉ au CA et aux abonnés de chaque modèle — le pôle
       // sait ce que ses liens gagnent, pas ce que ça pèse. Le CA total passe par la RPC 0152.
       { href: '/marketing/modeles', label: 'Modèles', icon: UsersRound, slug: 'mkt-modeles', group: 'reseaux' },
@@ -323,7 +327,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'sources-trafic', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'sources-trafic', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-trafic', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

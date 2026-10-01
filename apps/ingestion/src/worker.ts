@@ -7,6 +7,7 @@ import { runMarketing } from './marketing'
 import { runMarketingSocial } from './marketing-social'
 import { runMarketingTelegram } from './marketing-telegram'
 import { runMarketingX } from './marketing-x'
+import { runMarketingLinkscale } from './marketing-linkscale'
 import { generateWeeklyInsights } from './insights'
 import {
   chatterResolver,
@@ -272,7 +273,7 @@ const MONITOR_CONFIG = {
 
 /** Run marketing (liens ou social) + log + trace ingest_runs + warning Sentry si dégradé. */
 async function runJobAndLog<T extends { status: string; warnings: string[] }>(
-  job: 'marketing' | 'marketing-social' | 'marketing-telegram' | 'marketing-x',
+  job: 'marketing' | 'marketing-social' | 'marketing-telegram' | 'marketing-x' | 'marketing-linkscale',
   run: () => Promise<T>,
   triggeredBy: IngestTrigger,
 ): Promise<T> {
@@ -489,6 +490,18 @@ const handler = {
       Sentry.captureException(err)
     }
 
+    // ── Fan-out LinkScale (trafic des liens de bio) — même mécanique, aucun slot cron. Sans
+    // LINKSCALE_API_KEY le job ne fait rien et le signale (run dégradé).
+    try {
+      const { SELF: self, WORKER_SELF_URL: selfUrl, TRIGGER_TOKEN: token } = env
+      if (self && selfUrl && token) {
+        const r = await self.fetch(`${selfUrl}?job=linkscale`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!r.ok) Sentry.captureMessage(`[marketing-linkscale] fan-out KO (HTTP ${r.status})`, 'warning')
+      }
+    } catch (err) {
+      Sentry.captureException(err)
+    }
+
     if (chatterErr) throw chatterErr
   },
 
@@ -535,6 +548,16 @@ const handler = {
       } catch (err) {
         Sentry.captureException(err)
         return new Response(`échec x : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
+      }
+    }
+    // `?job=linkscale` : trafic LinkScale de J-2 et J-1 (idempotent).
+    if (url.searchParams.get('job') === 'linkscale') {
+      try {
+        const summary = await runJobAndLog('marketing-linkscale', runMarketingLinkscale, 'http')
+        return Response.json(summary)
+      } catch (err) {
+        Sentry.captureException(err)
+        return new Response(`échec linkscale : ${err instanceof Error ? err.message : String(err)}\n`, { status: 500 })
       }
     }
     // `?job=social` : déclenche le scrape Instagram seul (idempotent).

@@ -32,6 +32,44 @@ export type {
   XProfileSnapshot,
   XUser,
 } from './marketing/x-profile'
+export {
+  LS_PLATFORMS,
+  LS_PLATFORM_LABEL,
+  attributeLink,
+  foldName,
+  kindOf,
+  mymClicksOf,
+  parseLinkscaleDay,
+  planLinkscaleWrite,
+  splitNote,
+} from './marketing/linkscale'
+export type {
+  LsAccountRef,
+  LsAttribution,
+  LsCreatorRef,
+  LsDailyWrite,
+  LsDayLine,
+  LsKind,
+  LsKnownLink,
+  LsLinkFacts,
+  LsLinkWrite,
+  LsListedLink,
+  LsPlanInput,
+  LsPlatform,
+  LsTrafficRow,
+} from './marketing/linkscale'
+export {
+  LS_FLAGS,
+  LS_FLAG_LABEL,
+  LS_THRESHOLDS,
+  addDaily,
+  botShare,
+  clickRate,
+  emptyTotals,
+  sumTotals,
+  trafficFlags,
+} from './marketing/linkscale-flags'
+export type { LsFlag, LsTotals } from './marketing/linkscale-flags'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
 export { runRules } from './insights/engine'
