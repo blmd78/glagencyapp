@@ -63,7 +63,7 @@
 | Package | À quoi il sert | Dossier | Données | Doc |
 | --- | --- | --- | --- | --- |
 | core | Logique métier partagée, pure (types domaine, règles d'assignation/impersonation, matching des groupes de liens marketing, moteur d'insights/quotas, résumé d'ingestion) — aucun accès DB, consommé par `apps/web` et `apps/ingestion` | `packages/core/` | aucune (pure logique) | — |
-| db | Accès Supabase service-role (`createAdminClient`), types `Database` générés, chiffrement des tokens, `fetchAll` (pagination) — consommé par `apps/ingestion` (le web garde son client SSR propre) | `packages/db/` | aucune table propre (fournit l'accès) | — |
+| db | Accès Supabase service-role (`createAdminClient`), types `Database` générés, chiffrement des tokens, `fetchAll` (pagination) — consommé par `apps/ingestion` et, côté web, pour `createAdminClient` / `encryptToken` (le web garde son propre client SSR cookie-bound : `src/lib/supabase/server.ts`) | `packages/db/` | aucune table propre (fournit l'accès) | — |
 | mypuls | Client HTTP + parseurs pour la plateforme MyPuls (login, team money, dashboard, chat, scripts, shifts) — consommé par `apps/ingestion` | `packages/mypuls/` | aucune (scrape HTTP) | — |
 | uncove | Client HTTP + parseurs pour la plateforme Uncove (wallet, abonnés, transactions) — consommé par `apps/ingestion` | `packages/uncove/` | aucune (scrape HTTP) | `docs/superpowers/specs/2026-09-21-uncove-analytics-design.md` |
 
@@ -83,7 +83,7 @@ Hors contrôle (`check-carte.mjs` ne couvre que les racines Web et Packages ci-d
 | `pnpm insights` | Génère les cartes Analyses hebdo sans passer par le Worker | `src/gen-insights.ts` → `insights.ts` | tables `chatter_creator_daily`, `chatter_daily`, `chatters`, `creators`, `insights`, `mypuls_shift_runs`, `quotas` ; rpc `mypuls_presence_by_chatter` | — |
 | `pnpm uncove [jours]` | Relevé Uncove (Subs + CA), fenêtre glissante par défaut 35 j (mêmes briques que le cron `0 5`) | `src/uncove.ts` → `uncove-core.ts` | tables `uncove_account_tokens`, `uncove_accounts`, `uncove_daily` | `docs/superpowers/specs/2026-09-21-uncove-analytics-design.md` |
 | `pnpm x` | Relevé des comptes X (Twitter) par l'API officielle — mêmes briques que le fan-out `?job=x` du cron `5 23` ; coûte 0,010 $ par compte | `src/x.ts` → `marketing-x.ts` | tables `mkt_social_accounts`, `mkt_social_daily` ; rpc `mkt_social_prev_snapshot` | `docs/superpowers/specs/2026-09-28-comptes-x-design.md` |
-| cron `5 23 * * *` | Run principal : pipeline chatteurs + fan-out marketing (liens de tracking, puis comptes X) — 3 crons actifs/5 (plafond Free par compte) | `src/worker.ts` → `pipeline.ts` | mêmes tables que `pnpm start` | — |
+| cron `5 23 * * *` | Run principal : pipeline chatteurs + fan-out marketing (liens de tracking, puis comptes X) — 4 crons actifs/5 (plafond Free par compte, `wrangler.toml:45`) | `src/worker.ts` → `pipeline.ts` | mêmes tables que `pnpm start` | — |
 | cron `0 0 * * *` | Scrape spenders, fan-out 1 requête self par modèle (budget CPU/sous-requêtes Free) | `src/worker.ts` → `spenders-core.ts` | mêmes tables que `pnpm spenders` | — |
 | cron `30 4 * * *` | Contrôle des shifts MyPuls, deux jours par run | `src/worker.ts` → `shifts-core.ts` | mêmes tables que `pnpm shifts` | `docs/superpowers/specs/2026-09-01-releve-mypuls-design.md` |
 | cron `0 5 * * *` | Relevé Uncove (Subs + CA par compte actif) | `src/worker.ts` → `uncove-core.ts` | mêmes tables que `pnpm uncove` | `docs/superpowers/specs/2026-09-21-uncove-analytics-design.md` |

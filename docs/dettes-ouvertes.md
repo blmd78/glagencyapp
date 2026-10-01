@@ -12,16 +12,20 @@ l'écran s'affiche, simplement amputé ; un admin ne le voit jamais (scope `null
 préféré décloisonner le Suivi chatters plutôt que réparer les données. Réparations possibles :
 rattacher les `chatters` orphelines depuis `/chatter/presence/reglages`, ou écrire des lignes
 `chatter_creators` à la main. **Volet Insights corrigé le 2026-09-24** (`0173`, équipe + quotas
-de base automatiques par trigger, cf. AGENTS.md « Équipes et quotas ») — le volet Relevé
+de base automatiques par trigger, cf. `ARCHITECTURE.md` § « Équipes et quotas ») — le volet Relevé
 d'équipe, lui, reste ouvert.
 
 **2. Flux Membres : les erreurs GoTrue sortent en « Erreur inattendue »** (audit du
-2026-07-19, 12 findings confirmés, **aucun fix appliqué**). Cause du ticket d'origine :
-`createMember` jette `email_exists` telle quelle au lieu d'une `BusinessError` → `runAction`
-la classe technique. Un manager qui recrée un membre existant lit un message générique. Les
-autres findings : compensation absente après `createUser`, `deleteUser` best-effort ignoré,
-SELECT pages ignoré dans `updateMember`, detach post-démotion non rejouable, erreurs DB
-déguisées en « Profil introuvable ».
+2026-07-19, 12 findings confirmés ; **résolue en partie le 2026-07-20**). Cause du ticket
+d'origine **corrigée** : `createMember` lève une `BusinessError` (avec `fieldErrors`) sur
+`error.code === 'email_exists'` (`apps/web/src/features/members/actions.ts:106-110`, commit
+`405d2f6e`) ; les autres échecs de `createUser` restent techniques, voulu. **Restent ouverts**
+(relus dans le code le 2026-10-01) : compensation limitée au patch du profil
+(`actions.ts:159-165` — ni le lien chatteur, ni le rôle, ni `syncAssignments` n'en ont) et
+`deleteUser` best-effort au résultat ignoré (`actions.ts:163`) ; SELECT de la cible ignoré dans
+`requireEditableTarget` (`authz.ts:157`), d'où une erreur DB déguisée en « Profil introuvable »
+(`authz.ts:158`) ; detach post-démotion non rejouable (`actions.ts:298-318` : le rôle est déjà
+écrit à la première tentative, une relance ne repasse plus dans ce bloc).
 
 **3. Essais à vie ⇄ classement hebdo : conflit non tranché.** Le plafond de 3 essais par
 exercice (Release 2.53, `0161`) compte **à vie**, alors que `training_weekly_ranking` somme
@@ -54,11 +58,11 @@ Benoit se plaint de lenteur sur une grosse table. Hors scope définitif : les da
 agrégés, qui rendent déjà un petit JSON.
 
 **8. Le même piège de « jour civil » vit encore ailleurs** que la To-Do (corrigée par
-`serviceDayParis()`, cf. `AGENTS.md`) : comptes rendus du jour des chatters
+`serviceDayParis()`, défini dans `packages/core/src/tracking/shifts.ts:89`) : comptes rendus du jour des chatters
 (`features/reports/actions.ts`), défaut de date du Rapport du soir Police, défaut du bilan
 1:1, et le dénominateur « attendu » du Récap qui compte le jour civil dès 00:00. À proposer
 seulement si quelqu'un remonte le symptôme.
 
 **9. 10 chatteurs ont des stats mais sont absents du relevé MyPuls** (2026-09-24) : leur présence
   Insights affiche « — » (pas de verdict). Rattachement à faire dans Relevé d'équipe › Réglages
-  (gens à rattacher). Calibrage de la présence, lui, tranché : idle 10 min, cf. `AGENTS.md`.
+  (gens à rattacher). Calibrage de la présence, lui, tranché : idle 10 min, cf. `ARCHITECTURE.md` § 10 (« Présence des Insights »).
