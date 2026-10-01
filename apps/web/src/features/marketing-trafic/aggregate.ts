@@ -45,9 +45,12 @@ export interface TraficInput {
 
 const deltaPct = (cur: number, prev: number) => (prev > 0 ? Math.round(((cur - prev) / prev) * 100) : null)
 
-/** Lignes signalées d'abord, puis par visiteurs. */
-const byAttention = (a: TraficRow, b: TraficRow) =>
-  Number(b.flags.length > 0) - Number(a.flags.length > 0) || b.cur.visitors - a.cur.visitors
+/**
+ * Par visiteurs de la période, puis par visiteurs de la précédente : les lignes qui ont du trafic
+ * d'abord, les éteintes en bas, de la plus grosse perte à la plus petite. (« Signalées d'abord »
+ * faisait remonter des pages entières d'anciens liens éteints, à 0, devant les profils actifs.)
+ */
+const byTraffic = (a: TraficRow, b: TraficRow) => b.cur.visitors - a.cur.visitors || b.prev.visitors - a.prev.visitors
 
 function finish(base: Omit<TraficRow, 'rate' | 'botShare' | 'deltaPct' | 'flags'>, referenceRate: number | null): TraficRow {
   return {
@@ -139,7 +142,7 @@ export function buildTrafic(input: TraficInput): TraficData {
         networkRate.get(l.platform) ?? globalRate,
       ),
     )
-    .sort(byAttention)
+    .sort(byTraffic)
 
   const group = (
     keyOf: (l: TraficLinkInput) => string,
@@ -166,7 +169,7 @@ export function buildTrafic(input: TraficInput): TraficData {
           rateOf(platform),
         )
       })
-      .sort(byAttention)
+      .sort(byTraffic)
   }
 
   return {

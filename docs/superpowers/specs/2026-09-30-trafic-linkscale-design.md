@@ -8,10 +8,9 @@ dans le CRM, pouvoir lier avec un lien. Checker Linkscale pour une intégration 
 le trafic va, pourquoi, et corriger là où ça ne va pas ». Les choix de conception lui ont été
 délégués (« fais ce que tu voulais de base »).
 
-Découpage :
-- **V1 (cette spec)** : la partie Trafic. D'où vient le trafic, par modèle, réseau et profil, et
-  quels profils décrochent.
-- **V2 (spec à venir)** : le raccord MyPuls (lien MYM → abonnés → CA). Voir « Hors périmètre ».
+Périmètre : la partie Trafic. D'où vient le trafic, par modèle, réseau et profil, et quels
+profils décrochent. **Pas de CA ni d'abonnés sur cette page** (décision Benoit, 2026-10-01) : le
+raccord avec MyPuls, un temps envisagé en « V2 », est abandonné.
 
 ## Ce qui existe (mesuré le 2026-09-30)
 
@@ -77,7 +76,7 @@ Découpage :
    `0169`). Une ligne corrigée à la main (`manual = true`) n'est plus jamais touchée par l'ingestion.
 4. **Aucune écriture dans LinkScale** : la clé est en lecture seule. Le CRM signale, et l'équipe
    corrige dans LinkScale ou sur le compte.
-5. **MyPuls reste la seule source du CA.** V1 n'affiche ni abonnés ni CA.
+5. **MyPuls reste la seule source du CA.** La page Trafic n'affiche ni abonnés ni CA.
 
 ## PR 1 — le relevé
 
@@ -160,7 +159,9 @@ Découpage :
   - regroupable par **modèle**, **réseau** ou **profil** (compte Instagram, opérateur X, ou note) ;
   - colonnes : visiteurs, évolution, clics MYM, taux, % bots, **À regarder** (raisons de
     `trafficFlags`) ;
-  - tri par défaut : lignes signalées d'abord, puis par visiteurs.
+  - tri par défaut : visiteurs de la période, puis de la précédente — les lignes actives d'abord,
+    les éteintes en bas (« signalées d'abord » remontait des pages d'anciens liens à 0, retour de
+    Benoit 2026-10-01).
   - onglets **Profils** (regroupés), **Modèles**, **Réseaux**, et **Liens** (une ligne par lien
     LinkScale, la seule vue où l'on corrige).
 - **Correction** : une fenêtre sur la ligne d'un lien permet de choisir la modèle, le réseau, le
@@ -170,10 +171,9 @@ Découpage :
 
 ## Hors périmètre
 
-- **V2, raccord MyPuls.** Rattacher chaque lien MYM (`hash`) à son lien de tracking MyPuls pour
-  suivre visiteurs → clics MYM → abonnés → CA. Seuls 11 liens sur 58 se rattachent tout seuls.
-  Préalable : trouver une page MyPuls qui donne l'URL de chaque lien de tracking (à capturer),
-  sans quoi l'association serait impossible, même à la main.
+- **Le raccord MyPuls** (lien MYM → lien de tracking MyPuls → abonnés → CA) : abandonné, la page
+  Trafic n'a pas besoin du CA (décision Benoit, 2026-10-01). Pour mémoire, seuls 11 liens MYM sur
+  58 se rattachaient tout seuls, MyPuls ne donnant pas l'URL de ses liens.
 - Les comptes sociaux vus par LinkScale (un seul compte X y est suivi).
 - Toute écriture dans LinkScale, et les notifications.
 

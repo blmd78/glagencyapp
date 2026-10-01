@@ -9,8 +9,13 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Sortable } from '@/components/data-table/sortable'
 import { KpiGrid, type Kpi } from '@/components/kpi-card'
 import { num } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { STATUS_COLORS } from '@/lib/status-color'
+import { modelColor } from '@/lib/model-color'
 import { todayLocal } from '@/lib/dates-client'
 import { TraficChart } from './trafic-chart.client'
+import { TONE_TEXT, botTone, deltaTone, flagTone, platformBadge, type TraficTone } from '../tones'
+import type { LsPlatform } from '@glagency/core'
 import type { TraficData, TraficRow, TraficTab } from '../types'
 
 const rate2 = (v: number | null) =>
@@ -38,15 +43,48 @@ function kpi(
   }
 }
 
-/** Colonne chiffrée triable, alignée à droite. */
-function numCol(id: string, label: string, value: (r: TraficRow) => number, show: (r: TraficRow) => string): ColumnDef<TraficRow> {
+/** Colonne chiffrée triable, alignée à droite ; `tone` colore le chiffre (hausse, baisse, alerte). */
+function numCol(
+  id: string,
+  label: string,
+  value: (r: TraficRow) => number,
+  show: (r: TraficRow) => string,
+  tone?: (r: TraficRow) => TraficTone | null,
+): ColumnDef<TraficRow> {
   return {
     id,
     accessorFn: value,
     header: ({ column }) => <Sortable column={column} label={label} className="justify-end" />,
-    cell: ({ row }) => <span className="tabular-nums">{show(row.original)}</span>,
+    cell: ({ row }) => {
+      const t = tone?.(row.original)
+      return <span className={cn('tabular-nums', t && TONE_TEXT[t])}>{show(row.original)}</span>
+    },
     meta: { align: 'right' },
   }
+}
+
+/** Modèle et réseau en badges, aux couleurs du reste du marketing (Liens tracking). */
+const ModelBadge = ({ name }: { name: string | null }) =>
+  name ? <Badge className={modelColor(name)}>{name}</Badge> : <span className="text-muted-foreground">Non attribuée</span>
+const PlatformBadge = ({ platform }: { platform: LsPlatform | null }) =>
+  platform ? <Badge className={platformBadge(platform)}>{LS_PLATFORM_LABEL[platform]}</Badge> : null
+
+/** Le libellé d'une ligne : badge pour une modèle ou un réseau, texte pour un profil ou un lien. */
+function LabelCell({ row, tab }: { row: TraficRow; tab: TraficTab }) {
+  const label =
+    tab === 'modeles' ? (
+      <ModelBadge name={row.key === 'none' ? null : row.label} />
+    ) : tab === 'reseaux' ? (
+      <PlatformBadge platform={row.platform} />
+    ) : (
+      <span className="font-medium">{row.label}</span>
+    )
+  return (
+    <div className="min-w-0">
+      {label}
+      {row.sub && <span className="block truncate text-xs text-muted-foreground">{row.sub}</span>}
+    </div>
+  )
 }
 
 export function makeColumns(tab: TraficTab, edit: ((r: TraficRow) => ReactNode) | null): ColumnDef<TraficRow>[] {
@@ -54,12 +92,7 @@ export function makeColumns(tab: TraficTab, edit: ((r: TraficRow) => ReactNode) 
     {
       accessorKey: 'label',
       header: { profils: 'Profil', modeles: 'Modèle', reseaux: 'Réseau', liens: 'Lien' }[tab],
-      cell: ({ row }) => (
-        <div className="min-w-0">
-          <span className="font-medium">{row.original.label}</span>
-          {row.original.sub && <span className="block truncate text-xs text-muted-foreground">{row.original.sub}</span>}
-        </div>
-      ),
+      cell: ({ row }) => <LabelCell row={row.original} tab={tab} />,
     },
   ]
   if (tab === 'liens') {
@@ -67,7 +100,7 @@ export function makeColumns(tab: TraficTab, edit: ((r: TraficRow) => ReactNode) 
       id: 'modele',
       accessorFn: (r) => r.creatorName ?? '',
       header: ({ column }) => <Sortable column={column} label="Modèle" />,
-      cell: ({ row }) => row.original.creatorName ?? <span className="text-muted-foreground">Non attribuée</span>,
+      cell: ({ row }) => <ModelBadge name={row.original.creatorName} />,
     })
   }
   if (tab === 'liens' || tab === 'profils') {
@@ -75,21 +108,22 @@ export function makeColumns(tab: TraficTab, edit: ((r: TraficRow) => ReactNode) 
       id: 'reseau',
       accessorFn: (r) => (r.platform ? LS_PLATFORM_LABEL[r.platform] : ''),
       header: 'Réseau',
+      cell: ({ row }) => <PlatformBadge platform={row.original.platform} />,
     })
   }
   cols.push(
     numCol('visitors', 'Visiteurs', (r) => r.cur.visitors, (r) => num(r.cur.visitors)),
-    numCol('delta', 'Évol.', (r) => r.deltaPct ?? Number.NEGATIVE_INFINITY, (r) => signedPct(r.deltaPct)),
+    numCol('delta', 'Évol.', (r) => r.deltaPct ?? Number.NEGATIVE_INFINITY, (r) => signedPct(r.deltaPct), (r) => deltaTone(r.deltaPct)),
     numCol('mym', 'Clics MYM', (r) => r.cur.mymClicks ?? -1, (r) => (r.cur.mymClicks == null ? '—' : num(r.cur.mymClicks))),
     numCol('rate', 'Clics / visiteur', (r) => r.rate ?? -1, (r) => rate2(r.rate)),
-    numCol('bots', '% bots', (r) => r.botShare ?? -1, (r) => pct(r.botShare)),
+    numCol('bots', '% bots', (r) => r.botShare ?? -1, (r) => pct(r.botShare), (r) => botTone(r.botShare)),
     {
       id: 'flags',
       header: 'À regarder',
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.flags.map((f) => (
-            <Badge key={f} variant="outline">
+            <Badge key={f} className={STATUS_COLORS[flagTone(f)]}>
               {LS_FLAG_LABEL[f]}
             </Badge>
           ))}

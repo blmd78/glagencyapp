@@ -71,7 +71,7 @@ describe('buildTrafic', () => {
     expect(flags.snap).toEqual([])
   })
 
-  it('les lignes signalées passent devant', () => {
+  it('trie par visiteurs de la période, les plus fréquentées d’abord', () => {
     expect(data.links.at(-1)!.key).toBe('snap')
   })
 
@@ -178,5 +178,29 @@ describe('buildTrafic — profils', () => {
     expect(ara.cur.visitors).toBe(25)
     expect(r.profiles.map((p) => p.label).sort()).toEqual(['@Julietardifff', 'ARA', 'Carla'])
     expect(r.links).toHaveLength(4)
+  })
+})
+
+describe('buildTrafic — tri', () => {
+  it('les lignes avec du trafic passent devant ; les éteintes finissent en bas, par trafic perdu', () => {
+    const r = buildTrafic({
+      period,
+      dataTo: '2026-09-28',
+      creators,
+      accounts,
+      links: [
+        link({ id: 'off-small', platform: 'x', operator: 'OFF1' }),
+        link({ id: 'off-big', platform: 'x', operator: 'OFF2' }),
+        link({ id: 'live', platform: 'x', operator: 'LIVE' }),
+      ],
+      daily: [
+        day('off-small', '2026-09-05', 15, 5), // période précédente seulement → « Éteint »
+        day('off-big', '2026-09-05', 90, 40), // idem, plus gros trafic perdu
+        day('live', '2026-09-05', 10, 5),
+        day('live', '2026-09-20', 10, 5),
+      ],
+    })
+    expect(r.links.map((l) => l.key)).toEqual(['live', 'off-big', 'off-small'])
+    expect(r.links[1]!.flags).toEqual(['eteint'])
   })
 })

@@ -459,8 +459,9 @@ disponible au moins depuis mai 2026). Écrit `mkt_ls_links` (un lien LinkScale =
 redirection directe). **L'attribution se déduit** de la note et du dossier tapés par l'équipe :
 dossier = modèle, `TW <opérateur> [modèle]`, `IN <pseudo Instagram>`, destination Snapchat ; un lien
 corrigé à la main (`manual`) n'est plus touché. `TW JADE` = l'opérateur JADE, jamais la modèle Jade.
-**Pas de CA** : LinkScale ne l'expose pas par API et MyPuls reste la source ; le raccord lien MYM →
-lien de tracking MyPuls (V2) attend une page MyPuls qui donne l'URL de chaque lien.
+**Pas de CA ni d'abonnés sur la page Trafic** (décision Benoit, 2026-10-01) : LinkScale ne les
+expose pas par API, MyPuls reste la source, et le raccord lien MYM → lien de tracking MyPuls est
+abandonné.
 Page **Marketing › Trafic** (`/marketing/trafic`, droit `mkt-trafic`) : période et période
 précédente de même durée ; signaux « À regarder » calculés par `trafficFlags` (core) — le taux de
 référence d'un lien est celui de son réseau s'il compte au moins deux liens à boutons, sinon le
