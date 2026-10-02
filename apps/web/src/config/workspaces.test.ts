@@ -332,3 +332,23 @@ describe('Agence — visible par tous, au-dessus de Membres', () => {
     expect(landingHref({ role: 'chatteur', superadmin: false, manager: false, pages: [] })).not.toBe('/chatter/agence')
   })
 })
+
+describe('face Chatteurs — Emploi du temps ; Scripts et Suivi chatters archivés (2026-10-02)', () => {
+  const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
+  const hrefs = () => chatter.nav.map((n) => n.href)
+
+  it('« Planning / Todo » devient « Emploi du temps »', () => {
+    expect(chatter.nav.find((n) => n.href === '/chatter/planning')!.label).toBe('Emploi du temps')
+  })
+
+  it('Scripts et Suivi chatters sortent du menu, leurs slugs restent valides', () => {
+    expect(hrefs()).not.toContain('/chatter/scripts')
+    expect(hrefs()).not.toContain('/chatter/presence/suivi')
+    expect(PAGE_SLUGS).toContain('scripts')
+    expect(PAGE_SLUGS).toContain('presence')
+  })
+
+  it('la To-Do de Présence reste au menu', () => {
+    expect(hrefs()).toContain('/chatter/presence/todo')
+  })
+})

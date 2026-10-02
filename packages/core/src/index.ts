@@ -273,3 +273,7 @@ export type {
 } from './mypuls-shifts/vacations'
 export { dayKpi } from './mypuls-shifts/kpi'
 export type { MypulsDayKpi, MypulsCoverageRow } from './mypuls-shifts/kpi'
+
+// Photos des modèles (spec 2026-10-02, partie A) — script `pnpm --filter @glagency/ingestion avatars`.
+export { AVATAR_EXT, AVATAR_MAX_BYTES, avatarOutcome, avatarTargets, sniffImageType } from './media/avatar'
+export type { AvatarCreator, AvatarOutcome, ImageMime } from './media/avatar'

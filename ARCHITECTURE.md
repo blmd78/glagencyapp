@@ -183,16 +183,13 @@ Règles métier par domaine, déplacées mot pour mot depuis l'ancien `AGENTS.md
 
 La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « en formation ») n'a pas de sous-section ici : dans l'AGENTS.md d'origine, elle vivait dans le même bloc que la puce « 3 faces du CRM » (aucune séparation par ligne vide) — déplacée telle quelle, donc entière, en § 2 « Les 3 faces du CRM ».
 
-### To-do personnelle
+### To-do personnelle — supprimée
 
-- **To-do personnelle** : 2e onglet de `/chatter/planning` (`?vue=todo`), une liste par
-  encadrant (`todos`, RLS `can_write_todo_of`, migrations `0067`/`0068`). Chacun gère la
-  sienne ; la hiérarchie peut y déposer une tâche (mêmes règles que le planning). Aucun slug
-  dédié : le droit vient de « Planning ». **Une seule vue exposée** : liste en sections
-  repliables par statut (badge de statut cliquable, priorité en icône, ajout rapide par
-  section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
-  (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
-  (`created_by` null → « Claude »).
+- **Supprimée le 2026-10-02** (décision Benoit) : l'ancien onglet To-do de « Planning / Todo »
+  (`?vue=todo`, table `todos`) n'avait plus d'usage depuis le 2026-09-01. Code retiré
+  (`features/todos`), table et fonctions supprimées par `0182` (en attente dans `packages/db/supabase/pending/`, hors de portée de `db push` jusqu'à la mise en prod du code). La page s'appelle désormais
+  **Emploi du temps** (planning seul). La to-do d'équipe, elle, vit dans Présence › To-Do
+  (§ To-Do du tracker).
 
 ### Suivi chatters
 
@@ -470,3 +467,5 @@ taux global.
 ### Agence
 
 Route `/chatter/agence`, tables `agency_*` de `0175`, spec `docs/superpowers/specs/2026-09-25-agence-calendrier-notifications-design.md`. Calendrier des événements de l'agence. **Écriture ADMIN** (service-role après la garde `requireAdminProfileLive`, aucune policy d'écriture), **lecture pour tous** — l'item de nav porte `everyone: true` (visible sans case à cocher, jamais page d'atterrissage). Un événement = nom + jour ou période + rappel jour J optionnel + `audience` (rôles visés, tous par défaut ; RLS de lecture par rôle, admins = tout). **La cloche** de la barre du haut est CALCULÉE À LA VOLÉE (RPC `agency_notifications`, `security invoker`) depuis `agency_notification_seen.seen_at` : pas de ligne par personne, pas de robot. Donnée initiale lue par le layout, puis **rafraîchie côté navigateur** (client Supabase, RLS) à chaque changement de page et à l'ouverture — le layout `(dash)` ne se ré-exécute PAS en navigation. L'ouverture marque vu **jusqu'à la nouveauté la plus récente affichée** (`markNotificationsSeen({ seenUpTo })`, jamais en arrière, comparée par Postgres à la microseconde — un aller-retour par `Date` JS la tronquait et bloquait la pastille). Rappel = 00:00 heure de Paris du 1er jour. En « en tant que », ouvrir la cloche n'écrit rien. Le non-lu s'affiche aussi en **pastille sur l'onglet Agence**, lue en direct dans `lib/notifications/unread-store.ts` (la cloche est seule à écrire) ; arriver sur la page Agence vaut ouverture de la cloche. Sous la grille, la liste **À venir** (aujourd'hui / prochainement) / **Passé** (onglets `?vue=`) ; une seule lecture (`getAgencyEvents`, `fetchAll`) sert les deux. **Couleurs et photos** (`0176`, 2026-09-28) : couleur = palette FERMÉE des 8 teintes de `lib/mkt-groups.ts`, recopiée dans le `check` SQL (`null` = gris) ; **légende** = le nom de chaque couleur (`agency_legend`, réglée par l'admin, lisible par tous). Photo dans le bucket Storage **PRIVÉ** `agency-events`, **5 Mo max, JPEG / PNG / WebP** (limites posées sur le bucket ET revérifiées par `createImageUpload` ; pas de SVG, il peut porter du script), clé `<uuid>.<ext>` tirée par le serveur. Envoi direct navigateur → Storage par URL signée d'upload (jamais par le corps d'une Server Action, plafonné par Vercel) ; lecture par URLs signées **1 h** (une URL servie survit à un « Visible par » resserré jusqu'à expiration — fenêtre courte à dessein) générées en service-role **pour les seuls événements que la RLS rend** — une photo suit « Visible par ». Aucune policy sur `storage.objects`. Photo remplacée ou événement supprimé → l'objet part ; une fenêtre qui n'a pas touché à la photo n'envoie PAS `imagePath` (`undefined`) et le serveur ne l'écrit pas — sinon un onglet périmé réécrivait l'ancienne clé et effaçait la nouvelle ; une photo envoyée dont l'enregistrement échoue reste orpheline (assumé). Clic sur un événement : l'édition chez l'admin, la **fiche en lecture** (`EventView`) chez les autres.
+
+**Type et modèle** (2026-10-02, `0181`, spec `docs/superpowers/specs/2026-10-02-photos-modeles-agence-design.md`) : un événement porte un `kind` libre (40 car.) et un `creator_id`, tous deux facultatifs. La fenêtre compose le nom « TYPE MODÈLE » tant qu'il n'a pas été retouché ; le nom reste la vérité affichée et notifiée. L'**avatar rond** de la modèle (photo MyPuls 100 × 100 de `creators.avatar_path`, bucket privé `creator-avatars`, `0180`, rempli par `pnpm --filter @glagency/ingestion avatars`) s'affiche à côté du nom — carte, barre du calendrier, fiche — sans remplacer la grande photo importée. Nom et avatar sont lus en service-role pour les seuls événements que la RLS rend (une modèle n'est pas toujours lisible par un chatteur visé).
