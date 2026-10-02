@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.70] — 2026-10-02
+
 ### Ajouté
 
 - Agence : un type (texte libre) et une modèle par événement. Le nom se compose tout seul (« CAROUSEL ALICE ») et la photo de la modèle s'affiche en petit rond à côté (liste, calendrier, fiche) ; une photo importée garde sa grande place. Les événements existants sont repris d'après leur nom.
