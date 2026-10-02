@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { formatEventDates, type AgencyEvent } from '../month-layout'
 import type { Legend } from '../schema'
 import { ColorDot } from './legend'
+import { ModelAvatar } from './model-avatar'
 
 /**
  * La fiche d'un événement en LECTURE — ce que voit tout le monde sauf l'admin, qui ouvre
@@ -24,7 +25,10 @@ export function EventView({ event, legend, trigger }: { event: AgencyEvent; lege
             <ColorDot color={event.color} />
             {label || 'Événement'}
           </p>
-          <DialogTitle className="break-words text-2xl leading-tight sm:text-3xl">{event.title}</DialogTitle>
+          <div className="flex items-center gap-3">
+            <ModelAvatar name={event.creatorName} url={event.creatorAvatarUrl} className="size-10" />
+            <DialogTitle className="min-w-0 break-words text-2xl leading-tight sm:text-3xl">{event.title}</DialogTitle>
+          </div>
           <DialogDescription className="flex items-start gap-2 text-sm leading-relaxed">
             <CalendarDays aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <span className="first-letter:uppercase">{formatEventDates(event.startDate, event.endDate)}</span>

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { AGENCY_ROLES, eventInput, eventRow, IMAGE_MAX_BYTES, imageUploadInput, type EventInput } from './schema'
+import { AGENCY_ROLES, composeEventTitle, eventInput, nextAutoTitle, eventRow, IMAGE_MAX_BYTES, imageUploadInput, type EventInput } from './schema'
 
 const base: EventInput = {
   title: 'Mise en avant Juliette', mode: 'jour', startDate: '2026-10-14', endDate: '2026-10-14',
-  remindOnDay: false, audience: [...AGENCY_ROLES], color: null, imagePath: null,
+  remindOnDay: false, audience: [...AGENCY_ROLES], color: null, imagePath: null, kind: null, creatorId: null,
 }
 
 describe('eventInput', () => {
@@ -59,5 +59,55 @@ describe('eventRow', () => {
   })
   it('en mode Période, garde la fin choisie', () => {
     expect(eventRow({ ...base, mode: 'periode', endDate: '2026-10-20' }).end_date).toBe('2026-10-20')
+  })
+})
+
+describe('type et modèle (2026-10-02)', () => {
+  const ALICE = '0b8f3c2e-5d6a-4f1b-9c7d-2e4a6b8c0d1f'
+
+  it('facultatifs : absents, la saisie passe et la ligne enregistrée les met à null', () => {
+    const r = eventInput.safeParse({ ...base, kind: undefined, creatorId: undefined })
+    expect(r.success).toBe(true)
+    expect(eventRow(r.data!)).toMatchObject({ kind: null, creator_id: null })
+  })
+
+  it('type : texte libre de 40 caractères au plus ; modèle : un identifiant ou rien', () => {
+    expect(eventInput.safeParse({ ...base, kind: 'Hero slider', creatorId: ALICE }).success).toBe(true)
+    expect(eventInput.safeParse({ ...base, kind: 'x'.repeat(41) }).success).toBe(false)
+    expect(eventInput.safeParse({ ...base, creatorId: 'alice' }).success).toBe(false)
+  })
+
+  it('la ligne enregistrée porte le type (vide → null) et la modèle', () => {
+    expect(eventRow({ ...base, kind: '  Carousel ', creatorId: ALICE })).toMatchObject({ kind: 'Carousel', creator_id: ALICE })
+    expect(eventRow({ ...base, kind: '   ', creatorId: null })).toMatchObject({ kind: null, creator_id: null })
+  })
+})
+
+describe('composeEventTitle', () => {
+  it('« TYPE MODÈLE » en majuscules, espaces normalisés', () => {
+    expect(composeEventTitle('carousel', 'Alice')).toBe('CAROUSEL ALICE')
+    expect(composeEventTitle('  pop   up ', 'Carla')).toBe('POP UP CARLA')
+  })
+
+  it('rien à composer sans type ou sans modèle', () => {
+    expect(composeEventTitle('', 'Alice')).toBe('')
+    expect(composeEventTitle('carousel', null)).toBe('')
+  })
+})
+
+describe('nextAutoTitle — le nom suit type et modèle tant qu’il n’a pas été retouché', () => {
+  it('nom vide ou encore automatique : il prend la nouvelle composition', () => {
+    expect(nextAutoTitle({ title: '', lastAuto: '', auto: 'CAROUSEL ALICE' })).toEqual({ title: 'CAROUSEL ALICE', lastAuto: 'CAROUSEL ALICE' })
+    expect(nextAutoTitle({ title: 'CAROUSEL ALICE', lastAuto: 'CAROUSEL ALICE', auto: 'POP UP ALICE' })).toEqual({
+      title: 'POP UP ALICE',
+      lastAuto: 'POP UP ALICE',
+    })
+  })
+  it('type vidé ou modèle retirée : un nom automatique se vide aussi, jamais « C ALICE » qui traîne', () => {
+    expect(nextAutoTitle({ title: 'CAROUSEL ALICE', lastAuto: 'CAROUSEL ALICE', auto: '' })).toEqual({ title: '', lastAuto: '' })
+  })
+  it('nom retouché à la main : jamais écrasé, ni vidé', () => {
+    expect(nextAutoTitle({ title: 'Lancement été', lastAuto: 'CAROUSEL ALICE', auto: 'POP UP ALICE' }).title).toBeNull()
+    expect(nextAutoTitle({ title: 'Lancement été', lastAuto: 'CAROUSEL ALICE', auto: '' }).title).toBeNull()
   })
 })

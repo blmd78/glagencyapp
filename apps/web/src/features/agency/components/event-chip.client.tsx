@@ -6,13 +6,15 @@ import type { EventBar } from '../month-layout'
 import type { Legend } from '../schema'
 import { EventDialog } from './event-dialog.client'
 import { EventView } from './event-view'
+import { ModelAvatar } from './model-avatar'
+import type { AgencyModel } from '../services/get-agency-events'
 
 /**
  * Une barre de la grille. Couleur : la teinte de l'événement à 20 % (30 % au survol) sous le
  * texte, pour garder le contraste — sans couleur, le gris d'origine. Clic : l'édition chez
  * l'admin, la fiche en lecture chez les autres.
  */
-export function EventChip({ bar, legend, canEdit }: { bar: EventBar; legend: Legend; canEdit: boolean }) {
+export function EventChip({ bar, legend, models, canEdit }: { bar: EventBar; legend: Legend; models: AgencyModel[]; canEdit: boolean }) {
   const { event } = bar
   const chip = (
     <button
@@ -28,9 +30,12 @@ export function EventChip({ bar, legend, canEdit }: { bar: EventBar; legend: Leg
         bar.continuesAfter && 'rounded-r-none',
       )}
     >
-      {event.title}
+      <span className="flex min-w-0 items-center gap-1">
+        <ModelAvatar name={event.creatorName} url={event.creatorAvatarUrl} className="size-4" />
+        <span className="truncate">{event.title}</span>
+      </span>
     </button>
   )
-  if (canEdit) return <EventDialog event={event} legend={legend} trigger={chip} />
+  if (canEdit) return <EventDialog event={event} legend={legend} models={models} trigger={chip} />
   return <EventView event={event} legend={legend} trigger={chip} />
 }

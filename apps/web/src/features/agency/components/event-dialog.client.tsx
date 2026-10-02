@@ -23,16 +23,20 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { callAction } from '@/lib/actions-client'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { createImageUpload, deleteEvent, saveEvent } from '../actions'
 import type { AgencyEvent } from '../month-layout'
+import type { AgencyModel } from '../services/get-agency-events'
 import {
   AGENCY_ROLES,
   AGENCY_ROLE_LABELS,
+  composeEventTitle,
   EVENT_COLORS,
+  nextAutoTitle,
   eventInput,
   IMAGE_TYPES,
   imageUploadInput,
@@ -44,7 +48,7 @@ import {
 import { DateField } from './date-field.client'
 
 const blank = (d = todayParis()): EventInput => {
-  return { title: '', mode: 'jour', startDate: d, endDate: d, remindOnDay: false, audience: [...AGENCY_ROLES], color: null, imagePath: null }
+  return { title: '', mode: 'jour', startDate: d, endDate: d, remindOnDay: false, audience: [...AGENCY_ROLES], color: null, imagePath: null, kind: null, creatorId: null }
 }
 const fromEvent = (e: AgencyEvent): EventInput => ({
   id: e.id,
@@ -56,7 +60,11 @@ const fromEvent = (e: AgencyEvent): EventInput => ({
   audience: e.audience,
   color: e.color,
   imagePath: e.imagePath,
+  kind: e.kind,
+  creatorId: e.creatorId,
 })
+/** « Aucune » modèle dans le sélecteur (Radix refuse une valeur vide). */
+const NO_MODEL = 'none'
 const errorCls = 'text-xs text-red-600 dark:text-red-400'
 
 const colorName = (c: EventColor | null, legend: Legend) => (c ? (legend[c] ?? 'Sans nom') : 'Gris (par défaut)')
@@ -69,7 +77,20 @@ const colorName = (c: EventColor | null, legend: Legend) => (c ? (legend[c] ?? '
  * enregistrer ne laisse rien dans le bucket. Envoi direct navigateur → Storage par une URL
  * signée (`createImageUpload`), jamais par le corps d'une Server Action (plafonné par Vercel).
  */
-export function EventDialog({ event, legend, trigger, initialDate }: { event?: AgencyEvent; legend: Legend; trigger?: ReactNode; initialDate?: string }) {
+export function EventDialog({
+  event,
+  legend,
+  models,
+  trigger,
+  initialDate,
+}: {
+  event?: AgencyEvent
+  legend: Legend
+  /** Modèles du sélecteur (admin) ; la modèle d'un événement existant y est ajoutée si elle n'y est plus. */
+  models: AgencyModel[]
+  trigger?: ReactNode
+  initialDate?: string
+}) {
   'use no memo'
   const [open, setOpen] = useState(false)
   // Fichier choisi et son aperçu local ; l'URL `blob:` est rendue au navigateur dès qu'on la remplace.
@@ -87,11 +108,26 @@ export function EventDialog({ event, legend, trigger, initialDate }: { event?: A
     reset,
     setError,
     setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm<EventInput>({ resolver: zodResolver(eventInput), defaultValues: event ? fromEvent(event) : blank(initialDate) })
   const mode = useWatch({ control, name: 'mode' })
   const color = useWatch({ control, name: 'color' })
   const imagePath = useWatch({ control, name: 'imagePath' })
+  const options =
+    event?.creatorId && !models.some((m) => m.id === event.creatorId)
+      ? [...models, { id: event.creatorId, name: event.creatorName ?? 'Modèle' }]
+      : models
+  const nameOf = (id: string | null | undefined) => options.find((m) => m.id === id)?.name ?? null
+  // Le nom se compose de type + modèle TANT QU'il n'a pas été retouché : on mémorise la dernière
+  // proposition, et on ne remplace le nom que s'il est vide ou encore égal à elle.
+  const [lastAuto, setLastAuto] = useState(event ? composeEventTitle(event.kind, event.creatorName) : '')
+  const recompose = (kind: string | null | undefined, creatorId: string | null | undefined) => {
+    const next = nextAutoTitle({ title: getValues('title'), lastAuto, auto: composeEventTitle(kind, nameOf(creatorId)) })
+    // `shouldValidate` : un « Donne un nom » affiché après un envoi raté disparaît dès que le nom se remplit.
+    if (next.title !== null) setValue('title', next.title, { shouldDirty: true, shouldValidate: true })
+    setLastAuto(next.lastAuto)
+  }
   const { field: start } = useController({ control, name: 'startDate' })
   const { field: end } = useController({ control, name: 'endDate' })
   // La photo enregistrée, tant qu'elle n'est pas retirée ; l'aperçu = le fichier tout juste choisi,
@@ -155,6 +191,7 @@ export function EventDialog({ event, legend, trigger, initialDate }: { event?: A
         // Réouverture = données fraîches, jamais le brouillon ou l'erreur d'avant.
         if (o) {
           reset(event ? fromEvent(event) : blank(initialDate))
+          setLastAuto(event ? composeEventTitle(event.kind, event.creatorName) : '')
           pick(null)
           setFileError(null)
         }
@@ -179,6 +216,49 @@ export function EventDialog({ event, legend, trigger, initialDate }: { event?: A
         </DialogHeader>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="agency-kind">Type</Label>
+              <Input
+                id="agency-kind"
+                maxLength={40}
+                placeholder="Carousel, Pop up…"
+                aria-invalid={!!errors.kind}
+                {...register('kind', { onChange: (e) => recompose(e.target.value, getValues('creatorId')) })}
+              />
+              {errors.kind && <p className={errorCls}>{errors.kind.message}</p>}
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="agency-model">Modèle</Label>
+              <Controller
+                control={control}
+                name="creatorId"
+                render={({ field }) => (
+                  <Select
+                    value={field.value ?? NO_MODEL}
+                    onValueChange={(v) => {
+                      const id = v === NO_MODEL ? null : v
+                      field.onChange(id)
+                      recompose(getValues('kind'), id)
+                    }}
+                  >
+                    <SelectTrigger id="agency-model" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_MODEL}>Aucune</SelectItem>
+                      {options.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
           <div className="grid gap-1.5">
             <Label htmlFor="agency-title">Nom</Label>
             <Input id="agency-title" maxLength={120} aria-invalid={!!errors.title} {...register('title')} />

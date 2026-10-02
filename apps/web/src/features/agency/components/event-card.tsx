@@ -7,12 +7,15 @@ import type { Legend } from '../schema'
 import { EventDialog } from './event-dialog.client'
 import { EventView } from './event-view'
 import { ColorDot } from './legend'
+import { ModelAvatar } from './model-avatar'
+import type { AgencyModel } from '../services/get-agency-events'
 
 /** Carte verticale : photo au-dessus des informations, même ouverture que le calendrier. */
-export function EventCard({ event, status, legend, canEdit }: {
+export function EventCard({ event, status, legend, models, canEdit }: {
   event: AgencyEvent
   status: string
   legend: Legend
+  models: AgencyModel[]
   canEdit: boolean
 }) {
   const label = event.color ? legend[event.color] : undefined
@@ -55,8 +58,9 @@ export function EventCard({ event, status, legend, canEdit }: {
             <span className="mt-1 text-xs font-medium uppercase text-muted-foreground">{month}</span>
           </span>
           <span className="flex min-w-0 flex-col gap-2">
-            <span className="break-words text-lg font-semibold leading-snug tracking-tight">
-              {event.title}
+            <span className="flex items-center gap-2">
+              <ModelAvatar name={event.creatorName} url={event.creatorAvatarUrl} className="size-7" />
+              <span className="min-w-0 break-words text-lg font-semibold leading-snug tracking-tight">{event.title}</span>
             </span>
             <span className="flex items-start gap-1.5 text-sm leading-relaxed text-muted-foreground">
               <CalendarDays aria-hidden="true" className="mt-1 size-3.5 shrink-0" />
@@ -73,6 +77,6 @@ export function EventCard({ event, status, legend, canEdit }: {
       </span>
     </button>
   )
-  if (canEdit) return <EventDialog event={event} legend={legend} trigger={trigger} />
+  if (canEdit) return <EventDialog event={event} legend={legend} models={models} trigger={trigger} />
   return <EventView event={event} legend={legend} trigger={trigger} />
 }

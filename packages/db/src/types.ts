@@ -40,9 +40,11 @@ export type Database = {
           color: string | null
           created_at: string
           created_by: string | null
+          creator_id: string | null
           end_date: string
           id: string
           image_path: string | null
+          kind: string | null
           remind_on_day: boolean
           start_date: string
           title: string
@@ -53,9 +55,11 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          creator_id?: string | null
           end_date: string
           id?: string
           image_path?: string | null
+          kind?: string | null
           remind_on_day?: boolean
           start_date: string
           title: string
@@ -66,15 +70,24 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          creator_id?: string | null
           end_date?: string
           id?: string
           image_path?: string | null
+          kind?: string | null
           remind_on_day?: boolean
           start_date?: string
           title?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "agency_events_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agency_events_created_by_fkey"
             columns: ["created_by"]

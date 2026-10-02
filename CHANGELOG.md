@@ -10,6 +10,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ### Ajouté
 
+- Agence : un type (texte libre) et une modèle par événement. Le nom se compose tout seul (« CAROUSEL ALICE ») et la photo de la modèle s'affiche en petit rond à côté (liste, calendrier, fiche) ; une photo importée garde sa grande place. Les événements existants sont repris d'après leur nom.
 - Photos des modèles récupérées une fois depuis MyPuls (`pnpm avatars`), en préparation de leur affichage dans Agence.
 - Chatteurs › Stat chatter : onglets « Chatteurs » et « Par modèle ». Le second classe les chatteurs sur la seule modèle choisie dans le sélecteur (podium, tableaux et export image à son nom).
 

@@ -12,6 +12,13 @@ export type AgencyEvent = {
   imagePath: string | null
   /** URL signée de la photo, valable quelques heures — `null` sans photo. */
   imageUrl: string | null
+  /** Type libre (« Carousel »), `null` si aucun (2026-10-02). */
+  kind: string | null
+  /** La modèle de l'événement, `null` si aucune. */
+  creatorId: string | null
+  creatorName: string | null
+  /** URL signée de l'avatar de la modèle (`creator-avatars`) — `null` sans modèle ou sans photo. */
+  creatorAvatarUrl: string | null
 }
 
 /** La part d'un événement dans UNE semaine de la grille. */

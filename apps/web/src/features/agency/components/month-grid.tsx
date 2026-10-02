@@ -3,12 +3,13 @@ import { formatEventDates, type WeekRow } from '../month-layout'
 import type { Legend } from '../schema'
 import { EventChip } from './event-chip.client'
 import { EventDialog } from './event-dialog.client'
+import type { AgencyModel } from '../services/get-agency-events'
 
 const WEEKDAYS = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.', 'sam.', 'dim.']
 /** Hauteur d'une ligne d'événements (barre 20 px + 4 px d'écart). */
 const LANE_PX = 24
 
-export function MonthGrid({ month, today, weeks, legend, canEdit }: { month: string; today: string; weeks: WeekRow[]; legend: Legend; canEdit: boolean }) {
+export function MonthGrid({ month, today, weeks, legend, models, canEdit }: { month: string; today: string; weeks: WeekRow[]; legend: Legend; models: AgencyModel[]; canEdit: boolean }) {
   const Day = canEdit ? 'button' : 'div'
   return (
     <div className="overflow-hidden rounded-lg border">
@@ -43,7 +44,7 @@ export function MonthGrid({ month, today, weeks, legend, canEdit }: { month: str
                 </span>
               </Day>
             )
-            return canEdit ? <EventDialog key={d} initialDate={d} legend={legend} trigger={day} /> : day
+            return canEdit ? <EventDialog key={d} initialDate={d} legend={legend} models={models} trigger={day} /> : day
           })}
           {w.bars.length > 0 && (
             <div
@@ -52,7 +53,7 @@ export function MonthGrid({ month, today, weeks, legend, canEdit }: { month: str
             >
               {w.bars.map((b) => (
                 <div key={`${b.event.id}-${w.days[0]}`} className="pointer-events-auto px-0.5" style={{ gridColumn: `${b.startCol + 1} / span ${b.span}`, gridRow: b.lane + 1 }}>
-                  <EventChip bar={b} legend={legend} canEdit={canEdit} />
+                  <EventChip bar={b} legend={legend} models={models} canEdit={canEdit} />
                 </div>
               ))}
             </div>
