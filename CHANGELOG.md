@@ -8,9 +8,19 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Photos des modèles récupérées une fois depuis MyPuls (`pnpm avatars`), en préparation de leur affichage dans Agence.
+- Chatteurs › Stat chatter : onglets « Chatteurs » et « Par modèle ». Le second classe les chatteurs sur la seule modèle choisie dans le sélecteur (podium, tableaux et export image à son nom).
+
 ### Modifié
 
 - Agence : la liste sous le calendrier passe en cartes avec photo, la fiche d'un événement est refaite (en-tête à la couleur de l'événement, grande photo), un admin crée un événement en cliquant sur un jour du calendrier, et la cloche des nouveautés s'ouvre en panneau.
+- Chatteurs : « Planning / Todo » devient « Emploi du temps » (le planning seul). Scripts (Équipe) et Suivi chatters (Présence) sortent du menu : pages archivées, encore accessibles par leur adresse — la fiche de Suivi s'ouvre toujours depuis Présence › To-Do.
+
+### Supprimé
+
+- La to-do personnelle de l'ancien « Planning / Todo », sans usage depuis le 1er septembre. La To-Do d'équipe de Présence ne change pas.
 
 ## [2.69] — 2026-10-01
 

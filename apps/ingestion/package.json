@@ -18,7 +18,8 @@
     "insights": "tsx src/gen-insights.ts",
     "uncove": "tsx src/uncove.ts",
     "x": "tsx src/x.ts",
-    "linkscale": "tsx src/linkscale.ts"
+    "linkscale": "tsx src/linkscale.ts",
+    "avatars": "tsx src/avatars.ts"
   },
   "dependencies": {
     "@glagency/core": "workspace:*",

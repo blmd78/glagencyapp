@@ -188,8 +188,7 @@ features/<f>/
   jumeaux côté handler des gardes partagées : `requireAdminProfile()`,
   `requireWriteProfile(slug)`, `requirePageProfile(slug)` — une seule requête, refus =
   `BusinessError('Accès refusé')`, retourne le `Profile`.
-  Exemples canoniques : `features/todos/actions.ts` (`requireCanWriteTodo`),
-  `features/planning/actions.ts` (`requireCanEdit`, `saveBlock`).
+  Exemple canonique : `features/planning/actions.ts` (`requireCanEdit`, `saveBlock`).
 
   **Ancien patron — NE PLUS ÉCRIRE, et ne pas « re-optimiser » vers lui.** On a longtemps fait
   vivre cette vérification dans le `guard` (avec un `safeParse` DÉFENSIF du `raw` capturé en

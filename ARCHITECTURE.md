@@ -183,16 +183,13 @@ Règles métier par domaine, déplacées mot pour mot depuis l'ancien `AGENTS.md
 
 La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « en formation ») n'a pas de sous-section ici : dans l'AGENTS.md d'origine, elle vivait dans le même bloc que la puce « 3 faces du CRM » (aucune séparation par ligne vide) — déplacée telle quelle, donc entière, en § 2 « Les 3 faces du CRM ».
 
-### To-do personnelle
+### To-do personnelle — supprimée
 
-- **To-do personnelle** : 2e onglet de `/chatter/planning` (`?vue=todo`), une liste par
-  encadrant (`todos`, RLS `can_write_todo_of`, migrations `0067`/`0068`). Chacun gère la
-  sienne ; la hiérarchie peut y déposer une tâche (mêmes règles que le planning). Aucun slug
-  dédié : le droit vient de « Planning ». **Une seule vue exposée** : liste en sections
-  repliables par statut (badge de statut cliquable, priorité en icône, ajout rapide par
-  section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
-  (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
-  (`created_by` null → « Claude »).
+- **Supprimée le 2026-10-02** (décision Benoit) : l'ancien onglet To-do de « Planning / Todo »
+  (`?vue=todo`, table `todos`) n'avait plus d'usage depuis le 2026-09-01. Code retiré
+  (`features/todos`), table et fonctions supprimées par `0182` (en attente dans `packages/db/supabase/pending/`, hors de portée de `db push` jusqu'à la mise en prod du code). La page s'appelle désormais
+  **Emploi du temps** (planning seul). La to-do d'équipe, elle, vit dans Présence › To-Do
+  (§ To-Do du tracker).
 
 ### Suivi chatters
 

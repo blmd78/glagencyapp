@@ -26,12 +26,10 @@ import {
   Activity,
   ListTodo,
   ClipboardCheck,
-  ClipboardPen,
   Briefcase,
   Globe,
   TriangleAlert,
   Archive,
-  ScrollText,
   KeyRound,
   Ghost,
   NotebookPen,
@@ -141,7 +139,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/insights', label: 'Insights', icon: Lightbulb },
       { href: '/chatter/bilan', label: 'Bilan hebdo', icon: CalendarCheck, group: 'performance' },
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
-      { href: '/chatter/planning', label: 'Planning / Todo', icon: CalendarClock, group: 'equipe' },
+      // « Emploi du temps » (ex-« Planning / Todo ») : la to-do personnelle est supprimée le
+      // 2026-10-02 (décision Benoit) — la to-do d'équipe vit dans Présence › To-Do.
+      { href: '/chatter/planning', label: 'Emploi du temps', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
       // Tracker de présence — les écrans partagent le slug `presence` : un seul droit à cocher dans
       // Membres, comme `police` couvre déjà Tracker + Rapport.
@@ -159,7 +159,10 @@ export const WORKSPACES: Workspace[] = [
       // un poids qu'il n'a pas. On y arrive par le lien « Réglages » en haut à droite du
       // relevé.
       { href: '/chatter/presence', label: 'Relevé d’équipe', icon: Gauge, slug: 'presence', group: 'presence' },
-      { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
+      // ── ARCHIVÉ (décision Benoit 2026-10-02) : hors menu, la ROUTE reste — Présence › To-Do y
+      // ouvre la fiche d'un chatteur (tâches bilan / one-to-one). Restaurer = décommenter, et
+      // remettre l'import `ClipboardPen` de lucide-react.
+      // { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
       // Le Récap : COMPTEURS pour tout l'encadrement, VERBATIM des débriefs pour les seuls admins
       // (RPC `tracker_todo_week_recap` en definer, 0137/0150 ; `tracker_todo_daily_read` reste
@@ -200,8 +203,11 @@ export const WORKSPACES: Workspace[] = [
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
       { href: '/chatter/quotas', label: 'Quotas', icon: Target, adminOnly: true, group: 'performance' },
-      // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
-      { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
+      // ── ARCHIVÉ (décision Benoit 2026-10-02) : scripts de chat par modèle, hors menu. La route
+      // et le slug `scripts` restent, mais la case disparaît de Membres : le droit s'efface au
+      // prochain enregistrement d'une fiche (comme Instagram / Telegram). Restaurer = décommenter,
+      // et remettre l'import `ScrollText` de lucide-react.
+      // { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
       // Comptes rendus journaliers : chacun rédige LE SIEN (auto-rapport), consultation
       // hiérarchique (manager → ses rattachés directs, admin/superadmin → tout). Pas adminOnly
