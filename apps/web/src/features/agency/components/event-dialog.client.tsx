@@ -43,8 +43,7 @@ import {
 } from '../schema'
 import { DateField } from './date-field.client'
 
-const blank = (): EventInput => {
-  const d = todayParis()
+const blank = (d = todayParis()): EventInput => {
   return { title: '', mode: 'jour', startDate: d, endDate: d, remindOnDay: false, audience: [...AGENCY_ROLES], color: null, imagePath: null }
 }
 const fromEvent = (e: AgencyEvent): EventInput => ({
@@ -70,7 +69,7 @@ const colorName = (c: EventColor | null, legend: Legend) => (c ? (legend[c] ?? '
  * enregistrer ne laisse rien dans le bucket. Envoi direct navigateur → Storage par une URL
  * signée (`createImageUpload`), jamais par le corps d'une Server Action (plafonné par Vercel).
  */
-export function EventDialog({ event, legend, trigger }: { event?: AgencyEvent; legend: Legend; trigger?: ReactNode }) {
+export function EventDialog({ event, legend, trigger, initialDate }: { event?: AgencyEvent; legend: Legend; trigger?: ReactNode; initialDate?: string }) {
   'use no memo'
   const [open, setOpen] = useState(false)
   // Fichier choisi et son aperçu local ; l'URL `blob:` est rendue au navigateur dès qu'on la remplace.
@@ -89,7 +88,7 @@ export function EventDialog({ event, legend, trigger }: { event?: AgencyEvent; l
     setError,
     setValue,
     formState: { errors, isSubmitting },
-  } = useForm<EventInput>({ resolver: zodResolver(eventInput), defaultValues: event ? fromEvent(event) : blank() })
+  } = useForm<EventInput>({ resolver: zodResolver(eventInput), defaultValues: event ? fromEvent(event) : blank(initialDate) })
   const mode = useWatch({ control, name: 'mode' })
   const color = useWatch({ control, name: 'color' })
   const imagePath = useWatch({ control, name: 'imagePath' })
@@ -155,7 +154,7 @@ export function EventDialog({ event, legend, trigger }: { event?: AgencyEvent; l
         setOpen(o)
         // Réouverture = données fraîches, jamais le brouillon ou l'erreur d'avant.
         if (o) {
-          reset(event ? fromEvent(event) : blank())
+          reset(event ? fromEvent(event) : blank(initialDate))
           pick(null)
           setFileError(null)
         }
@@ -253,7 +252,7 @@ export function EventDialog({ event, legend, trigger }: { event?: AgencyEvent; l
             {hasPhoto ? (
               <div className="grid gap-2">
                 {shown ? (
-                  <Image unoptimized src={shown} alt="" width={1200} height={800} className="h-auto max-h-48 w-full rounded-md border object-contain" />
+                  <Image unoptimized loading="lazy" decoding="async" src={shown} alt="" width={1200} height={800} className="h-auto max-h-48 w-full rounded-md border object-contain" />
                 ) : (
                   <p className="text-sm text-muted-foreground">Photo indisponible pour le moment.</p>
                 )}

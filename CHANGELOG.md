@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Modifié
+
+- Agence : la liste sous le calendrier passe en cartes avec photo, la fiche d'un événement est refaite (en-tête à la couleur de l'événement, grande photo), un admin crée un événement en cliquant sur un jour du calendrier, et la cloche des nouveautés s'ouvre en panneau.
+
 ## [2.69] — 2026-10-01
 
 ### Ajouté
