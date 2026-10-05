@@ -303,6 +303,50 @@ describe('resolveDayIdentity — cas discriminants (revue de la Task 7)', () => 
     expect([r.summaryIds, r.summaryChatter]).toEqual([[null], [null]])
   })
 
+  it('résumé ambigu à 0 € : rien n’est mis de côté, donc l’invariant des ids candidats reste actif (écart sur 1163 vu)', () => {
+    // « YANN (accès révoqué) » (casse différente : pas de correspondance exacte) désigne 243 ET 1163 :
+    // ligne ambiguë à 0 €, non départageable (CA > 0 exigé). Elle ne doit pas éteindre le contrôle de 1163.
+    const r = run({
+      summary: [
+        { label: 'yann', ca: 5 },
+        { label: 'YANN (accès révoqué)', ca: 0 },
+      ],
+      sales: [{ label: 'yann', mypulsUserId: '1163', amount: 7 }],
+      directory: [
+        ['243', 'yann (accès révoqué)'],
+        ['1163', 'yann (accès révoqué)'],
+        ['1163', 'yann'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['1163', null]) // la ligne à 0 € est bien restée de côté
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toEqual([]) // 0 € : rien de perdu
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant').map((i) => [i.mypulsUserId, i.amount])).toEqual([['1163', 2]])
+  })
+
+  it('résumé ambigu à 0 € : un id candidat qui a des ventes mais aucune ligne de résumé propre fait aussi écart', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 0 }],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 5 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant').map((i) => [i.mypulsUserId, i.amount])).toEqual([['10504', 5]])
+  })
+
+  it('résumé ambigu NON nul mis de côté : les ids candidats restent hors invariant (le montant est signalé à part)', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 10 }],
+      sales: [
+        { label: 'Serge', mypulsUserId: '9332', amount: 10 },
+        { label: 'Serge', mypulsUserId: '10504', amount: 10 },
+      ],
+    })
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant')).toEqual([])
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toHaveLength(1)
+  })
+
   it('D3 « au centime » : 70,79 au résumé contre 70,78 de ventes → mis de côté', () => {
     const r = run({
       summary: [{ label: 'Serge', ca: 70.79 }],

@@ -214,9 +214,11 @@ export function resolveDayIdentity(input: {
         return
       }
       aside[a.i] = true
-      for (const id of a.ids) asideIds.add(id)
       const c = cents(l.ca)
-      if (c === 0) return // 0 € : rien de perdu, pas d'anomalie (homonymes dormants, chaque nuit)
+      // 0 € : rien n'est mis de côté (homonymes dormants, chaque nuit) — pas d'anomalie, et surtout les
+      // ids candidats restent sous l'invariant : un écart réel sur l'un d'eux ne doit pas passer.
+      if (c === 0) return
+      for (const id of a.ids) asideIds.add(id)
       const key = resumeKey(day, norm(l.label))
       let e = asideByKey.get(key)
       if (!e) {

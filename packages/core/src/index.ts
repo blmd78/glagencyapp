@@ -109,6 +109,8 @@ export type {
 } from './ingest/identity-backfill'
 export { resolveDayIdentity } from './ingest/chatter-identity'
 export type { DayIdentity, IdentityState, SaleLine, SummaryLine } from './ingest/chatter-identity'
+export { dayChecks, expectedDayTotals } from './ingest/day-checks'
+export type { DayCheck, ExpectedTotals } from './ingest/day-checks'
 export { runRules } from './insights/engine'
 export type { InsightContext } from './insights/engine'
 export type { Rule } from './insights/rules'
