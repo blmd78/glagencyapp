@@ -14,7 +14,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ### Modifié
 
-- Doc : faits recalés sur le code — dernière migration `0178`, worker d'ingestion actif avec 4 crons (et non « gelé », « 3 crons »), photos des événements Agence (bucket privé, URLs signées, `unoptimized`) décrites au § 7 des guidelines, dette n° 2 des Membres résolue en partie (`email_exists`), `UNCOVE_TOKEN_SECRET` listé dans les secrets du Worker, références documentaires orphelines corrigées.
+- Doc : faits recalés sur le code — nombre de migrations, worker d'ingestion actif avec 4 crons (et non « gelé », « 3 crons »), photos des événements Agence (bucket privé, URLs signées, `unoptimized`) décrites au § 7 des guidelines, dette n° 2 des Membres résolue en partie (`email_exists`), `UNCOVE_TOKEN_SECRET` listé dans les secrets du Worker, références documentaires orphelines corrigées.
 
 ## [2.71] — 2026-10-05
 
