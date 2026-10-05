@@ -3,6 +3,13 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { chatterSummaryUrl, parseChatterSummary, parseMoneyTeamSales } from './money-team'
+import {
+  mypulsIdOf,
+  pageTotalsFromCards,
+  parseAssignableUsers,
+  parseMoneyTeamDirectory,
+  parseMoneyTeamPageTotals,
+} from './money-team'
 
 // Fixture = extrait d'une capture RÉELLE du fragment du 2026-09-06, comme pour `shifts.test.ts`.
 // C'est le seul moyen de vérifier qu'on lit MyPuls et pas l'idée qu'on s'en fait — et c'est
@@ -67,5 +74,112 @@ describe('parseMoneyTeamSales — les ventes, au milieu d’une table qui leur r
     expect(tx[0]?.creator).toBe('Lena_dv')
     expect(tx[0]?.amount).toBeGreaterThan(0)
     expect(tx[0]?.type).toBeTruthy()
+  })
+})
+describe('identité MyPuls — l’id de chaque vente et l’annuaire de la page', () => {
+  // Spec docs/superpowers/specs/2026-10-01-identite-chatteur-mypuls-design.md § 1.
+  const html = fixture('money-team-identity.html')
+  const tx = parseMoneyTeamSales(html)
+  const dir = parseMoneyTeamDirectory(html)
+
+  it('lit l’id du compte sur chaque vente — un même id sous deux libellés', () => {
+    expect(tx.map((t) => [t.chatter, t.mypulsUserId])).toEqual([
+      ['Lionel', '1802'],
+      ['lioneldiv', '1802'],
+      ['Indéterminé (Sarahcbr)', null],
+      ['Serge', '10504'],
+    ])
+  })
+
+  it('ne lit jamais le classement : « Aucune vente sur la période » n’est pas une vente', () => {
+    expect(tx).toHaveLength(4)
+    expect(tx.some((t) => t.chatter.includes('Aucune vente'))).toBe(false)
+  })
+
+  it('l’annuaire prend le select sans « all » ni « -1 », homonymes conservés', () => {
+    expect(dir.filter((d) => d.source === 'select').map((d) => [d.mypulsUserId, d.label])).toEqual([
+      ['243', 'Yann (accès révoqué)'],
+      ['1163', 'yann (accès révoqué)'],
+      ['1802', 'Lionel'],
+      ['9332', 'Serge'],
+      ['10504', 'Serge'],
+    ])
+  })
+
+  it('l’annuaire prend le JSON des équipes (clés numériques : ordre croissant des ids de modèle)', () => {
+    expect(dir.filter((d) => d.source === 'assignable').map((d) => [d.mypulsUserId, d.label])).toEqual([
+      ['1802', 'lioneldiv'], // modèle 288
+      ['1163', 'yann'], // modèle 328
+      ['1802', 'Lionel'], // modèle 1311
+      ['9332', 'Serge'],
+      ['10504', 'Serge'],
+    ])
+  })
+
+  it('parseAssignableUsers : sans JSON ou JSON illisible → [] ; une paire vue deux fois → une', () => {
+    expect(parseAssignableUsers('const autre = 1;')).toEqual([])
+    expect(parseAssignableUsers('const assignableUsersByCreator = {"1":[{"id":1,};')).toEqual([])
+    const s = 'const assignableUsersByCreator = {"1":[{"id":5,"label":"Ana"}],"2":[{"id":5,"label":"Ana"}]};'
+    expect(parseAssignableUsers(s)).toEqual([{ mypulsUserId: '5', label: 'Ana', source: 'assignable' }])
+  })
+
+  it('mypulsIdOf : entier > 0 seulement', () => {
+    expect(mypulsIdOf(' 1802 ')).toBe('1802')
+    for (const v of ['', 'all', '-1', '0', '12a', null, undefined]) expect(mypulsIdOf(v)).toBeNull()
+  })
+
+  it('la fixture historique porte aussi les ids (capture réelle du 06/09)', () => {
+    expect(parseMoneyTeamSales(fixture('money-team-page.html')).map((t) => t.mypulsUserId)).toEqual([
+      '2155',
+      '1174',
+    ])
+  })
+})
+
+describe('totaux de la page — calculés par MyPuls, indépendants des lignes lues', () => {
+  it('lit la carte « Ventes » et la carte « Montant net · EUR », égales aux lignes', () => {
+    const html = fixture('money-team-identity.html')
+    const totals = parseMoneyTeamPageTotals(html)
+    expect(totals).toEqual({ salesCount: 4, net: [{ currency: 'EUR', amount: 267.68 }] })
+    const lines = parseMoneyTeamSales(html)
+    expect(lines.reduce((s, t) => s + t.amount, 0)).toBeCloseTo(267.68, 2)
+    expect(lines).toHaveLength(totals.salesCount!)
+  })
+
+  it('page sans cartes KPI → totaux absents (null / [])', () => {
+    expect(parseMoneyTeamPageTotals(fixture('money-team-page.html'))).toEqual({ salesCount: null, net: [] })
+  })
+
+  it('une carte avec deux h3 : les textes sont concaténés, comme côté Worker (comportement défini)', () => {
+    const card = (h3: string) =>
+      `<div class="kpi-card"><h6>Montant net · EUR</h6>${h3}</div><div class="kpi-card"><h6>Ventes</h6><h3>7</h3></div>`
+    expect(parseMoneyTeamPageTotals(card('<h3>12</h3><h3>34,50</h3>'))).toEqual({
+      salesCount: 7,
+      net: [{ currency: 'EUR', amount: 1234.5 }],
+    })
+    // Même résultat qu'avec la valeur déjà concaténée.
+    expect(parseMoneyTeamPageTotals(card('<h3>1234,50</h3>'))).toEqual(parseMoneyTeamPageTotals(card('<h3>12</h3><h3>34,50</h3>')))
+  })
+
+  it('une carte au bon libellé sans chiffre lisible est absente, pas égale à 0', () => {
+    expect(pageTotalsFromCards([{ label: 'Ventes', value: ' — ' }])).toEqual({ salesCount: null, net: [] })
+    expect(pageTotalsFromCards([{ label: 'Montant net · EUR', value: 'n/d' }])).toEqual({ salesCount: null, net: [] })
+    expect(pageTotalsFromCards([{ label: 'Ventes', value: '0' }]).salesCount).toBe(0)
+  })
+
+  it('une carte par devise ; l’ancien libellé « Ventes attribuées » n’est pas la carte « Ventes »', () => {
+    expect(
+      pageTotalsFromCards([
+        { label: ' Ventes attribuées ', value: '413' },
+        { label: 'Montant net · EUR', value: '13 047,86 EUR' },
+        { label: 'Montant net · USD', value: '1 234,56 USD' },
+      ]),
+    ).toEqual({
+      salesCount: null,
+      net: [
+        { currency: 'EUR', amount: 13047.86 },
+        { currency: 'USD', amount: 1234.56 },
+      ],
+    })
   })
 })
