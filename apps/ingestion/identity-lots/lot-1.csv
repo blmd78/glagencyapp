@@ -1,0 +1,19 @@
+# Lot 1 — les 14 fusions vérifiées le 2026-10-01 (ex-/tmp/fusion/toutes.sh, jamais lancées).
+# Validé par Benoit en revue de la PR 2. Une ligne = une fiche à vider dans une fiche gardée ;
+# les lignes d'une même fiche gardée forment un groupe, prouvé ensemble (yann, rayson).
+# Ids = prod. Aucune ligne n'est appliquée sans la double preuve (même id + compensation au centime).
+action,slug,garder,vider,id_attendu
+fusionner,lionel,d31acb38-12e1-5b2f-9f1b-38f5fc5f227f,7201e3b6-9a36-4cbe-89fa-e3334cd32202,
+fusionner,ornela,51457d88-b78e-5358-ae0f-0985459d100d,80ffdd5f-ebcd-4e92-a784-ff8aa3625b41,
+fusionner,city,a7c3b98b-4b83-49dc-a3af-bb83ceb6e87c,655c9cdb-a7ea-4905-a773-36b0c38cc1f2,
+fusionner,jordan,b855fcc8-e06b-4ab5-9cab-21c4ebb990b8,851fd84c-0bfe-4918-ac4f-b885e0e31f84,
+fusionner,yann,b54f2e8c-9abc-48a0-83c0-b1c4b6caf227,6402ad84-475b-4f67-b166-56877319e917,1163
+fusionner,yann30000,b54f2e8c-9abc-48a0-83c0-b1c4b6caf227,8930a188-5508-4e8e-8247-16dbfdb0f05f,
+fusionner,marek,1b25786a-2e7e-4df8-a730-5677225fcf3a,140b0f9a-818c-4326-b165-3cadaefbbb59,
+fusionner,andre,482fdf30-7fe6-5205-b6be-c6e0ac6b9309,2c28f3ae-a4aa-485f-abc0-906d3d66b02a,
+fusionner,salem,10fcb4d5-432a-4415-930e-090483de7b09,2e041f92-c98d-4a76-8ef3-accef3a5c768,
+fusionner,nambi,9435b57b-5e29-4ef2-924e-034ce395c98e,62ee1fc3-9727-4084-acb0-b9836fcc9d66,
+fusionner,neleck,c9a64f66-cd2b-509e-9f75-dcf724fab8c0,ca628f35-154b-4179-972b-c473c73f0904,
+fusionner,benj,267be104-00f0-4bed-a965-d68192e79db8,b7d19743-91dd-43f4-beca-e377d6233f00,
+fusionner,rayson,edf749ff-3a02-4349-a889-14506acad123,4838a8fe-3488-4c20-a35f-9193cf60f9f3,
+fusionner,rayson-mail,edf749ff-3a02-4349-a889-14506acad123,f6603a43-2b45-4591-851a-b015f9099f9c,
