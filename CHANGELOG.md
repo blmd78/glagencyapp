@@ -10,6 +10,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ### Ajouté
 
+- Hook de push : un commit de code n'est poussé qu'après une revue (`review-feature`, tampon par commit) ; doc seule, releases et tags passent. Activé au `pnpm install`. Échappatoire d'urgence : `git push --no-verify`.
 - Doc : checklist de revue de code (`docs/review-checklist.md`), 25 points vérifiables dans un diff, sourcés sur les guidelines et `ARCHITECTURE.md` ; y compris la règle « toute écriture neuve prend une garde `*Live` ».
 
 ### Modifié
