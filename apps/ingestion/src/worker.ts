@@ -52,9 +52,14 @@ type Bindings = Record<string, string | undefined> & {
 }
 type Ctx = { waitUntil(promise: Promise<unknown>): void }
 
-// maxCatchup 3 : plan Free = 50 sous-requêtes/invocation, un run coûte ~13 appels fixes
-// + ~8/jour → 3 jours ≈ 37, marge pour la pagination et Sentry. Auto-cicatrisant : un
-// retard > 3 jours se résorbe nuit après nuit (le CLI local, sans limite, backfille plus).
+// maxCatchup 3 : plan Free = 50 sous-requêtes/invocation. Estimation à la lecture du code
+// (2026-10-05), À MESURER EN RECETTE : ≈ 13 à 15 par jour (`/team/money` paginé par 100 lignes
+// ≈ 5, 2 money-team, creator_daily, chatter_daily et chatter_creator_daily en delete + insert,
+// fiches et alias neufs, `finish_chatter_day`) ; fixe ≈ 7 dans runPipeline, plus ici la session
+// (≈ 3), ingest_runs, les insights hebdo (≈ 9 à 16), revalidate et Sentry. Un rattrapage de
+// 3 jours approche ou dépasse le plafond : envisager maxCatchup 2 au déploiement de l'identité
+// MyPuls (spec 2026-10-01). Auto-cicatrisant : un retard se résorbe nuit après nuit (le CLI
+// local, sans limite, backfille plus).
 const DEPS = { fetchMoneyTeam: fetchMoneyTeamDayHR, maxCatchup: 3 }
 
 // Cron monitor Sentry : même crontab que wrangler.toml (les deux doivent rester alignés).
