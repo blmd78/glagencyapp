@@ -31,8 +31,8 @@ export interface ShiftSettings {
 export interface UnmatchedChatter {
   mypulsUserId: string
   label: string
-  /** `inconnu` = aucun chatteur du CRM ne porte ce nom ; `ambigu` = plusieurs, ou une fiche qui
-   *  porte déjà l'id d'un autre compte MyPuls (homonyme). */
+  /** `inconnu` = aucun chatteur du CRM ne porte ce nom ; `ambigu` = plusieurs, une fiche qui porte
+   *  déjà l'id d'un autre compte MyPuls (homonyme), ou une fiche visée par plusieurs ids inconnus. */
   raison: 'inconnu' | 'ambigu'
 }
 
@@ -140,6 +140,11 @@ export async function resolveIdentities(
   const toLink: { chatterId: string; mypulsUserId: string }[] = []
   const chatterByMypulsId = new Map<string, string>()
 
+  // DEUX PASSES, pour un résultat indépendant de l'ordre du CSV. 1) Chaque id inconnu désigne au plus
+  // UNE fiche candidate par son libellé ; 2) une fiche désignée par plusieurs ids inconnus ne va à
+  // aucun : la donner au premier lu serait deviner (et l'id posé ici fait ensuite autorité la nuit).
+  const wanted: { mypulsUserId: string; label: string; chatterId: string }[] = []
+  const claims = new Map<string, number>() // fiche candidate → nombre d'ids inconnus qui la visent
   for (const [mypulsUserId, label] of people) {
     const known = byMypulsId.get(mypulsUserId)
     if (known) {
@@ -156,14 +161,21 @@ export async function resolveIdentities(
       continue
     }
     const chatterId = candidates[0] as string
-    // Une fiche qui porte DÉJÀ un id MyPuls — ou qui vient d'en recevoir un dans ce run — est un
-    // AUTRE compte au même nom : la rattacher mélangerait deux personnes (deux « Serge » MyPuls,
-    // 9332 et 10504). Spec docs/superpowers/specs/2026-10-01-identite-chatteur-mypuls-design.md § 2.
+    // Une fiche qui porte DÉJÀ un id MyPuls est un AUTRE compte au même nom : la rattacher mélangerait
+    // deux personnes (deux « Serge » MyPuls, 9332 et 10504).
+    // Spec docs/superpowers/specs/2026-10-01-identite-chatteur-mypuls-design.md § 2.
     if (!noLink.has(chatterId)) {
       unmatched.push({ mypulsUserId, label, raison: 'ambigu' })
       continue
     }
-    noLink.delete(chatterId)
+    wanted.push({ mypulsUserId, label, chatterId })
+    claims.set(chatterId, (claims.get(chatterId) ?? 0) + 1)
+  }
+  for (const { mypulsUserId, label, chatterId } of wanted) {
+    if ((claims.get(chatterId) ?? 0) > 1) {
+      unmatched.push({ mypulsUserId, label, raison: 'ambigu' })
+      continue
+    }
     chatterByMypulsId.set(mypulsUserId, chatterId)
     toLink.push({ chatterId, mypulsUserId })
   }

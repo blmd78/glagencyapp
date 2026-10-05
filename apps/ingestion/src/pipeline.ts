@@ -34,8 +34,9 @@ export interface PipelineDeps {
    *    le 11/09), 2 money-team (page + fragment résumé), 1 upsert creator_daily, 2 + 2 pour
    *    chatter_daily et chatter_creator_daily (delete + insert), 1 `finish_chatter_day`, et 0 à 2
    *    si fiches ou alias neufs ;
-   *  - fixe ≈ 7 ici (creators, chatters, alias, fiches reliées, max(date), 2 séries dashboard),
-   *    plus ce que le Worker ajoute autour (session, ingest_runs, insights, Sentry : worker.ts).
+   *  - fixe ≈ 8 ici (creators, sonde 0183, chatters, alias, fiches reliées, max(date), 2 séries
+   *    dashboard), plus ce que le Worker ajoute autour (session, ingest_runs, insights, Sentry :
+   *    worker.ts).
    * Un rattrapage de 3 jours (≈ 40-45 rien qu'en jours) approche ou dépasse donc le plafond ;
    * au-delà, les fetch suivants échouent (y compris ingest_runs et Sentry). Le rattrapage étant
    * auto-cicatrisant nuit après nuit, un cap bas se résorbe seul.
@@ -191,6 +192,23 @@ function finishDayOf(day: string, data: unknown): FinishDay {
 }
 
 /**
+ * Garde de déploiement : la migration 0183 (`ingest_day_checks`, `finish_chatter_day`…) est-elle en
+ * base ? Sans elle, le relevé chatteurs écrirait ses chiffres puis échouerait à `finish_chatter_day` :
+ * des jours écrits, jamais contrôlés. On le SUSPEND donc pour tout le run (creator_daily continue).
+ * UNE lecture, aucune écriture : la table et la RPC naissent de la même migration. Rend null si 0183
+ * est là, le motif si la table est ABSENTE. Toute autre erreur (passagère) LÈVE : le run échoue avant
+ * toute écriture, et le rattrapage de la nuit suivante reprend ces jours — suspendre ici laisserait
+ * des jours chatteurs vides que le rattrapage (reparti du dernier creator_daily) ne revisiterait pas.
+ */
+async function migration0183Missing(db: Db): Promise<string | null> {
+  const { error } = await db.from('ingest_day_checks').select('day').limit(1)
+  if (!error) return null
+  // PGRST205 : table absente du cache de schéma (PostgREST ≥ 12.2) ; 42P01 : relation inexistante (avant).
+  if (error.code === 'PGRST205' || error.code === '42P01') return 'migration 0183 absente : relevé chatteurs suspendu'
+  throw new Error(`sonde de la migration 0183 (ingest_day_checks) en échec : ${error.message}`)
+}
+
+/**
  * Attribution par chatteur d'un jour, depuis le dashboard money-team (session web) :
  * résumé → chatter_daily, ventes → chatter_creator_daily. Fiche de chaque ligne : l'id MyPuls
  * d'abord (`resolveDayIdentity`). Puis UN appel `finish_chatter_day` : ids, anomalies et les
@@ -204,14 +222,27 @@ async function ingestChatterDay(
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
   fetchMoneyTeam: FetchMoneyTeam,
+  /** CA PPV + pourboires du jour selon l'API (creator_daily), en centimes : total indépendant de la page. */
+  apiCaCents: number | null,
 ): Promise<{
   chatterRows: number
   pairRows: number
   newChatterNames: string[]
   droppedTx: string[]
   reliabilityAlerts: string[]
+  /** Avertissements techniques qui ne dégradent PAS le run (journal ingest_runs seulement). */
+  warnings: string[]
 }> {
   const mt = await fetchMoneyTeam(day, cookie)
+  const warnings: string[] = []
+  // Annuaire des équipes (JSON `assignableUsersByCreator`) : libellé d'un compte DANS l'équipe de chaque
+  // modèle. Absent alors que la page a des ventes = markup changé (spec : « JSON absent → warning »). Les
+  // ventes portent leur id, donc rien n'est faux : averti, pas dégradé.
+  if (mt.transactions.length && !mt.directory.some((d) => d.source === 'assignable')) {
+    warnings.push(
+      `${day} : annuaire des équipes MyPuls (JSON assignableUsersByCreator) absent ou illisible sur une page à ${mt.transactions.length} vente(s) — markup changé ? (avertissement, pas une dégradation)`,
+    )
+  }
 
   // Un SEUL chemin de fabrication du libellé (décodage entités + trim) : la résolution utilise
   // la même clé que l'enregistrement — sinon un libellé à entité HTML se perd.
@@ -256,6 +287,7 @@ async function ingestChatterDay(
     identity: idn,
     mypulsIdOf: (id) => ctx.mypulsIdByChatter.get(id) ?? null,
     expected,
+    apiCaCents,
   })
 
   // Fiches et alias neufs. L'état du run suit CHAQUE écriture dès qu'elle a réussi : si la suite du
@@ -434,6 +466,7 @@ async function ingestChatterDay(
         ? [`${day} : jour « à vérifier » sans contrôle en échec lisible — voir ingest_day_checks`]
         : []),
     ],
+    warnings,
   }
 }
 
@@ -447,7 +480,7 @@ async function ingestCreatorDay(
   dash: Map<string, Map<string, DashDay>> | null,
   nameToId: Map<string, string>,
   pseudoToName: (p: string) => string | null,
-): Promise<{ rows: number; source: 'dashboard' | 'api' }> {
+): Promise<{ rows: number; source: 'dashboard' | 'api'; caCents: number }> {
   const tx = await fetchTeamMoney(day)
   const agg = new Map<string, { ca: number; ppv: number; tips: number; renew: number }>()
   for (const t of tx) {
@@ -488,60 +521,17 @@ async function ingestCreatorDay(
   console.log(
     `[ingestion] ${day}: ${tx.length} tx → ${rows.length} modèles (${dd ? 'dashboard' : 'api'}, +${subsTotal} subs)`,
   )
-  return { rows: rows.length, source: dd ? 'dashboard' : 'api' }
+  // CA PPV + pourboires du jour écrit dans creator_daily, en centimes : le total INDÉPENDANT de la page
+  // money-team que `dayChecks` oppose à un jour servi vide (b_total_page).
+  const caCents = rows.reduce((s, r) => s + Math.round(r.ca_ppv * 100) + Math.round(r.ca_tips * 100), 0)
+  return { rows: rows.length, source: dd ? 'dashboard' : 'api', caCents }
 }
 
-export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {}): Promise<IngestRunSummary> {
-  const startedMs = Date.now()
-  const warnings: string[] = []
-  const fetchMoneyTeam = deps.fetchMoneyTeam ?? fetchMoneyTeamDay
-  const db = createAdminClient()
-
-  const { data: creators, error } = await db
-    .from('creators')
-    .select('id, name, is_private, mypuls_creator_id')
-  if (error) throw error
-  const nameToId = new Map((creators ?? []).map((c) => [c.name as string, c.id as string]))
-  // Tri longueur décroissante : un pseudo peut contenir plusieurs noms (« juliette_mims »
-  // contient « Julie » ET « Juliette ») — le match le plus long doit gagner, pas l'ordre du select.
-  const mains = (creators ?? [])
-    .filter((c) => !c.is_private)
-    .map((c) => c.name as string)
-    .sort((a, b) => b.length - a.length)
-  const pseudoToName = (pseudo: string): string | null => {
-    const p = (pseudo || '').toLowerCase()
-    return PRIV[p] ?? mains.find((n) => p.includes(n.toLowerCase())) ?? null
-  }
-
-  // Résolution modèle : par mypuls_creator_id (déterministe) sinon par pseudo (fallback) + backfill
-  // de l'id → dès le 2e run le mapping est stable même si le pseudo affiché change.
-  const idToName = new Map<string, string>()
-  for (const c of creators ?? []) {
-    if (c.mypuls_creator_id) idToName.set(c.mypuls_creator_id, c.name as string)
-  }
-  const creatorBackfill = new Map<string, string>() // nom modèle → mypuls_creator_id à persister
-  const resolveCreator = (creatorId: number, label: string): string | null => {
-    const byId = idToName.get(String(creatorId))
-    if (byId) return byId
-    const byName = pseudoToName(label)
-    if (byName && nameToId.has(byName) && !idToName.has(String(creatorId))) {
-      creatorBackfill.set(byName, String(creatorId))
-    }
-    return byName
-  }
-
-  // Session web pour l'attribution par chatteur (dashboard money-team). Optionnelle :
-  // si le login échoue, on ingère quand même creator_daily (API) sans casser le run.
-  // Cookie injecté (worker auto-renouvelé) prioritaire ; sinon fallback login().
-  let cookie: string | null = deps.cookie ?? null
-  if (!cookie) {
-    try {
-      cookie = (await login()).cookie
-    } catch (e) {
-      warnings.push(`login money-team échoué → chatteurs ignorés : ${(e as Error).message}`)
-      console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
-    }
-  }
+/**
+ * État d'identité du run : fiches, alias, e-mails, ids MyPuls et fiches reliées à un membre, lus une
+ * fois en tête de run puis mis à jour au fil des écritures de chaque jour (`ingestChatterDay`).
+ */
+async function loadIdentity(db: Db): Promise<IdentityCtx> {
   // Ces selects sont le SOCLE de la résolution d'identité : un échec silencieux donnerait des
   // maps vides → duplication massive + re-pointage des alias. On THROW. fetchAll : un select nu
   // tronqué à 1000 lignes donnerait des maps INCOMPLÈTES (pas vides) → le garde-fou ne verrait
@@ -580,7 +570,7 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     db.from('profiles').select('chatter_id').not('chatter_id', 'is', null).order('chatter_id').range(f, t),
   )
   if (linkedErr) throw linkedErr
-  const identity: IdentityCtx = {
+  return {
     nameToChatter,
     aliasToChatter,
     emailToChatter,
@@ -589,6 +579,66 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     linkedChatters: new Set(linkedRows.flatMap((p) => (p.chatter_id ? [p.chatter_id] : []))),
     norm,
   }
+}
+
+export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {}): Promise<IngestRunSummary> {
+  const startedMs = Date.now()
+  const warnings: string[] = []
+  const fetchMoneyTeam = deps.fetchMoneyTeam ?? fetchMoneyTeamDay
+  const db = createAdminClient()
+
+  const { data: creators, error } = await db
+    .from('creators')
+    .select('id, name, is_private, mypuls_creator_id')
+  if (error) throw error
+  const nameToId = new Map((creators ?? []).map((c) => [c.name as string, c.id as string]))
+  // Tri longueur décroissante : un pseudo peut contenir plusieurs noms (« juliette_mims »
+  // contient « Julie » ET « Juliette ») — le match le plus long doit gagner, pas l'ordre du select.
+  const mains = (creators ?? [])
+    .filter((c) => !c.is_private)
+    .map((c) => c.name as string)
+    .sort((a, b) => b.length - a.length)
+  const pseudoToName = (pseudo: string): string | null => {
+    const p = (pseudo || '').toLowerCase()
+    return PRIV[p] ?? mains.find((n) => p.includes(n.toLowerCase())) ?? null
+  }
+
+  // Garde de déploiement (spec 2026-10-01, ordre de mise en prod) : sans 0183, AUCUNE écriture côté
+  // chatteurs (chatter_daily, chatter_creator_daily, fiches, alias) pour tout le run — ni lecture de
+  // la money-team ni de l'état d'identité. creator_daily continue comme avant ; le run est dégradé.
+  const suspended = await migration0183Missing(db)
+  if (suspended) console.warn(`[ingestion] ${suspended}`)
+
+  // Résolution modèle : par mypuls_creator_id (déterministe) sinon par pseudo (fallback) + backfill
+  // de l'id → dès le 2e run le mapping est stable même si le pseudo affiché change.
+  const idToName = new Map<string, string>()
+  for (const c of creators ?? []) {
+    if (c.mypuls_creator_id) idToName.set(c.mypuls_creator_id, c.name as string)
+  }
+  const creatorBackfill = new Map<string, string>() // nom modèle → mypuls_creator_id à persister
+  const resolveCreator = (creatorId: number, label: string): string | null => {
+    const byId = idToName.get(String(creatorId))
+    if (byId) return byId
+    const byName = pseudoToName(label)
+    if (byName && nameToId.has(byName) && !idToName.has(String(creatorId))) {
+      creatorBackfill.set(byName, String(creatorId))
+    }
+    return byName
+  }
+
+  // Session web pour l'attribution par chatteur (dashboard money-team). Optionnelle :
+  // si le login échoue, on ingère quand même creator_daily (API) sans casser le run.
+  // Cookie injecté (worker auto-renouvelé) prioritaire ; sinon fallback login().
+  let cookie: string | null = deps.cookie ?? null
+  if (!cookie) {
+    try {
+      cookie = (await login()).cookie
+    } catch (e) {
+      warnings.push(`login money-team échoué → chatteurs ignorés : ${(e as Error).message}`)
+      console.warn('[ingestion] login money-team échoué → chatteurs ignorés :', (e as Error).message)
+    }
+  }
+  const identity = suspended ? null : await loadIdentity(db)
 
   const today = iso(new Date())
   const yesterday = addDays(today, -1)
@@ -654,9 +704,9 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
       const creator = await ingestCreatorDay(db, day, dash, nameToId, pseudoToName)
       result.creatorRows = creator.rows
       result.source = creator.source
-      if (cookie) {
+      if (cookie && identity) {
         const chatter = await ingestChatterDay(
-          db, day, cookie, identity, nameToId, pseudoToName, fetchMoneyTeam,
+          db, day, cookie, identity, nameToId, pseudoToName, fetchMoneyTeam, creator.caCents,
         )
         result.chatterRows = chatter.chatterRows
         result.pairRows = chatter.pairRows
@@ -669,7 +719,7 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
         if (chatter.droppedTx.length) {
           warnings.push(`${day} : transactions NON ventilées — ${chatter.droppedTx.join(' · ')}`)
         }
-        warnings.push(...chatter.reliabilityAlerts)
+        warnings.push(...chatter.reliabilityAlerts, ...chatter.warnings)
       }
     } catch (e) {
       result.error = (e as Error).message
@@ -687,5 +737,10 @@ export async function runPipeline(explicitDay?: string, deps: PipelineDeps = {})
     days: dayResults,
     warnings,
     durationMs: Date.now() - startedMs,
+    // Jours dont les chatteurs n'ont PAS été relevés : à rejouer une fois 0183 appliquée (rien n'est perdu
+    // côté MyPuls, mais le rattrapage de nuit ne revient pas dessus — il repart du dernier creator_daily).
+    chatterSuspended: suspended
+      ? `${suspended} — chatteurs non relevés ${first === last ? `le ${first}` : `du ${first} au ${last}`} : à rejouer jour par jour (pnpm ingest <jour>) une fois 0183 appliquée`
+      : null,
   })
 }

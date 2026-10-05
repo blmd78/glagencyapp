@@ -39,6 +39,12 @@ export function summarizeRun(input: {
   days: IngestDayResult[]
   warnings: string[]
   durationMs: number
+  /**
+   * Motif du relevé chatteurs suspendu pour tout le run (ex. migration 0183 absente) : rien n'a été
+   * écrit côté chatteurs, volontairement. Le run est dégradé et le motif part en warning ; la règle
+   * « zéro ligne chatter_daily » ne s'applique pas (elle accuserait le markup à tort).
+   */
+  chatterSuspended?: string | null
 }): IngestRunSummary {
   const warnings = [...input.warnings]
   const totalCreatorRows = input.days.reduce((s, d) => s + d.creatorRows, 0)
@@ -60,7 +66,10 @@ export function summarizeRun(input: {
   // cassée : les parseurs renvoient vide SANS throw quand le markup change, et le
   // delete/insert de chatter_daily étant gardé par length, le dashboard gèlerait
   // silencieusement sur les dernières données connues.
-  if (input.catchup && input.loginOk && totalChatterRows === 0) {
+  if (input.chatterSuspended) {
+    degraded = true
+    warnings.push(input.chatterSuspended)
+  } else if (input.catchup && input.loginOk && totalChatterRows === 0) {
     degraded = true
     warnings.push('aucune ligne chatter_daily malgré un login money-team OK (markup changé ?)')
   }

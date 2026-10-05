@@ -18,11 +18,19 @@ import { rows } from './ops-utils'
 // Les photos sont en JSON (pas en CSV) : `toCsv` écrit un BOM et préfixe d'une apostrophe les libellés
 // qui commencent par = + - @ — une relecture CSV devrait défaire les deux. Le JSON relit exactement ce
 // qui a été écrit.
+//
+// Fraîcheur du verdict : par jour, la procédure (plan, Task 14) enchaîne photo « avant », rejeu du
+// NOUVEAU code, photo « après ». Un rejeu en échec laisserait dans ingest_day_checks le verdict d'un
+// rejeu précédent, que la photo « après » reprendrait comme s'il était neuf. D'où `takenAt` (heure de
+// la photo) et `check.checked_at` dans chaque photo : `compare` REFUSE un jour dont le verdict « après »
+// n'est pas postérieur à la photo « avant » (le début du rejeu), ou manque.
 
-interface Photo {
+export interface Photo {
+  /** Heure de prise de la photo (ISO). Absente : photo d'un ancien format, refusée en comparaison. */
+  takenAt?: string
   snapshot: ReplaySnapshot
   issues: ReplayIssue[]
-  check: { status: string; checks: { code: string; ok: boolean; detail: string }[] } | null
+  check: { status: string; checks: { code: string; ok: boolean; detail: string }[]; checked_at?: string } | null
 }
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/
@@ -46,7 +54,7 @@ async function photo(day: string, dir: string): Promise<void> {
     rows('chatter_identity_issues', fetchAll((f, t) =>
       db.from('chatter_identity_issues').select('id, kind, mypuls_user_id, chatter_id, other_chatter_id, day, label, amount')
         .is('resolved_at', null).order('id').range(f, t))),
-    db.from('ingest_day_checks').select('status, checks').eq('day', day).maybeSingle(),
+    db.from('ingest_day_checks').select('status, checks, checked_at').eq('day', day).maybeSingle(),
   ])
   if (check.error) throw new Error(`ingest_day_checks : ${check.error.message}`)
   const sumBy = (rs: { chatter_id: string; ca: number | string | null }[]) => {
@@ -55,6 +63,7 @@ async function photo(day: string, dir: string): Promise<void> {
     return out
   }
   const p: Photo = {
+    takenAt: new Date().toISOString(),
     snapshot: {
       day,
       cd: sumBy(cd),
@@ -77,8 +86,33 @@ async function photo(day: string, dir: string): Promise<void> {
   console.log(`[recette] photo ${day} → ${dir} (${Object.keys(p.snapshot.cd).length} fiches résumé, ${Object.keys(p.snapshot.ccd).length} fiches ventes)`)
 }
 
-function render(results: { diff: ReplayDayDiff; check: Photo['check'] }[], sansApres: string[]): string {
-  const refused = results.filter((r) => !r.diff.ok)
+/**
+ * Le verdict de la photo « après » vient-il du rejeu du nouveau code ? null si oui ; sinon le motif du
+ * refus. Le rejeu commence après la photo « avant » : son verdict doit être STRICTEMENT postérieur.
+ */
+export function staleAfterCheck(before: Photo, after: Photo): string | null {
+  if (!after.check) {
+    return 'aucun verdict ingest_day_checks dans la photo « après » : le rejeu du nouveau code n’a rien écrit (échec ?) — rejouer le jour puis reprendre la photo « après ».'
+  }
+  if (!after.check.checked_at) {
+    return 'verdict « après » sans checked_at (photo d’un ancien format) : reprendre la photo « après ».'
+  }
+  const started = before.takenAt ? Date.parse(before.takenAt) : Number.NaN
+  if (!Number.isFinite(started)) {
+    return 'photo « avant » sans heure de prise (ancien format) : impossible de prouver que le verdict « après » vient du rejeu — reprendre les photos du jour.'
+  }
+  const checkedAt = Date.parse(after.check.checked_at)
+  if (!Number.isFinite(checkedAt) || checkedAt <= started) {
+    return `verdict « après » du ${after.check.checked_at}, antérieur à la photo « avant » (${before.takenAt}) : le rejeu du nouveau code n’a pas écrit ce jour-là (échec ?) — rejouer le jour puis reprendre la photo « après ».`
+  }
+  return null
+}
+
+function render(
+  results: { diff: ReplayDayDiff; check: Photo['check']; stale: string | null }[],
+  sansApres: string[],
+): string {
+  const refused = results.filter((r) => !r.diff.ok || r.stale)
   const toCheck = results.filter((r) => r.check?.status !== 'ok')
   const unexplained = results.flatMap((r) => r.diff.moves.filter((m) => m.reason === null))
   const lines = [
@@ -92,9 +126,10 @@ function render(results: { diff: ReplayDayDiff; check: Photo['check'] }[], sansA
   if (sansApres.length) {
     lines.push(`**Attention** : ${sansApres.length} jour(s) photographié(s) « avant » sans photo « après », donc NON comparé(s) : ${sansApres.join(', ')}.`, '')
   }
-  for (const { diff: d, check } of results) {
-    lines.push(`## ${d.day} — ${d.ok ? 'OK' : 'REFUSÉ'} · fiabilité : ${check?.status ?? 'non vérifié'}`)
+  for (const { diff: d, check, stale } of results) {
+    lines.push(`## ${d.day} — ${d.ok && !stale ? 'OK' : 'REFUSÉ'} · fiabilité : ${check?.status ?? 'non vérifié'}`)
     lines.push('')
+    if (stale) lines.push(`- **Verdict « après » périmé ou absent** : ${stale}`)
     lines.push(`- chatter_daily : ${eur(d.cdBefore)} € avant → ${eur(d.cdAfter)} € après${d.asideCents ? ` (dont ${eur(d.asideCents)} € mis de côté)` : ''}`)
     lines.push(`- chatter_creator_daily : ${eur(d.ccdBefore)} € avant → ${eur(d.ccdAfter)} € après${d.totalsOk ? '' : ' — **ÉCART DE TOTAL**'}`)
     if (!d.cdBefore && !d.cdAfter && !d.ccdBefore && !d.ccdAfter) {
@@ -135,11 +170,13 @@ function compare(avant: string, apres: string, out: string): boolean {
     if (before.snapshot.day !== after.snapshot.day) {
       throw new Error(`${f} : jour « avant » ${before.snapshot.day} ≠ jour « après » ${after.snapshot.day}`)
     }
-    return { diff: compareReplay(before.snapshot, after.snapshot, after.issues), check: after.check }
+    const stale = staleAfterCheck(before, after)
+    if (stale) console.warn(`[recette] ${f} REFUSÉ : ${stale}`)
+    return { diff: compareReplay(before.snapshot, after.snapshot, after.issues), check: after.check, stale }
   })
   mkdirSync(dirname(out), { recursive: true })
   writeFileSync(out, render(results, sansApres))
-  const ok = results.every((r) => r.diff.ok)
+  const ok = results.every((r) => r.diff.ok && !r.stale)
   console.log(`[recette] ${results.length} jour(s) comparé(s) — ${ok ? 'aucun refus' : 'REFUS'} → ${out}`)
   return ok
 }

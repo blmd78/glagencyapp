@@ -117,4 +117,17 @@ describe('summarizeRun', () => {
   it('aucun contrôle en échec → pas de dégradation de ce fait', () => {
     expect(summarizeRun({ ...base, days: [day({ reliabilityAlerts: 0 })] }).status).toBe('ok')
   })
+
+  it('relevé chatteurs suspendu (migration 0183 absente) → degraded, motif en warning, sans la fausse alerte « markup changé »', () => {
+    const motif = 'migration 0183 absente : relevé chatteurs suspendu'
+    const s = summarizeRun({ ...base, chatterSuspended: motif, days: [day({ chatterRows: 0, pairRows: 0 })] })
+    expect(s.status).toBe('degraded')
+    expect(s.warnings).toContain(motif)
+    expect(s.warnings.some((w) => w.includes('markup changé'))).toBe(false)
+  })
+
+  it('relevé chatteurs suspendu → degraded même en rejeu explicite', () => {
+    const s = summarizeRun({ ...base, catchup: false, chatterSuspended: 'motif', days: [day({ chatterRows: 0 })] })
+    expect(s.status).toBe('degraded')
+  })
 })

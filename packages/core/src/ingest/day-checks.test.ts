@@ -12,6 +12,7 @@ function day(o: {
   sales: SaleLine[]
   directory?: [string, string][]
   page?: { salesCount: number | null; net: number | null }
+  apiCaCents?: number | null
 }) {
   let n = 0
   const st = state(o.fiches)
@@ -36,6 +37,7 @@ function day(o: {
     identity,
     mypulsIdOf: (id) => st.mypulsIdByChatter.get(id) ?? null,
     expected,
+    apiCaCents: o.apiCaCents,
   })
   return { identity, expected, checks }
 }
@@ -573,5 +575,42 @@ describe('dayChecks', () => {
       expect(expected.sales_cents).toBe(1200)
       expect(expected.sales_count).toBe(2)
     })
+  })
+})
+
+describe('dayChecks — jour vide servi par MyPuls, contre le total indépendant de l’API', () => {
+  // Page servie vide (0 vente, 0 ligne de résumé, cartes à 0) : sans total indépendant, tout passe
+  // (0 = 0 partout, et b1/b2 en base aussi au premier passage). Le CA PPV + pourboires du jour lu par
+  // l'API (/team/money, déjà écrit dans creator_daily) est ce total indépendant.
+  const empty = { fiches: [lionel], summary: [], sales: [], page: { salesCount: 0, net: 0 } }
+  const one = {
+    fiches: [lionel],
+    summary: [{ label: 'Lionel', ca: 12 }],
+    sales: [{ label: 'Lionel', mypulsUserId: '1802', amount: 12 }],
+  }
+
+  it('0 vente lue, cartes à 0, mais l’API annonce 50 € → b_total_page échoue, montant de l’API en détail', () => {
+    const b = check({ ...empty, apiCaCents: 5000 }).b_total_page
+    expect(b?.ok).toBe(false)
+    expect(b?.detail).toContain("0 vente lue alors que l'API annonce 50,00 €")
+  })
+
+  it('0 vente lue et API à 0 → jour réellement vide : b_total_page reste au vert', () => {
+    expect(check({ ...empty, apiCaCents: 0 }).b_total_page?.ok).toBe(true)
+  })
+
+  it('sans total API (appelant qui ne le fournit pas) → comportement d’avant : au vert', () => {
+    expect(check(empty).b_total_page?.ok).toBe(true)
+    expect(check({ ...empty, apiCaCents: null }).b_total_page?.ok).toBe(true)
+  })
+
+  it('des ventes lues = la page, API > 0 → la garde ne joue pas (pas de faux positif)', () => {
+    expect(check({ ...one, page: { salesCount: 1, net: 12 }, apiCaCents: 1200 }).b_total_page?.ok).toBe(true)
+  })
+
+  it('carte « Ventes » à 0 alors qu’on lit une vente et que l’API annonce du CA → échec, la page à 0 est nommée', () => {
+    const b = check({ ...one, page: { salesCount: 0, net: 0 }, apiCaCents: 1200 }).b_total_page
+    expect(b?.ok).toBe(false)
+    expect(b?.detail).toContain("page MyPuls à 0 vente alors que l'API annonce 12,00 €")
   })
 })

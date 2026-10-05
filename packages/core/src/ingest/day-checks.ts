@@ -53,6 +53,11 @@ export function dayChecks(input: {
   /** Id MyPuls porté par une fiche AVANT la journée (état chargé en tête de run). */
   mypulsIdOf: (chatterId: string) => string | null
   expected: ExpectedTotals
+  /**
+   * Total INDÉPENDANT du jour, en centimes : CA PPV + pourboires lu par l'API (`/team/money`, écrit
+   * dans creator_daily). Optionnel : absent (ou null), b_total_page se comporte comme avant.
+   */
+  apiCaCents?: number | null
 }): DayCheck[] {
   const { identity: idn, expected: e } = input
   const checks: DayCheck[] = []
@@ -108,6 +113,18 @@ export function dayChecks(input: {
       ok: e.page_net_cents === e.sales_cents && e.page_sales_count === e.sales_count,
       detail: `Ventes lues : ${eur(e.sales_cents)} € (${e.sales_count}) — page MyPuls : ${eur(e.page_net_cents)} € (${e.page_sales_count}).`,
     })
+  }
+  // Jour vide servi par MyPuls (0 vente, 0 ligne de résumé, cartes à 0) : tout le reste passe, 0 = 0
+  // partout (en base aussi au premier passage). Seul un total indépendant le trahit : l'API annonce du CA.
+  const api = input.apiCaCents
+  if (api != null && api > 0 && (e.sales_count === 0 || e.page_sales_count === 0)) {
+    const b = checks[checks.length - 1]!
+    const cause = e.sales_count === 0 ? '0 vente lue' : 'page MyPuls à 0 vente'
+    checks[checks.length - 1] = {
+      code: 'b_total_page',
+      ok: false,
+      detail: `${cause} alors que l'API annonce ${eur(api)} € (PPV + pourboires) ce jour-là : page vide ou incomplète ? — ${b.detail}`,
+    }
   }
 
   // c — une fiche = un compte

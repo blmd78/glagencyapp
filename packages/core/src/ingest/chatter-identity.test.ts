@@ -347,6 +347,29 @@ describe('resolveDayIdentity — cas discriminants (revue de la Task 7)', () => 
     expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toHaveLength(1)
   })
 
+  it('résumé ambigu mis de côté : un id candidat déjà pris par sa propre ligne reste sous l’invariant (écart vu)', () => {
+    // 9332 a sa ligne « Serge B » ; la ligne « Serge » (9332 ou 10504) ne tombe sur aucun candidat libre
+    // au centime → mise de côté. Seul 10504 (candidat non pris) sort de l'invariant : l'écart de 9332 reste vu.
+    const r = run({
+      summary: [
+        { label: 'Serge B', ca: 10 },
+        { label: 'Serge', ca: 30 },
+      ],
+      sales: [
+        { label: 'Serge B', mypulsUserId: '9332', amount: 12 },
+        { label: 'Serge', mypulsUserId: '10504', amount: 20 },
+      ],
+      directory: [
+        ['9332', 'Serge B'],
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['9332', null])
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant').map((i) => [i.mypulsUserId, i.amount])).toEqual([['9332', 2]])
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toHaveLength(1)
+  })
+
   it('D3 « au centime » : 70,79 au résumé contre 70,78 de ventes → mis de côté', () => {
     const r = run({
       summary: [{ label: 'Serge', ca: 70.79 }],

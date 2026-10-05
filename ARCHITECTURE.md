@@ -131,6 +131,15 @@ Le worker accepte aussi un déclenchement HTTP manuel (`fetch`), protégé par l
 
 **`apps/ingestion` se déploie manuellement** : `pnpm --filter @glagency/ingestion deploy` (= `wrangler deploy`) — aucun fichier du repo ne montre de pipeline automatisé pour ce worker.
 
+> **⛔ Identité chatteur MyPuls (spec `2026-10-01`) — ordre de mise en prod, sans sauter d'étape :**
+> 1. migration **`0183` appliquée en prod** ;
+> 2. **lot 1 des fusions appliqué** en prod, sur accord explicite de Benoit (`pnpm identity-backfill --lot=… --apply`, § 10 Relevé MyPuls) ;
+> 3. **recette de non-régression acceptée** par Benoit (`pnpm recette-identite`, rapport écrit) ;
+> 4. **déploiement du Worker** ;
+> 5. **release web** de l'onglet Membres › Fiches MyPuls (PR 4) — après le Worker, sinon la carte affiche « non vérifié ».
+>
+> **Le Worker est partagé par tous les crons** (chatteurs 23h05, spenders, shifts, Uncove) : tout `wrangler deploy` depuis une branche qui contient la PR 3 (`feature/identite-3-resolution`, puis `develop`/`main` après son merge) livre le nouveau relevé chatteurs, même pour redéployer un autre job. De même, `pnpm ingest` lancé en local depuis une telle branche écrit **en prod** (`.env` racine) avec le nouveau code. Filet si l'ordre n'est pas tenu : sans `0183`, le pipeline **suspend le relevé chatteurs** pour tout le run (aucune écriture chatteurs, `creator_daily` continue, run dégradé « migration 0183 absente : relevé chatteurs suspendu », jours à rejouer une fois `0183` appliquée) — sonde `migration0183Missing`, `apps/ingestion/src/pipeline.ts`. Même avertissement en tête de `apps/ingestion/wrangler.toml`.
+
 **Aucune CI** (décision de Benoît, commit `847dc3c`) : les vérifications sont locales, par task — détail § 8. Cycle de branches, hotfix, versioning et accord de mise en prod : `docs/git-workflow.md`. Release : `pnpm release:prepare` puis `pnpm release:tag` (`AGENTS.md` § Carte, changelog, release).
 
 **Invalidation du cache après ingestion** : `apps/web` expose `POST /api/revalidate` (secret partagé `REVALIDATE_SECRET`, allow-list de tags fermée à `facts-daily`, comparaison timing-safe) — décrit dans `docs/guidelines-socle.md` § 2. Appelée par `pingRevalidate()` (`apps/ingestion/src/revalidate.ts`) : le Worker après le run chatteurs (23h05) et après le relevé des shifts (04h30), le CLI local en fin de run. Sans `REVALIDATE_URL` + `REVALIDATE_SECRET` côté Worker, l'appel est un no-op ; sans `REVALIDATE_SECRET` identique côté Vercel, la route répond 401 (§ 9).
@@ -174,7 +183,7 @@ Hook local `scripts/hooks/pre-push` (activé par `prepare` au `pnpm install` : `
 | Déploiement `apps/ingestion` | manuel (`wrangler deploy`, § 5) — aucun fichier du repo ne prouve un pipeline automatisé (type Cloudflare Workers Builds) |
 | `SENTRY_DSN` web en prod (Vercel) | non vérifiable depuis le repo (secret du dashboard Vercel) |
 | `TG_BOT_TOKEN`/`TG_CHAT_ID` | déclarés dans `.env.example`, aucune référence dans le code (§ 6) |
-| Budget de sous-requêtes du run de 23h05 (Worker, plan Free : 50 par invocation) | **Estimation à la lecture du code (2026-10-05), à mesurer — non mesurée.** `PipelineDeps.maxCatchup` (`apps/ingestion/src/pipeline.ts`) : ≈ 13 à 15 par jour (`/team/money` paginé par 100 lignes ≈ 5, 2 lectures money-team, 1 upsert `creator_daily`, delete + insert de `chatter_daily` et de `chatter_creator_daily`, 1 `finish_chatter_day`, 0 à 2 pour fiches et alias neufs) ; ≈ 7 fixes dans `runPipeline` (+1 par tranche de 1 000 lignes d'un `fetchAll`), plus ce que le Worker ajoute (session, `ingest_runs`, insights, Sentry). `maxCatchup: 3` (`apps/ingestion/src/worker.ts:63`) approche ou dépasse donc le plafond ; au-delà, les sous-requêtes suivantes échouent, `ingest_runs` et Sentry compris. Le rattrapage s'auto-cicatrise nuit après nuit ; `maxCatchup: 2` est à envisager au déploiement de l'identité |
+| Budget de sous-requêtes du run de 23h05 (Worker, plan Free : 50 par invocation) | **Estimation à la lecture du code (2026-10-05), à mesurer — non mesurée.** `PipelineDeps.maxCatchup` (`apps/ingestion/src/pipeline.ts`) : ≈ 13 à 15 par jour (`/team/money` paginé par 100 lignes ≈ 5, 2 lectures money-team, 1 upsert `creator_daily`, delete + insert de `chatter_daily` et de `chatter_creator_daily`, 1 `finish_chatter_day`, 0 à 2 pour fiches et alias neufs) ; ≈ 8 fixes dans `runPipeline`, sonde `0183` comprise (+1 par tranche de 1 000 lignes d'un `fetchAll`), plus ce que le Worker ajoute (session, `ingest_runs`, insights, Sentry). `maxCatchup: 2` (`DEPS`, `apps/ingestion/src/worker.ts`) pour l'identité MyPuls : 3 jours approchaient ou dépassaient le plafond ; au-delà, les sous-requêtes suivantes échouent, `ingest_runs` et Sentry compris. Le rattrapage s'auto-cicatrise nuit après nuit |
 
 Dettes fonctionnelles connues (bugs mesurés, assumés, non corrigés) : `docs/dettes-ouvertes.md`. Coût d'infra (incident de prefetch Vercel) : `docs/perf-vercel-prefetch.md`.
 
@@ -291,7 +300,8 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   **`chatters.id` se résout par `chatters.mypuls_user_id`, sur les DEUX flux** (chantier identité,
   2026-10, migration `0183`) : le relevé des shifts (`resolveIdentities`, `shifts-core.ts` — l'id
   d'abord ; le repli par nom ne rattache un id inconnu qu'à une fiche SANS id, une fiche déjà
-  identifiée donne `ambigu` : jamais un homonyme rattaché) et la money-team (pipeline de 23h05,
+  identifiée — ou visée par plusieurs ids inconnus du même run — donne `ambigu` : jamais un
+  homonyme rattaché, quel que soit l'ordre du CSV) et la money-team (pipeline de 23h05,
   `ingestChatterDay`, règle pure `resolveDayIdentity` de `@glagency/core` : chaque vente porte l'id
   de son compte, lu dans le bouton « Éditer » ; une ligne de résumé reçoit le sien de l'annuaire du
   jour, départagé au centime par les ventes ; le libellé et l'alias ne sont plus qu'un repli, et
@@ -304,7 +314,9 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   cartes « Ventes » et « Montant net » de la page MyPuls (`b_total_page`) ; (c) une fiche = un
   compte (`c_fiche_compte`, et `c_lien_refuse` si la base refuse de poser un id). **Fermé par
   défaut** : total de page introuvable, jour sans aucun id lu, contrôle non transmis ou code inconnu
-  = échec. Le verdict (`ok` / `a_verifier`, détail de chaque contrôle, totaux) est écrit dans
+  = échec ; un jour servi vide (0 vente lue) alors que l'API annonce du CA PPV + pourboires
+  (`creator_daily` du même jour) fait échouer `b_total_page`. Le verdict (`ok` / `a_verifier`,
+  détail de chaque contrôle, totaux) est écrit dans
   **`ingest_day_checks`**, une ligne par jour — rejouer un jour remplace son verdict ; un jour
   ingéré sans ligne se lit « non vérifié » (RPC `reliability_days`).
   **Un jour « à vérifier » dégrade le run** : chaque contrôle en échec, et chaque alerte technique
