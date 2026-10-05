@@ -20,6 +20,7 @@
     "x": "tsx src/x.ts",
     "linkscale": "tsx src/linkscale.ts",
     "identity-backfill": "tsx src/identity-backfill.ts",
+    "recette-identite": "tsx src/recette-identite.ts",
     "avatars": "tsx src/avatars.ts"
   },
   "dependencies": {
