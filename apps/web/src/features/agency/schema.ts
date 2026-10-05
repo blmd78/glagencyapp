@@ -60,6 +60,10 @@ export const eventInput = z
     // `undefined` = la fenêtre n'a PAS touché à la photo : le serveur ne l'écrit pas. Sans ça, une
     // fenêtre ouverte sur une page périmée réécrirait l'ancienne clé — et effacerait la nouvelle.
     imagePath: imagePath.nullable().optional(),
+    // Type libre et modèle (2026-10-02) : facultatifs — une réunion n'a ni l'un ni l'autre ; absents,
+    // ils s'enregistrent à null (`eventRow`). Le nom reste la vérité affichée ; la fenêtre le compose.
+    kind: z.string().trim().max(40, '40 caractères maximum').nullable().optional(),
+    creatorId: z.uuid('Modèle invalide').nullable().optional(),
   })
   .refine((v) => v.mode === 'jour' || v.endDate >= v.startDate, {
     path: ['endDate'],
@@ -81,6 +85,32 @@ export function eventRow(v: EventInput) {
     remind_on_day: v.remindOnDay,
     audience: [...v.audience],
     color: v.color,
+    kind: v.kind?.trim() || null,
+    creator_id: v.creatorId ?? null,
     ...(v.imagePath !== undefined && { image_path: v.imagePath }),
   }
+}
+
+/**
+ * Le nom d'un événement composé de son type et de sa modèle : « CAROUSEL ALICE », en majuscules
+ * comme l'équipe les écrivait. `''` s'il manque l'un des deux — rien à proposer.
+ */
+export function composeEventTitle(kind: string | null | undefined, modelName: string | null | undefined): string {
+  const k = (kind ?? '').trim().replace(/\s+/g, ' ')
+  const m = (modelName ?? '').trim()
+  return k && m ? `${k} ${m}`.toUpperCase() : ''
+}
+
+/**
+ * Le nom après un changement de type ou de modèle. Il suit la composition TANT QU'il n'a pas été
+ * retouché (vide, ou encore égal à la dernière composition) — et se vide avec elle, plutôt que de
+ * garder « C ALICE » quand on efface le type. Retouché à la main : jamais touché (`title: null`).
+ */
+export function nextAutoTitle({ title, lastAuto, auto }: { title: string; lastAuto: string; auto: string }): {
+  title: string | null
+  lastAuto: string
+} {
+  const managed = title.trim() === '' || title === lastAuto
+  if (!managed) return { title: null, lastAuto }
+  return { title: auto, lastAuto: auto }
 }

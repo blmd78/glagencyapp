@@ -1,11 +1,23 @@
+import { Skeleton } from '@/components/ui/skeleton'
+
 /**
- * Silhouette du bloc de données Stat chatteur (scène noire : titre, podium, deux tableaux),
- * dimensions ~ `StatChatteurTemplate` (anti-CLS). Source unique : importée par `loading.tsx` ET le
- * fallback `<Suspense>` de `page.tsx` (docs/guidelines-standard-feature.md §2).
+ * Silhouette du bloc de données Stat chatteur (onglets, compteur, puis scène noire : titre, podium,
+ * deux tableaux), dimensions ~ `StatChatteurTemplate` (anti-CLS). Source unique : importée par
+ * `loading.tsx` ET le fallback `<Suspense>` de `page.tsx` (docs/guidelines-standard-feature.md §2).
  */
 export function StatChatteurSkeleton() {
   return (
-    <div className="rounded-2xl bg-[#09090b] px-3 pb-6 pt-8 sm:px-6" aria-hidden>
+    <div className="flex flex-col gap-6" aria-hidden>
+      <Skeleton className="h-9 w-56" />
+      <Skeleton className="h-5 w-64" />
+      <StageSkeleton />
+    </div>
+  )
+}
+
+function StageSkeleton() {
+  return (
+    <div className="rounded-2xl bg-[#09090b] px-3 pb-6 pt-8 sm:px-6">
       <div className="mx-auto mb-14 h-9 w-72 animate-pulse rounded-md bg-white/10 sm:mb-16 sm:h-12 sm:w-[28rem]" />
       <div className="mx-auto flex max-w-3xl items-end justify-center gap-2 sm:gap-4">
         {['h-28 sm:h-32', 'h-36 sm:h-44', 'h-20 sm:h-24'].map((h) => (

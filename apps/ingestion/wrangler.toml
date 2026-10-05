@@ -81,4 +81,6 @@ head_sampling_rate = 1
 #   wrangler secret put X_BEARER_TOKEN     # relevé des comptes X (console.x.com) — absent : job sauté, signalé
 #   wrangler secret put LINKSCALE_API_KEY  # trafic LinkScale (clé projet lecture seule) — absent : job sauté, signalé
 #   wrangler secret put REVALIDATE_SECRET  # même valeur que REVALIDATE_SECRET sur Vercel (Production)
+#   wrangler secret put UNCOVE_TOKEN_SECRET  # relevé Uncove : déchiffre les user_token (AES-256-GCM, 32 octets base64) —
+#                                            # MÊME valeur que sur Vercel ; absente : comptes ignorés (decryptToken → null)
 # NE PAS mettre DATABASE_URL (inutile au Worker : supabase-js parle en REST via SUPABASE_URL).

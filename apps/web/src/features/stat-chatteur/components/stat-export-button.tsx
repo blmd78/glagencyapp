@@ -10,15 +10,26 @@ import { downloadRankingImage } from './draw-ranking-image'
 
 /**
  * Télécharge l'image PNG du classement (podium + places 4 à 33). Reçoit déjà les seules lignes
- * utiles ; `total` = nombre de classés sur la période (pied de l'image).
+ * utiles ; `total` = nombre de classés sur la période (pied de l'image) ; `model` = classement
+ * d'une seule modèle (onglet « Par modèle »).
  */
-export function StatExportButton({ rows, total, period }: { rows: RankedChatter[]; total: number; period: Period }) {
+export function StatExportButton({
+  rows,
+  total,
+  period,
+  model,
+}: {
+  rows: RankedChatter[]
+  total: number
+  period: Period
+  model?: string
+}) {
   const [busy, setBusy] = useState(false)
 
   async function onClick() {
     setBusy(true)
     try {
-      await downloadRankingImage(rows, period, total)
+      await downloadRankingImage(rows, period, total, model)
     } catch {
       toast.error("L'image du classement n'a pas pu être générée")
     } finally {

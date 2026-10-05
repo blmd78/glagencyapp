@@ -40,9 +40,11 @@ export type Database = {
           color: string | null
           created_at: string
           created_by: string | null
+          creator_id: string | null
           end_date: string
           id: string
           image_path: string | null
+          kind: string | null
           remind_on_day: boolean
           start_date: string
           title: string
@@ -53,9 +55,11 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          creator_id?: string | null
           end_date: string
           id?: string
           image_path?: string | null
+          kind?: string | null
           remind_on_day?: boolean
           start_date: string
           title: string
@@ -66,15 +70,24 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          creator_id?: string | null
           end_date?: string
           id?: string
           image_path?: string | null
+          kind?: string | null
           remind_on_day?: boolean
           start_date?: string
           title?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "agency_events_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "agency_events_created_by_fkey"
             columns: ["created_by"]
@@ -864,6 +877,7 @@ export type Database = {
       creators: {
         Row: {
           active: boolean
+          avatar_path: string | null
           created_at: string
           excluded: boolean
           excluded_reason: string | null
@@ -878,6 +892,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          avatar_path?: string | null
           created_at?: string
           excluded?: boolean
           excluded_reason?: string | null
@@ -892,6 +907,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          avatar_path?: string | null
           created_at?: string
           excluded?: boolean
           excluded_reason?: string | null
@@ -3288,82 +3304,6 @@ export type Database = {
         }
         Relationships: []
       }
-      todos: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          created_by_name: string | null
-          description: string | null
-          done_at: string | null
-          id: string
-          priority: number
-          profile_id: string
-          release: string | null
-          started_at: string | null
-          status: string
-          title: string
-          type: string | null
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          created_by_name?: string | null
-          description?: string | null
-          done_at?: string | null
-          id?: string
-          priority?: number
-          profile_id: string
-          release?: string | null
-          started_at?: string | null
-          status?: string
-          title: string
-          type?: string | null
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          created_by_name?: string | null
-          description?: string | null
-          done_at?: string | null
-          id?: string
-          priority?: number
-          profile_id?: string
-          release?: string | null
-          started_at?: string | null
-          status?: string
-          title?: string
-          type?: string | null
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "todos_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "todos_profile_id_fkey"
-            columns: ["profile_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "todos_updated_by_fkey"
-            columns: ["updated_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tracker_chatter_notes: {
         Row: {
           author_id: string | null
@@ -5688,7 +5628,6 @@ export type Database = {
       can_edit_planning_of: { Args: { target: string }; Returns: boolean }
       can_manage_planning_of: { Args: { target: string }; Returns: boolean }
       can_write_page: { Args: { slug: string }; Returns: boolean }
-      can_write_todo_of: { Args: { target: string }; Returns: boolean }
       chatter_first_seen: {
         Args: never
         Returns: {
@@ -6122,7 +6061,6 @@ export type Database = {
         }
         Returns: string
       }
-      writable_todo_targets: { Args: never; Returns: string[] }
     }
     Enums: {
       [_ in never]: never

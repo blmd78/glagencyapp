@@ -11,6 +11,34 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Ajouté
 
 - Hook de push : un commit de code n'est poussé qu'après une revue (`review-feature`, tampon par commit) ; doc seule, releases et tags passent. Activé au `pnpm install`. Échappatoire d'urgence : `git push --no-verify`.
+- Doc : checklist de revue de code (`docs/review-checklist.md`), 25 points vérifiables dans un diff, sourcés sur les guidelines et `ARCHITECTURE.md` ; y compris la règle « toute écriture neuve prend une garde `*Live` ».
+
+### Modifié
+
+- Doc : faits recalés sur le code — nombre de migrations, worker d'ingestion actif avec 4 crons (et non « gelé », « 3 crons »), photos des événements Agence (bucket privé, URLs signées, `unoptimized`) décrites au § 7 des guidelines, dette n° 2 des Membres résolue en partie (`email_exists`), `UNCOVE_TOKEN_SECRET` listé dans les secrets du Worker, références documentaires orphelines corrigées.
+
+## [2.71] — 2026-10-05
+
+### Modifié
+
+- Marketing › Liens tracking : quand on déplie un réseau, chaque lien affiche son CA à côté de ses clics.
+
+## [2.70] — 2026-10-02
+
+### Ajouté
+
+- Agence : un type (texte libre) et une modèle par événement. Le nom se compose tout seul (« CAROUSEL ALICE ») et la photo de la modèle s'affiche en petit rond à côté (liste, calendrier, fiche) ; une photo importée garde sa grande place. Les événements existants sont repris d'après leur nom.
+- Photos des modèles récupérées une fois depuis MyPuls (`pnpm avatars`), en préparation de leur affichage dans Agence.
+- Chatteurs › Stat chatter : onglets « Chatteurs » et « Par modèle ». Le second classe les chatteurs sur la seule modèle choisie dans le sélecteur (podium, tableaux et export image à son nom).
+
+### Modifié
+
+- Agence : la liste sous le calendrier passe en cartes avec photo, la fiche d'un événement est refaite (en-tête à la couleur de l'événement, grande photo), un admin crée un événement en cliquant sur un jour du calendrier, et la cloche des nouveautés s'ouvre en panneau.
+- Chatteurs : « Planning / Todo » devient « Emploi du temps » (le planning seul). Scripts (Équipe) et Suivi chatters (Présence) sortent du menu : pages archivées, encore accessibles par leur adresse — la fiche de Suivi s'ouvre toujours depuis Présence › To-Do.
+
+### Supprimé
+
+- La to-do personnelle de l'ancien « Planning / Todo », sans usage depuis le 1er septembre. La To-Do d'équipe de Présence ne change pas.
 
 ## [2.69] — 2026-10-01
 

@@ -24,7 +24,7 @@ import type { ComptaData, MoisData, SuiviData } from '@/features/compta/types'
  * page nouvelle dans la sidebar. Les deux paramètres se combinent : Période et Classement
  * décrivent la même quinzaine.
  *
- * UN SEUL ONGLET EST CHARGÉ à la fois, patron repris de `/chatter/planning` (`?vue=todo`) : on ne
+ * UN SEUL ONGLET EST CHARGÉ à la fois (patron de l'ancien onglet To-do du planning) : on ne
  * construit même pas l'élément des autres. Sans ça, l'onglet Suivi ferait payer ses requêtes à
  * quiconque regarde une période — et une panne sur l'un ferait tomber toute la page au lieu du
  * seul onglet concerné. Période et Classement, eux, partagent le MÊME `getCompta` : le classement

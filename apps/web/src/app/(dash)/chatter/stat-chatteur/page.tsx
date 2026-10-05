@@ -6,14 +6,18 @@ import { StatChatteurTemplate } from '@/features/stat-chatteur/StatChatteurTempl
 import { StatChatteurSkeleton } from '@/features/stat-chatteur/components/stat-chatteur-skeleton'
 import { SectionFallback } from '@/components/skeletons/route-loading'
 import type { StatChatteurData } from '@/features/stat-chatteur/types'
+import type { StatChatteurVue } from '@/features/stat-chatteur/components/stat-chatteur-tabs.client'
 
 export default async function StatChatteurPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>
+  searchParams: Promise<{ from?: string; to?: string; vue?: string; modele?: string }>
 }) {
   const profile = await requireAccess('stat-chatteur')
-  const period = resolvePeriod(await searchParams)
+  const params = await searchParams
+  const period = resolvePeriod(params)
+  // `?vue=modele` = onglet « Par modèle » ; `?modele=` = la modèle choisie (sinon la plus rentable).
+  const vue: StatChatteurVue = params.vue === 'modele' ? 'modele' : 'chatteurs'
   // Kickoff SANS await (pattern streaming, cf. chatters/page.tsx) : le shell (h1) s'affiche
   // immédiatement, le podium + classement streame dans son boundary quand la donnée répond.
   const data = getStatChatteur(period, { restricted: profile.role !== 'admin' })
@@ -28,12 +32,20 @@ export default async function StatChatteurPage({
           </SectionFallback>
         }
       >
-        <StatChatteurContent data={data} />
+        <StatChatteurContent data={data} vue={vue} modele={params.modele} />
       </Suspense>
     </div>
   )
 }
 
-async function StatChatteurContent({ data }: { data: Promise<StatChatteurData> }) {
-  return <StatChatteurTemplate data={await data} />
+async function StatChatteurContent({
+  data,
+  vue,
+  modele,
+}: {
+  data: Promise<StatChatteurData>
+  vue: StatChatteurVue
+  modele?: string
+}) {
+  return <StatChatteurTemplate data={await data} vue={vue} modele={modele} />
 }

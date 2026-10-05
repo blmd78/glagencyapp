@@ -93,5 +93,6 @@ layout (`src/app/layout.tsx`).
 ## 7. Cible Vercel-only
 
 `apps/web` n'a plus `wrangler` ni `@sentry/cloudflare` (reliquats Cloudflare retirés au
-batch 0) — seul `@sentry/nextjs`. `apps/ingestion` garde son worker CF (gelé). `api/ping` =
+batch 0) — seul `@sentry/nextjs`. `apps/ingestion` garde son worker CF, ACTIF (4 Cron Triggers : `crons` de
+`apps/ingestion/wrangler.toml:45`, détail `ARCHITECTURE.md` § 4). `api/ping` =
 health check prod (sha `VERCEL_GIT_COMMIT_SHA` + état `SNAP_CODES_SECRET`).

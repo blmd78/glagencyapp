@@ -10,6 +10,7 @@ import { LegendDialog } from './components/legend-dialog.client'
 import type { ListTab } from './event-list'
 import { layoutMonth, shiftMonth, type AgencyEvent } from './month-layout'
 import type { Legend } from './schema'
+import type { AgencyModel } from './services/get-agency-events'
 
 /**
  * Agence — le calendrier des événements de l'agence, et leur liste en dessous. Écriture admin,
@@ -21,6 +22,7 @@ export function AgencyTemplate({
   today,
   events,
   legend,
+  models,
   tab,
   canEdit,
 }: {
@@ -28,6 +30,8 @@ export function AgencyTemplate({
   today: string
   events: AgencyEvent[]
   legend: Legend
+  /** Modèles du sélecteur de la fenêtre d'événement (admin ; vide sinon). */
+  models: AgencyModel[]
   tab: ListTab
   canEdit: boolean
 }) {
@@ -55,13 +59,13 @@ export function AgencyTemplate({
         {canEdit && (
           <div className="ml-auto flex items-center gap-2">
             <LegendDialog legend={legend} />
-            <EventDialog legend={legend} />
+            <EventDialog legend={legend} models={models} />
           </div>
         )}
       </div>
       <LegendBar legend={legend} />
-      <MonthGrid month={month} today={today} weeks={layoutMonth(month, events)} legend={legend} canEdit={canEdit} />
-      <EventList events={events} today={today} tab={tab} legend={legend} canEdit={canEdit} />
+      <MonthGrid month={month} today={today} weeks={layoutMonth(month, events)} legend={legend} models={models} canEdit={canEdit} />
+      <EventList events={events} today={today} tab={tab} legend={legend} models={models} canEdit={canEdit} />
     </div>
   )
 }

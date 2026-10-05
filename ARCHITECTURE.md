@@ -1,6 +1,6 @@
 # Architecture — glagencyapp
 
-> Révision : 2026-09-25
+> Révision : 2026-10-01
 
 **Ce fichier décrit le système.** Les règles pour coder dedans vivent dans `AGENTS.md` ; où vit chaque feature : `docs/CARTE.md` ; ce qui a changé : `CHANGELOG.md`.
 
@@ -40,7 +40,7 @@ Monorepo pnpm workspaces (`apps/*`, `packages/*`), pas de Turborepo. Le détail 
   et le fallback e-mail réintroduit par 0119 disparaît) avec celle du 2026-09-11, et `0154`→`0157`
   (analytics IA, `/formation/ia`) avec la Release 2.50 du 2026-09-14 — `0154`-`0156` avant le
   merge, `0157` APRÈS le déploiement (elle droppe `training_ai_cost(1 arg)`, qu'appelait l'ancienne
-  Overview). **Prod = UAT = `0157`, prochaine migration = `0158`**) : **catalogue**
+  Overview ; dernière migration et prochaine : `AGENTS.md` § Migrations) : **catalogue**
   `training_*` (schéma + index + seed généré par
   `packages/db/scripts/gen-training-seed.mjs` depuis `formation.json`), Catalogue admin
   `features/training-catalog`, Modules en lecture `features/training-modules` (projection
@@ -114,7 +114,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | prod (`main`) | `cqmfpsnqaxymswijdnfz` | eu-west-3 (`docs/runbook-uncove.md`) | `db.<ref>.supabase.co` injoignable IPv6-only depuis un poste de dev — passer par le pooler `aws-0-eu-west-3.pooler.supabase.com:5432` |
 | UAT (`develop`) | `ihkksdmgtrbbjugeboks` | eu-west-3 | même pooler |
 
-174 migrations séquentielles au 2026-09-24 (`packages/db/supabase/migrations/0001..0174`), prod = UAT à cette date. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
+182 migrations séquentielles au 2026-10-05 (`packages/db/supabase/migrations/0001..0182`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
 
 ## 4. Hébergement et environnements
 
@@ -183,16 +183,13 @@ Règles métier par domaine, déplacées mot pour mot depuis l'ancien `AGENTS.md
 
 La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « en formation ») n'a pas de sous-section ici : dans l'AGENTS.md d'origine, elle vivait dans le même bloc que la puce « 3 faces du CRM » (aucune séparation par ligne vide) — déplacée telle quelle, donc entière, en § 2 « Les 3 faces du CRM ».
 
-### To-do personnelle
+### To-do personnelle — supprimée
 
-- **To-do personnelle** : 2e onglet de `/chatter/planning` (`?vue=todo`), une liste par
-  encadrant (`todos`, RLS `can_write_todo_of`, migrations `0067`/`0068`). Chacun gère la
-  sienne ; la hiérarchie peut y déposer une tâche (mêmes règles que le planning). Aucun slug
-  dédié : le droit vient de « Planning ». **Une seule vue exposée** : liste en sections
-  repliables par statut (badge de statut cliquable, priorité en icône, ajout rapide par
-  section). Le kanban `dnd-kit` et le champ `release` sont construits mais **en pause**
-  (blocs commentés, colonne `release` conservée en base). Claude y écrit en SQL direct
-  (`created_by` null → « Claude »).
+- **Supprimée le 2026-10-02** (décision Benoit) : l'ancien onglet To-do de « Planning / Todo »
+  (`?vue=todo`, table `todos`) n'avait plus d'usage depuis le 2026-09-01. Code retiré
+  (`features/todos`), table et fonctions supprimées par `0182` (appliquée le 2026-10-02 ; tâches exportées hors dépôt). La page s'appelle désormais
+  **Emploi du temps** (planning seul). La to-do d'équipe, elle, vit dans Présence › To-Do
+  (§ To-Do du tracker).
 
 ### Suivi chatters
 
@@ -470,3 +467,5 @@ taux global.
 ### Agence
 
 Route `/chatter/agence`, tables `agency_*` de `0175`, spec `docs/superpowers/specs/2026-09-25-agence-calendrier-notifications-design.md`. Calendrier des événements de l'agence. **Écriture ADMIN** (service-role après la garde `requireAdminProfileLive`, aucune policy d'écriture), **lecture pour tous** — l'item de nav porte `everyone: true` (visible sans case à cocher, jamais page d'atterrissage). Un événement = nom + jour ou période + rappel jour J optionnel + `audience` (rôles visés, tous par défaut ; RLS de lecture par rôle, admins = tout). **La cloche** de la barre du haut est CALCULÉE À LA VOLÉE (RPC `agency_notifications`, `security invoker`) depuis `agency_notification_seen.seen_at` : pas de ligne par personne, pas de robot. Donnée initiale lue par le layout, puis **rafraîchie côté navigateur** (client Supabase, RLS) à chaque changement de page et à l'ouverture — le layout `(dash)` ne se ré-exécute PAS en navigation. L'ouverture marque vu **jusqu'à la nouveauté la plus récente affichée** (`markNotificationsSeen({ seenUpTo })`, jamais en arrière, comparée par Postgres à la microseconde — un aller-retour par `Date` JS la tronquait et bloquait la pastille). Rappel = 00:00 heure de Paris du 1er jour. En « en tant que », ouvrir la cloche n'écrit rien. Le non-lu s'affiche aussi en **pastille sur l'onglet Agence**, lue en direct dans `lib/notifications/unread-store.ts` (la cloche est seule à écrire) ; arriver sur la page Agence vaut ouverture de la cloche. Sous la grille, la liste **À venir** (aujourd'hui / prochainement) / **Passé** (onglets `?vue=`) ; une seule lecture (`getAgencyEvents`, `fetchAll`) sert les deux. **Couleurs et photos** (`0176`, 2026-09-28) : couleur = palette FERMÉE des 8 teintes de `lib/mkt-groups.ts`, recopiée dans le `check` SQL (`null` = gris) ; **légende** = le nom de chaque couleur (`agency_legend`, réglée par l'admin, lisible par tous). Photo dans le bucket Storage **PRIVÉ** `agency-events`, **5 Mo max, JPEG / PNG / WebP** (limites posées sur le bucket ET revérifiées par `createImageUpload` ; pas de SVG, il peut porter du script), clé `<uuid>.<ext>` tirée par le serveur. Envoi direct navigateur → Storage par URL signée d'upload (jamais par le corps d'une Server Action, plafonné par Vercel) ; lecture par URLs signées **1 h** (une URL servie survit à un « Visible par » resserré jusqu'à expiration — fenêtre courte à dessein) générées en service-role **pour les seuls événements que la RLS rend** — une photo suit « Visible par ». Aucune policy sur `storage.objects`. Photo remplacée ou événement supprimé → l'objet part ; une fenêtre qui n'a pas touché à la photo n'envoie PAS `imagePath` (`undefined`) et le serveur ne l'écrit pas — sinon un onglet périmé réécrivait l'ancienne clé et effaçait la nouvelle ; une photo envoyée dont l'enregistrement échoue reste orpheline (assumé). Clic sur un événement : l'édition chez l'admin, la **fiche en lecture** (`EventView`) chez les autres.
+
+**Type et modèle** (2026-10-02, `0181`, spec `docs/superpowers/specs/2026-10-02-photos-modeles-agence-design.md`) : un événement porte un `kind` libre (40 car.) et un `creator_id`, tous deux facultatifs. La fenêtre compose le nom « TYPE MODÈLE » tant qu'il n'a pas été retouché ; le nom reste la vérité affichée et notifiée. L'**avatar rond** de la modèle (photo MyPuls 100 × 100 de `creators.avatar_path`, bucket privé `creator-avatars`, `0180`, rempli par `pnpm --filter @glagency/ingestion avatars`) s'affiche à côté du nom — carte, barre du calendrier, fiche — sans remplacer la grande photo importée. Nom et avatar sont lus en service-role pour les seuls événements que la RLS rend (une modèle n'est pas toujours lisible par un chatteur visé).
