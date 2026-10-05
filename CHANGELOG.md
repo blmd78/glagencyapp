@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.71] — 2026-10-05
+
 ### Modifié
 
 - Marketing › Liens tracking : quand on déplie un réseau, chaque lien affiche son CA à côté de ses clics.
