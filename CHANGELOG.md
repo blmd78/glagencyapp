@@ -21,6 +21,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Corrigé
 
 - Chatteurs : rattrapage des fiches MyPuls en double par lots validés — un rapport en lecture seule prouve chaque fusion (même id MyPuls et compensation au centime jour par jour), seules les fusions d'un lot validé sont appliquées (lot 1 : les 14 fusions vérifiées) ; commande `pnpm identity-backfill`.
+- Ingestion : l'ingestion de nuit reconnaît chaque chatteur par son id MyPuls (le libellé n'est plus qu'un repli) et chaque jour ingéré se contrôle (résumé = ventes par compte, totaux en base = MyPuls page comprise, une fiche = un compte) — un jour faux passe « à vérifier » et dégrade le run (alerte Sentry) au lieu de passer inaperçu ; le relevé des shifts ne rattache plus un homonyme ; commande `pnpm recette-identite` (photos avant / après et rapport de diff).
 
 ## [2.71] — 2026-10-05
 
