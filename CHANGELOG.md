@@ -12,6 +12,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 - Hook de push : un commit de code n'est poussé qu'après une revue (`review-feature`, tampon par commit) ; doc seule, releases et tags passent. Activé au `pnpm install`. Échappatoire d'urgence : `git push --no-verify`.
 - Doc : checklist de revue de code (`docs/review-checklist.md`), 25 points vérifiables dans un diff, sourcés sur les guidelines et `ARCHITECTURE.md` ; y compris la règle « toute écriture neuve prend une garde `*Live` ».
+- Membres › Fiches MyPuls (admin) : un nouvel onglet qui dit si les chiffres de la nuit ont été vérifiés (« Vérifié » ou « À vérifier », avec les contrôles en échec et les derniers jours), liste les fiches MyPuls qui ont du CA mais aucun membre chatteur — donc absentes du classement Stat chatter —, signale les fiches en double, les nouvelles fiches et les montants non attribués, et rappelle les ventes que MyPuls n'attribue à aucun chatteur.
 
 ### Modifié
 

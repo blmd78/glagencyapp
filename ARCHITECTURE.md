@@ -151,7 +151,7 @@ Sentry est câblé aux deux apps :
 - `apps/web` (`@sentry/nextjs`) : serveur (`instrumentation.ts`, `onRequestError` capture RSC/Route Handlers/Server Actions), client chargé paresseusement après idle (`instrumentation-client.ts` — ~38 Ko gzip évités du chunk critique), errors-only, pas de PII (`sentry.server.config.ts`/`sentry.edge.config.ts`). DSN `NEXT_PUBLIC_SENTRY_DSN`, actif seulement si `NODE_ENV === 'production'`.
 - `apps/ingestion` : `@sentry/cloudflare` dans le Worker (`withSentry` capture les crashes), `@sentry/node` dans les CLI (`spenders.ts`, `shifts.ts`, `uncove.ts`). DSN `SENTRY_DSN` — absent, le SDK reste inactif. Un run dégradé (login KO, jour en échec, 0 ligne, jour « à vérifier » — § 10 Relevé MyPuls) part en `captureMessage` warning ; un cron manqué (missed check-in) est détecté par le **cron monitor Sentry** (slugs `ingestion-mypuls-nightly`, `ingestion-marketing-nightly`, et le monitor Uncove — alignés à la main sur les crons de `wrangler.toml`).
 
-Historique durable indépendant de Sentry : chaque run d'ingestion insère une ligne dans la table Supabase `ingest_runs`, lisible depuis `/chatter/presence/reglages`.
+Historique durable indépendant de Sentry : chaque run d'ingestion insère une ligne dans la table Supabase `ingest_runs`, lisible en base seulement (aucun écran ne la lit ; le journal affiché dans `/chatter/presence/reglages` est celui du relevé des shifts, `mypuls_shift_runs`, lu par la RPC `mypuls_shift_settings_page`). La fiabilité de chaque jour ingéré est dans `ingest_day_checks`, lue dans Membres › Fiches MyPuls.
 
 `.env.example` déclare aussi `TG_BOT_TOKEN`/`TG_CHAT_ID` (« Alertes ingestion ») : aucune référence dans le code au 2026-09-25 — vestige probable, canal inactif (§ 9).
 
@@ -323,8 +323,24 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   du parseur (id absent, markup changé), compte dans `reliabilityAlerts` ; `summarizeRun` passe
   alors `degraded` — en rattrapage comme en rejeu explicite — d'où le warning Sentry et la ligne
   `ingest_runs`. Les chiffres sont écrits AVANT d'être contrôlés : le contrôle marque le jour, il
-  ne le bloque pas. L'onglet admin Membres › Fiches MyPuls qui affiche ce statut arrive avec la
-  PR 4 du chantier.
+  ne le bloque pas.
+  **Onglet admin Membres › Fiches MyPuls** (`/chatter/members?vue=fiches`, `features/members/`) :
+  seul écran qui lit ces contrôles et ces anomalies. Admin seul — l'onglet est masqué à un manager
+  et un `?vue=fiches` forgé retombe sur la liste (`page.tsx`) ; `getFichesMyPuls` refuse aussi un
+  non-admin, car les RPC `security invoker` lui rendraient des chiffres partiels sans erreur. Il
+  suit le datepicker global, sans `use cache` (lecture liée au cookie). De haut en bas :
+  fiabilité du dernier jour ingéré (« Vérifié » / « À vérifier » / « Non vérifié », contrôles en
+  échec, 14 derniers jours — RPC `reliability_days`) ; fiches avec du CA sur la période mais sans
+  membre au rôle `chatteur`, donc absentes du classement Stat chatter (RPC `unranked_chatters_ca`,
+  qui lit `chatter_daily` comme `chatters_report`) ; anomalies ouvertes de
+  `chatter_identity_issues` en trois listes (doublons : `doublon`, `membres_multiples`, `homonyme`,
+  `conflit_id` · nouvelles fiches : `fiche_creee` · montants non attribués : `resume_mis_de_cote`,
+  `ecart_invariant`) ; note informative des ventes sans chatteur par modèle (RPC `unattributed_sales`,
+  pseudo-fiches « Indéterminé (…) » : se corrigent dans MyPuls, jamais rattachées à un membre).
+  Seule écriture : « Vu » (`ackIdentityIssue`, `actions-identity.ts`), qui pose `resolved_at` —
+  l'ingestion ne le réouvre pas. Aucun bouton « Relier » ni « Fusionner » : une fiche se relie à
+  un membre par le champ « Chatter MyPuls lié » de sa fiche dans Comptes, une fusion passe par
+  `pnpm identity-backfill`.
   **Anomalies d'identité** : table `chatter_identity_issues` (`issue_key` unique — une anomalie
   revue chaque nuit reste UNE ligne ; `kind` ∈ `doublon`, `membres_multiples`, `homonyme`,
   `conflit_id` (rattrapage seul), `fiche_creee`, `resume_mis_de_cote`, `ecart_invariant` ; colonne
