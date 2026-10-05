@@ -72,6 +72,29 @@ export {
 export type { LsFlag, LsTotals } from './marketing/linkscale-flags'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
+export { identityIssueRow, labelIndex, UNDETERMINED_LABEL } from './ingest/identity-types'
+export type {
+  IdentityDirectoryEntry,
+  IdentityIssue,
+  IdentityIssueDbRow,
+  IdentityIssueKind,
+} from './ingest/identity-types'
+export {
+  ficheIds,
+  parseLot,
+  planIdentityBackfill,
+  proveGroup,
+  proveLot,
+  NO_FACTS,
+} from './ingest/identity-backfill'
+export type {
+  BackfillFiche,
+  BackfillPlan,
+  FicheFacts,
+  GroupProof,
+  LotDecision,
+  LotLine,
+} from './ingest/identity-backfill'
 export { runRules } from './insights/engine'
 export type { InsightContext } from './insights/engine'
 export type { Rule } from './insights/rules'
