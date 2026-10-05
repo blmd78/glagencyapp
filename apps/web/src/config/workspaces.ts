@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Send,
   Link2,
+  MousePointerClick,
   ChartColumn,
   CalendarOff,
   CalendarCheck,
@@ -25,12 +26,10 @@ import {
   Activity,
   ListTodo,
   ClipboardCheck,
-  ClipboardPen,
   Briefcase,
   Globe,
   TriangleAlert,
   Archive,
-  ScrollText,
   KeyRound,
   Ghost,
   NotebookPen,
@@ -140,7 +139,9 @@ export const WORKSPACES: Workspace[] = [
       { href: '/chatter/insights', label: 'Insights', icon: Lightbulb },
       { href: '/chatter/bilan', label: 'Bilan hebdo', icon: CalendarCheck, group: 'performance' },
       // Planning journalier des sous-managers : chacun voit LE SIEN, seuls les admins éditent.
-      { href: '/chatter/planning', label: 'Planning / Todo', icon: CalendarClock, group: 'equipe' },
+      // « Emploi du temps » (ex-« Planning / Todo ») : la to-do personnelle est supprimée le
+      // 2026-10-02 (décision Benoit) — la to-do d'équipe vit dans Présence › To-Do.
+      { href: '/chatter/planning', label: 'Emploi du temps', icon: CalendarClock, group: 'equipe' },
       { href: '/chatter/repos', label: 'Planning repos', icon: CalendarOff, group: 'equipe' },
       // Tracker de présence — les écrans partagent le slug `presence` : un seul droit à cocher dans
       // Membres, comme `police` couvre déjà Tracker + Rapport.
@@ -158,7 +159,10 @@ export const WORKSPACES: Workspace[] = [
       // un poids qu'il n'a pas. On y arrive par le lien « Réglages » en haut à droite du
       // relevé.
       { href: '/chatter/presence', label: 'Relevé d’équipe', icon: Gauge, slug: 'presence', group: 'presence' },
-      { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
+      // ── ARCHIVÉ (décision Benoit 2026-10-02) : hors menu, la ROUTE reste — Présence › To-Do y
+      // ouvre la fiche d'un chatteur (tâches bilan / one-to-one). Restaurer = décommenter, et
+      // remettre l'import `ClipboardPen` de lucide-react.
+      // { href: '/chatter/presence/suivi', label: 'Suivi chatters', icon: ClipboardPen, slug: 'presence', group: 'presence' },
       { href: '/chatter/presence/todo', label: 'To-Do', icon: ListTodo, slug: 'presence', group: 'presence' },
       // Le Récap : COMPTEURS pour tout l'encadrement, VERBATIM des débriefs pour les seuls admins
       // (RPC `tracker_todo_week_recap` en definer, 0137/0150 ; `tracker_todo_daily_read` reste
@@ -199,8 +203,11 @@ export const WORKSPACES: Workspace[] = [
       // adminOnly : la config des seuils/exclusions est admin (écritures requireAdmin,
       // et `teams` est admin-only en RLS — un user y verrait une page vide).
       { href: '/chatter/quotas', label: 'Quotas', icon: Target, adminOnly: true, group: 'performance' },
-      // Reconstruit (WIP session parallèle) : scripts de chat par modèle — consultation membres.
-      { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
+      // ── ARCHIVÉ (décision Benoit 2026-10-02) : scripts de chat par modèle, hors menu. La route
+      // et le slug `scripts` restent, mais la case disparaît de Membres : le droit s'efface au
+      // prochain enregistrement d'une fiche (comme Instagram / Telegram). Restaurer = décommenter,
+      // et remettre l'import `ScrollText` de lucide-react.
+      // { href: '/chatter/scripts', label: 'Scripts', icon: ScrollText, slug: 'scripts', group: 'equipe' },
       { href: '/chatter/compta', label: 'Compta', icon: Calculator, group: 'gestion' },
       // Comptes rendus journaliers : chacun rédige LE SIEN (auto-rapport), consultation
       // hiérarchique (manager → ses rattachés directs, admin/superadmin → tout). Pas adminOnly
@@ -230,6 +237,9 @@ export const WORKSPACES: Workspace[] = [
     nav: [
       { href: '/marketing/overview', label: 'Overview', icon: LayoutDashboard, slug: 'mkt-overview' },
       { href: '/marketing/liens', label: 'Liens tracking', icon: Link2, slug: 'mkt-liens', group: 'reseaux' },
+      // Trafic des liens de bio LinkScale : d'où viennent les visiteurs, par profil, modèle et
+      // réseau, et quels profils décrochent (docs/superpowers/specs/2026-09-30-trafic-linkscale-design.md).
+      { href: '/marketing/trafic', label: 'Trafic', icon: MousePointerClick, slug: 'mkt-trafic', group: 'reseaux' },
       // Ce que les liens rapportent, RAMENÉ au CA et aux abonnés de chaque modèle — le pôle
       // sait ce que ses liens gagnent, pas ce que ça pèse. Le CA total passe par la RPC 0152.
       { href: '/marketing/modeles', label: 'Modèles', icon: UsersRound, slug: 'mkt-modeles', group: 'reseaux' },
@@ -323,7 +333,7 @@ export const pageSlug = (href: string) => href.split('/').pop() as string
  * Slugs assignables à un rôle `user` — SOURCE UNIQUE, typée : `requireAccess(slug)` n'accepte
  * que ces valeurs (un renommage de route casse à la compilation, pas en silence).
  */
-export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'sources-trafic', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
+export const PAGE_SLUGS = ['overview', 'overview:ca', 'overview:courbe', 'insights', 'bilan', 'planning', 'repos', 'organisation', 'presence', 'police', 'chatters', 'infos-modeles', 'sources-trafic', 'codes-snap', 'crm-spenders', 'scripts', 'modeles', 'stats', 'stat-chatteur', 'uncove', 'health', 'compta', 'dashboard', 'marketing', 'mkt-overview', 'mkt-liens', 'mkt-trafic', 'mkt-modeles', 'mkt-instagram', 'mkt-twitter', 'mkt-telegram', 'mkt-staff', 'mkt-compta', 'formation', 'frm-entrainement', 'frm-suivi'] as const
 export type PageSlug = (typeof PAGE_SLUGS)[number]
 
 /**

@@ -32,6 +32,44 @@ export type {
   XProfileSnapshot,
   XUser,
 } from './marketing/x-profile'
+export {
+  LS_PLATFORMS,
+  LS_PLATFORM_LABEL,
+  attributeLink,
+  foldName,
+  kindOf,
+  mymClicksOf,
+  parseLinkscaleDay,
+  planLinkscaleWrite,
+  splitNote,
+} from './marketing/linkscale'
+export type {
+  LsAccountRef,
+  LsAttribution,
+  LsCreatorRef,
+  LsDailyWrite,
+  LsDayLine,
+  LsKind,
+  LsKnownLink,
+  LsLinkFacts,
+  LsLinkWrite,
+  LsListedLink,
+  LsPlanInput,
+  LsPlatform,
+  LsTrafficRow,
+} from './marketing/linkscale'
+export {
+  LS_FLAGS,
+  LS_FLAG_LABEL,
+  LS_THRESHOLDS,
+  addDaily,
+  botShare,
+  clickRate,
+  emptyTotals,
+  sumTotals,
+  trafficFlags,
+} from './marketing/linkscale-flags'
+export type { LsFlag, LsTotals } from './marketing/linkscale-flags'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
 export { runRules } from './insights/engine'
@@ -235,3 +273,7 @@ export type {
 } from './mypuls-shifts/vacations'
 export { dayKpi } from './mypuls-shifts/kpi'
 export type { MypulsDayKpi, MypulsCoverageRow } from './mypuls-shifts/kpi'
+
+// Photos des modèles (spec 2026-10-02, partie A) — script `pnpm --filter @glagency/ingestion avatars`.
+export { AVATAR_EXT, AVATAR_MAX_BYTES, avatarOutcome, avatarTargets, sniffImageType } from './media/avatar'
+export type { AvatarCreator, AvatarOutcome, ImageMime } from './media/avatar'

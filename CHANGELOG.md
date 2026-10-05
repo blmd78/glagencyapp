@@ -16,6 +16,36 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 - Doc : faits recalés sur le code — dernière migration `0178`, worker d'ingestion actif avec 4 crons (et non « gelé », « 3 crons »), photos des événements Agence (bucket privé, URLs signées, `unoptimized`) décrites au § 7 des guidelines, dette n° 2 des Membres résolue en partie (`email_exists`), `UNCOVE_TOKEN_SECRET` listé dans les secrets du Worker, références documentaires orphelines corrigées.
 
+## [2.71] — 2026-10-05
+
+### Modifié
+
+- Marketing › Liens tracking : quand on déplie un réseau, chaque lien affiche son CA à côté de ses clics.
+
+## [2.70] — 2026-10-02
+
+### Ajouté
+
+- Agence : un type (texte libre) et une modèle par événement. Le nom se compose tout seul (« CAROUSEL ALICE ») et la photo de la modèle s'affiche en petit rond à côté (liste, calendrier, fiche) ; une photo importée garde sa grande place. Les événements existants sont repris d'après leur nom.
+- Photos des modèles récupérées une fois depuis MyPuls (`pnpm avatars`), en préparation de leur affichage dans Agence.
+- Chatteurs › Stat chatter : onglets « Chatteurs » et « Par modèle ». Le second classe les chatteurs sur la seule modèle choisie dans le sélecteur (podium, tableaux et export image à son nom).
+
+### Modifié
+
+- Agence : la liste sous le calendrier passe en cartes avec photo, la fiche d'un événement est refaite (en-tête à la couleur de l'événement, grande photo), un admin crée un événement en cliquant sur un jour du calendrier, et la cloche des nouveautés s'ouvre en panneau.
+- Chatteurs : « Planning / Todo » devient « Emploi du temps » (le planning seul). Scripts (Équipe) et Suivi chatters (Présence) sortent du menu : pages archivées, encore accessibles par leur adresse — la fiche de Suivi s'ouvre toujours depuis Présence › To-Do.
+
+### Supprimé
+
+- La to-do personnelle de l'ancien « Planning / Todo », sans usage depuis le 1er septembre. La To-Do d'équipe de Présence ne change pas.
+
+## [2.69] — 2026-10-01
+
+### Ajouté
+
+- Marketing : relevé quotidien du trafic LinkScale (visiteurs, bots et clics vers MYM par lien, attribués à une modèle, un réseau et un profil), avec `pnpm linkscale` pour remplir l'historique depuis mai — base de la page Trafic.
+- Marketing › Trafic : visiteurs, clics vers MYM, clics par visiteur et part de bots par profil, modèle et réseau, comparés à la période précédente, avec une colonne « À regarder » (trafic en chute, lien éteint, peu de clics MYM, beaucoup de bots) et la correction de l'attribution d'un lien.
+
 ## [2.68] — 2026-09-30
 
 ### Modifié

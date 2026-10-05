@@ -1,5 +1,6 @@
 import { getChatters } from '@/lib/services/get-chatters'
 import type { Period } from '@/lib/period'
+import { rankByModel, rankChatters } from '../rank'
 import type { StatChatteurData } from '../types'
 
 /**
@@ -16,6 +17,8 @@ import type { StatChatteurData } from '../types'
  *
  * Réutilise `getChatters()` (RPC `chatters_report`, agrégé en base) : en mode restreint, le CA
  * d'un chatteur se limite aux modèles visibles par la RLS — même périmètre que la page Chatters.
+ * Le classement PAR MODÈLE (onglet « Par modèle », 2026-10-02) sort de la même réponse : chaque
+ * chatteur y porte déjà son CA par compte de modèle — aucune requête de plus.
  */
 export async function getStatChatteur(
   period: Period,
@@ -23,10 +26,5 @@ export async function getStatChatteur(
 ): Promise<StatChatteurData> {
   const { chatters } = await getChatters(period, opts)
 
-  const rows = chatters
-    .filter((c) => c.isChatter && c.ca > 0)
-    .sort((a, b) => b.ca - a.ca || a.name.localeCompare(b.name, 'fr'))
-    .map((c, i) => ({ id: c.id, name: c.name, ca: c.ca, rank: i + 1 }))
-
-  return { period, rows }
+  return { period, rows: rankChatters(chatters), models: rankByModel(chatters) }
 }

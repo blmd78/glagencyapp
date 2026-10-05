@@ -280,6 +280,36 @@ describe('face Marketing — page Modèles', () => {
   })
 })
 
+describe('face Marketing — page Trafic', () => {
+  const marketing = WORKSPACES.find((w) => w.id === 'marketing')!
+  const trafic = () => marketing.nav.find((n) => n.href === '/marketing/trafic')!
+
+  it('expose le slug mkt-trafic', () => {
+    expect(PAGE_SLUGS).toContain('mkt-trafic')
+  })
+
+  it('range Trafic dans Réseaux, juste après Liens tracking, sans restriction admin', () => {
+    expect(trafic().group).toBe('reseaux')
+    expect(trafic().slug).toBe('mkt-trafic')
+    expect(trafic().adminOnly).toBeUndefined()
+    const hrefs = marketing.nav.map((n) => n.href)
+    expect(hrefs.indexOf('/marketing/trafic')).toBe(hrefs.indexOf('/marketing/liens') + 1)
+  })
+
+  it('le slug appartient bien à la face marketing', () => {
+    expect(slugFace('mkt-trafic')).toBe('marketing')
+  })
+
+  it('est une case à cocher de la page Membres du pôle marketing', () => {
+    expect(pageChoicesFor('marketing').map((c) => c.slug)).toContain('mkt-trafic')
+  })
+
+  it("s'ouvre à qui porte le droit, pas aux autres", () => {
+    expect(canAccessNav(trafic(), user(['mkt-trafic']))).toBe(true)
+    expect(canAccessNav(trafic(), user(['mkt-liens']))).toBe(false)
+  })
+})
+
 describe('Agence — visible par tous, au-dessus de Membres', () => {
   const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
   const agence = chatter.nav.find((n) => n.href === '/chatter/agence')
@@ -300,5 +330,25 @@ describe('Agence — visible par tous, au-dessus de Membres', () => {
 
   it("ne devient jamais la page d'atterrissage", () => {
     expect(landingHref({ role: 'chatteur', superadmin: false, manager: false, pages: [] })).not.toBe('/chatter/agence')
+  })
+})
+
+describe('face Chatteurs — Emploi du temps ; Scripts et Suivi chatters archivés (2026-10-02)', () => {
+  const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
+  const hrefs = () => chatter.nav.map((n) => n.href)
+
+  it('« Planning / Todo » devient « Emploi du temps »', () => {
+    expect(chatter.nav.find((n) => n.href === '/chatter/planning')!.label).toBe('Emploi du temps')
+  })
+
+  it('Scripts et Suivi chatters sortent du menu, leurs slugs restent valides', () => {
+    expect(hrefs()).not.toContain('/chatter/scripts')
+    expect(hrefs()).not.toContain('/chatter/presence/suivi')
+    expect(PAGE_SLUGS).toContain('scripts')
+    expect(PAGE_SLUGS).toContain('presence')
+  })
+
+  it('la To-Do de Présence reste au menu', () => {
+    expect(hrefs()).toContain('/chatter/presence/todo')
   })
 })

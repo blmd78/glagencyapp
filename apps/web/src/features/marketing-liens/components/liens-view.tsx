@@ -145,6 +145,13 @@ function LinkRow({
       <span className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums">
         {fmt(v, critere)}
       </span>
+      {/* Le CA du lien, quel que soit le critère (demande Benoit 2026-10-05) — sauf quand le
+          critère EST les revenus : la colonne principale le montre déjà. */}
+      {critere !== 'revenus' && (
+        <span className="hidden w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground sm:block">
+          {eur(l.revenueEur)}
+        </span>
+      )}
       <span className="hidden w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground sm:block">
         {num(l.clicks)} clics
       </span>

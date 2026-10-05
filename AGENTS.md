@@ -59,8 +59,6 @@ Route Handlers réservés aux cas spéciaux (IA, webhooks).
 
 **Tout le CA est en euros** (décision de Benoît, 2026-09-21) : aucune conversion, aucun taux de change, aucune colonne `currency` sur les tables de faits — même quand MyPuls étiquette un compte en USD (Carla, id `3623`) ; c'est lui qui sait ce qui est réellement encaissé.
 
-**Un ticket qu'un agent dépose dans la to-do CRM** (insert SQL, auteur « Claude ») se traite par l'agent lui-même dans la foulée, puis passe en `done` (transition permise par le trigger `0086`/`0087`) — la to-do est un journal, pas un backlog à relancer. Seuls restent ouverts, et signalés dans le chat, ceux qui exigent une décision produit.
-
 **Règles métier par domaine** (to-do, suivi chatteurs, rapport police, relevé MyPuls, équipes et quotas, codes Snap, Uncove, liens marketing…) : `ARCHITECTURE.md` § Domaines — **à lire avant de toucher la feature concernée** ; `docs/CARTE.md` y renvoie depuis la ligne de chaque feature. Exception : la **Formation** (catalogue, entraînement, recrutement, roues, `/formation/*`) vit en § 2 « Les 3 faces du CRM », que la carte ne signale pas.
 
 ## Données MyPuls — workflow d'ajout
@@ -87,7 +85,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-09-29** : prod = UAT = **0178** (profil X complet dans le relevé — appliquée avant la release qui livrera son code). **Prochaine migration = `0179`**.
+**État au 2026-10-02** : prod = UAT = **0182** (`0180` photos des modèles, `0181` type et modèle des événements Agence, `0182` suppression de la to-do personnelle). **Prochaine migration = `0183`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

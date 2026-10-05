@@ -1,5 +1,6 @@
 import { eur } from '@/lib/format'
 import type { Period } from '@/lib/period'
+import { slugify } from '@/lib/slug'
 import type { RankedChatter } from '../types'
 import {
   CROWN_PATH,
@@ -37,23 +38,34 @@ interface Fonts {
   body: string
 }
 
-export async function downloadRankingImage(rows: RankedChatter[], period: Period, total: number): Promise<void> {
-  const canvas = await renderRankingImage(rows, period, total)
+export async function downloadRankingImage(
+  rows: RankedChatter[],
+  period: Period,
+  total: number,
+  model?: string,
+): Promise<void> {
+  const canvas = await renderRankingImage(rows, period, total, model)
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
   if (!blob) throw new Error('Image vide')
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `classement-chatters-${period.from}_${period.to}.png`
+  a.download = `classement-chatters-${model ? `${slugify(model)}-` : ''}${period.from}_${period.to}.png`
   a.click()
   URL.revokeObjectURL(url)
 }
 
 /**
  * Dessine l'image sans la télécharger (séparé pour pouvoir l'afficher ou la tester). `rows` peut
- * être tronqué à `EXPORT_ROWS` ; `total` = nombre de classés sur la période, pour le pied de page.
+ * être tronqué à `EXPORT_ROWS` ; `total` = nombre de classés sur la période, pour le pied de page ;
+ * `model` = le classement d'une seule modèle (onglet « Par modèle »), écrit sous le titre et en pied.
  */
-export async function renderRankingImage(rows: RankedChatter[], period: Period, total: number): Promise<HTMLCanvasElement> {
+export async function renderRankingImage(
+  rows: RankedChatter[],
+  period: Period,
+  total: number,
+  model?: string,
+): Promise<HTMLCanvasElement> {
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
@@ -62,14 +74,14 @@ export async function renderRankingImage(rows: RankedChatter[], period: Period, 
 
   const fonts = await loadFonts()
   drawBackground(ctx)
-  drawTitle(ctx, period, fonts)
+  drawTitle(ctx, period, fonts, model)
   const top = rows.slice(0, 3)
   ;([2, 3, 1] as const).forEach((place) => {
     const row = top[place - 1]
     if (row) drawStep(ctx, row, place, fonts)
   })
   drawList(ctx, rows.slice(3, EXPORT_ROWS), fonts)
-  drawFooter(ctx, period, total, fonts)
+  drawFooter(ctx, period, total, fonts, model)
   return canvas
 }
 
@@ -168,7 +180,7 @@ function drawBackground(ctx: CanvasRenderingContext2D) {
   }
 }
 
-function drawTitle(ctx: CanvasRenderingContext2D, period: Period, f: Fonts) {
+function drawTitle(ctx: CanvasRenderingContext2D, period: Period, f: Fonts, model?: string) {
   ctx.font = `700 60px ${f.head}`
   const a = 'CLASSEMENT '
   const b = 'DES CHATTERS'
@@ -188,7 +200,8 @@ function drawTitle(ctx: CanvasRenderingContext2D, period: Period, f: Fonts) {
   ctx.font = `600 20px ${f.body}`
   ctx.fillStyle = '#a1a1aa'
   ctx.textAlign = 'center'
-  withSpacing(ctx, '5px', () => ctx.fillText(period.label.toUpperCase(), W / 2, 118))
+  const sub = model ? `${model} · ${period.label}` : period.label
+  withSpacing(ctx, '5px', () => ctx.fillText(sub.toUpperCase(), W / 2, 118))
   ctx.textAlign = 'left'
 }
 
@@ -389,13 +402,13 @@ function drawRow(ctx: CanvasRenderingContext2D, row: RankedChatter, x: number, y
   ctx.textBaseline = 'alphabetic'
 }
 
-function drawFooter(ctx: CanvasRenderingContext2D, period: Period, total: number, f: Fonts) {
+function drawFooter(ctx: CanvasRenderingContext2D, period: Period, total: number, f: Fonts, model?: string) {
   ctx.font = `600 14px ${f.body}`
   ctx.fillStyle = '#52525b'
   ctx.textAlign = 'center'
   withSpacing(ctx, '3px', () =>
     ctx.fillText(
-      `CLASSEMENT DES CHATTERS · ${period.label.toUpperCase()} · ${total} ${total > 1 ? 'CLASSÉS' : 'CLASSÉ'}`,
+      `CLASSEMENT DES CHATTERS · ${model ? `${model.toUpperCase()} · ` : ''}${period.label.toUpperCase()} · ${total} ${total > 1 ? 'CLASSÉS' : 'CLASSÉ'}`,
       W / 2,
       H - 22,
     ),
