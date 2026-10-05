@@ -14,6 +14,11 @@ export interface IngestDayResult {
   pairRows: number
   source: 'dashboard' | 'api'
   error?: string
+  /**
+   * Contrôles de fiabilité en échec ce jour-là (+ alertes techniques du parsing) : le jour est
+   * « à vérifier » dans `ingest_day_checks` (0183), lu dans Membres › Fiches MyPuls.
+   */
+  reliabilityAlerts?: number
 }
 
 export interface IngestRunSummary {
@@ -58,6 +63,14 @@ export function summarizeRun(input: {
   if (input.catchup && input.loginOk && totalChatterRows === 0) {
     degraded = true
     warnings.push('aucune ligne chatter_daily malgré un login money-team OK (markup changé ?)')
+  }
+
+  // Fiabilité : un jour « à vérifier » se voit dans Membres › Fiches MyPuls — le run dégradé
+  // envoie AUSSI l'alerte Sentry (filet secondaire, spec § 3). Vaut aussi en rejeu explicite.
+  const reliabilityAlerts = input.days.reduce((s, d) => s + (d.reliabilityAlerts ?? 0), 0)
+  if (reliabilityAlerts > 0) {
+    degraded = true
+    warnings.push(`${reliabilityAlerts} contrôle(s) de fiabilité en échec — jour(s) à vérifier, détail dans Membres › Fiches MyPuls`)
   }
 
   return {
