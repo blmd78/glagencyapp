@@ -31,7 +31,8 @@ export interface ShiftSettings {
 export interface UnmatchedChatter {
   mypulsUserId: string
   label: string
-  /** `inconnu` = aucun chatteur du CRM ne porte ce nom ; `ambigu` = plusieurs. */
+  /** `inconnu` = aucun chatteur du CRM ne porte ce nom ; `ambigu` = plusieurs, ou une fiche qui
+   *  porte déjà l'id d'un autre compte MyPuls (homonyme). */
   raison: 'inconnu' | 'ambigu'
 }
 
@@ -155,9 +156,16 @@ export async function resolveIdentities(
       continue
     }
     const chatterId = candidates[0] as string
+    // Une fiche qui porte DÉJÀ un id MyPuls — ou qui vient d'en recevoir un dans ce run — est un
+    // AUTRE compte au même nom : la rattacher mélangerait deux personnes (deux « Serge » MyPuls,
+    // 9332 et 10504). Spec docs/superpowers/specs/2026-10-01-identite-chatteur-mypuls-design.md § 2.
+    if (!noLink.has(chatterId)) {
+      unmatched.push({ mypulsUserId, label, raison: 'ambigu' })
+      continue
+    }
+    noLink.delete(chatterId)
     chatterByMypulsId.set(mypulsUserId, chatterId)
-    // On ne réécrit jamais un lien existant : seul un chatteur SANS ID en reçoit un.
-    if (noLink.has(chatterId)) toLink.push({ chatterId, mypulsUserId })
+    toLink.push({ chatterId, mypulsUserId })
   }
 
   let backfilled = 0
