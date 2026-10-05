@@ -9,4 +9,4 @@ respectant la séquence contiguë (`AGENTS.md` § Migrations).
 
 | Fichier | Attend |
 |---|---|
-| `0182_drop_todos.sql` | la mise en prod du code qui retire l'onglet To-do, `0180` et `0181` appliquées, et l'export des tâches (fait le 2026-10-02 : `../glagencyapp-archives/todos-2026-10-02.json`, hors dépôt — refaire l'export si des tâches ont bougé depuis) |
+| (aucun pour l'instant) | |

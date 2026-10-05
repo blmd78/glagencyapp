@@ -187,7 +187,7 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
 
 - **Supprimée le 2026-10-02** (décision Benoit) : l'ancien onglet To-do de « Planning / Todo »
   (`?vue=todo`, table `todos`) n'avait plus d'usage depuis le 2026-09-01. Code retiré
-  (`features/todos`), table et fonctions supprimées par `0182` (en attente dans `packages/db/supabase/pending/`, hors de portée de `db push` jusqu'à la mise en prod du code). La page s'appelle désormais
+  (`features/todos`), table et fonctions supprimées par `0182` (appliquée le 2026-10-02 ; tâches exportées hors dépôt). La page s'appelle désormais
   **Emploi du temps** (planning seul). La to-do d'équipe, elle, vit dans Présence › To-Do
   (§ To-Do du tracker).
 
