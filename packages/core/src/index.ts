@@ -107,6 +107,8 @@ export type {
   LotDecision,
   LotLine,
 } from './ingest/identity-backfill'
+export { resolveDayIdentity } from './ingest/chatter-identity'
+export type { DayIdentity, IdentityState, SaleLine, SummaryLine } from './ingest/chatter-identity'
 export { runRules } from './insights/engine'
 export type { InsightContext } from './insights/engine'
 export type { Rule } from './insights/rules'
