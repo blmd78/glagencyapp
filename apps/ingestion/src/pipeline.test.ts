@@ -144,6 +144,18 @@ describe('runPipeline — journée money-team identifiée (capture du 06/09)', (
     expect(s.status).toBe('ok')
   })
 
+  it('homonyme : la fiche créée pour 10504 désigne la fiche libre « Serge » (other_chatter_id transmis à la RPC)', async () => {
+    const db = setup({ seed: { chatters: [...CHATTERS, chatter('ch-serge', 'Serge')] } })
+    await run(identityDay()).summary
+
+    const serge = db.rows('chatters').find((c) => c.mypuls_user_id === '10504')
+    const issues = finishCalls(db)[0]!.args.p_issues as { issue_key: string; kind: string; chatter_id: string | null; other_chatter_id: string | null }[]
+    expect(issues.map((i) => [i.kind, i.issue_key, i.chatter_id, i.other_chatter_id])).toEqual([
+      ['homonyme', 'homonyme:ch-serge', 'ch-serge', null],
+      ['fiche_creee', 'fiche:10504', serge?.id, 'ch-serge'],
+    ])
+  })
+
   it('lignes mises de côté (résumé ambigu, modèle inconnu) : comptées dans l’attendu, NON écrites, b1/b2 échouent', async () => {
     const db = setup({ seed: { creators: CREATORS.filter((c) => c.name !== 'Sarah') } })
     const s = await run(identityDay(summaryRow('Lionel', '158,57', '0,00') + summaryRow('Serge', '0,00', '50,00'))).summary

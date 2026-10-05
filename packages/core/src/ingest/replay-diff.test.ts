@@ -52,6 +52,72 @@ describe('compareReplay — recette avant/après, jour par jour et fiche par fic
   })
 })
 
+describe('compareReplay — homonymes séparés (recette UAT : toky, Augustin), les jours APRÈS la création', () => {
+  // La fiche créée existe déjà dans la photo « avant » (créée au rejeu d'un jour précédent) : « fiche
+  // créée » ne s'applique plus, c'est l'anomalie ouverte (son `day` = dernier jour vu) qui relie les fiches.
+  const tokyFiches = {
+    T: { name: 'toky', mypulsUserId: null },
+    N1: { name: 'toky', mypulsUserId: '11005' },
+    N2: { name: 'toky', mypulsUserId: '12768' },
+    X: { name: 'Autre', mypulsUserId: '5' },
+  }
+  const tokyIssues: ReplayIssue[] = [
+    { kind: 'homonyme', mypulsUserId: null, chatterId: 'T', otherChatterId: null, day: '2026-09-20', label: 'toky', amount: null },
+    { kind: 'fiche_creee', mypulsUserId: '11005', chatterId: 'N1', otherChatterId: 'T', day: '2026-09-14', label: 'toky', amount: null },
+    { kind: 'fiche_creee', mypulsUserId: '12768', chatterId: 'N2', otherChatterId: 'T', day: '2026-09-14', label: 'toky', amount: null },
+  ]
+
+  it('« toky » : T perd, N1 et N2 gagnent → expliqué par les fiches créées reliées à T', () => {
+    const d = compareReplay(
+      snap({ T: 800 }, { T: 800 }, tokyFiches),
+      snap({ N1: 500, N2: 300 }, { N1: 500, N2: 300 }, tokyFiches),
+      tokyIssues,
+    )
+    expect(d.ok).toBe(true)
+    expect(d.moves.map((m) => [m.chatterId, m.reason])).toEqual([
+      ['N1', "homonyme séparé : fiche créée pour l'id 11005"],
+      ['N2', "homonyme séparé : fiche créée pour l'id 12768"],
+      ['T', "homonyme séparé : fiche créée pour l'id 11005"],
+    ])
+  })
+
+  it('« Augustin » : la fiche de 2734 perd, celle de 11835 gagne → expliqué (fiche_creee, dans un sens comme dans l’autre)', () => {
+    const f = { AU: { name: 'Augustin', mypulsUserId: '2734' }, N: { name: 'Augustin', mypulsUserId: '11835' } }
+    const creee: ReplayIssue = { kind: 'fiche_creee', mypulsUserId: '11835', chatterId: 'N', otherChatterId: 'AU', day: '2026-09-15', label: 'Augustin', amount: null }
+    expect(compareReplay(snap({ AU: 1000 }, {}, f), snap({ AU: 400, N: 600 }, {}, f), [creee]).ok).toBe(true)
+    // Sens inverse (N rend à AU) : même lien.
+    expect(compareReplay(snap({ N: 600 }, {}, f), snap({ AU: 600 }, {}, f), [creee]).ok).toBe(true)
+  })
+
+  it('homonyme qui relie les deux fiches (chatterId / otherChatterId inversés) → expliqué', () => {
+    const issue: ReplayIssue = { kind: 'homonyme', mypulsUserId: null, chatterId: 'N1', otherChatterId: 'T', day: null, label: 'toky', amount: null }
+    const d = compareReplay(snap({}, { T: 70 }, tokyFiches), snap({}, { N1: 70 }, tokyFiches), [issue])
+    expect(d.ok).toBe(true)
+    expect(d.moves.map((m) => m.reason)).toEqual(['homonyme séparé (« toky »)', 'homonyme séparé (« toky »)'])
+  })
+
+  it('mouvement sans rapport (X → N1) malgré le lien T ↔ N1 → INEXPLIQUÉ, jour refusé', () => {
+    const d = compareReplay(snap({}, { X: 70 }, tokyFiches), snap({}, { N1: 70 }, tokyFiches), tokyIssues)
+    expect(d.moves.map((m) => [m.chatterId, m.reason])).toEqual([
+      ['N1', null],
+      ['X', null],
+    ])
+    expect(d.ok).toBe(false)
+  })
+
+  it('fiches reliées qui bougent dans le même sens → INEXPLIQUÉ (le lien n’explique qu’un passage de l’une à l’autre)', () => {
+    const d = compareReplay(snap({}, { X: 100 }, tokyFiches), snap({}, { T: 30, N1: 70 }, tokyFiches), tokyIssues)
+    expect(d.moves.find((m) => m.chatterId === 'T')?.reason).toBeNull()
+    expect(d.ok).toBe(false)
+  })
+
+  it('le lien n’excuse pas un total qui change', () => {
+    const d = compareReplay(snap({ T: 800 }, {}, tokyFiches), snap({ N1: 700 }, {}, tokyFiches), tokyIssues)
+    expect(d.totalsOk).toBe(false)
+    expect(d.ok).toBe(false)
+  })
+})
+
 describe('compareReplay — garde-fous complémentaires', () => {
   it('fiche créée : X perd 70 sans raison propre → INEXPLIQUÉ, jour refusé', () => {
     const after = { ...fiches, N: { name: 'Serge', mypulsUserId: '10504' } }

@@ -58,6 +58,29 @@ export function compareReplay(before: ReplaySnapshot, after: ReplaySnapshot, iss
   // Le résumé mis de côté manque à chatter_daily après, à dessein ; les ventes, jamais.
   const totalsOk = cdAfter + asideCents === cdBefore && ccdAfter === ccdBefore
 
+  const ids = [...new Set([...Object.keys(before.cd), ...Object.keys(after.cd), ...Object.keys(before.ccd), ...Object.keys(after.ccd)])].sort()
+  const delta = new Map<string, { dCd: number; dCcd: number }>()
+  for (const id of ids) {
+    const dCd = (after.cd[id] ?? 0) - (before.cd[id] ?? 0)
+    const dCcd = (after.ccd[id] ?? 0) - (before.ccd[id] ?? 0)
+    if (dCd || dCcd) delta.set(id, { dCd, dCcd })
+  }
+  // Homonyme séparé : fiche créée pour un id dont le libellé désignait une autre fiche, ou fiche libre
+  // que plusieurs comptes désignent — reliées par une anomalie OUVERTE, vue n'importe quel jour (upsert :
+  // son `day` est le dernier jour vu, pas celui de la création). N'explique que le passage de l'une à
+  // l'autre : les deux fiches bougent en sens opposés sur le résumé ou sur les ventes.
+  const opposite = (a: { dCd: number; dCcd: number }, b: { dCd: number; dCcd: number }): boolean =>
+    Math.sign(a.dCd) * Math.sign(b.dCd) < 0 || Math.sign(a.dCcd) * Math.sign(b.dCcd) < 0
+  const splitFor = (id: string): ReplayIssue | undefined => {
+    const mine = delta.get(id)
+    return issues.find((i) => {
+      if (i.kind !== 'fiche_creee' && i.kind !== 'homonyme') return false
+      const other = i.chatterId === id ? i.otherChatterId : i.otherChatterId === id ? i.chatterId : null
+      const theirs = other && other !== id ? delta.get(other) : undefined
+      return !!mine && !!theirs && opposite(mine, theirs)
+    })
+  }
+
   const reasonFor = (id: string): string | null => {
     const pair = issues.find(
       (i) => (i.kind === 'doublon' || i.kind === 'membres_multiples') && (i.chatterId === id || i.otherChatterId === id),
@@ -67,17 +90,19 @@ export function compareReplay(before: ReplaySnapshot, after: ReplaySnapshot, iss
     const was = before.fiches[id]
     if (!was && now?.mypulsUserId) return `fiche créée pour l'id ${now.mypulsUserId}`
     if (was && !was.mypulsUserId && now?.mypulsUserId) return `id ${now.mypulsUserId} posé`
+    const split = splitFor(id)
+    if (split) {
+      return split.kind === 'fiche_creee'
+        ? `homonyme séparé : fiche créée pour l'id ${split.mypulsUserId ?? '?'}`
+        : `homonyme séparé (« ${split.label ?? '?'} »)`
+    }
     const name = now?.name ?? was?.name
     if (name && asideIssues.some((i) => i.label === name)) return 'résumé mis de côté (libellé ambigu)'
     return null
   }
 
-  const ids = [...new Set([...Object.keys(before.cd), ...Object.keys(after.cd), ...Object.keys(before.ccd), ...Object.keys(after.ccd)])].sort()
   const moves: ReplayMove[] = []
-  for (const id of ids) {
-    const dCd = (after.cd[id] ?? 0) - (before.cd[id] ?? 0)
-    const dCcd = (after.ccd[id] ?? 0) - (before.ccd[id] ?? 0)
-    if (!dCd && !dCcd) continue
+  for (const [id, { dCd, dCcd }] of delta) {
     const f = after.fiches[id] ?? before.fiches[id]
     moves.push({ chatterId: id, name: f?.name ?? id, mypulsUserId: f?.mypulsUserId ?? null, dCd, dCcd, reason: reasonFor(id) })
   }

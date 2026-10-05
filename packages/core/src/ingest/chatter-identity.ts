@@ -18,7 +18,9 @@ import {
  *
  * - Une VENTE porte l'id MyPuls de son compte : c'est lui qui décide.
  * - Une ligne de RÉSUMÉ n'a pas d'id : on le déduit de l'annuaire du jour (exact, puis normalisé),
- *   et un libellé ambigu se départage par l'invariant « CA du résumé = Σ ventes du même id ».
+ *   et un libellé ambigu se départage par l'invariant « CA du résumé = Σ ventes du même id ». Un
+ *   libellé absent de l'annuaire (compte révoqué) se départage de même, parmi les ids qui ont des
+ *   ventes et aucune ligne de résumé ; ce libellé-là ne pose ensuite ni alias ni lien (montant seul).
  * - L'alias (libellé → fiche) n'est plus qu'un repli : ligne sans id, ou jour sans aucun id.
  * - Un libellé « Indéterminé (…) » ne donne JAMAIS d'id ni de lien : sa pseudo-fiche agrège tout
  *   un modèle (décision Benoit 2026-10-01). Un id lu sur une telle vente est ignoré et signalé.
@@ -250,15 +252,33 @@ export function resolveDayIdentity(input: {
       e.issue.amount = e.cents / 100
       e.issue.detail = `Le libellé « ${e.issue.label} » désigne ${list.length} comptes MyPuls (${list.join(', ')}) et le montant ne les départage pas : ${e.lines > 1 ? `${e.lines} lignes, ` : ''}${eur(e.cents)} € du résumé mis de côté.`
     })
+    // Libellé qu'aucun compte de l'annuaire ne porte (« City of the gamer (accès révoqué) », révoqué et
+    // absent de l'annuaire du jour) : même départage, parmi les ids qui ont des ventes ce jour et AUCUNE
+    // ligne de résumé (ni un id mis de côté ci-dessus : sa ligne est peut-être celle-là). Un seul au
+    // centime, CA > 0, visé par cette seule ligne — sinon chemin historique, comme avant.
+    const resolved = new Set(summaryId.filter((id): id is string => id !== null))
+    const orphans = summary.flatMap((l, i) =>
+      l.label && !undetermined(l.label) && idx.idsOf(l.label).size === 0 && cents(l.ca) > 0 ? [i] : [],
+    )
+    const free = [...salesCents.keys()].filter((id) => !resolved.has(id) && !asideIds.has(id))
+    const orphanFits = orphans.map((i) => free.filter((id) => salesCents.get(id) === cents(summary[i]!.ca)))
+    const orphanAimed = new Map<string, number>()
+    for (const f of orphanFits) if (f.length === 1) orphanAimed.set(f[0]!, (orphanAimed.get(f[0]!) ?? 0) + 1)
+    orphans.forEach((i, k) => {
+      const f = orphanFits[k]!
+      if (f.length === 1 && orphanAimed.get(f[0]!) === 1) summaryId[i] = f[0]!
+    })
   }
   out.summaryIds = summaryId
 
   // ── Fiche de chaque id du jour ───────────────────────────────────────────────────────────────
+  /** Libellé qu'aucun compte de l'annuaire ne porte : rattaché à son id par le seul montant. */
+  const amountOnly = (raw: string): boolean => idx.idsOf(raw).size === 0
   const labelsById = new Map<string, { labels: Set<string>; summaryLabel: string | null }>()
   const seeLabel = (id: string, raw: string, fromSummary: boolean): void => {
     const e = labelsById.get(id) ?? { labels: new Set<string>(), summaryLabel: null }
     if (raw) e.labels.add(raw)
-    if (fromSummary && e.summaryLabel === null) e.summaryLabel = raw
+    if (fromSummary && e.summaryLabel === null && !amountOnly(raw)) e.summaryLabel = raw
     labelsById.set(id, e)
   }
   summary.forEach((l, i) => {
@@ -269,7 +289,8 @@ export function resolveDayIdentity(input: {
 
   const ids = [...labelsById.keys()].sort(byMypulsId)
   const labelsOf = (id: string): string[] => [...(labelsById.get(id)?.labels ?? [])].sort()
-  const nameOf = (id: string): string | null => labelsById.get(id)?.summaryLabel ?? labelsOf(id)[0] ?? null
+  const nameOf = (id: string): string | null =>
+    labelsById.get(id)?.summaryLabel ?? labelsOf(id).find((l) => !amountOnly(l)) ?? labelsOf(id)[0] ?? null
   /** Un libellé qui désigne plusieurs comptes ce jour : ni lien ni alias par lui. */
   const ambiguousLabel = (raw: string): boolean => idx.idsOf(raw).size > 1
   /** Fiche d'un libellé selon l'état EN BASE seulement (pas les alias posés aujourd'hui). */
@@ -278,9 +299,14 @@ export function resolveDayIdentity(input: {
     return state.aliasOf(n) ?? state.byName(raw) ?? state.byEmail(n)
   }
   const hasId = (f: string): boolean => (state.mypulsIdByChatter.get(f) ?? null) !== null
+  const summaryFicheOf = (id: string): string | undefined => {
+    const raw = labelsById.get(id)?.summaryLabel
+    return raw ? inBase(raw) : undefined
+  }
 
   // 1. Fiches que désignent les libellés de chaque id, et comptes qui désignent chaque fiche.
-  type Found = { fiche: string; raw: string }
+  //    `weak` : fiche désignée seulement par un libellé rattaché au montant — signalée, jamais reliée.
+  type Found = { fiche: string; raw: string; weak: boolean }
   const foundById = new Map<string, Found[]>()
   const idsOfFiche = new Map<string, Set<string>>()
   for (const id of ids) {
@@ -289,7 +315,10 @@ export function resolveDayIdentity(input: {
       if (undetermined(raw)) continue // une pseudo-fiche ne reçoit jamais d'id
       const f = inBase(raw)
       if (!f) continue
-      if (!found.some((x) => x.fiche === f)) found.push({ fiche: f, raw })
+      const weak = amountOnly(raw)
+      const seen = found.find((x) => x.fiche === f)
+      if (!seen) found.push({ fiche: f, raw, weak })
+      else if (seen.weak && !weak) Object.assign(seen, { raw, weak })
       const s = idsOfFiche.get(f) ?? new Set<string>()
       s.add(id)
       if (ambiguousLabel(raw)) for (const other of idx.idsOf(raw)) s.add(other)
@@ -326,9 +355,12 @@ export function resolveDayIdentity(input: {
       detail: `L'id MyPuls ${id} est porté par une fiche, mais le libellé « ${raw} » désigne une autre fiche sans id : même compte coupé en deux, à fusionner.`,
     })
   }
-  /** Alias des libellés d'un id : jamais un libellé à plusieurs comptes (ce serait deviner). */
+  /**
+   * Alias des libellés d'un id : seulement ceux qui ne désignent que lui dans l'annuaire du jour —
+   * jamais un libellé à plusieurs comptes, ni un libellé rattaché par le seul montant (ce serait deviner).
+   */
   const aliasesOfId = (chatterId: string, id: string): void => {
-    for (const raw of labelsOf(id)) if (!ambiguousLabel(raw)) addAlias(chatterId, raw)
+    for (const raw of labelsOf(id)) if (idx.idsOf(raw).size === 1) addAlias(chatterId, raw)
   }
 
   // 3. Décision par id, dans l'ordre des ids.
@@ -348,10 +380,11 @@ export function resolveDayIdentity(input: {
       continue
     }
 
+    const linkable = clean.filter((a) => !a.weak)
     let pick: string | undefined
-    if (clean.length === 1) pick = clean[0]!.fiche
-    else if (clean.length > 1) {
-      const linked = clean.filter((a) => state.linkedChatters.has(a.fiche))
+    if (linkable.length === 1) pick = linkable[0]!.fiche
+    else if (linkable.length > 1) {
+      const linked = linkable.filter((a) => state.linkedChatters.has(a.fiche))
       if (linked.length > 1) {
         chatterOfId.set(id, null)
         issue({
@@ -368,13 +401,12 @@ export function resolveDayIdentity(input: {
         continue
       }
       // La fiche payée d'abord (la paie lit `profiles.chatter_id`), sinon celle du résumé.
-      const summaryLabel = labelsById.get(id)!.summaryLabel
-      const summaryFiche = summaryLabel ? inBase(summaryLabel) : undefined
-      pick = linked[0]?.fiche ?? clean.find((a) => a.fiche === summaryFiche)?.fiche ?? clean[0]!.fiche
-      for (const a of clean) if (a.fiche !== pick) doublon(id, pick, a.fiche, a.raw)
+      const summaryFiche = summaryFicheOf(id)
+      pick = linked[0]?.fiche ?? linkable.find((a) => a.fiche === summaryFiche)?.fiche ?? linkable[0]!.fiche
     }
 
     if (pick) {
+      for (const a of clean) if (a.fiche !== pick) doublon(id, pick, a.fiche, a.raw)
       out.links.push({ chatterId: pick, mypulsUserId: id })
       chatterOfId.set(id, pick)
       aliasesOfId(pick, id)
@@ -386,13 +418,17 @@ export function resolveDayIdentity(input: {
     out.newChatters.push({ id: created, displayName, mypulsUserId: id })
     chatterOfId.set(id, created)
     aliasesOfId(created, id)
+    // Le libellé désigne une fiche qui n'est pas sûrement la sienne (homonyme, fiche d'un autre id,
+    // fiche du seul montant) : la fiche créée la désigne, et la recette (compareReplay) relie les deux.
+    const summaryFiche = summaryFicheOf(id)
+    const designated = found.find((a) => a.fiche === summaryFiche) ?? found[0]
     issue({
       issueKey: ficheCreeeKey(id),
       kind: 'fiche_creee',
       mypulsUserId: id,
       label: displayName,
       chatterId: created,
-      otherChatterId: null,
+      otherChatterId: designated?.fiche ?? null,
       day,
       amount: null,
       detail: found.length
