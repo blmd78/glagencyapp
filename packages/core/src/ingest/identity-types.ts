@@ -34,6 +34,38 @@ export interface IdentityIssue {
   detail: string
 }
 
+// ── Clés d'anomalie : source UNIQUE pour la résolution de la nuit ET le rattrapage ─────────────
+// `issue_key` est la clé d'upsert de `chatter_identity_issues` : deux formats pour la même
+// anomalie = deux lignes dans l'onglet. Tout producteur d'anomalie passe par ces fonctions.
+
+/** Doublon d'une PAIRE de fiches : ids triés, sans l'id MyPuls ni le producteur. */
+export function doublonKey(a: string, b: string): string {
+  return a < b ? `doublon:${a}:${b}` : `doublon:${b}:${a}`
+}
+export function membresKey(mypulsUserId: string): string {
+  return `membres:${mypulsUserId}`
+}
+export function homonymeKey(chatterId: string): string {
+  return `homonyme:${chatterId}`
+}
+export function conflitKey(chatterId: string): string {
+  return `conflit:${chatterId}`
+}
+/** Fiche créée pour un id MyPuls connu. */
+export function ficheCreeeKey(mypulsUserId: string): string {
+  return `fiche:${mypulsUserId}`
+}
+/** Fiche créée par libellé seul (aucun id) : clé normalisée du libellé. */
+export function ficheLibelleKey(labelNorm: string): string {
+  return `fiche:libelle:${labelNorm}`
+}
+export function resumeKey(day: string, labelNorm: string): string {
+  return `resume:${day}:${labelNorm}`
+}
+export function ecartKey(day: string, mypulsUserId: string): string {
+  return `ecart:${day}:${mypulsUserId}`
+}
+
 // `type` et non `interface` : supabase-js type `p_issues` en `Json`, qui n'accepte que des types
 // objets littéraux (une interface n'a pas de signature d'index).
 export type IdentityIssueDbRow = {

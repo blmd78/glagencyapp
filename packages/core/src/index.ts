@@ -72,7 +72,19 @@ export {
 export type { LsFlag, LsTotals } from './marketing/linkscale-flags'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
-export { identityIssueRow, labelIndex, UNDETERMINED_LABEL } from './ingest/identity-types'
+export {
+  conflitKey,
+  doublonKey,
+  ecartKey,
+  ficheCreeeKey,
+  ficheLibelleKey,
+  homonymeKey,
+  identityIssueRow,
+  labelIndex,
+  membresKey,
+  resumeKey,
+  UNDETERMINED_LABEL,
+} from './ingest/identity-types'
 export type {
   IdentityDirectoryEntry,
   IdentityIssue,

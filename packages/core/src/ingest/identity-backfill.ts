@@ -1,5 +1,8 @@
 import {
+  conflitKey,
+  homonymeKey,
   labelIndex,
+  membresKey,
   UNDETERMINED_LABEL,
   type IdentityDirectoryEntry,
   type IdentityIssue,
@@ -59,7 +62,7 @@ export function planIdentityBackfill(input: {
     if (votes.size > 1) {
       const list = [...votes].sort()
       plan.issues.push({
-        issueKey: `homonyme:${f.id}`,
+        issueKey: homonymeKey(f.id),
         kind: 'homonyme',
         mypulsUserId: f.mypulsUserId,
         label: f.displayName,
@@ -74,7 +77,7 @@ export function planIdentityBackfill(input: {
     const vote = [...votes][0]
     if (f.mypulsUserId && vote && vote !== f.mypulsUserId) {
       plan.issues.push({
-        issueKey: `conflit:${f.id}`,
+        issueKey: conflitKey(f.id),
         kind: 'conflit_id',
         mypulsUserId: f.mypulsUserId,
         label: f.displayName,
@@ -102,7 +105,7 @@ export function planIdentityBackfill(input: {
     const linked = g.filter((f) => f.linked)
     if (linked.length > 1) {
       plan.issues.push({
-        issueKey: `membres:${id}`,
+        issueKey: membresKey(id),
         kind: 'membres_multiples',
         mypulsUserId: id,
         label: linked[0]!.displayName,

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { identityIssueRow, labelIndex, type IdentityDirectoryEntry } from './identity-types'
+import {
+  conflitKey,
+  homonymeKey,
+  identityIssueRow,
+  labelIndex,
+  membresKey,
+  type IdentityDirectoryEntry,
+} from './identity-types'
 import {
   ficheIds,
   parseLot,
@@ -90,6 +97,7 @@ describe('planIdentityBackfill (rapport, lecture seule)', () => {
     )
     expect(p.merges).toEqual([])
     expect(p.issues.map((i) => i.kind)).toEqual(['membres_multiples'])
+    expect(p.issues.map((i) => i.issueKey)).toEqual([membresKey('296')])
   })
 
   it('homonymes mélangés et id contredit → anomalies, rien d’autre', () => {
@@ -97,6 +105,16 @@ describe('planIdentityBackfill (rapport, lecture seule)', () => {
     expect(plan([fiche('S', 'Serge', { mypulsUserId: '9332' })], [['10504', 'Serge']]).issues.map((i) => i.kind)).toEqual([
       'conflit_id',
     ])
+  })
+
+  it('clés d’anomalie : celles des constructeurs partagés avec la résolution de la nuit', () => {
+    expect(plan([fiche('S', 'Serge')], [['9332', 'Serge'], ['10504', 'Serge']]).issues.map((i) => i.issueKey)).toEqual([
+      homonymeKey('S'),
+    ])
+    expect(plan([fiche('S', 'Serge', { mypulsUserId: '9332' })], [['10504', 'Serge']]).issues.map((i) => i.issueKey)).toEqual([
+      conflitKey('S'),
+    ])
+    expect([homonymeKey('S'), conflitKey('S'), membresKey('296')]).toEqual(['homonyme:S', 'conflit:S', 'membres:296'])
   })
 
   it('fiches corrompues à part ; pseudo-fiches « Indéterminé (…) » jamais touchées', () => {
