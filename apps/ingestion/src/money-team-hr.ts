@@ -82,8 +82,9 @@ export async function parseMoneyTeamHR(res: Response): Promise<MoneyTeamDay> {
     s.open = false
   }
 
-  // Ligne détail courante. `userId` vient de l'attribut du bouton.
-  const d = { creator: '', chatter: '', amount: '', type: '', userId: null as string | null, open: false }
+  // Ligne détail courante. `userId` vient de l'attribut du PREMIER bouton « Éditer » de la ligne
+  // (`btn` : déjà lu), comme cheerio (`.find(...).attr()` lit le premier élément, valide ou non).
+  const d = { creator: '', chatter: '', amount: '', type: '', userId: null as string | null, btn: false, open: false }
   const flushDetail = () => {
     const creator = decodeEntities(d.creator).trim()
     if (d.open && creator) {
@@ -97,6 +98,7 @@ export async function parseMoneyTeamHR(res: Response): Promise<MoneyTeamDay> {
     }
     d.creator = d.chatter = d.amount = d.type = ''
     d.userId = null
+    d.btn = false
     d.open = false
   }
 
@@ -136,7 +138,11 @@ export async function parseMoneyTeamHR(res: Response): Promise<MoneyTeamDay> {
     .on('#sales-detail-table tbody tr td:nth-child(4)', { text: (t) => void (d.amount += t.text) })
     .on('#sales-detail-table tbody tr td:nth-child(6)', { text: (t) => void (d.type += t.text) })
     .on('#sales-detail-table tbody tr .js-edit-attribution-btn', {
-      element: (el) => void (d.userId = mypulsIdOf(el.getAttribute('data-current-user-id'))),
+      element: (el) => {
+        if (d.btn) return
+        d.btn = true
+        d.userId = mypulsIdOf(el.getAttribute('data-current-user-id'))
+      },
     })
     .on('select[name="chatter"] option', {
       element: (el) => {

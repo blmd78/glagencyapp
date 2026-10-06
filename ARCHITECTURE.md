@@ -114,7 +114,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | prod (`main`) | `cqmfpsnqaxymswijdnfz` | eu-west-3 (`docs/runbook-uncove.md`) | `db.<ref>.supabase.co` injoignable IPv6-only depuis un poste de dev — passer par le pooler `aws-0-eu-west-3.pooler.supabase.com:5432` |
 | UAT (`develop`) | `ihkksdmgtrbbjugeboks` | eu-west-3 | même pooler |
 
-182 migrations séquentielles au 2026-10-05 (`packages/db/supabase/migrations/0001..0182`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
+183 migrations séquentielles au 2026-10-05 (`packages/db/supabase/migrations/0001..0183`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
 
 ## 4. Hébergement et environnements
 
@@ -131,6 +131,15 @@ Le worker accepte aussi un déclenchement HTTP manuel (`fetch`), protégé par l
 
 **`apps/ingestion` se déploie manuellement** : `pnpm --filter @glagency/ingestion deploy` (= `wrangler deploy`) — aucun fichier du repo ne montre de pipeline automatisé pour ce worker.
 
+> **⛔ Identité chatteur MyPuls (spec `2026-10-01`) — ordre de mise en prod, sans sauter d'étape :**
+> 1. migration **`0183` appliquée en prod** ;
+> 2. **lot 1 des fusions appliqué** en prod, sur accord explicite de Benoit (`pnpm identity-backfill --lot=… --apply`, § 10 Relevé MyPuls) ;
+> 3. **recette de non-régression acceptée** par Benoit (`pnpm recette-identite`, rapport écrit) ;
+> 4. **déploiement du Worker** ;
+> 5. **release web** de l'onglet Membres › Fiches MyPuls (PR 4) — après le Worker, sinon la carte affiche « non vérifié ».
+>
+> **Le Worker est partagé par tous les crons** (chatteurs 23h05, spenders, shifts, Uncove) : tout `wrangler deploy` depuis une branche qui contient la PR 3 (`feature/identite-3-resolution`, puis `develop`/`main` après son merge) livre le nouveau relevé chatteurs, même pour redéployer un autre job. De même, `pnpm ingest` lancé en local depuis une telle branche écrit **en prod** (`.env` racine) avec le nouveau code. Filet si l'ordre n'est pas tenu : sans `0183`, le pipeline **suspend le relevé chatteurs** pour tout le run (aucune écriture chatteurs, `creator_daily` continue, run dégradé « migration 0183 absente : relevé chatteurs suspendu », jours à rejouer une fois `0183` appliquée) — sonde `migration0183Missing`, `apps/ingestion/src/pipeline.ts`. Même avertissement en tête de `apps/ingestion/wrangler.toml`.
+
 **Aucune CI** (décision de Benoît, commit `847dc3c`) : les vérifications sont locales, par task — détail § 8. Cycle de branches, hotfix, versioning et accord de mise en prod : `docs/git-workflow.md`. Release : `pnpm release:prepare` puis `pnpm release:tag` (`AGENTS.md` § Carte, changelog, release).
 
 **Invalidation du cache après ingestion** : `apps/web` expose `POST /api/revalidate` (secret partagé `REVALIDATE_SECRET`, allow-list de tags fermée à `facts-daily`, comparaison timing-safe) — décrit dans `docs/guidelines-socle.md` § 2. Appelée par `pingRevalidate()` (`apps/ingestion/src/revalidate.ts`) : le Worker après le run chatteurs (23h05) et après le relevé des shifts (04h30), le CLI local en fin de run. Sans `REVALIDATE_URL` + `REVALIDATE_SECRET` côté Worker, l'appel est un no-op ; sans `REVALIDATE_SECRET` identique côté Vercel, la route répond 401 (§ 9).
@@ -140,7 +149,7 @@ Le worker accepte aussi un déclenchement HTTP manuel (`fetch`), protégé par l
 Sentry est câblé aux deux apps :
 
 - `apps/web` (`@sentry/nextjs`) : serveur (`instrumentation.ts`, `onRequestError` capture RSC/Route Handlers/Server Actions), client chargé paresseusement après idle (`instrumentation-client.ts` — ~38 Ko gzip évités du chunk critique), errors-only, pas de PII (`sentry.server.config.ts`/`sentry.edge.config.ts`). DSN `NEXT_PUBLIC_SENTRY_DSN`, actif seulement si `NODE_ENV === 'production'`.
-- `apps/ingestion` : `@sentry/cloudflare` dans le Worker (`withSentry` capture les crashes), `@sentry/node` dans les CLI (`spenders.ts`, `shifts.ts`, `uncove.ts`). DSN `SENTRY_DSN` — absent, le SDK reste inactif. Un run dégradé (login KO, jour en échec, 0 ligne) part en `captureMessage` warning ; un cron manqué (missed check-in) est détecté par le **cron monitor Sentry** (slugs `ingestion-mypuls-nightly`, `ingestion-marketing-nightly`, et le monitor Uncove — alignés à la main sur les crons de `wrangler.toml`).
+- `apps/ingestion` : `@sentry/cloudflare` dans le Worker (`withSentry` capture les crashes), `@sentry/node` dans les CLI (`spenders.ts`, `shifts.ts`, `uncove.ts`). DSN `SENTRY_DSN` — absent, le SDK reste inactif. Un run dégradé (login KO, jour en échec, 0 ligne, jour « à vérifier » — § 10 Relevé MyPuls) part en `captureMessage` warning ; un cron manqué (missed check-in) est détecté par le **cron monitor Sentry** (slugs `ingestion-mypuls-nightly`, `ingestion-marketing-nightly`, et le monitor Uncove — alignés à la main sur les crons de `wrangler.toml`).
 
 Historique durable indépendant de Sentry : chaque run d'ingestion insère une ligne dans la table Supabase `ingest_runs`, lisible depuis `/chatter/presence/reglages`.
 
@@ -174,6 +183,7 @@ Hook local `scripts/hooks/pre-push` (activé par `prepare` au `pnpm install` : `
 | Déploiement `apps/ingestion` | manuel (`wrangler deploy`, § 5) — aucun fichier du repo ne prouve un pipeline automatisé (type Cloudflare Workers Builds) |
 | `SENTRY_DSN` web en prod (Vercel) | non vérifiable depuis le repo (secret du dashboard Vercel) |
 | `TG_BOT_TOKEN`/`TG_CHAT_ID` | déclarés dans `.env.example`, aucune référence dans le code (§ 6) |
+| Budget de sous-requêtes du run de 23h05 (Worker, plan Free : 50 par invocation) | **Estimation à la lecture du code (2026-10-05), à mesurer — non mesurée.** `PipelineDeps.maxCatchup` (`apps/ingestion/src/pipeline.ts`) : ≈ 13 à 15 par jour (`/team/money` paginé par 100 lignes ≈ 5, 2 lectures money-team, 1 upsert `creator_daily`, delete + insert de `chatter_daily` et de `chatter_creator_daily`, 1 `finish_chatter_day`, 0 à 2 pour fiches et alias neufs) ; ≈ 8 fixes dans `runPipeline`, sonde `0183` comprise (+1 par tranche de 1 000 lignes d'un `fetchAll`), plus ce que le Worker ajoute (session, `ingest_runs`, insights, Sentry). `maxCatchup: 2` (`DEPS`, `apps/ingestion/src/worker.ts`) pour l'identité MyPuls : 3 jours approchaient ou dépassaient le plafond ; au-delà, les sous-requêtes suivantes échouent, `ingest_runs` et Sentry compris. Le rattrapage s'auto-cicatrise nuit après nuit |
 
 Dettes fonctionnelles connues (bugs mesurés, assumés, non corrigés) : `docs/dettes-ouvertes.md`. Coût d'infra (incident de prefetch Vercel) : `docs/perf-vercel-prefetch.md`.
 
@@ -286,8 +296,54 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   **La clé d'identité est `chatters.id`** (`chatter_id`, migration `0144`) et NON `profiles.id` :
   le compte membre est l'exception (486 lignes `chatters` pour 110 profils rattachés en prod), et
   y clouer le relevé laissait 29 % du travail mesuré compté pour personne. `profile_id` reste à
-  côté, pour ce qui exige un compte — créneau attendu, fiche d'activité, signalement. Le
-  périmètre modèles se lit donc par les DEUX tables d'assignation (`allowedChatterIds` sur
+  côté, pour ce qui exige un compte — créneau attendu, fiche d'activité, signalement.
+  **`chatters.id` se résout par `chatters.mypuls_user_id`, sur les DEUX flux** (chantier identité,
+  2026-10, migration `0183`) : le relevé des shifts (`resolveIdentities`, `shifts-core.ts` — l'id
+  d'abord ; le repli par nom ne rattache un id inconnu qu'à une fiche SANS id, une fiche déjà
+  identifiée — ou visée par plusieurs ids inconnus du même run — donne `ambigu` : jamais un
+  homonyme rattaché, quel que soit l'ordre du CSV) et la money-team (pipeline de 23h05,
+  `ingestChatterDay`, règle pure `resolveDayIdentity` de `@glagency/core` : chaque vente porte l'id
+  de son compte, lu dans le bouton « Éditer » ; une ligne de résumé reçoit le sien de l'annuaire du
+  jour, départagé au centime par les ventes ; le libellé et l'alias ne sont plus qu'un repli, et
+  aucun lien durable n'est deviné). Les deux parseurs (cheerio, et `HTMLRewriter` pour le Worker :
+  `money-team-hr.ts`) lisent l'id, l'annuaire et les totaux affichés par la page.
+  **Chaque jour ingéré est contrôlé** — `dayChecks` (`@glagency/core`), puis la base, en UN appel
+  `finish_chatter_day` après l'écriture du jour (budget Worker) : (a) résumé = ventes, au centime,
+  pour chaque compte (`a_resume_ventes`) ; (b) totaux — ce qui est écrit en base = ce qui a été lu
+  (`b_resume_ecrit`, `b_ventes_ecrites`, sommés EN BASE et non par le code) et ce qui a été lu = les
+  cartes « Ventes » et « Montant net » de la page MyPuls (`b_total_page`) ; (c) une fiche = un
+  compte (`c_fiche_compte`, et `c_lien_refuse` si la base refuse de poser un id). **Fermé par
+  défaut** : total de page introuvable, jour sans aucun id lu, contrôle non transmis ou code inconnu
+  = échec ; un jour servi vide (0 vente lue) alors que l'API annonce du CA PPV + pourboires
+  (`creator_daily` du même jour) fait échouer `b_total_page`. Le verdict (`ok` / `a_verifier`,
+  détail de chaque contrôle, totaux) est écrit dans
+  **`ingest_day_checks`**, une ligne par jour — rejouer un jour remplace son verdict ; un jour
+  ingéré sans ligne se lit « non vérifié » (RPC `reliability_days`).
+  **Un jour « à vérifier » dégrade le run** : chaque contrôle en échec, et chaque alerte technique
+  du parseur (id absent, markup changé), compte dans `reliabilityAlerts` ; `summarizeRun` passe
+  alors `degraded` — en rattrapage comme en rejeu explicite — d'où le warning Sentry et la ligne
+  `ingest_runs`. Les chiffres sont écrits AVANT d'être contrôlés : le contrôle marque le jour, il
+  ne le bloque pas. L'onglet admin Membres › Fiches MyPuls qui affiche ce statut arrive avec la
+  PR 4 du chantier.
+  **Anomalies d'identité** : table `chatter_identity_issues` (`issue_key` unique — une anomalie
+  revue chaque nuit reste UNE ligne ; `kind` ∈ `doublon`, `membres_multiples`, `homonyme`,
+  `conflit_id` (rattrapage seul), `fiche_creee`, `resume_mis_de_cote`, `ecart_invariant` ; colonne
+  `source` `ingestion` / `rattrapage` ; lecture et « Vu » réservés à l'admin, écriture service
+  role). Une fusion efface celles de la fiche vidée.
+  **Rattrapage** : `pnpm identity-backfill` produit un rapport en lecture seule ; `--lot=… --apply`
+  n'applique QUE le lot validé par Benoit. **`--apply` ne tourne JAMAIS pendant une fenêtre
+  d'ingestion** (22:55 → 00:20 UTC et 04:20 → 05:30 UTC : les crons de 23h05, 00h00, 04h30 et 05h00
+  avec leur marge) — une fusion pendant qu'un run écrit les mêmes tables fausserait ses contrôles.
+  Le CLI refuse à l'heure du lancement, avant chaque opération, et si une fenêtre a commencé depuis
+  la lecture des faits ; les fenêtres sont écrites en dur (`NIGHTLY_WINDOWS`,
+  `apps/ingestion/src/identity-backfill.ts`) : à réaligner si les crons de `wrangler.toml`
+  changent. Hors UAT, `--apply` exige en plus `IDENTITY_APPLY_PROD=oui` (accord explicite de
+  Benoit). **Avant tout déploiement du Worker** : recette de non-régression sur l'UAT, jours rejoués
+  ancien puis nouveau code (`pnpm recette-identite photo|compare` — spec § 8) ; budget de
+  sous-requêtes du run : § 9.
+  Spec : `docs/superpowers/specs/2026-10-01-identite-chatteur-mypuls-design.md`.
+  **Périmètre modèles** : la double clé `chatter_id` / `profile_id` oblige à le lire par les DEUX
+  tables d'assignation (`allowedChatterIds` sur
   `chatter_creators` + `allowedProfileIds` sur `profile_creators`, `lib/services/creator-scope.ts`).
   **`chatter_creators` est FIGÉE depuis son import du 2026-07-01** (rien ne l'écrit : ni l'ingestion,
   ni Organisation) — les modèles créées depuis (Juliette, Elsa, Romy, comptes privés) y ont 0 ligne.

@@ -14,6 +14,11 @@ export interface IngestDayResult {
   pairRows: number
   source: 'dashboard' | 'api'
   error?: string
+  /**
+   * Contrôles de fiabilité en échec ce jour-là (+ alertes techniques du parsing) : le jour est
+   * « à vérifier » dans `ingest_day_checks` (0183), lu dans Membres › Fiches MyPuls.
+   */
+  reliabilityAlerts?: number
 }
 
 export interface IngestRunSummary {
@@ -34,6 +39,12 @@ export function summarizeRun(input: {
   days: IngestDayResult[]
   warnings: string[]
   durationMs: number
+  /**
+   * Motif du relevé chatteurs suspendu pour tout le run (ex. migration 0183 absente) : rien n'a été
+   * écrit côté chatteurs, volontairement. Le run est dégradé et le motif part en warning ; la règle
+   * « zéro ligne chatter_daily » ne s'applique pas (elle accuserait le markup à tort).
+   */
+  chatterSuspended?: string | null
 }): IngestRunSummary {
   const warnings = [...input.warnings]
   const totalCreatorRows = input.days.reduce((s, d) => s + d.creatorRows, 0)
@@ -55,9 +66,20 @@ export function summarizeRun(input: {
   // cassée : les parseurs renvoient vide SANS throw quand le markup change, et le
   // delete/insert de chatter_daily étant gardé par length, le dashboard gèlerait
   // silencieusement sur les dernières données connues.
-  if (input.catchup && input.loginOk && totalChatterRows === 0) {
+  if (input.chatterSuspended) {
+    degraded = true
+    warnings.push(input.chatterSuspended)
+  } else if (input.catchup && input.loginOk && totalChatterRows === 0) {
     degraded = true
     warnings.push('aucune ligne chatter_daily malgré un login money-team OK (markup changé ?)')
+  }
+
+  // Fiabilité : un jour « à vérifier » se voit dans Membres › Fiches MyPuls — le run dégradé
+  // envoie AUSSI l'alerte Sentry (filet secondaire, spec § 3). Vaut aussi en rejeu explicite.
+  const reliabilityAlerts = input.days.reduce((s, d) => s + (d.reliabilityAlerts ?? 0), 0)
+  if (reliabilityAlerts > 0) {
+    degraded = true
+    warnings.push(`${reliabilityAlerts} contrôle(s) de fiabilité en échec — jour(s) à vérifier, détail dans Membres › Fiches MyPuls`)
   }
 
   return {

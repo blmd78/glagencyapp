@@ -1,3 +1,14 @@
+# ⛔ AVANT TOUT `wrangler deploy` — identité chatteur MyPuls (spec 2026-10-01, ARCHITECTURE.md § 5).
+# Ce Worker est PARTAGÉ par TOUS les crons (chatteurs 23h05, spenders, shifts, Uncove) : un
+# `wrangler deploy` depuis n'importe quelle branche qui contient la PR 3 (feature/identite-3-resolution,
+# ou develop/main après son merge) livre le NOUVEAU relevé chatteurs, même pour redéployer un autre job.
+# Ordre de mise en prod, sans en sauter une étape :
+#   1. migration 0183 appliquée en PROD (sans elle, le Worker suspend le relevé chatteurs : run
+#      dégradé « migration 0183 absente », jours à rejouer ensuite) ;
+#   2. lot 1 des fusions appliqué en prod, sur accord explicite de Benoit (`pnpm identity-backfill`) ;
+#   3. recette de non-régression acceptée par Benoit (`pnpm recette-identite`, rapport écrit) ;
+#   4. déploiement de ce Worker ;
+#   5. release web de l'onglet Membres › Fiches MyPuls (PR 4).
 name = "glagency-ingestion"
 # Compte Cloudflare cible VERROUILLÉ (benoitgasnier.pro@gmail.com) — empêche un déploiement
 # accidentel sur un autre compte si le CLI est logué ailleurs (ex. holyware2000).
