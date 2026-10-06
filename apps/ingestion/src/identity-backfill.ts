@@ -33,15 +33,22 @@ import { rows, toCsv } from './ops-utils'
 //   --lot=…        évalue aussi un lot validé (apps/ingestion/identity-lots/lot-N.csv) →
 //                  raw/identity/<jour>/lot-decisions.csv. Toujours en lecture seule.
 //   --lot=… --apply  applique LE LOT, et rien d'autre : sauvegarde CSV avant chaque opération, fusions
-//                  des groupes prouvés, suppressions des fiches corrompues, publication des anomalies.
+//                  des groupes prouvés (la fiche VIDÉE est ensuite SUPPRIMÉE — décision de Benoit du
+//                  2026-10-06, sauvegardes de la base ; ses `insights`, que la fusion laisse sur elle, sont
+//                  sauvegardés puis supprimés avant), suppressions des fiches corrompues, publication
+//                  des anomalies.
 //                  REFUSÉ, avant toute écriture, quand : pas de --lot · lot sans ligne · --depuis ·
 //                  historique MyPuls partiel · base autre que l'UAT sans IDENTITY_APPLY_PROD=oui
 //                  (lu dans l'environnement réel, accord explicite de Benoit) · heure dans une fenêtre
 //                  d'ingestion nocturne, ou fenêtre démarrée depuis la lecture des données.
 //                  Un groupe dont la preuve est refusée est IGNORÉ (dit et expliqué) : les autres
-//                  s'appliquent, puis code de sortie 2 (apply incomplet). À la première erreur de la
-//                  base, tout s'arrête (code 1) et le fait / non fait est imprimé (une transaction par
-//                  fusion : l'opération en erreur n'écrit rien).
+//                  s'appliquent, puis code de sortie 2 (apply incomplet). Même code 2 quand une fusion
+//                  est faite mais que sa fiche vidée n'a pas pu être supprimée (« fusion faite, fiche
+//                  vidée gardée : <raison> ») : la fusion est validée côté base, les autres groupes
+//                  continuent, la fiche restante se traite à la main. À la première erreur de la
+//                  base sur une fusion ou une suppression de fiche corrompue, tout s'arrête (code 1) et
+//                  le fait / non fait est imprimé (une transaction par fusion : l'opération en erreur
+//                  n'écrit rien).
 //   --depuis=…     borne basse de la remontée (défaut : premier jour de chatter_creator_daily).
 //
 // Couverture : le rapport dit ce que MyPuls a réellement fourni (1re ligne de plan.csv, résumé console).
@@ -439,7 +446,8 @@ async function run(): Promise<void> {
     const idOf = new Map(base.chatters.map((c) => [c.id, c.mypuls_user_id ?? null]))
     const result = await applyLot(db, dir, decisions, plan, coverage, name, idOf, factsReadAt)
     // Un apply incomplet ne doit jamais ressembler à un succès (les erreurs sortent en 1).
-    if (result.skippedLines > 0) process.exitCode = 2
+    const code = applyExitCode(result)
+    if (code) process.exitCode = code
   }
 }
 
@@ -508,6 +516,12 @@ function writeLotDecisions(
   if (!coverage.complete) console.log(`[identité] historique MyPuls partiel : une preuve OK n'est pas fiable, --apply sera refusé.`)
 }
 
+/** Écrit `sauvegarde_<stem>.csv` (lisible) et `.json` (brut, restaurable tel quel ; `[]` pour une table vide) dans `dir`. */
+function writeRows(dir: string, stem: string, data: object[]): void {
+  writeFileSync(resolve(dir, `sauvegarde_${stem}.csv`), toCsv(data as Record<string, unknown>[]))
+  writeFileSync(resolve(dir, `sauvegarde_${stem}.json`), JSON.stringify(data, null, 1) + '\n')
+}
+
 /**
  * Sauvegarde, dans `dir`, de tout ce qu'une fusion ou une suppression peut toucher, AVANT d'écrire :
  * un `.csv` par table (lisible) ET un `.json` brut (restaurable tel quel : aucun échappement de
@@ -523,8 +537,7 @@ async function backup(db: Db, dir: string, ids: string[]): Promise<void> {
   const counts: string[] = []
   const dump = async (table: string, p: PromiseLike<{ data: object[]; error: { message: string } | null }>) => {
     const data = await rows(table, p)
-    writeFileSync(resolve(dir, `sauvegarde_${table}.csv`), toCsv(data as Record<string, unknown>[]))
-    writeFileSync(resolve(dir, `sauvegarde_${table}.json`), JSON.stringify(data, null, 1) + '\n')
+    writeRows(dir, table, data)
     counts.push(`${table} ${data.length}`)
   }
   await dump('chatters', fetchAll((f, t) => db.from('chatters').select('*').in('id', ids).order('id').range(f, t)))
@@ -596,17 +609,66 @@ function applyOrder(d: LotDecision, idOf: ReadonlyMap<string, string | null>): L
   return [...d.lines].sort((a, b) => carries(b) - carries(a))
 }
 
+/** Ce qu'un apply a fait : de quoi décider du code de sortie (`applyExitCode`). */
+export interface ApplyResult {
+  /** Opérations faites (fusions + suppressions de fiches corrompues). */
+  done: number
+  /** Lignes de lot ignorées (preuve refusée). */
+  skippedLines: number
+  /** Fusions faites ET fiche vidée supprimée. */
+  mergedDeleted: string[]
+  /** Fusions faites MAIS fiche vidée gardée (ses `insights`, la sauvegarde ou la suppression ont échoué). */
+  mergedKept: { slug: string; oldId: string; reason: string }[]
+}
+
+/** 2 quand l'apply laisse du travail (lignes ignorées, fiches vidées gardées), 0 sinon ; les erreurs sortent en 1. */
+export function applyExitCode(r: Pick<ApplyResult, 'skippedLines' | 'mergedKept'>): 0 | 2 {
+  return r.skippedLines > 0 || r.mergedKept.length > 0 ? 2 : 0
+}
+
+/**
+ * Après une fusion réussie, supprime la fiche VIDÉE (décision de Benoit, 2026-10-06 : il a des
+ * sauvegardes de la base). `merge_chatters` laisse les `insights` sur la fiche vidée (données calculées,
+ * régénérées par gen-insights) et `delete_empty_chatter` refuse une fiche encore référencée : on
+ * sauvegarde donc ces lignes dans le dossier de l'opération (`sauvegarde_insights_fiche_videe.csv/.json`),
+ * on les supprime, puis on supprime la fiche. Lève, avec l'étape et la raison, au premier échec : la
+ * fusion, elle, est déjà validée côté base (c'est à l'appelant de ne pas s'arrêter pour autant).
+ */
+async function deleteEmptiedFiche(db: Db, opDir: string, oldId: string): Promise<number> {
+  let step = 'sauvegarde des insights'
+  let insightsGone = 0
+  try {
+    const insights = await rows('insights', fetchAll((f, t) =>
+      db.from('insights').select('*').eq('chatter_id', oldId).order('insight_key').order('generated_at').range(f, t)))
+    writeRows(opDir, 'insights_fiche_videe', insights)
+    step = 'suppression des insights'
+    const del = await db.from('insights').delete().eq('chatter_id', oldId)
+    if (del.error) throw new Error(del.error.message)
+    insightsGone = insights.length
+    step = 'delete_empty_chatter'
+    const { error } = await db.rpc('delete_empty_chatter', { p_id: oldId })
+    if (error) throw new Error(error.message)
+    return insightsGone
+  } catch (e) {
+    const gone = insightsGone ? ` ; ses ${insightsGone} insight(s) sont déjà supprimés (sauvegardés dans ${opDir})` : ''
+    throw new Error(`${step} : ${(e as Error).message}${gone}`)
+  }
+}
+
 /**
  * Applique LE LOT, rien d'autre (D13). Refuse AVANT toute écriture si l'historique MyPuls est partiel,
  * si l'heure tombe dans une fenêtre d'ingestion, ou si une fenêtre a commencé depuis la lecture des
  * faits (`factsReadAt`). Les groupes dont la preuve est refusée sont IGNORÉS (dits, avec leurs
  * raisons) ; pour chaque ligne des autres : sauvegarde de ce qu'elle touche (dossier propre à cette
- * exécution), puis fusion (une transaction par paire) ou suppression d'une fiche corrompue vide. Au
- * PREMIER échec, tout s'arrête : le fait et le non-fait sont imprimés. Si tout passe, publication des
- * anomalies du rapport et des candidates NON appliquées (Membres › Fiches MyPuls). Rend le nombre de
- * lignes faites et ignorées : l'appelant sort en code 2 si des lignes ont été ignorées.
+ * exécution), puis fusion (une transaction par paire) — suivie de la suppression de la fiche vidée
+ * (`deleteEmptiedFiche`) — ou suppression d'une fiche corrompue vide. Au PREMIER échec d'une fusion ou
+ * d'une suppression de fiche corrompue, tout s'arrête : le fait et le non-fait sont imprimés. Un échec
+ * de la suppression de la fiche vidée n'arrête RIEN : la fusion est faite, la fiche est gardée, dite
+ * et comptée dans `mergedKept`. Si tout passe, publication des anomalies du rapport et des candidates
+ * NON appliquées (Membres › Fiches MyPuls). L'appelant sort en code 2 (`applyExitCode`) si des lignes
+ * ont été ignorées ou des fiches vidées gardées.
  */
-async function applyLot(
+export async function applyLot(
   db: Db,
   dir: string,
   decisions: LotDecision[],
@@ -615,7 +677,7 @@ async function applyLot(
   name: Map<string, string>,
   idOf: ReadonlyMap<string, string | null>,
   factsReadAt: Date,
-): Promise<{ done: number; skippedLines: number }> {
+): Promise<ApplyResult> {
   if (!coverage.complete) {
     throw new Error(
       `--apply refusé : historique MyPuls ${coverage.note}. Une preuve lue sur un historique partiel ne dit rien des jours non relus : relancer quand MyPuls les sert tous.`,
@@ -654,6 +716,10 @@ async function applyLot(
   const applied = new Set<string>()
   const done: string[] = []
   const doneOld = new Set<string>()
+  const mergedDeleted: string[] = []
+  const mergedKept: ApplyResult['mergedKept'] = []
+  /** Fiches réellement SUPPRIMÉES (vidées après fusion, ou corrompues) : plus aucune anomalie ne peut les viser. */
+  const deletedIds = new Set<string>()
   for (const [i, op] of ops.entries()) {
     const { line: l, group } = op
     const what = `${l.action === 'supprimer' ? 'suppression' : 'fusion'} ${l.slug}`
@@ -662,16 +728,29 @@ async function applyLot(
       const late = windowRefusal(new Date())
       if (late) throw new Error(late)
       const safe = l.slug.replace(/[^a-zA-Z0-9_-]/g, '_')
-      await backup(db, resolve(runDir, `${String(l.line).padStart(2, '0')}-${safe}`), l.keep ? [l.keep, l.old] : [l.old])
+      const opDir = resolve(runDir, `${String(l.line).padStart(2, '0')}-${safe}`)
+      await backup(db, opDir, l.keep ? [l.keep, l.old] : [l.old])
       if (l.action === 'supprimer') {
         const { error } = await db.rpc('delete_empty_chatter', { p_id: l.old })
         if (error) throw new Error(error.message)
+        deletedIds.add(l.old)
         console.log(`[identité] suppression ${l.slug} (« ${name.get(l.old) ?? '?'} ») : faite`)
       } else {
         if (!group.mypulsUserId) throw new Error('id MyPuls non établi pour un groupe accepté (anomalie interne)')
         const { data, error } = await db.rpc('merge_chatters', { p_keep: l.keep!, p_old: l.old, p_mypuls_id: group.mypulsUserId })
         if (error) throw new Error(error.message)
         console.log(`[identité] fusion ${l.slug} (« ${name.get(l.old) ?? '?'} » → « ${name.get(l.keep!) ?? '?'} ») :`, JSON.stringify(data))
+        // La fusion est validée côté base : un échec de ce nettoyage ne l'annule pas et n'arrête pas les autres groupes.
+        try {
+          const insights = await deleteEmptiedFiche(db, opDir, l.old)
+          mergedDeleted.push(l.slug)
+          deletedIds.add(l.old)
+          console.log(`[identité] fusion ${l.slug} : fiche vidée « ${name.get(l.old) ?? '?'} » supprimée (${insights} insight(s) sauvegardé(s) puis supprimé(s))`)
+        } catch (cleanup) {
+          const reason = (cleanup as Error).message
+          mergedKept.push({ slug: l.slug, oldId: l.old, reason })
+          console.error(`[identité] fusion faite, fiche vidée gardée : ${reason} — ${l.slug} (« ${name.get(l.old) ?? '?'} », ${l.old})`)
+        }
       }
       applied.add(l.old)
       if (l.keep) applied.add(l.keep)
@@ -684,6 +763,11 @@ async function applyLot(
       console.error(
         `[identité] NON FAIT (${ops.length - i}, dont l'opération en échec) : ${ops.slice(i).map((o) => o.line.slug).join(', ')}`,
       )
+      if (mergedKept.length) {
+        console.error(
+          `[identité] fusions faites dont la fiche vidée est GARDÉE (${mergedKept.length}) : ${mergedKept.map((k) => `${k.slug} (fiche ${k.oldId}) — ${k.reason}`).join(' ; ')}`,
+        )
+      }
       const groupDone = group.lines.filter((x) => doneOld.has(x.old))
       if (groupDone.length) {
         console.error(
@@ -695,6 +779,18 @@ async function applyLot(
       )
       throw new Error(`apply interrompu à « ${what} » : ${message}`)
     }
+  }
+
+  const cleanups = done.length - mergedDeleted.length - mergedKept.length
+  console.log(
+    `[identité] bilan : ${mergedDeleted.length} fusion(s) + fiche vidée supprimée` +
+      (mergedDeleted.length ? ` (${mergedDeleted.join(', ')})` : '') +
+      `, ${mergedKept.length} fusion(s) + fiche vidée GARDÉE` +
+      (mergedKept.length ? ` (${mergedKept.map((k) => k.slug).join(', ')})` : '') +
+      `, ${cleanups} suppression(s) de fiche corrompue.`,
+  )
+  for (const k of mergedKept) {
+    console.log(`  fusion faite, fiche vidée gardée : ${k.slug} (fiche ${k.oldId}) — ${k.reason}`)
   }
 
   const pending: IdentityIssue[] = plan.merges
@@ -710,7 +806,11 @@ async function applyLot(
       amount: null,
       detail: `Fusion candidate (id MyPuls ${m.mypulsUserId}) non appliquée : à mettre dans un lot si la preuve du rapport est OK.`,
     }))
-  const issues = [...plan.issues, ...pending]
+  // Une anomalie qui vise une fiche supprimée violerait la clé étrangère de `chatter_identity_issues` et
+  // ferait échouer toute la publication : on ne la publie pas (la fiche n'existe plus).
+  const issues = [...plan.issues, ...pending].filter(
+    (i) => !(i.chatterId && deletedIds.has(i.chatterId)) && !(i.otherChatterId && deletedIds.has(i.otherChatterId)),
+  )
   if (issues.length) {
     const { error } = await db.rpc('apply_chatter_identity', {
       p_links: [],
@@ -721,12 +821,17 @@ async function applyLot(
     }
     console.log(`[identité] ${issues.length} anomalie(s) publiée(s) dans Membres › Fiches MyPuls`)
   }
+  const result: ApplyResult = { done: done.length, skippedLines, mergedDeleted, mergedKept }
+  const left = [
+    skippedLines ? `${skippedLines} ligne(s) IGNORÉE(S) (preuve refusée, voir plus haut)` : '',
+    mergedKept.length ? `${mergedKept.length} fiche(s) vidée(s) GARDÉE(S) (fusion faite, suppression à traiter à la main)` : '',
+  ].filter(Boolean)
   console.log(
-    skippedLines
-      ? `[identité] apply du lot INCOMPLET : ${done.length} opération(s) faite(s), ${skippedLines} ligne(s) IGNORÉE(S) (preuve refusée, voir plus haut) — code de sortie 2.`
+    left.length
+      ? `[identité] apply du lot INCOMPLET : ${done.length} opération(s) faite(s), ${left.join(', ')} — code de sortie ${applyExitCode(result)}.`
       : `[identité] apply du lot terminé : ${done.length} opération(s) faite(s).`,
   )
-  return { done: done.length, skippedLines }
+  return result
 }
 
 const isCli = process.argv[1]?.endsWith('identity-backfill.ts')
