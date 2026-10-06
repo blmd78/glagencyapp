@@ -65,6 +65,8 @@ const UAT_REF = 'ihkksdmgtrbbjugeboks'
 const PAUSE_MS = 500
 /** Attentes avant la 2e et la 3e tentative d'un jour MyPuls en échec (un jour = 3 tentatives au plus). */
 const RETRY_DELAYS_MS = [2_000, 5_000]
+/** Les mêmes sur un 429 : MyPuls limite le débit pendant ~1 min (3-4 jours d'affilée refusés, relevé prod du 2026-10-06). */
+const RATE_LIMIT_DELAYS_MS = [30_000, 60_000]
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 const labelOf = (s: string) => decodeEntities(s).trim()
 const REPORT_COLUMNS = ['action', 'garder', 'garder_id', 'vider', 'vider_id', 'mypuls_user_id', 'preuve', 'raisons', 'jours_verifies']
@@ -209,7 +211,7 @@ export function historyCoverage(input: {
 }
 
 /**
- * Rejoue `fn` jusqu'à 2 fois de plus (attentes `RETRY_DELAYS_MS`) avant de laisser l'erreur
+ * Rejoue `fn` jusqu'à 2 fois de plus (attentes `RETRY_DELAYS_MS`, `RATE_LIMIT_DELAYS_MS` sur un 429) avant de laisser l'erreur
  * remonter. Une session expirée n'est PAS rejouée : réessayer ne la ressuscite pas, et chaque
  * tentative est une requête MyPuls de plus.
  */
@@ -219,7 +221,7 @@ async function withRetry<T>(what: string, fn: () => Promise<T>): Promise<T> {
       return await fn()
     } catch (e) {
       const msg = (e as Error).message
-      const delay = RETRY_DELAYS_MS[attempt]
+      const delay = (/\b429\b/.test(msg) ? RATE_LIMIT_DELAYS_MS : RETRY_DELAYS_MS)[attempt]
       if (delay === undefined || msg.includes('session expirée')) {
         throw attempt > 0 ? new Error(`${msg} (après ${attempt + 1} tentatives)`) : e
       }
