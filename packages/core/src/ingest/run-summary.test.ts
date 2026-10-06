@@ -107,4 +107,27 @@ describe('summarizeRun', () => {
     })
     expect(s.warnings.filter((w) => w === 'login money-team échoué')).toHaveLength(1)
   })
+
+  it('contrôle de fiabilité en échec → degraded, même en rejeu explicite, renvoi vers Membres', () => {
+    const s = summarizeRun({ ...base, catchup: false, days: [day({ reliabilityAlerts: 2 })] })
+    expect(s.status).toBe('degraded')
+    expect(s.warnings.some((w) => w.includes('Fiches MyPuls'))).toBe(true)
+  })
+
+  it('aucun contrôle en échec → pas de dégradation de ce fait', () => {
+    expect(summarizeRun({ ...base, days: [day({ reliabilityAlerts: 0 })] }).status).toBe('ok')
+  })
+
+  it('relevé chatteurs suspendu (migration 0183 absente) → degraded, motif en warning, sans la fausse alerte « markup changé »', () => {
+    const motif = 'migration 0183 absente : relevé chatteurs suspendu'
+    const s = summarizeRun({ ...base, chatterSuspended: motif, days: [day({ chatterRows: 0, pairRows: 0 })] })
+    expect(s.status).toBe('degraded')
+    expect(s.warnings).toContain(motif)
+    expect(s.warnings.some((w) => w.includes('markup changé'))).toBe(false)
+  })
+
+  it('relevé chatteurs suspendu → degraded même en rejeu explicite', () => {
+    const s = summarizeRun({ ...base, catchup: false, chatterSuspended: 'motif', days: [day({ chatterRows: 0 })] })
+    expect(s.status).toBe('degraded')
+  })
 })

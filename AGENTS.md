@@ -10,7 +10,7 @@ couche analytics.
 
 **Skills : un dossier, deux agents.** `.claude/skills/` porte les skills ; `.agents/skills` est un **symlink** vers lui (`-> ../.claude/skills`) et c'est le root que Codex scanne — ne jamais le supprimer ni le remplacer par une copie. Une nouvelle skill dans `.claude/skills/` apparaît dans les deux agents sans aucune action. Le sens inverse ne marche pas : Claude Code ne lit pas `.agents/skills`. `.claude/skills/` est **versionné** depuis le 2026-09-22 (`.gitignore` : `.claude/*` puis `!.claude/skills/`) — sans ça le symlink serait cassé sur toute autre machine.
 
-**Docs** : `ARCHITECTURE.md` (description du système) · `docs/git-workflow.md` (branches, releases, accord de prod) · `docs/guidelines-*.md` (standard feature, socle, data-loading, UI) · `docs/audit-normes.md` · `docs/dettes-ouvertes.md` · `docs/ia-formation-couts.md` · `docs/runbook-uncove.md` · `docs/perf-vercel-prefetch.md`.
+**Docs** : `ARCHITECTURE.md` (description du système) · `docs/git-workflow.md` (branches, releases, accord de prod) · `docs/guidelines-*.md` (standard feature — dont la UI, § 9 —, socle, data-loading) · `docs/audit-normes.md` · `docs/dettes-ouvertes.md` · `docs/ia-formation-couts.md` · `docs/runbook-uncove.md` · `docs/perf-vercel-prefetch.md`.
 
 **Carte, changelog, release** : `docs/CARTE.md` dit où vit chaque feature — la lire avant d'explorer le code. Chaque merge sur `develop` ajoute sa ligne sous « Non publié » dans `CHANGELOG.md`. **Toute mise en prod passe par `pnpm release:prepare` puis `pnpm release:tag`** : `docs/git-workflow.md`.
 
@@ -85,7 +85,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-10-02** : prod = UAT = **0182** (`0180` photos des modèles, `0181` type et modèle des événements Agence, `0182` suppression de la to-do personnelle). **Prochaine migration = `0183`**.
+**État au 2026-10-05** : prod = **0182**, UAT = **0183** (`0180` photos des modèles, `0181` type et modèle des événements Agence, `0182` suppression de la to-do personnelle, `0183` identité chatteur et contrôles de fiabilité — UAT seulement, à appliquer en prod avant la release qui livrera son code). **Prochaine migration = `0184`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

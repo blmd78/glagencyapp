@@ -5,14 +5,14 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
-/** Trois vues : les comptes, les statistiques de turnover, et le flux d'activité.
- *  `liste` est la vue par défaut : elle ne s'écrit pas dans l'URL, pour que `/chatter/members`
- *  reste l'adresse de la page. */
-export type MembersVue = 'liste' | 'turnover' | 'activite'
+/** Quatre vues : les comptes, le turnover, le flux d'activité, et les fiches MyPuls (identité +
+ *  fiabilité). `liste` est la vue par défaut : elle ne s'écrit pas dans l'URL, pour que
+ *  `/chatter/members` reste l'adresse de la page. */
+export type MembersVue = 'liste' | 'turnover' | 'activite' | 'fiches'
 
 /**
- * Les trois vues de la page Membres : la liste des comptes, le turnover de l'agence, et le flux
- * d'activité (qui a changé quoi, 0101).
+ * Les quatre vues de la page Membres : la liste des comptes, le turnover de l'agence, le flux
+ * d'activité (qui a changé quoi, 0101) et les fiches MyPuls (identité + fiabilité, 0183).
  *
  * ONGLET plutôt que nouvelle route : aucun slug ni droit à créer (la page est déjà réservée aux
  * encadrants), et les statistiques RH vivent là où se gèrent les gens.
@@ -22,23 +22,29 @@ export type MembersVue = 'liste' | 'turnover' | 'activite'
  * `startTransition` — pas de `push`, donc pas d'entrée d'historique parasite à chaque bascule
  * (guidelines-standard-feature §6).
  *
- * `page.tsx` ne construit QUE la vue demandée : ni le RPC du Turnover ni la lecture d'activité ne
- * sont payés par qui vient simplement consulter la liste.
+ * `page.tsx` ne construit QUE la vue demandée : ni le RPC du Turnover ni la lecture d'activité ni
+ * celles des fiches MyPuls ne sont payés par qui vient simplement consulter la liste.
  */
 export function MembersTabs({
   vue,
   liste,
   turnover,
   activite,
+  fiches,
   showActivite = true,
+  showFiches = false,
 }: {
   vue: MembersVue
   liste: ReactNode
   turnover: ReactNode
   activite: ReactNode
+  /** Onglet « Fiches MyPuls » (spec identité 2026-10-01) — ADMINS uniquement, comme Activité :
+   *  les tables de 0183 ne sont lisibles que par un admin. */
+  fiches: ReactNode
   /** Onglet Activité réservé aux ADMINS (décision Benoit 2026-08-06 — miroir de la RLS 0108
    *  qui ferme member_events aux managers) : masqué pour un manager. */
   showActivite?: boolean
+  showFiches?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -62,6 +68,7 @@ export function MembersTabs({
         <TabsTrigger value="liste">Comptes</TabsTrigger>
         <TabsTrigger value="turnover">Turnover</TabsTrigger>
         {showActivite && <TabsTrigger value="activite">Activité</TabsTrigger>}
+        {showFiches && <TabsTrigger value="fiches">Fiches MyPuls</TabsTrigger>}
       </TabsList>
       <div
         data-pending={pending ? '' : undefined}
@@ -70,6 +77,7 @@ export function MembersTabs({
         <TabsContent value="liste">{liste}</TabsContent>
         <TabsContent value="turnover">{turnover}</TabsContent>
         {showActivite && <TabsContent value="activite">{activite}</TabsContent>}
+        {showFiches && <TabsContent value="fiches">{fiches}</TabsContent>}
       </div>
     </Tabs>
   )

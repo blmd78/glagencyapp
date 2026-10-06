@@ -8,6 +8,24 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.72] — 2026-10-06
+
+### Ajouté
+
+- Hook de push : un commit de code n'est poussé qu'après une revue (`review-feature`, tampon par commit) ; doc seule, releases et tags passent. Activé au `pnpm install`. Échappatoire d'urgence : `git push --no-verify`.
+- Doc : checklist de revue de code (`docs/review-checklist.md`), 25 points vérifiables dans un diff, sourcés sur les guidelines et `ARCHITECTURE.md` ; y compris la règle « toute écriture neuve prend une garde `*Live` ».
+- Membres › Fiches MyPuls (admin) : un nouvel onglet qui dit si les chiffres de la nuit ont été vérifiés (« Vérifié » ou « À vérifier », avec les contrôles en échec et les derniers jours), liste les fiches MyPuls qui ont du CA mais aucun membre chatteur — donc absentes du classement Stat chatter —, signale les fiches en double, les nouvelles fiches et les montants non attribués, et rappelle les ventes que MyPuls n'attribue à aucun chatteur.
+
+### Modifié
+
+- Doc : faits recalés sur le code — nombre de migrations, worker d'ingestion actif avec 4 crons (et non « gelé », « 3 crons »), photos des événements Agence (bucket privé, URLs signées, `unoptimized`) décrites au § 7 des guidelines, dette n° 2 des Membres résolue en partie (`email_exists`), `UNCOVE_TOKEN_SECRET` listé dans les secrets du Worker, références documentaires orphelines corrigées.
+- Ingestion : la lecture des ventes MyPuls récupère l'id du compte de chaque vente, l'annuaire des libellés et les totaux affichés par la page (préparation de l'identité chatteur et des contrôles de fiabilité ; aucun chiffre ne change).
+
+### Corrigé
+
+- Chatteurs : outil de rattrapage des fiches MyPuls en double par lots validés — un rapport en lecture seule prouve chaque fusion (même id MyPuls et compensation au centime jour par jour) ; seul un lot validé est appliqué, et seulement sur accord explicite de Benoit (lot 1 : 14 fusions vérifiées, à appliquer sur accord, pas par la mise en prod) ; commande `pnpm identity-backfill`.
+- Ingestion : au déploiement du Worker (après la migration 0183 en prod, le lot 1 appliqué et la recette acceptée), l'ingestion de nuit reconnaît chaque chatteur par son id MyPuls (le libellé n'est plus qu'un repli) et chaque jour ingéré se contrôle (résumé = ventes par compte, totaux en base = MyPuls page comprise, jour servi vide comparé au CA de l'API, une fiche = un compte) — un jour faux passe « à vérifier » et dégrade le run (alerte Sentry) au lieu de passer inaperçu ; sans la migration 0183, le relevé chatteurs est suspendu (run dégradé) au lieu d'écrire des chiffres non contrôlés ; le relevé des shifts ne rattache plus un homonyme, ni une fiche que plusieurs comptes se disputent ; commande `pnpm recette-identite` (photos avant / après et rapport de diff).
+
 ## [2.71] — 2026-10-05
 
 ### Modifié

@@ -52,10 +52,16 @@ type Bindings = Record<string, string | undefined> & {
 }
 type Ctx = { waitUntil(promise: Promise<unknown>): void }
 
-// maxCatchup 3 : plan Free = 50 sous-requêtes/invocation, un run coûte ~13 appels fixes
-// + ~8/jour → 3 jours ≈ 37, marge pour la pagination et Sentry. Auto-cicatrisant : un
-// retard > 3 jours se résorbe nuit après nuit (le CLI local, sans limite, backfille plus).
-const DEPS = { fetchMoneyTeam: fetchMoneyTeamDayHR, maxCatchup: 3 }
+// maxCatchup 2 (identité MyPuls, spec 2026-10-01) : plan Free = 50 sous-requêtes/invocation.
+// Estimation à la lecture du code (2026-10-05), À MESURER EN RECETTE : ≈ 13 à 15 par jour
+// (`/team/money` paginé par 100 lignes ≈ 5, 2 money-team, creator_daily, chatter_daily et
+// chatter_creator_daily en delete + insert, fiches et alias neufs, `finish_chatter_day`) ; fixe ≈ 8
+// dans runPipeline (dont la sonde 0183), plus ici la session (≈ 3), ingest_runs, les insights hebdo
+// (≈ 9 à 16), revalidate et Sentry. 2 jours ≈ 26-30 + ≈ 8 + ≈ 15-25 autour : sous le plafond ; 3
+// jours (≈ 40-45 rien qu'en jours) l'approchaient ou le dépassaient, et au-delà les sous-requêtes
+// suivantes échouent (ingest_runs et Sentry compris). Auto-cicatrisant : un retard se résorbe nuit
+// après nuit (le CLI local, sans limite, backfille plus).
+const DEPS = { fetchMoneyTeam: fetchMoneyTeamDayHR, maxCatchup: 2 }
 
 // Cron monitor Sentry : même crontab que wrangler.toml (les deux doivent rester alignés).
 // Détecte un cron manqué (missed check-in) — invisible pour toute alerte interne.
@@ -516,6 +522,9 @@ const handler = {
         ms: Date.now() - t0,
         chatters: parsed.chatters.length,
         transactions: parsed.transactions.length,
+        withIds: parsed.transactions.filter((t) => t.mypulsUserId).length,
+        directory: parsed.directory.length,
+        pageTotals: parsed.pageTotals,
         sampleChatter: parsed.chatters[0],
         sampleTx: parsed.transactions[0],
         parsed,

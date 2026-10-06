@@ -1,0 +1,200 @@
+<!-- Fixture identité + totaux — balisage recopié des captures money-team du 06/09/2026 et du
+     12/09/2026 (apps/ingestion/raw/pages/), lignes choisies. Ids et libellés RÉELS : 1802 vaut
+     « Lionel » sur Claire_sps et « lioneldiv » sur Lolafps ; « Serge » désigne deux comptes (9332,
+     10504) — vrais homonymes exacts ; 243 « Yann (accès révoqué) » et 1163 « yann (accès révoqué) »
+     ne le deviennent qu'APRÈS normalisation (`normLabel`). Fans et dates réduits ; les cartes KPI
+     sont recalculées sur les 4 ventes ci-dessous (4 ventes, 267,68 EUR). -->
+<div class="mmt-select mmt-select-chatter">
+    <select name="chatter" class="form-select form-select-sm js-select2-sm">
+        <option value="all" selected>Tous les chatteurs</option>
+        <option value="-1" >Ventes indéterminées</option>
+        <option value="243" >Yann (accès révoqué)</option>
+        <option value="1163" >yann (accès révoqué)</option>
+        <option value="1802" >Lionel</option>
+        <option value="9332" >Serge</option>
+        <option value="10504" >Serge</option>
+    </select>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="card kpi-card h-100 mb-0">
+            <div class="card-body d-flex align-items-center">
+                <div class="kpi-icon bg-soft-info"><i class="ri-line-chart-line"></i></div>
+                <div>
+                    <h6 class="text-muted text-uppercase fs-12 mb-1">Ventes</h6>
+                    <h3 class="mb-0 fw-bold">4</h3>
+                    <small>
+                        <span class="delta-down">▼ -41</span>
+                        <span class="text-muted">vs période précédente</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card kpi-card h-100 mb-0">
+            <div class="card-body d-flex align-items-center">
+                <div class="kpi-icon bg-soft-primary"><i class="ri-chat-check-line"></i></div>
+                <div>
+                    <h6 class="text-muted text-uppercase fs-12 mb-1">Répartition type</h6>
+                    <h3 class="mb-0 fw-bold">
+                        3 PPV
+                        <small class="fs-12 delta-down">(-21)</small>                                    </h3>
+                    <small class="text-success">1 tips</small>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="card kpi-card h-100 mb-0">
+            <div class="card-body d-flex align-items-center">
+                <div class="kpi-icon bg-soft-success"><i class="ri-coins-line"></i></div>
+                <div>
+                    <h6 class="text-muted text-uppercase fs-12 mb-1">Montant net · EUR</h6>
+                    <h3 class="mb-0 fw-bold">267,68 <span class="fs-14 fw-normal text-muted">EUR</span></h3>
+                    <small>
+                        <span class="delta-down">▼ -14,4 %</span>
+                        <span class="text-muted">vs période précédente</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<table class="table table-nowrap align-middle ranking-table mb-0">
+    <thead>
+    <tr>
+        <th class="text-center rank-cell">#</th>
+        <th>Chatter</th>
+        <th class="text-center">Ventes</th>
+        <th class="text-center">Médias privés</th>
+        <th class="text-center">Pourboires</th>
+        <th class="text-end">Montant net</th>
+        <th class="text-end">Période préc.</th>
+        <th class="text-center">Évolution</th>
+        <th class="text-center">Rang</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr class="rank-top" data-export="1" data-chatter="Lionel" data-sales="1" data-ppv="1" data-tips="0" data-net="146.57" data-currency="EUR">
+        <td class="text-center rank-cell">1</td>
+        <td>
+            <span class="fw-semibold">Lionel</span>
+        </td>
+        <td class="text-center">1</td>
+        <td class="text-center">1</td>
+        <td class="text-center">0</td>
+        <td class="text-end fw-semibold">146,57 EUR</td>
+        <td class="text-end text-muted">–</td>
+        <td class="text-center"><span class="badge bg-info-subtle text-info">Nouveau</span></td>
+        <td class="text-center"><span class="badge bg-info-subtle text-info">Nouveau</span></td>
+    </tr>
+    <tr class="ranking-muted" title="Chatteur sans vente sur la période : hors classement">
+        <td class="text-center rank-cell">–</td>
+        <td>
+            <span class="">Ridwane</span>
+            <small class="text-muted d-block">Aucune vente sur la période</small>
+        </td>
+        <td class="text-center">
+            0
+            <small class="delta-down">(-2)</small>
+        </td>
+        <td class="text-center">0</td>
+        <td class="text-center">0</td>
+        <td class="text-end fw-semibold">0,00 EUR</td>
+        <td class="text-end text-muted">–</td>
+        <td class="text-center"><span class="badge bg-info-subtle text-info">Nouveau</span></td>
+        <td class="text-center"><span class="text-muted">–</span></td>
+    </tr>
+    </tbody>
+</table>
+<table class="table table-nowrap align-middle sales-table" id="sales-detail-table">
+    <thead>
+    <tr>
+        <th>Créateur</th>
+        <th>User (chatter)</th>
+        <th>Fan</th>
+        <th>Montant net</th>
+        <th>Devise</th>
+        <th>Type</th>
+        <th>Date</th>
+        <th class="text-center">Contexte</th>
+        <th class="text-end">Action</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+        <td><span class="fw-semibold">Claire_sps</span></td>
+        <td><span class="badge bg-dark-subtle text-body">Lionel</span></td>
+        <td>Fan_a</td>
+        <td class="fw-semibold">146,57</td>
+        <td>EUR</td>
+        <td><span class="badge bg-info-subtle text-primary">Média privé</span></td>
+        <td>06/09/2026 21:12</td>
+        <td class="text-center"></td>
+        <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-primary js-edit-attribution-btn"
+                    data-payment-id="1" data-creator-id="1311" data-current-user-id="1802"
+                    data-fan-name="Fan_a" data-creator-name="Claire_sps" data-current-label="Lionel">
+                <i class="ri-edit-line align-bottom"></i> Éditer
+            </button>
+        </td>
+    </tr>
+    <tr>
+        <td><span class="fw-semibold">Lolafps</span></td>
+        <td><span class="badge bg-dark-subtle text-body">lioneldiv</span></td>
+        <td>Fan_b</td>
+        <td class="fw-semibold">12,00</td>
+        <td>EUR</td>
+        <td><span class="badge bg-info-subtle text-primary">Média privé</span></td>
+        <td>06/09/2026 20:40</td>
+        <td class="text-center"></td>
+        <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-primary js-edit-attribution-btn"
+                    data-payment-id="2" data-creator-id="288" data-current-user-id="1802"
+                    data-fan-name="Fan_b" data-creator-name="Lolafps" data-current-label="lioneldiv">
+                <i class="ri-edit-line align-bottom"></i> Éditer
+            </button>
+        </td>
+    </tr>
+    <tr>
+        <td><span class="fw-semibold">Sarahcbr</span></td>
+        <td><span class="badge bg-dark-subtle text-body">Indéterminé (Sarahcbr)</span></td>
+        <td>Carlos0684</td>
+        <td class="fw-semibold">38,32</td>
+        <td>EUR</td>
+        <td><span class="badge bg-info-subtle text-primary">Média privé</span></td>
+        <td>31/08/2026 22:48</td>
+        <td class="text-center"></td>
+        <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-primary js-edit-attribution-btn"
+                    data-payment-id="43389139" data-creator-id="221" data-current-user-id=""
+                    data-fan-name="Carlos0684" data-creator-name="Sarahcbr"
+                    data-current-label="Ind&#x00E9;termin&#x00E9;&#x20;&#x28;Sarahcbr&#x29;">
+                <i class="ri-edit-line align-bottom"></i> Éditer
+            </button>
+        </td>
+    </tr>
+    <tr>
+        <td><span class="fw-semibold">Claire_sps</span></td>
+        <td><span class="badge bg-dark-subtle text-body">Serge</span></td>
+        <td>Fan_c</td>
+        <td class="fw-semibold">70,79</td>
+        <td>EUR</td>
+        <td><span class="badge bg-info-subtle text-primary">Pourboires</span></td>
+        <td>06/09/2026 19:05</td>
+        <td class="text-center"></td>
+        <td class="text-end">
+            <button type="button" class="btn btn-sm btn-outline-primary js-edit-attribution-btn"
+                    data-payment-id="3" data-creator-id="1311" data-current-user-id="10504"
+                    data-fan-name="Fan_c" data-creator-name="Claire_sps" data-current-label="Serge">
+                <i class="ri-edit-line align-bottom"></i> Éditer
+            </button>
+        </td>
+    </tr>
+    </tbody>
+</table>
+<script>
+    const assignableUsersByCreator = {"1311":[{"id":1802,"label":"Lionel"},{"id":9332,"label":"Serge"},{"id":10504,"label":"Serge"}],"288":[{"id":1802,"label":"lioneldiv"}],"328":[{"id":1163,"label":"yann"}]};
+    const editBtns = document.querySelectorAll('.js-edit-attribution-btn');
+</script>

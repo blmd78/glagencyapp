@@ -154,8 +154,8 @@ features/<f>/
   }
   ```
 
-  Boundaries existantes : `(dash)/chatter/error.tsx`, `(dash)/marketing/error.tsx`, le filet
-  `(dash)/error.tsx` et `global-error.tsx`. Une nouvelle feature n'a **pas** à créer son propre
+  Boundaries existantes : `(dash)/chatter/error.tsx`, `(dash)/marketing/error.tsx`,
+  `(dash)/formation/error.tsx`, le filet `(dash)/error.tsx` et `global-error.tsx`. Une nouvelle feature n'a **pas** à créer son propre
   `error.tsx` — elle hérite de la boundary du workspace.
 
 ---
@@ -337,15 +337,25 @@ un composant (ex. `open` d'un `Dialog`, `draft` d'un calendrier avant validation
 
 ---
 
-## 7. Images (convention — rien à faire aujourd'hui)
+## 7. Images (une seule surface aujourd'hui : la photo des événements Agence)
 
-L'app n'affiche aujourd'hui aucune image. Pour le jour où (avatars, logos créatrices…) :
+L'app n'affiche qu'un type d'image : la photo d'un événement du calendrier Agence
+(`features/agency/`). Le bucket `agency-events` est **PRIVÉ** (`0176` : 5 Mo, JPEG / PNG / WebP)
+et sans policy ; la lecture passe par des **URLs signées d'1 h**, générées en service-role
+pour les seuls événements que la RLS rend (`features/agency/services/get-agency-events.ts`,
+`createSignedUrls`), et l'affichage est un `<Image unoptimized width height>`
+(`components/event-view.tsx`, `components/event-dialog.client.tsx`). `unoptimized` est le
+bon réglage ici : une URL signée change à chaque génération, donc chaque signature serait un
+cache MISS facturé de l'optimiseur Vercel. Aucun avatar ni logo n'est affiché ailleurs.
 
-- Petites images (< 10 Ko, avatars 32-64 px) : bucket Supabase **public** +
-  `<Image unoptimized width height loading="lazy">` (reco Vercel — l'optimisation facturée ne
-  se justifie pas sur des petites images) ; `width`/`height` obligatoires (anti-CLS).
-- Pas de `placeholder="blur"` sur les petites images ; pas de signed URLs éphémères dans un
-  `next/image` optimisé (chaque URL unique = cache MISS facturé).
+Règles pour toute image neuve :
+
+- `width`/`height` obligatoires (anti-CLS) ; pas de `placeholder="blur"` sur les petites images.
+- **Jamais d'URL signée éphémère dans un `next/image` OPTIMISÉ** (chaque URL unique = cache
+  MISS facturé) : l'URL signée d'un bucket privé s'affiche en `unoptimized`.
+- Image non sensible et petite (< 10 Ko, avatars 32-64 px — aucun cas aujourd'hui) : bucket
+  Supabase **public** + `<Image unoptimized width height loading="lazy">` (reco Vercel :
+  l'optimisation facturée ne se justifie pas sur des petites images).
 - Grandes images à optimiser un jour : loader custom Supabase `render/image` (plan Pro) plutôt
   que les transformations Vercel.
 

@@ -1,0 +1,736 @@
+import { beforeEach, describe, expect, it } from 'vitest'
+import { resolveDayIdentity, type SaleLine, type SummaryLine } from './chatter-identity'
+import { doublonKey, homonymeKey, type IdentityDirectoryEntry } from './identity-types'
+import { norm, state, type F } from './identity.fixtures'
+
+let n = 0
+beforeEach(() => {
+  n = 0
+})
+const run = (o: { fiches?: F[]; summary?: SummaryLine[]; sales?: SaleLine[]; directory?: [string, string][] }) =>
+  resolveDayIdentity({
+    day: '2026-09-06',
+    summary: o.summary ?? [],
+    sales: o.sales ?? [],
+    directory: (o.directory ?? []).map(([mypulsUserId, label]): IdentityDirectoryEntry => ({ mypulsUserId, label })),
+    state: state(o.fiches ?? []),
+    norm,
+    newId: () => `new-${++n}`,
+  })
+
+describe('resolveDayIdentity', () => {
+  it('une vente suit l’id, même sous le libellé d’une autre fiche — doublon signalé, alias intact', () => {
+    const r = run({
+      fiches: [{ id: 'A', name: 'Lionel', mypulsId: '1802' }, { id: 'B', name: 'lioneldiv' }],
+      summary: [{ label: 'Lionel', ca: 12 }],
+      sales: [{ label: 'lioneldiv', mypulsUserId: '1802', amount: 12 }],
+      directory: [['1802', 'Lionel']],
+    })
+    expect(r.summaryChatter).toEqual(['A'])
+    expect(r.summaryIds).toEqual(['1802'])
+    expect(r.saleChatter).toEqual(['A'])
+    expect(r.issues.map((i) => [i.kind, i.chatterId, i.otherChatterId])).toEqual([['doublon', 'A', 'B']])
+    expect([r.newAliases, r.links]).toEqual([[], []])
+  })
+
+  it('résumé « City of the gamer » + vente « Cité des gamers », même id : la fiche du résumé reçoit l’id', () => {
+    const r = run({
+      fiches: [{ id: 'C', name: 'City of the gamer' }],
+      summary: [{ label: 'City of the gamer', ca: 4.4 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }],
+      directory: [['9550', 'City of the gamer']],
+    })
+    expect(r.links).toEqual([{ chatterId: 'C', mypulsUserId: '9550' }])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['C'], ['C']])
+    expect(r.newAliases).toEqual([{ chatterId: 'C', rawLabel: 'Cité des gamers', rawLabelNorm: 'citédesgamers' }])
+    expect(r.issues).toEqual([])
+  })
+
+  it('correspondance exacte avant normalisation : « yann » = 1163', () => {
+    const r = run({
+      fiches: [{ id: 'Y', name: 'yann' }],
+      summary: [{ label: 'yann', ca: 0 }],
+      directory: [
+        ['243', 'yann (accès révoqué)'],
+        ['1163', 'yann (accès révoqué)'],
+        ['1163', 'yann'],
+      ],
+    })
+    expect(r.links).toEqual([{ chatterId: 'Y', mypulsUserId: '1163' }])
+  })
+
+  it('libellé ambigu départagé par le montant au centime (Serge → 10504) ; la fiche libre « Serge » (2 comptes) n’est pas reliée : homonyme', () => {
+    const r = run({
+      fiches: [{ id: 'S', name: 'Serge' }],
+      summary: [{ label: 'Serge', ca: 70.79 }],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 70.79 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['10504'])
+    expect(r.links).toEqual([])
+    expect(r.newChatters).toEqual([{ id: 'new-1', displayName: 'Serge', mypulsUserId: '10504' }])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['new-1'], ['new-1']])
+    expect(r.newAliases).toEqual([])
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.chatterId])).toEqual([
+      ['homonyme', homonymeKey('S'), 'S'],
+      ['fiche_creee', 'fiche:10504', 'new-1'],
+    ])
+  })
+
+  it('libellé ambigu NON départagé (CA 0) : mis de côté, aucune fiche créée, pas d’anomalie (rien de perdu)', () => {
+    const r = run({ summary: [{ label: 'Serge', ca: 0 }], directory: [['9332', 'Serge'], ['10504', 'Serge']] })
+    expect([r.summaryChatter, r.summaryIds]).toEqual([[null], [null]])
+    expect(r.newChatters).toEqual([])
+    expect(r.issues).toEqual([])
+  })
+
+  it('deux candidats au même montant : mis de côté ; les ventes suivent leur id', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 10 }],
+      sales: [
+        { label: 'Serge', mypulsUserId: '9332', amount: 10 },
+        { label: 'Serge', mypulsUserId: '10504', amount: 10 },
+      ],
+    })
+    expect(r.summaryChatter).toEqual([null])
+    expect(r.saleChatter).toEqual(['new-1', 'new-2'])
+    expect(r.newChatters.map((c) => c.mypulsUserId)).toEqual(['9332', '10504'])
+    expect(r.issues.map((i) => i.kind).sort()).toEqual(['fiche_creee', 'fiche_creee', 'resume_mis_de_cote'])
+  })
+
+  it('homonyme déjà identifié : la fiche par alias porte un AUTRE id → nouvelle fiche, ni lien ni doublon', () => {
+    const r = run({
+      fiches: [{ id: 'S', name: 'Serge', mypulsId: '9332' }],
+      summary: [{ label: 'Serge', ca: 70.79 }],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 70.79 }],
+      directory: [['9332', 'Serge']],
+    })
+    expect(r.newChatters).toEqual([{ id: 'new-1', displayName: 'Serge', mypulsUserId: '10504' }])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['new-1'], ['new-1']])
+    expect([r.newAliases, r.links]).toEqual([[], []])
+    expect(r.issues.map((i) => i.kind)).toEqual(['fiche_creee'])
+  })
+
+  it('deux fiches libres : l’id va à celle reliée à un membre (la fiche payée), doublon signalé', () => {
+    const r = run({
+      fiches: [{ id: 'L1', name: 'Jordan', linked: true }, { id: 'L2', name: 'Jordan manager' }],
+      summary: [{ label: 'JORDAN', ca: 5 }],
+      sales: [{ label: 'Jordan manager', mypulsUserId: '296', amount: 5 }],
+      directory: [['296', 'JORDAN']],
+    })
+    expect(r.links).toEqual([{ chatterId: 'L1', mypulsUserId: '296' }])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['L1'], ['L1']])
+    expect(r.issues.map((i) => [i.kind, i.chatterId, i.otherChatterId])).toEqual([['doublon', 'L1', 'L2']])
+  })
+
+  it('deux fiches libres reliées chacune à un membre : rien n’est posé, anomalie, lignes par libellé', () => {
+    const r = run({
+      fiches: [
+        { id: 'L1', name: 'Jordan', linked: true },
+        { id: 'L2', name: 'Jordan manager', linked: true },
+      ],
+      summary: [{ label: 'JORDAN', ca: 5 }],
+      sales: [{ label: 'Jordan manager', mypulsUserId: '296', amount: 5 }],
+      directory: [['296', 'JORDAN']],
+    })
+    expect(r.links).toEqual([])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['L1'], ['L2']])
+    expect(r.issues.map((i) => i.kind)).toEqual(['membres_multiples'])
+  })
+
+  it('compte inconnu : fiche créée AVEC son id, alias posé', () => {
+    const r = run({ summary: [{ label: 'Nouveau', ca: 3 }], sales: [{ label: 'Nouveau', mypulsUserId: '777', amount: 3 }] })
+    expect(r.newChatters).toEqual([{ id: 'new-1', displayName: 'Nouveau', mypulsUserId: '777' }])
+    expect(r.newAliases).toEqual([{ chatterId: 'new-1', rawLabel: 'Nouveau', rawLabelNorm: 'nouveau' }])
+    expect(r.issues.map((i) => [i.kind, i.issueKey])).toEqual([['fiche_creee', 'fiche:777']])
+  })
+
+  it('vente indéterminée : sa pseudo-fiche par alias, jamais d’id, pas d’alerte technique', () => {
+    const r = run({
+      fiches: [{ id: 'I', name: 'Indéterminé (Sarahcbr)' }, { id: 'A', name: 'Lionel', mypulsId: '1802' }],
+      summary: [{ label: 'Lionel', ca: 1 }],
+      sales: [
+        { label: 'Indéterminé (Sarahcbr)', mypulsUserId: null, amount: 38.32 },
+        { label: 'Lionel', mypulsUserId: '1802', amount: 1 },
+      ],
+    })
+    expect(r.saleChatter).toEqual(['I', 'A'])
+    expect([r.links, r.technical]).toEqual([[], []])
+  })
+
+  it('mode sans id (bouton disparu) : repli intégral sur les libellés, alerte technique, aucun lien', () => {
+    const r = run({
+      fiches: [{ id: 'A', name: 'Lionel', mypulsId: '1802' }, { id: 'B', name: 'lioneldiv' }],
+      summary: [{ label: 'Lionel', ca: 12 }],
+      sales: [{ label: 'lioneldiv', mypulsUserId: null, amount: 12 }],
+      directory: [['1802', 'Lionel']],
+    })
+    expect(r.noIds).toBe(true)
+    expect(r.technical[0]).toMatch(/aucun id MyPuls/)
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['A'], ['B']])
+    expect([r.links, r.issues]).toEqual([[], []])
+  })
+
+  it('vente sans id hors « Indéterminé » parmi des ventes identifiées : alerte technique nominative', () => {
+    const r = run({
+      fiches: [{ id: 'A', name: 'Lionel', mypulsId: '1802' }],
+      summary: [{ label: 'Lionel', ca: 1 }],
+      sales: [
+        { label: 'Bizarre', mypulsUserId: null, amount: 1 },
+        { label: 'Lionel', mypulsUserId: '1802', amount: 1 },
+      ],
+    })
+    expect(r.technical.join(' ')).toContain('Bizarre')
+  })
+
+  it('écart à l’invariant : CA du résumé ≠ Σ ventes du même id → anomalie chiffrée', () => {
+    const r = run({
+      fiches: [{ id: 'A', name: 'Lionel', mypulsId: '1802' }],
+      summary: [{ label: 'Lionel', ca: 10 }],
+      sales: [{ label: 'Lionel', mypulsUserId: '1802', amount: 12.5 }],
+    })
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.amount])).toEqual([['ecart_invariant', 'ecart:2026-09-06:1802', 2.5]])
+  })
+
+  it('rejeu idempotent : une fois l’état à jour, rien de neuf', () => {
+    const r = run({
+      fiches: [{ id: 'C', name: 'City of the gamer', mypulsId: '9550', aliases: ['Cité des gamers'] }],
+      summary: [{ label: 'City of the gamer', ca: 4.4 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }],
+      directory: [['9550', 'City of the gamer']],
+    })
+    expect([r.links, r.newAliases, r.newChatters, r.issues]).toEqual([[], [], [], []])
+  })
+
+  it('libellé vide au résumé → null, sans fiche', () => {
+    expect(run({ summary: [{ label: '', ca: 0 }] }).summaryChatter).toEqual([null])
+  })
+
+  it('libellé « Indéterminé (…) » portant un id (anormal) : ni lien ni id, pseudo-fiche par libellé, alerte technique', () => {
+    const r = run({
+      fiches: [{ id: 'I', name: 'Indéterminé (Carla)' }, { id: 'A', name: 'Lionel', mypulsId: '1802' }],
+      summary: [
+        { label: 'Indéterminé (Carla)', ca: 5 },
+        { label: 'Lionel', ca: 1 },
+      ],
+      sales: [
+        { label: 'Indéterminé (Carla)', mypulsUserId: '4242', amount: 5 },
+        { label: 'Lionel', mypulsUserId: '1802', amount: 1 },
+      ],
+      directory: [['4243', 'Indéterminé (Carla)']],
+    })
+    expect(r.summaryIds).toEqual([null, '1802'])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['I', 'A'], ['I', 'A']])
+    expect([r.links, r.newChatters, r.issues]).toEqual([[], [], []])
+    expect(r.technical.join(' ')).toContain('Indéterminé (Carla)')
+  })
+
+  it('libellé « Indéterminé (…) » portant un id, sans pseudo-fiche : la fiche créée ne porte aucun id', () => {
+    const r = run({
+      fiches: [{ id: 'A', name: 'Lionel', mypulsId: '1802' }],
+      summary: [{ label: 'Lionel', ca: 1 }],
+      sales: [
+        { label: 'Indéterminé (Carla)', mypulsUserId: '4242', amount: 5 },
+        { label: 'Lionel', mypulsUserId: '1802', amount: 1 },
+      ],
+    })
+    expect(r.newChatters).toEqual([{ id: 'new-1', displayName: 'Indéterminé (Carla)', mypulsUserId: null }])
+    expect(r.saleChatter).toEqual(['new-1', 'A'])
+    expect(r.links).toEqual([])
+    expect(r.issues.filter((i) => i.mypulsUserId === '4242')).toEqual([])
+  })
+})
+
+describe('resolveDayIdentity — cas discriminants (revue de la Task 7)', () => {
+  it('deux fiches libres : la fiche reliée à un membre l’emporte même si elle n’est ni la première ni celle du résumé', () => {
+    const r = run({
+      fiches: [{ id: 'L1', name: 'Jordan' }, { id: 'L2', name: 'Jordan manager', linked: true }],
+      summary: [{ label: 'JORDAN', ca: 5 }],
+      sales: [{ label: 'Jordan manager', mypulsUserId: '296', amount: 5 }],
+      directory: [['296', 'JORDAN']],
+    })
+    expect(r.links).toEqual([{ chatterId: 'L2', mypulsUserId: '296' }])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['L2'], ['L2']])
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.chatterId, i.otherChatterId])).toEqual([
+      ['doublon', doublonKey('L1', 'L2'), 'L2', 'L1'],
+    ])
+  })
+
+  it('mode sans id : le résumé ne passe PAS par l’annuaire, aucun lien posé', () => {
+    const r = run({
+      fiches: [{ id: 'C', name: 'City of the gamer' }],
+      summary: [{ label: 'City of the gamer', ca: 4.4 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: null, amount: 4.4 }],
+      directory: [['9550', 'City of the gamer']],
+    })
+    expect(r.noIds).toBe(true)
+    expect(r.summaryIds).toEqual([null])
+    expect(r.summaryChatter).toEqual(['C'])
+    expect(r.links).toEqual([])
+  })
+
+  it('D3 « candidat non déjà pris » : l’id pris par une ligne non ambiguë est écarté du départage', () => {
+    const r = run({
+      summary: [
+        { label: 'Serge B', ca: 10 },
+        { label: 'Serge', ca: 10 },
+      ],
+      sales: [
+        { label: 'Serge B', mypulsUserId: '9332', amount: 10 },
+        { label: 'Serge', mypulsUserId: '10504', amount: 10 },
+      ],
+      directory: [
+        ['9332', 'Serge B'],
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['9332', '10504'])
+  })
+
+  it('D3 « CA > 0 » : une ligne à 0 € ne se départage pas, même avec un seul candidat à 0 € de ventes', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 0 }],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 5 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect([r.summaryIds, r.summaryChatter]).toEqual([[null], [null]])
+  })
+
+  it('résumé ambigu à 0 € : rien n’est mis de côté, donc l’invariant des ids candidats reste actif (écart sur 1163 vu)', () => {
+    // « YANN (accès révoqué) » (casse différente : pas de correspondance exacte) désigne 243 ET 1163 :
+    // ligne ambiguë à 0 €, non départageable (CA > 0 exigé). Elle ne doit pas éteindre le contrôle de 1163.
+    const r = run({
+      summary: [
+        { label: 'yann', ca: 5 },
+        { label: 'YANN (accès révoqué)', ca: 0 },
+      ],
+      sales: [{ label: 'yann', mypulsUserId: '1163', amount: 7 }],
+      directory: [
+        ['243', 'yann (accès révoqué)'],
+        ['1163', 'yann (accès révoqué)'],
+        ['1163', 'yann'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['1163', null]) // la ligne à 0 € est bien restée de côté
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toEqual([]) // 0 € : rien de perdu
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant').map((i) => [i.mypulsUserId, i.amount])).toEqual([['1163', 2]])
+  })
+
+  it('résumé ambigu à 0 € : un id candidat qui a des ventes mais aucune ligne de résumé propre fait aussi écart', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 0 }],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 5 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant').map((i) => [i.mypulsUserId, i.amount])).toEqual([['10504', 5]])
+  })
+
+  it('résumé ambigu NON nul mis de côté : les ids candidats restent hors invariant (le montant est signalé à part)', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 10 }],
+      sales: [
+        { label: 'Serge', mypulsUserId: '9332', amount: 10 },
+        { label: 'Serge', mypulsUserId: '10504', amount: 10 },
+      ],
+    })
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant')).toEqual([])
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toHaveLength(1)
+  })
+
+  it('résumé ambigu mis de côté : un id candidat déjà pris par sa propre ligne reste sous l’invariant (écart vu)', () => {
+    // 9332 a sa ligne « Serge B » ; la ligne « Serge » (9332 ou 10504) ne tombe sur aucun candidat libre
+    // au centime → mise de côté. Seul 10504 (candidat non pris) sort de l'invariant : l'écart de 9332 reste vu.
+    const r = run({
+      summary: [
+        { label: 'Serge B', ca: 10 },
+        { label: 'Serge', ca: 30 },
+      ],
+      sales: [
+        { label: 'Serge B', mypulsUserId: '9332', amount: 12 },
+        { label: 'Serge', mypulsUserId: '10504', amount: 20 },
+      ],
+      directory: [
+        ['9332', 'Serge B'],
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['9332', null])
+    expect(r.issues.filter((i) => i.kind === 'ecart_invariant').map((i) => [i.mypulsUserId, i.amount])).toEqual([['9332', 2]])
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote')).toHaveLength(1)
+  })
+
+  it('D3 « au centime » : 70,79 au résumé contre 70,78 de ventes → mis de côté', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 70.79 }],
+      sales: [{ label: 'Serge', mypulsUserId: '9332', amount: 70.78 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect([r.summaryIds, r.summaryChatter]).toEqual([[null], [null]])
+    expect(r.issues.filter((i) => i.kind === 'resume_mis_de_cote').map((i) => i.amount)).toEqual([70.79])
+  })
+
+  it('D3 : le bon candidat est celui qui correspond au centime, pas le premier de la liste triée', () => {
+    const r = run({
+      summary: [{ label: 'Serge', ca: 70.79 }],
+      sales: [{ label: 'Serge', mypulsUserId: '9332', amount: 70.79 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['9332'])
+  })
+
+  it('fiche par alias porteuse d’un AUTRE id : pas de doublon avec la fiche de l’id', () => {
+    const r = run({
+      fiches: [
+        { id: 'A', name: 'Lionel', mypulsId: '1802' },
+        { id: 'B', name: 'lioneldiv', mypulsId: '5555' },
+      ],
+      summary: [{ label: 'Lionel', ca: 12 }],
+      sales: [{ label: 'lioneldiv', mypulsUserId: '1802', amount: 12 }],
+      directory: [['1802', 'Lionel']],
+    })
+    expect(r.saleChatter).toEqual(['A'])
+    expect([r.issues, r.links, r.newAliases]).toEqual([[], [], []])
+  })
+
+  it('deux lignes homonymes mises de côté le même jour : une anomalie, montants additionnés', () => {
+    const r = run({
+      summary: [
+        { label: 'Serge', ca: 5 },
+        { label: 'Serge', ca: 7 },
+      ],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryChatter).toEqual([null, null])
+    expect(r.issues.map((i) => [i.kind, i.amount])).toEqual([['resume_mis_de_cote', 12]])
+    expect(r.issues[0]!.detail).toContain('12,00 €')
+  })
+
+  it('deux lignes ambiguës qui visent le même seul candidat : aucune ne le prend, quel que soit l’ordre du résumé', () => {
+    const summary: SummaryLine[] = [
+      { label: 'Max', ca: 10 },
+      { label: 'Maxi', ca: 10 },
+    ]
+    const o = {
+      sales: [{ label: 'Max', mypulsUserId: '1', amount: 10 }],
+      directory: [
+        ['1', 'Max'],
+        ['2', 'Max'],
+        ['1', 'Maxi'],
+        ['2', 'Maxi'],
+      ] as [string, string][],
+    }
+    const a = run({ ...o, summary })
+    n = 0
+    const b = run({ ...o, summary: [...summary].reverse() })
+    expect(a.summaryIds).toEqual([null, null])
+    expect(b.summaryIds).toEqual([null, null])
+  })
+
+  it('plusieurs ids pour la même fiche libre : aucun lien, homonyme, une fiche par id — même résultat si l’ordre des ventes change', () => {
+    const fiches: F[] = [{ id: 'F', name: 'Max', aliases: ['Maxime'] }]
+    const sales: SaleLine[] = [
+      { label: 'Max', mypulsUserId: '100', amount: 3 },
+      { label: 'Maxime', mypulsUserId: '200', amount: 4 },
+    ]
+    const a = run({ fiches, sales })
+    n = 0
+    const b = run({ fiches, sales: [...sales].reverse() })
+    expect(a.links).toEqual([])
+    expect(a.newChatters).toEqual([
+      { id: 'new-1', displayName: 'Max', mypulsUserId: '100' },
+      { id: 'new-2', displayName: 'Maxime', mypulsUserId: '200' },
+    ])
+    expect(a.saleChatter).toEqual(['new-1', 'new-2'])
+    expect(a.newAliases).toEqual([])
+    expect(a.issues.filter((i) => i.kind === 'homonyme').map((i) => [i.issueKey, i.chatterId])).toEqual([[homonymeKey('F'), 'F']])
+    expect({ ...b, saleChatter: [...b.saleChatter].reverse() }).toEqual(a)
+  })
+
+  it('jamais d’alias qui repointe une fiche connue par son seul nom', () => {
+    const r = run({
+      fiches: [{ id: 'S', name: 'Serge', mypulsId: '9332', byNameOnly: true }],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 3 }],
+      summary: [{ label: 'Serge', ca: 3 }],
+    })
+    expect(r.newChatters).toEqual([{ id: 'new-1', displayName: 'Serge', mypulsUserId: '10504' }])
+    expect(r.newAliases).toEqual([])
+  })
+
+  it('membres multiples : une ligne de l’id sans fiche par libellé est mise de côté, aucune fiche sans id créée', () => {
+    const r = run({
+      fiches: [
+        { id: 'L1', name: 'Jordan', linked: true },
+        { id: 'L2', name: 'Jordan manager', linked: true },
+      ],
+      summary: [{ label: 'JORDAN', ca: 7 }],
+      sales: [
+        { label: 'Jordan manager', mypulsUserId: '296', amount: 5 },
+        { label: 'Jordy', mypulsUserId: '296', amount: 2 },
+      ],
+      directory: [['296', 'JORDAN']],
+    })
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['L1'], ['L2', null]])
+    expect(r.newChatters).toEqual([])
+    expect(r.issues.map((i) => i.kind)).toEqual(['membres_multiples'])
+  })
+
+  it('jour où TOUTES les ventes sont « Indéterminé » : ce n’est pas un jour sans id, le résumé passe par l’annuaire', () => {
+    const r = run({
+      fiches: [{ id: 'I', name: 'Indéterminé (Sarahcbr)' }, { id: 'A', name: 'Lionel', mypulsId: '1802' }],
+      summary: [{ label: 'Lionel', ca: 0 }],
+      sales: [{ label: 'Indéterminé (Sarahcbr)', mypulsUserId: null, amount: 38.32 }],
+      directory: [['1802', 'Lionel']],
+    })
+    expect([r.noIds, r.summaryIds, r.technical]).toEqual([false, ['1802'], []])
+    expect(r.saleChatter).toEqual(['I'])
+  })
+})
+
+describe('resolveDayIdentity — recette UAT : homonymes séparés, fiche créée reliée à la fiche du libellé', () => {
+  it('« toky » (11005, 12768) sur une fiche libre : homonyme sur la fiche, chaque fiche créée la désigne (otherChatterId)', () => {
+    const r = run({
+      fiches: [{ id: 'T', name: 'toky' }],
+      summary: [
+        { label: 'toky', ca: 5 },
+        { label: 'toky', ca: 3 },
+      ],
+      sales: [
+        { label: 'toky', mypulsUserId: '11005', amount: 5 },
+        { label: 'toky', mypulsUserId: '12768', amount: 3 },
+      ],
+      directory: [
+        ['11005', 'toky'],
+        ['12768', 'toky'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['11005', '12768'])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['new-1', 'new-2'], ['new-1', 'new-2']])
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.chatterId, i.otherChatterId])).toEqual([
+      ['homonyme', homonymeKey('T'), 'T', null],
+      ['fiche_creee', 'fiche:11005', 'new-1', 'T'],
+      ['fiche_creee', 'fiche:12768', 'new-2', 'T'],
+    ])
+  })
+
+  it('« Augustin » : la fiche du libellé porte déjà l’id 2734 → fiche créée pour 11835, reliée à elle, sans homonyme', () => {
+    const r = run({
+      fiches: [{ id: 'AU', name: 'Augustin', mypulsId: '2734' }],
+      summary: [
+        { label: 'Augustin', ca: 4 },
+        { label: 'Augustin', ca: 6 },
+      ],
+      sales: [
+        { label: 'Augustin', mypulsUserId: '2734', amount: 4 },
+        { label: 'Augustin', mypulsUserId: '11835', amount: 6 },
+      ],
+      directory: [
+        ['2734', 'Augustin'],
+        ['11835', 'Augustin'],
+      ],
+    })
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['AU', 'new-1'], ['AU', 'new-1']])
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.chatterId, i.otherChatterId])).toEqual([
+      ['fiche_creee', 'fiche:11835', 'new-1', 'AU'],
+    ])
+  })
+
+  it('fiche créée pour un compte inconnu (aucun libellé ne désigne de fiche) : otherChatterId reste null', () => {
+    const r = run({ summary: [{ label: 'Nouveau', ca: 3 }], sales: [{ label: 'Nouveau', mypulsUserId: '777', amount: 3 }] })
+    expect(r.issues.map((i) => [i.kind, i.otherChatterId])).toEqual([['fiche_creee', null]])
+  })
+})
+
+describe('resolveDayIdentity — ligne de résumé sans id dans l’annuaire : départage par le montant (extension de D3)', () => {
+  // « City of the gamer (accès révoqué) » : compte révoqué, absent de l'annuaire du jour ; ses ventes
+  // sont sous l'id 9550, libellé « Cité des gamers ».
+  const revoked = {
+    fiches: [
+      { id: 'C', name: 'City of the gamer' },
+      { id: 'CG', name: 'Cité des gamers', mypulsId: '9550' },
+    ] as F[],
+    directory: [['9550', 'Cité des gamers']] as [string, string][],
+  }
+
+  it('un seul id sans ligne de résumé dont Σ ventes = CA au centime : la ligne lui revient, puis sa fiche (doublon signalé)', () => {
+    const r = run({
+      ...revoked,
+      summary: [{ label: 'City of the gamer (accès révoqué)', ca: 4.4 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }],
+    })
+    expect(r.summaryIds).toEqual(['9550'])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['CG'], ['CG']])
+    expect([r.links, r.newAliases, r.newChatters]).toEqual([[], [], []])
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.chatterId, i.otherChatterId])).toEqual([
+      ['doublon', doublonKey('C', 'CG'), 'CG', 'C'],
+    ])
+  })
+
+  it('deux ids correspondent au centime : rien n’est attribué (chemin historique par libellé)', () => {
+    const r = run({
+      ...revoked,
+      summary: [{ label: 'City of the gamer (accès révoqué)', ca: 4.4 }],
+      sales: [
+        { label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 },
+        { label: 'Autre', mypulsUserId: '9551', amount: 4.4 },
+      ],
+    })
+    expect(r.summaryIds).toEqual([null])
+    expect(r.summaryChatter).toEqual(['C'])
+  })
+
+  it('l’id qui correspond a déjà sa ligne de résumé : rien n’est attribué', () => {
+    const r = run({
+      ...revoked,
+      summary: [
+        { label: 'Cité des gamers', ca: 4.4 },
+        { label: 'City of the gamer (accès révoqué)', ca: 4.4 },
+      ],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }],
+    })
+    expect(r.summaryIds).toEqual(['9550', null])
+    expect(r.summaryChatter).toEqual(['CG', 'C'])
+  })
+
+  it('l’id qui correspond a déjà sa ligne par départage d’un libellé ambigu : rien n’est attribué', () => {
+    const r = run({
+      summary: [
+        { label: 'Serge', ca: 7 },
+        { label: 'Fantôme', ca: 7 },
+      ],
+      sales: [{ label: 'Serge', mypulsUserId: '10504', amount: 7 }],
+      directory: [
+        ['9332', 'Serge'],
+        ['10504', 'Serge'],
+      ],
+    })
+    expect(r.summaryIds).toEqual(['10504', null])
+  })
+
+  it('CA = 0 : rien n’est attribué, même face à un id à 0 € de ventes sans ligne', () => {
+    const r = run({
+      ...revoked,
+      summary: [{ label: 'City of the gamer (accès révoqué)', ca: 0 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 0 }],
+    })
+    expect(r.summaryIds).toEqual([null])
+    expect(r.summaryChatter).toEqual(['C'])
+  })
+
+  it('id candidat d’une ligne ambiguë mise de côté (CA > 0) : écarté du départage, rien n’est attribué', () => {
+    const r = run({
+      summary: [
+        { label: 'Max', ca: 7 },
+        { label: 'Fantôme', ca: 10 },
+      ],
+      sales: [
+        { label: 'Max', mypulsUserId: '1', amount: 10 },
+        { label: 'Max', mypulsUserId: '2', amount: 3 },
+      ],
+      directory: [
+        ['1', 'Max'],
+        ['2', 'Max'],
+      ],
+    })
+    expect(r.summaryIds).toEqual([null, null])
+  })
+
+  it('libellé attribué par le seul montant : ni lien ni alias par lui — fiche créée pour l’id, reliée à la fiche du libellé', () => {
+    const r = run({
+      fiches: [{ id: 'C', name: 'City of the gamer' }],
+      summary: [{ label: 'City of the gamer (accès révoqué)', ca: 4.4 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }],
+      directory: [['9550', 'Cité des gamers']],
+    })
+    expect(r.summaryIds).toEqual(['9550'])
+    expect(r.links).toEqual([])
+    expect(r.newChatters).toEqual([{ id: 'new-1', displayName: 'Cité des gamers', mypulsUserId: '9550' }])
+    expect([r.summaryChatter, r.saleChatter]).toEqual([['new-1'], ['new-1']])
+    expect(r.newAliases).toEqual([{ chatterId: 'new-1', rawLabel: 'Cité des gamers', rawLabelNorm: 'citédesgamers' }])
+    expect(r.issues.map((i) => [i.kind, i.issueKey, i.chatterId, i.otherChatterId])).toEqual([['fiche_creee', 'fiche:9550', 'new-1', 'C']])
+  })
+
+  it('libellé attribué par le seul montant, sans fiche : aucun alias posé pour lui', () => {
+    const r = run({
+      fiches: [{ id: 'CG', name: 'Cité des gamers', mypulsId: '9550' }],
+      summary: [{ label: 'Fantôme', ca: 4.4 }],
+      sales: [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }],
+      directory: [['9550', 'Cité des gamers']],
+    })
+    expect([r.summaryIds, r.summaryChatter]).toEqual([['9550'], ['CG']])
+    expect([r.newAliases, r.links, r.newChatters, r.issues]).toEqual([[], [], [], []])
+  })
+
+  it('libellé « Indéterminé (…) » : jamais départagé par le montant', () => {
+    const r = run({
+      fiches: [{ id: 'I', name: 'Indéterminé (Carla)' }],
+      summary: [{ label: 'Indéterminé (Carla)', ca: 5 }],
+      sales: [{ label: 'Alpha', mypulsUserId: '111', amount: 5 }],
+    })
+    expect(r.summaryIds).toEqual([null])
+    expect(r.summaryChatter).toEqual(['I'])
+  })
+
+  it('indépendant de l’ordre : deux lignes sur le même seul candidat → aucune ; deux lignes sur deux candidats → chacune le sien', () => {
+    const same: SummaryLine[] = [
+      { label: 'Fantôme', ca: 4.4 },
+      { label: 'Spectre', ca: 4.4 },
+    ]
+    const sales: SaleLine[] = [{ label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 }]
+    expect(run({ ...revoked, summary: same, sales }).summaryIds).toEqual([null, null])
+    n = 0
+    expect(run({ ...revoked, summary: [...same].reverse(), sales }).summaryIds).toEqual([null, null])
+
+    const two: SummaryLine[] = [
+      { label: 'Fantôme', ca: 4.4 },
+      { label: 'Spectre', ca: 2.5 },
+    ]
+    const sales2: SaleLine[] = [
+      { label: 'Spectral', mypulsUserId: '42', amount: 2.5 },
+      { label: 'Cité des gamers', mypulsUserId: '9550', amount: 4.4 },
+    ]
+    n = 0
+    const a = run({ ...revoked, summary: two, sales: sales2 })
+    n = 0
+    const b = run({ ...revoked, summary: [...two].reverse(), sales: [...sales2].reverse() })
+    expect(a.summaryIds).toEqual(['9550', '42'])
+    expect(b.summaryIds).toEqual(['42', '9550'])
+    expect({ ...b, summaryIds: [...b.summaryIds].reverse(), summaryChatter: [...b.summaryChatter].reverse(), saleChatter: [...b.saleChatter].reverse() }).toEqual(a)
+  })
+})
+
+describe('clés d’anomalie', () => {
+  it('doublonKey ne dépend pas de l’ordre de la paire', () => {
+    expect(doublonKey('b', 'a')).toBe(doublonKey('a', 'b'))
+    expect(doublonKey('b', 'a')).toBe('doublon:a:b')
+  })
+
+  it('le doublon de la nuit porte la clé de la paire, sans l’id MyPuls : même ligne que le rattrapage', () => {
+    const r = run({
+      fiches: [{ id: 'A', name: 'Lionel', mypulsId: '1802' }, { id: 'B', name: 'lioneldiv' }],
+      summary: [{ label: 'Lionel', ca: 12 }],
+      sales: [{ label: 'lioneldiv', mypulsUserId: '1802', amount: 12 }],
+      directory: [['1802', 'Lionel']],
+    })
+    expect(r.issues.map((i) => i.issueKey)).toEqual([doublonKey('B', 'A')])
+  })
+})

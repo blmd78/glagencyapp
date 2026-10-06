@@ -1,6 +1,6 @@
 /** Contrat de la page Membres (admin) : comptes + droits pages/modèles. */
 
-import type { DepartureReason, EventKind, EventOp, RateChange } from '@glagency/core'
+import type { DepartureReason, EventKind, EventOp, IdentityIssueKind, RateChange } from '@glagency/core'
 import type { CrmRole, CrmShift, CrmTeam } from '@/lib/types/chatters'
 
 /**
@@ -180,3 +180,63 @@ export const canBeAttached = (role: Role) => ATTACHABLE_ROLES[role].length > 0
 // `lib/` ne peut pas importer une feature (frontière ESLint). Ré-exporté ici pour les appelants
 // existants du dialog Membres.
 export type { RecruitCheck } from '@/lib/recruit-link'
+
+// ── Onglet « Fiches MyPuls » (identité chatteur + fiabilité, spec 2026-10-01) ────────────────
+export interface IdentityFiche {
+  id: string
+  name: string
+  /** Membre relié à la fiche (`profiles.chatter_id`), sinon null. */
+  member: string | null
+}
+
+export interface IdentityIssueRow {
+  id: string
+  kind: IdentityIssueKind
+  mypulsUserId: string | null
+  label: string | null
+  day: string | null
+  amount: number | null
+  detail: string
+  firstSeenAt: string
+  lastSeenAt: string
+  fiche: IdentityFiche | null
+  autre: IdentityFiche | null
+}
+
+export interface UnattributedSale {
+  creatorName: string
+  label: string
+  ca: number
+}
+
+/** Fiche avec du CA sans membre au rôle `chatteur` : absente du classement Stat chatter. */
+export interface UnrankedChatter {
+  chatterId: string
+  name: string
+  mypulsUserId: string | null
+  ca: number
+  memberName: string | null
+  memberRole: string | null
+}
+
+export interface ReliabilityCheck {
+  code: string
+  ok: boolean
+  detail: string
+}
+
+export interface ReliabilityDay {
+  day: string
+  status: 'ok' | 'a_verifier' | 'non_verifie'
+  checks: ReliabilityCheck[]
+  checkedAt: string | null
+}
+
+export interface IdentityData {
+  reliability: { latest: ReliabilityDay | null; history: ReliabilityDay[] }
+  unranked: UnrankedChatter[]
+  doubles: IdentityIssueRow[]
+  nouvelles: IdentityIssueRow[]
+  montants: IdentityIssueRow[]
+  ventesSansChatteur: { total: number; rows: UnattributedSale[] }
+}

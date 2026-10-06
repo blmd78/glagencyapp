@@ -29,13 +29,43 @@ export interface ChatterSummary {
 export interface MoneyTeamTx {
   creator: string
   chatter: string
+  /**
+   * Id MyPuls du compte crédité : `data-current-user-id` du bouton « Éditer » de la ligne
+   * (colonne Action). `null` = vente indéterminée (MyPuls ne l'attribue à personne) ou bouton
+   * absent. Le libellé `chatter` dépend de la MODÈLE (1802 = « Lionel » chez Claire_sps,
+   * « lioneldiv » chez Lolafps) : c'est l'id qui fait l'identité.
+   */
+  mypulsUserId: string | null
   amount: number
   type: string
+}
+
+/** Une paire (id MyPuls, libellé) lue dans la page des ventes — l'annuaire du jour. */
+export interface MoneyTeamDirectoryEntry {
+  mypulsUserId: string
+  label: string
+  /** `select` = libellé global du compte ; `assignable` = libellé dans l'équipe d'une modèle. */
+  source: 'select' | 'assignable'
+}
+
+/**
+ * Totaux affichés par MyPuls en tête de la page des ventes (cartes KPI) — calculés par MyPuls,
+ * INDÉPENDANTS des lignes qu'on lit : c'est contre eux que le contrôle nocturne `b_total_page`
+ * prouve qu'aucune vente n'a été perdue au parsing. Absents (ancien format, markup changé) :
+ * `salesCount` null, `net` [].
+ */
+export interface MoneyTeamPageTotals {
+  /** Carte « Ventes » : nombre de ventes de la période, indéterminées comprises. */
+  salesCount: number | null
+  /** Cartes « Montant net · <devise> » : total net par devise. */
+  net: { currency: string; amount: number }[]
 }
 
 export interface MoneyTeamDay {
   chatters: ChatterSummary[]
   transactions: MoneyTeamTx[]
+  directory: MoneyTeamDirectoryEntry[]
+  pageTotals: MoneyTeamPageTotals
 }
 
 // Espaces séparateurs FR : espace, insécable (00A0), fine insécable (202F), fine (2009).
@@ -62,6 +92,94 @@ export function hours(s: string): number {
   const h = /(\d+)\s*h/.exec(s)?.[1]
   const m = /(\d+)\s*m/.exec(s)?.[1]
   return (h ? +h : 0) + (m ? +m : 0) / 60
+}
+
+/** Id MyPuls lu dans un attribut : entier > 0, sinon `null` (vide, `all`, `-1`…). */
+export function mypulsIdOf(raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim()
+  return /^[1-9]\d*$/.test(v) ? v : null
+}
+
+/**
+ * `assignableUsersByCreator` : le JSON que MyPuls pose dans un script inline de la page des ventes
+ * pour sa fenêtre « Éditer l'attribution » — `{"<id modèle>":[{"id":1802,"label":"Lionel"}, …]}`.
+ * C'est le libellé d'un compte DANS l'équipe d'une modèle, celui que portent ses ventes (0 écart
+ * sur 6 268 ventes, captures 16→31/08). Absent ou illisible → `[]`. Une même paire vue dans deux
+ * équipes n'est gardée qu'une fois.
+ */
+export function parseAssignableUsers(scriptText: string): MoneyTeamDirectoryEntry[] {
+  const m = /const\s+assignableUsersByCreator\s*=\s*(\{.*?\});/.exec(scriptText)
+  if (!m?.[1]) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(m[1])
+  } catch {
+    return []
+  }
+  if (!parsed || typeof parsed !== 'object') return []
+  const out: MoneyTeamDirectoryEntry[] = []
+  const seen = new Set<string>()
+  for (const list of Object.values(parsed as Record<string, unknown>)) {
+    if (!Array.isArray(list)) continue
+    for (const u of list as { id?: unknown; label?: unknown }[]) {
+      const id = mypulsIdOf(u?.id == null ? null : String(u.id))
+      const label = typeof u?.label === 'string' ? u.label.trim() : ''
+      if (!id || !label || seen.has(`${id}|${label}`)) continue
+      seen.add(`${id}|${label}`)
+      out.push({ mypulsUserId: id, label, source: 'assignable' })
+    }
+  }
+  return out
+}
+
+/**
+ * L'annuaire de la page des ventes : le `<select name="chatter">` (un libellé global par compte,
+ * homonymes compris — deux « Serge ») puis le JSON des équipes. Aucun dédoublonnage par libellé :
+ * c'est au résolveur de constater qu'un libellé désigne deux comptes.
+ */
+export function parseMoneyTeamDirectory(html: string): MoneyTeamDirectoryEntry[] {
+  const $ = cheerio.load(html)
+  const out: MoneyTeamDirectoryEntry[] = []
+  $('select[name="chatter"] option').each((_, o) => {
+    const id = mypulsIdOf($(o).attr('value'))
+    const label = $(o).text().trim()
+    if (id && label) out.push({ mypulsUserId: id, label, source: 'select' })
+  })
+  const scripts = $('script:not([src])')
+    .map((_, s) => $(s).html() ?? '')
+    .get()
+    .join('\n')
+  return [...out, ...parseAssignableUsers(scripts)]
+}
+
+/**
+ * Totaux de page depuis les cartes KPI (`.kpi-card` : libellé `h6`, valeur `h3`). Partagé par
+ * cheerio et HTMLRewriter (une seule règle). Libellés EXACTS : « Ventes » et « Montant net ·
+ * <devise> » (vus sur les captures du 06/09 et du 16→31/08) — l'ancien « Ventes attribuées » ne
+ * compte pas : s'il revenait, le contrôle échouerait plutôt que de comparer autre chose. Une carte
+ * au bon libellé mais sans aucun chiffre (« — », « n/d ») compte comme ABSENTE (`null` / aucune
+ * entrée `net`), jamais comme 0 : un total illisible ne doit pas se faire passer pour « zéro vente ».
+ * Plusieurs `h6` / `h3` dans une carte : leurs textes sont concaténés (cheerio comme HTMLRewriter).
+ */
+export function pageTotalsFromCards(cards: { label: string; value: string }[]): MoneyTeamPageTotals {
+  let salesCount: number | null = null
+  const net: { currency: string; amount: number }[] = []
+  for (const c of cards) {
+    const label = c.label.replace(/\s+/g, ' ').trim()
+    const readable = /\d/.test(c.value)
+    if (label === 'Ventes' && readable) salesCount = int(c.value)
+    const m = /^Montant net · (\S+)$/.exec(label)
+    if (m?.[1] && readable) net.push({ currency: m[1], amount: money(c.value) })
+  }
+  return { salesCount, net }
+}
+
+export function parseMoneyTeamPageTotals(html: string): MoneyTeamPageTotals {
+  const $ = cheerio.load(html)
+  const cards = $('.kpi-card')
+    .map((_, k) => ({ label: $(k).find('h6').text(), value: $(k).find('h3').text() }))
+    .get()
+  return pageTotalsFromCards(cards)
 }
 
 function addDay(day: string): string {
@@ -152,6 +270,7 @@ export function parseMoneyTeamSales(html: string): MoneyTeamTx[] {
         transactions.push({
           creator,
           chatter: $(td[1]).text().trim(),
+          mypulsUserId: mypulsIdOf($(tr).find('.js-edit-attribution-btn').attr('data-current-user-id')),
           amount: money($(td[3]).text()),
           type: $(td[5]).text().trim(),
         })
@@ -194,5 +313,10 @@ export async function fetchMoneyTeamDay(day: string, cookie: string): Promise<Mo
     getHtml(moneyTeamUrl(day), cookie, `messaging-money-team (${day})`),
     getHtml(chatterSummaryUrl(day), cookie, `chatter-summary (${day})`, true),
   ])
-  return { chatters: parseChatterSummary(summary), transactions: parseMoneyTeamSales(page) }
+  return {
+    chatters: parseChatterSummary(summary),
+    transactions: parseMoneyTeamSales(page),
+    directory: parseMoneyTeamDirectory(page),
+    pageTotals: parseMoneyTeamPageTotals(page),
+  }
 }

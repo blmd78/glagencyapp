@@ -3,8 +3,9 @@ import type { WorkspaceId } from '@/config/workspaces'
 import { MembersTabs } from './components/members-tabs'
 import { TurnoverView } from './components/turnover-view'
 import { ActivityView } from './components/activity-view'
+import { IdentityView } from './components/identity-view'
 import type { SelectableMember } from '@/lib/types/member'
-import type { MemberEvent, MembersData, TurnoverData } from './types'
+import type { IdentityData, MemberEvent, MembersData, TurnoverData } from './types'
 
 /**
  * Template Membres (admin) : comptes, pages accessibles, modèles assignés — et l'onglet
@@ -22,6 +23,8 @@ export function MembersTemplate({
   data,
   turnover = null,
   activity = null,
+  identity = null,
+  period,
   vue = 'liste',
   scope = 'chatter',
   viewer = 'admin',
@@ -39,7 +42,11 @@ export function MembersTemplate({
         limit: number
       }
     | null
-  vue?: 'liste' | 'turnover' | 'activite'
+  /** Onglet « Fiches MyPuls » (admin) — exclusif des autres lectures, comme `turnover`. */
+  identity?: IdentityData | null
+  /** Période du datepicker global : CA sans membre et ventes sans chatteur la suivent. */
+  period?: { from: string; to: string }
+  vue?: 'liste' | 'turnover' | 'activite' | 'fiches'
   /** Face dont cette page gère les droits (les droits des autres faces sont préservés). */
   scope?: WorkspaceId
   /** Manager : gère uniquement SES chatters (rôle user forcé) — défaut admin. */
@@ -77,9 +84,11 @@ export function MembersTemplate({
     <MembersTabs
       vue={vue}
       showActivite={viewer === 'admin'}
+      showFiches={viewer === 'admin'}
       liste={liste}
       turnover={turnover ? <TurnoverView data={turnover} /> : null}
       activite={activity ? <ActivityView {...activity} /> : null}
+      fiches={identity && period ? <IdentityView data={identity} period={period} /> : null}
     />
   )
 }

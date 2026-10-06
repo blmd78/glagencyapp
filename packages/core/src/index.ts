@@ -72,6 +72,47 @@ export {
 export type { LsFlag, LsTotals } from './marketing/linkscale-flags'
 export { summarizeRun } from './ingest/run-summary'
 export type { IngestDayResult, IngestRunSummary } from './ingest/run-summary'
+export {
+  conflitKey,
+  doublonKey,
+  ecartKey,
+  ficheCreeeKey,
+  ficheLibelleKey,
+  homonymeKey,
+  identityIssueRow,
+  labelIndex,
+  membresKey,
+  resumeKey,
+  UNDETERMINED_LABEL,
+} from './ingest/identity-types'
+export type {
+  IdentityDirectoryEntry,
+  IdentityIssue,
+  IdentityIssueDbRow,
+  IdentityIssueKind,
+} from './ingest/identity-types'
+export {
+  ficheIds,
+  parseLot,
+  planIdentityBackfill,
+  proveGroup,
+  proveLot,
+  NO_FACTS,
+} from './ingest/identity-backfill'
+export type {
+  BackfillFiche,
+  BackfillPlan,
+  FicheFacts,
+  GroupProof,
+  LotDecision,
+  LotLine,
+} from './ingest/identity-backfill'
+export { resolveDayIdentity } from './ingest/chatter-identity'
+export type { DayIdentity, IdentityState, SaleLine, SummaryLine } from './ingest/chatter-identity'
+export { dayChecks, expectedDayTotals } from './ingest/day-checks'
+export type { DayCheck, ExpectedTotals } from './ingest/day-checks'
+export { compareReplay } from './ingest/replay-diff'
+export type { ReplayDayDiff, ReplayIssue, ReplayMove, ReplaySnapshot } from './ingest/replay-diff'
 export { runRules } from './insights/engine'
 export type { InsightContext } from './insights/engine'
 export type { Rule } from './insights/rules'
