@@ -120,7 +120,9 @@ export function MembersTable({
               Désactivés
             </Button>
           )}
-          {aRattacher.length > 0 && (
+          {/* Gardé tant qu'il est actif : rattacher le dernier membre vide la liste, et sans le
+              bouton on ne pourrait plus revenir aux membres en poste. Idem « Doublons ». */}
+          {(aRattacher.length > 0 || filtre === 'rattacher') && (
             <Button
               size="sm"
               variant={filtre === 'rattacher' ? 'default' : 'outline'}
@@ -132,7 +134,7 @@ export function MembersTable({
               À rattacher
             </Button>
           )}
-          {doublons.length > 0 && (
+          {(doublons.length > 0 || filtre === 'doublons') && (
             <Button
               size="sm"
               variant={filtre === 'doublons' ? 'default' : 'outline'}
