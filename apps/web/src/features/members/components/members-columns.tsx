@@ -50,6 +50,7 @@ export function buildMembersColumns({
   scope,
   viewer,
   superadmin,
+  suggestions,
 }: {
   creators: { id: string; name: string }[]
   chatters: { id: string; name: string }[]
@@ -57,6 +58,9 @@ export function buildMembersColumns({
   scope: WorkspaceId
   viewer: 'admin' | 'manager'
   superadmin: boolean
+  /** Fiches MyPuls probables des membres non liés (`member-link-hints.ts`) — nommées dans
+   *  l'infobulle du warning, pour relier sans chercher. */
+  suggestions: Map<string, { id: string; name: string }[]>
 }): ColumnDef<Member>[] {
   const creatorName = new Map(creators.map((c) => [c.id, c.name]))
   // Bouts compris : un droit accordé qui n'apparaîtrait dans aucun badge serait invisible de
@@ -111,7 +115,17 @@ export function buildMembersColumns({
               {/* Warning : membre chatteur SANS chatteur MyPuls lié → à relier (badges closing
                   vides tant que le lien manque). Visible aux admins (seuls à pouvoir relier). */}
               {viewer === 'admin' && row.original.role === 'chatteur' && !row.original.chatterId && (
-                <span title="Aucun chatter MyPuls lié — à relier dans la fiche" className="shrink-0">
+                <span
+                  title={
+                    suggestions.has(row.original.id)
+                      ? `Aucun chatter MyPuls lié — fiche probable : ${suggestions
+                          .get(row.original.id)!
+                          .map((c) => `« ${c.name} »`)
+                          .join(', ')}`
+                      : 'Aucun chatter MyPuls lié — à relier dans la fiche'
+                  }
+                  className="shrink-0"
+                >
                   <AlertTriangle className="size-3.5 text-amber-500" aria-label="Aucun chatter MyPuls lié" />
                 </span>
               )}

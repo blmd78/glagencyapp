@@ -5,11 +5,12 @@
 
 import { useState } from 'react'
 import type { WorkspaceId } from '@/config/workspaces'
-import { RotateCcw, Sparkles, UserPlus } from 'lucide-react'
+import { Copy, Link2, RotateCcw, Sparkles, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/data-table/data-table'
 import { buildMembersColumns } from './members-columns'
 import { MemberDialog } from './member-dialog'
+import { duplicateMemberIds, linkSuggestions } from '../member-link-hints'
 import type { Member } from '../types'
 
 export function MembersTable({
@@ -34,7 +35,11 @@ export function MembersTable({
     .filter((m) => m.role === 'manager' || m.role === 'sous-manager')
     .map((m) => ({ id: m.id, name: m.displayName, role: m.role }))
 
-  const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin })
+  // Fiches MyPuls probables des membres non liés — `chatters` n'arrive qu'à un admin (seul à
+  // pouvoir lier) : pour un manager la map est vide, et le filtre « À rattacher » n'apparaît pas.
+  const suggestions = linkSuggestions(members, chatters)
+
+  const columns = buildMembersColumns({ creators, chatters, managers, scope, viewer, superadmin, suggestions })
 
   // ── LES TROIS VUES DE LA LISTE ─────────────────────────────────────────────────────────────
   // UN SEUL filtre actif à la fois, et c'est délibéré : des bascules indépendantes autorisaient
@@ -48,13 +53,27 @@ export function MembersTable({
   //
   // Filtres de VUE et non d'URL (norme §6) : ils ne changent pas la donnée chargée, seulement ce
   // qu'on montre d'un jeu déjà là — `useState` local, comme le sélecteur de modèle du pilote.
-  const [filtre, setFiltre] = useState<'poste' | 'nouveaux' | 'anciens'>('poste')
+  //
+  // « À rattacher » et « Doublons » (2026-10-01) : le ménage des comptes, cf. `member-link-hints.ts`.
+  const [filtre, setFiltre] = useState<'poste' | 'nouveaux' | 'anciens' | 'rattacher' | 'doublons'>('poste')
 
   const anciens = members.filter((m) => m.leftAt)
   const enPoste = members.filter((m) => !m.leftAt)
   const nouveaux = enPoste.filter((m) => m.isNew)
+  const aRattacher = enPoste.filter((m) => suggestions.has(m.id))
+  const doublonIds = duplicateMemberIds(members)
+  const doublons = enPoste.filter((m) => doublonIds.has(m.id))
 
-  const rows = filtre === 'nouveaux' ? nouveaux : filtre === 'anciens' ? anciens : enPoste
+  const rows =
+    filtre === 'nouveaux'
+      ? nouveaux
+      : filtre === 'anciens'
+        ? anciens
+        : filtre === 'rattacher'
+          ? aRattacher
+          : filtre === 'doublons'
+            ? doublons
+            : enPoste
 
   /** Bascule d'un filtre : le recliquer revient à la vue par défaut. */
   const bascule = (cible: typeof filtre) => () => setFiltre((f) => (f === cible ? 'poste' : cible))
@@ -99,6 +118,30 @@ export function MembersTable({
             >
               <RotateCcw className="size-3.5" />
               Désactivés
+            </Button>
+          )}
+          {aRattacher.length > 0 && (
+            <Button
+              size="sm"
+              variant={filtre === 'rattacher' ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={filtre === 'rattacher'}
+              onClick={bascule('rattacher')}
+            >
+              <Link2 className="size-3.5" />
+              À rattacher
+            </Button>
+          )}
+          {doublons.length > 0 && (
+            <Button
+              size="sm"
+              variant={filtre === 'doublons' ? 'default' : 'outline'}
+              className="gap-1.5"
+              aria-pressed={filtre === 'doublons'}
+              onClick={bascule('doublons')}
+            >
+              <Copy className="size-3.5" />
+              Doublons
             </Button>
           )}
           <MemberDialog
