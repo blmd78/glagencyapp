@@ -85,7 +85,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-10-02** : prod = UAT = **0182** (`0180` photos des modèles, `0181` type et modèle des événements Agence, `0182` suppression de la to-do personnelle). **Prochaine migration = `0183`**.
+**État au 2026-10-05** : prod = **0182**, UAT = **0183** (`0180` photos des modèles, `0181` type et modèle des événements Agence, `0182` suppression de la to-do personnelle, `0183` identité chatteur et contrôles de fiabilité — UAT seulement, à appliquer en prod avant la release qui livrera son code). **Prochaine migration = `0184`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

@@ -345,6 +345,82 @@ export type Database = {
           },
         ]
       }
+      chatter_identity_issues: {
+        Row: {
+          amount: number | null
+          chatter_id: string | null
+          day: string | null
+          detail: string
+          first_seen_at: string
+          id: string
+          issue_key: string
+          kind: string
+          label: string | null
+          last_seen_at: string
+          mypuls_user_id: string | null
+          other_chatter_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          source: string
+        }
+        Insert: {
+          amount?: number | null
+          chatter_id?: string | null
+          day?: string | null
+          detail: string
+          first_seen_at?: string
+          id?: string
+          issue_key: string
+          kind: string
+          label?: string | null
+          last_seen_at?: string
+          mypuls_user_id?: string | null
+          other_chatter_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: string
+        }
+        Update: {
+          amount?: number | null
+          chatter_id?: string | null
+          day?: string | null
+          detail?: string
+          first_seen_at?: string
+          id?: string
+          issue_key?: string
+          kind?: string
+          label?: string | null
+          last_seen_at?: string
+          mypuls_user_id?: string | null
+          other_chatter_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatter_identity_issues_chatter_id_fkey"
+            columns: ["chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatter_identity_issues_other_chatter_id_fkey"
+            columns: ["other_chatter_id"]
+            isOneToOne: false
+            referencedRelation: "chatters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chatter_identity_issues_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatters: {
         Row: {
           access_revoked: boolean
@@ -1075,6 +1151,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ingest_day_checks: {
+        Row: {
+          checked_at: string
+          checks: Json
+          day: string
+          status: string
+          totals: Json
+        }
+        Insert: {
+          checked_at?: string
+          checks?: Json
+          day: string
+          status: string
+          totals?: Json
+        }
+        Update: {
+          checked_at?: string
+          checks?: Json
+          day?: string
+          status?: string
+          totals?: Json
+        }
+        Relationships: []
       }
       ingest_runs: {
         Row: {
@@ -5614,6 +5714,10 @@ export type Database = {
     }
     Functions: {
       agency_notifications: { Args: { p_limit?: number }; Returns: Json }
+      apply_chatter_identity: {
+        Args: { p_issues: Json; p_links: Json }
+        Returns: Json
+      }
       bilan_report: {
         Args: {
           p_end: string
@@ -5690,6 +5794,17 @@ export type Database = {
         Args: { p_alerte?: number; p_seuil?: number; p_view?: string }
         Returns: Json
       }
+      delete_empty_chatter: { Args: { p_id: string }; Returns: undefined }
+      finish_chatter_day: {
+        Args: {
+          p_checks: Json
+          p_day: string
+          p_expected: Json
+          p_issues: Json
+          p_links: Json
+        }
+        Returns: Json
+      }
       has_page: { Args: { slug: string }; Returns: boolean }
       health_report: {
         Args: { p_from: string; p_to: string; p_week_from: string }
@@ -5700,6 +5815,10 @@ export type Database = {
       is_police: { Args: never; Returns: boolean }
       is_superadmin: { Args: never; Returns: boolean }
       manages: { Args: { target: string }; Returns: boolean }
+      merge_chatters: {
+        Args: { p_keep: string; p_mypuls_id?: string; p_old: string }
+        Returns: Json
+      }
       mkt_creator_revenue: {
         Args: { p_from: string; p_to: string }
         Returns: Json
@@ -5805,6 +5924,7 @@ export type Database = {
         }
         Returns: string
       }
+      reliability_days: { Args: { p_days: number }; Returns: Json }
       repos_data_weeks: { Args: never; Returns: Json }
       save_org_cell: {
         Args: {
@@ -6049,6 +6169,14 @@ export type Database = {
         }[]
       }
       turnover_report: { Args: { p_from: string; p_to: string }; Returns: Json }
+      unattributed_sales: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
+      unranked_chatters_ca: {
+        Args: { p_from: string; p_to: string }
+        Returns: Json
+      }
       upsert_police_report: {
         Args: {
           p_absents: number

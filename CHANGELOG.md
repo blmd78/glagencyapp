@@ -18,6 +18,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 - Doc : faits recalés sur le code — nombre de migrations, worker d'ingestion actif avec 4 crons (et non « gelé », « 3 crons »), photos des événements Agence (bucket privé, URLs signées, `unoptimized`) décrites au § 7 des guidelines, dette n° 2 des Membres résolue en partie (`email_exists`), `UNCOVE_TOKEN_SECRET` listé dans les secrets du Worker, références documentaires orphelines corrigées.
 - Ingestion : la lecture des ventes MyPuls récupère l'id du compte de chaque vente, l'annuaire des libellés et les totaux affichés par la page (préparation de l'identité chatteur et des contrôles de fiabilité ; aucun chiffre ne change).
 
+### Corrigé
+
+- Chatteurs : rattrapage des fiches MyPuls en double par lots validés — un rapport en lecture seule prouve chaque fusion (même id MyPuls et compensation au centime jour par jour), seules les fusions d'un lot validé sont appliquées (lot 1 : les 14 fusions vérifiées) ; commande `pnpm identity-backfill`.
+
 ## [2.71] — 2026-10-05
 
 ### Modifié
