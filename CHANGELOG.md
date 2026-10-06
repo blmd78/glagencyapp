@@ -8,6 +8,14 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Membres (admin) : deux filtres pour le ménage des comptes — « À rattacher » (membres chatteurs sans fiche MyPuls liée alors qu'une fiche libre porte leur nom ou leur e-mail, nommée dans l'infobulle du warning — suggestion, jamais de lien d'office) et « Doublons » (membres en poste qui portent le même nom).
+
+### Corrigé
+
+- Chatteurs : l'outil de rattrapage des fiches en double (`pnpm identity-backfill`) patiente quand MyPuls limite le débit (erreur 429 : 30 s puis 60 s au lieu de 2 s puis 5 s) ; sans ça, l'historique restait partiel et le lot était refusé.
+
 ## [2.72] — 2026-10-06
 
 ### Ajouté
