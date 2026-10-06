@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.73] — 2026-10-06
+
 ### Ajouté
 
 - Membres (admin) : deux filtres pour le ménage des comptes — « À rattacher » (membres chatteurs sans fiche MyPuls liée alors qu'une fiche libre porte leur nom ou leur e-mail, nommée dans l'infobulle du warning — suggestion, jamais de lien d'office) et « Doublons » (membres en poste qui portent le même nom).
