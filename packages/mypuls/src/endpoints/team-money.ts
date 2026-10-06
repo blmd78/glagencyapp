@@ -15,6 +15,8 @@ export interface MoneyTx {
   type: string // 'Média privé' | 'Pourboires' | 'Media On Demand' | 'Médias push' | 'Renouvellement abonnement'
   date: string
   attributed_user_id: number | null
+  /** E-mail du compte crédité (capture du 11/09/2026 : un e-mail sur 100 lignes sur 100). */
+  attributed_user?: string | null
   message_id: number | null
 }
 

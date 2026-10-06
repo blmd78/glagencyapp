@@ -3,8 +3,23 @@ export type { MyPulsClient } from './client'
 export type { ChatterRow, CreatorStats } from './types'
 export { fetchTeamMoney } from './endpoints/team-money'
 export type { MoneyTx } from './endpoints/team-money'
-export { fetchMoneyTeamDay, parseMoneyTeamSales, parseChatterSummary } from './endpoints/money-team'
-export type { ChatterSummary, MoneyTeamTx, MoneyTeamDay } from './endpoints/money-team'
+export {
+  fetchMoneyTeamDay,
+  parseMoneyTeamSales,
+  parseChatterSummary,
+  parseMoneyTeamDirectory,
+  parseMoneyTeamPageTotals,
+  parseAssignableUsers,
+  pageTotalsFromCards,
+  mypulsIdOf,
+} from './endpoints/money-team'
+export type {
+  ChatterSummary,
+  MoneyTeamTx,
+  MoneyTeamDay,
+  MoneyTeamDirectoryEntry,
+  MoneyTeamPageTotals,
+} from './endpoints/money-team'
 // Réutilisés par le parser HTMLRewriter (Worker) : mêmes helpers/URL que cheerio.
 export { money, int, intOrNull, hours, moneyTeamUrl, chatterSummaryUrl } from './endpoints/money-team'
 export { UA } from './client'
