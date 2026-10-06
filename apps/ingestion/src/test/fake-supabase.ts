@@ -8,6 +8,8 @@
  *     règle que `apply_chatter_identity`), anomalies (upsert sur `issue_key`), contrôles du client
  *     complétés (« contrôle non transmis », code inconnu), b_resume_ecrit / b_ventes_ecrites sommés
  *     sur l'état RÉEL des tables du faux, verdict écrit dans `ingest_day_checks`.
+ *   - `in`, `or('<col>.in.(a,b),…')` et `overlaps` : ce que lit la sauvegarde de `identity-backfill` ;
+ *   - `rpcHandlers` : la RPC de ton choix (ex. `merge_chatters`, `delete_empty_chatter`) jouée par le test.
  * Sans 0183 (`has0183: false`), ses tables et sa RPC répondent l'erreur PostgREST d'un objet absent.
  * Pas de contraintes d'unicité ni de types : ce que les tests vérifient se lit dans les tables.
  */
@@ -38,6 +40,8 @@ export class FakeSupabase {
   rpcResponse?: Result
   /** Erreur imposée à une opération `<table>:<op>` (ex. `ingest_day_checks:select`). */
   errors = new Map<string, PgError>()
+  /** RPC jouées par le test, prioritaires sur le comportement par défaut ; sans entrée : erreur « fonction absente ». */
+  rpcHandlers = new Map<string, (args: Record<string, unknown>) => Result | Promise<Result>>()
 
   constructor(seed: Record<string, Row[]> = {}) {
     for (const [t, rows] of Object.entries(seed)) this.tables[t] = rows.map((r) => ({ ...r }))
@@ -57,6 +61,8 @@ export class FakeSupabase {
 
   async rpc(fn: string, args: Record<string, unknown>): Promise<Result> {
     this.rpcCalls.push({ fn, args })
+    const handler = this.rpcHandlers.get(fn)
+    if (handler) return handler(args)
     if (fn !== 'finish_chatter_day' || !this.has0183) {
       return { data: null, error: { code: 'PGRST202', message: `Could not find the function public.${fn} in the schema cache` } }
     }
@@ -172,6 +178,24 @@ class Query implements PromiseLike<Result> {
   not(col: string, operator: string, value: null): this {
     if (operator !== 'is') throw new Error(`faux Supabase : not(…, '${operator}') non géré`)
     this.filters.push((r) => (r[col] ?? null) !== value)
+    return this
+  }
+  in(col: string, values: unknown[]): this {
+    this.filters.push((r) => values.includes(r[col]))
+    return this
+  }
+  /** `or('a.in.(x,y),b.in.(x,y)')` : seuls les termes `<colonne>.in.(…)` sont gérés, tout autre lève. */
+  or(expr: string): this {
+    const terms = [...expr.matchAll(/([a-z_]+)\.in\.\(([^)]*)\)/g)].map((m) => ({ col: m[1]!, values: m[2]!.split(',') }))
+    if (!terms.length || terms.map((t) => `${t.col}.in.(${t.values.join(',')})`).join(',') !== expr) {
+      throw new Error(`faux Supabase : or('${expr}') non géré`)
+    }
+    this.filters.push((r) => terms.some((t) => t.values.includes(String(r[t.col]))))
+    return this
+  }
+  /** Colonne tableau : au moins un élément en commun avec `values`. */
+  overlaps(col: string, values: unknown[]): this {
+    this.filters.push((r) => Array.isArray(r[col]) && (r[col] as unknown[]).some((v) => values.includes(v)))
     return this
   }
   order(col: string, opts?: { ascending?: boolean }): this {

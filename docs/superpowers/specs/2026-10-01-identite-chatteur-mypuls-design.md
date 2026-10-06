@@ -285,7 +285,8 @@ CLI `pnpm --filter @glagency/ingestion identity-backfill`.
 - déplacements, Spenders, id MyPuls, contrôle final ;
 - en plus : effacement des anomalies de `p_old`.
 
-La fiche vidée est gardée (écart en fin de spec).
+`merge_chatters` garde la fiche vidée ; la CLI la supprime ensuite (insights sauvegardés puis
+supprimés, `delete_empty_chatter`) — décision de Benoit du 2026-10-06, voir « Questions ».
 
 **`delete_empty_chatter(p_id)`** : même recensement des références (hors alias et anomalies),
 puis `delete` ou exception.
@@ -457,13 +458,10 @@ vérifier » doit être listé avec sa cause et accepté par Benoit. Sinon, **pa
 
 ## Questions encore ouvertes
 
-Aucune question produit. Reste un écart technique **à trancher en revue de la PR 2** :
-
-- **Fiche vidée : gardée (v2, défaut) ou supprimée ?**
-  - **La supprimer** (`delete from chatters where id = p_old` après le contrôle final ;
-    `insights` part en cascade) éviterait qu'elle reste proposée par nom dans « À rattacher » et
-    « Relier ».
-  - **La garder** laisse la ligne pour une marche arrière, en plus du CSV.
+Aucune. **Fiche vidée : supprimée** (décision de Benoit, 2026-10-06 — les sauvegardes de la base
+font foi). `identity-backfill --apply` sauvegarde puis supprime les `insights` de la fiche vidée et
+appelle `delete_empty_chatter` après chaque fusion ; un échec laisse la fusion faite, garde la fiche,
+le signale et sort en code 2.
 
 ## Mise en prod
 
