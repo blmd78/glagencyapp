@@ -16,6 +16,7 @@ import {
   ingestOneModel,
 } from './spenders-core'
 import { loadCookie, refreshCookie } from './session'
+import { SCRIPTS_SESSION_ID, ingestSessionStore, keepScriptsSessionAlive } from '@glagency/scripts/session'
 import { ingestShiftsDay, loadSettings, recordShiftRun, type DayRunResult } from './shifts-core'
 import { createAdminClient } from '@glagency/db'
 import { loadActiveAccounts, ingestAccount } from './uncove-core'
@@ -234,7 +235,26 @@ async function runShifts(): Promise<void> {
   // J-1 et J-2 : J-1 est complet à cette heure-ci (la Soirée de la veille s'est terminée à
   // 05h00), J-2 rattrape une nuit manquée. Le jour EN COURS n'est jamais lu — MyPuls
   // plafonnerait sa couverture sur le temps écoulé.
+  await keepScriptsSessionWarm()
   await runShiftsRange(addDays(todayParis(), -2), addDays(todayParis(), -1))
+}
+
+/**
+ * Garde en vie de la session de l'import de scripts (CRM, ligne « scripts ») : sans elle, une
+ * semaine sans import obligerait à recoller un cookie à la main. Sur le cron des shifts et non
+ * sur celui de 23h05 : jusqu'à 3 sous-requêtes (lecture, renouvellement, écriture), que le run
+ * de 23h05 — le plus proche du plafond de 50 — ne peut pas se permettre. Jamais bloquante.
+ */
+async function keepScriptsSessionWarm(): Promise<void> {
+  try {
+    const r = await keepScriptsSessionAlive(ingestSessionStore(createAdminClient(), SCRIPTS_SESSION_ID))
+    console.log(`[shifts] session « scripts » : ${r}`)
+  } catch (e) {
+    // Avertissement, pas un run dégradé — mais jamais en silence : sans renouvellement, la session
+    // meurt avec son REMEMBERME (~7 jours) et on ne le découvrirait qu'au prochain import.
+    console.warn('[shifts] session « scripts » non renouvelée :', (e as Error).message)
+    Sentry.captureMessage(`[shifts] session MyPuls « scripts » non renouvelée : ${(e as Error).message}`, 'warning')
+  }
 }
 
 /**

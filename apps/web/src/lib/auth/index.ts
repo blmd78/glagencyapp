@@ -2,6 +2,9 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { landingHref, type PageSlug } from '@/config/workspaces'
+import { isAdminOrManager } from './roles'
+
+export { isAdminOrManager }
 
 /**
  * Utilisateur courant (ou null) — valide le JWT côté serveur via getClaims() : validation
@@ -114,7 +117,7 @@ export async function requireAdmin(): Promise<Profile> {
 export async function requireAdminOrManager(): Promise<Profile> {
   const profile = await getProfile()
   if (!profile) redirect('/login')
-  if (profile.role !== 'admin' && !profile.manager) redirect(landingHref(profile))
+  if (!isAdminOrManager(profile)) redirect(landingHref(profile))
   return profile
 }
 
