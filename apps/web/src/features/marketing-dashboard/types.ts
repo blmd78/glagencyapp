@@ -1,6 +1,7 @@
 // Types / forme des props de la feature marketing-dashboard.
 
 import type { MktLinkRow } from '@/lib/types/marketing'
+import type { MktScope } from '@/lib/mkt-sfs'
 
 export interface MktDailyPoint {
   date: string
@@ -18,6 +19,8 @@ export interface MktCreatorSplit {
 
 export interface MktDashboardData {
   period: string
+  /** Liens comptés : l'Overview (`externe`, sans les SFS) ou l'onglet SFS (`sfs`). */
+  scope: MktScope
   totals: { clicks: number; conversions: number; revenueEur: number; ltv: number | null }
   /** Revenus de la période précédente (même durée), pour le badge d'évolution. */
   prevRevenueEur: number
