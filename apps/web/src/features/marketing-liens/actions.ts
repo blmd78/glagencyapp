@@ -37,6 +37,10 @@ export async function setLinkType(raw: unknown): Promise<ActionResult> {
       if (error?.code === '23503') throw new BusinessError('Ce groupe n’existe plus — rafraîchis la page.')
       if (error) throw new Error(error.message)
       revalidatePath('/marketing/liens')
+      // Un lien rangé dans SFS (ou sorti de SFS) change aussi ces trois pages (`lib/mkt-sfs.ts`).
+      revalidatePath('/marketing/overview')
+      revalidatePath('/marketing/modeles')
+      revalidatePath('/marketing/sfs')
     },
   })
 }

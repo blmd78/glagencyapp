@@ -4,11 +4,15 @@ import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
 import type { MktDashboardData } from '../types'
 import { getLinkRows } from '@/lib/services/get-mkt-links'
+import { inScope, sfsLinkIds, type MktScope } from '@/lib/mkt-sfs'
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 
-/** Dashboard marketing : KPIs, série journalière, top liens, répartition par créatrice. */
-export async function getMktDashboard(period: Period): Promise<MktDashboardData> {
+/**
+ * Dashboard marketing : KPIs, série journalière, top liens, répartition par créatrice.
+ * `scope` : `externe` pour l'Overview (sans les SFS), `sfs` pour l'onglet SFS — cf. `lib/mkt-sfs.ts`.
+ */
+export async function getMktDashboard(period: Period, scope: MktScope = 'externe'): Promise<MktDashboardData> {
   const supabase = await createClient()
   const days = daysBetween(period.from, period.to) + 1
   // Fenêtre précédente de même durée, adjacente (pour « vs période préc. »).
@@ -28,15 +32,16 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
       .order('date')
       .range(f, t),
   )
-  const [links, dailyRes, prevDailyRes] = await Promise.all([
+  const [allLinks, dailyRes, prevDailyRes] = await Promise.all([
     getLinkRows(period, { dailyRows: dailyPromise }),
     dailyPromise,
     fetchAll((f, t) =>
       supabase
         .from('mkt_link_daily')
         // `conversions` en plus : la LTV de la période précédente sert de REPÈRE à la jauge
-        // de l'Overview — sans elle, une jauge à une seule valeur ne dit rien.
-        .select('revenue_eur, conversions')
+        // de l'Overview — sans elle, une jauge à une seule valeur ne dit rien. `link_id` : le
+        // repère suit le même périmètre que la période (SFS ou non).
+        .select('link_id, revenue_eur, conversions')
         .gte('date', prevFrom)
         .lte('date', prevTo)
         .order('link_id')
@@ -46,11 +51,15 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
   ])
   if (dailyRes.error) throw new Error(dailyRes.error.message)
   if (prevDailyRes.error) throw new Error(prevDailyRes.error.message)
-  const { data: daily } = dailyRes
-  const { data: prevDaily } = prevDailyRes
+  // Périmètre appliqué APRÈS les lectures : les liens portent leur groupe (`type`), les lignes
+  // journalières seulement leur `link_id`.
+  const sfsIds = sfsLinkIds(allLinks)
+  const links = inScope(allLinks, (l) => l.id, sfsIds, scope)
+  const daily = inScope(dailyRes.data ?? [], (d) => d.link_id, sfsIds, scope)
+  const prevDaily = inScope(prevDailyRes.data ?? [], (d) => d.link_id, sfsIds, scope)
 
   const byDay = new Map<string, { revenue: number; conversions: number; clicks: number }>()
-  for (const d of daily ?? []) {
+  for (const d of daily) {
     const a = byDay.get(d.date) ?? { revenue: 0, conversions: 0, clicks: 0 }
     a.revenue += Number(d.revenue_eur)
     a.conversions += d.conversions
@@ -85,16 +94,17 @@ export async function getMktDashboard(period: Period): Promise<MktDashboardData>
 
   return {
     period: period.label,
+    scope,
     totals: {
       clicks,
       conversions,
       revenueEur,
       ltv: conversions > 0 ? r2(revenueEur / conversions) : null,
     },
-    prevRevenueEur: r2((prevDaily ?? []).reduce((s, d) => s + Number(d.revenue_eur), 0)),
+    prevRevenueEur: r2(prevDaily.reduce((s, d) => s + Number(d.revenue_eur), 0)),
     prevLtv: (() => {
-      const rev = (prevDaily ?? []).reduce((s, d) => s + Number(d.revenue_eur), 0)
-      const conv = (prevDaily ?? []).reduce((s, d) => s + d.conversions, 0)
+      const rev = prevDaily.reduce((s, d) => s + Number(d.revenue_eur), 0)
+      const conv = prevDaily.reduce((s, d) => s + d.conversions, 0)
       return conv > 0 ? r2(rev / conv) : null
     })(),
     days,

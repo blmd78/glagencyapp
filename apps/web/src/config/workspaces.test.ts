@@ -373,3 +373,25 @@ describe('face Chatteurs — Emploi du temps ; Scripts et Suivi chatters archiv�
     expect(hrefs()).toContain('/chatter/presence/todo')
   })
 })
+
+describe('face Marketing — onglet SFS', () => {
+  const marketing = WORKSPACES.find((w) => w.id === 'marketing')!
+  const sfs = () => marketing.nav.find((n) => n.href === '/marketing/sfs')!
+
+  it('expose le slug mkt-sfs, rattaché à la face marketing', () => {
+    expect(PAGE_SLUGS).toContain('mkt-sfs')
+    expect(slugFace('mkt-sfs')).toBe('marketing')
+  })
+
+  it('range SFS dans Réseaux, juste après Twitter / X, sans restriction admin', () => {
+    expect(sfs().group).toBe('reseaux')
+    expect(sfs().adminOnly).toBeUndefined()
+    const hrefs = marketing.nav.map((n) => n.href)
+    expect(hrefs.indexOf('/marketing/sfs')).toBe(hrefs.indexOf('/marketing/twitter') + 1)
+  })
+
+  it("s'ouvre à qui porte le droit, pas aux autres", () => {
+    expect(canAccessNav(sfs(), user(['mkt-sfs']))).toBe(true)
+    expect(canAccessNav(sfs(), user(['mkt-overview']))).toBe(false)
+  })
+})
