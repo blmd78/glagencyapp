@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { frDateNumeric } from '@glagency/core'
+import { frDateTimeParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -81,7 +81,7 @@ export function NotionConnectionCard({
               <Badge className={cn('text-xs', STATUS_COLORS.positive)}>Connecté</Badge>
               <span className="font-medium">{connection.workspaceName}</span>
               <span className="text-muted-foreground">
-                par {connection.connectedBy ?? '—'} le {frDateNumeric(connection.connectedAt.slice(0, 10))}
+                par {connection.connectedBy ?? '—'} le {frDateTimeParis(connection.connectedAt)}
               </span>
             </div>
             {!connection.rootPageId && (

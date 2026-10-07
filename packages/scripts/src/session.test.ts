@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { keepScriptsSessionAlive, scriptsSessionForSend, type SessionDeps, type SessionStore } from './session'
+import { ScriptsSessionError, keepScriptsSessionAlive, scriptsSessionForSend, type SessionDeps, type SessionStore } from './session'
 
 /** Ligne `ingest_session` en mémoire. */
 function store(initial: { cookie: string; refreshedAt: string } | null = null) {
@@ -61,15 +61,42 @@ describe('scriptsSessionForSend', () => {
     expect(empty.writes).toEqual(['PHPSESSID=x; REMEMBERME=seed'])
     expect(await keepScriptsSessionAlive(empty.s, new Date(Date.now() + 13 * 3_600_000), d)).toBe('renouvelée')
   })
+  it('session enregistrée irrécupérable + NOUVEL amorçage valide → l’amorçage remplace la ligne (réamorçage possible)', async () => {
+    const dead = store({ cookie: 'PHPSESSID=old; REMEMBERME=expired', refreshedAt: '2026-10-01T08:00:00Z' })
+    const d: SessionDeps = {
+      ...deps(['PHPSESSID=fresh; REMEMBERME=new']).d,
+      rememberMeLogin: async () => {
+        throw new Error('rememberMeLogin : REMEMBERME refusé (302) — refournir MYPULS_SESSION_COOKIE')
+      },
+    }
+    expect(await scriptsSessionForSend(dead.s, 'PHPSESSID=fresh; REMEMBERME=new', d)).toBe('PHPSESSID=fresh; REMEMBERME=new')
+    expect(dead.writes).toEqual(['PHPSESSID=fresh; REMEMBERME=new'])
+  })
+  it('session irrécupérable sans nouvel amorçage → ScriptsSessionError qui nomme LA BONNE variable', async () => {
+    const dead = store({ cookie: 'PHPSESSID=old; REMEMBERME=expired', refreshedAt: '2026-10-01T08:00:00Z' })
+    const d: SessionDeps = {
+      ...deps().d,
+      rememberMeLogin: async () => {
+        throw new Error('rememberMeLogin : REMEMBERME refusé (302) — refournir MYPULS_SESSION_COOKIE')
+      },
+    }
+    const err = await scriptsSessionForSend(dead.s, 'PHPSESSID=old; REMEMBERME=expired', d).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ScriptsSessionError)
+    expect((err as Error).message).toBe(
+      'Session MyPuls « scripts » expirée : recolle un cookie frais dans MYPULS_SCRIPTS_SESSION_COOKIE (Vercel), puis redéploie.',
+    )
+    const none = await scriptsSessionForSend(store().s, undefined, deps().d).catch((e: unknown) => e)
+    expect(none).toBeInstanceOf(ScriptsSessionError)
+  })
   it('ni ligne ni amorçage → erreur explicite', async () => {
     await expect(scriptsSessionForSend(store().s, undefined, deps().d)).rejects.toThrow(
-      'Session MyPuls « scripts » absente — amorcer MYPULS_SCRIPTS_SESSION_COOKIE (connexion en navigation privée).',
+      'Session MyPuls « scripts » absente : colle un cookie dans MYPULS_SCRIPTS_SESSION_COOKIE (Vercel), puis redéploie.',
     )
   })
   it('session morte sans REMEMBERME → erreur explicite', async () => {
     const { s } = store({ cookie: 'PHPSESSID=a', refreshedAt: '2026-10-01T08:00:00Z' })
     await expect(scriptsSessionForSend(s, undefined, deps().d)).rejects.toThrow(
-      'Session MyPuls « scripts » expirée sans REMEMBERME — ré-amorcer MYPULS_SCRIPTS_SESSION_COOKIE.',
+      'Session MyPuls « scripts » expirée : recolle un cookie frais dans MYPULS_SCRIPTS_SESSION_COOKIE (Vercel), puis redéploie.',
     )
   })
 })

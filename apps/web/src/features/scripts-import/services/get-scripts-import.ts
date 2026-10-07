@@ -1,4 +1,5 @@
 import 'server-only'
+import * as Sentry from '@sentry/nextjs'
 import { matchCreatorByName, type DraftError, type DraftSummary } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
 import type { Cleanup } from '@glagency/scripts'
@@ -6,7 +7,7 @@ import { listNotionScripts, listSharedTopPages } from '@glagency/scripts'
 import type { Profile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { importStatus, type ImportRow } from '../rules'
-import { failureText } from '../send-rules'
+import { failureText, notionReadMessage } from '../send-rules'
 import { getNotionConnection, withNotionToken, type NotionConnectionView } from './notion-connection'
 
 export interface CreatorOption {
@@ -131,7 +132,13 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
         rootCandidates = (await withNotionToken((token) => listSharedTopPages(token))) ?? []
       }
     } catch (e) {
-      notionError = (e as Error).message
+      // Erreur Notion attendue (page non partagée, clé expirée, débit) : dite telle quelle. Le reste
+      // (Supabase, réseau…) est technique : Sentry, et un message générique — jamais le texte brut.
+      notionError = notionReadMessage(e)
+      if (!notionError) {
+        Sentry.captureException(e)
+        notionError = 'erreur technique, signalée à l’équipe.'
+      }
     }
   }
 

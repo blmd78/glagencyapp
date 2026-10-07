@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blocksToText, fetchNotionPage, listNotionScripts, listSharedTopPages, notionPageId, type NotionBlock } from './notion'
+import { NotionError, blocksToText, fetchNotionPage, listNotionScripts, listSharedTopPages, notionPageId, type NotionBlock } from './notion'
 
 const rt = (plain_text: string) => [{ plain_text }]
 let seq = 0
@@ -179,6 +179,15 @@ describe('listNotionScripts', () => {
     }) as typeof fetch
     await expect(listNotionScripts('tok', 'root', fake)).rejects.toThrow('Notion 429')
     expect(calls).toBe(3)
+  })
+  it('erreur HTTP Notion → NotionError typée portant le statut (on branche dessus, jamais sur le texte)', async () => {
+    const fake = (async () => new Response('{}', { status: 403 })) as typeof fetch
+    const err = await listNotionScripts('tok', 'root', fake).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(NotionError)
+    expect((err as NotionError).status).toBe(403)
+    const search = await listSharedTopPages('tok', (async () => new Response('{}', { status: 401 })) as typeof fetch).catch((e: unknown) => e)
+    expect(search).toBeInstanceOf(NotionError)
+    expect((search as NotionError).status).toBe(401)
   })
   it('racine non partagée → message clair', async () => {
     const fake = (async () => new Response('{}', { status: 404 })) as typeof fetch

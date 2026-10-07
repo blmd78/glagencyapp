@@ -75,10 +75,12 @@ class FakeStudio implements StudioWriter {
   }
   async createBranch(_id: number, body: { label: string; paths: Array<{ label: string; color: string }> }) {
     this.hit(`branch ${body.label}`)
-    let paths = body.paths.map((p) => ({ id: this.next++, ...p }))
+    // Numérotation RÉELLE (capture scripts-2849) : embranchements 1..n par script, chemins 1..n par
+    // embranchement — deux embranchements ont donc chacun un chemin `id: 1`.
+    let paths = body.paths.map((p, i) => ({ id: i + 1, ...p }))
     if (this.o.renameFirstPath && paths[0]) paths[0] = { ...paths[0], label: this.o.renameFirstPath }
     if (this.o.reversePaths) paths = [...paths].reverse()
-    this.state.branches.push({ id: this.next++, label: body.label, paths })
+    this.state.branches.push({ id: this.state.branches.length + 1, label: body.label, paths })
   }
   async createMessage(_id: number, fields: Record<string, string>, path?: { branchId: number; pathId: number }) {
     this.hit(`message ${fields.title}`)
@@ -134,8 +136,8 @@ describe('sendScript', () => {
     expect(s.layout).toEqual([
       { type: 'message', id: 100 },
       { type: 'message', id: 101 },
-      { type: 'branch', id: b.id, paths: [{ id: pathId('Non'), messages: [105] }, { id: pathId('Oui'), messages: [106, 107] }] },
-      { type: 'message', id: 108 },
+      { type: 'branch', id: b.id, paths: [{ id: pathId('Non'), messages: [102] }, { id: pathId('Oui'), messages: [103, 104] }] },
+      { type: 'message', id: 105 },
     ])
     expect(s.pathOf('#3 🟢')).toBe('Oui')
     expect(s.state.script.isActive).toBe(false)

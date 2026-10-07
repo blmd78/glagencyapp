@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { normalizeDraft, summarizeDraft, validateScriptDraft } from '@glagency/core'
 import { createAdminClient, type Database, type Json } from '@glagency/db'
-import { convertToDraft, describeFailure, fetchNotionPage, sendScript, studioWriter } from '@glagency/scripts'
-import { SCRIPTS_SESSION_ID, ingestSessionStore, scriptsSessionForSend } from '@glagency/scripts/session'
+import { ConversionError, convertToDraft, describeFailure, fetchNotionPage, sendScript, studioWriter } from '@glagency/scripts'
+import { SCRIPTS_SESSION_ID, ScriptsSessionError, ingestSessionStore, scriptsSessionForSend } from '@glagency/scripts/session'
 import {
   BusinessError,
   DENY_IMPERSONATION,
@@ -16,12 +16,12 @@ import {
   type ActionResult,
 } from '@/lib/actions'
 import { anthropic } from '@/lib/ai/client'
-import { getProfile, type Profile } from '@/lib/auth'
+import { getProfile, isAdminOrManager, type Profile } from '@/lib/auth'
 import { readStateCookie } from '@/lib/impersonation/session'
 import { createClient } from '@/lib/supabase/server'
 import { canSend } from './rules'
-import { prepareImportSchema } from './schemas'
-import { checkDraftForSend } from './send-rules'
+import { prepareImportSchema } from './schema'
+import { checkDraftForSend, notionReadMessage, withSendLock, type SendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
 import { deleteNotionConnection, setNotionRootPage, withNotionToken } from './services/notion-connection'
@@ -32,7 +32,7 @@ const PAGE = '/chatter/import-scripts'
 async function requireImporter(): Promise<Profile> {
   if (await readStateCookie()) throw new BusinessError(DENY_IMPERSONATION)
   const profile = await getProfile()
-  if (!profile || (profile.role !== 'admin' && !profile.manager)) throw new BusinessError(DENY_STAFF)
+  if (!profile || !isAdminOrManager(profile)) throw new BusinessError(DENY_STAFF)
   return profile
 }
 
@@ -45,15 +45,18 @@ export async function prepareImport(raw: unknown): Promise<ActionResult<{ import
     handler: async ({ notionPageId, creatorId }) => {
       const profile = await requireImporter()
       if (!(await allowedCreators(profile)).some((c) => c.id === creatorId)) throw new BusinessError('Modèle hors de ton périmètre.')
-      const page = await withNotionToken((token) => fetchNotionPage(token, notionPageId))
+      const page = await withNotionToken((token) => fetchNotionPage(token, notionPageId)).catch((e: unknown) => {
+        // Page hors de la racine partagée, clé expirée, débit limité : dit au manager ; le reste est technique.
+        const msg = notionReadMessage(e)
+        throw msg ? new BusinessError(msg) : e
+      })
       if (!page) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
       let converted: Awaited<ReturnType<typeof convertToDraft>>
       try {
         converted = await convertToDraft(anthropic(), page)
       } catch (e) {
-        const msg = (e as Error).message
         // Refus du modèle ou sortie tronquée : des issues attendues, dites telles quelles au manager.
-        if (msg.startsWith('conversion ')) throw new BusinessError(`Conversion impossible : ${msg}.`)
+        if (e instanceof ConversionError) throw new BusinessError(`Conversion impossible : ${e.message}.`)
         throw e
       }
       const { draft, notes } = normalizeDraft(converted.draft)
@@ -133,57 +136,84 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
       if (!verified.ok) throw new BusinessError(verified.reason)
       const draft = verified.draft
 
-      // Verrou anti double-clic : seule la première requête fait passer la ligne de prepared à sending.
-      const { data: locked, error: lockError } = await supabase
-        .from('script_imports')
-        .update({ status: 'sending', sent_at: new Date().toISOString() })
-        .eq('id', importId)
-        .eq('status', 'prepared')
-        .select('id')
-      if (lockError) throw new Error(lockError.message)
-      if (!locked?.length) throw new BusinessError('Cet import est déjà parti ou en cours d’envoi.')
+      // Un seul envoi à la fois : tous partagent la session MyPuls « scripts » (cf. withSendLock, 0187).
+      return withSendLock(sendLock(), importId, async () => {
+        // Verrou anti double-clic : seule la première requête fait passer la ligne de prepared à sending.
+        const { data: locked, error: lockError } = await supabase
+          .from('script_imports')
+          .update({ status: 'sending', sent_at: new Date().toISOString() })
+          .eq('id', importId)
+          .eq('status', 'prepared')
+          .select('id')
+        if (lockError) throw new Error(lockError.message)
+        if (!locked?.length) throw new BusinessError('Cet import est déjà parti ou en cours d’envoi.')
 
-      const finish = async (patch: Database['public']['Tables']['script_imports']['Update']) => {
-        const { error: e } = await supabase.from('script_imports').update(patch).eq('id', importId)
-        if (e) throw new Error(e.message)
-      }
-      let result: Awaited<ReturnType<typeof sendScript>>
-      try {
-        const cookie = await scriptsSessionForSend(
-          ingestSessionStore(createAdminClient(), SCRIPTS_SESSION_ID),
-          process.env.MYPULS_SCRIPTS_SESSION_COOKIE,
-        )
-        // L'id du script est enregistré DÈS sa création ; une panne de cette trace n'interrompt pas l'envoi.
-        const writer = withCreationTrace(
-          studioWriter(cookie),
-          (id) => finish({ mypuls_script_id: id }),
-          (e) => Sentry.captureException(e),
-        )
-        result = await sendScript(writer, mypulsId, draft)
-      } catch (e) {
-        await finish({ status: 'failed', failed_step: 'session MyPuls', error: (e as Error).message })
+        const finish = async (patch: Database['public']['Tables']['script_imports']['Update']) => {
+          const { error: e } = await supabase.from('script_imports').update(patch).eq('id', importId)
+          if (e) throw new Error(e.message)
+        }
+        let result: Awaited<ReturnType<typeof sendScript>>
+        try {
+          const cookie = await scriptsSessionForSend(
+            ingestSessionStore(createAdminClient(), SCRIPTS_SESSION_ID),
+            process.env.MYPULS_SCRIPTS_SESSION_COOKIE,
+          )
+          // L'id du script est enregistré DÈS sa création ; une panne de cette trace n'interrompt pas l'envoi.
+          const writer = withCreationTrace(
+            studioWriter(cookie),
+            (id) => finish({ mypuls_script_id: id }),
+            (e) => Sentry.captureException(e),
+          )
+          result = await sendScript(writer, mypulsId, draft)
+        } catch (e) {
+          // Session absente ou expirée : issue attendue, dite au manager. Le reste est technique : la
+          // ligne garde un texte générique et l'erreur remonte (Sentry + message générique de runAction).
+          const expected = e instanceof ScriptsSessionError
+          await finish({ status: 'failed', failed_step: 'session MyPuls', error: expected ? e.message : TECHNICAL }).catch(
+            (err: unknown) => Sentry.captureException(err),
+          )
+          revalidatePath(PAGE)
+          if (expected) throw new BusinessError(`Envoi impossible : ${e.message}`)
+          throw e
+        }
+        if (result.ok) {
+          // Envoi RÉUSSI : une panne de la trace finale ne le transforme pas en échec affiché au manager.
+          await finish({ status: 'sent', mypuls_script_id: result.scriptId, sent_at: new Date().toISOString() }).catch(
+            (e: unknown) => Sentry.captureException(e),
+          )
+          revalidatePath(PAGE)
+          return { mypulsScriptId: result.scriptId }
+        }
+        await finish({
+          status: 'failed',
+          mypuls_script_id: result.scriptId,
+          failed_step: result.step,
+          error: result.error,
+          cleanup: result.cleanup as unknown as Json,
+        }).catch((e: unknown) => Sentry.captureException(e))
         revalidatePath(PAGE)
-        throw new BusinessError(`Envoi impossible : ${(e as Error).message}`)
-      }
-      if (result.ok) {
-        // Envoi RÉUSSI : une panne de la trace finale ne le transforme pas en échec affiché au manager.
-        await finish({ status: 'sent', mypuls_script_id: result.scriptId, sent_at: new Date().toISOString() }).catch((e: unknown) =>
-          Sentry.captureException(e),
-        )
-        revalidatePath(PAGE)
-        return { mypulsScriptId: result.scriptId }
-      }
-      await finish({
-        status: 'failed',
-        mypuls_script_id: result.scriptId,
-        failed_step: result.step,
-        error: result.error,
-        cleanup: result.cleanup as unknown as Json,
-      }).catch((e: unknown) => Sentry.captureException(e))
-      revalidatePath(PAGE)
-      throw new BusinessError(describeFailure(result, draft.name))
+        throw new BusinessError(describeFailure(result, draft.name))
+      })
     },
   })
+}
+
+const TECHNICAL = 'Erreur technique, signalée à l’équipe.'
+
+/** Verrou d'envoi en base (0187, service role) : `acquire` est un UPDATE conditionnel atomique. */
+function sendLock(): SendLock {
+  const admin = createAdminClient()
+  return {
+    acquire: async (holder) => {
+      const { data, error } = await admin.rpc('acquire_script_send_lock', { p_holder: holder })
+      if (error) throw new Error(error.message)
+      return data === true
+    },
+    release: async (holder) => {
+      const { error } = await admin.rpc('release_script_send_lock', { p_holder: holder })
+      if (error) Sentry.captureException(new Error(error.message))
+    },
+  }
 }
 
 /** Admin : la page racine du Notion d'agence (parmi les pages partagées de premier niveau). */

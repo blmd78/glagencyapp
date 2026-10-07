@@ -39,10 +39,21 @@ export function ingestSessionStore(db: Db, id: string): SessionStore {
   }
 }
 
+/** Session absente ou expirée : issue attendue, qui se règle en recollant un cookie (pas une panne). */
+export class ScriptsSessionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ScriptsSessionError'
+  }
+}
+
+const EXPIRED =
+  'Session MyPuls « scripts » expirée : recolle un cookie frais dans MYPULS_SCRIPTS_SESSION_COOKIE (Vercel), puis redéploie.'
+
 /** Renouvelle par le REMEMBERME et enregistre le cookie frais. */
 async function renew(store: SessionStore, cookie: string, deps: SessionDeps): Promise<string> {
   const remember = deps.readCookie(cookie, 'REMEMBERME')
-  if (!remember) throw new Error('Session MyPuls « scripts » expirée sans REMEMBERME — ré-amorcer MYPULS_SCRIPTS_SESSION_COOKIE.')
+  if (!remember) throw new ScriptsSessionError(EXPIRED)
   const fresh = await deps.rememberMeLogin(remember)
   await store.write(fresh.cookie)
   return fresh.cookie
@@ -55,15 +66,34 @@ async function renew(store: SessionStore, cookie: string, deps: SessionDeps): Pr
  */
 export async function scriptsSessionForSend(store: SessionStore, seed?: string, deps: SessionDeps = DEFAULT_DEPS): Promise<string> {
   const row = await store.read()
-  const cookie = row?.cookie ?? seed?.trim() ?? null
-  if (!cookie) throw new Error('Session MyPuls « scripts » absente — amorcer MYPULS_SCRIPTS_SESSION_COOKIE (connexion en navigation privée).')
+  const fresh = seed?.trim() || null
+  const cookie = row?.cookie ?? fresh
+  if (!cookie) {
+    throw new ScriptsSessionError('Session MyPuls « scripts » absente : colle un cookie dans MYPULS_SCRIPTS_SESSION_COOKIE (Vercel), puis redéploie.')
+  }
   if (await deps.verifySession(cookie)) {
     // Amorçage encore valide : on l'enregistre, sinon la garde de nuit (« absente ») ne le prendrait
     // jamais en charge et il expirerait avec son REMEMBERME.
     if (!row) await store.write(cookie)
     return cookie
   }
-  return renew(store, cookie, deps)
+  try {
+    return await renew(store, cookie, deps)
+  } catch (e) {
+    // Ligne enregistrée irrécupérable : un NOUVEL amorçage (cookie recollé dans la variable) la
+    // remplace — sinon la ligne morte masquerait la variable et le réamorçage serait impossible.
+    if (row && fresh && fresh !== row.cookie) {
+      if (await deps.verifySession(fresh)) {
+        await store.write(fresh)
+        return fresh
+      }
+      return renew(store, fresh, deps).catch(() => {
+        throw new ScriptsSessionError(EXPIRED)
+      })
+    }
+    if (e instanceof ScriptsSessionError) throw e
+    throw new ScriptsSessionError(EXPIRED)
+  }
 }
 
 const KEEPALIVE_AFTER_MS = 12 * 3_600_000

@@ -250,7 +250,10 @@ async function keepScriptsSessionWarm(): Promise<void> {
     const r = await keepScriptsSessionAlive(ingestSessionStore(createAdminClient(), SCRIPTS_SESSION_ID))
     console.log(`[shifts] session « scripts » : ${r}`)
   } catch (e) {
+    // Avertissement, pas un run dégradé — mais jamais en silence : sans renouvellement, la session
+    // meurt avec son REMEMBERME (~7 jours) et on ne le découvrirait qu'au prochain import.
     console.warn('[shifts] session « scripts » non renouvelée :', (e as Error).message)
+    Sentry.captureMessage(`[shifts] session MyPuls « scripts » non renouvelée : ${(e as Error).message}`, 'warning')
   }
 }
 

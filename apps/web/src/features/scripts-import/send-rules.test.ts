@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { checkDraftForSend, failureText } from './send-rules'
+import { NotionError } from '@glagency/scripts'
+import { checkDraftForSend, failureText, notionReadMessage, withSendLock } from './send-rules'
 
 describe('checkDraftForSend', () => {
   const msg = { type: 'message', title: '#1', content: 'coucou', price: 0, media: [], pendingMedia: null, chainDelays: [] }
@@ -14,6 +15,54 @@ describe('checkDraftForSend', () => {
       reason: 'Le brouillon ne passe plus la vérification (1 erreur) : prépare le script à nouveau.',
     })
     expect(checkDraftForSend({ name: 'x' })).toEqual({ ok: false, reason: 'Brouillon illisible : prépare le script à nouveau.' })
+  })
+})
+
+describe('notionReadMessage', () => {
+  it('erreurs Notion attendues → message pour le manager ; le reste → null (technique : Sentry + générique)', () => {
+    expect(notionReadMessage(new NotionError(404, 'x'))).toBe('Page Notion introuvable, ou hors de la page racine partagée avec le CRM.')
+    expect(notionReadMessage(new NotionError(403, 'x'))).toBe('Page Notion introuvable, ou hors de la page racine partagée avec le CRM.')
+    expect(notionReadMessage(new NotionError(401, 'x'))).toBe('Connexion Notion expirée : un admin doit reconnecter Notion.')
+    expect(notionReadMessage(new NotionError(429, 'x'))).toBe('Notion limite le débit : réessaie dans une minute.')
+    expect(notionReadMessage(new NotionError(500, 'x'))).toBeNull()
+    expect(notionReadMessage(new Error('ingest_session lecture : permission denied'))).toBeNull()
+  })
+})
+
+describe('withSendLock', () => {
+  const lock = (free: boolean) => {
+    const calls: string[] = []
+    return {
+      calls,
+      acquire: async (holder: string) => {
+        calls.push(`acquire ${holder}`)
+        return free
+      },
+      release: async (holder: string) => {
+        calls.push(`release ${holder}`)
+      },
+    }
+  }
+  it('un seul envoi à la fois sur la session partagée : verrou pris, travail fait, verrou rendu', async () => {
+    const l = lock(true)
+    expect(await withSendLock(l, 'i1', async () => 'ok')).toBe('ok')
+    expect(l.calls).toEqual(['acquire i1', 'release i1'])
+  })
+  it('verrou rendu même si le travail échoue', async () => {
+    const l = lock(true)
+    await expect(withSendLock(l, 'i1', async () => Promise.reject(new Error('boom')))).rejects.toThrow('boom')
+    expect(l.calls).toEqual(['acquire i1', 'release i1'])
+  })
+  it('verrou déjà pris (autre envoi en cours) → refus lisible, rien n’est lancé', async () => {
+    const l = lock(false)
+    let ran = false
+    await expect(
+      withSendLock(l, 'i2', async () => {
+        ran = true
+      }),
+    ).rejects.toThrow('Un autre script est en cours d’envoi vers MyPuls (un seul à la fois) : réessaie dans une à deux minutes.')
+    expect(ran).toBe(false)
+    expect(l.calls).toEqual(['acquire i2'])
   })
 })
 

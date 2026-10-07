@@ -85,7 +85,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-10-07** : prod = **0183**, UAT = **0186** (`0182` suppression de la to-do personnelle, `0183` identité chatteur et contrôles de fiabilité, `0184` connexion Notion et historique des imports de scripts, `0185` jeton de renouvellement Notion, `0186` verrous des imports de scripts — `0184`..`0186` UAT seulement, à appliquer en prod avant la release qui livrera l'import de scripts). **Prochaine migration = `0187`**.
+**État au 2026-10-07** : prod = **0183**, UAT = **0187** (`0182` suppression de la to-do personnelle, `0183` identité chatteur et contrôles de fiabilité, `0184` connexion Notion et historique des imports de scripts, `0185` jeton de renouvellement Notion, `0186` verrous des imports de scripts, `0187` verrou d’envoi des scripts — `0184`..`0187` UAT seulement, à appliquer en prod avant la release qui livrera l'import de scripts). **Prochaine migration = `0188`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le

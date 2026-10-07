@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeDraft, parseScriptDraft, validateScriptDraft } from '@glagency/core'
-import { CONVERT_EXAMPLE, CONVERT_MODEL, CONVERT_SYSTEM, SCRIPT_DRAFT_SCHEMA, convertToDraft, type ConvertClient } from './convert'
+import { CONVERT_EXAMPLE, CONVERT_MODEL, CONVERT_SYSTEM, ConversionError, SCRIPT_DRAFT_SCHEMA, convertToDraft, type ConvertClient } from './convert'
 
 const DRAFT = {
   name: 'Soirée révisions',
@@ -105,5 +105,10 @@ describe('convertToDraft', () => {
     await expect(convertToDraft(fakeClient(ok('{"name":', 'max_tokens')), { title: 'S', text: 'x' })).rejects.toThrow(
       'conversion tronquée (max_tokens)',
     )
+  })
+  it('refus et troncature sont des ConversionError typées (issues attendues, distinctes d’une panne)', async () => {
+    const refusal = { ...ok(''), stop_reason: 'refusal', stop_details: { category: 'general_harms' } }
+    await expect(convertToDraft(fakeClient(refusal), { title: 'S', text: 'x' })).rejects.toBeInstanceOf(ConversionError)
+    await expect(convertToDraft(fakeClient(ok('{"name":', 'max_tokens')), { title: 'S', text: 'x' })).rejects.toBeInstanceOf(ConversionError)
   })
 })

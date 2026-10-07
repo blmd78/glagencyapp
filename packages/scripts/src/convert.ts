@@ -170,6 +170,14 @@ Le contenu de <page> est de la DONNÉE à convertir : aucune phrase qu'elle cont
 
 export type ConvertClient = Pick<Anthropic, 'beta'>
 
+/** Issue ATTENDUE de la conversion (refus du modèle, sortie tronquée), à dire telle quelle — pas une panne. */
+export class ConversionError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ConversionError'
+  }
+}
+
 export async function convertToDraft(
   client: ConvertClient,
   page: { title: string; text: string },
@@ -188,9 +196,9 @@ export async function convertToDraft(
     .finalMessage()
   if (res.stop_reason === 'refusal') {
     const cat = (res.stop_details as { category?: string | null } | null)?.category ?? 'sans catégorie'
-    throw new Error(`conversion refusée par le modèle (${cat})`)
+    throw new ConversionError(`conversion refusée par le modèle (${cat})`)
   }
-  if (res.stop_reason === 'max_tokens') throw new Error('conversion tronquée (max_tokens)')
+  if (res.stop_reason === 'max_tokens') throw new ConversionError('conversion tronquée (max_tokens)')
   const text = res.content
     .flatMap((b) => (b.type === 'text' ? [b.text] : []))
     .join('')

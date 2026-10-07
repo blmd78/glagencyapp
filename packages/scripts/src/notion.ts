@@ -111,11 +111,24 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
   return out
 }
 
+/** Réponse HTTP en erreur de l'API Notion : l'appelant branche sur `status` (401 clé expirée, 403/404 page non partagée). */
+export class NotionError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'NotionError'
+  }
+}
+
 async function notionGet(token: string, path: string, fetchFn: typeof fetch): Promise<unknown> {
   const res = await notionFetch(`${NOTION_API}${path}`, {
     headers: { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VERSION },
   }, fetchFn)
-  if (!res.ok) throw new Error(`Notion ${res.status} sur /v1${path.split('?')[0]} — page partagée avec l’intégration ? (Partager → Connexions)`)
+  if (!res.ok) {
+    throw new NotionError(res.status, `Notion ${res.status} sur /v1${path.split('?')[0]} — page partagée avec l’intégration ? (Partager → Connexions)`)
+  }
   return res.json()
 }
 
@@ -160,7 +173,7 @@ export async function listSharedTopPages(token: string, fetchFn: typeof fetch = 
       headers: { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }, fetchFn)
-    if (!res.ok) throw new Error(`Notion ${res.status} sur /v1/search`)
+    if (!res.ok) throw new NotionError(res.status, `Notion ${res.status} sur /v1/search`)
     const page = (await res.json()) as {
       results: Array<{ id: string; parent?: { type?: string }; properties?: Record<string, { type: string; title?: unknown }> }>
       has_more: boolean

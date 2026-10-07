@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { NotionError } from '@glagency/scripts/notion'
 import { checkState, exchangeCode, isNotionUnauthorized, notionAuthorizeUrl, refreshAccessToken } from './oauth'
 
 describe('notionAuthorizeUrl', () => {
@@ -63,10 +64,10 @@ describe('exchangeCode', () => {
 })
 
 describe('isNotionUnauthorized', () => {
-  it('reconnaît une clé refusée par Notion (401), et rien d’autre', () => {
-    expect(isNotionUnauthorized(new Error('Notion 401 sur /v1/blocks/r/children — page partagée avec l’intégration ? (Partager → Connexions)'))).toBe(true)
-    expect(isNotionUnauthorized(new Error('Notion 401 sur /v1/search'))).toBe(true)
-    expect(isNotionUnauthorized(new Error('Notion 404 sur /v1/pages/p1 — …'))).toBe(false)
+  it('reconnaît une clé refusée par Notion (statut 401 de NotionError), jamais d’après le texte', () => {
+    expect(isNotionUnauthorized(new NotionError(401, 'peu importe'))).toBe(true)
+    expect(isNotionUnauthorized(new NotionError(404, 'Notion 401 dans le texte ne compte pas'))).toBe(false)
+    expect(isNotionUnauthorized(new Error('Notion 401 sur /v1/search'))).toBe(false)
     expect(isNotionUnauthorized('Notion 401')).toBe(false)
   })
 })

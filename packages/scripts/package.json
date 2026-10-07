@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./notion": "./src/notion.ts",
     "./session": "./src/session.ts"
   },
   "scripts": {

@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 import { requireAdminOrManager } from '@/lib/auth'
-import { SectionFallback } from '@/components/skeletons/route-loading'
 import { ScriptsImportTemplate } from '@/features/scripts-import/ScriptsImportTemplate'
 import { ScriptsImportSkeleton } from '@/features/scripts-import/components/scripts-import-skeleton'
 import { getScriptsImport, type ScriptsImportData } from '@/features/scripts-import/services/get-scripts-import'
@@ -27,13 +26,8 @@ export default async function ImportScriptsPage({ searchParams }: { searchParams
           Studio MyPuls de la modèle.
         </p>
       </div>
-      <Suspense
-        fallback={
-          <SectionFallback>
-            <ScriptsImportSkeleton />
-          </SectionFallback>
-        }
-      >
+      {/* Silhouette seule : le titre et le sous-titre sont déjà affichés au-dessus (anti-CLS). */}
+      <Suspense fallback={<ScriptsImportSkeleton />}>
         <ScriptsImportContent data={data} viewer={{ id: profile.id, isAdmin: profile.role === 'admin' }} notion={sp.notion} />
       </Suspense>
     </div>

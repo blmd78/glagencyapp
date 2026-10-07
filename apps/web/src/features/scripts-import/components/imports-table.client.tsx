@@ -1,8 +1,8 @@
 'use client'
 
-import Link from 'next/link'
+import { HoverPrefetchLink } from '@/components/hover-prefetch-link'
 import type { ColumnDef } from '@tanstack/react-table'
-import { frDateNumeric } from '@glagency/core'
+import { frDateTimeParis } from '@glagency/core'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { DataTable } from '@/components/data-table/data-table'
@@ -20,15 +20,15 @@ export function ImportsTable({ imports }: { imports: ImportListItem[] }) {
     {
       accessorKey: 'createdAt',
       header: ({ column }) => <Sortable column={column} label="Date" />,
-      cell: ({ row }) => frDateNumeric(row.original.createdAt.slice(0, 10)),
+      cell: ({ row }) => frDateTimeParis(row.original.createdAt),
     },
     {
       accessorKey: 'notionTitle',
       header: 'Script',
       cell: ({ row }) => (
-        <Link className="underline-offset-2 hover:underline" href={`/chatter/import-scripts?import=${row.original.id}`}>
+        <HoverPrefetchLink className="underline-offset-2 hover:underline" href={`/chatter/import-scripts?import=${row.original.id}`}>
           {row.original.notionTitle}
-        </Link>
+        </HoverPrefetchLink>
       ),
     },
     { accessorKey: 'creatorName', header: ({ column }) => <Sortable column={column} label="Modèle" /> },

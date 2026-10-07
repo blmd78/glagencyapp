@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { notionPageId } from '@glagency/scripts'
+import { notionPageId } from '@glagency/scripts/notion'
 
 /**
  * Entrée de « Préparer » : l'id d'un script de la liste OU un lien Notion collé (script rangé hors

@@ -116,7 +116,13 @@ export async function fetchStudio(cookie: string, scriptId: number): Promise<Stu
   const idOrNull = (v: unknown) => (v === null || v === undefined ? null : Number(v))
   return {
     script: { ...j.script, id: Number(j.script.id) },
-    branches: j.branches.map((b) => ({ ...b, id: Number(b.id), paths: (b.paths ?? []).map((p) => ({ ...p, id: Number(p.id) })) })),
+    // Champs nommés un à un : la réponse porte aussi `before` (id du message suivant), inutilisé ici —
+    // le recopier tel quel ferait sortir un champ hors type (et non normalisé).
+    branches: j.branches.map((b) => ({
+      id: Number(b.id),
+      label: b.label,
+      paths: (b.paths ?? []).map((p) => ({ id: Number(p.id), label: p.label, color: p.color })),
+    })),
     messages: j.messages.map((m) => ({ ...m, id: Number(m.id), branchId: idOrNull(m.branchId), branchPath: idOrNull(m.branchPath) })),
   }
 }

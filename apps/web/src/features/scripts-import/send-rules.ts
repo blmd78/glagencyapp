@@ -1,5 +1,6 @@
 import { normalizeDraft, parseScriptDraft, validateScriptDraft, type ScriptDraft } from '@glagency/core'
-import { describeFailure, type Cleanup } from '@glagency/scripts'
+import { NotionError, describeFailure, type Cleanup } from '@glagency/scripts'
+import { BusinessError } from '@/lib/actions'
 import type { ImportStatus } from './rules'
 
 /**
@@ -26,6 +27,39 @@ export function checkDraftForSend(raw: unknown): { ok: true; draft: ScriptDraft 
     return { ok: false, reason: `Le brouillon ne passe plus la vérification (${n} erreur${n > 1 ? 's' : ''}) : prépare le script à nouveau.` }
   }
   return { ok: true, draft }
+}
+
+/**
+ * Erreur de lecture Notion → message pour le manager (issue attendue), ou `null` : erreur technique,
+ * à laisser remonter (Sentry + message générique). Branche sur le statut, jamais sur le texte.
+ */
+export function notionReadMessage(e: unknown): string | null {
+  if (!(e instanceof NotionError)) return null
+  if (e.status === 403 || e.status === 404) return 'Page Notion introuvable, ou hors de la page racine partagée avec le CRM.'
+  if (e.status === 401) return 'Connexion Notion expirée : un admin doit reconnecter Notion.'
+  if (e.status === 429) return 'Notion limite le débit : réessaie dans une minute.'
+  return null
+}
+
+export interface SendLock {
+  acquire(holder: string): Promise<boolean>
+  release(holder: string): Promise<void>
+}
+
+export const SEND_BUSY = 'Un autre script est en cours d’envoi vers MyPuls (un seul à la fois) : réessaie dans une à deux minutes.'
+
+/**
+ * Un seul envoi à la fois : tous partagent la session MyPuls « scripts », et `switchCreator` y change
+ * la modèle COURANTE — deux envois simultanés déposeraient un script chez la mauvaise modèle. Le
+ * verrou (0187) expire seul au-delà de la durée maximale d'une requête.
+ */
+export async function withSendLock<T>(lock: SendLock, holder: string, fn: () => Promise<T>): Promise<T> {
+  if (!(await lock.acquire(holder))) throw new BusinessError(SEND_BUSY)
+  try {
+    return await fn()
+  } finally {
+    await lock.release(holder)
+  }
 }
 
 /**

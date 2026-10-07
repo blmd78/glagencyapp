@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto'
+import { NotionError } from '@glagency/scripts/notion'
 
 /**
  * OAuth du Notion de l'agence (doc officielle « Authorization », relue le 2026-10-07) — fonctions
@@ -26,9 +27,9 @@ export function checkState(cookieState: string | undefined, queryState: string |
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
-/** Clé refusée par Notion (401) — message posé par `@glagency/scripts` (« Notion 401 sur /v1/… »). */
+/** Clé refusée par Notion : statut 401 de la `NotionError` levée par `@glagency/scripts`. */
 export function isNotionUnauthorized(err: unknown): boolean {
-  return err instanceof Error && err.message.startsWith('Notion 401 ')
+  return err instanceof NotionError && err.status === 401
 }
 
 export type NotionGrant = {

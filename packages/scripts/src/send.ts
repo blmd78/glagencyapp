@@ -127,8 +127,9 @@ export async function sendScript(
       const known = new Set(created.map((c) => c.branchId))
       const b = st.branches.filter((x) => !known.has(x.id)).sort((x, y) => y.id - x.id)[0]
       if (!b) throw new StepError(at, new Error('embranchement introuvable après création'))
-      // Appariement par (libellé, couleur), jamais par position : la forme réelle des embranchements
-      // n'a pas été capturée, et un ordre différent rangerait en silence les 🔴 dans le 🟢.
+      // Ids LOCAUX au script (capture scripts-2849 : embranchements 1..n, chemins 1..n par embranchement) :
+      // le nouvel embranchement est le plus grand id inconnu. Chemins appariés par (libellé, couleur),
+      // jamais par position : un ordre différent rangerait en silence les 🔴 dans le 🟢.
       const pathIds = it.paths.map((p) => {
         const hits = b.paths.filter((x) => x.label === p.label && x.color === p.color)
         if (hits.length !== 1) {

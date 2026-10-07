@@ -3317,6 +3317,24 @@ export type Database = {
           },
         ]
       }
+      script_send_lock: {
+        Row: {
+          acquired_at: string | null
+          holder: string | null
+          id: string
+        }
+        Insert: {
+          acquired_at?: string | null
+          holder?: string | null
+          id?: string
+        }
+        Update: {
+          acquired_at?: string | null
+          holder?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
       snap_codes: {
         Row: {
           creator_id: string
@@ -5832,6 +5850,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_script_send_lock: { Args: { p_holder: string }; Returns: boolean }
       agency_notifications: { Args: { p_limit?: number }; Returns: Json }
       apply_chatter_identity: {
         Args: { p_issues: Json; p_links: Json }
@@ -6042,6 +6061,10 @@ export type Database = {
           p_window: string
         }
         Returns: string
+      }
+      release_script_send_lock: {
+        Args: { p_holder: string }
+        Returns: undefined
       }
       reliability_days: { Args: { p_days: number }; Returns: Json }
       repos_data_weeks: { Args: never; Returns: Json }

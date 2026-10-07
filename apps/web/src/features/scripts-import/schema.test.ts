@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { prepareImportSchema } from './schemas'
+import { prepareImportSchema } from './schema'
 
 const creatorId = '00000000-0000-4000-8000-000000000001'
 

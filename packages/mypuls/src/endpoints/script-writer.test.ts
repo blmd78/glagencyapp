@@ -82,18 +82,59 @@ describe('script-writer', () => {
     expect(await fetchStudio('c', 7)).toEqual({ script: { id: 7, name: 'S', isActive: false }, branches: [], messages: [] })
   })
 
-  it('fetchStudio : ids normalisés en nombres (le Studio fait Number() partout, la forme réelle des branches n’est pas capturée)', async () => {
+  it('fetchStudio : forme RÉELLE (capture scripts-2849, réduite à la structure) — ids d’embranchement et de chemin LOCAUX au script', async () => {
+    // Capture `apps/ingestion/raw/pages/scripts-2849-studio.json` (gitignorée) : embranchement `id: 1`
+    // avec `before` (id du message devant lequel il s'insère), chemins `id: 1..n` ; les messages d'un
+    // chemin portent `branchId` / `branchPath` en ids LOCAUX. Textes remplacés par des neutres.
+    stubFetch(
+      json({
+        script: { id: 2849, name: 'S', isActive: false },
+        branches: [
+          {
+            id: 1,
+            before: 34106,
+            label: 'Question',
+            paths: [
+              { id: 1, label: 'Oui', color: 'green' },
+              { id: 2, label: 'Plus tard', color: 'orange' },
+            ],
+          },
+        ],
+        messages: [
+          { id: 124997, position: 12, title: 't', content: 'x', price: 0, medias: [], chainDelays: [], branchId: 1, branchPath: 1 },
+          { id: 124998, position: 13, title: 't', content: 'x', price: 0, medias: [], chainDelays: [], branchId: 1, branchPath: 2 },
+        ],
+        stats: {},
+      }),
+    )
+    const st = await fetchStudio('c', 2849)
+    expect(st.branches).toEqual([
+      {
+        id: 1,
+        label: 'Question',
+        paths: [
+          { id: 1, label: 'Oui', color: 'green' },
+          { id: 2, label: 'Plus tard', color: 'orange' },
+        ],
+      },
+    ])
+    expect(st.messages.map((m) => [m.branchId, m.branchPath])).toEqual([
+      [1, 1],
+      [1, 2],
+    ])
+  })
+  it('fetchStudio : ids en texte normalisés en nombres (le Studio fait Number() partout)', async () => {
     stubFetch(
       json({
         script: { id: '7', name: 'S', isActive: false },
-        branches: [{ id: '3', label: 'Libre ?', paths: [{ id: '9', label: 'Non', color: 'red' }] }],
-        messages: [{ id: '11', position: 1, title: 't', content: 'x', price: 0, medias: [], chainDelays: [], branchId: '3', branchPath: '9' }],
+        branches: [{ id: '1', before: '5', label: 'Libre ?', paths: [{ id: '2', label: 'Non', color: 'red' }] }],
+        messages: [{ id: '11', position: 1, title: 't', content: 'x', price: 0, medias: [], chainDelays: [], branchId: '1', branchPath: '2' }],
       }),
     )
     const st = await fetchStudio('c', 7)
     expect(st.script.id).toBe(7)
-    expect(st.branches).toEqual([{ id: 3, label: 'Libre ?', paths: [{ id: 9, label: 'Non', color: 'red' }] }])
-    expect(st.messages[0]).toMatchObject({ id: 11, branchId: 3, branchPath: 9 })
+    expect(st.branches).toEqual([{ id: 1, label: 'Libre ?', paths: [{ id: 2, label: 'Non', color: 'red' }] }])
+    expect(st.messages[0]).toMatchObject({ id: 11, branchId: 1, branchPath: 2 })
   })
 
   it('saveLayout : PATCH /scripts/{id}/layout { items }', async () => {
