@@ -22,15 +22,18 @@
     "linkscale": "tsx src/linkscale.ts",
     "identity-backfill": "tsx src/identity-backfill.ts",
     "recette-identite": "tsx src/recette-identite.ts",
-    "avatars": "tsx src/avatars.ts"
+    "avatars": "tsx src/avatars.ts",
+    "script-mypuls": "tsx src/script-mypuls.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
     "@glagency/core": "workspace:*",
     "@glagency/db": "workspace:*",
     "@glagency/mypuls": "workspace:*",
+    "@glagency/scripts": "workspace:*",
+    "@glagency/uncove": "workspace:*",
     "@sentry/cloudflare": "^10.63.0",
-    "@sentry/node": "^10.63.0",
-    "@glagency/uncove": "workspace:*"
+    "@sentry/node": "^10.63.0"
   },
   "devDependencies": {
     "@types/node": "^22",

@@ -1,0 +1,25 @@
+{
+  "name": "@glagency/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./session": "./src/session.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1",
+    "@glagency/core": "workspace:*",
+    "@glagency/db": "workspace:*",
+    "@glagency/mypuls": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

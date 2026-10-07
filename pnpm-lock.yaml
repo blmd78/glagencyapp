@@ -14,6 +14,9 @@ importers:
 
   apps/ingestion:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.117.1
+        version: 0.117.1(zod@4.4.3)
       '@glagency/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -23,6 +26,9 @@ importers:
       '@glagency/mypuls':
         specifier: workspace:*
         version: link:../../packages/mypuls
+      '@glagency/scripts':
+        specifier: workspace:*
+        version: link:../../packages/scripts
       '@glagency/uncove':
         specifier: workspace:*
         version: link:../../packages/uncove
@@ -66,6 +72,9 @@ importers:
       '@glagency/mypuls':
         specifier: workspace:*
         version: link:../../packages/mypuls
+      '@glagency/scripts':
+        specifier: workspace:*
+        version: link:../../packages/scripts
       '@glagency/uncove':
         specifier: workspace:*
         version: link:../../packages/uncove
@@ -275,6 +284,31 @@ importers:
       cheerio:
         specifier: ^1.0.0
         version: 1.2.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22
+        version: 22.20.0
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jiti@2.7.0)(lightningcss@1.32.0)(supports-color@8.1.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  packages/scripts:
+    dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.117.1
+        version: 0.117.1(zod@4.4.3)
+      '@glagency/core':
+        specifier: workspace:*
+        version: link:../core
+      '@glagency/db':
+        specifier: workspace:*
+        version: link:../db
+      '@glagency/mypuls':
+        specifier: workspace:*
+        version: link:../mypuls
     devDependencies:
       '@types/node':
         specifier: ^22
