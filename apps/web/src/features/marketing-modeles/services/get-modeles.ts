@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { getLinkRows } from '@/lib/services/get-mkt-links'
+import { inScope, sfsLinkIds } from '@/lib/mkt-sfs'
 import type { Period } from '@/lib/period'
 import { buildDailyShare, buildModeles } from '../aggregate'
 import type { CreatorRevenue, DailySubs, MktModelesData } from '../types'
@@ -42,6 +43,9 @@ export async function getMktModeles(period: Period): Promise<MktModelesData> {
   if (dailyRes.error) throw new Error(dailyRes.error.message)
 
   const payload = (revenueRes.data as RevenuePayload | null) ?? { creators: [], daily: [] }
-  const share = buildDailyShare(payload.daily, dailyRes.data)
-  return buildModeles(payload.creators, links, share, period.label)
+  // Sans les SFS : du trafic échangé entre créatrices, pas du trafic externe (`lib/mkt-sfs.ts`).
+  const sfsIds = sfsLinkIds(links)
+  const externes = inScope(links, (l) => l.id, sfsIds, 'externe')
+  const share = buildDailyShare(payload.daily, inScope(dailyRes.data, (d) => d.link_id, sfsIds, 'externe'))
+  return buildModeles(payload.creators, externes, share, period.label)
 }
