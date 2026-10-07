@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Marketing › SFS : un onglet à part pour les SFS (indicateurs, courbe, meilleurs liens, répartition par modèle), qui sortent de l'Overview et de Modèles — ce n'est pas du trafic externe. Un lien est SFS quand il est dans le groupe « SFS » (clé `sfs`, à créer une fois dans Marketing › Liens › Groupes avec le mot « sfs ») ; ce groupe ne peut plus être supprimé.
+
 ## [2.73] — 2026-10-06
 
 ### Ajouté

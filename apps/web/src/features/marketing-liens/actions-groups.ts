@@ -12,9 +12,11 @@ import { detectLinkGroup, type LinkGroupRule } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import { runAction, adminGuard, BusinessError, type ActionResult } from '@/lib/actions'
+import { SFS_GROUP_KEY } from '@/lib/mkt-sfs'
 import { createGroupSchema, deleteGroupSchema, updateGroupSchema } from './groups.schema'
 
-const PATHS = ['/marketing/liens', '/marketing/liens/groupes', '/marketing/modeles']
+// Overview et SFS : un lien qui entre dans le groupe `sfs` ou en sort change les deux (`lib/mkt-sfs.ts`).
+const PATHS = ['/marketing/liens', '/marketing/liens/groupes', '/marketing/modeles', '/marketing/overview', '/marketing/sfs']
 const revalidateAll = () => PATHS.forEach((p) => revalidatePath(p))
 
 type Db = Awaited<ReturnType<typeof createClient>>
@@ -175,6 +177,9 @@ export async function deleteLinkGroup(raw: unknown): Promise<ActionResult> {
       // La file d'attente est le filet de sécurité de tous les autres : la supprimer laisserait
       // les liens sans destination au prochain scrape.
       if (cible.is_fallback) throw new BusinessError('Le groupe « À classer » ne peut pas être supprimé.')
+      // L'onglet Marketing › SFS ne lit que ce groupe : le supprimer viderait l'onglet et
+      // renverrait les SFS dans l'Overview (`lib/mkt-sfs.ts`).
+      if (key === SFS_GROUP_KEY) throw new BusinessError('Le groupe « SFS » ne peut pas être supprimé : l’onglet SFS en dépend.')
       const repli = (groupes ?? []).find((g) => g.is_fallback)?.key
       if (!repli) throw new BusinessError('Aucun groupe de repli : impossible de déplacer les liens.')
 

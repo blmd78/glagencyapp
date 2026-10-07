@@ -28,6 +28,10 @@ import type { MktDashboardData } from './types'
 export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
   // Plus d'`accent` par KPI : KpiGrid applique la séquence de couleurs partagée.
   const base = { deltaPct: null as number | null, trendLabel: '', hint: '' }
+  // Même écran pour l'Overview et l'onglet SFS (`lib/mkt-sfs.ts`) : seuls les textes disent
+  // quels liens sont comptés.
+  const sfs = data.scope === 'sfs'
+  const liens = sfs ? 'des liens SFS' : 'de tous les liens de tracking hors SFS'
   const kpis = [
     // Pas de badge « vs période précédente » : avec 5 semaines d'historique et une
     // journée en cours partielle, ce % induisait en erreur — à réactiver plus tard.
@@ -37,7 +41,7 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
       label: 'Revenus période',
       value: eur(data.totals.revenueEur),
       hint: 'PPV inclus (= revenus MyPuls)',
-      info: 'Somme des revenus quotidiens de TOUS les liens de tracking sur la période. Source : MyPuls (tracking-stats, série journalière), collecté chaque nuit et vérifié contre leurs cumuls.',
+      info: `Somme des revenus quotidiens ${liens} sur la période. Source : MyPuls (tracking-stats, série journalière), collecté chaque nuit et vérifié contre leurs cumuls.`,
     },
     {
       ...base,
@@ -52,7 +56,7 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
       key: 'clicks',
       label: 'Clics liens',
       value: num(data.totals.clicks),
-      info: 'Somme des clics quotidiens de tous les liens de tracking sur la période (source MyPuls).',
+      info: `Somme des clics quotidiens ${liens} sur la période (source MyPuls).`,
     },
     {
       ...base,
@@ -60,8 +64,8 @@ export function MktDashboardTemplate({ data }: { data: MktDashboardData }) {
       label: 'Taux de conversion',
       value:
         data.totals.clicks > 0 ? pct(conv(data.totals.conversions, data.totals.clicks)) : '—',
-      hint: 'subs ÷ clics, tous liens',
-      info: 'Abonnés ÷ clics sur la période, tous liens confondus — calculé chez nous, pas fourni par MyPuls.',
+      hint: sfs ? 'subs ÷ clics, liens SFS' : 'subs ÷ clics, hors SFS',
+      info: `Abonnés ÷ clics sur la période, ${sfs ? 'liens SFS seuls' : 'tous liens confondus hors SFS'} — calculé chez nous, pas fourni par MyPuls.`,
     },
   ]
 

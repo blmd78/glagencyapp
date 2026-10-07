@@ -485,6 +485,15 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   caractères. Les réseaux d'une modèle viennent de `mkt_model_sources()` (`0172`, `security
   definer`) : `mkt_links` reste fermée aux chatteurs, la fonction ne rend que des couples (modèle,
   groupe), cloisonnés par une règle MIROIR de `creators_scoped_read` — à faire suivre si elle change.
+- **SFS à part** (2026-10-07, demande Benoit) : les SFS (shoutout for shoutout, trafic échangé entre
+  créatrices) ne sont pas du trafic externe. Un lien est SFS quand son groupe a la clé **`sfs`**
+  (`lib/mkt-sfs.ts` : `SFS_GROUP_KEY`, `sfsLinkIds`, `inScope`) — groupe créé dans l'écran des
+  groupes (mot « sfs »), **non supprimable** (`deleteLinkGroup`), un lien nommé autrement s'y
+  épingle depuis son badge. Ils **sortent de l'Overview et de Modèles** (liens, lignes journalières
+  et repère de la période précédente) et ont leur onglet **Marketing › SFS** (`/marketing/sfs`, droit
+  `mkt-sfs`) : le même écran que l'Overview, sur les SFS seuls (`getMktDashboard(period, 'sfs')`).
+  Liens tracking les garde (c'est là qu'on les range) ; la page Trafic (LinkScale) n'est pas
+  concernée. Sans groupe `sfs`, l'Overview compte tout et l'onglet SFS l'explique.
 
 ### Comptes X
 
