@@ -170,6 +170,27 @@ describe('Récap du tracker — adminOnly + managerAccess/policeAccess + slug', 
   })
 })
 
+// Import de scripts (2026-10-07) : admin et encadrement, sans case à cocher dans Membres — le
+// périmètre par modèle est porté par la RLS de script_imports (0184), pas par un droit de page.
+describe('Importer un script — adminOnly + managerAccess, sans slug', () => {
+  const chatter = WORKSPACES.find((w) => w.id === 'chatter')!
+  const scripts = chatter.nav.find((n) => n.href === '/chatter/import-scripts')!
+  const encadrant = (pages: string[]): NavAccess => ({ ...user(pages), isManager: true })
+
+  it('visible de l’admin et de tout encadrant, jamais d’un chatteur ni d’un policier', () => {
+    expect(scripts).toBeDefined()
+    expect(canAccessNav(scripts, { ...user([]), isAdmin: true })).toBe(true)
+    expect(canAccessNav(scripts, encadrant([]))).toBe(true)
+    expect(canAccessNav(scripts, user(['presence']))).toBe(false)
+    expect(canAccessNav(scripts, { ...user([]), isPolice: true })).toBe(false)
+  })
+
+  it('n’ajoute aucune case dans Membres et n’est jamais page d’atterrissage', () => {
+    expect(pageChoicesFor('chatter').map((c) => c.slug)).not.toContain('scripts')
+    expect(landingHref({ role: 'chatteur', superadmin: false, manager: true, pages: [] })).toBe('/no-access')
+  })
+})
+
 // ── Bouts de page (`<page>:<bout>`) — droits plus fins qu'une page, cf. migration 0139 ────────
 describe('bouts de page', () => {
   it('les bouts de l’Overview sont des slugs assignables, rattachés à la face chatteurs', () => {

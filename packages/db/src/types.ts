@@ -82,17 +82,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "agency_events_creator_id_fkey"
-            columns: ["creator_id"]
-            isOneToOne: false
-            referencedRelation: "creators"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "agency_events_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_events_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
             referencedColumns: ["id"]
           },
         ]
@@ -2145,6 +2145,50 @@ export type Database = {
           },
         ]
       }
+      notion_connection: {
+        Row: {
+          access_token_encrypted: string
+          bot_id: string
+          connected_at: string
+          connected_by: string | null
+          id: string
+          refresh_token_encrypted: string | null
+          root_page_id: string | null
+          workspace_id: string
+          workspace_name: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          bot_id: string
+          connected_at?: string
+          connected_by?: string | null
+          id?: string
+          refresh_token_encrypted?: string | null
+          root_page_id?: string | null
+          workspace_id: string
+          workspace_name: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          bot_id?: string
+          connected_at?: string
+          connected_by?: string | null
+          id?: string
+          refresh_token_encrypted?: string | null
+          root_page_id?: string | null
+          workspace_id?: string
+          workspace_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notion_connection_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       period_snapshot_kpi: {
         Row: {
           current_week_days: number
@@ -3146,6 +3190,81 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_imports: {
+        Row: {
+          cleanup: Json | null
+          created_at: string
+          created_by: string
+          creator_id: string
+          draft: Json
+          error: string | null
+          errors: Json
+          failed_step: string | null
+          id: string
+          mypuls_script_id: number | null
+          notes: Json
+          notion_page_id: string
+          notion_title: string
+          sent_at: string | null
+          status: string
+          summary: Json
+          usage: Json | null
+        }
+        Insert: {
+          cleanup?: Json | null
+          created_at?: string
+          created_by: string
+          creator_id: string
+          draft: Json
+          error?: string | null
+          errors?: Json
+          failed_step?: string | null
+          id?: string
+          mypuls_script_id?: number | null
+          notes?: Json
+          notion_page_id: string
+          notion_title: string
+          sent_at?: string | null
+          status?: string
+          summary: Json
+          usage?: Json | null
+        }
+        Update: {
+          cleanup?: Json | null
+          created_at?: string
+          created_by?: string
+          creator_id?: string
+          draft?: Json
+          error?: string | null
+          errors?: Json
+          failed_step?: string | null
+          id?: string
+          mypuls_script_id?: number | null
+          notes?: Json
+          notion_page_id?: string
+          notion_title?: string
+          sent_at?: string | null
+          status?: string
+          summary?: Json
+          usage?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_imports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_imports_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
             referencedColumns: ["id"]
           },
         ]

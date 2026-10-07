@@ -8,6 +8,11 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Scripts MyPuls : commande `pnpm --filter @glagency/ingestion script-mypuls <lien Notion> --modele=<prénom>` — lit un script rédigé dans Notion, montre ce qu'il contient (messages, embranchements, PPV, total) et, avec `--envoyer`, le crée désactivé dans le Studio MyPuls de la modèle ; les médias se rattachent ensuite dans le Studio. Fin de la ressaisie à la main.
+- Scripts MyPuls : écran « Importer un script » dans le CRM (face chatteurs, admin et managers) — un admin connecte une fois le Notion de l'agence, puis chaque manager choisit un script dans le dossier de sa modèle, relit le rapport (messages, embranchements, PPV, ajustements, erreurs) et l'envoie, désactivé, dans le Studio MyPuls ; seulement pour ses propres modèles, et avec un historique des imports.
+
 ## [2.73] — 2026-10-06
 
 ### Ajouté

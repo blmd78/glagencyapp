@@ -16,6 +16,7 @@ import {
   Target,
   Calculator,
   UserCog,
+  FileInput,
   Megaphone,
   Banknote,
   Gem,
@@ -217,6 +218,8 @@ export const WORKSPACES: Workspace[] = [
       // `bottom` : jamais page d'atterrissage (`landingHref` saute les items du bas).
       { href: '/chatter/agence', label: 'Agence', icon: CalendarDays, everyone: true, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
+      // Import de scripts Notion → MyPuls (2026-10-07) : périmètre par modèle porté par la RLS (0184).
+      { href: '/chatter/import-scripts', label: 'Importer un script', icon: FileInput, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
   {
