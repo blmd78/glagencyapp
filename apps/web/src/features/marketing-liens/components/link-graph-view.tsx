@@ -3,7 +3,7 @@ import { modelColor } from '@/lib/model-color'
 import { MetricDailyPanel } from '@/components/metric-chart/metric-daily-panel.client'
 import { LinkPicker } from './link-picker'
 import { LinkTotals } from './link-totals'
-import { commonGroup, reseauOptions, sumLinks, type LinkOption, type Modele, type Reseau } from '../link-options'
+import { commonGroup, sumLinks, type LinkOption, type Modele, type Reseau } from '../link-options'
 import { toMetricPoints, type DailyPoint } from '../daily-series'
 import type { MktGroup, MktLinkRow } from '@/lib/types/marketing'
 
@@ -19,6 +19,7 @@ export function LinkGraphView({
   selected,
   points,
   options,
+  reseauOptions,
   modeleOptions,
   groups,
   reseau,
@@ -29,8 +30,11 @@ export function LinkGraphView({
   selected: MktLinkRow[]
   points: DailyPoint[]
   options: LinkOption[]
+  /** Les réseaux proposés : ceux du périmètre de la page (sans SFS sur Liens tracking, « tous »
+   *  seul sur l'onglet SFS) — tranchés par la page, qui valide `?reseau=` avec la même liste. */
+  reseauOptions: LinkOption[]
   modeleOptions: LinkOption[]
-  /** Les groupes de la base : le sélecteur de réseau, et la couleur du graphe. */
+  /** Les groupes de la base : la couleur et le nom du graphe. */
   groups: MktGroup[]
   reseau: Reseau
   modele: Modele
@@ -47,7 +51,7 @@ export function LinkGraphView({
     <div className="flex flex-col gap-6">
       <LinkPicker
         options={options}
-        reseauOptions={reseauOptions(groups)}
+        reseauOptions={reseauOptions}
         modeleOptions={modeleOptions}
         reseau={reseau}
         modele={modele}
