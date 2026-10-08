@@ -491,10 +491,12 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   groupes (mot « sfs »), **non supprimable** (`deleteLinkGroup`), un lien nommé autrement s'y
   épingle depuis son badge. Ils **sortent de l'Overview, de Modèles et de Liens tracking** (liens,
   lignes journalières, repère de la période précédente, réseaux du graphique) et ont leur onglet
-  **Marketing › SFS** (`/marketing/sfs`, droit `mkt-sfs`) : l'écran de l'Overview sur les SFS seuls
-  (`getMktDashboard(period, 'sfs')`), puis le classement et le graphique de Liens tracking
+  **Marketing › SFS** (`/marketing/sfs`, droit `mkt-sfs`), en UN jeu d'onglets (`?vue=`, choisi par
+  `liensVue`) : « Vue d'ensemble » par défaut (l'écran de l'Overview, `getMktDashboard(period,
+  'sfs')`, lu seulement s'il est affiché), puis « Classement » et « Graphique » de Liens tracking
   (`app/(dash)/marketing/_liens/liens-section.tsx`, partagé avec `/marketing/liens`, périmètre
-  `externe` ou `sfs` ; les liens internes de ces vues suivent la page courante, `usePathname`).
+  `externe` ou `sfs`, onglet `lead` du `LiensTemplate` ; les liens internes de ces vues suivent la
+  page courante, `usePathname`).
   Un lien entre dans SFS depuis son badge sur Liens tracking, en sort depuis son badge sur
   l'onglet SFS (décision Benoit, 2026-10-08). La page Trafic (LinkScale) n'est pas concernée.
   Sans groupe `sfs`, rien n'est retiré et l'onglet SFS l'explique.

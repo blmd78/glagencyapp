@@ -12,9 +12,11 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 - Scripts MyPuls : écran « Importer un script » dans le CRM (face chatteurs, admin et managers) — un admin connecte une fois le Notion de l'agence, puis chaque manager choisit un script dans le dossier de sa modèle, relit le rapport (messages, embranchements, PPV, ajustements, erreurs) et l'envoie, désactivé, dans le Studio MyPuls ; seulement pour ses propres modèles, et avec un historique des imports.
 
+## [2.74.1] — 2026-10-08
+
 ### Modifié
 
-- Marketing : les liens SFS quittent aussi Liens tracking (classement, totaux, camembert, graphique) et rejoignent l'onglet SFS, qui affiche désormais sous ses indicateurs le classement et le graphique des seuls liens SFS ; un lien sort de SFS depuis son badge dans l'onglet SFS.
+- Marketing : les liens SFS quittent aussi Liens tracking (classement, totaux, camembert, graphique) et rejoignent l'onglet SFS, organisé en trois onglets — Vue d'ensemble, Classement et Graphique (ceux de Liens tracking, sur les SFS seuls) ; un lien sort de SFS depuis son badge dans l'onglet SFS.
 
 ## [2.74] — 2026-10-07
 
