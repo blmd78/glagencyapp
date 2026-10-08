@@ -318,3 +318,28 @@ export type { MypulsDayKpi, MypulsCoverageRow } from './mypuls-shifts/kpi'
 // Photos des modèles (spec 2026-10-02, partie A) — script `pnpm --filter @glagency/ingestion avatars`.
 export { AVATAR_EXT, AVATAR_MAX_BYTES, avatarOutcome, avatarTargets, sniffImageType } from './media/avatar'
 export type { AvatarCreator, AvatarOutcome, ImageMime } from './media/avatar'
+
+// Script Notion → MyPuls (commande `script-mypuls`) : brouillon, règles du Studio, champs des requêtes.
+export {
+  INCOMPLETE_PREFIX,
+  PATH_COLORS,
+  SCRIPT_LIMITS,
+  normalizeDraft,
+  parseScriptDraft,
+  summarizeDraft,
+  validateScriptDraft,
+} from './scripts/script-draft'
+export type {
+  DraftBranch,
+  DraftError,
+  DraftItem,
+  DraftMessage,
+  DraftPath,
+  DraftSummary,
+  PathColor,
+  PendingMedia,
+  ScriptDraft,
+} from './scripts/script-draft'
+export { branchBody, messageFields, scriptFields } from './scripts/script-requests'
+export { matchCreatorByName } from './scripts/creator-match'
+export { attachFromLibrary, mediaLabel, sameCollectionName, type LibraryMedia } from './scripts/media-match'

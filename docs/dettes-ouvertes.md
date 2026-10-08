@@ -66,3 +66,18 @@ seulement si quelqu'un remonte le symptôme.
 **9. 10 chatteurs ont des stats mais sont absents du relevé MyPuls** (2026-09-24) : leur présence
   Insights affiche « — » (pas de verdict). Rattachement à faire dans Relevé d'équipe › Réglages
   (gens à rattacher). Calibrage de la présence, lui, tranché : idle 10 min, cf. `ARCHITECTURE.md` § 10 (« Présence des Insights »).
+
+**10. `notion_connection.root_page_id` conservée, inutilisée** (2026-10-08) : la page racine de
+l'import de scripts a disparu avec `0188` (une ligne par espace Notion, toutes les pages partagées
+listées), mais la colonne reste pour que `0188` soit compatible avec le code déjà déployé, qui la
+lisait. À supprimer par une migration de nettoyage (`alter table public.notion_connection drop column
+root_page_id;`) une fois la release de l'import de scripts passée en prod, puis régénérer `types.ts`.
+
+**11. Réponse coupée à ~60 s, contournée pour « Préparer » seulement** (2026-10-08) : en test réel sur
+la préprod, le navigateur a perdu la réponse de `prepareImport` à 60,16 s (statut réseau 0) pendant que
+le serveur finissait en 63 s avec un 200 — cause non établie (ni Next 16.2.12 ni la fonction Vercel,
+`maxDuration` 800, n'ont de limite à 60 s ; la capture réseau de l'outil de test était active). Contourné
+pour « Préparer » (`waitPrepared` relit la clé du clic). L'envoi (`sendImport`, 10,6 s mesurés pour
+77 messages, plus long avec beaucoup de médias à relire) n'a pas ce filet : coupé, il affiche « Envoi
+coupé — le rapport dit où il en est » et le serveur va au bout (statut relu au rafraîchissement). À
+reprendre si une coupure d'envoi est observée : même relecture, sur le statut de l'import.

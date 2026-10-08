@@ -82,17 +82,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "agency_events_creator_id_fkey"
-            columns: ["creator_id"]
-            isOneToOne: false
-            referencedRelation: "creators"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "agency_events_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_events_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
             referencedColumns: ["id"]
           },
         ]
@@ -2145,6 +2145,50 @@ export type Database = {
           },
         ]
       }
+      notion_connection: {
+        Row: {
+          access_token_encrypted: string
+          bot_id: string
+          connected_at: string
+          connected_by: string | null
+          id: string
+          refresh_token_encrypted: string | null
+          root_page_id: string | null
+          workspace_id: string
+          workspace_name: string
+        }
+        Insert: {
+          access_token_encrypted: string
+          bot_id: string
+          connected_at?: string
+          connected_by?: string | null
+          id: string
+          refresh_token_encrypted?: string | null
+          root_page_id?: string | null
+          workspace_id: string
+          workspace_name: string
+        }
+        Update: {
+          access_token_encrypted?: string
+          bot_id?: string
+          connected_at?: string
+          connected_by?: string | null
+          id?: string
+          refresh_token_encrypted?: string | null
+          root_page_id?: string | null
+          workspace_id?: string
+          workspace_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notion_connection_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       period_snapshot_kpi: {
         Row: {
           current_week_days: number
@@ -3150,6 +3194,81 @@ export type Database = {
           },
         ]
       }
+      script_imports: {
+        Row: {
+          cleanup: Json | null
+          created_at: string
+          created_by: string
+          creator_id: string
+          draft: Json
+          error: string | null
+          errors: Json
+          failed_step: string | null
+          id: string
+          mypuls_script_id: number | null
+          notes: Json
+          notion_page_id: string
+          notion_title: string
+          sent_at: string | null
+          status: string
+          summary: Json
+          usage: Json | null
+        }
+        Insert: {
+          cleanup?: Json | null
+          created_at?: string
+          created_by: string
+          creator_id: string
+          draft: Json
+          error?: string | null
+          errors?: Json
+          failed_step?: string | null
+          id?: string
+          mypuls_script_id?: number | null
+          notes?: Json
+          notion_page_id: string
+          notion_title: string
+          sent_at?: string | null
+          status?: string
+          summary: Json
+          usage?: Json | null
+        }
+        Update: {
+          cleanup?: Json | null
+          created_at?: string
+          created_by?: string
+          creator_id?: string
+          draft?: Json
+          error?: string | null
+          errors?: Json
+          failed_step?: string | null
+          id?: string
+          mypuls_script_id?: number | null
+          notes?: Json
+          notion_page_id?: string
+          notion_title?: string
+          sent_at?: string | null
+          status?: string
+          summary?: Json
+          usage?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_imports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_imports_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "creators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       script_items: {
         Row: {
           body: string
@@ -3197,6 +3316,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      script_prepare_requests: {
+        Row: {
+          created_at: string
+          created_by: string
+          import_id: string | null
+          request_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          import_id?: string | null
+          request_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          import_id?: string | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_prepare_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_prepare_requests_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "script_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      script_send_lock: {
+        Row: {
+          acquired_at: string | null
+          holder: string | null
+          id: string
+        }
+        Insert: {
+          acquired_at?: string | null
+          holder?: string | null
+          id?: string
+        }
+        Update: {
+          acquired_at?: string | null
+          holder?: string | null
+          id?: string
+        }
+        Relationships: []
       }
       snap_codes: {
         Row: {
@@ -5713,6 +5886,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acquire_script_send_lock: { Args: { p_holder: string }; Returns: boolean }
       agency_notifications: { Args: { p_limit?: number }; Returns: Json }
       apply_chatter_identity: {
         Args: { p_issues: Json; p_links: Json }
@@ -5923,6 +6097,10 @@ export type Database = {
           p_window: string
         }
         Returns: string
+      }
+      release_script_send_lock: {
+        Args: { p_holder: string }
+        Returns: undefined
       }
       reliability_days: { Args: { p_days: number }; Returns: Json }
       repos_data_weeks: { Args: never; Returns: Json }

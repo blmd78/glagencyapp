@@ -29,6 +29,22 @@ export { fetchChatInit, switchCreator } from './endpoints/chat'
 export type { ChatConversation } from './endpoints/chat'
 export { fetchScripts, parseScripts } from './endpoints/scripts'
 export type { CreatorScript } from './endpoints/scripts'
+// Écriture dans le Studio de scripts (import de scripts) — création, puis relances posées en modification.
+export {
+  StudioError,
+  createBranch,
+  createMessage,
+  editMessage,
+  listCollectionMedia,
+  listCollections,
+  mediaTitle,
+  createScript,
+  fetchStudio,
+  renameScript,
+  saveLayout,
+  setScriptActive,
+} from './endpoints/script-writer'
+export type { LayoutItem, StudioBranch, StudioMessage, StudioState } from './endpoints/script-writer'
 // Contrôle des shifts (/stats/shifts) — parseurs purs testés sur captures, sans cheerio :
 // ce module doit tourner dans le Worker (budget 10 ms CPU).
 export {
