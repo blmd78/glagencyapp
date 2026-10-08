@@ -28,7 +28,8 @@ export function ImportReport({ current, viewerId }: { current: ImportDetail; vie
       try {
         const res = await sendImport({ importId: current.id })
         if (!res.success) return void toast.error(res.error)
-        toast.success(`Script ${res.data.mypulsScriptId} créé, désactivé : relis-le dans le Studio MyPuls puis active-le.`)
+        const media = res.data.mediaNote ? ` — ${res.data.mediaNote}` : ''
+        toast.success(`Script ${res.data.mypulsScriptId} créé, désactivé${media} : relis-le dans le Studio MyPuls puis active-le.`)
       } catch {
         // Échec de transport (durée maximale atteinte, connexion coupée) : l'envoi a pu avancer côté
         // serveur — on relit la ligne, le rapport dira « interrompu » et quel script vérifier.
@@ -56,7 +57,11 @@ export function ImportReport({ current, viewerId }: { current: ImportDetail; vie
             : 'Mode banque de messages : choisis à la main, sans ordre imposé.'}
         </p>
         {s.pendingMedia > 0 && (
-          <p>{plural(s.pendingMedia, 'média')} à rattacher dans le Studio (titres « 🖼️ À RATTACHER »).</p>
+          <p>
+            {plural(s.pendingMedia, 'média')} nommé{s.pendingMedia > 1 ? 's' : ''} dans le script : rattaché{s.pendingMedia > 1 ? 's' : ''} à l&apos;envoi
+            s&apos;il{s.pendingMedia > 1 ? 's portent' : ' porte'} ce titre dans MyM (collection du même nom que le script), sinon « 🖼️ À RATTACHER »
+            dans le Studio.
+          </p>
         )}
         {current.notes.length > 0 && (
           <div className="flex flex-col gap-1">

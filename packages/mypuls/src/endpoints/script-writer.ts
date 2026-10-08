@@ -118,6 +118,43 @@ export async function editMessage(cookie: string, scriptId: number, messageId: n
   await call(cookie, 'POST', `/scripts/${scriptId}/messages/${messageId}/edit`, { form: fields })
 }
 
+/**
+ * Bibliothèque de médias de la modèle COURANTE de la session (cf. `switchCreator`), par les routes du
+ * sélecteur de médias du Studio (`window.MESSAGE_MEDIA_PICKER.api`) : collections, médias d'une
+ * collection (paginés par `next_cursor`), fiche d'un média — son titre vient de MyM (`meta.title`).
+ */
+export async function listCollections(cookie: string): Promise<Array<{ id: string; name: string }>> {
+  const j = (await call(cookie, 'GET', '/api/collections')) as { items?: Array<{ id: unknown; name?: unknown }> } | null
+  return (j?.items ?? []).map((c) => ({ id: String(c.id), name: String(c.name ?? '') }))
+}
+
+export async function listCollectionMedia(cookie: string, collectionId: string): Promise<Array<{ id: string; type: string }>> {
+  const out: Array<{ id: string; type: string }> = []
+  let cursor: string | null = null
+  // Plafond de 3 pages (150 médias) : une collection de script en compte quelques dizaines. Au-delà, une
+  // ERREUR plutôt qu'une liste tronquée — un pack rattaché à moitié serait un PPV faux.
+  for (let page = 0; ; page++) {
+    if (page === 3) throw new Error(`collection ${collectionId} : plus de 3 pages de médias`)
+    const q: string = `?limit=50&with_audio=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+    const j = (await call(cookie, 'GET', `/api/collections/medias/${encodeURIComponent(collectionId)}${q}`)) as {
+      items?: Array<{ id: unknown; type?: unknown }>
+      next_cursor?: string | null
+    } | null
+    // Type absent : vide, jamais supposé photo (la garde « vocal mêlé à une photo » en dépend).
+    for (const m of j?.items ?? []) out.push({ id: String(m.id), type: typeof m.type === 'string' ? m.type : '' })
+    cursor = j?.next_cursor ?? null
+    if (!cursor) break
+  }
+  return out
+}
+
+/** Titre d'un média (posé dans MyM) ; `''` s'il n'en a pas. */
+export async function mediaTitle(cookie: string, mediaId: string): Promise<string> {
+  const j = (await call(cookie, 'GET', `/api/creator/media/${encodeURIComponent(mediaId)}/detail`)) as { meta?: { title?: unknown } | null } | null
+  const title = j?.meta?.title
+  return typeof title === 'string' ? title.trim() : ''
+}
+
 export async function fetchStudio(cookie: string, scriptId: number): Promise<StudioState> {
   const j = (await call(cookie, 'GET', `/scripts/${scriptId}/studio`)) as Partial<StudioState> | null
   if (!j?.script || !Array.isArray(j.branches) || !Array.isArray(j.messages)) {
