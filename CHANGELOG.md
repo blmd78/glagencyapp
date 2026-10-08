@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.75] — 2026-10-08
+
 ### Ajouté
 
 - Scripts MyPuls : écran « Importer un script » dans le CRM (face chatteurs, admin et managers) — un admin connecte un ou plusieurs espaces Notion (les pages à partager se choisissent dans Notion), puis chaque manager retrouve directement les scripts de ses modèles, reconnus par leur dossier ou leur titre (« … · Prénom »), relit le rapport (messages, embranchements, PPV, ajustements, erreurs) et l'envoie, désactivé, dans le Studio MyPuls — les médias s'y rattachent tout seuls s'ils portent dans MyM le titre utilisé dans le script (collection du même nom que le script) ; seulement pour ses propres modèles, et avec un historique des imports. Si la réponse de « Préparer » est coupée en route (connexion perdue au bout d'une minute), la page attend la fin et ouvre le rapport toute seule.
