@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { Combobox } from '@/components/ui/combobox'
 import { ALL, type LinkOption, type Modele } from '../link-options'
@@ -28,6 +28,7 @@ export function ModelePicker({
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
 
   const go = (v: string) => {
     const params = new URLSearchParams(searchParams)
@@ -36,7 +37,7 @@ export function ModelePicker({
     else params.set('modele', v)
     params.delete('lien')
     const qs = params.toString()
-    router.replace((qs ? `/marketing/liens?${qs}` : '/marketing/liens') as Route, { scroll: false })
+    router.replace((qs ? `${pathname}?${qs}` : pathname) as Route, { scroll: false })
   }
 
   return (
