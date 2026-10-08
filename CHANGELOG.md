@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Modifié
+
+- Marketing : les liens SFS quittent aussi Liens tracking (classement, totaux, camembert, graphique) et rejoignent l'onglet SFS, organisé en trois onglets — Vue d'ensemble, Classement et Graphique (ceux de Liens tracking, sur les SFS seuls) ; un lien sort de SFS depuis son badge dans l'onglet SFS.
+
 ## [2.74] — 2026-10-07
 
 ### Ajouté

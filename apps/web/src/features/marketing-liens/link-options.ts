@@ -194,3 +194,13 @@ export function sumLinks(links: readonly MktLinkRow[]): LinkTotalsValues {
     taux: clicks > 0 ? round1((conversions / clicks) * 100) : null,
   }
 }
+
+/**
+ * L'onglet actif de la page : `?vue=` s'il désigne un onglet qui existe, sinon celui d'accueil —
+ * `lead` s'il y en a un (la « Vue d'ensemble » de l'onglet SFS), Classement sinon. Une page qui a
+ * un onglet `lead` s'en sert aussi pour ne lire le contenu de cet onglet que s'il est affiché.
+ */
+export function liensVue(vue: string | undefined, lead?: string): string {
+  if (vue === 'graph' || vue === 'classement' || (lead !== undefined && vue === lead)) return vue
+  return lead ?? 'classement'
+}

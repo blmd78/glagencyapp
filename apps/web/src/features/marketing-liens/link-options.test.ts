@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   ALL,
   commonGroup,
+  liensVue,
   modeleOptions,
   parseModele,
   parseReseau,
@@ -204,5 +205,23 @@ describe('réseaux', () => {
     const mix = [link({ id: 'a', type: 'instagram' }), link({ id: 'b', type: 'snapchat' })]
     expect(commonGroup(mix, groupes)).toBeNull()
     expect(commonGroup([], groupes)).toBeNull()
+  })
+})
+
+describe('liensVue — l’onglet actif', () => {
+  it('Liens tracking : Classement par défaut, Graphique sur demande, le reste ramené au défaut', () => {
+    expect(liensVue(undefined)).toBe('classement')
+    expect(liensVue('graph')).toBe('graph')
+    expect(liensVue('classement')).toBe('classement')
+    expect(liensVue('ensemble')).toBe('classement')
+    expect(liensVue('nimporte-quoi')).toBe('classement')
+  })
+
+  it('onglet SFS : la Vue d’ensemble est l’accueil, Classement et Graphique restent atteignables', () => {
+    expect(liensVue(undefined, 'ensemble')).toBe('ensemble')
+    expect(liensVue('ensemble', 'ensemble')).toBe('ensemble')
+    expect(liensVue('classement', 'ensemble')).toBe('classement')
+    expect(liensVue('graph', 'ensemble')).toBe('graph')
+    expect(liensVue('nimporte-quoi', 'ensemble')).toBe('ensemble')
   })
 })
