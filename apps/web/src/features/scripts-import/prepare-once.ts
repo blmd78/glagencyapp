@@ -1,4 +1,5 @@
 import { BusinessError } from '@/lib/actions'
+import type { PrepareState } from './wait-prepared'
 
 /**
  * Réservation d'une clé de préparation (table `script_prepare_requests`, 0189) : une clé = UN clic sur
@@ -9,7 +10,7 @@ export interface PrepareClaims {
   /** Réserve la clé : `true` si elle est à nous, `false` si une requête l'a déjà prise. */
   claim(key: string): Promise<boolean>
   /** Où en est la requête qui a réservé la clé : en cours, faite (son import), ou clé libérée (échec). */
-  lookup(key: string): Promise<{ status: 'pending' } | { status: 'done'; importId: string } | { status: 'released' }>
+  lookup(key: string): Promise<PrepareState>
   complete(key: string, importId: string): Promise<void>
   /** Libère la clé après un échec : un nouvel essai reste possible. */
   release(key: string): Promise<void>
