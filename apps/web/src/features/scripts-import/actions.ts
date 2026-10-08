@@ -21,7 +21,8 @@ import { readStateCookie } from '@/lib/impersonation/session'
 import { createClient } from '@/lib/supabase/server'
 import { firstWorkspaceWithPage } from './notion-pages'
 import { canSend } from './rules'
-import { prepareImportSchema } from './schema'
+import { prepareOnce, type PrepareClaims } from './prepare-once'
+import { prepareImportInput } from './schema'
 import { checkDraftForSend, notionReadMessage, withSendLock, type SendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
@@ -40,58 +41,109 @@ async function requireImporter(): Promise<Profile> {
 /** Lit le script dans Notion, le convertit, l'ajuste et le vérifie, puis l'enregistre `prepared` — rien chez MyPuls. */
 export async function prepareImport(raw: unknown): Promise<ActionResult<{ importId: string }>> {
   return runAction({
-    schema: prepareImportSchema,
+    schema: prepareImportInput,
     input: raw,
     guard: noGuard,
-    handler: async ({ notionPageId, creatorId, connectionId }) => {
+    handler: async ({ notionPageId, creatorId, connectionId, requestId }) => {
       const profile = await requireImporter()
       if (!(await allowedCreators(profile)).some((c) => c.id === creatorId)) throw new BusinessError('Modèle hors de ton périmètre.')
-      // Script de la liste : son espace est connu. Lien collé : on le cherche dans chaque espace connecté.
-      const spaces = connectionId ? [connectionId] : (await getNotionConnections()).map((c) => c.id)
-      if (!spaces.length) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
-      const hit = await firstWorkspaceWithPage(spaces, (id) => withNotionToken(id, (token) => fetchNotionPage(token, notionPageId))).catch(
-        (e: unknown) => {
-          // Clé expirée, débit limité : dit au manager ; le reste est technique (Sentry + générique).
-          const msg = notionReadMessage(e)
-          throw msg ? new BusinessError(msg) : e
-        },
-      )
-      if (!hit) throw new BusinessError('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
-      const page = hit.value
-      let converted: Awaited<ReturnType<typeof convertToDraft>>
-      try {
-        converted = await convertToDraft(anthropic(), page)
-      } catch (e) {
-        // Refus du modèle ou sortie tronquée : des issues attendues, dites telles quelles au manager.
-        if (e instanceof ConversionError) throw new BusinessError(`Conversion impossible : ${e.message}.`)
-        throw e
-      }
-      const { draft, notes } = normalizeDraft(converted.draft)
-      const errors = validateScriptDraft(draft)
       const supabase = await createClient()
-      const { data, error } = await supabase
-        .from('script_imports')
-        .insert({
-          created_by: profile.id,
-          creator_id: creatorId,
-          notion_page_id: notionPageId,
-          notion_title: page.title || 'Sans titre',
-          // Colonnes jsonb : objets du domaine sérialisables tels quels.
-          summary: summarizeDraft(draft) as unknown as Json,
-          notes: notes as unknown as Json,
-          errors: errors as unknown as Json,
-          draft: draft as unknown as Json,
-          usage: converted.usage as unknown as Json,
-        })
-        .select('id')
-        .single()
-      // 42501 = refus RLS : la modèle n'est pas dans le périmètre (le vrai verrou, côté base).
-      if (error?.code === '42501') throw new BusinessError('Modèle hors de ton périmètre.')
-      if (error) throw new Error(error.message)
+      // Une préparation par clic : une copie de la requête attend l'import de la première (0189).
+      const importId = await prepareOnce(
+        prepareClaims(supabase, profile.id),
+        requestId,
+        () => prepare({ supabase, profileId: profile.id, notionPageId, creatorId, connectionId }),
+        { report: (e) => Sentry.captureException(e) },
+      )
       revalidatePath(PAGE)
-      return { importId: (data as { id: string }).id }
+      return { importId }
     },
   })
+}
+
+/** Lecture Notion, conversion, ajustement, vérification, puis la ligne `prepared` — renvoie son id. */
+async function prepare({
+  supabase,
+  profileId,
+  notionPageId,
+  creatorId,
+  connectionId,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  profileId: string
+  notionPageId: string
+  creatorId: string
+  connectionId: string | undefined
+}): Promise<string> {
+  // Script de la liste : son espace est connu. Lien collé : on le cherche dans chaque espace connecté.
+  const spaces = connectionId ? [connectionId] : (await getNotionConnections()).map((c) => c.id)
+  if (!spaces.length) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
+  const hit = await firstWorkspaceWithPage(spaces, (id) => withNotionToken(id, (token) => fetchNotionPage(token, notionPageId))).catch(
+    (e: unknown) => {
+      // Clé expirée, débit limité : dit au manager ; le reste est technique (Sentry + générique).
+      const msg = notionReadMessage(e)
+      throw msg ? new BusinessError(msg) : e
+    },
+  )
+  if (!hit) throw new BusinessError('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
+  const page = hit.value
+  let converted: Awaited<ReturnType<typeof convertToDraft>>
+  try {
+    converted = await convertToDraft(anthropic(), page)
+  } catch (e) {
+    // Refus du modèle ou sortie tronquée : des issues attendues, dites telles quelles au manager.
+    if (e instanceof ConversionError) throw new BusinessError(`Conversion impossible : ${e.message}.`)
+    throw e
+  }
+  const { draft, notes } = normalizeDraft(converted.draft)
+  const errors = validateScriptDraft(draft)
+  const { data, error } = await supabase
+    .from('script_imports')
+    .insert({
+      created_by: profileId,
+      creator_id: creatorId,
+      notion_page_id: notionPageId,
+      notion_title: page.title || 'Sans titre',
+      // Colonnes jsonb : objets du domaine sérialisables tels quels.
+      summary: summarizeDraft(draft) as unknown as Json,
+      notes: notes as unknown as Json,
+      errors: errors as unknown as Json,
+      draft: draft as unknown as Json,
+      usage: converted.usage as unknown as Json,
+    })
+    .select('id')
+    .single()
+  // 42501 = refus RLS : la modèle n'est pas dans le périmètre (le vrai verrou, côté base).
+  if (error?.code === '42501') throw new BusinessError('Modèle hors de ton périmètre.')
+  if (error) throw new Error(error.message)
+  return (data as { id: string }).id
+}
+
+/** Réservations des clés de « Préparer » (`script_prepare_requests`, 0189) — client RLS : chacun SES clés. */
+function prepareClaims(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): PrepareClaims {
+  const table = () => supabase.from('script_prepare_requests')
+  return {
+    claim: async (key) => {
+      const { error } = await table().insert({ request_id: key, created_by: profileId })
+      if (error?.code === '23505') return false
+      if (error) throw new Error(error.message)
+      return true
+    },
+    lookup: async (key) => {
+      const { data, error } = await table().select('import_id').eq('request_id', key).maybeSingle()
+      if (error) throw new Error(error.message)
+      if (!data) return { status: 'released' }
+      return data.import_id ? { status: 'done', importId: data.import_id } : { status: 'pending' }
+    },
+    complete: async (key, importId) => {
+      const { error } = await table().update({ import_id: importId }).eq('request_id', key)
+      if (error) throw new Error(error.message)
+    },
+    release: async (key) => {
+      const { error } = await table().delete().eq('request_id', key)
+      if (error) Sentry.captureException(new Error(error.message))
+    },
+  }
 }
 
 type SendRow = {

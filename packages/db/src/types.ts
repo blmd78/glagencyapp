@@ -3317,6 +3317,42 @@ export type Database = {
           },
         ]
       }
+      script_prepare_requests: {
+        Row: {
+          created_at: string
+          created_by: string
+          import_id: string | null
+          request_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          import_id?: string | null
+          request_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          import_id?: string | null
+          request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "script_prepare_requests_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "script_prepare_requests_import_id_fkey"
+            columns: ["import_id"]
+            isOneToOne: false
+            referencedRelation: "script_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       script_send_lock: {
         Row: {
           acquired_at: string | null

@@ -93,7 +93,8 @@ function usePrepare() {
   const prepare = (notionPageId: string, creatorId: string, connectionId: string) =>
     start(async () => {
       try {
-        const res = await prepareImport({ notionPageId, creatorId, connectionId })
+        // Une clé par clic : les copies de cette requête (renvoi du navigateur) ne relancent pas la conversion.
+        const res = await prepareImport({ notionPageId, creatorId, connectionId, requestId: crypto.randomUUID() })
         if (!res.success) return void toast.error(res.error)
         toast.success('Script préparé : relis le rapport.')
         router.push(`/chatter/import-scripts?import=${res.data.importId}`)
@@ -108,7 +109,8 @@ function usePrepare() {
 }
 /**
  * Lien collé (secours : page non listée) — cherché dans chaque espace connecté. Formulaire RHF
- * (`compta-link-dialog.tsx` pour le patron) : même schéma que `prepareImport`, qui normalise le lien en id de page. `'use no memo'` : le React Compiler casse `formState` de RHF.
+ * (`compta-link-dialog.tsx` pour le patron) : variante saisie de `prepareImportInput` (sans `requestId`, ajouté
+ * au clic), qui normalise le lien en id de page. `'use no memo'` : le React Compiler casse `formState` de RHF.
  * Triple générique : le schéma transforme le lien (entrée ≠ sortie).
  */
 function PasteLink({ creators }: { creators: CreatorOption[] }) {
@@ -129,7 +131,7 @@ function PasteLink({ creators }: { creators: CreatorOption[] }) {
 
   const submit = handleSubmit(async (values) => {
     try {
-      const res = await prepareImport(values)
+      const res = await prepareImport({ ...values, requestId: crypto.randomUUID() })
       if (!res.success) {
         const field = res.fieldErrors?.notionPageId?.[0]
         if (field) setError('notionPageId', { message: field })
