@@ -8,8 +8,8 @@ import { saveNotionConnection } from '@/features/scripts-import/services/notion-
 
 /**
  * Retour de Notion après « Connecter Notion » : mêmes contrôles qu'au départ (admin réel), `state` relu
- * et consommé, échange du code contre la clé, clé chiffrée enregistrée. L'admin confirme ensuite la
- * page racine dans l'écran d'import.
+ * et consommé, échange du code contre la clé de l'espace choisi, clé chiffrée enregistrée — un espace
+ * de plus, ou la connexion de cet espace remplacée (0188). Ses pages partagées s'affichent aussitôt.
  */
 export async function GET(req: Request) {
   const url = new URL(req.url)

@@ -2162,7 +2162,7 @@ export type Database = {
           bot_id: string
           connected_at?: string
           connected_by?: string | null
-          id?: string
+          id: string
           refresh_token_encrypted?: string | null
           root_page_id?: string | null
           workspace_id: string

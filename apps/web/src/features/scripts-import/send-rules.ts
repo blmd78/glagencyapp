@@ -35,7 +35,7 @@ export function checkDraftForSend(raw: unknown): { ok: true; draft: ScriptDraft 
  */
 export function notionReadMessage(e: unknown): string | null {
   if (!(e instanceof NotionError)) return null
-  if (e.status === 403 || e.status === 404) return 'Page Notion introuvable, ou hors de la page racine partagée avec le CRM.'
+  if (e.status === 403 || e.status === 404) return 'Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).'
   if (e.status === 401) return 'Connexion Notion expirée : un admin doit reconnecter Notion.'
   if (e.status === 429) return 'Notion limite le débit : réessaie dans une minute.'
   return null

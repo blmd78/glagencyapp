@@ -66,3 +66,9 @@ seulement si quelqu'un remonte le symptôme.
 **9. 10 chatteurs ont des stats mais sont absents du relevé MyPuls** (2026-09-24) : leur présence
   Insights affiche « — » (pas de verdict). Rattachement à faire dans Relevé d'équipe › Réglages
   (gens à rattacher). Calibrage de la présence, lui, tranché : idle 10 min, cf. `ARCHITECTURE.md` § 10 (« Présence des Insights »).
+
+**10. `notion_connection.root_page_id` conservée, inutilisée** (2026-10-08) : la page racine de
+l'import de scripts a disparu avec `0188` (une ligne par espace Notion, toutes les pages partagées
+listées), mais la colonne reste pour que `0188` soit compatible avec le code déjà déployé, qui la
+lisait. À supprimer par une migration de nettoyage (`alter table public.notion_connection drop column
+root_page_id;`) une fois la release de l'import de scripts passée en prod, puis régénérer `types.ts`.

@@ -85,7 +85,6 @@ export function blocksToText(blocks: NotionBlock[], depth = 0): string {
 
 /** Notion limite à ~3 requêtes/s par intégration : sur un 429, on attend `Retry-After` puis on réessaie. */
 const NOTION_ATTEMPTS = 3
-const NOTION_CONCURRENCY = 3
 
 async function notionFetch(url: string, init: RequestInit, fetchFn: typeof fetch): Promise<Response> {
   for (let attempt = 1; ; attempt++) {
@@ -95,20 +94,6 @@ async function notionFetch(url: string, init: RequestInit, fetchFn: typeof fetch
     const seconds = header === null || !Number.isFinite(Number(header)) ? 1 : Math.min(Math.max(Number(header), 0), 30)
     await new Promise((r) => setTimeout(r, seconds * 1000))
   }
-}
-
-/** `fn` sur chaque élément, `limit` à la fois, ordre conservé. */
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out = new Array<R>(items.length)
-  let next = 0
-  const worker = async () => {
-    while (next < items.length) {
-      const i = next++
-      out[i] = await fn(items[i] as T)
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
-  return out
 }
 
 /** Réponse HTTP en erreur de l'API Notion : l'appelant branche sur `status` (401 clé expirée, 403/404 page non partagée). */
@@ -158,51 +143,54 @@ async function children(token: string, id: string, fetchFn: typeof fetch): Promi
   return out
 }
 
+export type SharedPage = { id: string; title: string; parentId: string | null }
+
+/** Plafond de la recherche : 10 pages de résultats, soit 1 000 pages Notion (au-delà, `truncated`). */
+const SEARCH_MAX_CALLS = 10
+
 /**
- * Pages partagées avec la connexion et posées à la RACINE de l'espace (parent = workspace) : les
- * candidates « page racine » que l'admin confirme après « Connecter Notion ».
+ * Toutes les pages partagées avec la connexion, sous-pages comprises (la recherche Notion les renvoie
+ * toutes) : UNE recherche paginée au lieu d'un parcours dossier par dossier. Le choix des pages se fait
+ * dans Notion, au moment de connecter — plus de page racine à confirmer dans le CRM.
+ * `parentId` : la page parente, ou `null` (racine de l'espace, ligne de base de données, bloc).
  */
-export async function listSharedTopPages(token: string, fetchFn: typeof fetch = fetch): Promise<Array<{ id: string; title: string }>> {
-  const out: Array<{ id: string; title: string }> = []
+export async function listSharedPages(token: string, fetchFn: typeof fetch = fetch): Promise<{ pages: SharedPage[]; truncated: boolean }> {
+  const pages: SharedPage[] = []
   let cursor: string | null = null
-  do {
+  for (let call = 0; call < SEARCH_MAX_CALLS; call++) {
     const body: Record<string, unknown> = { filter: { property: 'object', value: 'page' }, page_size: 100 }
     if (cursor) body.start_cursor = cursor
-    const res = await notionFetch(`${NOTION_API}/search`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }, fetchFn)
+    const res = await notionFetch(
+      `${NOTION_API}/search`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+      fetchFn,
+    )
     if (!res.ok) throw new NotionError(res.status, `Notion ${res.status} sur /v1/search`)
     const page = (await res.json()) as {
-      results: Array<{ id: string; parent?: { type?: string }; properties?: Record<string, { type: string; title?: unknown }> }>
+      results: Array<{
+        id: string
+        archived?: boolean
+        in_trash?: boolean
+        parent?: { type?: string; page_id?: string }
+        properties?: Record<string, { type: string; title?: unknown }>
+      }>
       has_more: boolean
       next_cursor?: string | null
     }
     for (const p of page.results) {
-      if (p.parent?.type !== 'workspace') continue
+      if (p.archived || p.in_trash) continue
       const titleProp = Object.values(p.properties ?? {}).find((x) => x.type === 'title')
-      out.push({ id: p.id, title: plain(titleProp?.title) })
+      const parentId = p.parent?.type === 'page_id' ? (p.parent.page_id ?? null) : null
+      pages.push({ id: p.id, title: plain(titleProp?.title), parentId })
     }
     cursor = page.has_more ? (page.next_cursor ?? null) : null
-  } while (cursor)
-  return out
-}
-
-export type NotionFolder = { id: string; title: string; scripts: Array<{ id: string; title: string }> }
-
-/**
- * Notion d'agence : la racine contient un dossier par modèle (et OUTILS MANAGERS) ; chaque dossier
- * contient les scripts en sous-pages. Deux niveaux, pas plus — les pages média sous un script ne
- * sont pas des scripts.
- */
-export async function listNotionScripts(token: string, rootId: string, fetchFn: typeof fetch = fetch): Promise<NotionFolder[]> {
-  const pages = (blocks: NotionBlock[]) =>
-    blocks
-      .filter((b) => b.type === 'child_page')
-      .map((b) => ({ id: b.id, title: String((b.child_page as { title?: string } | undefined)?.title ?? '') }))
-  const folders = pages(await listChildren(token, rootId, fetchFn))
-  return mapLimit(folders, NOTION_CONCURRENCY, async (f) => ({ ...f, scripts: pages(await listChildren(token, f.id, fetchFn)) }))
+    if (!cursor) return { pages, truncated: false }
+  }
+  return { pages, truncated: true }
 }
 
 export async function fetchNotionPage(

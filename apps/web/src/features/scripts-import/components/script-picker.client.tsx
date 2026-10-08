@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
 import { toast } from 'sonner'
 import { ActionButton } from '@/components/action-button'
+import { CollapsibleSection } from '@/components/collapsible-section'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -14,15 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Spinner } from '@/components/ui/spinner'
 import { prepareImport } from '../actions'
 import { prepareImportSchema } from '../schema'
-import type { CreatorOption, ScriptFolder } from '../services/get-scripts-import'
+import type { CreatorOption, NotionWorkspaceView, ScriptFolder } from '../services/get-scripts-import'
 
 /**
- * Choix du script dans le Notion d'agence : les dossiers reconnus (modèle de ton périmètre) d'abord,
- * puis « Autres dossiers ». La modèle est présélectionnée d'après le dossier, toujours modifiable.
+ * Choix du script : pour chaque espace Notion connecté, les scripts dont la modèle est reconnue
+ * (dossier parent ou fin du titre « … · Prénom », cf. `organizeNotionPages`) d'abord, puis toutes les
+ * autres pages partagées, repliées. La modèle présélectionnée reste modifiable.
  */
-export function ScriptPicker({ folders, creators }: { folders: ScriptFolder[]; creators: CreatorOption[] }) {
-  const known = folders.filter((f) => f.creatorId)
-  const others = folders.filter((f) => !f.creatorId)
+export function ScriptPicker({ workspaces, creators }: { workspaces: NotionWorkspaceView[]; creators: CreatorOption[] }) {
   return (
     <Card>
       <CardHeader>
@@ -32,24 +32,57 @@ export function ScriptPicker({ folders, creators }: { folders: ScriptFolder[]; c
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        {folders.length === 0 && <p className="text-sm text-muted-foreground">Aucun dossier sous la page racine.</p>}
         {creators.length === 0 && (
           <p className="text-sm text-muted-foreground">Aucune modèle ne t&apos;est assignée : demande à un admin.</p>
         )}
-        {known.map((f) => (
-          <FolderBlock key={f.id} folder={f} creators={creators} />
+        {workspaces.map((w) => (
+          <WorkspaceBlock key={w.id} workspace={w} creators={creators} titled={workspaces.length > 1} />
         ))}
-        {others.length > 0 && (
-          <div className="flex flex-col gap-4">
-            <h3 className="text-sm font-medium text-muted-foreground">Autres dossiers</h3>
-            {others.map((f) => (
-              <FolderBlock key={f.id} folder={f} creators={creators} />
-            ))}
-          </div>
-        )}
         {creators.length > 0 && <PasteLink creators={creators} />}
       </CardContent>
     </Card>
+  )
+}
+
+function WorkspaceBlock({ workspace: w, creators, titled }: { workspace: NotionWorkspaceView; creators: CreatorOption[]; titled: boolean }) {
+  const othersCount = w.others.reduce((n, f) => n + f.scripts.length, 0)
+  return (
+    <div className="flex flex-col gap-4">
+      {titled && <h3 className="text-sm font-medium text-muted-foreground">{w.workspaceName}</h3>}
+      {w.error ? (
+        <p className="text-sm text-destructive">Lecture Notion impossible : {w.error}</p>
+      ) : w.recognized.length === 0 && othersCount === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Aucune page partagée avec le CRM dans cet espace : dans Notion, Partager → Connexions → GL Agency CRM.
+        </p>
+      ) : (
+        w.recognized.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Aucun script reconnu (dossier au nom de la modèle, ou titre « … · Prénom ») : choisis la modèle à la main dans « Autres
+            pages ».
+          </p>
+        )
+      )}
+      {w.truncated && <p className="text-sm text-muted-foreground">Plus de 1 000 pages partagées : la liste est incomplète.</p>}
+      {w.recognized.map((f) => (
+        <FolderBlock key={f.id} folder={f} creators={creators} connectionId={w.id} />
+      ))}
+      {othersCount > 0 && (
+        <CollapsibleSection
+          contentClassName="flex flex-col gap-4 p-3"
+          trigger={
+            <>
+              Autres pages
+              <span className="text-sm font-normal text-muted-foreground">({othersCount})</span>
+            </>
+          }
+        >
+          {w.others.map((f) => (
+            <FolderBlock key={f.id} folder={f} creators={creators} connectionId={w.id} />
+          ))}
+        </CollapsibleSection>
+      )}
+    </div>
   )
 }
 
@@ -57,10 +90,10 @@ export function ScriptPicker({ folders, creators }: { folders: ScriptFolder[]; c
 function usePrepare() {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const prepare = (notionPageId: string, creatorId: string) =>
+  const prepare = (notionPageId: string, creatorId: string, connectionId: string) =>
     start(async () => {
       try {
-        const res = await prepareImport({ notionPageId, creatorId })
+        const res = await prepareImport({ notionPageId, creatorId, connectionId })
         if (!res.success) return void toast.error(res.error)
         toast.success('Script préparé : relis le rapport.')
         router.push(`/chatter/import-scripts?import=${res.data.importId}`)
@@ -73,11 +106,9 @@ function usePrepare() {
     })
   return { pending, prepare }
 }
-
-/** Secours : un script rangé ailleurs (sous-dossier…) se prépare par son lien Notion. */
 /**
- * Formulaire RHF (`compta-link-dialog.tsx` pour le patron) : même schéma que `prepareImport`, qui
- * normalise le lien collé en id de page. `'use no memo'` : le React Compiler casse `formState` de RHF.
+ * Lien collé (secours : page non listée) — cherché dans chaque espace connecté. Formulaire RHF
+ * (`compta-link-dialog.tsx` pour le patron) : même schéma que `prepareImport`, qui normalise le lien en id de page. `'use no memo'` : le React Compiler casse `formState` de RHF.
  * Triple générique : le schéma transforme le lien (entrée ≠ sortie).
  */
 function PasteLink({ creators }: { creators: CreatorOption[] }) {
@@ -159,7 +190,7 @@ function PasteLink({ creators }: { creators: CreatorOption[] }) {
   )
 }
 
-function FolderBlock({ folder, creators }: { folder: ScriptFolder; creators: CreatorOption[] }) {
+function FolderBlock({ folder, creators, connectionId }: { folder: ScriptFolder; creators: CreatorOption[]; connectionId: string }) {
   return (
     <div className="flex flex-col gap-2">
       <h4 className="text-sm font-semibold">{folder.title}</h4>
@@ -168,7 +199,7 @@ function FolderBlock({ folder, creators }: { folder: ScriptFolder; creators: Cre
       ) : (
         <ul className="flex flex-col gap-2">
           {folder.scripts.map((s) => (
-            <ScriptRow key={s.id} script={s} defaultCreator={folder.creatorId} creators={creators} />
+            <ScriptRow key={s.id} script={s} defaultCreator={folder.creatorId} creators={creators} connectionId={connectionId} />
           ))}
         </ul>
       )}
@@ -180,14 +211,16 @@ function ScriptRow({
   script,
   defaultCreator,
   creators,
+  connectionId,
 }: {
   script: { id: string; title: string }
   defaultCreator: string | null
   creators: CreatorOption[]
+  connectionId: string
 }) {
   const { pending, prepare: run } = usePrepare()
   const [creatorId, setCreatorId] = useState(defaultCreator ?? '')
-  const prepare = () => run(script.id, creatorId)
+  const prepare = () => run(script.id, creatorId, connectionId)
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2">
       <span className="text-sm">{script.title || 'Sans titre'}</span>

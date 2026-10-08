@@ -19,12 +19,13 @@ import { anthropic } from '@/lib/ai/client'
 import { getProfile, isAdminOrManager, type Profile } from '@/lib/auth'
 import { readStateCookie } from '@/lib/impersonation/session'
 import { createClient } from '@/lib/supabase/server'
+import { firstWorkspaceWithPage } from './notion-pages'
 import { canSend } from './rules'
 import { prepareImportSchema } from './schema'
 import { checkDraftForSend, notionReadMessage, withSendLock, type SendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
-import { deleteNotionConnection, setNotionRootPage, withNotionToken } from './services/notion-connection'
+import { deleteNotionConnection, getNotionConnections, withNotionToken } from './services/notion-connection'
 
 const PAGE = '/chatter/import-scripts'
 
@@ -42,15 +43,21 @@ export async function prepareImport(raw: unknown): Promise<ActionResult<{ import
     schema: prepareImportSchema,
     input: raw,
     guard: noGuard,
-    handler: async ({ notionPageId, creatorId }) => {
+    handler: async ({ notionPageId, creatorId, connectionId }) => {
       const profile = await requireImporter()
       if (!(await allowedCreators(profile)).some((c) => c.id === creatorId)) throw new BusinessError('Modèle hors de ton périmètre.')
-      const page = await withNotionToken((token) => fetchNotionPage(token, notionPageId)).catch((e: unknown) => {
-        // Page hors de la racine partagée, clé expirée, débit limité : dit au manager ; le reste est technique.
-        const msg = notionReadMessage(e)
-        throw msg ? new BusinessError(msg) : e
-      })
-      if (!page) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
+      // Script de la liste : son espace est connu. Lien collé : on le cherche dans chaque espace connecté.
+      const spaces = connectionId ? [connectionId] : (await getNotionConnections()).map((c) => c.id)
+      if (!spaces.length) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
+      const hit = await firstWorkspaceWithPage(spaces, (id) => withNotionToken(id, (token) => fetchNotionPage(token, notionPageId))).catch(
+        (e: unknown) => {
+          // Clé expirée, débit limité : dit au manager ; le reste est technique (Sentry + générique).
+          const msg = notionReadMessage(e)
+          throw msg ? new BusinessError(msg) : e
+        },
+      )
+      if (!hit) throw new BusinessError('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
+      const page = hit.value
       let converted: Awaited<ReturnType<typeof convertToDraft>>
       try {
         converted = await convertToDraft(anthropic(), page)
@@ -216,29 +223,15 @@ function sendLock(): SendLock {
   }
 }
 
-/** Admin : la page racine du Notion d'agence (parmi les pages partagées de premier niveau). */
-export async function setRootPage(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: z.object({ pageId: z.string().min(1) }),
-    input: raw,
-    guard: noGuard,
-    handler: async ({ pageId }) => {
-      await requireAdminProfileLive()
-      await setNotionRootPage(pageId)
-      revalidatePath(PAGE)
-    },
-  })
-}
-
-/** Admin : déconnecte Notion (la clé est supprimée du CRM ; la connexion se retire aussi dans Notion). */
+/** Admin : déconnecte UN espace Notion (sa clé est supprimée du CRM ; la connexion se retire aussi dans Notion). */
 export async function disconnectNotion(raw: unknown): Promise<ActionResult> {
   return runAction({
-    schema: z.object({}),
+    schema: z.object({ connectionId: z.string().min(1) }),
     input: raw,
     guard: noGuard,
-    handler: async () => {
+    handler: async ({ connectionId }) => {
       await requireAdminProfileLive()
-      await deleteNotionConnection()
+      await deleteNotionConnection(connectionId)
       revalidatePath(PAGE)
     },
   })

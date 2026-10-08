@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { NotionError, blocksToText, fetchNotionPage, listNotionScripts, listSharedTopPages, notionPageId, type NotionBlock } from './notion'
+import { NotionError, blocksToText, fetchNotionPage, listSharedPages, notionPageId, type NotionBlock } from './notion'
 
 const rt = (plain_text: string) => [{ plain_text }]
 let seq = 0
@@ -87,112 +87,102 @@ describe('fetchNotionPage', () => {
   })
 })
 
-describe('listSharedTopPages', () => {
-  it('pages partagées de premier niveau (parent = espace), via la recherche, pagination comprise', async () => {
+describe('listSharedPages', () => {
+  const pageOf = (id: string, title: string, parent: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+    object: 'page',
+    id,
+    parent,
+    properties: { Nom: { type: 'title', title: rt(title) } },
+    ...extra,
+  })
+  const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 })
+
+  it('toutes les pages partagées ET leurs sous-pages, en une recherche paginée, avec la page parente', async () => {
     const bodies: unknown[] = []
-    const pageOf = (id: string, title: string, parent: Record<string, unknown>) => ({
-      object: 'page',
-      id,
-      parent,
-      properties: { title: { type: 'title', title: rt(title) } },
-    })
     const answers = [
       {
-        results: [pageOf('r1', 'Agence', { type: 'workspace', workspace: true }), pageOf('x1', 'EMMA', { type: 'page_id', page_id: 'r1' })],
+        results: [
+          pageOf('r1', 'OUTILS MANAGERS', { type: 'workspace', workspace: true }),
+          pageOf('s1', 'Script découverte (KYC) · Lucie', { type: 'page_id', page_id: 'r1' }),
+        ],
         has_more: true,
         next_cursor: 'c2',
       },
-      { results: [pageOf('r2', 'Brouillons', { type: 'workspace', workspace: true })], has_more: false },
+      {
+        results: [
+          pageOf('d1', 'Ligne de base', { type: 'database_id', database_id: 'db' }),
+          pageOf('k1', 'Dans une colonne', { type: 'block_id', block_id: 'b' }),
+        ],
+        has_more: false,
+      },
     ]
     const fake = (async (url: string, init: RequestInit) => {
       expect(url).toBe('https://api.notion.com/v1/search')
       expect(init.method).toBe('POST')
       bodies.push(JSON.parse(init.body as string))
-      return new Response(JSON.stringify(answers.shift()), { status: 200 })
+      return ok(answers.shift())
     }) as typeof fetch
-    expect(await listSharedTopPages('tok', fake)).toEqual([
-      { id: 'r1', title: 'Agence' },
-      { id: 'r2', title: 'Brouillons' },
-    ])
+    expect(await listSharedPages('tok', fake)).toEqual({
+      pages: [
+        { id: 'r1', title: 'OUTILS MANAGERS', parentId: null },
+        { id: 's1', title: 'Script découverte (KYC) · Lucie', parentId: 'r1' },
+        { id: 'd1', title: 'Ligne de base', parentId: null },
+        { id: 'k1', title: 'Dans une colonne', parentId: null },
+      ],
+      truncated: false,
+    })
     expect(bodies).toEqual([
       { filter: { property: 'object', value: 'page' }, page_size: 100 },
       { filter: { property: 'object', value: 'page' }, page_size: 100, start_cursor: 'c2' },
     ])
   })
-})
 
-describe('listNotionScripts', () => {
-  const page = (id: string, title: string) => ({ id, type: 'child_page', has_children: true, child_page: { title } })
-  it('racine → dossiers (sous-pages) → scripts (sous-pages), pagination comprise ; le reste est ignoré', async () => {
-    const answers: Record<string, unknown> = {
-      'https://api.notion.com/v1/blocks/root/children?page_size=100': {
-        results: [page('f1', 'EMMA'), block('paragraph', { rich_text: rt('intro') }), page('f2', 'OUTILS MANAGERS')],
+  it('pages archivées ou à la corbeille ignorées', async () => {
+    const fake = (async () =>
+      ok({
+        results: [
+          pageOf('a', 'Gardée', { type: 'workspace', workspace: true }),
+          pageOf('b', 'Archivée', { type: 'workspace', workspace: true }, { archived: true }),
+          pageOf('c', 'Corbeille', { type: 'workspace', workspace: true }, { in_trash: true }),
+        ],
         has_more: false,
-      },
-      'https://api.notion.com/v1/blocks/f1/children?page_size=100': {
-        results: [page('s1', 'Script de vente · Soirée révisions')],
-        has_more: true,
-        next_cursor: 'c2',
-      },
-      'https://api.notion.com/v1/blocks/f1/children?page_size=100&start_cursor=c2': { results: [page('s2', 'KYC')], has_more: false },
-      'https://api.notion.com/v1/blocks/f2/children?page_size=100': { results: [page('p1', 'Prompt – Script de vente V3')], has_more: false },
-    }
-    const fake = (async (url: string) =>
-      url in answers ? new Response(JSON.stringify(answers[url]), { status: 200 }) : new Response('{}', { status: 404 })) as typeof fetch
-    expect(await listNotionScripts('tok', 'root', fake)).toEqual([
-      { id: 'f1', title: 'EMMA', scripts: [{ id: 's1', title: 'Script de vente · Soirée révisions' }, { id: 's2', title: 'KYC' }] },
-      { id: 'f2', title: 'OUTILS MANAGERS', scripts: [{ id: 'p1', title: 'Prompt – Script de vente V3' }] },
-    ])
+      })) as typeof fetch
+    expect((await listSharedPages('tok', fake)).pages.map((p) => p.id)).toEqual(['a'])
   })
-  it('jamais plus de 3 requêtes Notion à la fois (≈ 3 req/s par intégration), même avec 12 dossiers', async () => {
-    const folders = Array.from({ length: 12 }, (_, i) => page(`f${i}`, `Modèle ${i}`))
-    let inFlight = 0
-    let peak = 0
-    const fake = (async (url: string) => {
-      inFlight++
-      peak = Math.max(peak, inFlight)
-      await new Promise((r) => setTimeout(r, 5))
-      inFlight--
-      const results = url.includes('/blocks/root/') ? folders : []
-      return new Response(JSON.stringify({ results, has_more: false }), { status: 200 })
+
+  it('au-delà de 10 pages de résultats (1 000 pages) : arrêt, signalé tronqué', async () => {
+    let calls = 0
+    const fake = (async () => {
+      calls++
+      return ok({ results: [pageOf(`p${calls}`, 'P', { type: 'workspace', workspace: true })], has_more: true, next_cursor: `c${calls}` })
     }) as typeof fetch
-    expect(await listNotionScripts('tok', 'root', fake)).toHaveLength(12)
-    expect(peak).toBeLessThanOrEqual(3)
+    const r = await listSharedPages('tok', fake)
+    expect(calls).toBe(10)
+    expect(r.truncated).toBe(true)
   })
+
   it('Notion répond 429 → attend le délai demandé (Retry-After) puis réessaie', async () => {
     let calls = 0
     const fake = (async () => {
       calls++
       if (calls === 1) return new Response('{}', { status: 429, headers: { 'Retry-After': '0' } })
-      return new Response(JSON.stringify({ results: [page('f1', 'EMMA')], has_more: false }), { status: 200 })
+      return ok({ results: [pageOf('a', 'A', { type: 'workspace', workspace: true })], has_more: false })
     }) as typeof fetch
-    const out = await listNotionScripts('tok', 'root', (async (url: string, init?: RequestInit) =>
-      url.includes('/blocks/root/') ? fake(url, init) : new Response(JSON.stringify({ results: [], has_more: false }), { status: 200 })) as typeof fetch)
-    expect(out).toEqual([{ id: 'f1', title: 'EMMA', scripts: [] }])
+    expect((await listSharedPages('tok', fake)).pages).toEqual([{ id: 'a', title: 'A', parentId: null }])
     expect(calls).toBe(2)
   })
-  it('429 persistant → abandon après 3 essais, message clair', async () => {
+
+  it('429 persistant → abandon après 3 essais ; erreur HTTP → NotionError typée portant le statut', async () => {
     let calls = 0
-    const fake = (async () => {
+    const busy = (async () => {
       calls++
       return new Response('{}', { status: 429, headers: { 'Retry-After': '0' } })
     }) as typeof fetch
-    await expect(listNotionScripts('tok', 'root', fake)).rejects.toThrow('Notion 429')
+    const err = await listSharedPages('tok', busy).catch((e: unknown) => e)
     expect(calls).toBe(3)
-  })
-  it('erreur HTTP Notion → NotionError typée portant le statut (on branche dessus, jamais sur le texte)', async () => {
-    const fake = (async () => new Response('{}', { status: 403 })) as typeof fetch
-    const err = await listNotionScripts('tok', 'root', fake).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(NotionError)
-    expect((err as NotionError).status).toBe(403)
-    const search = await listSharedTopPages('tok', (async () => new Response('{}', { status: 401 })) as typeof fetch).catch((e: unknown) => e)
-    expect(search).toBeInstanceOf(NotionError)
-    expect((search as NotionError).status).toBe(401)
-  })
-  it('racine non partagée → message clair', async () => {
-    const fake = (async () => new Response('{}', { status: 404 })) as typeof fetch
-    await expect(listNotionScripts('tok', 'root', fake)).rejects.toThrow(
-      'Notion 404 sur /v1/blocks/root/children — page partagée avec l’intégration ? (Partager → Connexions)',
-    )
+    expect((err as NotionError).status).toBe(429)
+    const denied = await listSharedPages('tok', (async () => new Response('{}', { status: 401 })) as typeof fetch).catch((e: unknown) => e)
+    expect((denied as NotionError).status).toBe(401)
   })
 })

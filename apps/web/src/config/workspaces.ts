@@ -215,12 +215,13 @@ export const WORKSPACES: Workspace[] = [
       // hiérarchique (manager → ses rattachés directs, admin/superadmin → tout). Pas adminOnly
       // → cochable dans Membres via PAGE_CHOICES (feature `reports`, table daily_reports).
       { href: '/chatter/dashboard', label: 'Dashboard', icon: NotebookPen, bottom: true },
+      // Import de scripts Notion → MyPuls (2026-10-07) : périmètre par modèle porté par la RLS (0184).
+      // Juste au-dessus d'Agence (demande Benoit, 2026-10-08).
+      { href: '/chatter/import-scripts', label: 'Importer un script', icon: FileInput, adminOnly: true, managerAccess: true, bottom: true },
       // Calendrier de l'agence (spec 2026-09-25) : lecture pour TOUS, écriture admin dans la page.
       // `bottom` : jamais page d'atterrissage (`landingHref` saute les items du bas).
       { href: '/chatter/agence', label: 'Agence', icon: CalendarDays, everyone: true, bottom: true },
       { href: '/chatter/members', label: 'Membres', icon: UserCog, adminOnly: true, managerAccess: true, bottom: true },
-      // Import de scripts Notion → MyPuls (2026-10-07) : périmètre par modèle porté par la RLS (0184).
-      { href: '/chatter/import-scripts', label: 'Importer un script', icon: FileInput, adminOnly: true, managerAccess: true, bottom: true },
     ],
   },
   {

@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { NotionConnectionCard } from './components/notion-connection.client'
 import { ScriptPicker } from './components/script-picker.client'
 import { ImportReport } from './components/import-report.client'
@@ -18,11 +18,11 @@ export function ScriptsImportTemplate({
   viewer: { id: string; isAdmin: boolean }
   notion: string | undefined
 }) {
-  const ready = !!data.connection?.rootPageId
+  const ready = data.workspaces.length > 0
   return (
     <div className="flex flex-col gap-6">
       {viewer.isAdmin ? (
-        <NotionConnectionCard connection={data.connection} rootCandidates={data.rootCandidates} notion={notion} />
+        <NotionConnectionCard connections={data.workspaces} notion={notion} />
       ) : (
         !ready && (
           <Card>
@@ -34,17 +34,9 @@ export function ScriptsImportTemplate({
         )
       )}
 
-      {data.notionError && (
-        <Card>
-          <CardContent className="pt-6 text-sm text-destructive">Lecture Notion impossible : {data.notionError}</CardContent>
-        </Card>
-      )}
-
       {data.current && <ImportReport current={data.current} viewerId={viewer.id} />}
 
-      {ready && (
-        <ScriptPicker folders={data.folders} creators={data.creators} />
-      )}
+      {ready && <ScriptPicker workspaces={data.workspaces} creators={data.creators} />}
 
       <ImportsTable imports={data.imports} />
     </div>
