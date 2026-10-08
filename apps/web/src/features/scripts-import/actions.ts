@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { normalizeDraft, summarizeDraft, validateScriptDraft } from '@glagency/core'
 import { createAdminClient, type Database, type Json } from '@glagency/db'
-import { ConversionError, convertToDraft, describeFailure, fetchNotionPage, sendScript, studioWriter } from '@glagency/scripts'
+import { ConversionError, convertToDraft, describeFailure, describeMedia, fetchNotionPage, sendScript, studioWriter } from '@glagency/scripts'
 import { SCRIPTS_SESSION_ID, ScriptsSessionError, ingestSessionStore, scriptsSessionForSend } from '@glagency/scripts/session'
 import {
   BusinessError,
@@ -155,11 +155,12 @@ type SendRow = {
   created_at: string
   sent_at: string | null
   mypuls_script_id: number | null
+  notion_title: string
   creators: { mypuls_creator_id: string | null; name: string } | null
 }
 
 /** Envoie un import `prepared` sans erreur dans le Studio MyPuls de la modèle — script créé DÉSACTIVÉ. */
-export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScriptId: number }>> {
+export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScriptId: number; mediaNote: string }>> {
   return runAction({
     schema: z.object({ importId: z.uuid() }),
     input: raw,
@@ -169,7 +170,7 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
       const supabase = await createClient()
       const { data, error } = await supabase
         .from('script_imports')
-        .select('id, created_by, status, errors, draft, created_at, sent_at, mypuls_script_id, creators:creator_id (mypuls_creator_id, name)')
+        .select('id, created_by, status, errors, draft, created_at, sent_at, mypuls_script_id, notion_title, creators:creator_id (mypuls_creator_id, name)')
         .eq('id', importId)
         .maybeSingle()
       if (error) throw new Error(error.message)
@@ -223,7 +224,8 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
             (id) => finish({ mypuls_script_id: id }),
             (e) => Sentry.captureException(e),
           )
-          result = await sendScript(writer, mypulsId, draft)
+          // Titre Notion relu : la collection des médias porte le nom du script tel qu'écrit dans Notion.
+          result = await sendScript(writer, mypulsId, draft, undefined, { scriptTitle: row.notion_title })
         } catch (e) {
           // Session absente ou expirée : issue attendue, dite au manager. Le reste est technique : la
           // ligne garde un texte générique et l'erreur remonte (Sentry + message générique de runAction).
@@ -241,7 +243,7 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
             (e: unknown) => Sentry.captureException(e),
           )
           revalidatePath(PAGE)
-          return { mypulsScriptId: result.scriptId }
+          return { mypulsScriptId: result.scriptId, mediaNote: describeMedia(result.media) }
         }
         await finish({
           status: 'failed',

@@ -342,3 +342,4 @@ export type {
 } from './scripts/script-draft'
 export { branchBody, messageFields, scriptFields } from './scripts/script-requests'
 export { matchCreatorByName } from './scripts/creator-match'
+export { attachFromLibrary, mediaLabel, sameCollectionName, type LibraryMedia } from './scripts/media-match'

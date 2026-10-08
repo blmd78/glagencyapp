@@ -4,7 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { matchCreatorByName, normalizeDraft, summarizeDraft, validateScriptDraft } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
 import { login } from '@glagency/mypuls'
-import { convertToDraft, describeFailure, fetchNotionPage, formatReport, notionPageId, sendScript, studioWriter } from '@glagency/scripts'
+import { convertToDraft, describeFailure, describeMedia, fetchNotionPage, formatReport, notionPageId, sendScript, studioWriter } from '@glagency/scripts'
 import { loadEnv } from './env'
 
 // Usage : pnpm --filter @glagency/ingestion script-mypuls <lien page Notion> --modele=<prénom> [--envoyer]
@@ -100,12 +100,14 @@ async function run(): Promise<void> {
     return
   }
   const { cookie } = await login()
-  const result = await sendScript(studioWriter(cookie), creator.mypulsId, draft)
+  const result = await sendScript(studioWriter(cookie), creator.mypulsId, draft, undefined, { scriptTitle: page.title })
   console.log(`[script] la session MyPuls du .env est maintenant sur ${creator.name} (modèle courante d'un navigateur qui la partage).`)
   if (result.ok) {
     console.log(
       `[script] créé et DÉSACTIVÉ : script ${result.scriptId} sur ${creator.name} — à relire puis activer dans le Studio (https://mypuls.app/scripts).`,
     )
+    const media = describeMedia(result.media)
+    if (media) console.log(`[script] médias : ${media}.`)
   } else {
     process.exitCode = 1
     console.error(`[script] ${describeFailure(result, draft.name).replace('\n', '\n[script] ')}`)

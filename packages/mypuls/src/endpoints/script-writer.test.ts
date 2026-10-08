@@ -6,6 +6,9 @@ import {
   createScript,
   editMessage,
   fetchStudio,
+  listCollectionMedia,
+  listCollections,
+  mediaTitle,
   renameScript,
   saveLayout,
   setScriptActive,
@@ -86,6 +89,54 @@ describe('script-writer', () => {
     expect(form(calls[0]!.init)).toEqual({ title: 't', content: 'x', price: '0', medias_json: '[]', chain_delays_json: '[10,10]' })
   })
 
+  // Réponses calquées sur la STRUCTURE relevée en lecture seule le 2026-10-08 (bibliothèque de Julie) :
+  // /api/collections → { items: [{ id, name, count, counts, last_media_at }] } (sans curseur) ;
+  // /api/collections/medias/{id} → { items: [{ id (nombre), type, duration, like, view, src, thumb,
+  // posted_at, media_type, is_public, collection }], next_cursor } ; détail → { …, meta: { title, … } }.
+  const media = (id: number, type: string) => ({
+    id,
+    type,
+    duration: null,
+    like: 0,
+    view: 0,
+    src: 'x',
+    thumb: 'x',
+    posted_at: 'x',
+    media_type: type,
+    is_public: false,
+    collection: null,
+  })
+  it('bibliothèque : collections, médias d’une collection (toutes les pages), titre d’un média', async () => {
+    const calls = stubFetch(
+      json({ items: [{ id: 3367, name: 'Script-Chambre 2 🤍', count: 3, counts: { photo: 1, video: 1, audio: 1 }, last_media_at: 'x' }] }),
+      json({ items: [media(101, 'photo'), media(102, 'video')], next_cursor: 'c2' }),
+      json({ items: [media(103, 'audio')], next_cursor: null }),
+      json({ id: 101, type: 'photo', meta: { title: 'PPV 1', description: null, tag: null, suggested_price: null } }),
+      json({ id: 102, type: 'video', meta: null }),
+    )
+    expect(await listCollections('c')).toEqual([{ id: '3367', name: 'Script-Chambre 2 🤍' }])
+    expect(await listCollectionMedia('c', '3367')).toEqual([
+      { id: '101', type: 'photo' },
+      { id: '102', type: 'video' },
+      { id: '103', type: 'audio' },
+    ])
+    expect(await mediaTitle('c', '101')).toBe('PPV 1')
+    expect(await mediaTitle('c', '102')).toBe('')
+    expect(calls.map((c) => c.url)).toEqual([
+      'https://mypuls.app/api/collections',
+      'https://mypuls.app/api/collections/medias/3367?limit=50&with_audio=1',
+      'https://mypuls.app/api/collections/medias/3367?limit=50&with_audio=1&cursor=c2',
+      'https://mypuls.app/api/creator/media/101/detail',
+      'https://mypuls.app/api/creator/media/102/detail',
+    ])
+  })
+
+  it('bibliothèque : type absent → vide (jamais pris pour une photo) ; plus de 3 pages → erreur plutôt qu’un pack tronqué', async () => {
+    stubFetch(json({ items: [{ id: 1 }], next_cursor: null }))
+    expect(await listCollectionMedia('c', '9')).toEqual([{ id: '1', type: '' }])
+    stubFetch(...[1, 2, 3].map((n) => json({ items: [media(n, 'photo')], next_cursor: `c${n}` })))
+    await expect(listCollectionMedia('c', '9')).rejects.toThrow('collection 9 : plus de 3 pages de médias')
+  })
   it('refus MyPuls : le texte `error` de la réponse est gardé dans l’erreur (sinon un 422 ne dit pas pourquoi)', async () => {
     stubFetch(json({ error: 'Relance invalide : aucun message ne suit.' }, 422))
     const err = await createMessage('c', 7, { title: 't', content: 'x' }).catch((e: unknown) => e)

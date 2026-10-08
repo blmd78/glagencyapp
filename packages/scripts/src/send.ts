@@ -6,6 +6,9 @@ import {
   createScript,
   editMessage,
   fetchStudio,
+  listCollectionMedia,
+  listCollections,
+  mediaTitle,
   renameScript,
   saveLayout,
   setScriptActive,
@@ -13,6 +16,7 @@ import {
   type LayoutItem,
   type StudioState,
 } from '@glagency/mypuls'
+import { withLibrary } from './library'
 
 /**
  * Envoi d'un brouillon VÉRIFIÉ (validateScriptDraft sans erreur) dans le Studio MyPuls.
@@ -36,6 +40,9 @@ export interface StudioWriter {
   createBranch(scriptId: number, body: { label: string; paths: Array<{ label: string; color: string }> }): Promise<void>
   createMessage(scriptId: number, fields: Record<string, string>, path?: { branchId: number; pathId: number }): Promise<void>
   editMessage(scriptId: number, messageId: number, fields: Record<string, string>): Promise<void>
+  listCollections(): Promise<Array<{ id: string; name: string }>>
+  listCollectionMedia(collectionId: string): Promise<Array<{ id: string; type: string }>>
+  mediaTitle(mediaId: string): Promise<string>
   fetchStudio(scriptId: number): Promise<StudioState>
   saveLayout(scriptId: number, items: LayoutItem[]): Promise<void>
 }
@@ -50,6 +57,9 @@ export function studioWriter(cookie: string): StudioWriter {
     createBranch: (scriptId, body) => createBranch(cookie, scriptId, body),
     createMessage: (scriptId, fields, path) => createMessage(cookie, scriptId, fields, path),
     editMessage: (scriptId, messageId, fields) => editMessage(cookie, scriptId, messageId, fields),
+    listCollections: () => listCollections(cookie),
+    listCollectionMedia: (collectionId) => listCollectionMedia(cookie, collectionId),
+    mediaTitle: (mediaId) => mediaTitle(cookie, mediaId),
     fetchStudio: (scriptId) => fetchStudio(cookie, scriptId),
     saveLayout: (scriptId, items) => saveLayout(cookie, scriptId, items),
   }
@@ -64,8 +74,17 @@ export interface Cleanup {
   deactivated: boolean | null
   renamed: boolean
 }
+/** Médias rattachés automatiquement (titre MyM = libellé du script) et restés « à rattacher ». */
+export interface MediaReport {
+  attached: number
+  pending: number
+  /** Collection du script trouvée (même nom), ou `null`. */
+  collection: string | null
+  /** Pourquoi rien n'a été rattaché (`withLibrary`), ou `null`. */
+  reason: 'absente' | 'ambiguë' | 'illisible' | 'trop de médias' | 'invalide' | null
+}
 export type SendResult =
-  | { ok: true; scriptId: number }
+  | { ok: true; scriptId: number; media: MediaReport }
   | { ok: false; scriptId: number | null; step: string; error: string; cleanup: Cleanup | null }
 
 /** Attentes avant les 2e et 3e tentatives sur un 429 — même règle que `identity-backfill` (MyPuls bloque ~1 min). */
@@ -102,6 +121,8 @@ export async function sendScript(
   creatorMypulsId: string,
   draft: ScriptDraft,
   sleep: (ms: number) => Promise<void> = realSleep,
+  /** `scriptTitle` : titre Notion relu, pour trouver la collection du script (sinon le nom du brouillon). */
+  opts: { scriptTitle?: string } = {},
 ): Promise<SendResult> {
   let scriptId: number | null = null
   const step = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
@@ -113,7 +134,9 @@ export async function sendScript(
   }
   try {
     await step('choix de la modèle', () => writer.switchCreator(creatorMypulsId))
-    scriptId = await step('création du script', () => writer.createScript(scriptFields(draft)))
+    // Bibliothèque lue APRÈS le choix de la modèle : c'est celle de la modèle courante de la session.
+    const { draft: ready, media } = await withLibrary(writer, draft, opts.scriptTitle)
+    scriptId = await step('création du script', () => writer.createScript(scriptFields(ready)))
     const id = scriptId
     await step('désactivation du script', () => writer.setScriptActive(id, false))
 
@@ -121,7 +144,7 @@ export async function sendScript(
       step(`message « ${m.title} »`, () => writer.createMessage(id, { ...messageFields(m), chain_delays_json: '[]' }, path))
     // Embranchements créés, dans l'ordre du brouillon : sert à apparier les ids à la fin.
     const created: CreatedBranch[] = []
-    for (const it of draft.items) {
+    for (const it of ready.items) {
       if (it.type === 'message') {
         await sendMessage(it)
         continue
@@ -153,7 +176,7 @@ export async function sendScript(
     if (final.script.isActive) {
       throw new StepError('contrôle final', new Error('le script est ACTIF dans MyPuls alors qu’il devait être désactivé'))
     }
-    const { layout, placed } = buildLayout(draft, created, final)
+    const { layout, placed } = buildLayout(ready, created, final)
     await step('ordre final', () => writer.saveLayout(id, layout))
     const chained = placed.filter((p) => p.message.chainDelays.length)
     for (const { message, id: messageId } of chained) {
@@ -177,7 +200,7 @@ export async function sendScript(
         }
       }
     }
-    return { ok: true, scriptId: id }
+    return { ok: true, scriptId: id, media }
   } catch (e) {
     const err = e instanceof StepError ? e : new StepError('envoi', e)
     const cleaned = scriptId === null ? null : await cleanup(writer, scriptId, draft, sleep)

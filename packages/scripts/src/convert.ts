@@ -132,7 +132,7 @@ export const CONVERT_EXAMPLE: ScriptDraft = {
     say('#3 — Question 1', 'question 1… le cœur il est à gauche ou à droite ?'),
     say('#4 — Bonne réponse → ENVOYER LE PPV 1', 'bien joué binôme 😏', { chainDelays: [60] }),
     say('⏩ À la suite', 'tiens ta récompense…', { pendingMedia: { description: 'PPV 1 – 3 photos', price: 12 } }),
-    say("#5 — Vocal d'urgence", '.', { pendingMedia: { description: 'VOCAL : fais vite 😈', price: 0 } }),
+    say("#5 — Vocal d'urgence", '.', { pendingMedia: { description: 'VOCAL 1 – fais vite 😈', price: 0 } }),
   ],
 }
 
@@ -158,7 +158,7 @@ Embranchements :
 
 Médias et prix :
 - Tu ne connais AUCUN id de média : media = [] toujours.
-- Un message qui envoie un média (🖼️, photo, vidéo, teaser, PPV, « ENVOYER LA PHOTO 2 », lien vers une page média) ou un vocal (🎙️) : pendingMedia = { description : le média tel que nommé dans le script (« PHOTO 2 – les fesses », « PPV 3 – photos nue », « VOCAL : fais vite »), price : le prix du PPV en euros (0 si gratuit) }, et price = 0 sur le message. Le texte de la bulle reste dans content. Un vocal : content = "." et ce que la modèle dit va dans la description (« VOCAL : fais vite ») — l'audio porte déjà la phrase, le texte partirait en double.
+- Un message qui envoie un média (🖼️, photo, vidéo, teaser, PPV, « ENVOYER LA PHOTO 2 », lien vers une page média) ou un vocal (🎙️) : pendingMedia = { description : le média tel que nommé dans le script (« PHOTO 2 – les fesses », « PPV 3 – photos nue », « VOCAL 1 – fais vite »), price : le prix du PPV en euros (0 si gratuit) }, et price = 0 sur le message. Le texte de la bulle reste dans content. Le libellé qui ouvre la description (« PHOTO 2 », « PPV 3 », jusqu'au premier tiret) est recopié EXACTEMENT comme dans le script : c'est le titre du média dans MyM, il sert à le rattacher automatiquement. Un vocal : content = ".", et sa description suit le même format, numéroté dans l'ordre du script (« VOCAL 1 – fais vite ») : ce que la modèle dit va après le tiret — l'audio porte déjà la phrase, le texte partirait en double.
 - Prix en fourchette (« 8-10 € ») : le plus bas. Prix décimal : avec un point (9.99).
 
 Script : name = le titre de la page (emoji compris) ; description = la « Description pour l'outil des chatteurs » si elle existe, sinon le type et le déclencheur du script en une phrase ; isSequence = true pour un déroulé (KYC, vente, tout script à étapes numérotées : le chat le déroule fan par fan et les embranchements deviennent des boutons de réponse) ; isSequence = false seulement pour une bibliothèque de messages sans ordre (ex. script de négociation).
