@@ -4,11 +4,10 @@ export {
   NotionError,
   blocksToText,
   fetchNotionPage,
-  listNotionScripts,
-  listSharedTopPages,
+  listSharedPages,
   notionPageId,
   type NotionBlock,
-  type NotionFolder,
+  type SharedPage,
 } from './notion'
 export {
   CONVERT_EXAMPLE,

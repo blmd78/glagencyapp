@@ -20,8 +20,8 @@ describe('checkDraftForSend', () => {
 
 describe('notionReadMessage', () => {
   it('erreurs Notion attendues → message pour le manager ; le reste → null (technique : Sentry + générique)', () => {
-    expect(notionReadMessage(new NotionError(404, 'x'))).toBe('Page Notion introuvable, ou hors de la page racine partagée avec le CRM.')
-    expect(notionReadMessage(new NotionError(403, 'x'))).toBe('Page Notion introuvable, ou hors de la page racine partagée avec le CRM.')
+    expect(notionReadMessage(new NotionError(404, 'x'))).toBe('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
+    expect(notionReadMessage(new NotionError(403, 'x'))).toBe('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
     expect(notionReadMessage(new NotionError(401, 'x'))).toBe('Connexion Notion expirée : un admin doit reconnecter Notion.')
     expect(notionReadMessage(new NotionError(429, 'x'))).toBe('Notion limite le débit : réessaie dans une minute.')
     expect(notionReadMessage(new NotionError(500, 'x'))).toBeNull()

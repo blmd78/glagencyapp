@@ -1,26 +1,33 @@
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
-import { matchCreatorByName, type DraftError, type DraftSummary } from '@glagency/core'
+import type { DraftError, DraftSummary } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
 import type { Cleanup } from '@glagency/scripts'
-import { listNotionScripts, listSharedTopPages } from '@glagency/scripts'
+import { listSharedPages } from '@glagency/scripts'
 import type { Profile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { importStatus, type ImportRow } from '../rules'
 import { failureText, notionReadMessage } from '../send-rules'
-import { getNotionConnection, withNotionToken, type NotionConnectionView } from './notion-connection'
+import { organizeNotionPages, type ScriptFolder } from '../notion-pages'
+import { getNotionConnections, withNotionToken, type NotionConnectionView } from './notion-connection'
+
+export type { ScriptFolder }
 
 export interface CreatorOption {
   id: string
   name: string
   mypulsId: string
 }
-export interface ScriptFolder {
-  id: string
-  title: string
-  /** Modèle reconnue d'après le nom du dossier, dans le périmètre de l'appelant ; null = choix manuel. */
-  creatorId: string | null
-  scripts: Array<{ id: string; title: string }>
+/** Un espace Notion connecté et ses pages, rangées (`organizeNotionPages`). */
+export interface NotionWorkspaceView extends NotionConnectionView {
+  /** Scripts dont la modèle est reconnue (dossier parent ou fin du titre), une modèle par groupe. */
+  recognized: ScriptFolder[]
+  /** Toutes les autres pages partagées, par dossier parent — choisissables à la main. */
+  others: ScriptFolder[]
+  /** Plus de 1 000 pages partagées : la liste est incomplète (le lien collé reste possible). */
+  truncated: boolean
+  /** Lecture impossible (clé expirée, Notion indisponible) — les autres espaces restent utilisables. */
+  error: string | null
 }
 export interface ImportListItem extends ImportRow {
   notionTitle: string
@@ -38,11 +45,8 @@ export interface ImportDetail extends ImportListItem {
   failureMessage: string | null
 }
 export interface ScriptsImportData {
-  connection: NotionConnectionView | null
-  /** Erreur de lecture Notion (page non partagée, Notion indisponible) — la page reste utilisable. */
-  notionError: string | null
-  folders: ScriptFolder[]
-  rootCandidates: Array<{ id: string; title: string }>
+  /** Espaces Notion connectés (vide : Notion n'est pas connecté). */
+  workspaces: NotionWorkspaceView[]
   creators: CreatorOption[]
   imports: ImportListItem[]
   current: ImportDetail | null
@@ -107,9 +111,8 @@ const IMPORT_COLUMNS =
 
 export async function getScriptsImport(profile: Profile, importId?: string): Promise<ScriptsImportData> {
   const supabase = await createClient()
-  const isAdmin = profile.role === 'admin'
-  const [connection, creators, importsRes, currentRes] = await Promise.all([
-    getNotionConnection(),
+  const [connections, creators, importsRes, currentRes] = await Promise.all([
+    getNotionConnections(),
     allowedCreators(profile),
     supabase.from('script_imports').select(IMPORT_COLUMNS).order('created_at', { ascending: false }).limit(50),
     importId ? supabase.from('script_imports').select(IMPORT_COLUMNS).eq('id', importId).maybeSingle() : Promise.resolve(null),
@@ -117,37 +120,29 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
   if (importsRes.error) throw new Error(importsRes.error.message)
   if (currentRes?.error) throw new Error(currentRes.error.message)
 
-  let notionError: string | null = null
-  let folders: ScriptFolder[] = []
-  let rootCandidates: Array<{ id: string; title: string }> = []
-  if (connection) {
-    try {
-      if (connection.rootPageId) {
-        const raw = (await withNotionToken((token, root) => (root ? listNotionScripts(token, root) : Promise.resolve([])))) ?? []
-        folders = raw.map((f) => {
-          const m = matchCreatorByName(creators, f.title)
-          return { ...f, creatorId: m.kind === 'found' ? m.row.id : null }
-        })
-      } else if (isAdmin) {
-        rootCandidates = (await withNotionToken((token) => listSharedTopPages(token))) ?? []
+  // Une recherche paginée par espace, en parallèle (quelques espaces au plus).
+  const workspaces = await Promise.all(
+    connections.map(async (c): Promise<NotionWorkspaceView> => {
+      try {
+        const shared = await withNotionToken(c.id, (token) => listSharedPages(token))
+        const { recognized, others } = organizeNotionPages(shared?.pages ?? [], creators)
+        return { ...c, recognized, others, truncated: shared?.truncated ?? false, error: null }
+      } catch (e) {
+        // Erreur Notion attendue (clé expirée, débit) : dite telle quelle. Le reste (Supabase, réseau…)
+        // est technique : Sentry, et un message générique — jamais le texte brut.
+        let error = notionReadMessage(e)
+        if (!error) {
+          Sentry.captureException(e)
+          error = 'erreur technique, signalée à l’équipe.'
+        }
+        return { ...c, recognized: [], others: [], truncated: false, error }
       }
-    } catch (e) {
-      // Erreur Notion attendue (page non partagée, clé expirée, débit) : dite telle quelle. Le reste
-      // (Supabase, réseau…) est technique : Sentry, et un message générique — jamais le texte brut.
-      notionError = notionReadMessage(e)
-      if (!notionError) {
-        Sentry.captureException(e)
-        notionError = 'erreur technique, signalée à l’équipe.'
-      }
-    }
-  }
+    }),
+  )
 
   const current = currentRes?.data as unknown as ImportDbRow | null | undefined
   return {
-    connection,
-    notionError,
-    folders,
-    rootCandidates,
+    workspaces,
     creators,
     imports: ((importsRes.data ?? []) as unknown as ImportDbRow[]).map(toItem),
     current: current

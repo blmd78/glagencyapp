@@ -189,6 +189,11 @@ describe('Importer un script — adminOnly + managerAccess, sans slug', () => {
     expect(pageChoicesFor('chatter').map((c) => c.slug)).not.toContain('scripts')
     expect(landingHref({ role: 'chatteur', superadmin: false, manager: true, pages: [] })).toBe('/no-access')
   })
+
+  it('placé juste au-dessus d’Agence dans le bas du menu (demande Benoit, 2026-10-08)', () => {
+    const bottom = chatter.nav.filter((n) => n.bottom).map((n) => n.href)
+    expect(bottom.indexOf('/chatter/import-scripts')).toBe(bottom.indexOf('/chatter/agence') - 1)
+  })
 })
 
 // ── Bouts de page (`<page>:<bout>`) — droits plus fins qu'une page, cf. migration 0139 ────────

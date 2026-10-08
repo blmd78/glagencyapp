@@ -16,8 +16,8 @@ insert into creators (id, name) values
   ('00000000-0000-4000-8000-0000000184c2', 'Test 0184 B');
 insert into profile_creators (profile_id, creator_id) values
   ('00000000-0000-4000-8000-0000000184a1', '00000000-0000-4000-8000-0000000184c1');
-insert into notion_connection (access_token_encrypted, workspace_id, workspace_name, bot_id)
-values ('v1:x:y:z', 'w', 'Agence test', 'b');
+insert into notion_connection (id, access_token_encrypted, workspace_id, workspace_name, bot_id)
+values ('w', 'v1:x:y:z', 'w', 'Agence test', 'b');
 
 -- ── En tant que MANAGER ─────────────────────────────────────────────────────────────────────────
 set local role authenticated;
