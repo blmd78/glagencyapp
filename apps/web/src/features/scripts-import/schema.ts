@@ -29,3 +29,6 @@ export const prepareImportSchema = z.object({
  * (`crypto.randomUUID()`), identique dans toutes les copies d’une même requête (0189, `prepareOnce`).
  */
 export const prepareImportInput = prepareImportSchema.extend({ requestId: z.uuid() })
+
+/** Contrat de `prepareStatus` : la clé du clic dont la réponse a été coupée (`waitPrepared`). */
+export const prepareStatusInput = z.object({ requestId: z.uuid() })

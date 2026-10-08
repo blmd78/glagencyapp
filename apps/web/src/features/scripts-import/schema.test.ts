@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { prepareImportInput, prepareImportSchema } from './schema'
+import { prepareImportInput, prepareImportSchema, prepareStatusInput } from './schema'
 
 const creatorId = '00000000-0000-4000-8000-000000000001'
 
@@ -31,5 +31,13 @@ describe('prepareImportInput (contrat de l’action)', () => {
   })
   it('le formulaire, lui, ne porte pas la clé (variante saisie)', () => {
     expect(prepareImportSchema.safeParse(ok).success).toBe(true)
+  })
+})
+
+describe('prepareStatusInput (relecture d’une préparation dont la réponse a été coupée)', () => {
+  it('la clé du clic, et rien d’autre', () => {
+    expect(prepareStatusInput.safeParse({ requestId: creatorId }).success).toBe(true)
+    expect(prepareStatusInput.safeParse({ requestId: 'pas-une-cle' }).success).toBe(false)
+    expect(prepareStatusInput.safeParse({}).success).toBe(false)
   })
 })

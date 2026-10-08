@@ -13,9 +13,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
-import { prepareImport } from '../actions'
+import { prepareImport, prepareStatus } from '../actions'
 import { prepareImportSchema } from '../schema'
 import type { CreatorOption, NotionWorkspaceView, ScriptFolder } from '../services/get-scripts-import'
+import { waitPrepared } from '../wait-prepared'
 
 /**
  * Choix du script : pour chaque espace Notion connecté, les scripts dont la modèle est reconnue
@@ -86,23 +87,45 @@ function WorkspaceBlock({ workspace: w, creators, titled }: { workspace: NotionW
   )
 }
 
+/**
+ * Réponse de « Préparer » coupée (connexion perdue à 60 s, test réel du 2026-10-08) : la préparation
+ * continue côté serveur. On relit sa clé (`waitPrepared`) et on ouvre le rapport dès qu'il est prêt —
+ * le bouton reste occupé pendant l'attente. Rien n'est relancé, rien n'est écrit chez MyPuls.
+ */
+async function afterCut(requestId: string, router: ReturnType<typeof useRouter>) {
+  toast.info('Réponse coupée : la préparation continue, le rapport s’ouvre dès qu’il est prêt.')
+  const outcome = await waitPrepared(async () => {
+    const res = await prepareStatus({ requestId })
+    if (!res.success) throw new Error(res.error)
+    return res.data
+  })
+  if (outcome.status === 'done') {
+    toast.success('Script préparé : relis le rapport.')
+    return router.push(`/chatter/import-scripts?import=${outcome.importId}`)
+  }
+  toast.error(
+    outcome.status === 'failed'
+      ? 'La préparation n’a pas abouti — relance « Préparer ».'
+      : 'Préparation toujours en cours — regarde l’historique dans un moment.',
+  )
+  router.refresh()
+}
+
 /** « Préparer » partagé par la liste et le lien collé : lecture, conversion, puis le rapport. */
 function usePrepare() {
   const router = useRouter()
   const [pending, start] = useTransition()
   const prepare = (notionPageId: string, creatorId: string, connectionId: string) =>
     start(async () => {
+      // Une clé par clic : les copies de cette requête (renvoi du navigateur) ne relancent pas la conversion.
+      const requestId = crypto.randomUUID()
       try {
-        // Une clé par clic : les copies de cette requête (renvoi du navigateur) ne relancent pas la conversion.
-        const res = await prepareImport({ notionPageId, creatorId, connectionId, requestId: crypto.randomUUID() })
+        const res = await prepareImport({ notionPageId, creatorId, connectionId, requestId })
         if (!res.success) return void toast.error(res.error)
         toast.success('Script préparé : relis le rapport.')
         router.push(`/chatter/import-scripts?import=${res.data.importId}`)
       } catch {
-        // Échec de transport (durée maximale, connexion coupée) : rien n'est écrit chez MyPuls ;
-        // la préparation a pu aboutir côté serveur — l'historique le dira.
-        toast.error('Préparation coupée avant la réponse — regarde l’historique, sinon relance.')
-        router.refresh()
+        await afterCut(requestId, router)
       }
     })
   return { pending, prepare }
@@ -130,8 +153,9 @@ function PasteLink({ creators }: { creators: CreatorOption[] }) {
   const creatorId = useWatch({ control, name: 'creatorId' })
 
   const submit = handleSubmit(async (values) => {
+    const requestId = crypto.randomUUID()
     try {
-      const res = await prepareImport({ ...values, requestId: crypto.randomUUID() })
+      const res = await prepareImport({ ...values, requestId })
       if (!res.success) {
         const field = res.fieldErrors?.notionPageId?.[0]
         if (field) setError('notionPageId', { message: field })
@@ -142,9 +166,7 @@ function PasteLink({ creators }: { creators: CreatorOption[] }) {
       toast.success('Script préparé : relis le rapport.')
       router.push(`/chatter/import-scripts?import=${res.data.importId}`)
     } catch {
-      // Échec de transport (durée maximale, connexion coupée) : la préparation a pu aboutir côté serveur.
-      toast.error('Préparation coupée avant la réponse — regarde l’historique, sinon relance.')
-      router.refresh()
+      await afterCut(requestId, router)
     }
   })
 

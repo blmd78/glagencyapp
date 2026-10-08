@@ -22,10 +22,11 @@ import { createClient } from '@/lib/supabase/server'
 import { firstWorkspaceWithPage } from './notion-pages'
 import { canSend } from './rules'
 import { prepareOnce, type PrepareClaims } from './prepare-once'
-import { prepareImportInput } from './schema'
+import { prepareImportInput, prepareStatusInput } from './schema'
 import { checkDraftForSend, notionReadMessage, withSendLock, type SendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
+import type { PrepareState } from './wait-prepared'
 import { deleteNotionConnection, getNotionConnections, withNotionToken } from './services/notion-connection'
 
 const PAGE = '/chatter/import-scripts'
@@ -57,6 +58,22 @@ export async function prepareImport(raw: unknown): Promise<ActionResult<{ import
       )
       revalidatePath(PAGE)
       return { importId }
+    },
+  })
+}
+
+/**
+ * Où en est une préparation dont la réponse a été coupée (connexion perdue à 60 s, test réel du
+ * 2026-10-08) : relit SA clé (client RLS) — lecture seule, rien n'est relancé. Lu par `waitPrepared`.
+ */
+export async function prepareStatus(raw: unknown): Promise<ActionResult<PrepareState>> {
+  return runAction({
+    schema: prepareStatusInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ requestId }) => {
+      const profile = await requireImporter()
+      return prepareClaims(await createClient(), profile.id).lookup(requestId)
     },
   })
 }
