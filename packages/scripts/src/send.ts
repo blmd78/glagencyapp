@@ -4,6 +4,7 @@ import {
   createBranch,
   createMessage,
   createScript,
+  editMessage,
   fetchStudio,
   renameScript,
   saveLayout,
@@ -17,7 +18,9 @@ import {
  * Envoi d'un brouillon VÉRIFIÉ (validateScriptDraft sans erreur) dans le Studio MyPuls.
  *
  * Ordre : modèle de la session → script → désactivé AVANT le premier message (un script actif à
- * moitié rempli serait proposé aux chatteurs) → éléments dans l'ordre du brouillon → ordre final.
+ * moitié rempli serait proposé aux chatteurs) → éléments dans l'ordre du brouillon, SANS relances →
+ * ordre final → relances. Une relance vise les messages qui SUIVENT : MyPuls la refuse à la création
+ * (422, test réel du 2026-10-08) ; le Studio la pose en modification, une fois les suivants en place.
  * Le Studio ne renvoie pas l'id d'un message créé : on relit son état (`fetchStudio`) après chaque
  * embranchement (pour les ids de ses chemins) et à la fin (pour poser l'ordre), et on apparie par
  * ordre de création — le script est neuf, tout ce qu'il contient vient de nous.
@@ -32,6 +35,7 @@ export interface StudioWriter {
   renameScript(id: number, fields: Record<string, string>): Promise<void>
   createBranch(scriptId: number, body: { label: string; paths: Array<{ label: string; color: string }> }): Promise<void>
   createMessage(scriptId: number, fields: Record<string, string>, path?: { branchId: number; pathId: number }): Promise<void>
+  editMessage(scriptId: number, messageId: number, fields: Record<string, string>): Promise<void>
   fetchStudio(scriptId: number): Promise<StudioState>
   saveLayout(scriptId: number, items: LayoutItem[]): Promise<void>
 }
@@ -45,6 +49,7 @@ export function studioWriter(cookie: string): StudioWriter {
     renameScript: (id, fields) => renameScript(cookie, id, fields),
     createBranch: (scriptId, body) => createBranch(cookie, scriptId, body),
     createMessage: (scriptId, fields, path) => createMessage(cookie, scriptId, fields, path),
+    editMessage: (scriptId, messageId, fields) => editMessage(cookie, scriptId, messageId, fields),
     fetchStudio: (scriptId) => fetchStudio(cookie, scriptId),
     saveLayout: (scriptId, items) => saveLayout(cookie, scriptId, items),
   }
@@ -113,7 +118,7 @@ export async function sendScript(
     await step('désactivation du script', () => writer.setScriptActive(id, false))
 
     const sendMessage = (m: DraftMessage, path?: { branchId: number; pathId: number }) =>
-      step(`message « ${m.title} »`, () => writer.createMessage(id, messageFields(m), path))
+      step(`message « ${m.title} »`, () => writer.createMessage(id, { ...messageFields(m), chain_delays_json: '[]' }, path))
     // Embranchements créés, dans l'ordre du brouillon : sert à apparier les ids à la fin.
     const created: CreatedBranch[] = []
     for (const it of draft.items) {
@@ -148,8 +153,30 @@ export async function sendScript(
     if (final.script.isActive) {
       throw new StepError('contrôle final', new Error('le script est ACTIF dans MyPuls alors qu’il devait être désactivé'))
     }
-    const layout = buildLayout(draft, created, final)
+    const { layout, placed } = buildLayout(draft, created, final)
     await step('ordre final', () => writer.saveLayout(id, layout))
+    const chained = placed.filter((p) => p.message.chainDelays.length)
+    for (const { message, id: messageId } of chained) {
+      await step(`relances de « ${message.title} »`, () => writer.editMessage(id, messageId, messageFields(message)))
+    }
+    if (chained.length) {
+      // RELU, pas supposé (même principe que « désactivé ») : la modification n'envoie pas le chemin, on
+      // vérifie qu'elle a bien posé les relances ET laissé chaque message à sa place.
+      const after = await step('contrôle des relances', () => writer.fetchStudio(id))
+      for (const { message, id: messageId } of chained) {
+        const before = final.messages.find((m) => m.id === messageId)
+        const now = after.messages.find((m) => m.id === messageId)
+        const fail = (why: string) => new StepError('contrôle des relances', new Error(why))
+        if (!before || !now) throw fail(`« ${message.title} » introuvable dans MyPuls après la pose des relances`)
+        if (now.branchId !== before.branchId || now.branchPath !== before.branchPath) {
+          throw fail(`« ${message.title} » a quitté son chemin dans MyPuls après la pose des relances`)
+        }
+        const got = (now.chainDelays ?? []).map(Number)
+        if (JSON.stringify(got) !== JSON.stringify(message.chainDelays)) {
+          throw fail(`relances de « ${message.title} » : ${JSON.stringify(got)} dans MyPuls, ${JSON.stringify(message.chainDelays)} attendu`)
+        }
+      }
+    }
     return { ok: true, scriptId: id }
   } catch (e) {
     const err = e instanceof StepError ? e : new StepError('envoi', e)
@@ -186,8 +213,15 @@ async function cleanup(writer: StudioWriter, id: number, draft: ScriptDraft, sle
   return { deactivated, renamed }
 }
 
-/** Ordre final du Studio : ids appariés par ordre de création, par liste (racine, puis chaque chemin). */
-function buildLayout(draft: ScriptDraft, created: CreatedBranch[], st: StudioState): LayoutItem[] {
+/**
+ * Ordre final du Studio : ids appariés par ordre de création, par liste (racine, puis chaque chemin).
+ * `placed` : chaque message du brouillon avec son id MyPuls — sert à poser les relances ensuite.
+ */
+function buildLayout(
+  draft: ScriptDraft,
+  created: CreatedBranch[],
+  st: StudioState,
+): { layout: LayoutItem[]; placed: Array<{ message: DraftMessage; id: number }> } {
   const byId = [...st.messages].sort((a, b) => a.id - b.id)
   const root = byId.filter((m) => m.branchId === null).map((m) => m.id)
   const inPath = (branchId: number, pathId: number) => byId.filter((m) => m.branchId === branchId && m.branchPath === pathId).map((m) => m.id)
@@ -197,8 +231,13 @@ function buildLayout(draft: ScriptDraft, created: CreatedBranch[], st: StudioSta
   }
   let r = 0
   let b = 0
-  return draft.items.map((it): LayoutItem => {
-    if (it.type === 'message') return { type: 'message', id: root[r++]! }
+  const placed: Array<{ message: DraftMessage; id: number }> = []
+  const layout = draft.items.map((it): LayoutItem => {
+    if (it.type === 'message') {
+      const id = root[r++]!
+      placed.push({ message: it, id })
+      return { type: 'message', id }
+    }
     const c = created[b++]!
     return {
       type: 'branch',
@@ -209,8 +248,10 @@ function buildLayout(draft: ScriptDraft, created: CreatedBranch[], st: StudioSta
         if (ids.length !== p.messages.length) {
           throw new StepError('ordre final', new Error(`chemin « ${p.label} » : ${ids.length} message(s) dans MyPuls, ${p.messages.length} attendu(s)`))
         }
+        p.messages.forEach((m, mi) => placed.push({ message: m, id: ids[mi]! }))
         return { id: pathId, messages: ids }
       }),
     }
   })
+  return { layout, placed }
 }

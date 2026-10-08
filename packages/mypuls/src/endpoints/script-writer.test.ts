@@ -4,6 +4,7 @@ import {
   createBranch,
   createMessage,
   createScript,
+  editMessage,
   fetchStudio,
   renameScript,
   saveLayout,
@@ -75,6 +76,26 @@ describe('script-writer', () => {
     expect(calls[0]!.url).toBe('https://mypuls.app/scripts/7/messages/new')
     expect(form(calls[0]!.init)).toEqual({ title: 't', content: 'x' })
     expect(form(calls[1]!.init)).toEqual({ title: 't', content: 'y', branch_id: '3', branch_path: '9' })
+  })
+
+  it('editMessage : POST /scripts/{id}/messages/{msgId}/edit en FormData — la route du Studio pour poser les relances', async () => {
+    const calls = stubFetch(json({ id: 11 }))
+    await editMessage('c', 7, 11, { title: 't', content: 'x', price: '0', medias_json: '[]', chain_delays_json: '[10,10]' })
+    expect(calls[0]!.url).toBe('https://mypuls.app/scripts/7/messages/11/edit')
+    expect(calls[0]!.init.method).toBe('POST')
+    expect(form(calls[0]!.init)).toEqual({ title: 't', content: 'x', price: '0', medias_json: '[]', chain_delays_json: '[10,10]' })
+  })
+
+  it('refus MyPuls : le texte `error` de la réponse est gardé dans l’erreur (sinon un 422 ne dit pas pourquoi)', async () => {
+    stubFetch(json({ error: 'Relance invalide : aucun message ne suit.' }, 422))
+    const err = await createMessage('c', 7, { title: 't', content: 'x' }).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(StudioError)
+    expect((err as StudioError).status).toBe(422)
+    expect((err as Error).message).toBe('POST /scripts/7/messages/new 422 : Relance invalide : aucun message ne suit.')
+    stubFetch(new Response('<html>', { status: 500 }))
+    expect(((await createMessage('c', 7, { title: 't', content: 'x' }).catch((e: unknown) => e)) as Error).message).toBe(
+      'POST /scripts/7/messages/new 500',
+    )
   })
 
   it('fetchStudio : GET /scripts/{id}/studio → script, branches, messages', async () => {

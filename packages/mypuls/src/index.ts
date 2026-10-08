@@ -29,11 +29,12 @@ export { fetchChatInit, switchCreator } from './endpoints/chat'
 export type { ChatConversation } from './endpoints/chat'
 export { fetchScripts, parseScripts } from './endpoints/scripts'
 export type { CreatorScript } from './endpoints/scripts'
-// Écriture dans le Studio de scripts (commande `script-mypuls`) — création uniquement.
+// Écriture dans le Studio de scripts (import de scripts) — création, puis relances posées en modification.
 export {
   StudioError,
   createBranch,
   createMessage,
+  editMessage,
   createScript,
   fetchStudio,
   renameScript,

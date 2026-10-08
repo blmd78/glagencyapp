@@ -149,7 +149,8 @@ export function validateScriptDraft(d: ScriptDraft): DraftError[] {
   else if (d.name.length > nameMax) {
     push('script', [`nom de ${d.name.length} caractères (max ${nameMax}, place gardée pour « ${INCOMPLETE_PREFIX.trim()} »)`])
   }
-  if (d.items.length === 0) push('script', ['aucun message'])
+  // Page sans script rédigé (page de référence, prompt, PDF joint) : la conversion ne trouve rien.
+  if (d.items.length === 0) push('script', ['aucun message trouvé : cette page n’est pas un script rédigé (page d’exemple, prompt, PDF joint ?)'])
   d.items.forEach((it, i) => {
     const at = `élément ${i + 1}`
     if (it.type === 'message') {

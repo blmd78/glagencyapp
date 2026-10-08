@@ -47,7 +47,7 @@ describe('validateScriptDraft', () => {
   it('exige un nom et au moins un élément', () => {
     expect(messages(validateScriptDraft({ name: ' ', description: '', isSequence: false, items: [] }))).toEqual([
       'nom du script vide',
-      'aucun message',
+      'aucun message trouvé : cette page n’est pas un script rédigé (page d’exemple, prompt, PDF joint ?)',
     ])
   })
 
