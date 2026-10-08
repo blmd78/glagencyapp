@@ -23,3 +23,9 @@ export const prepareImportSchema = z.object({
   creatorId: z.uuid(),
   connectionId: z.string().min(1).optional(),
 })
+
+/**
+ * Contrat de `prepareImport` : la saisie + la clé anti-doublon générée par le navigateur à chaque clic
+ * (`crypto.randomUUID()`), identique dans toutes les copies d’une même requête (0189, `prepareOnce`).
+ */
+export const prepareImportInput = prepareImportSchema.extend({ requestId: z.uuid() })

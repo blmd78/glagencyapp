@@ -85,7 +85,7 @@ Ajouter une migration :
    `supabase link` est **cassé** sur ce projet → toujours `--db-url`, jamais `link`.
 3. Régénérer `packages/db/src/types.ts` si le schéma change.
 
-**État au 2026-10-08** : prod = **0183**, UAT = **0188** (`0182` suppression de la to-do personnelle, `0183` identité chatteur et contrôles de fiabilité, `0184` connexion Notion et historique des imports de scripts, `0185` jeton de renouvellement Notion, `0186` verrous des imports de scripts, `0187` verrou d’envoi des scripts, `0188` une connexion par espace Notion — `0184`..`0188` UAT seulement, à appliquer en prod avant la release qui livrera l’import de scripts ; `0188` garde `root_page_id` inutilisée pour rester compatible avec le code déjà déployé, cf. `docs/dettes-ouvertes.md` n° 10). **Prochaine migration = `0189`**.
+**État au 2026-10-08** : prod = **0183**, UAT = **0190** (`0182` suppression de la to-do personnelle, `0183` identité chatteur et contrôles de fiabilité, `0184` connexion Notion et historique des imports de scripts, `0185` jeton de renouvellement Notion, `0186` verrous des imports de scripts, `0187` verrou d’envoi des scripts, `0188` une connexion par espace Notion, `0189` clé anti-doublon de « Préparer », `0190` clés réservées à l’admin et à l’encadrement — `0184`..`0190` UAT seulement, à appliquer en prod avant la release qui livrera l’import de scripts ; `0188` garde `root_page_id` inutilisée pour rester compatible avec le code déjà déployé, cf. `docs/dettes-ouvertes.md` n° 10). **Prochaine migration = `0191`**.
 
 **Piège réseau (2026-09-22)** : `db.<ref>.supabase.co` n'a plus d'adresse IPv4 et la machine ne
 route pas l'IPv6 → `supabase db push --db-url` échoue en « no route to host ». Passer par le
