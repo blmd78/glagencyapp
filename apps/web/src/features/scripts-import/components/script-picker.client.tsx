@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef, useState, useTransition } from 'react'
+import { unstable_isUnrecognizedActionError, useRouter } from 'next/navigation'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { z } from 'zod'
@@ -92,13 +92,21 @@ function WorkspaceBlock({ workspace: w, creators, titled }: { workspace: NotionW
  * continue côté serveur. On relit sa clé (`waitPrepared`) et on ouvre le rapport dès qu'il est prêt —
  * le bouton reste occupé pendant l'attente. Rien n'est relancé, rien n'est écrit chez MyPuls.
  */
-async function afterCut(requestId: string, router: ReturnType<typeof useRouter>) {
+async function afterCut(error: unknown, requestId: string, router: ReturnType<typeof useRouter>, signal?: AbortSignal) {
+  // Nouvelle version du CRM déployée pendant que la page était ouverte : rien n'a tourné côté serveur.
+  if (unstable_isUnrecognizedActionError(error)) {
+    return void toast.error('Page périmée (nouvelle version du CRM) : recharge-la, puis relance « Préparer ».')
+  }
   toast.info('Réponse coupée : la préparation continue, le rapport s’ouvre dès qu’il est prêt.')
-  const outcome = await waitPrepared(async () => {
-    const res = await prepareStatus({ requestId })
-    if (!res.success) throw new Error(res.error)
-    return res.data
-  })
+  const outcome = await waitPrepared(
+    async () => {
+      const res = await prepareStatus({ requestId })
+      return res.success ? res.data : { status: 'refused', message: res.error }
+    },
+    { signal },
+  )
+  if (outcome.status === 'aborted') return
+  if (outcome.status === 'refused') return void toast.error(outcome.message)
   if (outcome.status === 'done') {
     toast.success('Script préparé : relis le rapport.')
     return router.push(`/chatter/import-scripts?import=${outcome.importId}`)
@@ -111,9 +119,21 @@ async function afterCut(requestId: string, router: ReturnType<typeof useRouter>)
   router.refresh()
 }
 
+/** Signal coupé quand le composant disparaît (page quittée) : une attente en cours s'arrête là. */
+function useUnmountSignal() {
+  const controller = useRef<AbortController | null>(null)
+  useEffect(() => {
+    const c = new AbortController()
+    controller.current = c
+    return () => c.abort()
+  }, [])
+  return () => controller.current?.signal
+}
+
 /** « Préparer » partagé par la liste et le lien collé : lecture, conversion, puis le rapport. */
 function usePrepare() {
   const router = useRouter()
+  const unmountSignal = useUnmountSignal()
   const [pending, start] = useTransition()
   const prepare = (notionPageId: string, creatorId: string, connectionId: string) =>
     start(async () => {
@@ -124,8 +144,8 @@ function usePrepare() {
         if (!res.success) return void toast.error(res.error)
         toast.success('Script préparé : relis le rapport.')
         router.push(`/chatter/import-scripts?import=${res.data.importId}`)
-      } catch {
-        await afterCut(requestId, router)
+      } catch (e) {
+        await afterCut(e, requestId, router, unmountSignal())
       }
     })
   return { pending, prepare }
@@ -139,6 +159,7 @@ function usePrepare() {
 function PasteLink({ creators }: { creators: CreatorOption[] }) {
   'use no memo'
   const router = useRouter()
+  const unmountSignal = useUnmountSignal()
   const {
     control,
     register,
@@ -165,8 +186,8 @@ function PasteLink({ creators }: { creators: CreatorOption[] }) {
       }
       toast.success('Script préparé : relis le rapport.')
       router.push(`/chatter/import-scripts?import=${res.data.importId}`)
-    } catch {
-      await afterCut(requestId, router)
+    } catch (e) {
+      await afterCut(e, requestId, router, unmountSignal())
     }
   })
 

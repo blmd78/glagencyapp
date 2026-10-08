@@ -21,9 +21,10 @@ import { readStateCookie } from '@/lib/impersonation/session'
 import { createClient } from '@/lib/supabase/server'
 import { firstWorkspaceWithPage } from './notion-pages'
 import { canSend } from './rules'
-import { prepareOnce, type PrepareClaims } from './prepare-once'
+import { prepareClaims, sendLock } from './locks'
+import { prepareOnce } from './prepare-once'
 import { prepareImportInput, prepareStatusInput } from './schema'
-import { checkDraftForSend, notionReadMessage, withSendLock, type SendLock } from './send-rules'
+import { checkDraftForSend, notionReadMessage, withSendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
 import type { PrepareState } from './wait-prepared'
@@ -134,33 +135,6 @@ async function prepare({
   if (error?.code === '42501') throw new BusinessError('Modèle hors de ton périmètre.')
   if (error) throw new Error(error.message)
   return (data as { id: string }).id
-}
-
-/** Réservations des clés de « Préparer » (`script_prepare_requests`, 0189) — client RLS : chacun SES clés. */
-function prepareClaims(supabase: Awaited<ReturnType<typeof createClient>>, profileId: string): PrepareClaims {
-  const table = () => supabase.from('script_prepare_requests')
-  return {
-    claim: async (key) => {
-      const { error } = await table().insert({ request_id: key, created_by: profileId })
-      if (error?.code === '23505') return false
-      if (error) throw new Error(error.message)
-      return true
-    },
-    lookup: async (key) => {
-      const { data, error } = await table().select('import_id').eq('request_id', key).maybeSingle()
-      if (error) throw new Error(error.message)
-      if (!data) return { status: 'released' }
-      return data.import_id ? { status: 'done', importId: data.import_id } : { status: 'pending' }
-    },
-    complete: async (key, importId) => {
-      const { error } = await table().update({ import_id: importId }).eq('request_id', key)
-      if (error) throw new Error(error.message)
-    },
-    release: async (key) => {
-      const { error } = await table().delete().eq('request_id', key)
-      if (error) Sentry.captureException(new Error(error.message))
-    },
-  }
 }
 
 type SendRow = {
@@ -277,22 +251,6 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
 }
 
 const TECHNICAL = 'Erreur technique, signalée à l’équipe.'
-
-/** Verrou d'envoi en base (0187, service role) : `acquire` est un UPDATE conditionnel atomique. */
-function sendLock(): SendLock {
-  const admin = createAdminClient()
-  return {
-    acquire: async (holder) => {
-      const { data, error } = await admin.rpc('acquire_script_send_lock', { p_holder: holder })
-      if (error) throw new Error(error.message)
-      return data === true
-    },
-    release: async (holder) => {
-      const { error } = await admin.rpc('release_script_send_lock', { p_holder: holder })
-      if (error) Sentry.captureException(new Error(error.message))
-    },
-  }
-}
 
 /** Admin : déconnecte UN espace Notion (sa clé est supprimée du CRM ; la connexion se retire aussi dans Notion). */
 export async function disconnectNotion(raw: unknown): Promise<ActionResult> {
