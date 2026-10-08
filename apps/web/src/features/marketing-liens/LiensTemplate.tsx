@@ -1,4 +1,4 @@
-import { UrlTabs } from '@/components/url-tabs'
+import { UrlTabs, type UrlTab } from '@/components/url-tabs'
 import { LiensView } from './components/liens-view'
 import { LinkGraphView } from './components/link-graph-view'
 import type { DailyPoint } from './daily-series'
@@ -12,17 +12,23 @@ import type { MktLinksData, MktLiensVue } from './types'
  * « Classement » répond à « qui performe ? », « Graphique » à « comment ce lien a-t-il évolué ? ».
  * Le second existe parce que le premier ne portait le détail journalier que derrière un clic sur
  * le nom d'un lien — un geste que rien n'annonçait.
+ *
+ * `lead` : un onglet posé AVANT les deux autres, et ouvert par défaut — la « Vue d'ensemble » de
+ * l'onglet SFS (décision Benoit 2026-10-08 : un seul jeu d'onglets plutôt que deux empilés).
  */
 export function MktLiensTemplate({
   data,
   vue,
+  lead,
   modele,
   modeleOptions,
   groups,
   detail,
 }: {
   data: MktLinksData
-  vue: MktLiensVue
+  /** Onglet actif, validé par la page : `classement`, `graph`, ou la valeur de `lead`. */
+  vue: MktLiensVue | (string & {})
+  lead?: UrlTab
   /** Le filtre Modèle (`?modele=`) : commun aux deux onglets, pour qu'en basculant de l'un à
    *  l'autre on retrouve la même sélection. */
   modele: Modele
@@ -34,6 +40,8 @@ export function MktLiensTemplate({
     selected: MktLinkRow[]
     points: DailyPoint[]
     options: LinkOption[]
+    /** Les réseaux proposés, ceux du périmètre de la page (`lib/mkt-sfs.ts`). */
+    reseauOptions: LinkOption[]
     reseau: Reseau
     modele: Modele
     lien: string
@@ -45,8 +53,9 @@ export function MktLiensTemplate({
 
       <UrlTabs
         value={vue}
-        defaultValue="classement"
+        defaultValue={lead?.value ?? 'classement'}
         items={[
+          ...(lead ? [lead] : []),
           {
             value: 'classement',
             label: 'Classement',

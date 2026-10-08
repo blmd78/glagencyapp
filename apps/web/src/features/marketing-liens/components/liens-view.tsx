@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
@@ -97,13 +97,15 @@ function LinkRow({
   const v = valeur(l, critere)
   const largeur = best > 0 && v !== null ? Math.max((v / best) * 100, 1.5) : 0
   const searchParams = useSearchParams()
+  // La page courante, pas `/marketing/liens` en dur : l'onglet SFS montre la même vue.
+  const pathname = usePathname()
   // `?lien=` s'AJOUTE aux paramètres courants : la période du header doit survivre à l'ouverture
   // du détail, sinon la modale montrerait un mois et le tableau un autre.
   const detail = useMemo(() => {
     const p = new URLSearchParams(searchParams)
     p.set('lien', l.id)
-    return `/marketing/liens?${p.toString()}` as Route
-  }, [searchParams, l.id])
+    return `${pathname}?${p.toString()}` as Route
+  }, [searchParams, pathname, l.id])
   return (
     <div className="flex items-center gap-3 border-t px-4 py-2 first:border-t-0 hover:bg-accent/30">
       <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
