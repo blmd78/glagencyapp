@@ -41,6 +41,8 @@ interface FakeOptions {
   reversePaths?: boolean
   /** Le serveur renomme le 1er chemin (réponse inattendue). */
   renameFirstPath?: string
+  /** `msgEdit` répond OK mais : `ignore` les relances, ou `root` sort le message de son chemin. */
+  editQuirk?: 'ignore' | 'root'
 }
 
 /** Studio MyPuls en mémoire : ids croissants, comme le vrai ; script créé ACTIF, comme le défaut du Studio. */
@@ -84,6 +86,11 @@ class FakeStudio implements StudioWriter {
   }
   async createMessage(_id: number, fields: Record<string, string>, path?: { branchId: number; pathId: number }) {
     this.hit(`message ${fields.title}`)
+    // Comme MyPuls (test réel du 2026-10-08, script 9865) : une relance vise les messages qui SUIVENT,
+    // le Studio la refuse à la création — elle se pose ensuite, en modification.
+    if ((JSON.parse(fields.chain_delays_json ?? '[]') as number[]).length) {
+      throw new StudioError(`POST /scripts/7/messages/new 422 : relance sans message suivant`, 422)
+    }
     this.state.messages.push({
       id: this.next++,
       position: this.state.messages.length + 1,
@@ -95,6 +102,16 @@ class FakeStudio implements StudioWriter {
       branchId: path?.branchId ?? null,
       branchPath: path?.pathId ?? null,
     })
+  }
+  async editMessage(_id: number, messageId: number, fields: Record<string, string>) {
+    this.hit(`edit ${fields.title} ${fields.chain_delays_json}`)
+    const m = this.state.messages.find((x) => x.id === messageId)
+    if (!m) throw new StudioError(`POST /scripts/7/messages/${messageId}/edit 404`, 404)
+    if (this.o.editQuirk === 'root') {
+      m.branchId = null
+      m.branchPath = null
+    }
+    if (this.o.editQuirk !== 'ignore') m.chainDelays = JSON.parse(fields.chain_delays_json ?? '[]') as number[]
   }
   async fetchStudio() {
     this.hit('studio')
@@ -130,6 +147,8 @@ describe('sendScript', () => {
       'message #4',
       'studio',
       'layout',
+      'edit #1 [10]',
+      'studio',
     ])
     const b = s.state.branches[0]!
     const pathId = (label: string) => b.paths.find((p) => p.label === label)!.id
@@ -141,6 +160,8 @@ describe('sendScript', () => {
     ])
     expect(s.pathOf('#3 🟢')).toBe('Oui')
     expect(s.state.script.isActive).toBe(false)
+    // Relance posée APRÈS l'ordre final, sur le bon message (ses suivants existent alors).
+    expect(s.state.messages.find((m) => m.title === '#1')!.chainDelays).toEqual([10])
   })
 
   it('chemins renvoyés dans un autre ordre → appariés par libellé et couleur, jamais par position', async () => {
@@ -193,6 +214,58 @@ describe('sendScript', () => {
     })
     expect(s.log.slice(-2)).toEqual(['studio', 'rename ⚠️ INCOMPLET — Soirée révisions'])
     expect(s.state.script.isActive).toBe(false)
+  })
+
+  it('relance d’un message DANS un chemin : posée sur ce message, après l’ordre final', async () => {
+    const draft: ScriptDraft = {
+      ...DRAFT,
+      items: DRAFT.items.map((it) =>
+        it.type === 'branch'
+          ? { ...it, paths: it.paths.map((p) => (p.label === 'Oui' ? { ...p, messages: [msg('#3 🟢', { chainDelays: [20, 30] }), msg('#3 🟢 — Suite')] } : p)) }
+          : it,
+      ),
+    }
+    const s = new FakeStudio()
+    expect(await sendScript(s, '290', draft, noSleep)).toEqual({ ok: true, scriptId: 7 })
+    expect(s.log.slice(-4)).toEqual(['layout', 'edit #1 [10]', 'edit #3 🟢 [20,30]', 'studio'])
+    expect(s.state.messages.find((m) => m.title === '#3 🟢')!.chainDelays).toEqual([20, 30])
+  })
+
+  it('relances RELUES après la pose : MyPuls répond OK mais les ignore → échec « contrôle des relances », nettoyé', async () => {
+    const s = new FakeStudio({ editQuirk: 'ignore' })
+    expect(await sendScript(s, '290', DRAFT, noSleep)).toEqual({
+      ok: false,
+      scriptId: 7,
+      step: 'contrôle des relances',
+      error: 'relances de « #1 » : [] dans MyPuls, [10] attendu',
+      cleanup: { deactivated: true, renamed: true },
+    })
+  })
+
+  it('relances RELUES : une modification qui sort un message de son chemin → échec « contrôle des relances »', async () => {
+    const draft: ScriptDraft = {
+      ...DRAFT,
+      items: DRAFT.items.map((it) =>
+        it.type === 'branch'
+          ? { ...it, paths: it.paths.map((p) => (p.label === 'Non' ? { ...p, messages: [msg('#3 🔴', { chainDelays: [20] })] } : p)) }
+          : it,
+      ),
+    }
+    const r = await sendScript(new FakeStudio({ editQuirk: 'root' }), '290', draft, noSleep)
+    expect(r.ok).toBe(false)
+    expect(r.ok === false && r.step).toBe('contrôle des relances')
+    expect(r.ok === false && r.error).toBe('« #3 🔴 » a quitté son chemin dans MyPuls après la pose des relances')
+  })
+
+  it('refus pendant la pose des relances → échec à cette étape, script désactivé et renommé', async () => {
+    const s = new FakeStudio({ failOn: (c) => (c.startsWith('edit #1') ? new StudioError('POST /scripts/7/messages/100/edit 422 : délai trop long', 422) : null) })
+    expect(await sendScript(s, '290', DRAFT, noSleep)).toEqual({
+      ok: false,
+      scriptId: 7,
+      step: 'relances de « #1 »',
+      error: 'POST /scripts/7/messages/100/edit 422 : délai trop long',
+      cleanup: { deactivated: true, renamed: true },
+    })
   })
 
   it('session expirée en plein envoi (tout échoue ensuite) → nettoyage rapporté comme NON fait', async () => {

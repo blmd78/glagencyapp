@@ -68,7 +68,11 @@ async function call(
   }
   const res = await fetch(`${BASE_URL}${path}`, { method, headers, body: payload, redirect: 'manual' })
   if (res.status >= 300 && res.status < 400) throw new StudioError(`${method} ${path} : redirection ${res.status} (session expirée ?)`, res.status)
-  if (!res.ok) throw new StudioError(`${method} ${path} ${res.status}`, res.status)
+  if (!res.ok) {
+    // Le Studio renvoie la raison d'un refus dans `{ error }` (cf. son `http()`) : sans elle, un 422 ne dit pas pourquoi.
+    const reason = ((await res.json().catch(() => null)) as { error?: unknown } | null)?.error
+    throw new StudioError(`${method} ${path} ${res.status}${typeof reason === 'string' && reason ? ` : ${reason}` : ''}`, res.status)
+  }
   if (res.status === 204) return null
   return res.json().catch(() => null)
 }
@@ -104,6 +108,14 @@ export async function createMessage(
 ): Promise<void> {
   const form = path ? { ...fields, branch_id: String(path.branchId), branch_path: String(path.pathId) } : fields
   await call(cookie, 'POST', `/scripts/${scriptId}/messages/new`, { form })
+}
+
+/**
+ * Modifie un message existant (route `msgEdit` du Studio, mêmes champs qu'à la création, sans chemin).
+ * Sert à poser les relances APRÈS coup : une relance vise les messages qui SUIVENT, ils doivent exister.
+ */
+export async function editMessage(cookie: string, scriptId: number, messageId: number, fields: Record<string, string>): Promise<void> {
+  await call(cookie, 'POST', `/scripts/${scriptId}/messages/${messageId}/edit`, { form: fields })
 }
 
 export async function fetchStudio(cookie: string, scriptId: number): Promise<StudioState> {
