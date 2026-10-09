@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useOptimistic, useRef, useState } from
 import { type ColumnDef, type SortingState } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { KpiCard, type Kpi } from '@/components/kpi-card'
+import type { ComboOption } from '@/components/ui/combobox'
 import { eur } from '@/lib/format'
 import { SpendersTable } from './spenders-table'
 import { ArchiveButton } from './spender-actions'
@@ -53,6 +54,7 @@ export function SpendersView({
   freshness,
   total,
   serverKpis,
+  knownModels,
 }: {
   spenders: SpenderRow[]
   view: SpendersViewKind
@@ -71,6 +73,8 @@ export function SpendersView({
   total?: number
   /** Cartes de la Liste agrégées en base (mode serveur) — sinon calculées sur le jeu complet. */
   serverKpis?: SpendersKpis
+  /** Mode serveur : toutes les modèles lisibles, pour le filtre (les lignes n'en portent qu'une partie). */
+  knownModels?: ComboOption[]
 }) {
   const serveur = total !== undefined
   // Optimistic UI : les lignes affichées = état serveur + patchs des actions en cours
@@ -295,6 +299,7 @@ export function SpendersView({
           readOnlyRelances={view === 'liste'}
           models={models}
           onModelsChange={setModels}
+          knownModels={knownModels}
           manual={serveur}
           sorting={sorting}
           onSortingChange={setSorting}

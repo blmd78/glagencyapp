@@ -8,6 +8,12 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.75.1] — 2026-10-09
+
+### Corrigé
+
+- Spenders : le filtre « modèle » des vues Liste et À relancer propose de nouveau toutes les modèles. Depuis le chargement par tranches, il ne montrait que celles des 100 premiers spenders affichés (6 modèles sur 19 manquaient sur la Liste).
+
 ## [2.75] — 2026-10-08
 
 ### Ajouté
