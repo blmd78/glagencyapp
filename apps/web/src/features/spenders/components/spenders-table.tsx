@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { ComboboxMultiple } from '@/components/ui/combobox-multiple'
 import { Toggle } from '@/components/ui/toggle'
 import { DataTable } from '@/components/data-table/data-table'
+import type { ComboOption } from '@/components/ui/combobox'
+import { mergeModelOptions } from '../model-options'
 import { type SpenderRow } from '../types'
 
 
@@ -20,6 +22,7 @@ export function SpendersTable({
   readOnlyRelances = false,
   models,
   onModelsChange,
+  knownModels,
   manual,
   sorting,
   onSortingChange,
@@ -46,6 +49,8 @@ export function SpendersTable({
    */
   models: string[]
   onModelsChange: (models: string[]) => void
+  /** Toutes les modèles lisibles (vues paginées) — sinon les options se déduisent des lignes. */
+  knownModels?: ComboOption[]
   /** Mode serveur (0104) : tri, recherche et découpage vivent en base — cf. DataTable. */
   manual?: boolean
   sorting?: SortingState
@@ -60,13 +65,7 @@ export function SpendersTable({
   // sort de la file) ; le toggle bascule sur ceux déjà relancés aujourd'hui.
   const [showDone, setShowDone] = useState(false)
 
-  const modelOptions = useMemo(() => {
-    const byId = new Map<string, string>()
-    for (const s of spenders) byId.set(s.creatorId, s.model)
-    return [...byId.entries()]
-      .map(([value, label]) => ({ value, label }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  }, [spenders])
+  const modelOptions = useMemo(() => mergeModelOptions(knownModels, spenders), [knownModels, spenders])
 
   // Le filtre « relancés aujourd'hui » s'applique APRÈS le filtre modèle : le compteur
   // du toggle correspond exactement aux lignes qu'il affichera.

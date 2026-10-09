@@ -1,4 +1,5 @@
 import { frDateTimeParis } from '@glagency/core'
+import type { ComboOption } from '@/components/ui/combobox'
 import { SpendersView, type SpendersViewKind } from './components/spenders-view'
 import type { SpendersKpis } from './services/get-spenders-page'
 import { isARelancer, R_ALERTE, type SpendersData } from './types'
@@ -20,6 +21,7 @@ export function SpendersTemplate({
   view,
   total,
   serverKpis,
+  knownModels,
   isAdmin,
   canWrite,
 }: {
@@ -28,6 +30,8 @@ export function SpendersTemplate({
   /** Mode serveur (0104) : total du périmètre — `data.spenders` n'est alors qu'une tranche. */
   total?: number
   serverKpis?: SpendersKpis
+  /** Mode serveur : toutes les modèles lisibles, pour le filtre (`getSpenderModels`). */
+  knownModels?: ComboOption[]
   isAdmin?: boolean
   /** admin ou manager/sous-manager : peut reset/archiver (0060). Calculé dans la page. */
   canWrite?: boolean
@@ -66,6 +70,7 @@ export function SpendersTemplate({
         freshness={freshness}
         total={total}
         serverKpis={serverKpis}
+        knownModels={knownModels}
       />
     </div>
   )
