@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Modifié
+
+- Importer un script : la modèle d'un script Notion est reconnue plus souplement — son prénom n'importe où dans le titre (« Script Lucie KYC », « Relance (EMMA) »), un dossier « Scripts Emma », ou un sous-dossier « Scripts » dans le dossier de la modèle. Les pages média sous un script, et les pages qui nomment deux modèles, restent dans « Autres pages ».
+
 ## [2.75] — 2026-10-08
 
 ### Ajouté

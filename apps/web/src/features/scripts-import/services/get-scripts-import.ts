@@ -20,7 +20,7 @@ export interface CreatorOption {
 }
 /** Un espace Notion connecté et ses pages, rangées (`organizeNotionPages`). */
 export interface NotionWorkspaceView extends NotionConnectionView {
-  /** Scripts dont la modèle est reconnue (dossier parent ou fin du titre), une modèle par groupe. */
+  /** Scripts dont la modèle est reconnue (titre ou dossier, cf. `organizeNotionPages`), une modèle par groupe. */
   recognized: ScriptFolder[]
   /** Toutes les autres pages partagées, par dossier parent — choisissables à la main. */
   others: ScriptFolder[]
