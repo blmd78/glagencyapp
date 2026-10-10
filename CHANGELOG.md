@@ -13,6 +13,12 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 - Importer un script : la modèle d'un script Notion est reconnue plus souplement — son prénom n'importe où dans le titre (« Script Lucie KYC », « Relance (EMMA) »), un dossier « Scripts Emma », ou un sous-dossier « Scripts » dans le dossier de la modèle. Les pages média sous un script, et les pages qui nomment deux modèles, restent dans « Autres pages ».
 - Importer un script : une page qui n'a rien d'un script (sommaire, page média, fiche — ni bulle, ni étape, ni média) est refusée dès « Préparer », avant la conversion par Claude.
 
+## [2.75.1] — 2026-10-09
+
+### Corrigé
+
+- Spenders : le filtre « modèle » des vues Liste et À relancer propose de nouveau toutes les modèles. Depuis le chargement par tranches, il ne montrait que celles des 100 premiers spenders affichés (6 modèles sur 19 manquaient sur la Liste).
+
 ## [2.75] — 2026-10-08
 
 ### Ajouté

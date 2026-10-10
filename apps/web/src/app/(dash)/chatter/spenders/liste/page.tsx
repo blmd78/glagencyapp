@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { getSpendersPage, getSpendersKpis } from '@/features/spenders/services/get-spenders-page'
+import { getSpenderModels } from '@/features/spenders/services/get-spender-models'
 import { requireAccess } from '@/lib/auth'
 import { SpendersTemplate } from '@/features/spenders/SpendersTemplate'
 import { SpendersListeSkeleton } from '@/features/spenders/components/spenders-liste-skeleton'
@@ -16,7 +17,7 @@ export default async function SpendersListePage() {
   // dans leur boundary quand le RPC répond.
   // PREMIÈRE TRANCHE seulement (0104) : cette vue rapatriait ~9 800 lignes et 3,1 Mo que
   // personne ne parcourt. Le scroll demande la suite, le tri et la recherche repartent en base.
-  const data = Promise.all([getSpendersPage({ view: 'liste', limit: 100 }), getSpendersKpis()])
+  const data = Promise.all([getSpendersPage({ view: 'liste', limit: 100 }), getSpendersKpis(), getSpenderModels()])
 
   return (
     <div className="flex flex-col gap-6">
@@ -43,11 +44,13 @@ async function SpendersListeContent({
   isAdmin,
   canWrite,
 }: {
-  data: Promise<[Awaited<ReturnType<typeof getSpendersPage>>, Awaited<ReturnType<typeof getSpendersKpis>>]>
+  data: Promise<
+    [Awaited<ReturnType<typeof getSpendersPage>>, Awaited<ReturnType<typeof getSpendersKpis>>, Awaited<ReturnType<typeof getSpenderModels>>]
+  >
   isAdmin: boolean
   canWrite: boolean
 }) {
-  const [page, kpis] = await data
+  const [page, kpis, knownModels] = await data
   return (
     <SpendersTemplate
       data={{ spenders: page.rows, capturedAt: null, threshold: CA_TRACKING_SEUIL }}
@@ -56,6 +59,7 @@ async function SpendersListeContent({
       canWrite={canWrite}
       total={page.total}
       serverKpis={kpis}
+      knownModels={knownModels}
     />
   )
 }
