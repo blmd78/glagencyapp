@@ -18,5 +18,6 @@ export {
   convertToDraft,
   type ConvertClient,
 } from './convert'
+export { looksLikeScript } from './shape'
 export { RATE_LIMIT_DELAYS_MS, sendScript, studioWriter, type Cleanup, type MediaReport, type SendResult, type StudioWriter } from './send'
 export { describeFailure, describeMedia, formatReport } from './report'

@@ -20,7 +20,7 @@ import { waitPrepared } from '../wait-prepared'
 
 /**
  * Choix du script : pour chaque espace Notion connecté, les scripts dont la modèle est reconnue
- * (dossier parent ou fin du titre « … · Prénom », cf. `organizeNotionPages`) d'abord, puis toutes les
+ * (prénom dans le titre, ou dossier de la modèle, cf. `organizeNotionPages`) d'abord, puis toutes les
  * autres pages partagées, repliées. La modèle présélectionnée reste modifiable.
  */
 export function ScriptPicker({ workspaces, creators }: { workspaces: NotionWorkspaceView[]; creators: CreatorOption[] }) {
@@ -59,7 +59,7 @@ function WorkspaceBlock({ workspace: w, creators, titled }: { workspace: NotionW
       ) : (
         w.recognized.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Aucun script reconnu (dossier au nom de la modèle, ou titre « … · Prénom ») : choisis la modèle à la main dans « Autres
+            Aucun script reconnu (prénom de la modèle dans le titre, ou dossier à son nom) : choisis la modèle à la main dans « Autres
             pages ».
           </p>
         )
