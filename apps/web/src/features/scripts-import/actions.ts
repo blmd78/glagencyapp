@@ -4,7 +4,16 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { normalizeDraft, summarizeDraft, validateScriptDraft } from '@glagency/core'
 import { createAdminClient, type Database, type Json } from '@glagency/db'
-import { ConversionError, convertToDraft, describeFailure, describeMedia, fetchNotionPage, sendScript, studioWriter } from '@glagency/scripts'
+import {
+  ConversionError,
+  convertToDraft,
+  describeFailure,
+  describeMedia,
+  fetchNotionPage,
+  looksLikeScript,
+  sendScript,
+  studioWriter,
+} from '@glagency/scripts'
 import { SCRIPTS_SESSION_ID, ScriptsSessionError, ingestSessionStore, scriptsSessionForSend } from '@glagency/scripts/session'
 import {
   BusinessError,
@@ -31,6 +40,8 @@ import type { PrepareState } from './wait-prepared'
 import { deleteNotionConnection, getNotionConnections, withNotionToken } from './services/notion-connection'
 
 const PAGE = '/chatter/import-scripts'
+const NOT_A_SCRIPT =
+  'Cette page ne ressemble pas à un script : aucune bulle (« > »), étape (#1, N1), enchaînement (⏩ ⏸️ ⏱️) ni média (PPV, PHOTO 1, VOCAL 1). Choisis la page du script lui-même.'
 
 /** Admin ou encadrant (manager / sous-manager), jamais « en tant que » : on écrit chez un tiers. */
 async function requireImporter(): Promise<Profile> {
@@ -105,6 +116,8 @@ async function prepare({
   )
   if (!hit) throw new BusinessError('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
   const page = hit.value
+  // Avant de payer la conversion : une page proposée par erreur (sommaire, page média, fiche) s'arrête ici.
+  if (!looksLikeScript(page.text)) throw new BusinessError(NOT_A_SCRIPT)
   let converted: Awaited<ReturnType<typeof convertToDraft>>
   try {
     converted = await convertToDraft(anthropic(), page)
