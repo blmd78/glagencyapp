@@ -5,6 +5,7 @@ import type { Period } from '@/lib/period'
 import type { MktDashboardData } from '../types'
 import { getLinkRows } from '@/lib/services/get-mkt-links'
 import { inScope, sfsLinkIds, type MktScope } from '@/lib/mkt-sfs'
+import type { LinkSubs } from '@/components/metric-chart/options'
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 
@@ -58,12 +59,19 @@ export async function getMktDashboard(period: Period, scope: MktScope = 'externe
   const daily = inScope(dailyRes.data ?? [], (d) => d.link_id, sfsIds, scope)
   const prevDaily = inScope(prevDailyRes.data ?? [], (d) => d.link_id, sfsIds, scope)
 
-  const byDay = new Map<string, { revenue: number; conversions: number; clicks: number }>()
+  // Une ligne = un lien un jour (clé primaire `(link_id, date)`) : la répartition des subs du
+  // jour par lien se lit directement, sans ré-agréger.
+  const linkById = new Map(links.map((l) => [l.id, l]))
+  const byDay = new Map<string, { revenue: number; conversions: number; clicks: number; subs: LinkSubs[] }>()
   for (const d of daily) {
-    const a = byDay.get(d.date) ?? { revenue: 0, conversions: 0, clicks: 0 }
+    const a = byDay.get(d.date) ?? { revenue: 0, conversions: 0, clicks: 0, subs: [] }
     a.revenue += Number(d.revenue_eur)
     a.conversions += d.conversions
     a.clicks += d.clicks
+    if (d.conversions > 0) {
+      const l = linkById.get(d.link_id)
+      a.subs.push({ name: l?.name ?? d.link_id, creator: l?.creator ?? null, subs: d.conversions })
+    }
     byDay.set(d.date, a)
   }
 
@@ -81,7 +89,15 @@ export async function getMktDashboard(period: Period, scope: MktScope = 'externe
   const conversions = links.reduce((s, l) => s + l.conversions, 0)
   const revenueEur = r2(links.reduce((s, l) => s + l.revenueEur, 0))
   const dailyPoints = [...byDay.entries()]
-    .map(([date, a]) => ({ date, revenue: r2(a.revenue), conversions: a.conversions, clicks: a.clicks }))
+    .map(([date, a]) => ({
+      date,
+      revenue: r2(a.revenue),
+      conversions: a.conversions,
+      clicks: a.clicks,
+      // Liste COMPLÈTE (17 à 29 liens par jour en octobre 2026) : le clic sur un jour l'affiche
+      // en entier, l'infobulle n'en montre que le haut.
+      subsByLink: a.subs.sort((x, y) => y.subs - x.subs || x.name.localeCompare(y.name)),
+    }))
     .sort((a, b) => a.date.localeCompare(b.date))
   const best = dailyPoints.reduce<{ date: string; revenue: number } | null>(
     (mx, d) => (mx === null || d.revenue > mx.revenue ? { date: d.date, revenue: d.revenue } : mx),

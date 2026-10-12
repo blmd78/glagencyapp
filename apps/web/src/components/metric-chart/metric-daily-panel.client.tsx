@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { MetricDailyChart } from './metric-daily-chart'
+import { SubsDayDetail } from './subs-day-detail'
 import { METRICS, SERIES, type ChartMode, type Metric, type MetricPoint } from './options'
 
 type Vue = Metric | 'all'
@@ -32,6 +33,9 @@ const TITRES: Record<Vue, string> = {
  * Composition reprise de `members/turnover-chart.client.tsx` (titre à gauche, contrôles à
  * droite dans l'en-tête), onglets = `Tabs` comme le critère des Liens, bascule = `ToggleGroup`
  * comme le grain du Relevé (`report-filters.tsx`). `bare` : sans la carte, pour une modale.
+ *
+ * Quand les points portent `subsByLink` (l'Overview), un clic sur un jour du graphe des subs
+ * ouvre sous le graphe la liste complète de ses liens ; re-cliquer le même jour la referme.
  */
 export function MetricDailyPanel({
   daily,
@@ -46,7 +50,13 @@ export function MetricDailyPanel({
 }) {
   const [vue, setVue] = useState<Vue>('revenue')
   const [mode, setMode] = useState<ChartMode>('both')
+  const [jour, setJour] = useState<string | null>(null)
   const color = identity?.color
+  const onSubsDayClick = daily.some((d) => d.subsByLink)
+    ? (date: string) => setJour((j) => (j === date ? null : date))
+    : undefined
+  const pointJour =
+    jour && (vue === 'conversions' || vue === 'all') ? daily.find((d) => d.date === jour) : undefined
 
   const entete = (
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -119,26 +129,41 @@ export function MetricDailyPanel({
             color={color}
             height={140}
             showXAxis={i === METRICS.length - 1}
+            onDayClick={m === 'conversions' ? onSubsDayClick : undefined}
           />
         </div>
       ))}
     </div>
   ) : (
-    <MetricDailyChart data={daily} metric={vue} mode={mode} color={color} />
+    <MetricDailyChart
+      data={daily}
+      metric={vue}
+      mode={mode}
+      color={color}
+      onDayClick={vue === 'conversions' ? onSubsDayClick : undefined}
+    />
   )
+  // Un jour sans aucun sub n'ouvre rien : le panneau ne dirait que « 0 subs · 0 lien ».
+  const detail = pointJour?.subsByLink?.length ? (
+    <SubsDayDetail point={pointJour} onClose={() => setJour(null)} />
+  ) : null
 
   if (bare) {
     return (
       <div className="flex flex-col gap-4">
         {entete}
         {corps}
+        {detail}
       </div>
     )
   }
   return (
     <Card className="pt-0">
       <CardHeader className="border-b py-5">{entete}</CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6">{corps}</CardContent>
+      <CardContent className="px-2 pt-4 sm:px-6">
+        {corps}
+        {detail}
+      </CardContent>
     </Card>
   )
 }
