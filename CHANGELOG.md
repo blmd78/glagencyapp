@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.80] — 2026-10-12
+
 ### Ajouté
 
 - To-Do : une tâche a un titre, une description et une urgence — Normale (bleu), Importante (orange) ou Urgente (rouge), visible en couleur sur la carte, qui n'affiche plus que le titre. Cliquer sur une tâche ouvre sa fiche, où l'on modifie le titre, la description, l'urgence et le jour (une tâche récurrente : seulement celle de ce jour). Les habitudes ont aussi une description et une urgence.
