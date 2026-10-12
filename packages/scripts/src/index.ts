@@ -4,6 +4,7 @@ export {
   NotionError,
   blocksToText,
   fetchNotionPage,
+  isPromptTitle,
   listSharedPages,
   notionPageId,
   type NotionBlock,
