@@ -21,3 +21,15 @@ export function mergeWeekdays(existing: string, add: readonly number[]): string 
   for (const n of add) if (Number.isInteger(n) && n >= 1 && n <= 7) days.add(n)
   return [...days].sort((a, b) => a - b).join(',')
 }
+
+/**
+ * La date de début d'une section quand on la retape depuis une colonne (0194, #163). Une section
+ * importée n'apparaît qu'à partir du 1er jour du fichier ; la redemander depuis un jour ANTÉRIEUR
+ * réussissait sans rien afficher. On ramène donc sa date de début à ce jour-là. Rend `undefined`
+ * quand rien ne change — sans date (partout, comme toute section d'avant 0194) ou déjà visible.
+ */
+export function startAfterAdd(current: string | null | undefined, fromDate: string | undefined): string | undefined {
+  if (!current || !fromDate) return undefined
+  return fromDate < current ? fromDate : undefined
+}
+

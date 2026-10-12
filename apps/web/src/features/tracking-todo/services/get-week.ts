@@ -1,11 +1,13 @@
 import { addDays, isoWeekday, serviceDayParis, todayParis } from '@glagency/core'
-import { createAdminClient } from '@glagency/db'
 import { createClient } from '@/lib/supabase/server'
-import { getCreatorScope } from '@/lib/services/creator-scope'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
-import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
+import { dueHabits, isDue, isSectionOn } from '../occurrence'
+import { habitKey, sortSlots } from '../order'
+import type { TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
+import { asUrgency } from '../urgency'
+import { getTodoChatters } from './get-todo-chatters'
 
 /** Lundi de la semaine contenant `day`. */
 export const weekStartOf = (day: string): string => addDays(day, -(isoWeekday(day) - 1))
@@ -22,18 +24,6 @@ const isDay = (s: string): boolean =>
  * Le droit `presence`, lui, n'est pas retesté ici : la page l'a exigé (`requireAccess`).
  */
 const ENCADRANT_ROLES: readonly string[] = TODO_ROLES
-
-/**
- * Rôle EXACT du TITULAIRE de la semaine — `getCreatorScope` en a besoin pour savoir s'il faut
- * borner son périmètre (elle ne borne que manager/sous-manager/police). Client admin, comme la
- * liste des chatteurs juste en dessous : on lit ici le profil d'un AUTRE.
- */
-async function ownerRole(ownerId: string): Promise<string> {
-  const { data, error } = await createAdminClient()
-    .from('profiles').select('role').eq('id', ownerId).maybeSingle()
-  if (error) throw new Error(error.message)
-  return data?.role ?? 'chatteur'
-}
 
 /**
  * La semaine de to-do d'un encadrant.
@@ -65,16 +55,23 @@ export async function getTodoWeek(params: {
 
   const [sectionsRes, tasksRes, habitsRes, dayoffRes, notesRes, linksRes, dailyRes] =
     await Promise.all([
-      supabase.from('tracker_todo_sections').select('name, weekdays, position')
+      supabase.from('tracker_todo_sections').select('name, weekdays, starts_on, position')
         .eq('owner_id', params.ownerId).order('position'),
+      // Les tâches de la semaine, plus les occurrences d'habitude de la semaine DÉPLACÉES ailleurs
+      // (`habit_date`, 0193) : elles ne s'affichent pas ici, mais disent que leur habitude est
+      // déjà matérialisée ce jour-là (`isMaterialized`).
       supabase.from('tracker_todo_tasks')
-        .select('id, date, category, label, done, position, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
-        .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd).order('position'),
+        .select('id, date, category, label, description, urgency, habit_id, habit_date, done, position, created_at, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
+        .eq('owner_id', params.ownerId)
+        .or(`and(date.gte.${weekStart},date.lte.${weekEnd}),and(habit_date.gte.${weekStart},habit_date.lte.${weekEnd})`)
+        .order('position'),
       // TOUTES les habitudes, actives ou non : le panneau de gestion doit montrer celles en pause
       // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
       // bas, au moment de projeter les occurrences dans la semaine.
-      supabase.from('tracker_todo_habits').select('id, category, label, weekdays, active, position, created_by')
-        .eq('owner_id', params.ownerId).order('position'),
+      // La `position` d'une habitude fixe la place de son occurrence en haut de la section (#161,
+      // `habitKey`) ; `created_at` ne départage que les lignes d'avant 0193.
+      supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, starts_on, position, created_by')
+        .eq('owner_id', params.ownerId).order('position').order('created_at'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
       supabase.from('tracker_todo_notes').select('body')
@@ -95,6 +92,13 @@ export async function getTodoWeek(params: {
   const tasks = tasksRes.data ?? []
   const habits = habitsRes.data ?? []
   const offDays = new Set((dayoffRes.data ?? []).map((d) => d.date))
+  const occurrences = tasks.map((t) => ({
+    habitId: t.habit_id,
+    habitDate: t.habit_date,
+    date: t.date,
+    label: t.label,
+    category: t.category,
+  }))
 
   const days: TodoDay[] = []
   for (let i = 0; i < 7; i++) {
@@ -106,9 +110,9 @@ export async function getTodoWeek(params: {
     // catégorie qui porte déjà une tâche — une section supprimée ne doit jamais faire disparaître
     // des tâches de l'écran (c'est ce que leur bouton promet explicitement).
     const names = new Set<string>()
-    for (const s of sections) if (s.weekdays.split(',').map(Number).includes(wd)) names.add(s.name)
+    for (const s of sections) if (isSectionOn(s, date)) names.add(s.name)
     for (const t of dayTasks) names.add(t.category)
-    for (const h of habits) if (h.active && h.weekdays.split(',').map(Number).includes(wd)) names.add(h.category)
+    for (const h of habits) if (isDue(h, date)) names.add(h.category)
 
     const ordered = [...names].sort((a, b) => {
       const pa = sections.find((s) => s.name === a)?.position ?? 999
@@ -126,47 +130,59 @@ export async function getTodoWeek(params: {
       isWeekend: wd >= 6,
       dayOff: offDays.has(date),
       sections: ordered.map<TodoSection>((name) => {
-        const real: TodoTask[] = dayTasks
+        // ORDRE (#161) : chaque tâche porte sa clé (`order.ts`) — la `position` d'une vraie ligne,
+        // départagée par sa création ; le rang de son habitude pour une occurrence virtuelle, qui
+        // passe ainsi en haut. On trie le tout, et non plus « les vraies, puis les habitudes ».
+        const real = dayTasks
           .filter((t) => t.category === name)
           .map((t) => ({
-            id: t.id,
-            label: t.label,
-            done: t.done,
-            virtual: false,
-            fromOther: t.created_by != null && t.created_by !== params.ownerId,
-            depositedByMe: t.created_by != null && t.created_by === params.callerId,
-            chatterId: t.chatter_id,
-            hasBilan: t.session_id != null,
-            chatterName: t.chatter?.display_name ?? null,
+            key: t.position,
+            tie: t.created_at,
+            task: {
+              id: t.id,
+              label: t.label,
+              description: t.description,
+              urgency: asUrgency(t.urgency),
+              done: t.done,
+              virtual: false,
+              fromOther: t.created_by != null && t.created_by !== params.ownerId,
+              depositedByMe: t.created_by != null && t.created_by === params.callerId,
+              chatterId: t.chatter_id,
+              hasBilan: t.session_id != null,
+              chatterName: t.chatter?.display_name ?? null,
+            } satisfies TodoTask,
           }))
         // Une habitude ne s'affiche que si son occurrence du jour n'a pas déjà été matérialisée.
-        const virtual: TodoTask[] = habits
-          .filter((h) => h.active)
-          .filter((h) => h.category === name && h.weekdays.split(',').map(Number).includes(wd))
-          .filter((h) => !real.some((r) => r.label === h.label))
+        const virtual = dueHabits(habits, date, name, occurrences)
           .map((h) => ({
-            id: `habit:${h.id}:${date}`,
-            label: h.label,
-            done: false,
-            virtual: true,
-            // L'occurrence porte le badge « déposée » dès le gabarit, avant même d'exister en
-            // base : sinon la même tâche l'aurait au premier geste (`materialize` recopie
-            // `created_by`) et pas avant — un badge qui apparaît en cochant.
-            fromOther: h.created_by != null && h.created_by !== params.ownerId,
-            // `false` MÊME pour son déposant, et c'est délibéré : ce drapeau n'ouvre que la croix
-            // de suppression sur la semaine d'un autre (`task-item.tsx`), or supprimer une
-            // occurrence virtuelle passe par `deleteTaskOccurrence`, réservé au titulaire. Le
-            // gabarit se retire depuis le panneau Habitudes, qui est l'endroit prévu pour ça.
-            depositedByMe: false,
-            // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
-            chatterId: null,
-            hasBilan: false,
-            chatterName: null,
+            key: habitKey(h.position),
+            tie: '',
+            task: {
+              id: `habit:${h.id}:${date}`,
+              label: h.label,
+              description: h.description,
+              urgency: asUrgency(h.urgency),
+              done: false,
+              virtual: true,
+              // L'occurrence porte le badge « déposée » dès le gabarit, avant même d'exister en
+              // base : sinon la même tâche l'aurait au premier geste (`materialize` recopie
+              // `created_by`) et pas avant — un badge qui apparaît en cochant.
+              fromOther: h.created_by != null && h.created_by !== params.ownerId,
+              // `false` MÊME pour son déposant, et c'est délibéré : ce drapeau n'ouvre que la croix
+              // de suppression sur la semaine d'un autre (`task-item.tsx`), or supprimer une
+              // occurrence virtuelle passe par `deleteTaskOccurrence`, réservé au titulaire. Le
+              // gabarit se retire depuis le panneau Habitudes, qui est l'endroit prévu pour ça.
+              depositedByMe: false,
+              // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
+              chatterId: null,
+              hasBilan: false,
+              chatterName: null,
+            } satisfies TodoTask,
           }))
         return {
           name,
-          recurring: sections.some((s) => s.name === name && s.weekdays.split(',').map(Number).includes(wd)),
-          tasks: [...real, ...virtual],
+          recurring: sections.some((s) => s.name === name && isSectionOn(s, date)),
+          tasks: sortSlots([...real, ...virtual]).map((x) => x.task),
         }
       }),
     })
@@ -175,14 +191,6 @@ export async function getTodoWeek(params: {
   const dailyByDay: Record<string, TodoDaily> = {}
   for (const { date, ...daily } of dailyRes.data ?? []) dailyByDay[date] = daily
 
-  // Les chatteurs proposables dans « Session 1:1 avec » — bornés aux MÊMES périmètres que ceux que
-  // `addTask` vérifiera. UNIQUEMENT pour les ENCADRANTS : un chatteur remplit sa propre to-do, il
-  // ne planifie pas de 1:1 avec d'autres chatteurs — inutile de lui servir la liste.
-  //
-  // DEUX périmètres quand on garnit la semaine d'un AUTRE : le sien (on ne vise pas un chatteur
-  // qu'on n'a pas le droit de suivre) ET celui du TITULAIRE (c'est lui qui devra clore le 1:1 —
-  // une tâche déposée hors de son périmètre serait inclôturable). Sans cette intersection, le
-  // sélecteur proposerait des noms que le serveur refuserait ensuite : une liste qui ment.
   const isEncadrant = ENCADRANT_ROLES.includes(params.callerRole)
   // Sortis de l'objet de retour parce que les habitudes en dépendent (`canEdit`) : deux copies de
   // ces deux lignes, c'est deux occasions de les faire diverger. Leur commentaire est plus bas,
@@ -195,29 +203,10 @@ export async function getTodoWeek(params: {
    * garde le sens plus étroit d'ATTESTER (cocher, débriefer), qui ne se délègue pas.
    */
   const canOrganize = canWrite || canAssignHere
-  const chatters: TodoChatter[] = []
-  if (isEncadrant) {
-    const admin = createAdminClient()
-    const scope = await getCreatorScope(params.callerId, params.callerRole)
-    const ownerScope =
-      params.callerId === params.ownerId ? scope : await getCreatorScope(params.ownerId, await ownerRole(params.ownerId))
-    const { data: rows, error: cErr } = await admin
-      .from('profiles')
-      .select('id, display_name, profile_creators(creator_id)')
-      .eq('role', 'chatteur')
-      .is('left_at', null)
-      .order('display_name')
-    if (cErr) throw new Error(cErr.message)
-    // `null` = pas de borne (admin, ou encadrant sans modèle assigné) — convention creator-scope.
-    const inScope = (s: Set<string> | null, cs: { creator_id: string }[]) =>
-      !s || cs.some((pc) => s.has(pc.creator_id))
-    for (const r of rows ?? []) {
-      const cs = r.profile_creators ?? []
-      if (inScope(scope, cs) && inScope(ownerScope, cs)) {
-        chatters.push({ id: r.id, name: r.display_name ?? '—' })
-      }
-    }
-  }
+  // Les chatteurs proposables dans « Session 1:1 avec » — encadrants seulement (`getTodoChatters`).
+  const chatters = isEncadrant
+    ? await getTodoChatters({ callerId: params.callerId, callerRole: params.callerRole, ownerId: params.ownerId })
+    : []
 
   return {
     ownerId: params.ownerId,
@@ -226,6 +215,8 @@ export async function getTodoWeek(params: {
     habits: habits.map((h) => ({
       id: h.id,
       label: h.label,
+      description: h.description,
+      urgency: asUrgency(h.urgency),
       category: h.category,
       weekdays: h.weekdays.split(',').map(Number),
       active: h.active,

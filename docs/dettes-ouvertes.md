@@ -101,3 +101,8 @@ propre à l'import de scripts. À reprendre si besoin : reconnaître côté serv
 `session_id`, enregistré dans `impersonation_sessions` au forge) et appliquer le contrôle aux lectures et
 aux actions, même sans le cookie d'état.
 
+**14. L'import d'un fichier n'est pas une transaction** (2026-10-12, #163) : la lecture du fichier
+est entière avant la première écriture (une erreur de format n'écrit rien), mais section,
+habitudes et tâches partent en trois écritures. Une panne de base au milieu laisse une partie
+écrite ; relancer le même fichier complète sans doublon (dédoublonnage sur jour, section, titre).
+

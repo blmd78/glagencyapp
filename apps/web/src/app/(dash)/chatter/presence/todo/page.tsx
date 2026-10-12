@@ -10,6 +10,7 @@ import { TodoTemplate } from '@/features/tracking-todo/TodoTemplate'
 import { TodoSkeleton } from '@/features/tracking-todo/components/todo-skeleton'
 import { getTodoHolders } from '@/features/tracking-todo/services/get-holders'
 import { getTodoWeek, weekStartOf } from '@/features/tracking-todo/services/get-week'
+import { ImportTxtButton } from '@/features/tracking-todo/components/import-txt-button'
 import { TrackerImportButton } from '@/features/tracking-todo/components/tracker-import-button'
 import { TodoAccountSelect } from '@/features/tracking-todo/components/todo-account-select'
 import type { TodoWeek } from '@/features/tracking-todo/types'
@@ -106,6 +107,7 @@ async function Header({
   ownWeek: boolean
 }) {
   const [d, people] = await Promise.all([data, holders])
+  const ownerName = owner ? (people.find((p) => p.id === owner)?.name ?? null) : null
   const href = (w: string): Route => {
     const q = new URLSearchParams({ week: w })
     if (owner) q.set('owner', owner)
@@ -120,7 +122,19 @@ async function Header({
       // pas de to-do (un chatteur à qui on a coché « Présence ») voit un écran entièrement en
       // lecture seule — lui laisser le seul bouton d'écriture de la page, que le serveur refuse,
       // serait la dernière promesse non tenue de cet écran.
-      right={ownWeek && d.canWrite ? <TrackerImportButton /> : undefined}
+      //
+      //
+      // « Importer un fichier » (#163), lui, n'existe QUE sur la semaine d'une personne choisie dans
+      // le sélecteur — c'est le garde-fou demandé (on importe pour quelqu'un) — et se nomme d'après
+      // elle. Jamais sur « Ma semaine » : un bouton inactif n'y disait rien, et à côté de la
+      // récupération il débordait sur le sélecteur (recette du 2026-10-12).
+      right={
+        ownWeek ? (
+          d.canWrite ? <TrackerImportButton /> : undefined
+        ) : d.canOrganize && ownerName ? (
+          <ImportTxtButton ownerId={d.ownerId} ownerName={ownerName} />
+        ) : undefined
+      }
     >
       {/* Nav de semaine SEGMENTÉE, à l'identique du tracker (`.datenav.seg` : ‹ / cette semaine / ›). */}
       <div className="seg">

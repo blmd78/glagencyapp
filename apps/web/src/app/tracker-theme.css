@@ -183,7 +183,7 @@
 .trk .dd-menu a.on::before { content:'✓ ';color:var(--trk-accent-2) }
 .trk .dd-menu a.dim { color:var(--trk-faint) }
 .trk .seg { display:inline-flex;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;padding:3px }
-.trk .seg a { padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--trk-muted);text-decoration:none }
+.trk .seg a, .trk .seg button { padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--trk-muted);text-decoration:none;background:none;border:none;font-family:inherit;cursor:pointer }
 .trk .seg a.on { background:var(--trk-surface3);color:#fff }
 .trk .wrap { padding:20px 26px 64px;display:flex;flex-direction:column;gap:16px;width:100%;max-width:1080px;margin:0 auto }
 /* La To Do a besoin de toute la largeur : 7 colonnes dans 1080px donnent des
@@ -654,6 +654,36 @@
    (.dd-menu), sans rotation. */
 .trk .task.lifted { cursor:grabbing;border-color:var(--trk-border2);box-shadow:0 14px 34px -14px rgba(0,0,0,.7) }
 .trk .tgroup.over, .trk .dayb.over { outline:1px dashed var(--trk-accent);outline-offset:2px;border-radius:8px }
+/* Urgence (#160) : un liseré à gauche de la carte, bleu / orange / rouge. Le vert reste
+   « fait » (.task.done .box) ; les mêmes teintes nomment les pastilles du sélecteur (.urg). */
+.trk .u-normale { --u:#3b82f6 }
+.trk .u-importante { --u:#ea580c }
+.trk .u-urgente { --u:var(--trk-danger) }
+.trk .task[class*='u-'] { border-left:3px solid var(--u) }
+/* Rang (#161) : le trait qui montre où la tâche portée se posera — au-dessus ou en dessous. */
+.trk .task.drop-before { box-shadow:0 -2px 0 0 var(--trk-accent) }
+.trk .task.drop-after { box-shadow:0 2px 0 0 var(--trk-accent) }
+.trk .udot { display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--u);flex:none;margin-right:6px;vertical-align:middle }
+.trk .urg { flex-wrap:wrap }
+.trk .urg .dot { width:8px;height:8px;border-radius:50%;background:var(--u);flex:none }
+.trk .qadd textarea { width:100%;margin-top:6px;background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:8px;color:var(--trk-text);padding:7px 9px;font:inherit;font-size:12.5px;outline:none;resize:vertical }
+.trk .qadd textarea:focus { border-color:var(--trk-accent) }
+.trk .qadd .urg { margin:6px 0 }
+/* Pop-up d'une tâche (#160) — le contenu porte .trk : rendu dans un portail, hors de la page. */
+.trk .tform { display:flex;flex-direction:column;gap:12px }
+.trk .field textarea { width:100%;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;color:var(--trk-text);padding:10px 12px;font:inherit;font-size:14px;outline:none;resize:vertical }
+.trk .field textarea:focus { border-color:var(--trk-accent) }
+.trk .tdl-title { display:flex;align-items:center;font-size:15px;font-weight:600;word-break:break-word }
+.trk .tdl-desc { font-size:13.5px;line-height:1.55;white-space:pre-wrap;word-break:break-word }
+/* Journée seule (#162) : l'en-tête d'une colonne s'ouvre au clic, sans changer d'allure. */
+.trk .dopen { display:inline-flex;align-items:baseline;gap:7px;background:none;border:none;padding:0;font:inherit;color:inherit;text-transform:inherit;cursor:pointer }
+.trk .dopen:hover { color:var(--trk-accent-2) }
+.trk.ddlg { max-height:88vh;overflow:auto }
+/* Modifier une habitude (#160) : la ligne s'ouvre en petit formulaire. */
+.trk .grow:has(.hedit) { flex-wrap:wrap }
+.trk .grow>span.hedit { flex:1 1 100%;display:flex;flex-direction:column;gap:6px;white-space:normal;overflow:visible }
+.trk .hedit input, .trk .hedit textarea { background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:8px;color:var(--trk-text);padding:7px 9px;font:inherit;font-size:12.5px;outline:none;resize:vertical }
+.trk .hedit input:focus, .trk .hedit textarea:focus { border-color:var(--trk-accent) }
 /* Une seule action VISIBLE par jour : « + Tache ». Un seul gros bouton par
    colonne, sur sept colonnes, ca change tout. La section (recurrente) passe en
    lien discret dessous : quand elle etait le seul bouton, on y tapait des

@@ -3,81 +3,10 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { isoWeekday } from '@glagency/core'
+import { QuickAddTask, type NewTask } from './quick-add-task'
+import { DAY_TASK_CATEGORY } from '../day-category'
 import { TaskItem } from './task-item'
 import type { TodoDay, TodoSection, TodoTask, TodoChatter } from '../types'
-
-/**
- * Catégorie d'une tâche ajoutée depuis le « + Tâche » d'une journée — par le titulaire comme par
- * son encadrement. Volontairement neutre : une tâche déposée porte déjà son badge « déposée », l'en-tête
- * du groupe n'a pas à le répéter — et si le titulaire a déjà une section de ce nom, la tâche s'y range.
- *
- * Aucune section n'est créée pour autant : `category` est du TEXTE LIBRE et non une clé étrangère
- * vers les sections (0127:44-45), et `getTodoWeek` reconstruit les groupes du jour à partir des
- * sections ET des catégories déjà portées par une tâche.
- */
-const DAY_TASK_CATEGORY = 'À faire'
-
-/**
- * Saisie rapide d'une tâche — la même pour le « + » d'une section et le « + Tâche » d'une journée.
- * Démontée à la fermeture : le brouillon et le 1:1 repartent à vide d'eux-mêmes.
- */
-function QuickAddTask({
-  chatters,
-  onSubmit,
-  onClose,
-}: {
-  chatters: TodoChatter[]
-  onSubmit: (label: string, chatterId: string | null) => void
-  onClose: () => void
-}) {
-  const [draft, setDraft] = useState('')
-  const [withChatter, setWithChatter] = useState('')
-  const submit = (): void => {
-    const value = draft.trim()
-    if (!value) return
-    onSubmit(value, withChatter || null)
-    onClose()
-  }
-
-  return (
-    <div className="qadd">
-      <input
-        autoFocus
-        placeholder="Nouvelle tâche…"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
-          if (e.key !== 'Enter') return
-          submit()
-        }}
-      />
-      {/* « Session 1:1 avec (impose un bilan pour cocher) » — viser un chatter transforme la
-          tâche : elle ne se cochera qu'en rendant son bilan sur la fiche du chatter. */}
-      {chatters.length > 0 ? (
-        <select
-          className="q1a1"
-          value={withChatter}
-          onChange={(e) => setWithChatter(e.target.value)}
-          title="Session 1:1 avec (impose un bilan pour cocher)"
-        >
-          <option value="">Aucun 1:1</option>
-          {chatters.map((c) => (
-            <option key={c.id} value={c.id}>
-              1:1 avec {c.name}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      <button type="button" className="btn sm" onClick={submit} disabled={!draft.trim()}>
-        Ajouter
-      </button>
-      <button type="button" className="btn sm" onClick={onClose}>
-        Annuler
-      </button>
-    </div>
-  )
-}
 
 /** Une section = une zone de dépôt. Leur feuille l'éclaire avec `.tgroup.over`. */
 function SectionGroup({
@@ -87,6 +16,7 @@ function SectionGroup({
   onToggle,
   onDelete,
   onAdd,
+  onOpen,
   chatters,
   canOrganize,
   onDeleteSection,
@@ -97,7 +27,8 @@ function SectionGroup({
   canWrite: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
-  onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
+  onAdd: (date: string, category: string, task: NewTask) => void
+  onOpen: (task: TodoTask, date: string, category: string) => void
   chatters: TodoChatter[]
   /** ORGANISER — ajouter, retirer, remanier. Le titulaire ou son encadrement. */
   canOrganize: boolean
@@ -162,13 +93,14 @@ function SectionGroup({
           canOrganize={canOrganize}
           onToggle={onToggle}
           onDelete={onDelete}
+          onOpen={onOpen}
         />
       ))}
 
       {adding && canOrganize ? (
         <QuickAddTask
           chatters={chatters}
-          onSubmit={(label, chatterId) => onAdd(day.date, section.name, label, chatterId)}
+          onSubmit={(task) => onAdd(day.date, section.name, task)}
           onClose={() => setAdding(false)}
         />
       ) : null}
@@ -186,24 +118,29 @@ export function DayColumn({
   onToggle,
   onDelete,
   onAdd,
+  onOpen,
   chatters,
   canOrganize,
   onDayOff,
   onAddSection,
   onDeleteSection,
+  onOpenDay,
 }: {
   day: TodoDay
   /** ATTESTER — cocher. Le titulaire seul. */
   canWrite: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
-  onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
+  onAdd: (date: string, category: string, task: NewTask) => void
+  onOpen: (task: TodoTask, date: string, category: string) => void
   chatters: TodoChatter[]
   /** ORGANISER — le planning de la semaine. Le titulaire ou son encadrement. */
   canOrganize: boolean
   onDayOff: (date: string) => void
-  onAddSection: (name: string, weekday: number) => void
+  onAddSection: (name: string, weekday: number, date: string) => void
   onDeleteSection: (name: string) => void
+  /** #162 — ouvre la journée seule, en pop-up. Absent dans la pop-up elle-même. */
+  onOpenDay?: (date: string) => void
 }) {
   const [addingTask, setAddingTask] = useState(false)
   const [addingSection, setAddingSection] = useState(false)
@@ -224,8 +161,24 @@ export function DayColumn({
   return (
     <div className={cls}>
       <h3>
-        {day.weekdayLabel}
-        <em>{day.dayLabel}</em>
+        {/* Le jour et sa date ouvrent la journée seule (#162) ; le reste de l'en-tête (compteur,
+            jour de repos) garde son geste. Même rendu qu'avant : le bouton n'a pas d'habit. */}
+        {onOpenDay ? (
+          <button
+            type="button"
+            className="dopen"
+            title="Afficher cette journée seule"
+            onClick={() => onOpenDay(day.date)}
+          >
+            {day.weekdayLabel}
+            <em>{day.dayLabel}</em>
+          </button>
+        ) : (
+          <>
+            {day.weekdayLabel}
+            <em>{day.dayLabel}</em>
+          </>
+        )}
         {all.length > 0 ? (
           <span className="pc">
             {done}/{all.length}
@@ -256,6 +209,7 @@ export function DayColumn({
               onToggle={onToggle}
               onDelete={onDelete}
               onAdd={onAdd}
+              onOpen={onOpen}
               chatters={chatters}
               canOrganize={canOrganize}
               onDeleteSection={onDeleteSection}
@@ -274,7 +228,7 @@ export function DayColumn({
           addingTask ? (
             <QuickAddTask
               chatters={chatters}
-              onSubmit={(label, chatterId) => onAdd(day.date, DAY_TASK_CATEGORY, label, chatterId)}
+              onSubmit={(task) => onAdd(day.date, DAY_TASK_CATEGORY, task)}
               onClose={() => setAddingTask(false)}
             />
           ) : addingSection ? (
@@ -286,7 +240,7 @@ export function DayColumn({
                   if (e.key === 'Escape') setAddingSection(false)
                   if (e.key !== 'Enter') return
                   const value = e.currentTarget.value.trim()
-                  if (value) onAddSection(value, isoWeekday(day.date))
+                  if (value) onAddSection(value, isoWeekday(day.date), day.date)
                   e.currentTarget.value = ''
                   setAddingSection(false)
                 }}
@@ -313,3 +267,5 @@ export function DayColumn({
     </div>
   )
 }
+
+export type DayColumnProps = Parameters<typeof DayColumn>[0]
