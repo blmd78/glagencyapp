@@ -47,6 +47,13 @@ const WEEKDAYS = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', '
 /** Majuscules sans accents : « Février » et « FEVRIER » se lisent pareil. */
 const fold = (s: string): string => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
 
+/**
+ * La clé qui dit « même tâche » : casse, accents et espaces ne font pas deux tâches. La MÊME pour
+ * les doublons du fichier (ici) et pour ce qui est déjà en base (`importTodoFile`) — sinon une ligne
+ * serait doublon pour l'un et pas pour l'autre.
+ */
+export const dedupKey = (s: string): string => fold(s).replace(/\s+/g, ' ').trim()
+
 const iso = (y: number, m: number, d: number): string =>
   `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 
@@ -168,7 +175,7 @@ export function parseTodoFile(text: string): ParsedTodoFile {
       out.errors.push({ line: n, message: `Titre trop long (${task.label.length} caractères, ${TITLE_MAX} au plus).` })
       continue
     }
-    const key = `${mode.kind === 'day' ? mode.date : 'routine'}|${fold(task.label)}`
+    const key = `${mode.kind === 'day' ? mode.date : 'routine'}|${dedupKey(task.label)}`
     if (seen.has(key)) {
       out.ignored.push({ line: n, text: line, reason: 'en double dans le fichier' })
       continue

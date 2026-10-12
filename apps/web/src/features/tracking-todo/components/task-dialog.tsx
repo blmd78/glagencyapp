@@ -24,13 +24,10 @@ import { UrgencyPicker } from './urgency-picker'
 export interface OpenTask {
   task: TodoTask
   date: string
+  /** « lundi 12/10 » — l'en-tête de sa colonne (`TodoDay`), tel quel. */
+  dayTitle: string
   category: string
 }
-
-/** « lundi 12/10 » — même rendu que l'en-tête des colonnes (`get-week.ts`). */
-const dayTitle = (date: string): string =>
-  new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: 'UTC' })
-    .format(new Date(`${date}T12:00:00Z`))
 
 /**
  * La pop-up d'une tâche (#160) : la carte n'affiche que le titre, le reste se lit ici — et se
@@ -60,7 +57,7 @@ export function TaskDialog({
             <DialogHeader>
               <DialogTitle>{canOrganize ? 'Modifier la tâche' : 'La tâche'}</DialogTitle>
               <DialogDescription>
-                {dayTitle(open.date)}
+                {open.dayTitle}
                 {open.category ? ` · ${open.category}` : ''}
                 {open.task.virtual ? ' · récurrente' : ''}
               </DialogDescription>

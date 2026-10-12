@@ -116,7 +116,10 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
 
   /** La tâche ouverte dans sa pop-up (#160) — la carte n'en montre que le titre. */
   const [opened, setOpened] = useState<OpenTask | null>(null)
-  const onOpen = (task: TodoTask, date: string, category: string): void => setOpened({ task, date, category })
+  const onOpen = (task: TodoTask, date: string, category: string): void => {
+    const day = days.find((d) => d.date === date)
+    setOpened({ task, date, category, dayTitle: day ? `${day.weekdayLabel} ${day.dayLabel}` : date })
+  }
 
   const onDayOff = (date: string): void => {
     startTransition(() => run(() => toggleDayOff({ ownerId: week.ownerId, date })))

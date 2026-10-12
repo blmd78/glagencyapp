@@ -4,7 +4,7 @@ import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
 import { assertCanOrganize, revalidateTodo } from './actions-shared'
 import { DAY_TASK_CATEGORY } from './day-category'
-import { parseTodoFile } from './import-txt'
+import { dedupKey, parseTodoFile } from './import-txt'
 import { STEP } from './order'
 import { importTxtInput } from './schema'
 import { mergeWeekdays } from './weekdays'
@@ -34,10 +34,6 @@ export interface ImportTxtResult {
   habitsAdded: number
   habitsSkipped: number
 }
-
-/** Clé de dédoublonnage : casse, accents et espaces ne font pas deux tâches. */
-const norm = (s: string): string =>
-  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim()
 
 const EVERY_DAY = [1, 2, 3, 4, 5, 6, 7]
 
@@ -80,13 +76,13 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         const { data: habits, error: hErr } = await admin
           .from('tracker_todo_habits').select('category, label, position').eq('owner_id', d.ownerId)
         if (hErr) throw new Error(hErr.message)
-        const known = new Set((habits ?? []).filter((h) => h.category === section).map((h) => norm(h.label)))
+        const known = new Set((habits ?? []).filter((h) => h.category === section).map((h) => dedupKey(h.label)))
         // Rangées APRÈS les habitudes existantes, dans l'ordre du fichier : un seul `insert` donne la
         // même `created_at` à toutes, seul `position` peut les départager (rang, #161).
         const start = Math.max(-1, ...(habits ?? []).map((h) => h.position)) + 1
         const rows = parsed.routine
           .filter((t) => {
-            if (known.has(norm(t.label))) {
+            if (known.has(dedupKey(t.label))) {
               result.habitsSkipped++
               return false
             }
@@ -118,7 +114,7 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         .gte('date', period.from)
         .lte('date', period.to)
       if (exErr) throw new Error(exErr.message)
-      const seen = new Set((existing ?? []).map((t) => `${t.date}|${norm(t.category)}|${norm(t.label)}`))
+      const seen = new Set((existing ?? []).map((t) => `${t.date}|${dedupKey(t.category)}|${dedupKey(t.label)}`))
 
       const rows = parsed.days.flatMap(({ date, tasks }) => {
         // L'ordre du fichier devient l'ordre de la journée (#161) : des clés espacées, après la
@@ -126,7 +122,7 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         const keys = (existing ?? []).filter((t) => t.date === date && t.category === DAY_TASK_CATEGORY).map((t) => t.position)
         let key = keys.length > 0 ? Math.max(...keys) : -STEP
         return tasks.flatMap((t) => {
-          const k = `${date}|${norm(DAY_TASK_CATEGORY)}|${norm(t.label)}`
+          const k = `${date}|${dedupKey(DAY_TASK_CATEGORY)}|${dedupKey(t.label)}`
           if (seen.has(k)) {
             result.tasksSkipped++
             return []

@@ -22,8 +22,9 @@ import { mergeWeekdays } from './weekdays'
  * DEUX FAMILLES DE GESTES, deux gardes — la frontière est ORGANISER / ATTESTER (décision de
  * Benoit du 2026-09-07, raisonnement complet dans `lib/tracking/todo-guards.ts`) :
  *
- * • `assertCanOrganize` — le contenu du planning : déposer, déplacer, supprimer, les sections,
- *   les habitudes, le jour de repos. Le titulaire, son encadrement (manager du titulaire), l'admin.
+ * • `assertCanOrganize` — le contenu du planning : déposer, modifier (#160), déplacer, supprimer,
+ *   les sections, les habitudes, le jour de repos. Le titulaire, son encadrement (manager du
+ *   titulaire), l'admin.
  * • `assertOwner` — l'attestation : la coche, le débrief, les notes, les liens. Le titulaire seul,
  *   admin compris.
  *
