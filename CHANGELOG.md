@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.82] — 2026-10-12
+
 ### Ajouté
 
 - Marketing › Overview (et SFS › Vue d'ensemble) : sur le graphe « Subs / jour », survoler un jour montre d'où viennent ses subs — les 10 liens de tracking qui en ont amené le plus (avec leur modèle), puis le reste cumulé en « Autres ». Cliquer sur le jour ouvre sous le graphe la liste complète de ses liens.
