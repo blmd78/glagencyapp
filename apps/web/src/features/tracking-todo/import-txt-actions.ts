@@ -21,7 +21,8 @@ import { mergeWeekdays } from './weekdays'
  * • la ROUTINE — la section récurrente du fichier (« Routine »), tous les jours, et une habitude
  *   quotidienne par ligne, due à partir du 1er jour du fichier (`starts_on`, 0194) ; déposée par
  *   l'importeur, donc verrouillée pour son titulaire (règle 0148, décision du 2026-10-12) ;
- * • les tâches de chaque jour, dans « À faire », dans l'ordre du fichier, en urgence Normale.
+ * • les tâches de chaque jour, dans la section de leur groupe (« À faire » sans titre), dans l'ordre
+ *   du fichier, en urgence Normale — Urgente pour un groupe « Urgences ».
  *
  * Relancer le même fichier n'ajoute rien : une tâche est reconnue à (jour, section, titre), une
  * habitude à (section, titre). Un fichier qui a la moindre erreur n'écrit RIEN — la lecture est
@@ -36,6 +37,9 @@ export interface ImportTxtResult {
 }
 
 const EVERY_DAY = [1, 2, 3, 4, 5, 6, 7]
+
+/** Rang des groupes d'un fichier : après les sections existantes (0 par défaut), avant « À faire » (999). */
+const GROUP_BASE = 100
 
 export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportTxtResult>> {
   return runAction({
@@ -120,7 +124,35 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         result.habitsAdded = rows.length
       }
 
-      // ─────────────── TÂCHES DU JOUR : dans « À faire », à la suite de ce qui y est déjà
+      // ─────────────── GROUPES : l'ordre du fichier, d'un jour à l'autre
+      // Un titre de groupe devient la section de ses tâches ce jour-là. Sans section enregistrée,
+      // la grille rangerait ces groupes par ordre alphabétique (« Chérif et outils » avant
+      // « Urgences ») : on enregistre ceux qui n'existent pas encore, PONCTUELS (aucun jour : ils
+      // n'apparaissent que là où ils ont des tâches) et rangés dans l'ordre où le fichier les cite —
+      // après les sections existantes, avant « À faire ». Une section du même nom est laissée telle quelle.
+      const groups = [...new Set(parsed.days.flatMap((x) => x.tasks.map((t) => t.category)))]
+        .filter((name) => name !== DAY_TASK_CATEGORY)
+      if (groups.length > 0) {
+        const { data: sections, error: sErr } = await admin
+          .from('tracker_todo_sections').select('name, position').eq('owner_id', d.ownerId)
+        if (sErr) throw new Error(sErr.message)
+        const known = new Set((sections ?? []).map((x) => x.name))
+        // À la suite des groupes déjà enregistrés (un import précédent) : repartir de `GROUP_BASE`
+        // à chaque fichier mettrait les nouveaux groupes à égalité avec les anciens, départagés par
+        // l'alphabet.
+        const base = Math.max(GROUP_BASE, ...(sections ?? []).map((x) => x.position + 1))
+        const missing = groups
+          .filter((name) => !known.has(name))
+          .map((name, i) => ({ owner_id: d.ownerId, name, weekdays: '', position: base + i }))
+        if (missing.length > 0) {
+          const { error } = await admin
+            .from('tracker_todo_sections')
+            .upsert(missing, { onConflict: 'owner_id,name', ignoreDuplicates: true })
+          if (error) throw new Error(error.message)
+        }
+      }
+
+      // ─────────────── TÂCHES DU JOUR : dans leur groupe, à la suite de ce qui y est déjà
       const { data: existing, error: exErr } = await admin
         .from('tracker_todo_tasks')
         .select('date, category, label, position')
@@ -132,33 +164,38 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
       if (exErr) throw new Error(exErr.message)
       const seen = new Set((existing ?? []).map((t) => `${t.date}|${dedupKey(t.category)}|${dedupKey(t.label)}`))
 
-      const rows = parsed.days.flatMap(({ date, tasks }) => {
-        // L'ordre du fichier devient l'ordre de la journée (#161) : des clés espacées, après la
-        // dernière tâche de la section ce jour-là.
-        const keys = (existing ?? []).filter((t) => t.date === date && t.category === DAY_TASK_CATEGORY).map((t) => t.position)
-        let key = keys.length > 0 ? Math.max(...keys) : -STEP
-        return tasks.flatMap((t) => {
-          const k = `${date}|${dedupKey(DAY_TASK_CATEGORY)}|${dedupKey(t.label)}`
+      // L'ordre du fichier devient l'ordre de la journée (#161) : des clés espacées, après la dernière
+      // tâche de la section ce jour-là.
+      const lastKey = new Map<string, number>()
+      for (const t of existing ?? []) {
+        const k = `${t.date}|${t.category}`
+        lastKey.set(k, Math.max(lastKey.get(k) ?? -STEP, t.position))
+      }
+      const rows = parsed.days.flatMap(({ date, tasks }) =>
+        tasks.flatMap((t) => {
+          const k = `${date}|${dedupKey(t.category)}|${dedupKey(t.label)}`
           if (seen.has(k)) {
             result.tasksSkipped++
             return []
           }
           seen.add(k)
-          key += STEP
+          const slot = `${date}|${t.category}`
+          const key = (lastKey.get(slot) ?? -STEP) + STEP
+          lastKey.set(slot, key)
           return [
             {
               owner_id: d.ownerId,
               date,
-              category: DAY_TASK_CATEGORY,
+              category: t.category,
               label: t.label,
               description: t.description,
-              urgency: 'normale',
+              urgency: t.urgency,
               position: key,
               created_by: caller.id,
             },
           ]
-        })
-      })
+        }),
+      )
       if (rows.length > 0) {
         const { error } = await admin.from('tracker_todo_tasks').insert(rows)
         if (error) throw new Error(error.message)

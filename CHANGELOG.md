@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Modifié
+
+- To-Do › Importer un fichier : une vraie zone d'envoi (glisser le fichier ou « Choisir un fichier ») et, avant d'importer, l'aperçu de chaque tâche, jour par jour, avec sa couleur d'urgence. Le fichier peut découper chaque jour en groupes titrés : les tâches arrivent dans la section de leur groupe, et celles du groupe « Urgences » en Urgente. Les notes en tête du fichier (« Règles : … ») ne sont plus signalées comme non importées.
+
 ## [2.82] — 2026-10-12
 
 ### Ajouté

@@ -49,14 +49,14 @@ describe('parseTodoFile', () => {
     expect(r.days[0]).toEqual({
       date: '2026-10-12',
       tasks: [
-        { label: '[Modèle A] Répondre aux messages en attente (trier par montant)', description: 'Durée estimée : 1 h' },
-        { label: '[2 modèles] Ranger les scripts', description: 'Durée estimée : 45 min' },
+        { label: '[Modèle A] Répondre aux messages en attente (trier par montant)', description: 'Durée estimée : 1 h', category: 'À faire', urgency: 'normale' },
+        { label: '[2 modèles] Ranger les scripts', description: 'Durée estimée : 45 min', category: 'À faire', urgency: 'normale' },
       ],
     })
   })
 
   it('une ligne sans tag ni durée reste une tâche', () => {
-    expect(r.days[1]?.tasks.at(-1)).toEqual({ label: 'Sans tag ni durée', description: '' })
+    expect(r.days[1]?.tasks.at(-1)).toEqual({ label: 'Sans tag ni durée', description: '', category: 'À faire', urgency: 'normale' })
   })
 
   it('un doublon du même jour est listé, pas importé deux fois', () => {
@@ -121,3 +121,97 @@ describe('holderMatches — un avertissement, jamais un blocage', () => {
   it('même prénom, casse et accents différents', () => expect(holderMatches('LÉA', 'Léa Martin')).toBe(true))
   it('autre personne', () => expect(holderMatches('CAMILLE', 'Axel')).toBe(false))
 })
+
+/**
+ * 2e FORMAT (fichier du 2026-10-12 après-midi), anonymisé : des notes d'en-tête, et dans chaque jour
+ * des paragraphes qui commencent par un TITRE DE GROUPE. Le modèle s'écrit `Modèle A : …`.
+ */
+const FILE_V2 = `TO-DO DE CAMILLE · MODÈLE A, MODÈLE B · 12 → 18 OCTOBRE 2026
+
+Règles : une mission à la fois, on la finit avant de passer à la suite.
+Pas fini le soir ? On continue le lendemain.
+
+=== SECTION RÉCURRENTE « ROUTINE » (à créer une seule fois) ===
+Matin · Vérifier la nuit
+Soir · Lire le récap
+
+##### SEMAINE 1 #####
+
+=== LUNDI 12 OCTOBRE ===
+Urgences
+Modèle A : Répondre aux messages en attente
+Se présenter dans les groupes
+
+Outils
+Créer le tableau des envois
+Se présenter dans les groupes
+
+=== MARDI 13 OCTOBRE ===
+Une tâche seule, sans titre
+`
+
+describe('parseTodoFile — 2e format, titres de groupe', () => {
+  const r = parseTodoFile(FILE_V2)
+
+  it('les notes d’en-tête ne sont ni importées ni signalées', () => {
+    expect(r.errors).toEqual([])
+    expect(r.ignored).toEqual([])
+  })
+
+  it('le titre d’un paragraphe devient la section de ses tâches', () => {
+    expect(r.days[0]?.tasks.map((t) => `${t.category} | ${t.label}`)).toEqual([
+      'Urgences | Modèle A : Répondre aux messages en attente',
+      'Urgences | Se présenter dans les groupes',
+      'Outils | Créer le tableau des envois',
+      'Outils | Se présenter dans les groupes',
+    ])
+  })
+
+  it('le groupe « Urgences » passe ses tâches en Urgente, les autres restent Normale', () => {
+    expect(r.days[0]?.tasks.map((t) => t.urgency)).toEqual(['urgente', 'urgente', 'normale', 'normale'])
+  })
+
+  it('le même titre dans deux groupes du même jour n’est pas un doublon', () => {
+    expect(r.days[0]?.tasks.filter((t) => t.label === 'Se présenter dans les groupes')).toHaveLength(2)
+  })
+
+  it('une ligne seule dans son paragraphe reste une tâche, dans « À faire »', () => {
+    expect(r.days[1]?.tasks).toEqual([
+      { label: 'Une tâche seule, sans titre', description: '', category: 'À faire', urgency: 'normale' },
+    ])
+  })
+
+  it('la routine reste lue, dans sa section', () => {
+    expect(r.routineSection).toBe('Routine')
+    expect(r.routine.map((t) => t.category)).toEqual(['Routine', 'Routine'])
+  })
+})
+
+describe('parseTodoFile — cas limites des titres de groupe (revue)', () => {
+  it('1er format : une tâche sans tag en tête de jour reste une tâche', () => {
+    const r = parseTodoFile('TO-DO DE X · A · 12 → 18 OCTOBRE 2026\n=== LUNDI 12 OCTOBRE ===\nAppeler Camille\n[Modèle A] Ranger les scripts (45 min)')
+    expect(r.days[0]?.tasks.map((t) => `${t.category} | ${t.label}`)).toEqual([
+      'À faire | Appeler Camille',
+      'À faire | [Modèle A] Ranger les scripts',
+    ])
+  })
+
+  it('2e format : un paragraphe sans titre après « Urgences » revient dans « À faire », en Normale', () => {
+    const r = parseTodoFile('TO-DO DE X · A · 12 → 18 OCTOBRE 2026\n=== LUNDI 12 OCTOBRE ===\nUrgences\nRépondre\n\nFaire le bilan')
+    expect(r.days[0]?.tasks.map((t) => `${t.category} | ${t.urgency} | ${t.label}`)).toEqual([
+      'Urgences | urgente | Répondre',
+      'À faire | normale | Faire le bilan',
+    ])
+  })
+
+  it('« Pas urgent » n’est pas « Urgences »', () => {
+    const r = parseTodoFile('TO-DO DE X · A · 12 → 18 OCTOBRE 2026\n=== LUNDI 12 OCTOBRE ===\nPas urgent\nRanger')
+    expect(r.days[0]?.tasks[0]).toMatchObject({ category: 'Pas urgent', urgency: 'normale' })
+  })
+
+  it('avant le 1er bloc : une ligne en forme de tâche reste listée, la prose est ignorée', () => {
+    const r = parseTodoFile('TO-DO DE X · A · 12 → 18 OCTOBRE 2026\nRègles : une à la fois.\n[A] Tâche sans jour (1 h)\n=== LUNDI 12 OCTOBRE ===\n[A] x')
+    expect(r.ignored).toEqual([{ line: 3, text: '[A] Tâche sans jour (1 h)', reason: 'hors de tout bloc' }])
+  })
+})
+

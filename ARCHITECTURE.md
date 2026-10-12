@@ -319,10 +319,17 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   sur `tracker_todo_habits` et `tracker_todo_sections`, `0194`, lu par la grille via `isDue` /
   `isSectionOn` et par le Récap — nulle = sans borne, une section qui existait déjà garde la
   sienne ; la retaper depuis un jour antérieur ramène son début à ce jour, `startAfterAdd`) : les
-  semaines passées ne changent pas ; les tâches du jour vont dans
-  « À faire », ordre du fichier, urgence normale, tag `[Modèle]` dans le titre et durée dans la
-  description. Un bloc sans date n'est pas importé mais listé dans l'aperçu ; la moindre erreur
-  de format n'écrit rien ; relancer n'ajoute rien (`dedupKey`).
+  semaines passées ne changent pas. Dans un jour, la 1re ligne de chaque paragraphe est un TITRE DE
+  GROUPE (2e format du fichier, 2026-10-12) : il devient la section de ses tâches ce jour-là,
+  enregistrée PONCTUELLE (aucun jour) pour garder l'ordre du fichier (`GROUP_BASE`, après les
+  sections existantes et les groupes des imports précédents, avant « À faire » ; dette n° 15) ; un groupe nommé exactement « Urgences » passe ses tâches en Urgente ; un paragraphe sans titre
+  revient dans « À faire » ; le format se décide une fois par fichier (une ligne `[Modèle] …` ou à
+  durée = 1er format, sans titres) ;
+  sans titre (1er format, `[Modèle] … (durée)`), les tâches vont dans « À faire ». Ordre du fichier,
+  modèle (`Léna :` / `[Léna]`) dans le titre, durée dans la description. Les notes d'en-tête (avant
+  le 1er bloc) sont ignorées ; un bloc sans date n'est pas importé mais listé dans l'aperçu, qui
+  montre aussi chaque tâche jour par jour avant d'écrire ; la moindre erreur de format n'écrit
+  rien ; relancer n'ajoute rien (`dedupKey`, sur jour, section et titre).
 
 ### Rapport du soir police
 
