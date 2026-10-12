@@ -46,6 +46,9 @@ export function describeFailure(r: Extract<SendResult, { ok: false }>, name: str
 export function describeMedia(m: MediaReport): string {
   const n = (count: number, one: string, many: string) => `${count} ${count > 1 ? many : one}`
   const parts: string[] = []
+  if (m.writtenVoices) {
+    parts.push(`${n(m.writtenVoices, 'vocal envoyé', 'vocaux envoyés')} à l’écrit en attendant l’audio (titre « pas encore fait »)`)
+  }
   if (m.attached) {
     parts.push(`${n(m.attached, 'message à média complété', 'messages à média complétés')} depuis la collection « ${m.collection} »`)
   }

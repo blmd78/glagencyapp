@@ -1,4 +1,4 @@
-import { attachFromLibrary, sameCollectionName, validateScriptDraft, type LibraryMedia, type ScriptDraft } from '@glagency/core'
+import { attachFromLibrary, foldMediaTitle, sameCollectionName, validateScriptDraft, writeMissingVoices, type LibraryMedia, type ScriptDraft } from '@glagency/core'
 import type { MediaReport, StudioWriter } from './send'
 
 /** Au-delà, la collection n'est pas lue (une lecture de fiche par média, sous le verrou d'envoi). */
@@ -17,6 +17,10 @@ export function pendingCount(draft: ScriptDraft): number {
  * bibliothèque illisible (au premier refus, 429 compris : pas d'attente sous le verrou), une collection
  * de plus de `MAX_LIBRARY_MEDIA` médias ou un brouillon qui ne passerait plus la vérification laissent
  * tout « à rattacher », et l'envoi continue — le script part désactivé et se relit dans le Studio.
+ *
+ * Vocaux restés sans audio (`writeMissingVoices`) : à l'écrit en attendant, mais seulement quand l'absence
+ * est SÛRE — pas de collection au nom du script, ou collection lue sans média à ce titre. Bibliothèque
+ * illisible, ambiguë, trop grosse ou rattachement refusé : l'audio existe peut-être, rien n'est écrit.
  */
 export async function withLibrary(
   writer: StudioWriter,
@@ -29,6 +33,16 @@ export async function withLibrary(
     media: { attached: 0, pending, collection, reason },
   })
   if (!pending) return keep(null)
+  /** Vocaux sans audio passés à l'écrit, si le brouillon obtenu passe toujours la vérification. */
+  const voices = (base: { draft: ScriptDraft; media: MediaReport }, titles: ReadonlySet<string> = new Set()) => {
+    const v = writeMissingVoices(base.draft, titles)
+    if (!v.written) return base
+    if (validateScriptDraft(v.draft).length) {
+      console.warn(`[script] ${v.written} vocal(aux) non passé(s) à l'écrit : le brouillon ne passerait plus la vérification`)
+      return base
+    }
+    return { draft: v.draft, media: { ...base.media, pending: base.media.pending - v.written, writtenVoices: v.written } }
+  }
   try {
     const collections = await writer.listCollections()
     const named = (name: string) => collections.filter((c) => sameCollectionName(name, c.name))
@@ -36,14 +50,15 @@ export async function withLibrary(
     if (!matches.length) matches = named(draft.name)
     if (matches.length > 1) return keep('ambiguë')
     const collection = matches[0]
-    if (!collection) return keep('absente')
+    if (!collection) return voices(keep('absente'))
     const items = await writer.listCollectionMedia(collection.id)
     if (items.length > MAX_LIBRARY_MEDIA) return keep('trop de médias', collection.name)
     const library: LibraryMedia[] = []
     for (const m of items) library.push({ ...m, title: await writer.mediaTitle(m.id) })
     const r = attachFromLibrary(draft, library)
     if (validateScriptDraft(r.draft).length) return keep('invalide', collection.name)
-    return { draft: r.draft, media: { attached: r.attached, pending: r.pending, collection: collection.name, reason: null } }
+    const attached = { draft: r.draft, media: { attached: r.attached, pending: r.pending, collection: collection.name, reason: null } }
+    return voices(attached, new Set(library.map((m) => foldMediaTitle(m.title))))
   } catch (e) {
     console.warn('[script] bibliothèque de médias illisible — médias laissés à rattacher :', e instanceof Error ? e.message : e)
     return keep('illisible')
