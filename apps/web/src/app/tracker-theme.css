@@ -660,6 +660,9 @@
 .trk .u-importante { --u:#ea580c }
 .trk .u-urgente { --u:var(--trk-danger) }
 .trk .task[class*='u-'] { border-left:3px solid var(--u) }
+/* Rang (#161) : le trait qui montre où la tâche portée se posera — au-dessus ou en dessous. */
+.trk .task.drop-before { box-shadow:0 -2px 0 0 var(--trk-accent) }
+.trk .task.drop-after { box-shadow:0 2px 0 0 var(--trk-accent) }
 .trk .udot { display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--u);flex:none;margin-right:6px;vertical-align:middle }
 .trk .urg { display:flex;gap:6px;flex-wrap:wrap }
 .trk .urg button { display:inline-flex;align-items:center;gap:6px;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;color:var(--trk-muted);cursor:pointer }

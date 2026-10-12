@@ -1,7 +1,9 @@
 'use client'
 
-import { useDraggable } from '@dnd-kit/core'
+import { useCallback, useContext } from 'react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { TodoTask } from '../types'
+import { DropHintContext } from './drop-hint'
 
 /**
  * Une tâche — balisage repris de leur feuille : `.task > .box + .tb > .tt/.tm`, avec `.x` pour
@@ -78,13 +80,35 @@ export function TaskItem({
     data: { date, category },
     disabled: !canOrganize,
   })
+  // #161 — la carte est AUSSI une cible : lâcher une tâche dessus la pose au-dessus ou en dessous
+  // (`resolveDrop`). La grille préfère cette cible à la section qui la contient.
+  const { setNodeRef: setDropRef } = useDroppable({
+    id: `task:${task.id}`,
+    data: { date, category, taskId: task.id },
+    disabled: !canOrganize,
+  })
+  const ref = useCallback(
+    (el: HTMLDivElement | null) => {
+      setNodeRef(el)
+      setDropRef(el)
+    },
+    [setNodeRef, setDropRef],
+  )
+  // Le trait qui montre où la tâche portée va se poser.
+  const hint = useContext(DropHintContext)
 
-  const cls = ['task', `u-${task.urgency}`, task.done ? 'done' : '', isDragging ? 'dragging' : '']
+  const cls = [
+    'task',
+    `u-${task.urgency}`,
+    task.done ? 'done' : '',
+    isDragging ? 'dragging' : '',
+    hint === `${task.id}:before` ? 'drop-before' : hint === `${task.id}:after` ? 'drop-after' : '',
+  ]
     .filter(Boolean)
     .join(' ')
 
   return (
-    <div ref={setNodeRef} className={cls}>
+    <div ref={ref} className={cls}>
       <button
         type="button"
         className="box"

@@ -10,6 +10,29 @@
  * règle d'origine, inchangée. Le Récap reconnaît l'occurrence à son `habit_id` lui aussi (0192,
  * bloc `planned`) ; son repli par intitulé, lui, a toujours porté sur la journée entière.
  */
+/**
+ * Les habitudes dont l'occurrence est DUE, et encore virtuelle, dans une section un jour donné —
+ * avec leur RANG dans la liste complète des habitudes du titulaire, qui fixe leur place en haut de
+ * la section (`habitKey`, `order.ts`). La liste complète et non les seules actives : mettre une
+ * habitude en pause ne doit pas faire bouger les autres.
+ *
+ * Partagée par la grille (`get-week.ts`) et par les actions qui posent une tâche à un rang : les
+ * deux doivent voir la même section, sinon le rang calculé par le serveur ne serait pas celui
+ * qu'on a visé à l'écran.
+ */
+export function dueHabits<H extends { id: string; label: string; category: string; weekdays: string; active: boolean }>(
+  habits: readonly H[],
+  weekday: number,
+  category: string,
+  dayTasks: readonly { habitId: string | null; label: string; category: string }[],
+): { habit: H; rank: number }[] {
+  return habits
+    .map((habit, rank) => ({ habit, rank }))
+    .filter(({ habit: h }) => h.active && h.category === category)
+    .filter(({ habit: h }) => h.weekdays.split(',').map(Number).includes(weekday))
+    .filter(({ habit: h }) => !isMaterialized(h, dayTasks))
+}
+
 export function isMaterialized(
   habit: { id: string; label: string; category: string },
   dayTasks: readonly { habitId: string | null; label: string; category: string }[],

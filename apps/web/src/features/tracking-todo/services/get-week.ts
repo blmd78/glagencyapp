@@ -5,7 +5,8 @@ import { getCreatorScope } from '@/lib/services/creator-scope'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
-import { isMaterialized } from '../occurrence'
+import { dueHabits } from '../occurrence'
+import { habitKey, sortSlots } from '../order'
 import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 import { asUrgency } from '../urgency'
 
@@ -70,13 +71,16 @@ export async function getTodoWeek(params: {
       supabase.from('tracker_todo_sections').select('name, weekdays, position')
         .eq('owner_id', params.ownerId).order('position'),
       supabase.from('tracker_todo_tasks')
-        .select('id, date, category, label, description, urgency, habit_id, done, position, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
+        .select('id, date, category, label, description, urgency, habit_id, done, position, created_at, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd).order('position'),
       // TOUTES les habitudes, actives ou non : le panneau de gestion doit montrer celles en pause
       // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
       // bas, au moment de projeter les occurrences dans la semaine.
+      // `created_at` en second tri : le RANG d'une habitude fixe la place de son occurrence en haut
+      // de la section (#161, `habitKey`) — il doit être le même d'un rendu à l'autre, et le même
+      // que celui que calculent les actions (`section-slots.ts`).
       supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, position, created_by')
-        .eq('owner_id', params.ownerId).order('position'),
+        .eq('owner_id', params.ownerId).order('position').order('created_at'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
       supabase.from('tracker_todo_notes').select('body')
@@ -129,51 +133,59 @@ export async function getTodoWeek(params: {
       isWeekend: wd >= 6,
       dayOff: offDays.has(date),
       sections: ordered.map<TodoSection>((name) => {
-        const real: TodoTask[] = dayTasks
+        // ORDRE (#161) : chaque tâche porte sa clé (`order.ts`) — la `position` d'une vraie ligne,
+        // départagée par sa création ; le rang de son habitude pour une occurrence virtuelle, qui
+        // passe ainsi en haut. On trie le tout, et non plus « les vraies, puis les habitudes ».
+        const real = dayTasks
           .filter((t) => t.category === name)
           .map((t) => ({
-            id: t.id,
-            label: t.label,
-            description: t.description,
-            urgency: asUrgency(t.urgency),
-            done: t.done,
-            virtual: false,
-            fromOther: t.created_by != null && t.created_by !== params.ownerId,
-            depositedByMe: t.created_by != null && t.created_by === params.callerId,
-            chatterId: t.chatter_id,
-            hasBilan: t.session_id != null,
-            chatterName: t.chatter?.display_name ?? null,
+            key: t.position,
+            tie: t.created_at,
+            task: {
+              id: t.id,
+              label: t.label,
+              description: t.description,
+              urgency: asUrgency(t.urgency),
+              done: t.done,
+              virtual: false,
+              fromOther: t.created_by != null && t.created_by !== params.ownerId,
+              depositedByMe: t.created_by != null && t.created_by === params.callerId,
+              chatterId: t.chatter_id,
+              hasBilan: t.session_id != null,
+              chatterName: t.chatter?.display_name ?? null,
+            } satisfies TodoTask,
           }))
         // Une habitude ne s'affiche que si son occurrence du jour n'a pas déjà été matérialisée.
-        const virtual: TodoTask[] = habits
-          .filter((h) => h.active)
-          .filter((h) => h.category === name && h.weekdays.split(',').map(Number).includes(wd))
-          .filter((h) => !isMaterialized(h, dayKeys))
-          .map((h) => ({
-            id: `habit:${h.id}:${date}`,
-            label: h.label,
-            description: h.description,
-            urgency: asUrgency(h.urgency),
-            done: false,
-            virtual: true,
-            // L'occurrence porte le badge « déposée » dès le gabarit, avant même d'exister en
-            // base : sinon la même tâche l'aurait au premier geste (`materialize` recopie
-            // `created_by`) et pas avant — un badge qui apparaît en cochant.
-            fromOther: h.created_by != null && h.created_by !== params.ownerId,
-            // `false` MÊME pour son déposant, et c'est délibéré : ce drapeau n'ouvre que la croix
-            // de suppression sur la semaine d'un autre (`task-item.tsx`), or supprimer une
-            // occurrence virtuelle passe par `deleteTaskOccurrence`, réservé au titulaire. Le
-            // gabarit se retire depuis le panneau Habitudes, qui est l'endroit prévu pour ça.
-            depositedByMe: false,
-            // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
-            chatterId: null,
-            hasBilan: false,
-            chatterName: null,
+        const virtual = dueHabits(habits, wd, name, dayKeys)
+          .map(({ habit: h, rank }) => ({
+            key: habitKey(rank),
+            tie: '',
+            task: {
+              id: `habit:${h.id}:${date}`,
+              label: h.label,
+              description: h.description,
+              urgency: asUrgency(h.urgency),
+              done: false,
+              virtual: true,
+              // L'occurrence porte le badge « déposée » dès le gabarit, avant même d'exister en
+              // base : sinon la même tâche l'aurait au premier geste (`materialize` recopie
+              // `created_by`) et pas avant — un badge qui apparaît en cochant.
+              fromOther: h.created_by != null && h.created_by !== params.ownerId,
+              // `false` MÊME pour son déposant, et c'est délibéré : ce drapeau n'ouvre que la croix
+              // de suppression sur la semaine d'un autre (`task-item.tsx`), or supprimer une
+              // occurrence virtuelle passe par `deleteTaskOccurrence`, réservé au titulaire. Le
+              // gabarit se retire depuis le panneau Habitudes, qui est l'endroit prévu pour ça.
+              depositedByMe: false,
+              // Une habitude ne vise jamais un chatteur : un 1:1 se pose au cas par cas.
+              chatterId: null,
+              hasBilan: false,
+              chatterName: null,
+            } satisfies TodoTask,
           }))
         return {
           name,
           recurring: sections.some((s) => s.name === name && s.weekdays.split(',').map(Number).includes(wd)),
-          tasks: [...real, ...virtual],
+          tasks: sortSlots([...real, ...virtual]).map((x) => x.task),
         }
       }),
     })

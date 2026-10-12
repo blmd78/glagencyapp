@@ -8,9 +8,12 @@ import {
   pointerWithin,
   useSensor,
   useSensors,
+  type Active,
   type CollisionDetection,
   type DragEndEvent,
+  type DragMoveEvent,
   type DragStartEvent,
+  type Over,
   type ScreenReaderInstructions,
 } from '@dnd-kit/core'
 import { useRouter } from 'next/navigation'
@@ -18,8 +21,9 @@ import type { Route } from 'next'
 import { toast } from 'sonner'
 import { DayColumn, type NewTask } from './day-column'
 import { TaskDialog, type OpenTask } from './task-dialog'
+import { DropHintContext } from './drop-hint'
 import { TaskPreview } from './task-item'
-import { moveTaskInDays } from '../move-task'
+import { moveTaskInDays, resolveDrop, type DropZone } from '../move-task'
 import { addTask, deleteHabit, deleteSection, deleteTask, deleteTaskOccurrence, moveTask, saveSection, toggleTask } from '../actions'
 import { toggleDayOff } from '../actions-content'
 import type { TodoTask, TodoWeek } from '../types'
@@ -31,20 +35,38 @@ import type { TodoTask, TodoWeek } from '../types'
  */
 const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
   draggable:
-    'Pour déplacer une tâche, faites-la glisser à la souris ou au doigt vers un autre jour ou une ' +
-    'autre section.',
+    'Pour déplacer une tâche, faites-la glisser à la souris ou au doigt vers un autre jour, une ' +
+    'autre section, ou au-dessus d’une autre tâche pour changer son rang.',
 }
 
 /**
- * La cible est sous le POINTEUR, et une section l'emporte sur la journée qui la contient — leur
- * `zoneOf` (todo.html:1592) : `.tgroup` d'abord, `.dayb` sinon. Les zones sont imbriquées : le
- * calcul par défaut (recouvrement de rectangles) départagerait une section et sa journée au hasard
- * des tailles.
+ * La cible est sous le POINTEUR, et la plus précise l'emporte : une TÂCHE (#161, pour changer de
+ * rang), sinon une section, sinon la journée qui la contient — leur `zoneOf` (todo.html:1592) :
+ * `.tgroup` d'abord, `.dayb` sinon. Les zones sont imbriquées : le calcul par défaut (recouvrement de
+ * rectangles) les départagerait au hasard des tailles. La carte qu'on porte n'est jamais sa propre
+ * cible : elle reste en place, estompée, sous le pointeur au départ du geste.
  */
 const collisionDetection: CollisionDetection = (args) => {
   const hits = pointerWithin(args)
-  const section = hits.find((c) => c.data?.droppableContainer.data.current?.category !== undefined)
-  return section ? [section] : hits
+  const data = (c: (typeof hits)[number]) =>
+    c.data?.droppableContainer.data.current as { category?: string; taskId?: string } | undefined
+  const task = hits.find((c) => data(c)?.taskId !== undefined && c.id !== `task:${String(args.active.id)}`)
+  if (task) return [task]
+  const section = hits.find((c) => data(c)?.taskId === undefined && data(c)?.category !== undefined)
+  return section ? [section] : hits.filter((c) => data(c)?.taskId === undefined)
+}
+
+/** La zone survolée : une tâche (moitié haute = au-dessus, basse = en dessous), une section, un jour. */
+function zoneOf(active: Active, over: Over | null): DropZone | null {
+  const data = over?.data.current as { date: string; category?: string; taskId?: string } | undefined
+  if (!over || !data) return null
+  if (data.taskId !== undefined) {
+    const r = active.rect.current.translated
+    const after = !!r && r.top + r.height / 2 > over.rect.top + over.rect.height / 2
+    return { kind: 'task', date: data.date, category: data.category ?? '', taskId: data.taskId, after }
+  }
+  if (data.category !== undefined) return { kind: 'section', date: data.date, category: data.category }
+  return { kind: 'day', date: data.date }
 }
 
 /**
@@ -67,10 +89,10 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
       state,
       patch:
         | { kind: 'toggle'; taskId: string; done: boolean }
-        | { kind: 'move'; taskId: string; date: string; category: string },
+        | { kind: 'move'; taskId: string; date: string; category: string; beforeId: string | null },
     ) =>
       patch.kind === 'move'
-        ? moveTaskInDays(state, patch.taskId, patch.date, patch.category)
+        ? moveTaskInDays(state, patch.taskId, patch.date, patch.category, patch.beforeId)
         : state.map((d) => ({
             ...d,
             sections: d.sections.map((s) => ({
@@ -184,18 +206,26 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
 
   const onDragStart = (e: DragStartEvent): void => setActiveId(String(e.active.id))
 
+  /** Où la tâche portée se posera si on la lâche maintenant (#161) — le trait sur la carte visée. */
+  const [hint, setHint] = useState<string | null>(null)
+  const onDragMove = (e: DragMoveEvent): void => {
+    const zone = zoneOf(e.active, e.over)
+    setHint(zone?.kind === 'task' ? `${zone.taskId}:${zone.after ? 'after' : 'before'}` : null)
+  }
+
   const onDragEnd = (e: DragEndEvent): void => {
     setActiveId(null)
-    const target = e.over?.data.current as { date: string; category?: string } | undefined
+    setHint(null)
+    const zone = zoneOf(e.active, e.over)
     const source = e.active.data.current as { date: string; category: string } | undefined
-    if (!target || !source) return
-    // Lâchée sur la journée et non sur une section : la tâche change de jour, pas de rubrique.
-    const category = target.category ?? source.category
-    if (target.date === source.date && category === source.category) return
+    if (!zone || !source) return
     const taskId = String(e.active.id)
+    // Rien ne change (lâchée à sa place) : pas d'aller-retour serveur.
+    const move = resolveDrop(days, taskId, source, zone)
+    if (!move) return
     startTransition(async () => {
-      applyOptimistic({ kind: 'move', taskId, date: target.date, category })
-      await run(() => moveTask({ ownerId: week.ownerId, taskId, date: target.date, category }))
+      applyOptimistic({ kind: 'move', taskId, ...move })
+      await run(() => moveTask({ ownerId: week.ownerId, taskId, ...move }))
     })
   }
 
@@ -206,30 +236,36 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
       sensors={sensors}
       collisionDetection={collisionDetection}
       onDragStart={onDragStart}
+      onDragMove={onDragMove}
       onDragEnd={onDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => {
+        setActiveId(null)
+        setHint(null)
+      }}
       accessibility={{ screenReaderInstructions: SCREEN_READER_INSTRUCTIONS }}
     >
-      <div className="weekwrap" aria-busy={busy}>
-        <div className="week">
-          {days.map((day) => (
-            <DayColumn
-              key={day.date}
-              day={day}
-              canWrite={week.canWrite}
-              onToggle={onToggle}
-              onDelete={onDelete}
-              onAdd={onAdd}
-              onOpen={onOpen}
-              chatters={week.chatters}
-              canOrganize={week.canOrganize}
-              onDayOff={onDayOff}
-              onAddSection={onAddSection}
-              onDeleteSection={onDeleteSection}
-            />
-          ))}
+      <DropHintContext value={hint}>
+        <div className="weekwrap" aria-busy={busy}>
+          <div className="week">
+            {days.map((day) => (
+              <DayColumn
+                key={day.date}
+                day={day}
+                canWrite={week.canWrite}
+                onToggle={onToggle}
+                onDelete={onDelete}
+                onAdd={onAdd}
+                onOpen={onOpen}
+                chatters={week.chatters}
+                canOrganize={week.canOrganize}
+                onDayOff={onDayOff}
+                onAddSection={onAddSection}
+                onDeleteSection={onDeleteSection}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      </DropHintContext>
       {/* La tâche SUIT le curseur, comme une carte Trello qu'on a attrapée ; l'originale reste en
           place, estompée. `dropAnimation={null}` : l'animation par défaut ramène l'aperçu vers la
           carte source, or la tâche est DÉJÀ posée sur son nouveau jour (état optimiste) — on la

@@ -10,6 +10,7 @@ import {
   habitInput, moveTaskInput, renameSectionInput, sectionInput,
   setHabitActiveInput, toggleTaskInput, updateHabitInput, updateTaskInput,
 } from './schema'
+import { habitPosition, placeTask } from './section-slots'
 import { mergeWeekdays } from './weekdays'
 
 /**
@@ -70,6 +71,9 @@ async function materialize(ownerId: string, taskId: string): Promise<string> {
       // l'occurrence du jour existe déjà (`isMaterialized`). Une occurrence renommée dans la pop-up
       // reste donc la sienne, au lieu de laisser l'habitude renaître à côté.
       habit_id: virt.habitId,
+      // Sa place : celle de l'occurrence virtuelle qu'elle remplace, en haut de la section (#161,
+      // `habitKey`). Cocher une habitude ne la fait pas sauter de rang.
+      position: await habitPosition(ownerId, virt.habitId),
       // La tâche HÉRITE du déposant du gabarit. Sans ça, l'occurrence d'une habitude déposée par
       // la hiérarchie naît avec `created_by: null`, c'est-à-dire « posée par le titulaire » : elle
       // perd son badge « déposée » au premier geste. Le gabarit dit qui l'a voulue ; la tâche aussi.
@@ -98,19 +102,26 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
       // désormais clore n'importe quel 1:1, donc plus aucune tâche déposée ne peut être zombie, et
       // il ne reste rien à vérifier. `assertCanOrganize` continue de dire QUI peut déposer chez QUI.
       const admin = createAdminClient()
-      const { error } = await admin.from('tracker_todo_tasks').insert({
-        owner_id: d.ownerId,
-        date: d.date,
-        category: d.category,
-        label: d.label,
-        description: d.description,
-        urgency: d.urgency,
-        chatter_id: d.chatterId,
-        // Trace de la hiérarchie : `null` quand on écrit chez soi, pour ne pas marquer d'un
-        // « déposée par » toutes les tâches qu'on se donne soi-même.
-        created_by: caller.id === d.ownerId ? null : caller.id,
-      })
+      const { data: created, error } = await admin
+        .from('tracker_todo_tasks')
+        .insert({
+          owner_id: d.ownerId,
+          date: d.date,
+          category: d.category,
+          label: d.label,
+          description: d.description,
+          urgency: d.urgency,
+          chatter_id: d.chatterId,
+          // Trace de la hiérarchie : `null` quand on écrit chez soi, pour ne pas marquer d'un
+          // « déposée par » toutes les tâches qu'on se donne soi-même.
+          created_by: caller.id === d.ownerId ? null : caller.id,
+        })
+        .select('id')
+        .single()
       if (error) throw new Error(error.message)
+      // #161 — l'urgence décide de la place d'arrivée : urgente en haut, importante sous les
+      // urgentes, normale en bas.
+      await placeTask(d.ownerId, created.id, d.date, d.category, { urgency: d.urgency })
       revalidateTodo()
     },
   })
@@ -135,12 +146,22 @@ export async function updateTask(raw: unknown): Promise<ActionResult> {
     handler: async (d) => {
       await assertCanOrganize(d.ownerId)
       const id = await materialize(d.ownerId, d.taskId)
-      const { error } = await createAdminClient()
+      const admin = createAdminClient()
+      const { data: before, error: readErr } = await admin
+        .from('tracker_todo_tasks').select('date, category, urgency').eq('id', id).eq('owner_id', d.ownerId).maybeSingle()
+      if (readErr) throw new Error(readErr.message)
+      if (!before) throw new BusinessError('Cette tâche a été supprimée entre-temps.')
+      const { error } = await admin
         .from('tracker_todo_tasks')
         .update({ label: d.label, description: d.description, urgency: d.urgency, date: d.date })
         .eq('id', id)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
+      // #161 — l'urgence redécide de la place quand elle change, ou quand la tâche ARRIVE sur un
+      // autre jour. Un simple changement de titre ne la déplace pas.
+      if (before.date !== d.date || before.urgency !== d.urgency) {
+        await placeTask(d.ownerId, id, d.date, before.category, { urgency: d.urgency })
+      }
       revalidateTodo()
     },
   })
@@ -241,6 +262,9 @@ export async function moveTask(raw: unknown): Promise<ActionResult> {
         .eq('id', id)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
+      // #161 — à l'endroit où on l'a lâchée (au-dessus de `beforeId`), en bas sinon. Un geste
+      // manuel : l'urgence n'y change rien.
+      await placeTask(d.ownerId, id, d.date, d.category, { beforeId: d.beforeId })
       revalidateTodo()
     },
   })

@@ -73,6 +73,11 @@ export const moveTaskInput = z.object({
   date: day,
   /** Même « sans section » qu'à l'ajout : on doit pouvoir y glisser une tâche comme ailleurs. */
   category: z.string().trim().max(60),
+  /**
+   * #161 — la tâche (réelle ou occurrence virtuelle) au-dessus de laquelle on l'a lâchée ; `null` =
+   * en bas de la section, ce que faisait tout glisser jusque-là.
+   */
+  beforeId: taskId.nullable().default(null),
 })
 
 export const sectionInput = z.object({
