@@ -65,10 +65,14 @@ export function ImportTxtButton({ ownerId, ownerName }: { ownerId: string; owner
   }
 
   if (!ownerName) {
+    // Le `title` sur une enveloppe : un bouton inactif ne reçoit pas le survol
+    // (`disabled:pointer-events-none`), son infobulle ne s'afficherait jamais.
     return (
-      <Button variant="outline" size="sm" disabled title="Choisis d’abord la personne dans le sélecteur">
-        <FileUp className="size-3.5" /> Importer un fichier
-      </Button>
+      <span title="Choisis d’abord la personne dans le sélecteur" className="inline-flex">
+        <Button variant="outline" size="sm" disabled>
+          <FileUp className="size-3.5" /> Importer un fichier
+        </Button>
+      </span>
     )
   }
 
@@ -131,7 +135,15 @@ export function ImportTxtButton({ ownerId, ownerName }: { ownerId: string; owner
 
         <DialogFooter>
           {result ? (
-            <Button size="sm" onClick={() => setOpen(false)}>
+            <Button
+              size="sm"
+              onClick={() => {
+                // Fermer par le code ne passe pas par `onOpenChange` : on vide ici aussi, sinon le
+                // bilan remplacerait le sélecteur de fichier à la réouverture.
+                setOpen(false)
+                reset()
+              }}
+            >
               Fermer
             </Button>
           ) : (

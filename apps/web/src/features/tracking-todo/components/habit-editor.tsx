@@ -38,6 +38,7 @@ export function HabitEditor({
       <input
         autoFocus
         aria-label="Intitulé"
+        maxLength={200}
         value={label}
         onChange={(e) => setLabel(e.target.value)}
         onKeyDown={(e) => {
@@ -49,6 +50,7 @@ export function HabitEditor({
         rows={2}
         aria-label="Description"
         placeholder="Description (facultative)"
+        maxLength={2000}
         value={description}
         onChange={(e) => setDescription(e.target.value)}
       />

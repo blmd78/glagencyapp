@@ -11,7 +11,8 @@ import type { NewTask } from './quick-add-task'
 import { TaskDialog, type OpenTask } from './task-dialog'
 import { TodoDnd } from './todo-dnd'
 import { moveTaskInDays } from '../move-task'
-import { addTask, deleteHabit, deleteSection, deleteTask, deleteTaskOccurrence, moveTask, saveSection, toggleTask } from '../actions'
+import { addTask, deleteTask, deleteTaskOccurrence, moveTask, toggleTask } from '../actions'
+import { deleteHabit, deleteSection, saveSection } from '../actions-structure'
 import { toggleDayOff } from '../actions-content'
 import type { TodoTask, TodoWeek } from '../types'
 
@@ -171,7 +172,9 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     }
     const q = withJour(date)
     q.set('week', addDays(date, -(isoWeekday(date) - 1)))
-    router.push(`/chatter/presence/todo?${q.toString()}` as Route)
+    // Dans une transition et sans remonter la page : la pop-up reste affichée pendant le chargement
+    // de l'autre semaine, puis se rouvre sur ce jour.
+    startTransition(() => router.push(`/chatter/presence/todo?${q.toString()}` as Route, { scroll: false }))
   }
   const closeDay = (): void => window.history.replaceState(null, '', `?${withJour(null).toString()}`)
 

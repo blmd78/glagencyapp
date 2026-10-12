@@ -10,8 +10,9 @@ import type { Urgency } from './urgency'
  * l'écran montrait en pratique, donc rien ne bouge tant qu'on ne touche à rien.
  *
  * LES HABITUDES EN HAUT par défaut (décision de Benoit, 2026-10-12) : une occurrence virtuelle
- * prend la clé `habitKey(rang)`, très négative, dans l'ordre des habitudes. `materialize()` pose
- * cette même clé sur la ligne qu'elle crée : cocher une habitude ne la fait pas sauter de place.
+ * prend la clé `habitKey(position)`, très négative, dans l'ordre des habitudes — leur `position`,
+ * unique et stable depuis 0192. `materialize()` pose cette même clé sur la ligne qu'elle crée :
+ * cocher une habitude ne la fait pas sauter de place.
  *
  * Les clés sont ESPACÉES (`STEP`) : poser une tâche entre deux autres prend le milieu, sans
  * réécrire la section. Il ne faut renuméroter que lorsque deux clés se touchent (les lignes d'avant
@@ -21,8 +22,8 @@ import type { Urgency } from './urgency'
 export const STEP = 1024
 const HABIT_BASE = -1024 * 1024
 
-/** Clé d'une occurrence d'habitude : son rang dans la liste des habitudes du titulaire. */
-export const habitKey = (rank: number): number => HABIT_BASE + rank * STEP
+/** Clé d'une occurrence d'habitude : la `position` de son habitude (unique par titulaire, 0192). */
+export const habitKey = (position: number): number => HABIT_BASE + position * STEP
 
 export interface Slot {
   id: string
@@ -84,7 +85,13 @@ export function placeAt(
   let keys: number[]
   if (floor === null && ceil === null) keys = Array.from({ length: count }, (_, j) => j * STEP)
   else if (floor === null) keys = Array.from({ length: count }, (_, j) => (ceil as number) - (count - j) * STEP)
-  else if (ceil === null) keys = Array.from({ length: count }, (_, j) => floor + (j + 1) * STEP)
+  else if (ceil === null) {
+    // Sous la dernière habitude : on repart des clés positives, celles des tâches ordinaires — sinon
+    // les lignes renumérotées prendraient des clés d'habitude, et une habitude créée plus tard
+    // viendrait s'intercaler entre elles au lieu de rejoindre les autres en haut.
+    const base = Math.max(floor + STEP, 0)
+    keys = Array.from({ length: count }, (_, j) => base + j * STEP)
+  }
   else {
     const step = Math.floor((ceil - floor) / (count + 1))
     if (step < 1) return null

@@ -16,45 +16,40 @@ import { asUrgency, type Urgency } from './urgency'
  * n'est appelé que par des actions qui ont déjà passé `assertCanOrganize`.
  */
 
-/** Les habitudes du titulaire, dans l'ordre qui fixe leur rang — le même tri que `getTodoWeek`. */
-async function loadHabits(ownerId: string) {
-  const { data, error } = await createAdminClient()
-    .from('tracker_todo_habits')
-    .select('id, category, label, weekdays, active, starts_on, urgency')
-    .eq('owner_id', ownerId)
-    .order('position')
-    .order('created_at')
-  if (error) throw new Error(error.message)
-  return data ?? []
-}
-
-/** Rang d'une habitude : la clé que `materialize()` pose sur son occurrence pour qu'elle reste en place. */
-export async function habitPosition(ownerId: string, habitId: string): Promise<number> {
-  const rank = (await loadHabits(ownerId)).findIndex((h) => h.id === habitId)
-  return habitKey(Math.max(rank, 0))
-}
-
 /** La section d'un jour, triée comme à l'écran, SANS la ligne `exclude` (celle qu'on pose). */
 async function sectionSlots(ownerId: string, date: string, category: string, exclude: string): Promise<Slot[]> {
-  const [tasksRes, habits] = await Promise.all([
-    createAdminClient()
+  const admin = createAdminClient()
+  const [tasksRes, habitsRes] = await Promise.all([
+    // Les lignes du jour, plus les occurrences de CE jour déplacées ailleurs (`habit_date`, 0192) —
+    // le même périmètre que `getTodoWeek`.
+    admin
       .from('tracker_todo_tasks')
-      .select('id, category, label, habit_id, position, created_at, urgency')
+      .select('id, date, category, label, habit_id, habit_date, position, created_at, urgency')
       .eq('owner_id', ownerId)
-      .eq('date', date),
-    loadHabits(ownerId),
+      .or(`date.eq.${date},habit_date.eq.${date}`),
+    admin
+      .from('tracker_todo_habits')
+      .select('id, category, label, weekdays, active, starts_on, position, urgency')
+      .eq('owner_id', ownerId),
   ])
   if (tasksRes.error) throw new Error(tasksRes.error.message)
-  const dayTasks = tasksRes.data ?? []
+  if (habitsRes.error) throw new Error(habitsRes.error.message)
+  const rows = tasksRes.data ?? []
   // La ligne posée reste comptée pour dire que SON habitude est déjà matérialisée ce jour-là — sinon
   // l'occurrence virtuelle reparaîtrait dans la section, et la tâche se rangerait contre son fantôme.
-  const keys = dayTasks.map((t) => ({ habitId: t.habit_id, label: t.label, category: t.category }))
-  const real: Slot[] = dayTasks
-    .filter((t) => t.category === category && t.id !== exclude)
+  const occurrences = rows.map((t) => ({
+    habitId: t.habit_id,
+    habitDate: t.habit_date,
+    date: t.date,
+    label: t.label,
+    category: t.category,
+  }))
+  const real: Slot[] = rows
+    .filter((t) => t.date === date && t.category === category && t.id !== exclude)
     .map((t) => ({ id: t.id, key: t.position, tie: t.created_at, fixed: false, urgency: asUrgency(t.urgency) }))
-  const virtual: Slot[] = dueHabits(habits, date, category, keys).map(({ habit, rank }) => ({
+  const virtual: Slot[] = dueHabits(habitsRes.data ?? [], date, category, occurrences).map((habit) => ({
     id: `habit:${habit.id}:${date}`,
-    key: habitKey(rank),
+    key: habitKey(habit.position),
     tie: '',
     fixed: true,
     urgency: asUrgency(habit.urgency),

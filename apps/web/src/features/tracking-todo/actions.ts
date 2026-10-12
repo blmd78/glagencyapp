@@ -2,16 +2,10 @@
 
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
-import {
-  assertOwner, assertCanOrganize, assertCanEditHabit, revalidateTodo,
-} from './actions-shared'
-import {
-  addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput,
-  habitInput, moveTaskInput, renameSectionInput, sectionInput,
-  setHabitActiveInput, toggleTaskInput, updateHabitInput, updateTaskInput,
-} from './schema'
-import { habitPosition, placeTask } from './section-slots'
-import { mergeWeekdays } from './weekdays'
+import { assertOwner, assertCanOrganize, revalidateTodo } from './actions-shared'
+import { addTaskInput, deleteTaskInput, moveTaskInput, toggleTaskInput, updateTaskInput } from './schema'
+import { materialize, parseVirtual } from './materialize'
+import { placeTask } from './section-slots'
 
 /**
  * Mutations de la to-do hebdomadaire.
@@ -28,63 +22,12 @@ import { mergeWeekdays } from './weekdays'
  * • `assertOwner` — l'attestation : la coche, le débrief, les notes, les liens. Le titulaire seul,
  *   admin compris.
  *
- * Seule exception au partage ci-dessus : `assertCanEditHabit`, qui ajoute à `assertCanOrganize` la
- * question « à qui est ce gabarit ? » — une habitude déposée est verrouillée pour son titulaire.
+ * Les sections et les habitudes vivent dans `actions-structure.ts` (même partage, plus
+ * `assertCanEditHabit` : une habitude déposée est verrouillée pour son titulaire).
  *
  * La vérification est faite UNE fois, dans le handler — jamais en double dans `guard`, ce que la
  * checklist des guidelines interdit explicitement.
  */
-
-/** Une occurrence virtuelle d'habitude : `habit:<uuid>:<date>`. */
-function parseVirtual(taskId: string): { habitId: string; date: string } | null {
-  const m = /^habit:([0-9a-f-]{36}):(\d{4}-\d{2}-\d{2})$/.exec(taskId)
-  return m ? { habitId: m[1] as string, date: m[2] as string } : null
-}
-
-/**
- * Transforme une occurrence virtuelle en vraie ligne, et rend son id.
- * C'est LE moment où une habitude existe en base : au premier geste, jamais à l'affichage.
- */
-async function materialize(ownerId: string, taskId: string): Promise<string> {
-  const virt = parseVirtual(taskId)
-  if (!virt) return taskId
-
-  const admin = createAdminClient()
-  const { data: habit, error } = await admin
-    .from('tracker_todo_habits')
-    .select('category, label, description, urgency, created_by')
-    .eq('id', virt.habitId)
-    .eq('owner_id', ownerId)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-  if (!habit) throw new BusinessError('Cette habitude a été supprimée entre-temps.')
-
-  const { data: created, error: insErr } = await admin
-    .from('tracker_todo_tasks')
-    .insert({
-      owner_id: ownerId,
-      date: virt.date,
-      category: habit.category,
-      label: habit.label,
-      description: habit.description,
-      urgency: habit.urgency,
-      // Le lien vers le gabarit (0192) : c'est lui, et non plus l'intitulé, qui dit que
-      // l'occurrence du jour existe déjà (`isMaterialized`). Une occurrence renommée dans la pop-up
-      // reste donc la sienne, au lieu de laisser l'habitude renaître à côté.
-      habit_id: virt.habitId,
-      // Sa place : celle de l'occurrence virtuelle qu'elle remplace, en haut de la section (#161,
-      // `habitKey`). Cocher une habitude ne la fait pas sauter de rang.
-      position: await habitPosition(ownerId, virt.habitId),
-      // La tâche HÉRITE du déposant du gabarit. Sans ça, l'occurrence d'une habitude déposée par
-      // la hiérarchie naît avec `created_by: null`, c'est-à-dire « posée par le titulaire » : elle
-      // perd son badge « déposée » au premier geste. Le gabarit dit qui l'a voulue ; la tâche aussi.
-      created_by: habit.created_by,
-    })
-    .select('id')
-    .single()
-  if (insErr) throw new Error(insErr.message)
-  return created.id
-}
 
 // ============================================================ tâches
 
@@ -149,12 +92,33 @@ export async function updateTask(raw: unknown): Promise<ActionResult> {
       const id = await materialize(d.ownerId, d.taskId)
       const admin = createAdminClient()
       const { data: before, error: readErr } = await admin
-        .from('tracker_todo_tasks').select('date, category, urgency').eq('id', id).eq('owner_id', d.ownerId).maybeSingle()
+        .from('tracker_todo_tasks')
+        .select('date, category, label, urgency, habit_id')
+        .eq('id', id)
+        .eq('owner_id', d.ownerId)
+        .maybeSingle()
       if (readErr) throw new Error(readErr.message)
       if (!before) throw new BusinessError('Cette tâche a été supprimée entre-temps.')
+      // Une occurrence matérialisée AVANT 0192 n'a pas de `habit_id` : seuls son intitulé et son jour
+      // la reconnaissent. La renommer ou la déplacer ferait renaître son habitude à côté, et le Récap
+      // la compterait due une seconde fois. On la rattache donc à l'habitude qu'elle est — même règle
+      // que `isMaterialized` — avant d'y toucher.
+      let link: { habit_id: string; habit_date: string } | null = null
+      if (before.habit_id === null && (before.label !== d.label || before.date !== d.date)) {
+        const { data: habit, error: hErr } = await admin
+          .from('tracker_todo_habits')
+          .select('id')
+          .eq('owner_id', d.ownerId)
+          .eq('category', before.category)
+          .eq('label', before.label)
+          .limit(1)
+          .maybeSingle()
+        if (hErr) throw new Error(hErr.message)
+        if (habit) link = { habit_id: habit.id, habit_date: before.date }
+      }
       const { error } = await admin
         .from('tracker_todo_tasks')
-        .update({ label: d.label, description: d.description, urgency: d.urgency, date: d.date })
+        .update({ label: d.label, description: d.description, urgency: d.urgency, date: d.date, ...link })
         .eq('id', id)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
@@ -271,185 +235,7 @@ export async function moveTask(raw: unknown): Promise<ActionResult> {
   })
 }
 
-// ============================================================ sections
-
-export async function saveSection(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: sectionInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      // Créer une section chez son sous-manager : sans ça, un manager pouvait déposer une tâche
-      // mais pas créer l'endroit où la ranger — c'est ce qui bloquait Remi le 2026-09-07.
-      await assertCanOrganize(d.ownerId)
-      const admin = createAdminClient()
-      // Les jours s'AJOUTENT à ceux que la section avait déjà. L'upsert écrasait la colonne :
-      // retaper le nom d'une section existante depuis un autre jour la déplaçait au lieu de
-      // l'étendre, et le jour d'origine perdait sa section en silence — sans aucun écran pour
-      // le rattraper. Règle pure et testée dans `weekdays.ts`.
-      const { data: existing, error: readErr } = await admin
-        .from('tracker_todo_sections')
-        .select('weekdays')
-        .eq('owner_id', d.ownerId)
-        .eq('name', d.name)
-        .maybeSingle()
-      if (readErr) throw new Error(readErr.message)
-      const { error } = await admin
-        .from('tracker_todo_sections')
-        .upsert(
-          {
-            owner_id: d.ownerId,
-            name: d.name,
-            weekdays: mergeWeekdays(existing?.weekdays ?? '', d.weekdays),
-          },
-          { onConflict: 'owner_id,name' },
-        )
-      if (error) throw new Error(error.message)
-      revalidateTodo()
-    },
-  })
-}
-
-export async function renameSection(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: renameSectionInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      await assertCanOrganize(d.ownerId)
-      const admin = createAdminClient()
-      const { error } = await admin
-        .from('tracker_todo_sections').update({ name: d.to })
-        .eq('owner_id', d.ownerId).eq('name', d.from)
-      if (error) throw new Error(error.message)
-      // `category` est du texte libre côté tâches : le renommage doit les suivre, sinon elles
-      // se retrouvent orphelines dans une section fantôme.
-      const { error: tErr } = await admin
-        .from('tracker_todo_tasks').update({ category: d.to })
-        .eq('owner_id', d.ownerId).eq('category', d.from)
-      if (tErr) throw new Error(tErr.message)
-      const { error: hErr } = await admin
-        .from('tracker_todo_habits').update({ category: d.to })
-        .eq('owner_id', d.ownerId).eq('category', d.from)
-      if (hErr) throw new Error(hErr.message)
-      revalidateTodo()
-    },
-  })
-}
-
-export async function deleteSection(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: deleteSectionInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      await assertCanOrganize(d.ownerId)
-      const admin = createAdminClient()
-      const { error } = await admin
-        .from('tracker_todo_sections').delete().eq('owner_id', d.ownerId).eq('name', d.name)
-      if (error) throw new Error(error.message)
-      if (d.withTasks) {
-        const { error: tErr } = await admin
-          .from('tracker_todo_tasks').delete().eq('owner_id', d.ownerId).eq('category', d.name)
-        if (tErr) throw new Error(tErr.message)
-      }
-      revalidateTodo()
-    },
-  })
-}
-
-// ============================================================ habitudes
-
-export async function saveHabit(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: habitInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      // `assertCanOrganize` et non `assertOwner` : poser un rituel chez quelqu'un, c'est le même
-      // périmètre que d'y déposer une tâche (admin, ou manager du titulaire) — rien de nouveau à
-      // autoriser, juste la version récurrente d'un geste déjà permis.
-      const caller = await assertCanOrganize(d.ownerId)
-      const admin = createAdminClient()
-      const { error } = await admin.from('tracker_todo_habits').insert({
-        owner_id: d.ownerId,
-        category: d.category,
-        label: d.label,
-        description: d.description,
-        urgency: d.urgency,
-        weekdays: d.weekdays.join(','),
-        // `null` quand on se la donne à soi-même — même convention que `addTask`, pour ne pas
-        // marquer d'un « déposée » les habitudes qu'on s'impose.
-        created_by: caller.id === d.ownerId ? null : caller.id,
-      })
-      if (error) throw new Error(error.message)
-      revalidateTodo()
-    },
-  })
-}
-
-export async function deleteHabit(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: deleteHabitInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      await assertCanEditHabit(d.ownerId, d.habitId)
-      const admin = createAdminClient()
-      const { error } = await admin
-        .from('tracker_todo_habits').delete().eq('id', d.habitId).eq('owner_id', d.ownerId)
-      if (error) throw new Error(error.message)
-      revalidateTodo()
-    },
-  })
-}
-
-
-/**
- * Modifie une habitude — `prompt('Renommer l'habitude :')` chez eux, des champs chez nous ; depuis
- * le #160, l'intitulé, la description et l'urgence. Les occurrences DÉJÀ matérialisées gardent ce
- * qu'elles avaient (comme pour un renommage) : seules les suivantes reprennent le gabarit.
- */
-export async function updateHabit(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: updateHabitInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      await assertCanEditHabit(d.ownerId, d.habitId)
-      const { error } = await createAdminClient()
-        .from('tracker_todo_habits')
-        .update({ label: d.label, description: d.description, urgency: d.urgency })
-        .eq('id', d.habitId)
-        .eq('owner_id', d.ownerId)
-      if (error) throw new Error(error.message)
-      revalidateTodo()
-    },
-  })
-}
-
-/**
- * Met une habitude en pause, ou la reprend. Leur endpoint `habit-active` existe mais AUCUN bouton
- * ne l'appelle dans la page capturée — seule la classe `off` en montre l'effet. On expose le geste :
- * mettre une habitude en pause sans perdre son historique est plus utile que de la supprimer.
- */
-export async function setHabitActive(raw: unknown): Promise<ActionResult> {
-  return runAction({
-    schema: setHabitActiveInput,
-    input: raw,
-    guard: noGuard,
-    handler: async (d) => {
-      await assertCanEditHabit(d.ownerId, d.habitId)
-      const { error } = await createAdminClient()
-        .from('tracker_todo_habits')
-        .update({ active: d.active })
-        .eq('id', d.habitId)
-        .eq('owner_id', d.ownerId)
-      if (error) throw new Error(error.message)
-      revalidateTodo()
-    },
-  })
-}
+// ============================================================ occurrences d'habitude
 
 /**
  * « Juste aujourd'hui » : retire UNE occurrence d'habitude sans toucher au gabarit.

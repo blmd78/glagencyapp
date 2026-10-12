@@ -7,12 +7,14 @@
 -- `text` + `check`, jamais d'`enum` (AGENTS.md § Migrations). `description` vaut '' plutôt que
 -- `null` : même convention que `category`, une seule façon de dire « rien ».
 --
--- `habit_id` : RENOMMER une occurrence d'habitude la ferait réapparaître en double. Une occurrence
--- matérialisée n'était reconnue qu'à son intitulé — par la grille (`get-week.ts`) comme par le Récap
--- (0160) : titre changé = habitude « pas encore faite », rendue à côté de la tâche renommée et
--- comptée due. `materialize()` pose désormais `habit_id` ; l'intitulé reste le repli des lignes
--- d'avant 0192 (`habit_id` nul), qu'on ne rattache pas à l'aveugle. `on delete set null` : supprimer
--- une habitude garde l'historique de ses occurrences, comme avant.
+-- `habit_id` + `habit_date` : RENOMMER une occurrence d'habitude, ou changer son JOUR depuis la
+-- pop-up, la faisait réapparaître en double. Une occurrence matérialisée n'était reconnue qu'à son
+-- intitulé, et le jour où elle se trouve — par la grille (`get-week.ts`) comme par le Récap (0160) :
+-- titre ou jour changé = habitude « pas encore faite », rendue de nouveau et comptée due.
+-- `materialize()` pose désormais l'habitude ET le jour dont la ligne est l'occurrence ; c'est sur
+-- eux qu'on la reconnaît, où que la ligne soit ensuite déplacée. L'intitulé et le jour restent le
+-- repli des lignes d'avant 0192 (`habit_id` nul), qu'on ne rattache pas à l'aveugle. `on delete set
+-- null` : supprimer une habitude garde l'historique de ses occurrences, comme avant.
 --
 -- Aucune policy : les écritures `tracker_todo_*` passent en service-role après garde (0127).
 
@@ -21,7 +23,8 @@ alter table public.tracker_todo_tasks
     check (char_length(description) <= 2000),
   add column if not exists urgency text not null default 'normale'
     check (urgency in ('normale', 'importante', 'urgente')),
-  add column if not exists habit_id uuid references public.tracker_todo_habits(id) on delete set null;
+  add column if not exists habit_id uuid references public.tracker_todo_habits(id) on delete set null,
+  add column if not exists habit_date date;
 
 create index if not exists tracker_todo_tasks_habit_idx
   on public.tracker_todo_tasks (habit_id) where habit_id is not null;
@@ -38,10 +41,24 @@ comment on column public.tracker_todo_tasks.urgency is
   'Urgence : normale (défaut, bleu) · importante (orange) · urgente (rouge) (#160).';
 comment on column public.tracker_todo_tasks.habit_id is
   'Habitude dont la tâche est l''occurrence, posée par materialize() (0192). Nul avant 0192 : repli sur l''intitulé.';
+comment on column public.tracker_todo_tasks.habit_date is
+  'Jour dont la tâche est l''occurrence (0192), gardé si la ligne change de jour. Va avec habit_id.';
 comment on column public.tracker_todo_habits.description is
   'Description recopiée sur chaque occurrence (#160).';
 comment on column public.tracker_todo_habits.urgency is
   'Urgence recopiée sur chaque occurrence (#160).';
+
+-- RANG STABLE DES HABITUDES (#161) : la place d'une occurrence en haut de sa section vient de la
+-- `position` de son habitude (`habitKey`, order.ts). Jamais écrite jusqu'ici, elle valait 0 partout :
+-- on la rend unique par titulaire, dans l'ordre déjà affiché (position, puis création). Supprimer
+-- une habitude ne décale plus les autres.
+with ranked as (
+  select id, (row_number() over (partition by owner_id order by position, created_at))::int - 1 as rn
+  from public.tracker_todo_habits
+)
+update public.tracker_todo_habits h set position = r.rn
+from ranked r
+where r.id = h.id and h.position <> r.rn;
 
 -- Récap : corps repris de 0160 (identique à `pg_get_functiondef` en UAT le 2026-10-12), seul le
 -- rapprochement « déjà matérialisée » change.
@@ -159,14 +176,15 @@ AS $function$
            and not exists (select 1 from tracker_todo_dayoff o
                             where o.owner_id = s.owner_id and o.date = g.d::date)
            -- Déjà matérialisée : c'est alors une ligne de `tracker_todo_tasks`, déjà comptée
-           -- ci-dessus. 0192 — rapprochement par `habit_id` d'abord : une occurrence RENOMMÉE
-           -- (pop-up de la To-Do) garde son habitude, le rapprochement par intitulé la perdait et
-           -- comptait l'habitude due une seconde fois. Repli sur (propriétaire, jour, intitulé)
-           -- pour les lignes matérialisées avant 0192, qui n'ont pas de `habit_id`.
+           -- ci-dessus. 0192 — rapprochement par (`habit_id`, `habit_date`) d'abord : une
+           -- occurrence RENOMMÉE ou CHANGÉE DE JOUR (pop-up de la To-Do) reste la sienne, le
+           -- rapprochement par intitulé et jour la perdait et comptait l'habitude due une seconde
+           -- fois. Repli sur (propriétaire, jour, intitulé) pour les lignes d'avant 0192.
            and not exists (select 1 from tracker_todo_tasks t2
-                            where t2.owner_id = s.owner_id and t2.date = g.d::date
-                              and (t2.habit_id = h.id
-                                   or (t2.habit_id is null and t2.label = h.label)))
+                            where t2.owner_id = s.owner_id
+                              and ((t2.habit_id = h.id and t2.habit_date = g.d::date)
+                                   or (t2.habit_id is null and t2.date = g.d::date
+                                       and t2.label = h.label)))
         ) as planned,
       (select count(*) from tracker_todo_tasks t
         where t.owner_id = s.owner_id and t.date between p_from and p_to and t.done) as done,
@@ -211,4 +229,4 @@ $function$
 ;
 
 comment on function public.tracker_todo_week_recap(date, date) is
-  'Récap hebdo. Depuis 0160, `planned` inclut les occurrences d''habitudes DUES et non encore matérialisées (hors jours de repos, jusqu''à aujourd''hui). Depuis 0192, une occurrence se reconnaît à son habit_id (repli : intitulé).';
+  'Récap hebdo. Depuis 0160, `planned` inclut les occurrences d''habitudes DUES et non encore matérialisées (hors jours de repos, jusqu''à aujourd''hui). Depuis 0192, une occurrence se reconnaît à son habit_id et son habit_date (repli : jour et intitulé).';

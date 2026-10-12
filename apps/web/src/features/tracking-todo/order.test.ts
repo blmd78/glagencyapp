@@ -9,7 +9,7 @@ const real = (id: string, key: number, tie = id, urgency: Urgency = 'normale'): 
   fixed: false,
   urgency,
 })
-const habit = (id: string, rank: number): Slot => ({ id, key: habitKey(rank), tie: '', fixed: true, urgency: 'normale' })
+const habit = (id: string, position: number): Slot => ({ id, key: habitKey(position), tie: '', fixed: true, urgency: 'normale' })
 
 /** Applique `placeAt` comme le ferait le serveur, et rend l'ordre obtenu. */
 const apply = (sorted: Slot[], index: number, id = 'new'): string[] => {
@@ -74,6 +74,12 @@ describe('placeAt', () => {
   it('passer AU-DESSUS des habitudes (une urgente en tête de journée)', () => {
     const s = sortSlots([habit('h1', 0), real('a', 0)])
     expect(apply(s, 0)).toEqual(['new', 'h1', 'a'])
+  })
+
+  it('renuméroter sous les habitudes repart des clés positives (une habitude créée plus tard reste en haut)', () => {
+    const s = sortSlots([habit('h1', 0), real('a', 0, '1'), real('b', 0, '2')])
+    const r = placeAt(s, 2)
+    expect(r && [r.key, ...r.moves.map((m) => m.key)].every((k) => k >= 0)).toBe(true)
   })
 
   it('renuméroter entre deux habitudes reste dans leurs bornes', () => {

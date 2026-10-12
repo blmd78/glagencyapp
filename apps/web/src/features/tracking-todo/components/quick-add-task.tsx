@@ -45,6 +45,7 @@ export function QuickAddTask({
       <input
         autoFocus
         placeholder="Titre de la tâche…"
+        maxLength={200}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -56,6 +57,7 @@ export function QuickAddTask({
       <textarea
         rows={2}
         placeholder="Description (facultative)"
+        maxLength={2000}
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         onKeyDown={(e) => {

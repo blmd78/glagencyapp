@@ -44,14 +44,15 @@ const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
  * La cible est sous le POINTEUR, et la plus précise l'emporte : une TÂCHE (#161, pour changer de
  * rang), sinon une section, sinon la journée qui la contient — leur `zoneOf` (todo.html:1592) :
  * `.tgroup` d'abord, `.dayb` sinon. Les zones sont imbriquées : le calcul par défaut (recouvrement de
- * rectangles) les départagerait au hasard des tailles. La carte qu'on porte n'est jamais sa propre
- * cible : elle reste en place, estompée, sous le pointeur au départ du geste.
+ * rectangles) les départagerait au hasard des tailles. La carte qu'on porte RESTE une cible : la
+ * relâcher sur sa propre place (glisser abandonné, clic qui a tremblé de plus de 6 px) ne doit rien
+ * faire — `resolveDrop` le sait —, alors que la section qui la contient la renverrait en bas.
  */
 const collisionDetection: CollisionDetection = (args) => {
   const hits = pointerWithin(args)
   const data = (c: (typeof hits)[number]) =>
     c.data?.droppableContainer.data.current as { category?: string; taskId?: string } | undefined
-  const task = hits.find((c) => data(c)?.taskId !== undefined && c.id !== `task:${String(args.active.id)}`)
+  const task = hits.find((c) => data(c)?.taskId !== undefined)
   if (task) return [task]
   const section = hits.find((c) => data(c)?.taskId === undefined && data(c)?.category !== undefined)
   return section ? [section] : hits.filter((c) => data(c)?.taskId === undefined)
@@ -101,7 +102,12 @@ export function TodoDnd({
 
   const onDragMove = (e: DragMoveEvent): void => {
     const zone = zoneOf(e.active, e.over)
-    setHint(zone?.kind === 'task' ? `${zone.taskId}:${zone.after ? 'after' : 'before'}` : null)
+    // Aucun trait sur la carte qu'on porte : la lâcher là ne la déplace pas.
+    setHint(
+      zone?.kind === 'task' && zone.taskId !== String(e.active.id)
+        ? `${zone.taskId}:${zone.after ? 'after' : 'before'}`
+        : null,
+    )
   }
 
   const onDragEnd = (e: DragEndEvent): void => {

@@ -116,12 +116,12 @@ function TaskForm({ open, ownerId, onDone }: { open: OpenTask; ownerId: string; 
       ) : null}
       <div className="field">
         <label htmlFor="tdl-title">Titre</label>
-        <input id="tdl-title" autoFocus {...register('label')} />
+        <input id="tdl-title" autoFocus maxLength={200} {...register('label')} />
         {errors.label ? <p className="msg ko">{errors.label.message}</p> : null}
       </div>
       <div className="field">
         <label htmlFor="tdl-desc">Description</label>
-        <textarea id="tdl-desc" rows={5} placeholder="Facultative" {...register('description')} />
+        <textarea id="tdl-desc" rows={5} placeholder="Facultative" maxLength={2000} {...register('description')} />
         {errors.description ? <p className="msg ko">{errors.description.message}</p> : null}
       </div>
       <div className="field">

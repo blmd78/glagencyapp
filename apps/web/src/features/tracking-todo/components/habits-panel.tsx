@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { deleteHabit, saveHabit, setHabitActive, updateHabit } from '../actions'
+import { deleteHabit, saveHabit, setHabitActive, updateHabit } from '../actions-structure'
 import type { TodoHabit } from '../types'
 import { DEFAULT_URGENCY, type Urgency } from '../urgency'
 import { HabitEditor } from './habit-editor'
@@ -114,6 +114,7 @@ export function HabitsPanel({
             <label htmlFor="ht">Nouvelle habitude</label>
             <input
               id="ht"
+              maxLength={200}
               value={label}
               placeholder="ex. vérifier les chatters à sanctionner"
               onChange={(e) => setLabel(e.target.value)}
@@ -124,6 +125,7 @@ export function HabitsPanel({
             <textarea
               id="hdesc"
               rows={2}
+              maxLength={2000}
               value={description}
               placeholder="Facultative — reprise sur chaque tâche créée"
               onChange={(e) => setDescription(e.target.value)}

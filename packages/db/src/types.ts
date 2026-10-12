@@ -4458,6 +4458,7 @@ export type Database = {
           description: string
           done: boolean
           done_at: string | null
+          habit_date: string | null
           habit_id: string | null
           id: string
           label: string
@@ -4475,6 +4476,7 @@ export type Database = {
           description?: string
           done?: boolean
           done_at?: string | null
+          habit_date?: string | null
           habit_id?: string | null
           id?: string
           label: string
@@ -4492,6 +4494,7 @@ export type Database = {
           description?: string
           done?: boolean
           done_at?: string | null
+          habit_date?: string | null
           habit_id?: string | null
           id?: string
           label?: string

@@ -134,14 +134,15 @@ AS $function$
            and not exists (select 1 from tracker_todo_dayoff o
                             where o.owner_id = s.owner_id and o.date = g.d::date)
            -- Déjà matérialisée : c'est alors une ligne de `tracker_todo_tasks`, déjà comptée
-           -- ci-dessus. 0192 — rapprochement par `habit_id` d'abord : une occurrence RENOMMÉE
-           -- (pop-up de la To-Do) garde son habitude, le rapprochement par intitulé la perdait et
-           -- comptait l'habitude due une seconde fois. Repli sur (propriétaire, jour, intitulé)
-           -- pour les lignes matérialisées avant 0192, qui n'ont pas de `habit_id`.
+           -- ci-dessus. 0192 — rapprochement par (`habit_id`, `habit_date`) d'abord : une
+           -- occurrence RENOMMÉE ou CHANGÉE DE JOUR (pop-up de la To-Do) reste la sienne, le
+           -- rapprochement par intitulé et jour la perdait et comptait l'habitude due une seconde
+           -- fois. Repli sur (propriétaire, jour, intitulé) pour les lignes d'avant 0192.
            and not exists (select 1 from tracker_todo_tasks t2
-                            where t2.owner_id = s.owner_id and t2.date = g.d::date
-                              and (t2.habit_id = h.id
-                                   or (t2.habit_id is null and t2.label = h.label)))
+                            where t2.owner_id = s.owner_id
+                              and ((t2.habit_id = h.id and t2.habit_date = g.d::date)
+                                   or (t2.habit_id is null and t2.date = g.d::date
+                                       and t2.label = h.label)))
         ) as planned,
       (select count(*) from tracker_todo_tasks t
         where t.owner_id = s.owner_id and t.date between p_from and p_to and t.done) as done,
@@ -186,4 +187,4 @@ $function$
 ;
 
 comment on function public.tracker_todo_week_recap(date, date) is
-  'Récap hebdo. Depuis 0160, `planned` inclut les occurrences d''habitudes DUES et non encore matérialisées (hors jours de repos, jusqu''à aujourd''hui). Depuis 0192, une occurrence se reconnaît à son habit_id (repli : intitulé). Depuis 0193, une habitude n''est due qu''à partir de starts_on.';
+  'Récap hebdo. Depuis 0160, `planned` inclut les occurrences d''habitudes DUES et non encore matérialisées (hors jours de repos, jusqu''à aujourd''hui). Depuis 0192, une occurrence se reconnaît à son habit_id et son habit_date (repli : jour et intitulé). Depuis 0193, une habitude n''est due qu''à partir de starts_on.';

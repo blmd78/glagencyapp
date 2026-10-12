@@ -1,31 +1,48 @@
 import { describe, expect, it } from 'vitest'
-import { dueHabits, isDue, isMaterialized } from './occurrence'
+import { dueHabits, isDue, isMaterialized, type OccurrenceRow } from './occurrence'
 
 const HABIT = { id: 'h1', label: 'Contrôler la nuit', category: 'Routine' }
+const D = '2026-10-12'
+const row = (r: Partial<OccurrenceRow>): OccurrenceRow => ({
+  habitId: null,
+  habitDate: null,
+  date: D,
+  label: HABIT.label,
+  category: HABIT.category,
+  ...r,
+})
 
 describe('isMaterialized', () => {
   it('rien ce jour-là : l’occurrence reste virtuelle', () => {
-    expect(isMaterialized(HABIT, [])).toBe(false)
+    expect(isMaterialized(HABIT, D, [])).toBe(false)
   })
 
-  it('reconnue à son habitude, même RENOMMÉE dans la pop-up (#160)', () => {
-    expect(isMaterialized(HABIT, [{ habitId: 'h1', label: 'Autre titre', category: 'Routine' }])).toBe(true)
+  it('reconnue à son habitude et son jour, même RENOMMÉE dans la pop-up (#160)', () => {
+    expect(isMaterialized(HABIT, D, [row({ habitId: 'h1', habitDate: D, label: 'Autre titre' })])).toBe(true)
   })
 
   it('reconnue à son habitude, même déplacée dans une autre section du jour', () => {
-    expect(isMaterialized(HABIT, [{ habitId: 'h1', label: HABIT.label, category: 'À faire' }])).toBe(true)
+    expect(isMaterialized(HABIT, D, [row({ habitId: 'h1', habitDate: D, category: 'À faire' })])).toBe(true)
   })
 
-  it('repli sur l’intitulé pour une ligne d’avant 0192 (habitId nul), dans la même section', () => {
-    expect(isMaterialized(HABIT, [{ habitId: null, label: HABIT.label, category: 'Routine' }])).toBe(true)
+  it('CHANGÉE DE JOUR : elle reste l’occurrence de son jour d’origine…', () => {
+    expect(isMaterialized(HABIT, D, [row({ habitId: 'h1', habitDate: D, date: '2026-10-13' })])).toBe(true)
+  })
+
+  it('… et ne masque pas l’occurrence due du jour d’arrivée', () => {
+    expect(isMaterialized(HABIT, '2026-10-13', [row({ habitId: 'h1', habitDate: D, date: '2026-10-13' })])).toBe(false)
+  })
+
+  it('repli sur l’intitulé pour une ligne d’avant 0192 (habitId nul), même section, même jour', () => {
+    expect(isMaterialized(HABIT, D, [row({})])).toBe(true)
   })
 
   it('le repli ne joue pas d’une section à l’autre (règle d’origine)', () => {
-    expect(isMaterialized(HABIT, [{ habitId: null, label: HABIT.label, category: 'À faire' }])).toBe(false)
+    expect(isMaterialized(HABIT, D, [row({ category: 'À faire' })])).toBe(false)
   })
 
   it('l’occurrence d’une AUTRE habitude au même intitulé ne la masque pas', () => {
-    expect(isMaterialized(HABIT, [{ habitId: 'h2', label: HABIT.label, category: 'Routine' }])).toBe(false)
+    expect(isMaterialized(HABIT, D, [row({ habitId: 'h2', habitDate: D })])).toBe(false)
   })
 })
 
@@ -47,11 +64,11 @@ describe('dueHabits', () => {
     { id: 'h2', label: 'B', category: 'Autre', weekdays: '1', active: true, starts_on: null },
   ]
 
-  it('le rang vient de la liste COMPLÈTE : une habitude en pause ne fait pas bouger les autres', () => {
-    expect(dueHabits(habits, '2026-10-12', 'Routine', []).map((x) => [x.habit.id, x.rank])).toEqual([['h1', 1]])
+  it('seulement les habitudes actives de la section, dues ce jour-là', () => {
+    expect(dueHabits(habits, D, 'Routine', []).map((h) => h.id)).toEqual(['h1'])
   })
 
   it('une occurrence déjà matérialisée n’est plus due', () => {
-    expect(dueHabits(habits, '2026-10-12', 'Routine', [{ habitId: 'h1', label: 'A', category: 'Routine' }])).toEqual([])
+    expect(dueHabits(habits, D, 'Routine', [row({ habitId: 'h1', habitDate: D, label: 'A' })])).toEqual([])
   })
 })
