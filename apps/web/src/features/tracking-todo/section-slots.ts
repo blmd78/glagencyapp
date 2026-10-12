@@ -1,7 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError } from '@/lib/actions'
-import { dueHabits } from './occurrence'
+import { dueHabits, isShown } from './occurrence'
 import { arrivalIndex, habitKey, placeAt, sortSlots, type Slot } from './order'
 import { asUrgency, type Urgency } from './urgency'
 
@@ -45,7 +45,7 @@ async function sectionSlots(ownerId: string, date: string, category: string, exc
     category: t.category,
   }))
   const real: Slot[] = rows
-    .filter((t) => t.date === date && t.category === category && t.id !== exclude && !t.skipped)
+    .filter((t) => t.date === date && t.category === category && t.id !== exclude && isShown(t))
     .map((t) => ({ id: t.id, key: t.position, tie: t.created_at, fixed: false, urgency: asUrgency(t.urgency) }))
   const virtual: Slot[] = dueHabits(habitsRes.data ?? [], date, category, occurrences).map((habit) => ({
     id: `habit:${habit.id}:${date}`,

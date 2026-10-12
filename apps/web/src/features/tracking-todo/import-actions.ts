@@ -79,6 +79,8 @@ export async function importFromTracker(raw: unknown): Promise<ActionResult<Impo
         .from('tracker_todo_tasks')
         .select('date, category, label')
         .eq('owner_id', me.id)
+        // Une occurrence sautée (0195) n'est plus à l'écran : elle ne compte pas comme « déjà là ».
+        .eq('skipped', false)
         .gte('date', WEEKS[0])
         .lte('date', weekEnd)
       const seen = new Set((existing ?? []).map((t) => `${t.date}|${norm(t.category)}|${norm(t.label)}`))

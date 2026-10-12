@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueHabits, isDue, isMaterialized, isSectionOn, type OccurrenceRow } from './occurrence'
+import { deleteOutcome, dueHabits, isDue, isMaterialized, isSectionOn, isShown, type OccurrenceRow } from './occurrence'
 
 const HABIT = { id: 'h1', label: 'Contrôler la nuit', category: 'Routine' }
 const D = '2026-10-12'
@@ -39,12 +39,6 @@ describe('isMaterialized', () => {
 
   it('le repli ne joue pas d’une section à l’autre (règle d’origine)', () => {
     expect(isMaterialized(HABIT, D, [row({ category: 'À faire' })])).toBe(false)
-  })
-
-  it('une occurrence SAUTÉE (« Juste aujourd’hui », #170) garde sa ligne : l’habitude ne renaît pas', () => {
-    // La ligne sautée n'est pas affichée (get-week la filtre), mais elle est passée ici comme les
-    // autres : c'est sa présence qui masque l'occurrence virtuelle de ce jour.
-    expect(isMaterialized(HABIT, D, [row({ habitId: 'h1', habitDate: D })])).toBe(true)
   })
 
   it('l’occurrence d’une AUTRE habitude au même intitulé ne la masque pas', () => {
@@ -88,3 +82,26 @@ describe('isSectionOn — la date de début d’une section (0194, #163)', () =>
     expect(isSectionOn({ ...s, starts_on: null }, '2020-01-06')).toBe(true))
   it('jour de la semaine non coché : non', () => expect(isSectionOn({ ...s, weekdays: '1' }, '2026-10-13')).toBe(false))
 })
+
+describe('occurrence SAUTÉE (« Juste aujourd’hui », 0195, #170)', () => {
+  const sautee = { ...row({ habitId: 'h1', habitDate: D }), skipped: true }
+
+  it('n’est pas affichée…', () => expect(isShown(sautee)).toBe(false))
+  it('… mais masque toujours l’occurrence de son habitude : elle ne renaît pas', () => {
+    expect(isMaterialized(HABIT, D, [sautee])).toBe(true)
+    expect(dueHabits([{ ...HABIT, weekdays: '1', active: true, starts_on: null }], D, HABIT.category, [sautee])).toEqual([])
+  })
+  it('une tâche ordinaire reste affichée', () => expect(isShown({ skipped: false })).toBe(true))
+})
+
+describe('deleteOutcome — la croix d’une vraie ligne (#170)', () => {
+  it('un 1:1 avec bilan : refusé', () => expect(deleteOutcome({ session_id: 's1', habit_id: null }, false)).toBe('refuse'))
+  it('une occurrence d’habitude : sautée, pas effacée', () =>
+    expect(deleteOutcome({ session_id: null, habit_id: 'h1' }, false)).toBe('skip'))
+  it('une occurrence d’avant 0193 reconnue à son habitude : sautée', () =>
+    expect(deleteOutcome({ session_id: null, habit_id: null }, true)).toBe('skip'))
+  it('une tâche ordinaire : vraiment supprimée', () =>
+    expect(deleteOutcome({ session_id: null, habit_id: null }, false)).toBe('delete'))
+  it('une ligne déjà disparue : rien à sauter', () => expect(deleteOutcome(null, false)).toBe('delete'))
+})
+

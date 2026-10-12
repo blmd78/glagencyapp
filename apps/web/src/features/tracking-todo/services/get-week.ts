@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
-import { dueHabits, isDue, isSectionOn } from '../occurrence'
+import { dueHabits, isDue, isMaterialized, isSectionOn, isShown } from '../occurrence'
 import { habitKey, sortSlots } from '../order'
 import type { TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 import { asUrgency } from '../urgency'
@@ -106,7 +106,7 @@ export async function getTodoWeek(params: {
     const wd = isoWeekday(date)
     // Une occurrence SAUTÉE (« Juste aujourd'hui », 0195) ne s'affiche pas — mais reste dans
     // `occurrences` : c'est elle qui empêche l'habitude de renaître ce jour-là.
-    const dayTasks = tasks.filter((t) => t.date === date && !t.skipped)
+    const dayTasks = tasks.filter((t) => t.date === date && isShown(t))
 
     // Les catégories du jour : les sections récurrentes de ce jour de semaine, plus toute
     // catégorie qui porte déjà une tâche — une section supprimée ne doit jamais faire disparaître
@@ -114,7 +114,9 @@ export async function getTodoWeek(params: {
     const names = new Set<string>()
     for (const s of sections) if (isSectionOn(s, date)) names.add(s.name)
     for (const t of dayTasks) names.add(t.category)
-    for (const h of habits) if (isDue(h, date)) names.add(h.category)
+    // Une habitude n'ouvre sa section que si son occurrence est encore à faire ici : déjà
+    // matérialisée, sa ligne visible ajoute la sienne ; sautée (0195), la section resterait vide.
+    for (const h of habits) if (isDue(h, date) && !isMaterialized(h, date, occurrences)) names.add(h.category)
 
     const ordered = [...names].sort((a, b) => {
       const pa = sections.find((s) => s.name === a)?.position ?? 999

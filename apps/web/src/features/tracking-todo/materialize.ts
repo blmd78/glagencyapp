@@ -1,6 +1,7 @@
 import 'server-only'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError } from '@/lib/actions'
+import { isDue } from './occurrence'
 import { habitKey } from './order'
 
 /*
@@ -73,15 +74,16 @@ export async function legacyHabitLink(
   row: { habit_id: string | null; category: string; label: string; date: string },
 ): Promise<{ habit_id: string; habit_date: string } | null> {
   if (row.habit_id !== null) return null
-  const { data: habit, error } = await createAdminClient()
+  const { data: habits, error } = await createAdminClient()
     .from('tracker_todo_habits')
-    .select('id')
+    .select('id, weekdays, active, starts_on')
     .eq('owner_id', ownerId)
     .eq('category', row.category)
     .eq('label', row.label)
-    .limit(1)
-    .maybeSingle()
   if (error) throw new Error(error.message)
+  // Seulement une habitude DUE ce jour-là : une tâche ordinaire du même nom, posée un jour où
+  // l'habitude ne revient pas, n'en est pas l'occurrence — elle se supprime vraiment.
+  const habit = (habits ?? []).find((h) => isDue(h, row.date))
   return habit ? { habit_id: habit.id, habit_date: row.date } : null
 }
 

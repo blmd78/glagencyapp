@@ -5,6 +5,7 @@ import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/acti
 import { assertOwner, assertCanOrganize, revalidateTodo } from './actions-shared'
 import { addTaskInput, deleteTaskInput, moveTaskInput, toggleTaskInput, updateTaskInput } from './schema'
 import { legacyHabitLink, materialize, parseVirtual } from './materialize'
+import { deleteOutcome } from './occurrence'
 import { placeTask } from './section-slots'
 
 /**
@@ -203,16 +204,17 @@ export async function deleteTask(raw: unknown): Promise<ActionResult> {
         .eq('owner_id', d.ownerId)
         .maybeSingle()
       if (exErr) throw new Error(exErr.message)
-      if (existing?.session_id) {
+      // L'OCCURRENCE D'UNE HABITUDE (déjà cochée, renommée, déplacée…) ne s'efface pas : sa ligne
+      // disparue, l'habitude renaîtrait ce jour-là (#170). On la SAUTE — même geste que « Juste
+      // aujourd'hui ». Une occurrence d'avant 0193 est rattachée à son habitude au passage.
+      const link = existing && !existing.session_id ? await legacyHabitLink(d.ownerId, existing) : null
+      const outcome = deleteOutcome(existing, link !== null)
+      if (outcome === 'refuse') {
         throw new BusinessError(
           'Ce 1:1 a un bilan : supprime-le sur la fiche du chatter, la tâche redeviendra à faire.',
         )
       }
-      // L'OCCURRENCE D'UNE HABITUDE (déjà cochée, renommée, déplacée…) ne s'efface pas : sa ligne
-      // disparue, l'habitude renaîtrait ce jour-là (#170). On la SAUTE — même geste que « Juste
-      // aujourd'hui ». Une occurrence d'avant 0193 est rattachée à son habitude au passage.
-      const link = existing ? await legacyHabitLink(d.ownerId, existing) : null
-      if (existing && (existing.habit_id !== null || link)) {
+      if (outcome === 'skip') {
         await skipOccurrence(d.ownerId, d.taskId, link)
         revalidateTodo()
         return
@@ -266,6 +268,9 @@ export async function deleteTaskOccurrence(raw: unknown): Promise<ActionResult> 
     input: raw,
     guard: noGuard,
     handler: async (d) => {
+      // Une occurrence VIRTUELLE seulement : une vraie ligne passe par la croix (`deleteTask`), qui
+      // refuse un 1:1 avec bilan — ce chemin-ci l'aurait cachée en gardant sa session.
+      if (!parseVirtual(d.taskId)) throw new BusinessError('Cette tâche se retire par la croix.')
       // Le titulaire garde ce geste sur une habitude DÉPOSÉE (c'est sa seule issue, cf.
       // `canEditHabit`) ; son encadrement l'a au même titre que le reste de l'organisation.
       await assertCanOrganize(d.ownerId)
