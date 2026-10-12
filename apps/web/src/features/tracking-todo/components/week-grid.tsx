@@ -1,76 +1,22 @@
 'use client'
 
-import { useId, useOptimistic, useState, useTransition } from 'react'
-import {
-  DndContext,
-  DragOverlay,
-  PointerSensor,
-  pointerWithin,
-  useSensor,
-  useSensors,
-  type Active,
-  type CollisionDetection,
-  type DragEndEvent,
-  type DragMoveEvent,
-  type DragStartEvent,
-  type Over,
-  type ScreenReaderInstructions,
-} from '@dnd-kit/core'
-import { useRouter } from 'next/navigation'
+import { useOptimistic, useState, useTransition } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import type { Route } from 'next'
 import { toast } from 'sonner'
-import { DayColumn, type NewTask } from './day-column'
+import { addDays, isoWeekday } from '@glagency/core'
+import { DayColumn } from './day-column'
+import { DayDialog } from './day-dialog'
+import type { NewTask } from './quick-add-task'
 import { TaskDialog, type OpenTask } from './task-dialog'
-import { DropHintContext } from './drop-hint'
-import { TaskPreview } from './task-item'
-import { moveTaskInDays, resolveDrop, type DropZone } from '../move-task'
+import { TodoDnd } from './todo-dnd'
+import { moveTaskInDays } from '../move-task'
 import { addTask, deleteHabit, deleteSection, deleteTask, deleteTaskOccurrence, moveTask, saveSection, toggleTask } from '../actions'
 import { toggleDayOff } from '../actions-content'
 import type { TodoTask, TodoWeek } from '../types'
 
 /**
- * dnd-kit annonce par défaut un mode d'emploi clavier (Espace / Flèches / Échap) qui ne répond à
- * rien tant que le `KeyboardSensor` n'est pas monté. Même correctif que le kanban `todos` : on
- * remplace le texte plutôt que de laisser une consigne anglaise qui ment.
- */
-const SCREEN_READER_INSTRUCTIONS: ScreenReaderInstructions = {
-  draggable:
-    'Pour déplacer une tâche, faites-la glisser à la souris ou au doigt vers un autre jour, une ' +
-    'autre section, ou au-dessus d’une autre tâche pour changer son rang.',
-}
-
-/**
- * La cible est sous le POINTEUR, et la plus précise l'emporte : une TÂCHE (#161, pour changer de
- * rang), sinon une section, sinon la journée qui la contient — leur `zoneOf` (todo.html:1592) :
- * `.tgroup` d'abord, `.dayb` sinon. Les zones sont imbriquées : le calcul par défaut (recouvrement de
- * rectangles) les départagerait au hasard des tailles. La carte qu'on porte n'est jamais sa propre
- * cible : elle reste en place, estompée, sous le pointeur au départ du geste.
- */
-const collisionDetection: CollisionDetection = (args) => {
-  const hits = pointerWithin(args)
-  const data = (c: (typeof hits)[number]) =>
-    c.data?.droppableContainer.data.current as { category?: string; taskId?: string } | undefined
-  const task = hits.find((c) => data(c)?.taskId !== undefined && c.id !== `task:${String(args.active.id)}`)
-  if (task) return [task]
-  const section = hits.find((c) => data(c)?.taskId === undefined && data(c)?.category !== undefined)
-  return section ? [section] : hits.filter((c) => data(c)?.taskId === undefined)
-}
-
-/** La zone survolée : une tâche (moitié haute = au-dessus, basse = en dessous), une section, un jour. */
-function zoneOf(active: Active, over: Over | null): DropZone | null {
-  const data = over?.data.current as { date: string; category?: string; taskId?: string } | undefined
-  if (!over || !data) return null
-  if (data.taskId !== undefined) {
-    const r = active.rect.current.translated
-    const after = !!r && r.top + r.height / 2 > over.rect.top + over.rect.height / 2
-    return { kind: 'task', date: data.date, category: data.category ?? '', taskId: data.taskId, after }
-  }
-  if (data.category !== undefined) return { kind: 'section', date: data.date, category: data.category }
-  return { kind: 'day', date: data.date }
-}
-
-/**
- * La semaine : sept colonnes, glisser-déposer entre jours et sections.
+ * La semaine : sept colonnes, glisser-déposer entre jours, sections et rangs (`TodoDnd`).
  *
  * Composant client assumé — contrairement au board, la donnée d'une semaine tient en quelques
  * dizaines de lignes, et tout ici est interactif (cocher, ajouter, déplacer). La sérialiser en
@@ -81,7 +27,6 @@ function zoneOf(active: Active, over: Over | null): DropZone | null {
  * serveur — en cas d'échec, la case ou la tâche revient d'elle-même et un toast explique pourquoi.
  */
 export function WeekGrid({ week }: { week: TodoWeek }) {
-  const id = useId()
   const [, startTransition] = useTransition()
   const [days, applyOptimistic] = useOptimistic(
     week.days,
@@ -102,12 +47,6 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
           })),
   )
   const [busy, setBusy] = useState(false)
-
-  const sensors = useSensors(
-    // 6 px avant de considérer que c'est un glissement : sans ce seuil, un simple clic sur le
-    // libellé démarre un drag et la sélection de texte devient impossible.
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-  )
 
   const router = useRouter()
 
@@ -198,108 +137,135 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     startTransition(() => run(() => deleteSection({ ownerId: week.ownerId, name, withTasks: false })))
   }
 
-  /** La tâche « attrapée » — celle que l'aperçu fait suivre au curseur. */
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const activeTask = activeId
-    ? (days.flatMap((d) => d.sections.flatMap((s) => s.tasks)).find((t) => t.id === activeId) ?? null)
-    : null
-
-  const onDragStart = (e: DragStartEvent): void => setActiveId(String(e.active.id))
-
-  /** Où la tâche portée se posera si on la lâche maintenant (#161) — le trait sur la carte visée. */
-  const [hint, setHint] = useState<string | null>(null)
-  const onDragMove = (e: DragMoveEvent): void => {
-    const zone = zoneOf(e.active, e.over)
-    setHint(zone?.kind === 'task' ? `${zone.taskId}:${zone.after ? 'after' : 'before'}` : null)
-  }
-
-  const onDragEnd = (e: DragEndEvent): void => {
-    setActiveId(null)
-    setHint(null)
-    const zone = zoneOf(e.active, e.over)
-    const source = e.active.data.current as { date: string; category: string } | undefined
-    if (!zone || !source) return
-    const taskId = String(e.active.id)
-    // Rien ne change (lâchée à sa place) : pas d'aller-retour serveur.
-    const move = resolveDrop(days, taskId, source, zone)
-    if (!move) return
+  /** Lâcher une tâche (#161) : optimiste, puis l'action — la semaine comme la pop-up d'un jour. */
+  const onMove = (taskId: string, move: { date: string; category: string; beforeId: string | null }): void => {
     startTransition(async () => {
       applyOptimistic({ kind: 'move', taskId, ...move })
       await run(() => moveTask({ ownerId: week.ownerId, taskId, ...move }))
     })
   }
 
+  /**
+   * LA POP-UP D'UNE JOURNÉE (#162) — ouverte au clic sur l'en-tête d'une colonne, par-dessus la
+   * semaine (décision de Benoit, 2026-10-12). Le jour vit dans l'URL (`?jour=`) : un rechargement
+   * ou un lien partagé rouvre la même pop-up. Dans la semaine affichée, on change l'URL par
+   * `history.replaceState`, que Next relie à `useSearchParams` sans rien redemander au serveur — la
+   * donnée de la semaine est déjà là. Pour passer à la semaine voisine (flèche au lundi ou au
+   * dimanche), une vraie navigation, qui charge l'autre semaine et rouvre la pop-up sur ce jour.
+   */
+  const searchParams = useSearchParams()
+  const dayOpen = days.find((d) => d.date === searchParams.get('jour')) ?? null
+  const withJour = (date: string | null): URLSearchParams => {
+    const q = new URLSearchParams(searchParams.toString())
+    if (date) q.set('jour', date)
+    else q.delete('jour')
+    return q
+  }
+  const openDay = (date: string): void => {
+    if (days.some((d) => d.date === date)) {
+      window.history.replaceState(null, '', `?${withJour(date).toString()}`)
+      return
+    }
+    const q = withJour(date)
+    q.set('week', addDays(date, -(isoWeekday(date) - 1)))
+    router.push(`/chatter/presence/todo?${q.toString()}` as Route)
+  }
+  const closeDay = (): void => window.history.replaceState(null, '', `?${withJour(null).toString()}`)
+
+  const column = {
+    canWrite: week.canWrite,
+    onToggle,
+    onDelete,
+    onAdd,
+    onOpen,
+    chatters: week.chatters,
+    canOrganize: week.canOrganize,
+    onDayOff,
+    onAddSection,
+    onDeleteSection,
+  }
+
+  /** La question « juste aujourd'hui » — dans la pop-up du jour quand elle est ouverte, sinon sous la grille. */
+  const ask = recurring ? (
+    <RecurringAsk
+      task={recurring}
+      canStop={habitOf(recurring)?.canEdit !== false}
+      onOnce={onDeleteOnce}
+      onStop={onDeleteHabit}
+      onClose={() => setRecurring(null)}
+    />
+  ) : null
+
   return (
     <>
-    <DndContext
-      id={id}
-      sensors={sensors}
-      collisionDetection={collisionDetection}
-      onDragStart={onDragStart}
-      onDragMove={onDragMove}
-      onDragEnd={onDragEnd}
-      onDragCancel={() => {
-        setActiveId(null)
-        setHint(null)
-      }}
-      accessibility={{ screenReaderInstructions: SCREEN_READER_INSTRUCTIONS }}
-    >
-      <DropHintContext value={hint}>
+      <TodoDnd days={days} onMove={onMove}>
         <div className="weekwrap" aria-busy={busy}>
           <div className="week">
             {days.map((day) => (
-              <DayColumn
-                key={day.date}
-                day={day}
-                canWrite={week.canWrite}
-                onToggle={onToggle}
-                onDelete={onDelete}
-                onAdd={onAdd}
-                onOpen={onOpen}
-                chatters={week.chatters}
-                canOrganize={week.canOrganize}
-                onDayOff={onDayOff}
-                onAddSection={onAddSection}
-                onDeleteSection={onDeleteSection}
-              />
+              <DayColumn key={day.date} day={day} {...column} onOpenDay={openDay} />
             ))}
           </div>
         </div>
-      </DropHintContext>
-      {/* La tâche SUIT le curseur, comme une carte Trello qu'on a attrapée ; l'originale reste en
-          place, estompée. `dropAnimation={null}` : l'animation par défaut ramène l'aperçu vers la
-          carte source, or la tâche est DÉJÀ posée sur son nouveau jour (état optimiste) — on la
-          verrait repartir en arrière avant d'apparaître à destination. */}
-      <DragOverlay dropAnimation={null}>{activeTask ? <TaskPreview task={activeTask} /> : null}</DragOverlay>
-    </DndContext>
-      {recurring ? (
-        <div className="recask" role="dialog" aria-label="Cette tâche revient chaque jour choisi">
-          <p className="rt">Cette tâche revient chaque jour choisi</p>
-          {/* La question n'a DEUX issues que si l'arrêt est permis. Sur une habitude déposée par
-              l'encadrement, il ne reste que « juste aujourd'hui » : proposer « supprimer
-              l'habitude » à quelqu'un à qui le serveur va répondre non, c'est promettre une porte
-              qui n'ouvre pas. Le gabarit se retire depuis le panneau Habitudes, par son déposant. */}
-          <p className="rd">
-            {habitOf(recurring)?.canEdit === false
-              ? 'Elle t’a été déposée par ton encadrement : tu peux la sauter aujourd’hui, pas l’arrêter.'
-              : 'La retirer seulement aujourd’hui, ou arrêter l’habitude pour de bon ?'}
-          </p>
-          <div className="ra">
-            <button type="button" className="btn sm" onClick={() => onDeleteOnce(recurring)}>
-              Juste aujourd’hui
-            </button>
-            {habitOf(recurring)?.canEdit === false ? null : (
-              <button type="button" className="btn sm danger" onClick={() => onDeleteHabit(recurring)}>
-                Supprimer l’habitude
-              </button>
-            )}
-            <button type="button" className="btn sm" onClick={() => setRecurring(null)}>
-              Fermer
-            </button>
-          </div>
-        </div>
-      ) : null}
+      </TodoDnd>
+      {dayOpen ? null : ask}
+      <DayDialog
+        day={dayOpen}
+        column={column}
+        onMove={onMove}
+        onPrev={() => dayOpen && openDay(addDays(dayOpen.date, -1))}
+        onNext={() => dayOpen && openDay(addDays(dayOpen.date, 1))}
+        onClose={closeDay}
+      >
+        {ask}
+      </DayDialog>
       <TaskDialog open={opened} ownerId={week.ownerId} canOrganize={week.canOrganize} onClose={() => setOpened(null)} />
     </>
+  )
+}
+
+/**
+ * « Cette tâche revient chaque jour choisi » — la question à deux issues de leur écran
+ * (todo.html:1459-1476).
+ */
+function RecurringAsk({
+  task,
+  canStop,
+  onOnce,
+  onStop,
+  onClose,
+}: {
+  task: TodoTask
+  /** L'arrêt de l'habitude est-il permis à l'appelant ? (`canEditHabit`, rendu par le serveur) */
+  canStop: boolean
+  onOnce: (task: TodoTask) => void
+  onStop: (task: TodoTask) => void
+  onClose: () => void
+}) {
+  return (
+    <div className="recask" role="dialog" aria-label="Cette tâche revient chaque jour choisi">
+      <p className="rt">Cette tâche revient chaque jour choisi</p>
+      {/* La question n'a DEUX issues que si l'arrêt est permis. Sur une habitude déposée par
+          l'encadrement, il ne reste que « juste aujourd'hui » : proposer « supprimer
+          l'habitude » à quelqu'un à qui le serveur va répondre non, c'est promettre une porte
+          qui n'ouvre pas. Le gabarit se retire depuis le panneau Habitudes, par son déposant. */}
+      <p className="rd">
+        {canStop
+          ? 'La retirer seulement aujourd’hui, ou arrêter l’habitude pour de bon ?'
+          : 'Elle t’a été déposée par ton encadrement : tu peux la sauter aujourd’hui, pas l’arrêter.'}
+      </p>
+      <div className="ra">
+        <button type="button" className="btn sm" onClick={() => onOnce(task)}>
+          Juste aujourd’hui
+        </button>
+        {canStop ? (
+          <button type="button" className="btn sm danger" onClick={() => onStop(task)}>
+            Supprimer l’habitude
+          </button>
+        ) : null}
+        <button type="button" className="btn sm" onClick={onClose}>
+          Fermer
+        </button>
+      </div>
+    </div>
   )
 }

@@ -3,18 +3,9 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { isoWeekday } from '@glagency/core'
+import { QuickAddTask, type NewTask } from './quick-add-task'
 import { TaskItem } from './task-item'
-import { UrgencyPicker } from './urgency-picker'
 import type { TodoDay, TodoSection, TodoTask, TodoChatter } from '../types'
-import { DEFAULT_URGENCY, type Urgency } from '../urgency'
-
-/** Ce que la saisie rapide transmet (#160) : titre, description facultative, urgence, 1:1. */
-export interface NewTask {
-  label: string
-  description: string
-  urgency: Urgency
-  chatterId: string | null
-}
 
 /**
  * Catégorie d'une tâche ajoutée depuis le « + Tâche » d'une journée — par le titulaire comme par
@@ -26,83 +17,6 @@ export interface NewTask {
  * sections ET des catégories déjà portées par une tâche.
  */
 const DAY_TASK_CATEGORY = 'À faire'
-
-/**
- * Saisie rapide d'une tâche — la même pour le « + » d'une section et le « + Tâche » d'une journée.
- * Démontée à la fermeture : le brouillon, l'urgence et le 1:1 repartent à vide d'eux-mêmes.
- *
- * Depuis le #160 : un TITRE (obligatoire, Entrée suffit toujours à valider), une description
- * facultative et l'urgence — Normale par défaut, donc la saisie d'un titre seul reste un geste.
- */
-function QuickAddTask({
-  chatters,
-  onSubmit,
-  onClose,
-}: {
-  chatters: TodoChatter[]
-  onSubmit: (task: NewTask) => void
-  onClose: () => void
-}) {
-  const [draft, setDraft] = useState('')
-  const [description, setDescription] = useState('')
-  const [urgency, setUrgency] = useState<Urgency>(DEFAULT_URGENCY)
-  const [withChatter, setWithChatter] = useState('')
-  const submit = (): void => {
-    const value = draft.trim()
-    if (!value) return
-    onSubmit({ label: value, description: description.trim(), urgency, chatterId: withChatter || null })
-    onClose()
-  }
-
-  return (
-    <div className="qadd">
-      <input
-        autoFocus
-        placeholder="Titre de la tâche…"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
-          if (e.key !== 'Enter') return
-          submit()
-        }}
-      />
-      <textarea
-        rows={2}
-        placeholder="Description (facultative)"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
-        }}
-      />
-      <UrgencyPicker value={urgency} onChange={setUrgency} />
-      {/* « Session 1:1 avec (impose un bilan pour cocher) » — viser un chatter transforme la
-          tâche : elle ne se cochera qu'en rendant son bilan sur la fiche du chatter. */}
-      {chatters.length > 0 ? (
-        <select
-          className="q1a1"
-          value={withChatter}
-          onChange={(e) => setWithChatter(e.target.value)}
-          title="Session 1:1 avec (impose un bilan pour cocher)"
-        >
-          <option value="">Aucun 1:1</option>
-          {chatters.map((c) => (
-            <option key={c.id} value={c.id}>
-              1:1 avec {c.name}
-            </option>
-          ))}
-        </select>
-      ) : null}
-      <button type="button" className="btn sm" onClick={submit} disabled={!draft.trim()}>
-        Ajouter
-      </button>
-      <button type="button" className="btn sm" onClick={onClose}>
-        Annuler
-      </button>
-    </div>
-  )
-}
 
 /** Une section = une zone de dépôt. Leur feuille l'éclaire avec `.tgroup.over`. */
 function SectionGroup({
@@ -220,6 +134,7 @@ export function DayColumn({
   onDayOff,
   onAddSection,
   onDeleteSection,
+  onOpenDay,
 }: {
   day: TodoDay
   /** ATTESTER — cocher. Le titulaire seul. */
@@ -234,6 +149,8 @@ export function DayColumn({
   onDayOff: (date: string) => void
   onAddSection: (name: string, weekday: number) => void
   onDeleteSection: (name: string) => void
+  /** #162 — ouvre la journée seule, en pop-up. Absent dans la pop-up elle-même. */
+  onOpenDay?: (date: string) => void
 }) {
   const [addingTask, setAddingTask] = useState(false)
   const [addingSection, setAddingSection] = useState(false)
@@ -254,8 +171,24 @@ export function DayColumn({
   return (
     <div className={cls}>
       <h3>
-        {day.weekdayLabel}
-        <em>{day.dayLabel}</em>
+        {/* Le jour et sa date ouvrent la journée seule (#162) ; le reste de l'en-tête (compteur,
+            jour de repos) garde son geste. Même rendu qu'avant : le bouton n'a pas d'habit. */}
+        {onOpenDay ? (
+          <button
+            type="button"
+            className="dopen"
+            title="Afficher cette journée seule"
+            onClick={() => onOpenDay(day.date)}
+          >
+            {day.weekdayLabel}
+            <em>{day.dayLabel}</em>
+          </button>
+        ) : (
+          <>
+            {day.weekdayLabel}
+            <em>{day.dayLabel}</em>
+          </>
+        )}
         {all.length > 0 ? (
           <span className="pc">
             {done}/{all.length}
@@ -344,3 +277,5 @@ export function DayColumn({
     </div>
   )
 }
+
+export type DayColumnProps = Parameters<typeof DayColumn>[0]
