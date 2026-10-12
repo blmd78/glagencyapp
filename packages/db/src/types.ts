@@ -4301,10 +4301,13 @@ export type Database = {
           category: string
           created_at: string
           created_by: string | null
+          description: string
           id: string
           label: string
           owner_id: string
           position: number
+          starts_on: string | null
+          urgency: string
           weekdays: string
         }
         Insert: {
@@ -4312,10 +4315,13 @@ export type Database = {
           category: string
           created_at?: string
           created_by?: string | null
+          description?: string
           id?: string
           label: string
           owner_id: string
           position?: number
+          starts_on?: string | null
+          urgency?: string
           weekdays?: string
         }
         Update: {
@@ -4323,10 +4329,13 @@ export type Database = {
           category?: string
           created_at?: string
           created_by?: string | null
+          description?: string
           id?: string
           label?: string
           owner_id?: string
           position?: number
+          starts_on?: string | null
+          urgency?: string
           weekdays?: string
         }
         Relationships: [
@@ -4414,6 +4423,7 @@ export type Database = {
           name: string
           owner_id: string
           position: number
+          starts_on: string | null
           weekdays: string
         }
         Insert: {
@@ -4422,6 +4432,7 @@ export type Database = {
           name: string
           owner_id: string
           position?: number
+          starts_on?: string | null
           weekdays?: string
         }
         Update: {
@@ -4430,6 +4441,7 @@ export type Database = {
           name?: string
           owner_id?: string
           position?: number
+          starts_on?: string | null
           weekdays?: string
         }
         Relationships: [
@@ -4449,13 +4461,17 @@ export type Database = {
           created_at: string
           created_by: string | null
           date: string
+          description: string
           done: boolean
           done_at: string | null
+          habit_date: string | null
+          habit_id: string | null
           id: string
           label: string
           owner_id: string
           position: number
           session_id: string | null
+          urgency: string
         }
         Insert: {
           category: string
@@ -4463,13 +4479,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           date: string
+          description?: string
           done?: boolean
           done_at?: string | null
+          habit_date?: string | null
+          habit_id?: string | null
           id?: string
           label: string
           owner_id: string
           position?: number
           session_id?: string | null
+          urgency?: string
         }
         Update: {
           category?: string
@@ -4477,13 +4497,17 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           date?: string
+          description?: string
           done?: boolean
           done_at?: string | null
+          habit_date?: string | null
+          habit_id?: string | null
           id?: string
           label?: string
           owner_id?: string
           position?: number
           session_id?: string | null
+          urgency?: string
         }
         Relationships: [
           {
@@ -4498,6 +4522,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracker_todo_tasks_habit_id_fkey"
+            columns: ["habit_id"]
+            isOneToOne: false
+            referencedRelation: "tracker_todo_habits"
             referencedColumns: ["id"]
           },
           {

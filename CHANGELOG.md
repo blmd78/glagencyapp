@@ -8,6 +8,17 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- To-Do : une tâche a un titre, une description et une urgence — Normale (bleu), Importante (orange) ou Urgente (rouge), visible en couleur sur la carte, qui n'affiche plus que le titre. Cliquer sur une tâche ouvre sa fiche, où l'on modifie le titre, la description, l'urgence et le jour (une tâche récurrente : seulement celle de ce jour). Les habitudes ont aussi une description et une urgence.
+- To-Do : on réordonne les tâches d'une journée par glisser-déposer, au-dessus ou en dessous d'une autre (un trait montre où elle va se poser). Une tâche urgente arrive en haut, une importante sous les urgentes, une normale en bas ; les habitudes s'affichent en haut de leur section.
+- To-Do : cliquer sur le jour d'une colonne l'affiche seul, en grand, avec des flèches pour passer au jour précédent ou suivant.
+- To-Do : « Importer un fichier » remplit d'un coup la to-do de la personne choisie dans le sélecteur à partir d'un fichier .txt (un bloc par jour, plus la routine) — la routine devient des habitudes quotidiennes à partir du premier jour du fichier, les tâches du jour vont dans « À faire » dans l'ordre du fichier. Un aperçu montre avant d'écrire la période, le nombre de tâches, les lignes non importées, et avertit si le fichier est adressé à quelqu'un d'autre ; relancer le même fichier n'ajoute rien.
+
+### Modifié
+
+- To-Do : « Renommer » une habitude devient « Modifier » (titre, description et urgence).
+
 ## [2.79] — 2026-10-12
 
 ### Modifié

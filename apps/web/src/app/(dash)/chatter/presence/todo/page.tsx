@@ -10,6 +10,7 @@ import { TodoTemplate } from '@/features/tracking-todo/TodoTemplate'
 import { TodoSkeleton } from '@/features/tracking-todo/components/todo-skeleton'
 import { getTodoHolders } from '@/features/tracking-todo/services/get-holders'
 import { getTodoWeek, weekStartOf } from '@/features/tracking-todo/services/get-week'
+import { ImportTxtButton } from '@/features/tracking-todo/components/import-txt-button'
 import { TrackerImportButton } from '@/features/tracking-todo/components/tracker-import-button'
 import { TodoAccountSelect } from '@/features/tracking-todo/components/todo-account-select'
 import type { TodoWeek } from '@/features/tracking-todo/types'
@@ -120,7 +121,23 @@ async function Header({
       // pas de to-do (un chatteur à qui on a coché « Présence ») voit un écran entièrement en
       // lecture seule — lui laisser le seul bouton d'écriture de la page, que le serveur refuse,
       // serait la dernière promesse non tenue de cet écran.
-      right={ownWeek && d.canWrite ? <TrackerImportButton /> : undefined}
+      //
+      // « Importer un fichier » (#163) : pour qui peut ouvrir la to-do d'autres personnes (le
+      // sélecteur n'est pas vide). Inactif sur « Ma semaine » — on importe pour la personne
+      // CHOISIE, c'est le garde-fou demandé —, et nommé d'après elle dans sa pop-up.
+      right={
+        (ownWeek && d.canWrite) || people.length > 0 ? (
+          <>
+            {people.length > 0 && (ownWeek || d.canOrganize) ? (
+              <ImportTxtButton
+                ownerId={d.ownerId}
+                ownerName={ownWeek ? null : (people.find((p) => p.id === owner)?.name ?? null)}
+              />
+            ) : null}
+            {ownWeek && d.canWrite ? <TrackerImportButton /> : null}
+          </>
+        ) : undefined
+      }
     >
       {/* Nav de semaine SEGMENTÉE, à l'identique du tracker (`.datenav.seg` : ‹ / cette semaine / ›). */}
       <div className="seg">

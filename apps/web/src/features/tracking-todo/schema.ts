@@ -1,9 +1,15 @@
 import { z } from 'zod'
+import { DEFAULT_URGENCY, URGENCIES } from './urgency'
 
 /** Schémas partagés client/serveur de la to-do (Zod v4 : `z.uuid()`, `z.flattenError()`). */
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide')
 const owner = z.uuid()
+
+/** Titre, description et urgence d'une tâche (#160) — les bornes sont celles des `check` de 0193. */
+const title = z.string().trim().min(1, 'Écris quelque chose').max(200, '200 caractères maximum')
+const description = z.string().trim().max(2000, '2000 caractères maximum')
+const urgency = z.enum(URGENCIES)
 
 /** Identifiant de tâche : uuid réel, ou occurrence virtuelle d'une habitude. */
 const taskId = z.union([z.uuid(), z.string().regex(/^habit:[0-9a-f-]{36}:\d{4}-\d{2}-\d{2}$/)])
@@ -21,7 +27,10 @@ export const addTaskInput = z.object({
    * vers les sections (0127:44-45) : la chaîne vide y est une valeur comme une autre.
    */
   category: z.string().trim().max(60),
-  label: z.string().trim().min(1, 'Écris quelque chose').max(200, '200 caractères maximum'),
+  label: title,
+  /** Facultative (#160) : le titre seul reste une tâche complète. */
+  description: description.default(''),
+  urgency: urgency.default(DEFAULT_URGENCY),
   /**
    * Tâche « 1:1 avec un chatter » : cocher exigera un compte-rendu et créera une session dans sa
    * fiche. `null` = tâche ordinaire. Leur champ s'intitule « Session 1:1 avec (impose un bilan
@@ -30,16 +39,31 @@ export const addTaskInput = z.object({
   chatterId: z.uuid().nullable().default(null),
 })
 
+/**
+ * La pop-up d'une tâche (#160) : ce qu'on y modifie — titre, description, urgence et jour. Ni la
+ * section (le glisser-déposer s'en charge), ni le 1:1 (décision de Benoit du 2026-10-12).
+ */
+export const taskForm = z.object({ label: title, description, urgency, date: day })
+export type TaskFormValues = z.infer<typeof taskForm>
+
+/** Même saisie que `taskForm`, plus la tâche visée — réelle ou occurrence virtuelle d'habitude. */
+export const updateTaskInput = taskForm.extend({ ownerId: owner, taskId })
+
 
 export const toggleTaskInput = z.object({ ownerId: owner, taskId, done: z.boolean() })
 
 export const deleteTaskInput = z.object({ ownerId: owner, taskId })
 
-/** Renommer une habitude (`prompt('Renommer l'habitude :')` chez eux) et l'activer/désactiver. */
-export const renameHabitInput = z.object({
+/**
+ * Modifier une habitude : son intitulé (`prompt('Renommer l'habitude :')` chez eux), et depuis le
+ * #160 sa description et son urgence, que chaque occurrence reprend.
+ */
+export const updateHabitInput = z.object({
   ownerId: owner,
   habitId: z.uuid(),
   label: z.string().trim().min(1, 'Il faut un intitulé.').max(200),
+  description: description.default(''),
+  urgency: urgency.default(DEFAULT_URGENCY),
 })
 export const setHabitActiveInput = z.object({ ownerId: owner, habitId: z.uuid(), active: z.boolean() })
 
@@ -49,6 +73,11 @@ export const moveTaskInput = z.object({
   date: day,
   /** Même « sans section » qu'à l'ajout : on doit pouvoir y glisser une tâche comme ailleurs. */
   category: z.string().trim().max(60),
+  /**
+   * #161 — la tâche (réelle ou occurrence virtuelle) au-dessus de laquelle on l'a lâchée ; `null` =
+   * en bas de la section, ce que faisait tout glisser jusque-là.
+   */
+  beforeId: taskId.nullable().default(null),
 })
 
 export const sectionInput = z.object({
@@ -56,6 +85,8 @@ export const sectionInput = z.object({
   name: z.string().trim().min(1, 'Nom requis').max(60),
   /** Jours ISO de récurrence ; vide = section ponctuelle. */
   weekdays: z.array(z.number().int().min(1).max(7)).max(7),
+  /** Le jour d'où on la crée — ramène la date de début d'une section importée (0194). */
+  fromDate: day.optional(),
 })
 
 export const renameSectionInput = z.object({
@@ -76,6 +107,8 @@ export const habitInput = z.object({
   /** Facultative — leur sélecteur propose « Sans section » en première option (todo.html:1365). */
   category: z.string().trim().max(60).default(''),
   label: z.string().trim().min(1, 'Écris quelque chose').max(200),
+  description: description.default(''),
+  urgency: urgency.default(DEFAULT_URGENCY),
   weekdays: z.array(z.number().int().min(1).max(7)).min(1, 'Choisis au moins un jour'),
 })
 
@@ -106,6 +139,16 @@ export const addLinkInput = z.object({
 })
 
 export const deleteLinkInput = z.object({ ownerId: owner, linkId: z.uuid() })
+
+/**
+ * Import d'un fichier `.txt` (#163) : le TEXTE brut, relu par le serveur avec `parseTodoFile` — on ne
+ * reçoit jamais l'aperçu calculé par le navigateur. 200 000 caractères : l'exemple d'octobre (trois
+ * semaines, trois modèles) en fait 10 700.
+ */
+export const importTxtInput = z.object({
+  ownerId: owner,
+  text: z.string().min(1, 'Fichier vide').max(200_000, 'Fichier trop gros'),
+})
 
 export type AddTaskInput = z.infer<typeof addTaskInput>
 export type DailyInput = z.infer<typeof dailyInput>

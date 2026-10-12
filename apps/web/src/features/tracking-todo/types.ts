@@ -1,3 +1,5 @@
+import type { Urgency } from './urgency'
+
 /** Une tâche affichée : soit une vraie ligne, soit l'occurrence d'une habitude (voir ci-dessous). */
 export interface TodoTask {
   /**
@@ -9,7 +11,12 @@ export interface TodoTask {
    * base qu'au premier geste (cocher, renommer, déplacer) — c'est ce geste qui les matérialise.
    */
   id: string
+  /** Le TITRE — seul texte affiché sur la carte (#160). */
   label: string
+  /** Lue dans la pop-up de la tâche. '' = aucune. */
+  description: string
+  /** Couleur de la carte. */
+  urgency: Urgency
   done: boolean
   /** Vient d'une habitude récurrente et n'existe pas encore en base. */
   virtual: boolean
@@ -41,6 +48,9 @@ export interface TodoTask {
 export interface TodoHabit {
   id: string
   label: string
+  /** Recopiées sur chaque occurrence (#160). */
+  description: string
+  urgency: Urgency
   category: string
   /** Jours ISO (1 = lundi … 7 = dimanche). */
   weekdays: number[]

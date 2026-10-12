@@ -34,6 +34,8 @@ const day = (date: string, tasks: { label: string; done: boolean }[]): TodoDay =
       tasks: tasks.map((t) => ({
         id: `${date}:${t.label}`,
         label: t.label,
+        description: '',
+        urgency: 'normale' as const,
         done: t.done,
         virtual: false,
         fromOther: false,
