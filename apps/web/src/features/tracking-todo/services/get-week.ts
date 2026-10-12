@@ -61,7 +61,7 @@ export async function getTodoWeek(params: {
       // (`habit_date`, 0193) : elles ne s'affichent pas ici, mais disent que leur habitude est
       // déjà matérialisée ce jour-là (`isMaterialized`).
       supabase.from('tracker_todo_tasks')
-        .select('id, date, category, label, description, urgency, habit_id, habit_date, done, position, created_at, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
+        .select('id, date, category, label, description, urgency, habit_id, habit_date, skipped, done, position, created_at, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
         .eq('owner_id', params.ownerId)
         .or(`and(date.gte.${weekStart},date.lte.${weekEnd}),and(habit_date.gte.${weekStart},habit_date.lte.${weekEnd})`)
         .order('position'),
@@ -104,7 +104,9 @@ export async function getTodoWeek(params: {
   for (let i = 0; i < 7; i++) {
     const date = addDays(weekStart, i)
     const wd = isoWeekday(date)
-    const dayTasks = tasks.filter((t) => t.date === date)
+    // Une occurrence SAUTÉE (« Juste aujourd'hui », 0195) ne s'affiche pas — mais reste dans
+    // `occurrences` : c'est elle qui empêche l'habitude de renaître ce jour-là.
+    const dayTasks = tasks.filter((t) => t.date === date && !t.skipped)
 
     // Les catégories du jour : les sections récurrentes de ce jour de semaine, plus toute
     // catégorie qui porte déjà une tâche — une section supprimée ne doit jamais faire disparaître

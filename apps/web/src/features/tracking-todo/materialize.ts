@@ -61,3 +61,27 @@ export async function materialize(ownerId: string, taskId: string): Promise<stri
   if (insErr) throw new Error(insErr.message)
   return created.id
 }
+
+/**
+ * Rattache à son habitude une occurrence matérialisée AVANT 0193 : elle n'a pas de `habit_id`, seuls
+ * son intitulé et son jour la reconnaissent (`isMaterialized`, repli). La renommer, la changer de
+ * jour ou la sauter ferait renaître son habitude à côté, et le Récap la compterait due une seconde
+ * fois. Rend le lien à poser avec la modification, ou `null` (pas une occurrence, ou déjà liée).
+ */
+export async function legacyHabitLink(
+  ownerId: string,
+  row: { habit_id: string | null; category: string; label: string; date: string },
+): Promise<{ habit_id: string; habit_date: string } | null> {
+  if (row.habit_id !== null) return null
+  const { data: habit, error } = await createAdminClient()
+    .from('tracker_todo_habits')
+    .select('id')
+    .eq('owner_id', ownerId)
+    .eq('category', row.category)
+    .eq('label', row.label)
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return habit ? { habit_id: habit.id, habit_date: row.date } : null
+}
+

@@ -24,7 +24,7 @@ async function sectionSlots(ownerId: string, date: string, category: string, exc
     // le même périmètre que `getTodoWeek`.
     admin
       .from('tracker_todo_tasks')
-      .select('id, date, category, label, habit_id, habit_date, position, created_at, urgency')
+      .select('id, date, category, label, habit_id, habit_date, skipped, position, created_at, urgency')
       .eq('owner_id', ownerId)
       .or(`date.eq.${date},habit_date.eq.${date}`),
     admin
@@ -45,7 +45,7 @@ async function sectionSlots(ownerId: string, date: string, category: string, exc
     category: t.category,
   }))
   const real: Slot[] = rows
-    .filter((t) => t.date === date && t.category === category && t.id !== exclude)
+    .filter((t) => t.date === date && t.category === category && t.id !== exclude && !t.skipped)
     .map((t) => ({ id: t.id, key: t.position, tie: t.created_at, fixed: false, urgency: asUrgency(t.urgency) }))
   const virtual: Slot[] = dueHabits(habitsRes.data ?? [], date, category, occurrences).map((habit) => ({
     id: `habit:${habit.id}:${date}`,

@@ -41,6 +41,12 @@ describe('isMaterialized', () => {
     expect(isMaterialized(HABIT, D, [row({ category: 'À faire' })])).toBe(false)
   })
 
+  it('une occurrence SAUTÉE (« Juste aujourd’hui », #170) garde sa ligne : l’habitude ne renaît pas', () => {
+    // La ligne sautée n'est pas affichée (get-week la filtre), mais elle est passée ici comme les
+    // autres : c'est sa présence qui masque l'occurrence virtuelle de ce jour.
+    expect(isMaterialized(HABIT, D, [row({ habitId: 'h1', habitDate: D })])).toBe(true)
+  })
+
   it('l’occurrence d’une AUTRE habitude au même intitulé ne la masque pas', () => {
     expect(isMaterialized(HABIT, D, [row({ habitId: 'h2', habitDate: D })])).toBe(false)
   })
