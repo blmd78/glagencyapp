@@ -40,7 +40,7 @@ function TaskBody({ task }: { task: TodoTask }) {
  */
 export function TaskPreview({ task }: { task: TodoTask }) {
   return (
-    <div className={task.done ? 'task done lifted' : 'task lifted'}>
+    <div className={['task', `u-${task.urgency}`, task.done ? 'done' : '', 'lifted'].filter(Boolean).join(' ')}>
       <span className="box" aria-hidden>
         ✓
       </span>
@@ -59,6 +59,7 @@ export function TaskItem({
   canOrganize,
   onToggle,
   onDelete,
+  onOpen,
 }: {
   task: TodoTask
   date: string
@@ -69,6 +70,8 @@ export function TaskItem({
   canOrganize: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
+  /** Ouvre la pop-up de la tâche (#160) — pour tous : la description ne se lit que là. */
+  onOpen: (task: TodoTask, date: string, category: string) => void
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: task.id,
@@ -76,7 +79,9 @@ export function TaskItem({
     disabled: !canOrganize,
   })
 
-  const cls = ['task', task.done ? 'done' : '', isDragging ? 'dragging' : ''].filter(Boolean).join(' ')
+  const cls = ['task', `u-${task.urgency}`, task.done ? 'done' : '', isDragging ? 'dragging' : '']
+    .filter(Boolean)
+    .join(' ')
 
   return (
     <div ref={setNodeRef} className={cls}>
@@ -92,7 +97,23 @@ export function TaskItem({
       >
         ✓
       </button>
-      <div className="tb" ref={setActivatorNodeRef} {...listeners} {...attributes}>
+      {/* Le CLIC sur le corps ouvre la pop-up (#160) ; le GLISSER, lui, ne démarre qu'après 6 px
+          (`week-grid.tsx`) et dnd-kit avale alors le clic qui suit — les deux gestes cohabitent
+          sur la même poignée. Entrée / Espace pour le clavier, le `KeyboardSensor` n'étant pas
+          monté. */}
+      <div
+        className="tb"
+        ref={setActivatorNodeRef}
+        {...listeners}
+        {...attributes}
+        title="Ouvrir la tâche"
+        onClick={() => onOpen(task, date, category)}
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return
+          e.preventDefault()
+          onOpen(task, date, category)
+        }}
+      >
         <TaskBody task={task} />
       </div>
       {/* Un 1:1 qui a rendu son bilan ne se supprime plus : la session resterait orpheline dans la

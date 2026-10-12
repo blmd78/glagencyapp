@@ -4,7 +4,17 @@ import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { isoWeekday } from '@glagency/core'
 import { TaskItem } from './task-item'
+import { UrgencyPicker } from './urgency-picker'
 import type { TodoDay, TodoSection, TodoTask, TodoChatter } from '../types'
+import { DEFAULT_URGENCY, type Urgency } from '../urgency'
+
+/** Ce que la saisie rapide transmet (#160) : titre, description facultative, urgence, 1:1. */
+export interface NewTask {
+  label: string
+  description: string
+  urgency: Urgency
+  chatterId: string | null
+}
 
 /**
  * Catégorie d'une tâche ajoutée depuis le « + Tâche » d'une journée — par le titulaire comme par
@@ -19,7 +29,10 @@ const DAY_TASK_CATEGORY = 'À faire'
 
 /**
  * Saisie rapide d'une tâche — la même pour le « + » d'une section et le « + Tâche » d'une journée.
- * Démontée à la fermeture : le brouillon et le 1:1 repartent à vide d'eux-mêmes.
+ * Démontée à la fermeture : le brouillon, l'urgence et le 1:1 repartent à vide d'eux-mêmes.
+ *
+ * Depuis le #160 : un TITRE (obligatoire, Entrée suffit toujours à valider), une description
+ * facultative et l'urgence — Normale par défaut, donc la saisie d'un titre seul reste un geste.
  */
 function QuickAddTask({
   chatters,
@@ -27,15 +40,17 @@ function QuickAddTask({
   onClose,
 }: {
   chatters: TodoChatter[]
-  onSubmit: (label: string, chatterId: string | null) => void
+  onSubmit: (task: NewTask) => void
   onClose: () => void
 }) {
   const [draft, setDraft] = useState('')
+  const [description, setDescription] = useState('')
+  const [urgency, setUrgency] = useState<Urgency>(DEFAULT_URGENCY)
   const [withChatter, setWithChatter] = useState('')
   const submit = (): void => {
     const value = draft.trim()
     if (!value) return
-    onSubmit(value, withChatter || null)
+    onSubmit({ label: value, description: description.trim(), urgency, chatterId: withChatter || null })
     onClose()
   }
 
@@ -43,7 +58,7 @@ function QuickAddTask({
     <div className="qadd">
       <input
         autoFocus
-        placeholder="Nouvelle tâche…"
+        placeholder="Titre de la tâche…"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -52,6 +67,16 @@ function QuickAddTask({
           submit()
         }}
       />
+      <textarea
+        rows={2}
+        placeholder="Description (facultative)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onClose()
+        }}
+      />
+      <UrgencyPicker value={urgency} onChange={setUrgency} />
       {/* « Session 1:1 avec (impose un bilan pour cocher) » — viser un chatter transforme la
           tâche : elle ne se cochera qu'en rendant son bilan sur la fiche du chatter. */}
       {chatters.length > 0 ? (
@@ -87,6 +112,7 @@ function SectionGroup({
   onToggle,
   onDelete,
   onAdd,
+  onOpen,
   chatters,
   canOrganize,
   onDeleteSection,
@@ -97,7 +123,8 @@ function SectionGroup({
   canWrite: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
-  onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
+  onAdd: (date: string, category: string, task: NewTask) => void
+  onOpen: (task: TodoTask, date: string, category: string) => void
   chatters: TodoChatter[]
   /** ORGANISER — ajouter, retirer, remanier. Le titulaire ou son encadrement. */
   canOrganize: boolean
@@ -162,13 +189,14 @@ function SectionGroup({
           canOrganize={canOrganize}
           onToggle={onToggle}
           onDelete={onDelete}
+          onOpen={onOpen}
         />
       ))}
 
       {adding && canOrganize ? (
         <QuickAddTask
           chatters={chatters}
-          onSubmit={(label, chatterId) => onAdd(day.date, section.name, label, chatterId)}
+          onSubmit={(task) => onAdd(day.date, section.name, task)}
           onClose={() => setAdding(false)}
         />
       ) : null}
@@ -186,6 +214,7 @@ export function DayColumn({
   onToggle,
   onDelete,
   onAdd,
+  onOpen,
   chatters,
   canOrganize,
   onDayOff,
@@ -197,7 +226,8 @@ export function DayColumn({
   canWrite: boolean
   onToggle: (task: TodoTask, done: boolean) => void
   onDelete: (task: TodoTask) => void
-  onAdd: (date: string, category: string, label: string, chatterId?: string | null) => void
+  onAdd: (date: string, category: string, task: NewTask) => void
+  onOpen: (task: TodoTask, date: string, category: string) => void
   chatters: TodoChatter[]
   /** ORGANISER — le planning de la semaine. Le titulaire ou son encadrement. */
   canOrganize: boolean
@@ -256,6 +286,7 @@ export function DayColumn({
               onToggle={onToggle}
               onDelete={onDelete}
               onAdd={onAdd}
+              onOpen={onOpen}
               chatters={chatters}
               canOrganize={canOrganize}
               onDeleteSection={onDeleteSection}
@@ -274,7 +305,7 @@ export function DayColumn({
           addingTask ? (
             <QuickAddTask
               chatters={chatters}
-              onSubmit={(label, chatterId) => onAdd(day.date, DAY_TASK_CATEGORY, label, chatterId)}
+              onSubmit={(task) => onAdd(day.date, DAY_TASK_CATEGORY, task)}
               onClose={() => setAddingTask(false)}
             />
           ) : addingSection ? (

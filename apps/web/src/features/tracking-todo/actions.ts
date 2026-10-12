@@ -7,8 +7,8 @@ import {
 } from './actions-shared'
 import {
   addTaskInput, deleteHabitInput, deleteSectionInput, deleteTaskInput,
-  habitInput, moveTaskInput, renameHabitInput, renameSectionInput, sectionInput,
-  setHabitActiveInput, toggleTaskInput,
+  habitInput, moveTaskInput, renameSectionInput, sectionInput,
+  setHabitActiveInput, toggleTaskInput, updateHabitInput, updateTaskInput,
 } from './schema'
 import { mergeWeekdays } from './weekdays'
 
@@ -50,7 +50,7 @@ async function materialize(ownerId: string, taskId: string): Promise<string> {
   const admin = createAdminClient()
   const { data: habit, error } = await admin
     .from('tracker_todo_habits')
-    .select('category, label, created_by')
+    .select('category, label, description, urgency, created_by')
     .eq('id', virt.habitId)
     .eq('owner_id', ownerId)
     .maybeSingle()
@@ -64,6 +64,12 @@ async function materialize(ownerId: string, taskId: string): Promise<string> {
       date: virt.date,
       category: habit.category,
       label: habit.label,
+      description: habit.description,
+      urgency: habit.urgency,
+      // Le lien vers le gabarit (0192) : c'est lui, et non plus l'intitulé, qui dit que
+      // l'occurrence du jour existe déjà (`isMaterialized`). Une occurrence renommée dans la pop-up
+      // reste donc la sienne, au lieu de laisser l'habitude renaître à côté.
+      habit_id: virt.habitId,
       // La tâche HÉRITE du déposant du gabarit. Sans ça, l'occurrence d'une habitude déposée par
       // la hiérarchie naît avec `created_by: null`, c'est-à-dire « posée par le titulaire » : elle
       // perd son badge « déposée » au premier geste. Le gabarit dit qui l'a voulue ; la tâche aussi.
@@ -97,11 +103,43 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
         date: d.date,
         category: d.category,
         label: d.label,
+        description: d.description,
+        urgency: d.urgency,
         chatter_id: d.chatterId,
         // Trace de la hiérarchie : `null` quand on écrit chez soi, pour ne pas marquer d'un
         // « déposée par » toutes les tâches qu'on se donne soi-même.
         created_by: caller.id === d.ownerId ? null : caller.id,
       })
+      if (error) throw new Error(error.message)
+      revalidateTodo()
+    },
+  })
+}
+
+/**
+ * La pop-up d'une tâche (#160) : titre, description, urgence et jour.
+ *
+ * ORGANISER, comme déplacer ou supprimer : c'est le contenu du planning, pas une attestation —
+ * l'encadrement modifie ce qu'il a déposé comme ce que le titulaire s'est donné. Changer le jour,
+ * c'est le geste de `moveTask` : la section reste la même.
+ *
+ * Sur une occurrence d'habitude, seule l'occurrence change (décision de Benoit, 2026-10-12) :
+ * on la matérialise, puis on modifie la ligne — le gabarit, lui, ne bouge pas. C'est `habit_id`
+ * (0192) qui empêche l'habitude de renaître à côté d'une occurrence renommée.
+ */
+export async function updateTask(raw: unknown): Promise<ActionResult> {
+  return runAction({
+    schema: updateTaskInput,
+    input: raw,
+    guard: noGuard,
+    handler: async (d) => {
+      await assertCanOrganize(d.ownerId)
+      const id = await materialize(d.ownerId, d.taskId)
+      const { error } = await createAdminClient()
+        .from('tracker_todo_tasks')
+        .update({ label: d.label, description: d.description, urgency: d.urgency, date: d.date })
+        .eq('id', id)
+        .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
       revalidateTodo()
     },
@@ -312,6 +350,8 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
         owner_id: d.ownerId,
         category: d.category,
         label: d.label,
+        description: d.description,
+        urgency: d.urgency,
         weekdays: d.weekdays.join(','),
         // `null` quand on se la donne à soi-même — même convention que `addTask`, pour ne pas
         // marquer d'un « déposée » les habitudes qu'on s'impose.
@@ -340,17 +380,21 @@ export async function deleteHabit(raw: unknown): Promise<ActionResult> {
 }
 
 
-/** Renomme une habitude — `prompt('Renommer l'habitude :')` chez eux, un champ chez nous. */
-export async function renameHabit(raw: unknown): Promise<ActionResult> {
+/**
+ * Modifie une habitude — `prompt('Renommer l'habitude :')` chez eux, des champs chez nous ; depuis
+ * le #160, l'intitulé, la description et l'urgence. Les occurrences DÉJÀ matérialisées gardent ce
+ * qu'elles avaient (comme pour un renommage) : seules les suivantes reprennent le gabarit.
+ */
+export async function updateHabit(raw: unknown): Promise<ActionResult> {
   return runAction({
-    schema: renameHabitInput,
+    schema: updateHabitInput,
     input: raw,
     guard: noGuard,
     handler: async (d) => {
       await assertCanEditHabit(d.ownerId, d.habitId)
       const { error } = await createAdminClient()
         .from('tracker_todo_habits')
-        .update({ label: d.label })
+        .update({ label: d.label, description: d.description, urgency: d.urgency })
         .eq('id', d.habitId)
         .eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)

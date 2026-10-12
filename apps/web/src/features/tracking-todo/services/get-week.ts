@@ -5,7 +5,9 @@ import { getCreatorScope } from '@/lib/services/creator-scope'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
+import { isMaterialized } from '../occurrence'
 import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
+import { asUrgency } from '../urgency'
 
 /** Lundi de la semaine contenant `day`. */
 export const weekStartOf = (day: string): string => addDays(day, -(isoWeekday(day) - 1))
@@ -68,12 +70,12 @@ export async function getTodoWeek(params: {
       supabase.from('tracker_todo_sections').select('name, weekdays, position')
         .eq('owner_id', params.ownerId).order('position'),
       supabase.from('tracker_todo_tasks')
-        .select('id, date, category, label, done, position, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
+        .select('id, date, category, label, description, urgency, habit_id, done, position, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd).order('position'),
       // TOUTES les habitudes, actives ou non : le panneau de gestion doit montrer celles en pause
       // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
       // bas, au moment de projeter les occurrences dans la semaine.
-      supabase.from('tracker_todo_habits').select('id, category, label, weekdays, active, position, created_by')
+      supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, position, created_by')
         .eq('owner_id', params.ownerId).order('position'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
@@ -101,6 +103,7 @@ export async function getTodoWeek(params: {
     const date = addDays(weekStart, i)
     const wd = isoWeekday(date)
     const dayTasks = tasks.filter((t) => t.date === date)
+    const dayKeys = dayTasks.map((t) => ({ habitId: t.habit_id, label: t.label, category: t.category }))
 
     // Les catégories du jour : les sections récurrentes de ce jour de semaine, plus toute
     // catégorie qui porte déjà une tâche — une section supprimée ne doit jamais faire disparaître
@@ -131,6 +134,8 @@ export async function getTodoWeek(params: {
           .map((t) => ({
             id: t.id,
             label: t.label,
+            description: t.description,
+            urgency: asUrgency(t.urgency),
             done: t.done,
             virtual: false,
             fromOther: t.created_by != null && t.created_by !== params.ownerId,
@@ -143,10 +148,12 @@ export async function getTodoWeek(params: {
         const virtual: TodoTask[] = habits
           .filter((h) => h.active)
           .filter((h) => h.category === name && h.weekdays.split(',').map(Number).includes(wd))
-          .filter((h) => !real.some((r) => r.label === h.label))
+          .filter((h) => !isMaterialized(h, dayKeys))
           .map((h) => ({
             id: `habit:${h.id}:${date}`,
             label: h.label,
+            description: h.description,
+            urgency: asUrgency(h.urgency),
             done: false,
             virtual: true,
             // L'occurrence porte le badge « déposée » dès le gabarit, avant même d'exister en
@@ -226,6 +233,8 @@ export async function getTodoWeek(params: {
     habits: habits.map((h) => ({
       id: h.id,
       label: h.label,
+      description: h.description,
+      urgency: asUrgency(h.urgency),
       category: h.category,
       weekdays: h.weekdays.split(',').map(Number),
       active: h.active,

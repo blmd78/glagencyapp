@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { deleteHabit, renameHabit, saveHabit, setHabitActive } from '../actions'
+import { deleteHabit, saveHabit, setHabitActive, updateHabit } from '../actions'
 import type { TodoHabit } from '../types'
+import { DEFAULT_URGENCY, type Urgency } from '../urgency'
+import { UrgencyPicker } from './urgency-picker'
 
 /** Jours ISO, dans l'ordre de la semaine — 1 = lundi, comme les `weekdays` en base. */
 const DAYS = [
@@ -52,10 +54,12 @@ export function HabitsPanel({
   const [, startTransition] = useTransition()
   const [open, setOpen] = useState(false)
   const [label, setLabel] = useState('')
+  const [description, setDescription] = useState('')
+  const [urgency, setUrgency] = useState<Urgency>(DEFAULT_URGENCY)
   const [category, setCategory] = useState('')
   const [days, setDays] = useState<number[]>([1, 2, 3, 4, 5, 6, 7])
-  const [renaming, setRenaming] = useState<string | null>(null)
-  const [draft, setDraft] = useState('')
+  /** L'habitude en cours de modification (#160 : intitulé, description, urgence). */
+  const [editing, setEditing] = useState<string | null>(null)
 
   const run = (fn: () => Promise<{ success: boolean; error?: string }>, ok?: string): void => {
     startTransition(async () => {
@@ -76,8 +80,13 @@ export function HabitsPanel({
       toast.error('Choisis au moins un jour.')
       return
     }
-    run(() => saveHabit({ ownerId, label: label.trim(), category, weekdays: days }), 'Habitude créée')
+    run(
+      () => saveHabit({ ownerId, label: label.trim(), description: description.trim(), urgency, category, weekdays: days }),
+      'Habitude créée',
+    )
     setLabel('')
+    setDescription('')
+    setUrgency(DEFAULT_URGENCY)
     setCategory('')
     setDays([1, 2, 3, 4, 5, 6, 7])
   }
@@ -108,6 +117,20 @@ export function HabitsPanel({
               placeholder="ex. vérifier les chatters à sanctionner"
               onChange={(e) => setLabel(e.target.value)}
             />
+          </div>
+          <div className="field">
+            <label htmlFor="hdesc">Description</label>
+            <textarea
+              id="hdesc"
+              rows={2}
+              value={description}
+              placeholder="Facultative — reprise sur chaque tâche créée"
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+          <div className="field">
+            <label>Urgence</label>
+            <UrgencyPicker value={urgency} onChange={setUrgency} />
           </div>
           <div className="field">
             <label htmlFor="hc">Section</label>
@@ -159,22 +182,18 @@ export function HabitsPanel({
             // `off` = en pause : leur liste les GRISE au lieu de les cacher, pour qu'on sache
             // qu'elles existent (`.grow.off{opacity:.5}`).
             <div key={h.id} className={h.active ? 'grow' : 'grow off'}>
-              {renaming === h.id ? (
-                <input
-                  autoFocus
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') setRenaming(null)
-                    if (e.key !== 'Enter') return
-                    const v = draft.trim()
-                    if (v) run(() => renameHabit({ ownerId, habitId: h.id, label: v }), 'Habitude renommée')
-                    setRenaming(null)
+              {editing === h.id ? (
+                <HabitEditor
+                  habit={h}
+                  onSave={(v) => {
+                    run(() => updateHabit({ ownerId, habitId: h.id, ...v }), 'Habitude modifiée')
+                    setEditing(null)
                   }}
-                  onBlur={() => setRenaming(null)}
+                  onCancel={() => setEditing(null)}
                 />
               ) : (
                 <span className="hn">
+                  <span className={`udot u-${h.urgency}`} aria-hidden />
                   {h.label}
                   {h.category ? <em className="cnt"> · {h.category}</em> : null}
                   {/* Même badge et même mot que sur une tâche déposée (`task-item.tsx`). */}
@@ -193,12 +212,9 @@ export function HabitsPanel({
                   <button
                     type="button"
                     className="btn sm"
-                    onClick={() => {
-                      setRenaming(h.id)
-                      setDraft(h.label)
-                    }}
+                    onClick={() => setEditing(h.id)}
                   >
-                    Renommer
+                    Modifier
                   </button>
                   {/* Leur endpoint `habit-active` existait sans aucun bouton pour l'appeler. Mettre
                       en pause sans perdre l'historique est plus utile que de supprimer. */}
@@ -229,5 +245,64 @@ export function HabitsPanel({
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Modifier une habitude (#160) — son intitulé, sa description et son urgence. Remplace le champ de
+ * renommage : un seul champ ne suffisait plus. Les occurrences déjà créées gardent ce qu'elles
+ * avaient ; seules les suivantes reprennent le gabarit (`updateHabit`).
+ */
+function HabitEditor({
+  habit,
+  onSave,
+  onCancel,
+}: {
+  habit: TodoHabit
+  onSave: (v: { label: string; description: string; urgency: Urgency }) => void
+  onCancel: () => void
+}) {
+  const [label, setLabel] = useState(habit.label)
+  const [description, setDescription] = useState(habit.description)
+  const [urgency, setUrgency] = useState<Urgency>(habit.urgency)
+
+  const save = (): void => {
+    const v = label.trim()
+    if (!v) {
+      toast.error('Il faut un intitulé.')
+      return
+    }
+    onSave({ label: v, description: description.trim(), urgency })
+  }
+
+  return (
+    <span className="hedit">
+      <input
+        autoFocus
+        aria-label="Intitulé"
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel()
+          if (e.key === 'Enter') save()
+        }}
+      />
+      <textarea
+        rows={2}
+        aria-label="Description"
+        placeholder="Description (facultative)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <UrgencyPicker value={urgency} onChange={setUrgency} />
+      <span className="hact">
+        <button type="button" className="btn sm" onClick={save}>
+          Enregistrer
+        </button>
+        <button type="button" className="btn sm btn-ghost" onClick={onCancel}>
+          Annuler
+        </button>
+      </span>
+    </span>
   )
 }

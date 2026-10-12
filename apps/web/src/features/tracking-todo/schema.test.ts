@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addTaskInput, habitInput, moveTaskInput } from './schema'
+import { addTaskInput, habitInput, moveTaskInput, updateTaskInput } from './schema'
 
 const OWNER = '11111111-1111-4111-8111-111111111111'
 const TASK = '22222222-2222-4222-8222-222222222222'
@@ -34,5 +34,50 @@ describe('catégorie « sans section »', () => {
   it('un intitulé de tâche reste obligatoire', () => {
     const r = addTaskInput.safeParse({ ownerId: OWNER, date: '2026-09-08', category: '', label: '  ' })
     expect(r.success).toBe(false)
+  })
+})
+
+/**
+ * TITRE, DESCRIPTION, URGENCE (#160) — décision de Benoit du 2026-10-12 : titre obligatoire,
+ * description facultative, urgence Normale par défaut. Les bornes sont celles des `check` de 0192.
+ */
+describe('titre, description et urgence', () => {
+  it('le titre seul reste une tâche complète : description vide, urgence normale', () => {
+    const r = addTaskInput.safeParse({ ownerId: OWNER, date: '2026-10-12', category: '', label: 'Relancer' })
+    expect(r.success && r.data.description).toBe('')
+    expect(r.success && r.data.urgency).toBe('normale')
+  })
+
+  it('une urgence hors des trois niveaux est refusée', () => {
+    const r = addTaskInput.safeParse({ ownerId: OWNER, date: '2026-10-12', category: '', label: 'x', urgency: 'critique' })
+    expect(r.success).toBe(false)
+  })
+
+  it('la description est bornée à 2000 caractères, comme la base', () => {
+    const r = addTaskInput.safeParse({ ownerId: OWNER, date: '2026-10-12', category: '', label: 'x', description: 'a'.repeat(2001) })
+    expect(r.success).toBe(false)
+  })
+
+  it('la pop-up modifie aussi une occurrence VIRTUELLE d’habitude', () => {
+    const r = updateTaskInput.safeParse({
+      ownerId: OWNER,
+      taskId: `habit:${TASK}:2026-10-12`,
+      label: 'Renommée',
+      description: '',
+      urgency: 'urgente',
+      date: '2026-10-13',
+    })
+    expect(r.success).toBe(true)
+  })
+
+  it('la pop-up refuse un titre vide', () => {
+    const r = updateTaskInput.safeParse({ ownerId: OWNER, taskId: TASK, label: ' ', description: '', urgency: 'normale', date: '2026-10-12' })
+    expect(r.success).toBe(false)
+  })
+
+  it('une habitude a aussi description et urgence, par défaut vides / normale', () => {
+    const r = habitInput.safeParse({ ownerId: OWNER, label: 'Routine', weekdays: [1] })
+    expect(r.success && r.data.urgency).toBe('normale')
+    expect(r.success && r.data.description).toBe('')
   })
 })

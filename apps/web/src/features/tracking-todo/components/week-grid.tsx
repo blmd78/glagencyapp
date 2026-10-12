@@ -16,7 +16,8 @@ import {
 import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
 import { toast } from 'sonner'
-import { DayColumn } from './day-column'
+import { DayColumn, type NewTask } from './day-column'
+import { TaskDialog, type OpenTask } from './task-dialog'
 import { TaskPreview } from './task-item'
 import { moveTaskInDays } from '../move-task'
 import { addTask, deleteHabit, deleteSection, deleteTask, deleteTaskOccurrence, moveTask, saveSection, toggleTask } from '../actions'
@@ -148,11 +149,13 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
     if (habitId) startTransition(() => run(() => deleteHabit({ ownerId: week.ownerId, habitId })))
   }
 
-  const onAdd = (date: string, category: string, label: string, chatterId?: string | null): void => {
-    startTransition(() =>
-      run(() => addTask({ ownerId: week.ownerId, date, category, label, chatterId: chatterId ?? null })),
-    )
+  const onAdd = (date: string, category: string, task: NewTask): void => {
+    startTransition(() => run(() => addTask({ ownerId: week.ownerId, date, category, ...task })))
   }
+
+  /** La tâche ouverte dans sa pop-up (#160) — la carte n'en montre que le titre. */
+  const [opened, setOpened] = useState<OpenTask | null>(null)
+  const onOpen = (task: TodoTask, date: string, category: string): void => setOpened({ task, date, category })
 
   const onDayOff = (date: string): void => {
     startTransition(() => run(() => toggleDayOff({ ownerId: week.ownerId, date })))
@@ -217,6 +220,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
               onToggle={onToggle}
               onDelete={onDelete}
               onAdd={onAdd}
+              onOpen={onOpen}
               chatters={week.chatters}
               canOrganize={week.canOrganize}
               onDayOff={onDayOff}
@@ -259,6 +263,7 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
           </div>
         </div>
       ) : null}
+      <TaskDialog open={opened} ownerId={week.ownerId} canOrganize={week.canOrganize} onClose={() => setOpened(null)} />
     </>
   )
 }

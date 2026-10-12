@@ -5,6 +5,8 @@ import type { TodoDay, TodoSection, TodoTask } from './types'
 const task = (id: string): TodoTask => ({
   id,
   label: id,
+  description: '',
+  urgency: 'normale',
   done: false,
   virtual: false,
   fromOther: false,
