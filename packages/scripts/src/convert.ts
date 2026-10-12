@@ -123,9 +123,13 @@ export const CONVERT_EXAMPLE: ScriptDraft = {
     'Quand ça colle : juste après le KYC, si le fan a du temps devant lui.\nDécor : sa chambre d’étudiante, fiches éparpillées, lumière douce de lampe de bureau.\nHumeur de départ et déclencheur : elle révise, se déconcentre et propose un jeu de questions.\nProgression : chaque bonne réponse débloque un média, de plus en plus osé.\nProfil de fan : joueur, patient, aime être guidé.\nMots-clés : binôme, révisions, jeu, récompense.',
   voiceNotes: [{ label: 'VOCAL 1', text: 'fais vite 😈', direction: 'chuchoté, pressé · environ 3 s' }],
   toComplete: [{ where: '#4 — Bonne réponse → ENVOYER LE PPV 1', hint: 'message explicite qui reprend un détail du média, pour teaser le fan' }],
-  autoMessages: [{ trigger: '+1 minute après l’abonnement', message: 'coucouu' }],
+  autoMessages: [
+    { trigger: '+1 minute après l’abonnement', message: 'coucouu' },
+    { trigger: '+10 secondes après le précédent', message: 'merci pour l’abo 🙈' },
+  ],
   items: [
-    say('Message automatique 1', 'coucouu'),
+    say('⏱️ Message automatique 1 · +1 minute après l’abonnement', 'coucouu', { chainDelays: [10] }),
+    say('⏱️ Message automatique 2 · +10 secondes après le précédent', 'merci pour l’abo 🙈'),
     say('#1 — Transition de confiance', 'et du coup…', { chainDelays: [10, 10] }),
     say('⏩ À la suite', "jte montre pas qu'une plante 🙈"),
     say('⏩ À la suite', "t'aurais 5 min pour être mon binôme ou t'es occupé ailleurs ?"),
@@ -164,7 +168,7 @@ Ce qui devient un message :
 - Chaque bulle envoyée par la modèle (bloc de citation « > », ligne de texte d'une étape) = un message. content = le texte exact de la bulle, consignes entre parenthèses comprises (« (réagir à sa réponse) mmmh… ») : c'est ainsi que les scripts sont saisis aujourd'hui, le chatteur complète avant d'envoyer.
 - title (conventions des scripts déjà montés à la main dans MyPuls) : pour la première bulle d'une étape, le titre de l'étape tel qu'écrit (« #12 — Bonne réponse → ENVOYER LE PPV 2 », « #3 · Réagir au prénom ») ; pour les bulles suivantes de la même étape, « ⏩ À la suite ». Dans un chemin d'embranchement : la première bulle prend le libellé du chemin, les suivantes « ⏩ » suivi du libellé du chemin.
 - Une bulle qui n'envoie qu'un média, sans texte (photo sans légende, vocal sans transcription) : content = "." — le Studio exige un texte, c'est la convention de l'équipe.
-- Les messages automatiques (tableau « Message automatique » : déclenchement, message) sont des messages en tête de script, titrés « Message automatique 1, 2… » ; chaque ligne va AUSSI dans autoMessages (trigger = le déclenchement tel qu'écrit, message = le texte) : le Studio n'a pas de déclenchement, l'équipe le règle dans l'Auto-DM.
+- Les messages automatiques (tableau « Message automatique » : déclenchement, message) sont des messages en tête de script, titrés « ⏱️ Message automatique n · déclenchement tel qu'écrit » ; les délais « +N s après le précédent » forment un enchaînement comme les autres (chainDelays du premier, règles ci-dessous). Chaque ligne va AUSSI dans autoMessages (trigger = le déclenchement tel qu'écrit, message = le texte) : le Studio n'a pas de déclenchement d'abonnement, l'équipe le règle dans l'Auto-DM.
 - N'est PAS un message : légende, mémo, règles d'or, fiche de synthèse, tableaux de questions ou de chronologie, sommaire, checklist, consignes de mise en page, liens vers d'autres scripts.
 - « ✏️ À COMPLÉTER : … » (message que le manager doit écrire) n'est JAMAIS un texte de bulle : une entrée dans toComplete (where = le titre de l'étape où il manque, hint = la consigne après les deux-points). Si ce bloc porte aussi un média ou un prix (badges 🖼️ / 🔒), le message reste, avec content = "." et son pendingMedia et son prix : seul le texte part dans toComplete.
 
