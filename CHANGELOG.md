@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.79] — 2026-10-12
+
 ### Modifié
 
 - Importer un script : chacun connecte son Notion — admins et encadrement. Un espace connecté par un admin est partagé avec toute l'équipe (le Notion d'agence) ; celui d'un manager n'est visible que par lui, admins compris. Chacun déconnecte ses propres espaces.
