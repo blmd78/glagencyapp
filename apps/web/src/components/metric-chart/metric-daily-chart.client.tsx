@@ -9,7 +9,8 @@ import {
   type ChartConfig,
 } from '@/components/ui/chart'
 import { int, eur } from '@/lib/format'
-import { SERIES, type ChartMode, type Metric, type MetricPoint } from './options'
+import { cn } from '@/lib/utils'
+import { SERIES, TOOLTIP_LINKS, type ChartMode, type Metric, type MetricPoint } from './options'
 
 /**
  * UNE métrique par jour, en barres, en courbe ou les deux.
@@ -25,6 +26,9 @@ import { SERIES, type ChartMode, type Metric, type MetricPoint } from './options
  * En mode « les deux », la courbe reprend les MÊMES valeurs que les barres ; les barres
  * s'estompent pour qu'elle se lise, et elle n'entre pas dans l'infobulle, qui sinon afficherait
  * chaque chiffre deux fois.
+ *
+ * `onDayClick` : un clic sur un jour remonte sa date — le panneau y ouvre la liste complète des
+ * liens du jour, que l'infobulle ne peut pas porter (elle disparaît dès que la souris la quitte).
  */
 export function MetricDailyChart({
   data,
@@ -33,6 +37,7 @@ export function MetricDailyChart({
   color,
   height = 280,
   showXAxis = true,
+  onDayClick,
 }: {
   data: MetricPoint[]
   metric: Metric
@@ -41,14 +46,25 @@ export function MetricDailyChart({
   height?: number
   /** Masqué sur les petits graphes du haut en mode « Tout » : un seul axe des dates, en bas. */
   showXAxis?: boolean
+  onDayClick?: (date: string) => void
 }) {
   const s = SERIES[metric]
   const teinte = color ?? s.color
   const config = { [metric]: { label: s.label, color: teinte } } satisfies ChartConfig
 
   return (
-    <ChartContainer config={config} className="aspect-auto w-full" style={{ height }}>
-      <ComposedChart data={data} barCategoryGap="18%">
+    <ChartContainer
+      config={config}
+      className={cn('aspect-auto w-full', onDayClick && 'cursor-pointer')}
+      style={{ height }}
+    >
+      <ComposedChart
+        data={data}
+        barCategoryGap="18%"
+        onClick={(state) => {
+          if (onDayClick && state?.activeLabel) onDayClick(String(state.activeLabel))
+        }}
+      >
         <CartesianGrid vertical={false} />
         <XAxis
           dataKey="date"
@@ -66,13 +82,18 @@ export function MetricDailyChart({
             <ChartTooltipContent
               indicator="dot"
               labelFormatter={(v) => frDayLong(v as string)}
-              formatter={(value) => (
-                <span className="flex w-full items-baseline justify-between gap-3">
-                  <span className="text-muted-foreground">{s.label}</span>
-                  <span className="tabular-nums">
-                    {metric === 'revenue' ? eur(Number(value)) : int(Number(value))}
+              formatter={(value, _name, item) => (
+                <>
+                  <span className="flex w-full items-baseline justify-between gap-3">
+                    <span className="text-muted-foreground">{s.label}</span>
+                    <span className="tabular-nums">
+                      {metric === 'revenue' ? eur(Number(value)) : int(Number(value))}
+                    </span>
                   </span>
-                </span>
+                  {metric === 'conversions' && (
+                    <SubsByLink point={item.payload as MetricPoint} clickable={!!onDayClick} />
+                  )}
+                </>
               )}
             />
           }
@@ -99,5 +120,34 @@ export function MetricDailyChart({
         )}
       </ComposedChart>
     </ChartContainer>
+  )
+}
+
+/** D'où viennent les subs du jour (demande 2026-10-12) — seulement si l'écran fournit la
+ *  répartition (l'Overview) ; l'écran Liens et la modale d'un lien n'ont que le total. */
+function SubsByLink({ point, clickable }: { point: MetricPoint; clickable: boolean }) {
+  if (!point.subsByLink?.length) return null
+  const rest = point.subsByLink.slice(TOOLTIP_LINKS)
+  return (
+    <span className="mt-1 grid w-full gap-1">
+      {point.subsByLink.slice(0, TOOLTIP_LINKS).map((l, i) => (
+        <span key={i} className="flex items-baseline justify-between gap-3">
+          <span className="max-w-56 truncate">
+            {l.name}
+            {l.creator && <span className="text-muted-foreground"> · {l.creator}</span>}
+          </span>
+          <span className="tabular-nums">{int(l.subs)}</span>
+        </span>
+      ))}
+      {rest.length > 0 && (
+        <span className="flex items-baseline justify-between gap-3 text-muted-foreground">
+          <span>
+            Autres ({rest.length} {rest.length > 1 ? 'liens' : 'lien'})
+          </span>
+          <span className="tabular-nums">{int(rest.reduce((s, l) => s + l.subs, 0))}</span>
+        </span>
+      )}
+      {clickable && <span className="mt-1 text-muted-foreground">Clic : tous les liens du jour</span>}
+    </span>
   )
 }

@@ -125,6 +125,8 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         .from('tracker_todo_tasks')
         .select('date, category, label, position')
         .eq('owner_id', d.ownerId)
+        // Une occurrence sautée (0195) n'est plus à l'écran : elle ne compte pas comme « déjà là ».
+        .eq('skipped', false)
         .gte('date', period.from)
         .lte('date', period.to)
       if (exErr) throw new Error(exErr.message)

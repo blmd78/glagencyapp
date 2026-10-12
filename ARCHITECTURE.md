@@ -114,7 +114,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | prod (`main`) | `cqmfpsnqaxymswijdnfz` | eu-west-3 (`docs/runbook-uncove.md`) | `db.<ref>.supabase.co` injoignable IPv6-only depuis un poste de dev — passer par le pooler `aws-0-eu-west-3.pooler.supabase.com:5432` |
 | UAT (`develop`) | `ihkksdmgtrbbjugeboks` | eu-west-3 | même pooler |
 
-194 migrations séquentielles au 2026-10-12 (`packages/db/supabase/migrations/0001..0194`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
+195 migrations séquentielles au 2026-10-12 (`packages/db/supabase/migrations/0001..0195`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
 
 ## 4. Hébergement et environnements
 
@@ -263,7 +263,7 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   modèles** (ni titulaire, ni déposant) depuis le 2026-09-05 : les deux tests n'existaient que
   pour éviter des tâches inclôturables, et la clôture ne teste plus rien (cf. Suivi chatters).
   **Récap**
-  (`/chatter/presence/recap`, `0137` + `0151` + `0159` + `0160` + `0193` + `0194`) : RPC `tracker_todo_week_recap` en **`security definer`
+  (`/chatter/presence/recap`, `0137` + `0151` + `0159` + `0160` + `0193` + `0194` + `0195`) : RPC `tracker_todo_week_recap` en **`security definer`
   à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
   l'encadrement (chacun son périmètre), **verbatim pour l'admin, son propre journal et — demande
   Benoit 2026-09-14, `0159` — le manager sur ses sous-managers rattachés** (`can_manage_planning_of`,
@@ -283,6 +283,16 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   changée de jour, elle ne fait plus renaître son habitude. Règle pure `isMaterialized`
   (`occurrence.ts`), même rapprochement dans le Récap ; repli sur (jour, section, intitulé) pour
   les lignes d'avant 0193, qu'`updateTask` rattache à leur habitude avant de les renommer.
+- **Occurrence sautée** (#170, `0195`) : « Juste aujourd'hui » (`deleteTaskOccurrence`, occurrence
+  VIRTUELLE seulement) matérialise l'occurrence puis la marque `skipped` — on la supprimait, et
+  l'habitude renaissait au rechargement. La ligne sautée n'est ni affichée (`isShown` : grille,
+  rang de section) ni comptée (Récap : ni prévue, ni faite), mais reste une occurrence pour
+  `isMaterialized` : l'habitude ne revient pas ce jour-là. La croix d'une VRAIE ligne suit
+  `deleteOutcome` (`occurrence.ts`) : 1:1 avec bilan refusé, occurrence d'habitude sautée (une
+  ligne d'avant 0193 n'en est une que si son habitude est due ce jour-là, `legacyHabitLink`),
+  le reste supprimé. Supprimer une habitude efface ses occurrences sautées (sans historique) ;
+  les imports ne les comptent pas comme « déjà là ». Pas de retour en arrière : une occurrence
+  sautée ne se rétablit pas depuis l'écran.
 - **Ordre dans une section** (#161) : `position` est la clé d'ordre, espacée de 1024, égalités
   départagées par `created_at` (l'ordre des lignes d'avant, toutes à 0, ne bouge pas). Règle pure
   `order.ts` (`sortSlots`, `arrivalIndex`, `placeAt`), partagée par `getTodoWeek` et

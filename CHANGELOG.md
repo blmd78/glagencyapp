@@ -8,6 +8,16 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.82] — 2026-10-12
+
+### Ajouté
+
+- Marketing › Overview (et SFS › Vue d'ensemble) : sur le graphe « Subs / jour », survoler un jour montre d'où viennent ses subs — les 10 liens de tracking qui en ont amené le plus (avec leur modèle), puis le reste cumulé en « Autres ». Cliquer sur le jour ouvre sous le graphe la liste complète de ses liens.
+
+### Corrigé
+
+- To-Do : « Juste aujourd'hui » retire vraiment une tâche récurrente ce jour-là — elle ne revient plus au rechargement et ne compte plus dans le Récap. La croix d'une tâche récurrente déjà cochée, renommée ou déplacée fait de même au lieu de la laisser réapparaître.
+
 ## [2.81] — 2026-10-12
 
 ### Corrigé
