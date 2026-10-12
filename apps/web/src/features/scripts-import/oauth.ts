@@ -3,8 +3,8 @@ import { NotionError } from '@glagency/scripts/notion'
 
 /**
  * OAuth du Notion de l'agence (doc officielle « Authorization », relue le 2026-10-07) — fonctions
- * pures, testées ; les Route Handlers `api/notion/*` ne font que les brancher. Seul un admin réel
- * connecte (contrôlé dans les routes). Notion renvoie aussi un `refresh_token` : la clé peut expirer,
+ * pures, testées ; les Route Handlers `api/notion/*` ne font que les brancher. Un admin ou un encadrant
+ * réel connecte (contrôlé dans les routes, 0192). Notion renvoie aussi un `refresh_token` : la clé peut expirer,
  * on la renouvelle sur un 401 (services/notion-connection.ts).
  */
 const TOKEN_URL = 'https://api.notion.com/v1/oauth/token'

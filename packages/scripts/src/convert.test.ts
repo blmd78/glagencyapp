@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { normalizeDraft, parseScriptDraft, validateScriptDraft } from '@glagency/core'
-import { CONVERT_EXAMPLE, CONVERT_MODEL, CONVERT_SYSTEM, ConversionError, SCRIPT_DRAFT_SCHEMA, convertContent, convertToDraft, type ConvertClient } from './convert'
+import { AI_WRITTEN, CONVERT_EXAMPLE, CONVERT_MODEL, CONVERT_SYSTEM, ConversionError, SCRIPT_DRAFT_SCHEMA, convertContent, convertToDraft, type ConvertClient } from './convert'
 
 const DRAFT = {
   name: 'Soirée révisions',
@@ -68,9 +68,13 @@ describe('CONVERT_SYSTEM', () => {
   it('import intelligent (2026-10-12) : sources multiples, format V3, vocaux, messages à compléter, Brief IA', () => {
     expect(CONVERT_SYSTEM).toContain('convertis-le UNE seule fois, depuis la version la plus complète')
     expect(CONVERT_SYSTEM).toContain('« 🔒 X € » = le prix du PPV (pendingMedia.price)')
-    expect(CONVERT_SYSTEM).toContain('ce texte est À ENREGISTRER par la modèle, il ne part jamais au fan')
-    expect(CONVERT_SYSTEM).toContain('« ✏️ À COMPLÉTER : … » (message que le manager doit écrire) n\'est JAMAIS un texte de bulle')
-    expect(CONVERT_SYSTEM).toContain('le message reste, avec content = "." et son pendingMedia et son prix')
+    expect(CONVERT_SYSTEM).toContain('ce texte est À ENREGISTRER par la modèle, il n\'est jamais dans la bulle')
+    expect(CONVERT_SYSTEM).toContain('Jamais d\'âge ni d\'allusion à un mineur, à l\'école, au collège ou au lycée')
+    // « Pas de reste à faire » (Benoit, 2026-10-12) : Claude écrit le message, marqué, sans inventer le média.
+    expect(CONVERT_SYSTEM).toContain('« ✏️ À COMPLÉTER : consigne » (message que le script laisse à écrire) : tu l\'ÉCRIS')
+    expect(CONVERT_SYSTEM).toContain(`suivi de « ${AI_WRITTEN} »`)
+    expect(CONVERT_SYSTEM).toContain('tu ne vois pas le média, n\'invente aucun détail')
+    expect(CONVERT_SYSTEM).toContain('ce message-là garde content = "." avec son pendingMedia et son prix')
     expect(CONVERT_SYSTEM).toContain('une page liée qui est un AUTRE script')
     // Essai réel du 2026-10-12 (KYC de Lucie) : les messages automatiques restent enchaînés et titrés par leur déclenchement.
     expect(CONVERT_SYSTEM).toContain('titrés « ⏱️ Message automatique n · déclenchement tel qu\'écrit »')

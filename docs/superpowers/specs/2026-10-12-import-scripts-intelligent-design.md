@@ -43,6 +43,15 @@
    déclenchements à régler dans l'Auto-DM, le Brief IA, et après l'envoi le bilan des médias.
 7. **Liste** : une page dont le titre contient « prompt » n'est jamais reconnue comme script.
 
+## Suite du 2026-10-12 — « pas de reste à faire » (Benoit)
+
+- Vocal sans audio dans MyM à l'envoi : à l'écrit avec son texte (`writeMissingVoices`), titre « (pas encore fait
+  donc à l'écrit en attendant) » — la règle du prompt V3.
+- « ✏️ À COMPLÉTER » : Claude écrit le message (voix de la modèle, suggestif, depuis la seule description du
+  média — il ne voit pas le média), titre « · ✍️ écrit par l'IA ».
+- Reste à décider : régler aussi les messages automatiques dans l'Auto-DM de MyPuls (page jamais relevée,
+  agit en direct sur chaque nouvel abonné).
+
 ## Hors périmètre (décidé)
 
 - **Images** : jamais envoyées à Claude (photos des médias PPV : coût, contenu explicite, rien pour le

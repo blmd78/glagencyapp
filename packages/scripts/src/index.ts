@@ -4,6 +4,7 @@ export {
   NotionError,
   blocksToText,
   fetchNotionPage,
+  isPromptTitle,
   listSharedPages,
   notionPageId,
   type NotionBlock,
@@ -11,6 +12,7 @@ export {
 } from './notion'
 export { SOURCE_LIMITS, gatherScript, type GatheredScript, type PdfDocument, type ScriptSource, type SourceKind } from './sources'
 export {
+  AI_WRITTEN,
   CONVERT_EXAMPLE,
   CONVERT_MODEL,
   CONVERT_SYSTEM,

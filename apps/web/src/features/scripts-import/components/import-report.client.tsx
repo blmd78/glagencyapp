@@ -95,7 +95,7 @@ export function ImportReport({ current, viewerId }: { current: ImportDetail; vie
           <p>
             {plural(s.pendingMedia, 'média')} nommé{s.pendingMedia > 1 ? 's' : ''} dans le script : rattaché{s.pendingMedia > 1 ? 's' : ''} à l&apos;envoi
             s&apos;il{s.pendingMedia > 1 ? 's portent' : ' porte'} ce titre dans MyM (collection du même nom que le script), sinon « 🖼️ À RATTACHER »
-            dans le Studio.
+            dans le Studio — un vocal sans audio part à l&apos;écrit en attendant.
           </p>
         )}
         {current.sources.length > 1 && (
@@ -103,12 +103,16 @@ export function ImportReport({ current, viewerId }: { current: ImportDetail; vie
         )}
         <ReportList title="Non lu" muted={false} items={unread.map((x) => `${KIND[x.kind]} « ${x.label} » : ${x.reason ?? 'non lu'}`)} />
         <ReportList
-          title="À écrire dans le Studio avant d’activer"
+          title={
+            current.toCompleteWritten
+              ? 'Écrits par l’IA à la place des « ✏️ À COMPLÉTER » (titre « ✍️ écrit par l’IA ») — à relire avant d’activer'
+              : 'À écrire dans le Studio avant d’activer'
+          }
           muted={false}
           items={current.toComplete.map((t) => `${t.where} : ${t.hint}`)}
         />
         <ReportList
-          title="Vocaux à enregistrer par la modèle, puis à rattacher dans le Studio"
+          title="Vocaux : rattachés depuis MyM s’ils y portent leur titre (« VOCAL 1 »), sinon envoyés à l’écrit en attendant l’audio"
           items={current.voiceNotes.map((v) => `${v.label} : « ${v.text} »${v.direction ? ` — ${v.direction}` : ''}`)}
         />
         <ReportList

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NotionError } from '@glagency/scripts'
-import { checkDraftForSend, failureText, notionReadMessage, withSendLock } from './send-rules'
+import { NOT_A_SCRIPT, PROMPT_PAGE, checkDraftForSend, failureText, notionReadMessage, prepareRefusal, toCompleteWritten, withSendLock } from './send-rules'
 
 describe('checkDraftForSend', () => {
   const msg = { type: 'message', title: '#1', content: 'coucou', price: 0, media: [], pendingMedia: null, chainDelays: [] }
@@ -84,5 +84,31 @@ describe('failureText', () => {
       'Envoi interrompu avant la fin (durée maximale atteinte ou connexion coupée). Aucun script enregistré : vérifie dans le Studio.',
     )
     expect(failureText({ ...base, status: 'envoyé', mypulsScriptId: 7, cleanup: null })).toBeNull()
+  })
+})
+
+describe('prepareRefusal', () => {
+  const script = '#1 — Transition\n> et du coup…'
+  it('un prompt ne s’importe jamais, même avec des exemples de format ou un PDF', () => {
+    expect(prepareRefusal({ title: 'Prompt – Script de vente V3', text: script, pdfs: [] })).toBe(PROMPT_PAGE)
+    expect(prepareRefusal({ title: 'Prompt négo Emma', text: '', pdfs: [{ name: 'x.pdf', data: 'JVBERi0=' }] })).toBe(PROMPT_PAGE)
+  })
+  it('sinon la forme : un script passe, une fiche non, une page avec un PDF oui', () => {
+    expect(prepareRefusal({ title: 'Script de vente · Emma', text: script, pdfs: [] })).toBeNull()
+    expect(prepareRefusal({ title: 'Fiche Emma', text: 'Âge : 20 ans', pdfs: [] })).toBe(NOT_A_SCRIPT)
+    expect(prepareRefusal({ title: 'Script de vente · Emma', text: 'page de référence', pdfs: [{ name: 'x.pdf', data: 'JVBERi0=' }] })).toBeNull()
+  })
+})
+
+describe('toCompleteWritten', () => {
+  const m = (title: string) => ({ type: 'message', title })
+  it('vrai si un message écrit par l’IA est à la racine ou dans un chemin', () => {
+    expect(toCompleteWritten(JSON.stringify([m('#1'), m('⏩ À la suite · ✍️ écrit par l’IA')]))).toBe(true)
+    expect(toCompleteWritten(JSON.stringify([{ type: 'branch', paths: [{ messages: [m('#16 🟢 · ✍️ écrit par l’IA')] }] }]))).toBe(true)
+  })
+  it('faux pour un brouillon d’avant (aucune marque), absent ou illisible', () => {
+    expect(toCompleteWritten(JSON.stringify([m('#1'), m('#16 🟢 — Bonne réponse')]))).toBe(false)
+    expect(toCompleteWritten(null)).toBe(false)
+    expect(toCompleteWritten('{pas du json')).toBe(false)
   })
 })

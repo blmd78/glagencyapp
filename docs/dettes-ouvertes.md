@@ -82,7 +82,26 @@ pour « Préparer » (`waitPrepared` relit la clé du clic). L'envoi (`sendImpor
 coupé — le rapport dit où il en est » et le serveur va au bout (statut relu au rafraîchissement). À
 reprendre si une coupure d'envoi est observée : même relecture, sur le statut de l'import.
 
-**12. L'import d'un fichier n'est pas une transaction** (2026-10-12, #163) : la lecture du fichier
+**12. Connexion Notion privée d'une personne partie, invisible de tous** (2026-10-12, `0192`) : un espace
+connecté par un manager n'est visible que par lui. S'il quitte l'agence (`left_at`), perd son rôle
+d'encadrant, ou si son profil est supprimé (`connected_by` passe à null), sa ligne `notion_connection`
+reste en base — clé chiffrée vers son Notion perso, utilisable par le service role — sans que personne ne
+la voie ni ne puisse la déconnecter depuis l'écran (un admin en a le droit, `canDisconnect`, mais elle
+n'apparaît pas dans sa liste). Aucun chemin de l'appli ne s'en sert (les connexions utilisées sont
+toujours celles visibles de l'appelant). À faire : supprimer les lignes `shared = false` de la personne
+au départ (`recordDeparture`) et au retrait du rôle, ou montrer aux admins ces connexions orphelines,
+sans leurs pages, pour les déconnecter.
+
+**13. « En tant que » : la session forgée est une vraie session de la cible** (relevé le 2026-10-12, revue
+du Notion par personne) : la consultation ouvre une vraie session Supabase de la personne consultée
+(`lib/impersonation/session.ts`) ; seul le cookie d'état `imp_sid` dit à l'appli qu'il s'agit d'une
+consultation. Un admin qui efface volontairement ce cookie agit comme la cible PARTOUT dans le CRM — et
+voit alors, entre autres, le Notion perso d'un manager (0192), que l'appli lui cache sinon. Ce n'est pas
+propre à l'import de scripts. À reprendre si besoin : reconnaître côté serveur les sessions forgées (leur
+`session_id`, enregistré dans `impersonation_sessions` au forge) et appliquer le contrôle aux lectures et
+aux actions, même sans le cookie d'état.
+
+**14. L'import d'un fichier n'est pas une transaction** (2026-10-12, #163) : la lecture du fichier
 est entière avant la première écriture (une erreur de format n'écrit rien), mais section,
 habitudes et tâches partent en trois écritures. Une panne de base au milieu laisse une partie
 écrite ; relancer le même fichier complète sans doublon (dédoublonnage sur jour, section, titre).

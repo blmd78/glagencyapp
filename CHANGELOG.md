@@ -18,6 +18,13 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Modifié
 
 - To-Do : « Renommer » une habitude devient « Modifier » (titre, description et urgence).
+- Importer un script : chacun connecte son Notion — admins et encadrement. Un espace connecté par un admin est partagé avec toute l'équipe (le Notion d'agence) ; celui d'un manager n'est visible que par lui, admins compris. Chacun déconnecte ses propres espaces.
+
+## [2.78] — 2026-10-12
+
+### Modifié
+
+- Importer un script : les vocaux et les messages « ✏️ À COMPLÉTER » ne restent plus à faire. Un vocal pas encore dans MyM part à l'écrit avec son texte (« pas encore fait donc à l'écrit en attendant », la règle du prompt V3) ; un message « à compléter » est écrit par l'IA dans la voix de la modèle, marqué « écrit par l'IA » dans son titre pour être relu avant d'activer. Les PPV et photos absents de MyM restent « À RATTACHER ».
 
 ## [2.77] — 2026-10-12
 
@@ -27,7 +34,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ### Modifié
 
-- Importer un script : le format de script V3 (badges 🔒 prix, 💬 / 🎙️ / 🖼️) est compris ; une bulle « ✏️ À COMPLÉTER » ou une consigne de vocal n'est jamais envoyée au fan ; une page « Prompt … » n'est jamais proposée comme script.
+- Importer un script : le format de script V3 (badges 🔒 prix, 💬 / 🎙️ / 🖼️) est compris ; une bulle « ✏️ À COMPLÉTER » ou une consigne de vocal n'est jamais envoyée au fan ; une page « Prompt … » n'est jamais proposée comme script, ni importable, même choisie à la main ou collée par son lien.
 
 ## [2.76] — 2026-10-10
 

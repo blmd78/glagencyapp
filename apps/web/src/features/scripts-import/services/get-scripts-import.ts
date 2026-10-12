@@ -5,9 +5,10 @@ import { createAdminClient, fetchAll } from '@glagency/db'
 import type { Cleanup, MediaReport, ScriptSource } from '@glagency/scripts'
 import { describeMedia, listSharedPages } from '@glagency/scripts'
 import type { Profile } from '@/lib/auth'
+import { readStateCookie } from '@/lib/impersonation/session'
 import { createClient } from '@/lib/supabase/server'
 import { importStatus, type ImportRow } from '../rules'
-import { failureText, notionReadMessage } from '../send-rules'
+import { failureText, notionReadMessage, toCompleteWritten } from '../send-rules'
 import { organizeNotionPages, type ScriptFolder } from '../notion-pages'
 import { getNotionConnections, withNotionToken, type NotionConnectionView } from './notion-connection'
 
@@ -49,12 +50,16 @@ export interface ImportDetail extends ImportListItem {
   aiBrief: string
   voiceNotes: VoiceNote[]
   toComplete: ToComplete[]
+  /** Les « ✏️ À COMPLÉTER » ont été écrits par l'IA ; `false` pour un brouillon d'avant (à écrire à la main). */
+  toCompleteWritten: boolean
   autoMessages: AutoMessage[]
   /** Bilan des médias de l'envoi réussi (0191), en clair. */
   mediaNote: string | null
 }
 export interface ScriptsImportData {
-  /** Espaces Notion connectés (vide : Notion n'est pas connecté). */
+  /** Connexions Notion VISIBLES par l'appelant (partagées ou à lui, 0192) — la carte des espaces. */
+  connections: NotionConnectionView[]
+  /** Un bloc de scripts par connexion visible (vide : aucun Notion connecté). */
   workspaces: NotionWorkspaceView[]
   creators: CreatorOption[]
   imports: ImportListItem[]
@@ -115,6 +120,7 @@ type ImportDetailRow = ImportDbRow & {
   voice_notes: VoiceNote[] | null
   to_complete: ToComplete[] | null
   auto_messages: AutoMessage[] | null
+  items_text: string | null
 }
 
 const toItem = (r: ImportDbRow): ImportListItem => ({
@@ -133,12 +139,14 @@ const toItem = (r: ImportDbRow): ImportListItem => ({
 const IMPORT_COLUMNS =
   'id, created_by, creator_id, status, errors, notes, summary, created_at, sent_at, mypuls_script_id, notion_title, error, failed_step, cleanup, script_name:draft->>name, creators:creator_id (name)'
 // L'import affiché seulement : les listes du brouillon et les sources (jamais `source_text`, trop lourd).
-const DETAIL_COLUMNS = `${IMPORT_COLUMNS}, sources, media_result, ai_brief:draft->>aiBrief, voice_notes:draft->voiceNotes, to_complete:draft->toComplete, auto_messages:draft->autoMessages`
+const DETAIL_COLUMNS = `${IMPORT_COLUMNS}, sources, media_result, ai_brief:draft->>aiBrief, voice_notes:draft->voiceNotes, to_complete:draft->toComplete, auto_messages:draft->autoMessages, items_text:draft->>items`
 
 export async function getScriptsImport(profile: Profile, importId?: string): Promise<ScriptsImportData> {
   const supabase = await createClient()
+  // « En tant que » : la session est celle de la cible — son Notion perso reste caché (connection-rules).
+  const impersonating = Boolean(await readStateCookie())
   const [connections, { linked, creators }, importsRes, currentRes] = await Promise.all([
-    getNotionConnections(),
+    getNotionConnections({ id: profile.id, role: profile.role, impersonating }),
     linkedCreators().then(async (linked) => ({ linked, creators: await allowedCreators(profile, linked) })),
     supabase.from('script_imports').select(IMPORT_COLUMNS).order('created_at', { ascending: false }).limit(50),
     importId ? supabase.from('script_imports').select(DETAIL_COLUMNS).eq('id', importId).maybeSingle() : Promise.resolve(null),
@@ -170,6 +178,7 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
 
   const current = currentRes?.data as unknown as ImportDetailRow | null | undefined
   return {
+    connections,
     workspaces,
     creators,
     imports: ((importsRes.data ?? []) as unknown as ImportDbRow[]).map(toItem),
@@ -194,6 +203,7 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
           aiBrief: current.ai_brief ?? '',
           voiceNotes: current.voice_notes ?? [],
           toComplete: current.to_complete ?? [],
+          toCompleteWritten: toCompleteWritten(current.items_text),
           autoMessages: current.auto_messages ?? [],
           mediaNote: current.media_result ? describeMedia(current.media_result) || null : null,
         }

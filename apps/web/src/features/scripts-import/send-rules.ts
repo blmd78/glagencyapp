@@ -1,5 +1,5 @@
 import { normalizeDraft, parseScriptDraft, validateScriptDraft, type ScriptDraft } from '@glagency/core'
-import { NotionError, describeFailure, type Cleanup } from '@glagency/scripts'
+import { AI_WRITTEN, NotionError, describeFailure, isPromptTitle, looksLikeScript, type Cleanup, type GatheredScript } from '@glagency/scripts'
 import { BusinessError } from '@/lib/actions'
 import type { ImportStatus } from './rules'
 
@@ -38,6 +38,38 @@ export function notionReadMessage(e: unknown): string | null {
   if (e.status === 403 || e.status === 404) return 'Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).'
   if (e.status === 401) return 'Connexion Notion expirée : un admin doit reconnecter Notion.'
   if (e.status === 429) return 'Notion limite le débit : réessaie dans une minute.'
+  return null
+}
+
+/**
+ * Les « ✏️ À COMPLÉTER » d'un brouillon ont-ils été écrits par l'IA ? Oui si un message, à la racine ou
+ * dans un chemin, porte la marque `AI_WRITTEN` dans son titre ; un brouillon d'avant le 2026-10-12 n'en a
+ * pas : ses messages sont à écrire à la main. `itemsJson` = le texte JSON de `draft->items`.
+ */
+export function toCompleteWritten(itemsJson: string | null): boolean {
+  if (!itemsJson) return false
+  try {
+    const items = JSON.parse(itemsJson) as Array<{ type?: string; title?: string; paths?: Array<{ messages?: Array<{ title?: string }> }> }>
+    const titles = items.flatMap((it) => (it.type === 'branch' ? (it.paths ?? []).flatMap((p) => (p.messages ?? []).map((m) => m.title ?? '')) : [it.title ?? '']))
+    return titles.some((t) => t.includes(AI_WRITTEN))
+  } catch {
+    return false
+  }
+}
+
+export const PROMPT_PAGE =
+  'Cette page est un prompt (des consignes à coller dans Claude), pas un script : elle ne s’importe jamais. Choisis le script que le prompt a produit.'
+export const NOT_A_SCRIPT =
+  'Cette page ne ressemble pas à un script : aucune bulle (« > »), étape (#1, N1), enchaînement (⏩ ⏸️ ⏱️) ni média (PPV, PHOTO 1, VOCAL 1), ni dans ses pages liées, et aucun PDF joint. Choisis la page du script lui-même.'
+
+/**
+ * Avant de payer la conversion : pourquoi « Préparer » refuse cette page, ou `null`. Un prompt ne
+ * s'importe JAMAIS — même choisi à la main ou collé par son lien : ses exemples de format passeraient
+ * le garde-fou de forme. Puis la forme (`looksLikeScript`) ; un PDF joint passe, il ne se juge pas sans le lire.
+ */
+export function prepareRefusal(page: Pick<GatheredScript, 'title' | 'text' | 'pdfs'>): string | null {
+  if (isPromptTitle(page.title)) return PROMPT_PAGE
+  if (!page.pdfs.length && !looksLikeScript(page.text)) return NOT_A_SCRIPT
   return null
 }
 
