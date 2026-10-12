@@ -6,7 +6,7 @@ import type { DraftBranch, DraftMessage, ScriptDraft } from './script-draft'
  * script et les messages, JSON pour les embranchements.
  */
 export function scriptFields(d: ScriptDraft, name: string = d.name): Record<string, string> {
-  return { name, description: d.description, ai_brief: '', is_sequence: d.isSequence ? '1' : '0', used_ratio: '' }
+  return { name, description: d.description, ai_brief: d.aiBrief ?? '', is_sequence: d.isSequence ? '1' : '0', used_ratio: '' }
 }
 
 export function messageFields(m: DraftMessage): {

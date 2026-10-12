@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { NotionError, type SharedPage } from '@glagency/scripts/notion'
-import { firstWorkspaceWithPage, organizeNotionPages } from './notion-pages'
+import type { SharedPage } from '@glagency/scripts/notion'
+import { organizeNotionPages } from './notion-pages'
 
 const creators = [
   { id: 'c-emma', name: 'Emma' },
@@ -10,38 +10,6 @@ const creators = [
 ]
 /** Vue admin par défaut : toutes les modèles dans le périmètre de l'appelant. */
 const organize = (pages: SharedPage[], list = creators, allowed = list.map((c) => c.id)) => organizeNotionPages(pages, list, new Set(allowed))
-
-describe('firstWorkspaceWithPage', () => {
-  it('lien collé : essaie chaque espace connecté, ignore « introuvable / non partagé », garde le premier qui répond', async () => {
-    const tried: string[] = []
-    const read = async (id: string) => {
-      tried.push(id)
-      if (id === 'w1') throw new NotionError(404, 'x')
-      if (id === 'w2') throw new NotionError(403, 'x')
-      return { title: 'KYC' }
-    }
-    expect(await firstWorkspaceWithPage(['w1', 'w2', 'w3', 'w4'], read)).toEqual({ id: 'w3', value: { title: 'KYC' } })
-    expect(tried).toEqual(['w1', 'w2', 'w3'])
-  })
-  it('un espace en panne (clé expirée, Notion 500) n’empêche pas de trouver la page dans un espace suivant', async () => {
-    const read = async (id: string) => {
-      if (id === 'w1') throw new NotionError(401, 'clé')
-      return { title: 'KYC' }
-    }
-    expect(await firstWorkspaceWithPage(['w1', 'w2'], read)).toEqual({ id: 'w2', value: { title: 'KYC' } })
-  })
-  it('introuvable partout → null ; si un espace a échoué autrement, SA première erreur remonte (pas un faux « introuvable »)', async () => {
-    expect(await firstWorkspaceWithPage(['w1'], async () => Promise.reject(new NotionError(404, 'x')))).toBeNull()
-    expect(await firstWorkspaceWithPage([], async () => ({}))).toBeNull()
-    const read = async (id: string) => {
-      if (id === 'w1') throw new NotionError(401, 'clé')
-      throw new NotionError(404, 'x')
-    }
-    const err = await firstWorkspaceWithPage(['w1', 'w2'], read).catch((e: unknown) => e)
-    expect(err).toBeInstanceOf(NotionError)
-    expect((err as NotionError).status).toBe(401)
-  })
-})
 
 describe('organizeNotionPages', () => {
   it('modèle reconnue par le DOSSIER parent direct (EMMA = Emma), où que soit ce dossier', () => {
@@ -306,5 +274,25 @@ describe('organizeNotionPages', () => {
   it('page parente non partagée → « Sans dossier » ; titre vide → « Sans titre »', () => {
     const r = organize([{ id: 'x', title: '', parentId: 'inconnue' }], creators)
     expect(r.others).toEqual([{ id: 'parent:', title: 'Sans dossier', creatorId: null, scripts: [{ id: 'x', title: 'Sans titre' }] }])
+  })
+
+  it('une page « Prompt … » n’est jamais un script, même si elle nomme une modèle ou vit dans son dossier', () => {
+    const r = organize([
+      { id: 'f-emma', title: 'EMMA', parentId: null },
+      { id: 'p1', title: 'Prompt négo Emma', parentId: null },
+      { id: 'p2', title: 'Prompt – Script de vente V3', parentId: 'f-emma' },
+      { id: 's1', title: 'Script de vente · Emma', parentId: null },
+    ])
+    expect(r.recognized.flatMap((g) => g.scripts.map((x) => x.id))).toEqual(['s1'])
+    expect(r.others.flatMap((g) => g.scripts.map((x) => x.id)).sort()).toEqual(['f-emma', 'p1', 'p2'])
+  })
+
+  it('sous la page d’un prompt : jamais présélectionné, sauf « · Prénom » explicite', () => {
+    const r = organize([
+      { id: 'p1', title: 'Prompt – Script découverte (KYC)', parentId: null },
+      { id: 'x1', title: 'Exemple KYC Emma', parentId: 'p1' },
+      { id: 'x2', title: 'Script découverte (KYC) · Lucie', parentId: 'p1' },
+    ])
+    expect(r.recognized.flatMap((g) => g.scripts.map((x) => x.id))).toEqual(['x2'])
   })
 })

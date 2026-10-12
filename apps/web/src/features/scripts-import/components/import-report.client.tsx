@@ -15,13 +15,48 @@ import { STATUS_BADGE } from './status-badge'
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? 's' : ''}`
 
-/** Rapport de l'import choisi (`?import=`) : résumé, ajustements, erreurs, puis « Envoyer ». */
+const KIND: Record<ImportDetail['sources'][number]['kind'], string> = {
+  page: 'Page',
+  'page liée': 'Page liée',
+  'sous-page': 'Sous-page',
+  pdf: 'PDF',
+  'google doc': 'Google Doc',
+  'google drive': 'Google Drive',
+  lien: 'Lien',
+  image: 'Image',
+  vidéo: 'Vidéo',
+  audio: 'Audio',
+  fichier: 'Fichier',
+  base: 'Base',
+}
+
+/** Liste du rapport : un titre, une puce par ligne — mêmes styles que les ajustements. */
+function ReportList({ title, items, muted = true }: { title: string; items: string[]; muted?: boolean }) {
+  if (items.length === 0) return null
+  return (
+    <div className="flex flex-col gap-1">
+      <p className="font-medium">{title}</p>
+      <ul className={cn('list-disc pl-5', muted && 'text-muted-foreground')}>
+        {items.map((t, i) => (
+          <li key={i}>{t}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Rapport de l'import choisi (`?import=`) : résumé, sources lues ou non, ce que le script laisse à
+ * l'équipe (vocaux, messages à écrire, déclenchements, Brief IA), ajustements, erreurs, puis « Envoyer ».
+ */
 export function ImportReport({ current, viewerId }: { current: ImportDetail; viewerId: string }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const s = current.summary
   const status = importStatus(current, new Date())
   const sendable = canSend(current, viewerId)
+  const read = current.sources.filter((x) => x.status === 'lu')
+  const unread = current.sources.filter((x) => x.status === 'non lu')
 
   const send = () =>
     start(async () => {
@@ -63,6 +98,29 @@ export function ImportReport({ current, viewerId }: { current: ImportDetail; vie
             dans le Studio.
           </p>
         )}
+        {current.sources.length > 1 && (
+          <ReportList title="Lu pour la conversion" items={read.map((x) => `${KIND[x.kind]} « ${x.label} »`)} />
+        )}
+        <ReportList title="Non lu" muted={false} items={unread.map((x) => `${KIND[x.kind]} « ${x.label} » : ${x.reason ?? 'non lu'}`)} />
+        <ReportList
+          title="À écrire dans le Studio avant d’activer"
+          muted={false}
+          items={current.toComplete.map((t) => `${t.where} : ${t.hint}`)}
+        />
+        <ReportList
+          title="Vocaux à enregistrer par la modèle, puis à rattacher dans le Studio"
+          items={current.voiceNotes.map((v) => `${v.label} : « ${v.text} »${v.direction ? ` — ${v.direction}` : ''}`)}
+        />
+        <ReportList
+          title="Messages automatiques : en tête du script, le déclenchement se règle dans l’Auto-DM"
+          items={current.autoMessages.map((a) => `${a.trigger} → « ${a.message} »`)}
+        />
+        {current.aiBrief && (
+          <div className="flex flex-col gap-1">
+            <p className="font-medium">Brief IA (pour Aurel, jamais montré au fan)</p>
+            <p className="whitespace-pre-line text-muted-foreground">{current.aiBrief}</p>
+          </div>
+        )}
         {current.notes.length > 0 && (
           <div className="flex flex-col gap-1">
             <p className="font-medium">{plural(current.notes.length, 'ajustement')}</p>
@@ -98,6 +156,7 @@ export function ImportReport({ current, viewerId }: { current: ImportDetail; vie
             </a>
           </p>
         )}
+        {status === 'envoyé' && current.mediaNote && <p className="text-muted-foreground">Médias : {current.mediaNote}.</p>}
         {current.failureMessage && <p className="whitespace-pre-line text-destructive">{current.failureMessage}</p>}
 
         {sendable.ok && (

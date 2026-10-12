@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   normalizeDraft,
-  parseScriptDraft,
   summarizeDraft,
   validateScriptDraft,
   type DraftBranch,
   type DraftMessage,
   type ScriptDraft,
 } from './script-draft'
+import { parseScriptDraft } from './script-draft-parse'
 
 const msg = (over: Partial<DraftMessage> = {}): DraftMessage => ({
   type: 'message',
@@ -141,6 +141,19 @@ describe('validateScriptDraft', () => {
     ).toEqual(['libellé de chemin de 81 caractères (max 80)'])
   })
 
+  it('arrête une bulle qui s’adresse à l’équipe : « ✏️ À COMPLÉTER », consigne de vocal', () => {
+    expect(messages(validateScriptDraft(draft([msg({ content: '✏️ À COMPLÉTER : message explicite qui reprend un détail du média' })])))).toEqual([
+      'message « À COMPLÉTER » dans la bulle : à écrire avant l’envoi (dans Notion, puis préparer à nouveau)',
+    ])
+    const vocal = msg({ content: 'Texte que le vocal doit dire : « t’as pas ouvert… ? »' })
+    expect(messages(validateScriptDraft(draft([vocal])))).toEqual(['consigne de vocal dans la bulle : ce texte est à enregistrer, il partirait au fan'])
+  })
+
+  it('laisse passer une bulle ordinaire (« compléter » en minuscules, ✏️ seul) et un titre « À COMPLÉTER »', () => {
+    const d = draft([msg({ title: '#16 — ✏️ À COMPLÉTER', content: 'tu veux compléter ta collection ? 😏' }), msg({ content: 'jte fais réviser ✏️' })])
+    expect(validateScriptDraft(d)).toEqual([])
+  })
+
   it('situe chaque erreur (élément, chemin, message)', () => {
     const errs = validateScriptDraft(
       draft([msg(), branch({ paths: [{ label: 'a', color: 'red', messages: [msg({ price: 3, media: ['1'] })] }] })]),
@@ -177,6 +190,12 @@ describe('normalizeDraft', () => {
     ])
     expect(validateScriptDraft(out)).toEqual([])
   })
+  it('coupe un Brief IA trop long à 2 000 caractères, et le note', () => {
+    const { draft: d, notes } = normalizeDraft({ ...draft([msg()]), aiBrief: 'x'.repeat(2500) })
+    expect(d.aiBrief).toHaveLength(2000)
+    expect(notes).toEqual([{ where: 'Brief IA', message: '2500 caractères coupés à 2000' }])
+  })
+
   it('ne touche pas un brouillon conforme', () => {
     const d = draft([msg({ chainDelays: [10, 60] }), msg(), msg()])
     expect(normalizeDraft(d)).toEqual({ draft: d, notes: [] })
@@ -201,6 +220,22 @@ describe('parseScriptDraft', () => {
   it('rend un brouillon bien formé tel quel', () => {
     const d = draft([msg(), branch()])
     expect(parseScriptDraft(JSON.parse(JSON.stringify(d)))).toEqual(d)
+  })
+  it('relit un brouillon d’avant le 2026-10-12 (sans brief ni listes) sans y ajouter de champ', () => {
+    const old = JSON.parse(JSON.stringify(draft([msg()])))
+    expect(parseScriptDraft(old)).toEqual(old)
+    expect(Object.keys(parseScriptDraft(old))).toEqual(['name', 'description', 'isSequence', 'items'])
+  })
+  it('relit le brief, les vocaux, les messages à compléter et les messages automatiques', () => {
+    const d: ScriptDraft = {
+      ...draft([msg()]),
+      aiBrief: 'Quand ça colle : …',
+      voiceNotes: [{ label: 'VOCAL 1', text: 'je vais te faire une confession…', direction: 'chuchoté · environ 8 s' }],
+      toComplete: [{ where: '#16 🟢 — Bonne réponse', hint: 'message explicite qui reprend un détail du média' }],
+      autoMessages: [{ trigger: '+1 minute après l’abonnement', message: 'coucouu' }],
+    }
+    expect(parseScriptDraft(JSON.parse(JSON.stringify(d)))).toEqual(d)
+    expect(() => parseScriptDraft({ ...d, voiceNotes: [{ label: 'VOCAL 1', text: 'x' }] })).toThrow('brouillon invalide : voiceNotes[0].direction')
   })
   it('nomme le chemin fautif', () => {
     expect(() => parseScriptDraft({ name: 'x', description: '', isSequence: false, items: [{ type: 'message', title: 't' }] })).toThrow(
