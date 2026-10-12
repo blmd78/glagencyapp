@@ -137,7 +137,7 @@ export function DayColumn({
   /** ORGANISER — le planning de la semaine. Le titulaire ou son encadrement. */
   canOrganize: boolean
   onDayOff: (date: string) => void
-  onAddSection: (name: string, weekday: number) => void
+  onAddSection: (name: string, weekday: number, date: string) => void
   onDeleteSection: (name: string) => void
   /** #162 — ouvre la journée seule, en pop-up. Absent dans la pop-up elle-même. */
   onOpenDay?: (date: string) => void
@@ -240,7 +240,7 @@ export function DayColumn({
                   if (e.key === 'Escape') setAddingSection(false)
                   if (e.key !== 'Enter') return
                   const value = e.currentTarget.value.trim()
-                  if (value) onAddSection(value, isoWeekday(day.date))
+                  if (value) onAddSection(value, isoWeekday(day.date), day.date)
                   e.currentTarget.value = ''
                   setAddingSection(false)
                 }}

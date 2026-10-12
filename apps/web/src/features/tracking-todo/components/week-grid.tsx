@@ -131,8 +131,8 @@ export function WeekGrid({ week }: { week: TodoWeek }) {
    * comportement de leur écran, et c'est ce qu'on attend d'un rituel hebdomadaire (« 1:1 le
    * lundi »). Pour une section ponctuelle, il suffit de la retirer une fois remplie.
    */
-  const onAddSection = (name: string, weekday: number): void => {
-    startTransition(() => run(() => saveSection({ ownerId: week.ownerId, name, weekdays: [weekday] })))
+  const onAddSection = (name: string, weekday: number, date: string): void => {
+    startTransition(() => run(() => saveSection({ ownerId: week.ownerId, name, weekdays: [weekday], fromDate: date })))
   }
 
   const onDeleteSection = (name: string): void => {

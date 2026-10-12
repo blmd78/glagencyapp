@@ -308,7 +308,8 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   titulaire) ; habitudes ET section n'apparaissent qu'à partir du 1er jour du fichier (`starts_on`
   sur `tracker_todo_habits` et `tracker_todo_sections`, `0194`, lu par la grille via `isDue` /
   `isSectionOn` et par le Récap — nulle = sans borne, une section qui existait déjà garde la
-  sienne) : les semaines passées ne changent pas ; les tâches du jour vont dans
+  sienne ; la retaper depuis un jour antérieur ramène son début à ce jour, `startAfterAdd`) : les
+  semaines passées ne changent pas ; les tâches du jour vont dans
   « À faire », ordre du fichier, urgence normale, tag `[Modèle]` dans le titre et durée dans la
   description. Un bloc sans date n'est pas importé mais listé dans l'aperçu ; la moindre erreur
   de format n'écrit rien ; relancer n'ajoute rien (`dedupKey`).

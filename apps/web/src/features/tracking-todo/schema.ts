@@ -85,6 +85,8 @@ export const sectionInput = z.object({
   name: z.string().trim().min(1, 'Nom requis').max(60),
   /** Jours ISO de récurrence ; vide = section ponctuelle. */
   weekdays: z.array(z.number().int().min(1).max(7)).max(7),
+  /** Le jour d'où on la crée — ramène la date de début d'une section importée (0194). */
+  fromDate: day.optional(),
 })
 
 export const renameSectionInput = z.object({

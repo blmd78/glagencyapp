@@ -7,7 +7,7 @@ import {
   deleteHabitInput, deleteSectionInput, habitInput, renameSectionInput, sectionInput,
   setHabitActiveInput, updateHabitInput,
 } from './schema'
-import { mergeWeekdays } from './weekdays'
+import { mergeWeekdays, startAfterAdd } from './weekdays'
 
 /**
  * La STRUCTURE de la semaine : sections et habitudes. Sortie de `actions.ts` (limite de 300 lignes,
@@ -38,11 +38,15 @@ export async function saveSection(raw: unknown): Promise<ActionResult> {
       // le rattraper. Règle pure et testée dans `weekdays.ts`.
       const { data: existing, error: readErr } = await admin
         .from('tracker_todo_sections')
-        .select('weekdays')
+        .select('weekdays, starts_on')
         .eq('owner_id', d.ownerId)
         .eq('name', d.name)
         .maybeSingle()
       if (readErr) throw new Error(readErr.message)
+      // Une section importée commence au 1er jour du fichier (0194) : la retaper depuis un jour
+      // antérieur ramène son début à ce jour, sinon elle n'y apparaîtrait pas. Une section faite à la
+      // main (sans date) n'est pas touchée.
+      const startsOn = startAfterAdd(existing?.starts_on, d.fromDate)
       const { error } = await admin
         .from('tracker_todo_sections')
         .upsert(
@@ -50,6 +54,7 @@ export async function saveSection(raw: unknown): Promise<ActionResult> {
             owner_id: d.ownerId,
             name: d.name,
             weekdays: mergeWeekdays(existing?.weekdays ?? '', d.weekdays),
+            ...(startsOn ? { starts_on: startsOn } : {}),
           },
           { onConflict: 'owner_id,name' },
         )
