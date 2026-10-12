@@ -18,6 +18,9 @@ describe('scriptFields', () => {
   it('reprend les champs du formulaire de création du Studio', () => {
     expect(scriptFields(d)).toEqual({ name: 'Soirée révisions', description: 'Vente après KYC', ai_brief: '', is_sequence: '1', used_ratio: '' })
   })
+  it('envoie le Brief IA quand le brouillon en a un', () => {
+    expect(scriptFields({ ...d, aiBrief: 'Quand ça colle : après le KYC' }).ai_brief).toBe('Quand ça colle : après le KYC')
+  })
   it('accepte un autre nom (renommage INCOMPLET)', () => {
     expect(scriptFields(d, '⚠️ INCOMPLET — Soirée révisions').name).toBe('⚠️ INCOMPLET — Soirée révisions')
   })

@@ -3205,11 +3205,14 @@ export type Database = {
           errors: Json
           failed_step: string | null
           id: string
+          media_result: Json | null
           mypuls_script_id: number | null
           notes: Json
           notion_page_id: string
           notion_title: string
           sent_at: string | null
+          source_text: string | null
+          sources: Json
           status: string
           summary: Json
           usage: Json | null
@@ -3224,11 +3227,14 @@ export type Database = {
           errors?: Json
           failed_step?: string | null
           id?: string
+          media_result?: Json | null
           mypuls_script_id?: number | null
           notes?: Json
           notion_page_id: string
           notion_title: string
           sent_at?: string | null
+          source_text?: string | null
+          sources?: Json
           status?: string
           summary: Json
           usage?: Json | null
@@ -3243,11 +3249,14 @@ export type Database = {
           errors?: Json
           failed_step?: string | null
           id?: string
+          media_result?: Json | null
           mypuls_script_id?: number | null
           notes?: Json
           notion_page_id?: string
           notion_title?: string
           sent_at?: string | null
+          source_text?: string | null
+          sources?: Json
           status?: string
           summary?: Json
           usage?: Json | null

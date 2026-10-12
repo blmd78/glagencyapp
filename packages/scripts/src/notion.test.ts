@@ -1,10 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { NotionError, blocksToText, fetchNotionPage, listSharedPages, notionPageId, type NotionBlock } from './notion'
+import { NotionError, blocksToText, fetchNotionPage, isPromptTitle, listSharedPages, notionPageId, type NotionBlock } from './notion'
 
 const rt = (plain_text: string) => [{ plain_text }]
 let seq = 0
 const block = (type: string, data: Record<string, unknown>, children?: NotionBlock[]): NotionBlock =>
   ({ id: `${type}-${seq++}`, type, has_children: !!children, [type]: data, ...(children ? { children } : {}) }) as NotionBlock
+
+describe('isPromptTitle', () => {
+  it('reconnaît une page de consignes, au singulier comme au pluriel, et rien d’autre', () => {
+    expect(isPromptTitle('Prompt – Script de vente V3')).toBe(true)
+    expect(isPromptTitle('Prompts de vente')).toBe(true)
+    expect(isPromptTitle('Script de vente · Emma')).toBe(false)
+    expect(isPromptTitle('Promptitude')).toBe(false)
+  })
+})
 
 describe('notionPageId', () => {
   it('lit l’id d’un lien Notion, avec ou sans tirets', () => {
