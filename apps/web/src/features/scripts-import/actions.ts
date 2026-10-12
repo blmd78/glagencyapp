@@ -9,8 +9,7 @@ import {
   convertToDraft,
   describeFailure,
   describeMedia,
-  fetchNotionPage,
-  looksLikeScript,
+  gatherScript,
   sendScript,
   studioWriter,
 } from '@glagency/scripts'
@@ -33,15 +32,13 @@ import { canSend } from './rules'
 import { prepareClaims, sendLock } from './locks'
 import { prepareOnce } from './prepare-once'
 import { prepareImportInput, prepareStatusInput } from './schema'
-import { checkDraftForSend, notionReadMessage, withSendLock } from './send-rules'
+import { checkDraftForSend, notionReadMessage, prepareRefusal, withSendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
 import type { PrepareState } from './wait-prepared'
 import { deleteNotionConnection, getNotionConnections, withNotionToken } from './services/notion-connection'
 
 const PAGE = '/chatter/import-scripts'
-const NOT_A_SCRIPT =
-  'Cette page ne ressemble pas à un script : aucune bulle (« > »), étape (#1, N1), enchaînement (⏩ ⏸️ ⏱️) ni média (PPV, PHOTO 1, VOCAL 1). Choisis la page du script lui-même.'
 
 /** Admin ou encadrant (manager / sous-manager), jamais « en tant que » : on écrit chez un tiers. */
 async function requireImporter(): Promise<Profile> {
@@ -51,7 +48,7 @@ async function requireImporter(): Promise<Profile> {
   return profile
 }
 
-/** Lit le script dans Notion, le convertit, l'ajuste et le vérifie, puis l'enregistre `prepared` — rien chez MyPuls. */
+/** Lit le script dans Notion (page, PDF, pages liées), le convertit, l'ajuste et le vérifie, puis l'enregistre `prepared` — rien chez MyPuls. */
 export async function prepareImport(raw: unknown): Promise<ActionResult<{ importId: string }>> {
   return runAction({
     schema: prepareImportInput,
@@ -90,7 +87,7 @@ export async function prepareStatus(raw: unknown): Promise<ActionResult<PrepareS
   })
 }
 
-/** Lecture Notion, conversion, ajustement, vérification, puis la ligne `prepared` — renvoie son id. */
+/** Lecture de toutes les sources (`gatherScript`), conversion, ajustement, vérification, puis la ligne `prepared` — renvoie son id. */
 async function prepare({
   supabase,
   profileId,
@@ -107,7 +104,7 @@ async function prepare({
   // Script de la liste : son espace est connu. Lien collé : on le cherche dans chaque espace connecté.
   const spaces = connectionId ? [connectionId] : (await getNotionConnections()).map((c) => c.id)
   if (!spaces.length) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
-  const hit = await firstWorkspaceWithPage(spaces, (id) => withNotionToken(id, (token) => fetchNotionPage(token, notionPageId))).catch(
+  const hit = await firstWorkspaceWithPage(spaces, (id) => withNotionToken(id, (token) => gatherScript(token, notionPageId))).catch(
     (e: unknown) => {
       // Clé expirée, débit limité : dit au manager ; le reste est technique (Sentry + générique).
       const msg = notionReadMessage(e)
@@ -116,8 +113,9 @@ async function prepare({
   )
   if (!hit) throw new BusinessError('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
   const page = hit.value
-  // Avant de payer la conversion : une page proposée par erreur (sommaire, page média, fiche) s'arrête ici.
-  if (!looksLikeScript(page.text)) throw new BusinessError(NOT_A_SCRIPT)
+  // Avant de payer la conversion : un prompt, ou une page proposée par erreur (sommaire, page média, fiche).
+  const refusal = prepareRefusal(page)
+  if (refusal) throw new BusinessError(refusal)
   let converted: Awaited<ReturnType<typeof convertToDraft>>
   try {
     converted = await convertToDraft(anthropic(), page)
@@ -141,6 +139,8 @@ async function prepare({
       errors: errors as unknown as Json,
       draft: draft as unknown as Json,
       usage: converted.usage as unknown as Json,
+      sources: page.sources as unknown as Json,
+      source_text: page.text,
     })
     .select('id')
     .single()
@@ -243,7 +243,12 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
         }
         if (result.ok) {
           // Envoi RÉUSSI : une panne de la trace finale ne le transforme pas en échec affiché au manager.
-          await finish({ status: 'sent', mypuls_script_id: result.scriptId, sent_at: new Date().toISOString() }).catch(
+          await finish({
+            status: 'sent',
+            mypuls_script_id: result.scriptId,
+            sent_at: new Date().toISOString(),
+            media_result: result.media as unknown as Json,
+          }).catch(
             (e: unknown) => Sentry.captureException(e),
           )
           revalidatePath(PAGE)

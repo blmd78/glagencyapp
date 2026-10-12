@@ -1,9 +1,9 @@
 import 'server-only'
 import * as Sentry from '@sentry/nextjs'
-import type { DraftError, DraftSummary } from '@glagency/core'
+import type { AutoMessage, DraftError, DraftSummary, ToComplete, VoiceNote } from '@glagency/core'
 import { createAdminClient, fetchAll } from '@glagency/db'
-import type { Cleanup } from '@glagency/scripts'
-import { listSharedPages } from '@glagency/scripts'
+import type { Cleanup, MediaReport, ScriptSource } from '@glagency/scripts'
+import { describeMedia, listSharedPages } from '@glagency/scripts'
 import type { Profile } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { importStatus, type ImportRow } from '../rules'
@@ -43,6 +43,15 @@ export interface ImportDetail extends ImportListItem {
   cleanup: Cleanup | null
   /** Échec ou envoi interrompu : message reconstruit depuis la ligne (survit au rechargement). */
   failureMessage: string | null
+  /** Ce que la préparation a lu ou non (0191) — vide pour un import d'avant le 2026-10-12. */
+  sources: ScriptSource[]
+  /** Ce que le brouillon laisse à l'équipe (spec 2026-10-12) — vide pour un brouillon d'avant. */
+  aiBrief: string
+  voiceNotes: VoiceNote[]
+  toComplete: ToComplete[]
+  autoMessages: AutoMessage[]
+  /** Bilan des médias de l'envoi réussi (0191), en clair. */
+  mediaNote: string | null
 }
 export interface ScriptsImportData {
   /** Espaces Notion connectés (vide : Notion n'est pas connecté). */
@@ -99,6 +108,14 @@ type ImportDbRow = {
   script_name: string | null
   creators: { name: string } | null
 }
+type ImportDetailRow = ImportDbRow & {
+  sources: ScriptSource[] | null
+  media_result: MediaReport | null
+  ai_brief: string | null
+  voice_notes: VoiceNote[] | null
+  to_complete: ToComplete[] | null
+  auto_messages: AutoMessage[] | null
+}
 
 const toItem = (r: ImportDbRow): ImportListItem => ({
   id: r.id,
@@ -115,6 +132,8 @@ const toItem = (r: ImportDbRow): ImportListItem => ({
 
 const IMPORT_COLUMNS =
   'id, created_by, creator_id, status, errors, notes, summary, created_at, sent_at, mypuls_script_id, notion_title, error, failed_step, cleanup, script_name:draft->>name, creators:creator_id (name)'
+// L'import affiché seulement : les listes du brouillon et les sources (jamais `source_text`, trop lourd).
+const DETAIL_COLUMNS = `${IMPORT_COLUMNS}, sources, media_result, ai_brief:draft->>aiBrief, voice_notes:draft->voiceNotes, to_complete:draft->toComplete, auto_messages:draft->autoMessages`
 
 export async function getScriptsImport(profile: Profile, importId?: string): Promise<ScriptsImportData> {
   const supabase = await createClient()
@@ -122,7 +141,7 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
     getNotionConnections(),
     linkedCreators().then(async (linked) => ({ linked, creators: await allowedCreators(profile, linked) })),
     supabase.from('script_imports').select(IMPORT_COLUMNS).order('created_at', { ascending: false }).limit(50),
-    importId ? supabase.from('script_imports').select(IMPORT_COLUMNS).eq('id', importId).maybeSingle() : Promise.resolve(null),
+    importId ? supabase.from('script_imports').select(DETAIL_COLUMNS).eq('id', importId).maybeSingle() : Promise.resolve(null),
   ])
   if (importsRes.error) throw new Error(importsRes.error.message)
   if (currentRes?.error) throw new Error(currentRes.error.message)
@@ -149,7 +168,7 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
     }),
   )
 
-  const current = currentRes?.data as unknown as ImportDbRow | null | undefined
+  const current = currentRes?.data as unknown as ImportDetailRow | null | undefined
   return {
     workspaces,
     creators,
@@ -171,6 +190,12 @@ export async function getScriptsImport(profile: Profile, importId?: string): Pro
             cleanup: current.cleanup,
             scriptName: current.script_name ?? current.notion_title,
           }),
+          sources: current.sources ?? [],
+          aiBrief: current.ai_brief ?? '',
+          voiceNotes: current.voice_notes ?? [],
+          toComplete: current.to_complete ?? [],
+          autoMessages: current.auto_messages ?? [],
+          mediaNote: current.media_result ? describeMedia(current.media_result) || null : null,
         }
       : null,
   }

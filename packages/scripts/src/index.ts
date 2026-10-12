@@ -4,17 +4,20 @@ export {
   NotionError,
   blocksToText,
   fetchNotionPage,
+  isPromptTitle,
   listSharedPages,
   notionPageId,
   type NotionBlock,
   type SharedPage,
 } from './notion'
+export { SOURCE_LIMITS, gatherScript, type GatheredScript, type PdfDocument, type ScriptSource, type SourceKind } from './sources'
 export {
   CONVERT_EXAMPLE,
   CONVERT_MODEL,
   CONVERT_SYSTEM,
   ConversionError,
   SCRIPT_DRAFT_SCHEMA,
+  convertContent,
   convertToDraft,
   type ConvertClient,
 } from './convert'

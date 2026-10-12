@@ -7,7 +7,8 @@
 const NOTION_API = 'https://api.notion.com/v1'
 const NOTION_VERSION = '2022-06-28'
 
-type RichText = Array<{ plain_text: string }>
+/** Texte riche Notion : `href` (lien, mention) et `mention` (page citée « @page ») servent à `sources.ts`. */
+export type RichText = Array<{ plain_text: string; href?: string | null; type?: string; mention?: { type?: string; page?: { id?: string } } }>
 export interface NotionBlock {
   id: string
   type: string
@@ -23,7 +24,26 @@ export function notionPageId(input: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }
 
-const plain = (r: unknown): string => (Array.isArray(r) ? (r as RichText).map((t) => t.plain_text).join('') : '')
+/** Page de consignes à coller dans Claude (« Prompt – Script de vente V3 ») : jamais un script, jamais lue comme tel. */
+export const isPromptTitle = (title: string): boolean => /\bprompts?\b/i.test(title)
+
+export const plain = (r: unknown): string => (Array.isArray(r) ? (r as RichText).map((t) => t.plain_text).join('') : '')
+
+/** Fichier d'un bloc `pdf` / `file` : hébergé par Notion (`file`, adresse signée) ou lien externe. */
+export function blockFile(d: Record<string, unknown>): { url: string; hosted: boolean; name: string } | null {
+  const hosted = d.type === 'file'
+  const url = ((hosted ? d.file : d.external) as { url?: string } | undefined)?.url
+  if (!url) return null
+  const raw = url.split('?')[0]?.split('/').pop() ?? ''
+  let tail = raw
+  try {
+    tail = decodeURIComponent(raw)
+  } catch {
+    // Nom mal encodé : gardé tel quel, ce n'est qu'un libellé.
+  }
+  const name = (typeof d.name === 'string' && d.name) || plain(d.caption) || tail || 'sans nom'
+  return { url, hosted, name }
+}
 
 function blockLine(b: NotionBlock, n: number): string {
   const d = (b[b.type] ?? {}) as Record<string, unknown>
@@ -55,6 +75,10 @@ function blockLine(b: NotionBlock, n: number): string {
       return `[sous-page : ${String(d.title ?? '')}]`
     case 'child_database':
       return `[base : ${String(d.title ?? '')}]`
+    case 'pdf':
+      return `[pdf : ${blockFile(d)?.name ?? 'sans nom'}]`
+    case 'file':
+      return `[fichier : ${blockFile(d)?.name ?? 'sans nom'}]`
     case 'divider':
       return '---'
     case 'table':
@@ -193,12 +217,29 @@ export async function listSharedPages(token: string, fetchFn: typeof fetch = fet
   return { pages, truncated: true }
 }
 
+/** Titre et blocs (enfants compris, sous-pages non descendues) d'une page — l'entrée de `sources.ts`. */
+export async function readNotionPage(
+  token: string,
+  pageId: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<{ title: string; trashed: boolean; blocks: NotionBlock[] }> {
+  const page = (await notionGet(token, `/pages/${pageId}`, fetchFn)) as {
+    archived?: boolean
+    in_trash?: boolean
+    properties: Record<string, { type: string; title?: unknown }>
+  }
+  const titleProp = Object.values(page.properties).find((p) => p.type === 'title')
+  const trashed = !!(page.archived || page.in_trash)
+  // Page à la corbeille : écartée par l'appelant, ses blocs ne se lisent pas pour rien.
+  return { title: plain(titleProp?.title), trashed, blocks: trashed ? [] : await children(token, pageId, fetchFn) }
+}
+
+/** Texte de la page seule (commande locale `script-mypuls`) ; le CRM lit toutes les sources (`gatherScript`). */
 export async function fetchNotionPage(
   token: string,
   pageId: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<{ title: string; text: string }> {
-  const page = (await notionGet(token, `/pages/${pageId}`, fetchFn)) as { properties: Record<string, { type: string; title?: unknown }> }
-  const titleProp = Object.values(page.properties).find((p) => p.type === 'title')
-  return { title: plain(titleProp?.title), text: blocksToText(await children(token, pageId, fetchFn)) }
+  const { title, blocks } = await readNotionPage(token, pageId, fetchFn)
+  return { title, text: blocksToText(blocks) }
 }

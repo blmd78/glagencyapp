@@ -325,11 +325,12 @@ export {
   PATH_COLORS,
   SCRIPT_LIMITS,
   normalizeDraft,
-  parseScriptDraft,
   summarizeDraft,
   validateScriptDraft,
 } from './scripts/script-draft'
+export { parseScriptDraft } from './scripts/script-draft-parse'
 export type {
+  AutoMessage,
   DraftBranch,
   DraftError,
   DraftItem,
@@ -339,6 +340,8 @@ export type {
   PathColor,
   PendingMedia,
   ScriptDraft,
+  ToComplete,
+  VoiceNote,
 } from './scripts/script-draft'
 export { branchBody, messageFields, scriptFields } from './scripts/script-requests'
 export { matchCreatorByName } from './scripts/creator-match'

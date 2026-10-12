@@ -8,6 +8,16 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.77] — 2026-10-12
+
+### Ajouté
+
+- Importer un script : l'import lit tout ce que contient la page Notion — les PDF déposés dedans, les pages liées et sous-pages, les Google Docs publics — pour qu'un script arrive pareil dans MyPuls quelle que soit sa forme ; le rapport dit ce qui a été lu et ce qui ne l'a pas été (images, pages non partagées, prompts, autres sites). Il remplit aussi le Brief IA du Studio, et liste les vocaux à enregistrer, les messages « à compléter » à écrire avant d'activer et les déclenchements des messages automatiques à régler dans l'Auto-DM ; après l'envoi, le bilan des médias reste affiché.
+
+### Modifié
+
+- Importer un script : le format de script V3 (badges 🔒 prix, 💬 / 🎙️ / 🖼️) est compris ; une bulle « ✏️ À COMPLÉTER » ou une consigne de vocal n'est jamais envoyée au fan ; une page « Prompt … » n'est jamais proposée comme script, ni importable, même choisie à la main ou collée par son lien.
+
 ## [2.76] — 2026-10-10
 
 ### Modifié

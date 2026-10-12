@@ -10,13 +10,17 @@ import { parisOffsetMs } from './time'
  * une hypothèse, et ce test la vérifie contre l'implémentation d'origine sur deux ans complets,
  * soit les quatre bascules encadrées de près.
  */
+// Construit UNE fois : le recréer à chacun des ~105 000 appels coûtait ~4 s, au bord des 5 s de
+// délai par test de Vitest quand toutes les suites tournent en parallèle (`pnpm test`).
+const ORIGINAL_PARTS = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Paris',
+  hour12: false,
+  year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', second: '2-digit',
+})
+
 function original(at: Date): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Paris',
-    hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  }).formatToParts(at)
+  const parts = ORIGINAL_PARTS.formatToParts(at)
   const get = (type: string): number => Number(parts.find((p) => p.type === type)?.value ?? 0)
   const asUtc = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'))
   return asUtc - at.getTime()

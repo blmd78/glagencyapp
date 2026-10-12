@@ -23,6 +23,9 @@ export const SCRIPT_LIMITS = {
   nameMax: 160,
   branchLabelMax: 160,
   pathLabelMax: 80,
+  // Brief IA : le Studio n'affiche pas de borne — celle-ci est À NOUS, pour qu'un brief démesuré ne
+  // fasse pas échouer la création du script (coupé, avec un ajustement noté).
+  aiBriefMax: 2000,
 } as const
 
 /** Préfixe posé sur un script dont l'envoi a échoué — le nom doit lui laisser la place. */
@@ -61,11 +64,37 @@ export interface DraftBranch {
   paths: DraftPath[]
 }
 export type DraftItem = DraftMessage | DraftBranch
+/** Vocal du script : l'audio se rattache comme un média (« VOCAL n ») ; le texte est À ENREGISTRER, jamais envoyé. */
+export interface VoiceNote {
+  /** Libellé du média, tel que dans le message (« VOCAL 2 »). */
+  label: string
+  /** Ce que la modèle doit dire. */
+  text: string
+  /** Ton et durée demandés (« chuchoté, gênée · environ 8 s »), ou vide. */
+  direction: string
+}
+/** Message que le script laisse au manager (« ✏️ À COMPLÉTER : … ») : jamais créé, à écrire dans le Studio. */
+export interface ToComplete {
+  /** Étape où il manque (« #16 🟢 — Bonne réponse (vrai) »). */
+  where: string
+  hint: string
+}
+/** Ligne du tableau « Message automatique » : le message est en tête du script, le déclenchement se règle dans l'Auto-DM. */
+export interface AutoMessage {
+  trigger: string
+  message: string
+}
 export interface ScriptDraft {
   name: string
   description: string
   isSequence: boolean
   items: DraftItem[]
+  // Facultatifs : un brouillon d'avant le 2026-10-12 n'en a pas et se relit tel quel.
+  /** Brief pour Aurel (chatteur IA du Studio), envoyé dans `ai_brief`. */
+  aiBrief?: string
+  voiceNotes?: VoiceNote[]
+  toComplete?: ToComplete[]
+  autoMessages?: AutoMessage[]
 }
 
 export interface DraftError {
@@ -86,6 +115,12 @@ export interface DraftSummary {
 
 const MEDIA_ID = /^(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
 const euros = (n: number) => `${n} €`
+// Textes qui partiraient au fan alors qu'ils s'adressent à l'équipe (formats des prompts V2 / V3) :
+// un message laissé au manager, la consigne d'un vocal. La conversion les sort des bulles ; ce filet
+// arrête l'envoi si l'un d'eux y est resté. Majuscules seulement : le format les écrit ainsi (« ✏️ » seul
+// peut être une vraie bulle : un script « révisions »).
+const LEFT_TO_MANAGER = /[ÀA] COMPL[ÉE]TER/
+const VOICE_DIRECTION = /texte que le vocal doit dire/i
 
 function priceErrors(price: number): string[] {
   if (!Number.isFinite(price) || price < 0) return [`prix ${price} invalide`]
@@ -102,6 +137,8 @@ function messageErrors(m: DraftMessage, followers: number): string[] {
   // Le Studio refuse un message sans titre ou sans texte (« Le titre et le message sont obligatoires »).
   if (!m.title.trim()) out.push('message sans titre (MyPuls l’exige)')
   if (!m.content.trim()) out.push('message sans texte (MyPuls l’exige)')
+  if (LEFT_TO_MANAGER.test(m.content)) out.push('message « À COMPLÉTER » dans la bulle : à écrire avant l’envoi (dans Notion, puis préparer à nouveau)')
+  if (VOICE_DIRECTION.test(m.content)) out.push('consigne de vocal dans la bulle : ce texte est à enregistrer, il partirait au fan')
   // Le titre ENVOYÉ porte le suffixe « À RATTACHER » : c'est lui que le Studio borne.
   const sentTitle = messageFields(m).title
   if (sentTitle.length > SCRIPT_LIMITS.titleMax) {
@@ -182,7 +219,8 @@ export function validateScriptDraft(d: ScriptDraft): DraftError[] {
  * du script, là où le Studio ne peut pas la suivre :
  *  - un délai de relance sous le minimum est porté au minimum (le Notion de référence en contient :
  *    « +7 secondes après le précédent », KYC de Lucie, recette du 2026-10-06) ;
- *  - un prix non entier est arrondi à l'euro le plus proche (le Studio ne prend que des entiers).
+ *  - un prix non entier est arrondi à l'euro le plus proche (le Studio ne prend que des entiers) ;
+ *  - un Brief IA au-delà de `aiBriefMax` est coupé (borne à nous, cf. SCRIPT_LIMITS).
  * Tout le reste est laissé à `validateScriptDraft`.
  */
 export function normalizeDraft(d: ScriptDraft): { draft: ScriptDraft; notes: DraftError[] } {
@@ -207,7 +245,12 @@ export function normalizeDraft(d: ScriptDraft): { draft: ScriptDraft; notes: Dra
   const items = d.items.map((it): DraftItem =>
     it.type === 'message' ? fix(it) : { ...it, paths: it.paths.map((p) => ({ ...p, messages: p.messages.map(fix) })) },
   )
-  return { draft: notes.length ? { ...d, items } : d, notes }
+  let aiBrief = d.aiBrief
+  if (aiBrief && aiBrief.length > SCRIPT_LIMITS.aiBriefMax) {
+    notes.push({ where: 'Brief IA', message: `${aiBrief.length} caractères coupés à ${SCRIPT_LIMITS.aiBriefMax}` })
+    aiBrief = aiBrief.slice(0, SCRIPT_LIMITS.aiBriefMax)
+  }
+  return { draft: notes.length ? { ...d, items, ...(aiBrief === undefined ? {} : { aiBrief }) } : d, notes }
 }
 
 export function summarizeDraft(d: ScriptDraft): DraftSummary {
@@ -219,73 +262,5 @@ export function summarizeDraft(d: ScriptDraft): DraftSummary {
     paid: all.filter((m) => m.price > 0 || (m.pendingMedia?.price ?? 0) > 0).length,
     pendingMedia: all.filter((m) => m.pendingMedia).length,
     totalPrice: all.reduce((s, m) => s + m.price + (m.pendingMedia?.price ?? 0), 0),
-  }
-}
-
-// ── Lecture de la sortie de l'IA ────────────────────────────────────────────────────────────────
-// La sortie structurée garantit déjà le schéma ; cette garde protège d'un JSON reçu par un autre
-// chemin (fichier rejoué à la main) et nomme le champ fautif au lieu d'un `undefined` plus loin.
-
-const fail = (path: string): never => {
-  throw new Error(`brouillon invalide : ${path}`)
-}
-const str = (v: unknown, path: string): string => (typeof v === 'string' ? v : fail(path))
-const num = (v: unknown, path: string): number => (typeof v === 'number' && Number.isFinite(v) ? v : fail(path))
-const arr = (v: unknown, path: string): unknown[] => (Array.isArray(v) ? v : fail(path))
-const obj = (v: unknown, path: string): Record<string, unknown> =>
-  v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : fail(path)
-
-function parseMessage(v: unknown, path: string): DraftMessage {
-  const o = obj(v, path)
-  if (o.type !== 'message') fail(`${path}.type`)
-  const title = str(o.title, `${path}.title`)
-  const content = str(o.content, `${path}.content`)
-  const price = num(o.price, `${path}.price`)
-  const media = arr(o.media, `${path}.media`).map((x, i) => str(x, `${path}.media[${i}]`))
-  const pm = o.pendingMedia === null ? null : obj(o.pendingMedia, `${path}.pendingMedia`)
-  return {
-    type: 'message',
-    title,
-    content,
-    price,
-    media,
-    pendingMedia: pm && {
-      description: str(pm.description, `${path}.pendingMedia.description`),
-      price: num(pm.price, `${path}.pendingMedia.price`),
-    },
-    chainDelays: arr(o.chainDelays, `${path}.chainDelays`).map((x, i) => num(x, `${path}.chainDelays[${i}]`)),
-  }
-}
-
-function parseBranch(o: Record<string, unknown>, path: string): DraftBranch {
-  return {
-    type: 'branch',
-    label: str(o.label, `${path}.label`),
-    paths: arr(o.paths, `${path}.paths`).map((p, pi) => {
-      const at = `${path}.paths[${pi}]`
-      const pp = obj(p, at)
-      return {
-        label: str(pp.label, `${at}.label`),
-        color: str(pp.color, `${at}.color`) as PathColor,
-        messages: arr(pp.messages, `${at}.messages`).map((m, mi) => parseMessage(m, `${at}.messages[${mi}]`)),
-      }
-    }),
-  }
-}
-
-export function parseScriptDraft(json: unknown): ScriptDraft {
-  const o = obj(json, 'racine')
-  if (typeof o.isSequence !== 'boolean') fail('isSequence')
-  return {
-    name: str(o.name, 'name'),
-    description: str(o.description, 'description'),
-    isSequence: o.isSequence as boolean,
-    items: arr(o.items, 'items').map((it, i): DraftItem => {
-      const path = `items[${i}]`
-      const item = obj(it, path)
-      if (item.type === 'message') return parseMessage(item, path)
-      if (item.type === 'branch') return parseBranch(item, path)
-      return fail(`${path}.type`)
-    }),
   }
 }

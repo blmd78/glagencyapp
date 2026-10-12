@@ -1,4 +1,4 @@
-import { NotionError, type SharedPage } from '@glagency/scripts/notion'
+import { NotionError, isPromptTitle, type SharedPage } from '@glagency/scripts/notion'
 
 /**
  * Lien collé : la page peut vivre dans n'importe quel espace connecté. On les essaie TOUS dans l'ordre :
@@ -61,10 +61,12 @@ const joined = (ws: string[]) => ws.join(' ')
  *      (« Julie (privé) » n'est pas aussi Julie) ;
  *   2. ou elle est rangée dans le DOSSIER de M (« EMMA », « Scripts Emma »), directement ou à travers
  *      des dossiers génériques (« EMMA › Scripts › KYC ») — pas à travers un dossier nommé (« Ventes »).
- * Jamais un script : un dossier de modèle ou générique lui-même ; une page sous un script, à toute
+ * Jamais un script : un dossier de modèle ou générique lui-même ; une page dont le titre contient
+ * « prompt » (des consignes de rédaction, même « Prompt négo Emma ») ; une page sous un script, à toute
  * profondeur (page média), sauf si son titre finit par « · Prénom » ; une page qui nomme deux modèles
- * ou dont le titre contredit le dossier. Le reste (prompts, dossiers, pages média) va dans « autres »,
- * groupé par dossier parent, choisissable à la main.
+ * ou dont le titre contredit le dossier. Le reste (dossiers, pages média) va dans « autres », groupé
+ * par dossier parent, choisissable à la main — sauf les prompts, qui n'apparaissent nulle part : ils ne
+ * s'importent jamais (`prepareRefusal`).
  * La reconnaissance se fait sur `creators` = TOUTES les modèles (sinon « · Julie (privé) » vu par un
  * encadrant de Julie seule tomberait chez Julie) ; seule une modèle de `allowedIds` (le périmètre de
  * l'appelant) est présélectionnée. Deux modèles du même nom → pas de présélection.
@@ -128,7 +130,9 @@ export function organizeNotionPages(
     const { found, bySuffix } = namedIn(p.title)
     let state: State = { ...NONE, underScript }
     const folderLike = !bySuffix && (folderOf(p.title) !== null || isGeneric(p.title))
-    if (!folderLike && (bySuffix || !underScript)) {
+    // Un prompt n'est pas un script, et ses sous-pages (exemples, variantes) ne le sont pas plus.
+    if (isPromptTitle(p.title)) state = { ...NONE, underScript: true }
+    else if (!folderLike && (bySuffix || !underScript)) {
       const folder = folderAbove(p)
       const claims = new Set(folder ? [...found, folder] : found)
       const [only] = claims
@@ -151,6 +155,8 @@ export function organizeNotionPages(
       recognized.set(key, g)
       continue
     }
+    // Un prompt ne s'importe jamais (`prepareRefusal`) : inutile de le proposer à la main.
+    if (isPromptTitle(p.title)) continue
     const key = `parent:${parentTitle !== undefined ? p.parentId : ''}`
     const g = others.get(key) ?? { id: key, title: parentTitle !== undefined ? parentTitle || 'Sans titre' : NO_FOLDER, creatorId: null, scripts: [] }
     g.scripts.push(script)
