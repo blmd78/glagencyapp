@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useContext } from 'react'
+import { useContext } from 'react'
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import type { TodoTask } from '../types'
 import { DropHintContext } from './drop-hint'
@@ -87,13 +87,10 @@ export function TaskItem({
     data: { date, category, taskId: task.id },
     disabled: !canOrganize,
   })
-  const ref = useCallback(
-    (el: HTMLDivElement | null) => {
-      setNodeRef(el)
-      setDropRef(el)
-    },
-    [setNodeRef, setDropRef],
-  )
+  const ref = (el: HTMLDivElement | null): void => {
+    setNodeRef(el)
+    setDropRef(el)
+  }
   // Le trait qui montre où la tâche portée va se poser.
   const hint = useContext(DropHintContext)
 
