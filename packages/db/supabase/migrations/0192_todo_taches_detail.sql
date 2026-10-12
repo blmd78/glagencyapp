@@ -60,6 +60,11 @@ update public.tracker_todo_habits h set position = r.rn
 from ranked r
 where r.id = h.id and h.position <> r.rn;
 
+-- Et elle le RESTE : deux habitudes créées au même instant pour la même personne auraient pris la
+-- même position — deux occurrences à la même place, entre lesquelles aucune tâche ne se pose plus.
+create unique index if not exists tracker_todo_habits_owner_position_key
+  on public.tracker_todo_habits (owner_id, position);
+
 -- Récap : corps repris de 0160 (identique à `pg_get_functiondef` en UAT le 2026-10-12), seul le
 -- rapprochement « déjà matérialisée » change.
 create or replace function public.tracker_todo_week_recap(p_from date, p_to date)

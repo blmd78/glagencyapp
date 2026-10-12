@@ -101,6 +101,12 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
           }))
         if (rows.length > 0) {
           const { error } = await admin.from('tracker_todo_habits').insert(rows)
+          // Une habitude créée au même instant a pris l'une de ces positions (index unique, 0192) :
+          // aucune habitude ni tâche n'est écrite (la section, déjà posée, ne se doublera pas) —
+          // relancer suffit.
+          if (error?.code === '23505') {
+            throw new BusinessError('Une habitude vient d’être créée en même temps : relance l’import.')
+          }
           if (error) throw new Error(error.message)
         }
         result.habitsAdded = rows.length

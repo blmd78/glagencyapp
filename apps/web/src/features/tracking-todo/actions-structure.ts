@@ -1,7 +1,7 @@
 'use server'
 
 import { createAdminClient } from '@glagency/db'
-import { runAction, noGuard, type ActionResult } from '@/lib/actions'
+import { BusinessError, runAction, noGuard, type ActionResult } from '@/lib/actions'
 import { assertCanOrganize, assertCanEditHabit, revalidateTodo } from './actions-shared'
 import {
   deleteHabitInput, deleteSectionInput, habitInput, renameSectionInput, sectionInput,
@@ -142,6 +142,10 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
         // marquer d'un « déposée » les habitudes qu'on s'impose.
         created_by: caller.id === d.ownerId ? null : caller.id,
       })
+      // Une autre habitude créée au même instant a pris cette position (index unique, 0192).
+      if (error?.code === '23505') {
+        throw new BusinessError('Une autre habitude vient d’être créée en même temps : réessaie.')
+      }
       if (error) throw new Error(error.message)
       revalidateTodo()
     },
