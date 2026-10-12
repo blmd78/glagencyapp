@@ -1,4 +1,6 @@
 import { addDays, isoWeekday } from '@glagency/core'
+import { DAY_TASK_CATEGORY } from './day-category'
+import type { Urgency } from './urgency'
 
 /**
  * LE FICHIER `.txt` D'UNE TO-DO (#163) — lecture pure, la même dans l'aperçu (navigateur) et dans
@@ -6,22 +8,32 @@ import { addDays, isoWeekday } from '@glagency/core'
  * 2026-10-12, une information par ligne :
  *
  *   TO-DO DE <PRÉNOM> · <MODÈLES> · 12 → 31 OCTOBRE 2026        ← la personne visée, la période
- *   Horaires : …                                                ← informatif
- *   === À CRÉER UNE SEULE FOIS : SECTION RÉCURRENTE « ROUTINE » ===
+ *   Règles : …  /  Horaires : …                                 ← notes d'en-tête, ignorées
+ *   === SECTION RÉCURRENTE « ROUTINE » (à créer une seule fois) ===
  *   Matin · <tâche>                                             ← la routine, une habitude par ligne
- *   ##### SEMAINE 1 · <TITRE> #####                             ← informatif
- *   === LUNDI 12 OCTOBRE · ≈ 4 h 30 de tâches ===               ← un jour
- *   [<Modèle>] <tâche> (<durée>)                                ← une tâche de ce jour
+ *   ##### SEMAINE 1 #####                                       ← informatif
+ *   === LUNDI 12 OCTOBRE ===                                    ← un jour
+ *   Urgences                                                    ← titre de groupe (1re ligne d'un paragraphe)
+ *   Léna : <tâche>                                              ← une tâche du groupe
+ *   <ligne vide>, puis le groupe suivant
  *   === SI UNE JOURNÉE SE LIBÈRE ===                            ← sans date : non importé, LISTÉ
  *
- * Décisions de Benoit (2026-10-12) : le tag `[Modèle]` et le créneau `Matin ·` restent dans le
- * titre, la durée part dans la description ; toute tâche a une date, un bloc qui n'est ni la
- * routine ni un jour n'est pas importé mais apparaît dans l'aperçu — rien ne disparaît en silence.
+ * Le 1er format du 2026-10-12 (`[Modèle] <tâche> (<durée>)`, sans titre de groupe) reste lu : une
+ * ligne qui commence par `[` ou finit par une durée n'est jamais un titre.
+ *
+ * Décisions de Benoit (2026-10-12) : le modèle (`Léna :` ou `[Léna]`) et le créneau `Matin ·`
+ * restent dans le titre, la durée part dans la description ; toute tâche a une date, un bloc qui
+ * n'est ni la routine ni un jour n'est pas importé mais apparaît dans l'aperçu. Le TITRE DE GROUPE
+ * devient la section de ses tâches ce jour-là (« À faire » sans titre) ; un groupe « Urgences »
+ * passe ses tâches en Urgente — le fichier le dit lui-même.
  */
 
 export interface ImportTask {
   label: string
   description: string
+  /** La section où la tâche ira : le titre de son groupe, « À faire » sans titre, la routine. */
+  category: string
+  urgency: Urgency
 }
 
 export interface ParsedTodoFile {
@@ -67,11 +79,17 @@ const isRealDate = (y: number, m: number, d: number): boolean => {
 const DURATION = /\s*\((\d+\s*h(?:\s*\d+)?|\d+\s*min)\)\s*$/i
 
 /** Titre et description d'une ligne de tâche — la durée part dans la description. */
-function taskOf(text: string): ImportTask {
+function taskOf(text: string): Pick<ImportTask, 'label' | 'description'> {
   const m = DURATION.exec(text)
   if (!m) return { label: text.trim(), description: '' }
   return { label: text.slice(0, m.index).trim(), description: `Durée estimée : ${(m[1] as string).replace(/\s+/g, ' ')}` }
 }
+
+/** Une ligne d'en-tête de bloc (`=== … ===`) ou de semaine (`##### … #####`). */
+const isMarker = (line: string): boolean => /^={3,}.*={3,}$/.test(line) || /^#{3,}.*#{3,}$/.test(line)
+
+/** Longueur d'une section (`category`, schémas de la To-Do). */
+const SECTION_MAX = 60
 
 /** « 12 → 31 OCTOBRE 2026 », « 28 SEPTEMBRE → 4 OCTOBRE 2026 », « 29 DÉCEMBRE → 4 JANVIER 2027 ». */
 function periodOf(s: string): { from: string; to: string; endMonth: number; year: number } | null {
@@ -119,11 +137,20 @@ export function parseTodoFile(text: string): ParsedTodoFile {
   type Mode = { kind: 'none' } | { kind: 'routine' } | { kind: 'day'; date: string } | { kind: 'ignored'; title: string }
   let mode: Mode = { kind: 'none' }
   const seen = new Set<string>()
+  /** Le groupe courant d'un jour — son titre, ou « À faire ». */
+  let group: { name: string; urgency: Urgency } = { name: DAY_TASK_CATEGORY, urgency: 'normale' }
+  /** La ligne ouvre-t-elle un paragraphe (après un en-tête de bloc ou une ligne vide) ? */
+  let opensParagraph = true
 
   for (let i = firstAt + 1; i < lines.length; i++) {
     const n = i + 1
     const line = (lines[i] as string).trim()
-    if (!line) continue
+    if (!line) {
+      opensParagraph = true
+      continue
+    }
+    const starts = opensParagraph
+    opensParagraph = false
     // Informatif : les horaires, les titres de semaine.
     if (/^#{3,}.*#{3,}$/.test(line) || /^horaires\s*:/i.test(line)) continue
 
@@ -155,14 +182,34 @@ export function parseTodoFile(text: string): ParsedTodoFile {
         }
         if (!out.days.some((x) => x.date === date)) out.days.push({ date, tasks: [] })
         mode = { kind: 'day', date }
+        group = { name: DAY_TASK_CATEGORY, urgency: 'normale' }
+        opensParagraph = true
         continue
       }
       mode = { kind: 'ignored', title }
       continue
     }
 
-    if (mode.kind === 'none') {
-      out.ignored.push({ line: n, text: line, reason: 'hors de tout bloc' })
+    // Avant le 1er bloc : des notes d'en-tête (« Règles : … », « Pas fini le soir ? … »). Elles
+    // n'ont pas de jour et ne sont pas des tâches — ignorées sans être signalées.
+    if (mode.kind === 'none') continue
+
+    // TITRE DE GROUPE : la 1re ligne d'un paragraphe d'un jour, suivie d'au moins une tâche — sauf
+    // une ligne au format du 1er fichier (`[Modèle] …`, durée en fin), qui est toujours une tâche.
+    const next = (lines[i + 1] ?? '').trim()
+    if (
+      mode.kind === 'day' &&
+      starts &&
+      next !== '' &&
+      !isMarker(next) &&
+      !line.startsWith('[') &&
+      !DURATION.test(line)
+    ) {
+      if (line.length > SECTION_MAX) {
+        out.errors.push({ line: n, message: `Titre de groupe trop long (${line.length} caractères, ${SECTION_MAX} au plus).` })
+        continue
+      }
+      group = { name: line, urgency: fold(line).includes('URGEN') ? 'urgente' : 'normale' }
       continue
     }
     if (mode.kind === 'ignored') {
@@ -170,12 +217,15 @@ export function parseTodoFile(text: string): ParsedTodoFile {
       continue
     }
 
-    const task = taskOf(line)
+    const task: ImportTask =
+      mode.kind === 'routine'
+        ? { ...taskOf(line), category: out.routineSection ?? 'Routine', urgency: 'normale' }
+        : { ...taskOf(line), category: group.name, urgency: group.urgency }
     if (task.label.length > TITLE_MAX) {
       out.errors.push({ line: n, message: `Titre trop long (${task.label.length} caractères, ${TITLE_MAX} au plus).` })
       continue
     }
-    const key = `${mode.kind === 'day' ? mode.date : 'routine'}|${dedupKey(task.label)}`
+    const key = `${mode.kind === 'day' ? mode.date : 'routine'}|${dedupKey(task.category)}|${dedupKey(task.label)}`
     if (seen.has(key)) {
       out.ignored.push({ line: n, text: line, reason: 'en double dans le fichier' })
       continue
