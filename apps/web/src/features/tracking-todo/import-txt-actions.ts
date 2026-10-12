@@ -134,13 +134,16 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         .filter((name) => name !== DAY_TASK_CATEGORY)
       if (groups.length > 0) {
         const { data: sections, error: sErr } = await admin
-          .from('tracker_todo_sections').select('name').eq('owner_id', d.ownerId)
+          .from('tracker_todo_sections').select('name, position').eq('owner_id', d.ownerId)
         if (sErr) throw new Error(sErr.message)
         const known = new Set((sections ?? []).map((x) => x.name))
+        // À la suite des groupes déjà enregistrés (un import précédent) : repartir de `GROUP_BASE`
+        // à chaque fichier mettrait les nouveaux groupes à égalité avec les anciens, départagés par
+        // l'alphabet.
+        const base = Math.max(GROUP_BASE, ...(sections ?? []).map((x) => x.position + 1))
         const missing = groups
-          .map((name, i) => ({ name, i }))
-          .filter(({ name }) => !known.has(name))
-          .map(({ name, i }) => ({ owner_id: d.ownerId, name, weekdays: '', position: GROUP_BASE + i }))
+          .filter((name) => !known.has(name))
+          .map((name, i) => ({ owner_id: d.ownerId, name, weekdays: '', position: base + i }))
         if (missing.length > 0) {
           const { error } = await admin
             .from('tracker_todo_sections')

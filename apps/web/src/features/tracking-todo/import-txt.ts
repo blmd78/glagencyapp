@@ -85,6 +85,9 @@ function taskOf(text: string): Pick<ImportTask, 'label' | 'description'> {
   return { label: text.slice(0, m.index).trim(), description: `Durée estimée : ${(m[1] as string).replace(/\s+/g, ' ')}` }
 }
 
+/** Une tâche au 1er format : `[Modèle] …`, ou une durée en fin de ligne. */
+const looksLikeFirstFormatTask = (line: string): boolean => /^\[[^\]]+\]/.test(line) || DURATION.test(line)
+
 /** Une ligne d'en-tête de bloc (`=== … ===`) ou de semaine (`##### … #####`). */
 const isMarker = (line: string): boolean => /^={3,}.*={3,}$/.test(line) || /^#{3,}.*#{3,}$/.test(line)
 
@@ -133,6 +136,11 @@ export function parseTodoFile(text: string): ParsedTodoFile {
   }
   out.holder = (head[1] as string).trim()
   out.period = { from: period.from, to: period.to }
+
+  // LE FORMAT, une fois pour tout le fichier : une seule ligne `[Modèle] …` ou à durée finale, et
+  // c'est le 1er format — sans titres de groupe, chaque ligne d'un jour est une tâche, comme avant.
+  // Décider ligne par ligne prenait une tâche sans tag en tête de jour pour un titre, et la perdait.
+  const firstFormat = lines.some((l) => looksLikeFirstFormatTask(l.trim()))
 
   type Mode = { kind: 'none' } | { kind: 'routine' } | { kind: 'day'; date: string } | { kind: 'ignored'; title: string }
   let mode: Mode = { kind: 'none' }
@@ -190,27 +198,29 @@ export function parseTodoFile(text: string): ParsedTodoFile {
       continue
     }
 
-    // Avant le 1er bloc : des notes d'en-tête (« Règles : … », « Pas fini le soir ? … »). Elles
-    // n'ont pas de jour et ne sont pas des tâches — ignorées sans être signalées.
-    if (mode.kind === 'none') continue
+    // Avant le 1er bloc : des notes d'en-tête (« Règles : … », « Pas fini le soir ? … »), ignorées
+    // sans être signalées. Une ligne qui a la FORME d'une tâche (`[Modèle] …`, durée en fin) reste
+    // listée : c'est une tâche dont on a oublié le jour — rien ne disparaît en silence.
+    if (mode.kind === 'none') {
+      if (looksLikeFirstFormatTask(line)) out.ignored.push({ line: n, text: line, reason: 'hors de tout bloc' })
+      continue
+    }
 
-    // TITRE DE GROUPE : la 1re ligne d'un paragraphe d'un jour, suivie d'au moins une tâche — sauf
-    // une ligne au format du 1er fichier (`[Modèle] …`, durée en fin), qui est toujours une tâche.
-    const next = (lines[i + 1] ?? '').trim()
-    if (
-      mode.kind === 'day' &&
-      starts &&
-      next !== '' &&
-      !isMarker(next) &&
-      !line.startsWith('[') &&
-      !DURATION.test(line)
-    ) {
-      if (line.length > SECTION_MAX) {
-        out.errors.push({ line: n, message: `Titre de groupe trop long (${line.length} caractères, ${SECTION_MAX} au plus).` })
+    // Chaque paragraphe d'un jour repart de « À faire » : un paragraphe sans titre n'hérite pas du
+    // groupe précédent (ni de son urgence).
+    if (mode.kind === 'day' && starts) {
+      group = { name: DAY_TASK_CATEGORY, urgency: 'normale' }
+      // TITRE DE GROUPE (2e format seulement) : la 1re ligne d'un paragraphe, suivie d'au moins une
+      // tâche. Seul « Urgences » (exactement) passe ses tâches en Urgente.
+      const next = (lines[i + 1] ?? '').trim()
+      if (!firstFormat && next !== '' && !isMarker(next)) {
+        if (line.length > SECTION_MAX) {
+          out.errors.push({ line: n, message: `Titre de groupe trop long (${line.length} caractères, ${SECTION_MAX} au plus).` })
+          continue
+        }
+        group = { name: line, urgency: /^URGENCES?$/.test(fold(line)) ? 'urgente' : 'normale' }
         continue
       }
-      group = { name: line, urgency: fold(line).includes('URGEN') ? 'urgente' : 'normale' }
-      continue
     }
     if (mode.kind === 'ignored') {
       out.ignored.push({ line: n, text: line, reason: `bloc sans date (« ${mode.title} »)` })

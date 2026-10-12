@@ -322,7 +322,9 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   semaines passées ne changent pas. Dans un jour, la 1re ligne de chaque paragraphe est un TITRE DE
   GROUPE (2e format du fichier, 2026-10-12) : il devient la section de ses tâches ce jour-là,
   enregistrée PONCTUELLE (aucun jour) pour garder l'ordre du fichier (`GROUP_BASE`, après les
-  sections existantes et avant « À faire ») ; un groupe « Urgences » passe ses tâches en Urgente ;
+  sections existantes et les groupes des imports précédents, avant « À faire » ; dette n° 15) ; un groupe nommé exactement « Urgences » passe ses tâches en Urgente ; un paragraphe sans titre
+  revient dans « À faire » ; le format se décide une fois par fichier (une ligne `[Modèle] …` ou à
+  durée = 1er format, sans titres) ;
   sans titre (1er format, `[Modèle] … (durée)`), les tâches vont dans « À faire ». Ordre du fichier,
   modèle (`Léna :` / `[Léna]`) dans le titre, durée dans la description. Les notes d'en-tête (avant
   le 1er bloc) sont ignorées ; un bloc sans date n'est pas importé mais listé dans l'aperçu, qui

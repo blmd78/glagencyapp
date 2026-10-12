@@ -106,3 +106,13 @@ est entière avant la première écriture (une erreur de format n'écrit rien), 
 habitudes et tâches partent en trois écritures. Une panne de base au milieu laisse une partie
 écrite ; relancer le même fichier complète sans doublon (dédoublonnage sur jour, section, titre).
 
+**15. Les groupes d'un fichier importé restent comme sections ponctuelles** (2026-10-12, import #163,
+2e format) : chaque titre de groupe (« Urgences », « Scripts de Sarah (suite) »…) est enregistré dans
+`tracker_todo_sections` sans jour (`weekdays ''`), pour que la grille garde l'ordre du fichier
+(`position` à partir de 100, à la suite des imports précédents). Ces lignes ne s'affichent jamais
+seules (pas de ✕, `isSectionOn` faux) et aucun écran ne les supprime : elles restent après le
+déplacement ou la suppression de leurs tâches. Une seule position par groupe pour tout le fichier :
+si deux jours ne citent pas les groupes dans le même ordre, la grille suit l'ordre de la 1re
+apparition. Sans effet sur le Récap. À reprendre si ça gêne : ordonner les groupes sans section par
+la plus petite clé de leurs tâches.
+
