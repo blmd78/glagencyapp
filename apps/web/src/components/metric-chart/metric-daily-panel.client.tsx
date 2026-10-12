@@ -143,7 +143,8 @@ export function MetricDailyPanel({
       onDayClick={vue === 'conversions' ? onSubsDayClick : undefined}
     />
   )
-  const detail = pointJour?.subsByLink ? (
+  // Un jour sans aucun sub n'ouvre rien : le panneau ne dirait que « 0 subs · 0 lien ».
+  const detail = pointJour?.subsByLink?.length ? (
     <SubsDayDetail point={pointJour} onClose={() => setJour(null)} />
   ) : null
 
