@@ -8,6 +8,12 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.81] — 2026-10-12
+
+### Corrigé
+
+- Formation › Roue : l'historique des tirages ne montrait que les 200 derniers, si bien qu'une semaine encore à payer (celle du 28/09) disparaissait. Il suit maintenant le sélecteur de dates du header et affiche toutes les semaines de la période choisie (mois en cours par défaut).
+
 ## [2.80] — 2026-10-12
 
 ### Ajouté

@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { requireAccess } from '@/lib/auth'
+import { resolvePeriod } from '@/lib/period'
 import { WheelTemplate } from '@/features/training-wheel/WheelTemplate'
 import { WheelSkeleton } from '@/features/training-wheel/components/wheel-skeleton'
 import { getSpinnableChatters, type SpinnableChatter } from '@/features/training-wheel/services/get-spinnable-chatters'
@@ -17,11 +18,17 @@ const VUES: WheelVue[] = ['roue', 'historique']
  * comptable vit dans l'historique. Le vrai verrou est la garde de `spinWheel` + la RLS ; cette
  * page ne fait que refuser l'entrée.
  */
-export default async function RouePage({ searchParams }: { searchParams: Promise<{ vue?: string }> }) {
-  const [profile, { vue }] = await Promise.all([requireAccess('frm-suivi'), searchParams])
+export default async function RouePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vue?: string; from?: string; to?: string }>
+}) {
+  const [profile, params] = await Promise.all([requireAccess('frm-suivi'), searchParams])
+  const { vue } = params
   // Pas de `await` ici : les requêtes partent pendant que le squelette s'affiche (streaming).
   const data = getWheel()
-  const history = getWheelHistory()
+  // Historique : les semaines de la période du header (mois en cours par défaut).
+  const history = getWheelHistory(resolvePeriod(params))
   const chatters = getSpinnableChatters()
   return (
     // `.gla` : la roue est le même objet que chez Good Luck Agency — elle garde son décor, même si
