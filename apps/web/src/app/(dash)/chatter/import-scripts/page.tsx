@@ -22,8 +22,8 @@ export default async function ImportScriptsPage({ searchParams }: { searchParams
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Importer un script</h1>
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Choisis un script dans le Notion de l&apos;agence : le CRM le prépare, tu relis le rapport, puis il part désactivé dans le
-          Studio MyPuls de la modèle.
+          Choisis un script dans ton Notion ou celui de l&apos;agence : le CRM le prépare, tu relis le rapport, puis il part
+          désactivé dans le Studio MyPuls de la modèle.
         </p>
       </div>
       {/* Silhouette seule : le titre et le sous-titre sont déjà affichés au-dessus (anti-CLS). */}
