@@ -1,18 +1,19 @@
 import { randomBytes } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { getProfile } from '@/lib/auth'
+import { getProfile, isAdminOrManager } from '@/lib/auth'
 import { readStateCookie } from '@/lib/impersonation/session'
 import { notionAuthorizeUrl } from '@/features/scripts-import/oauth'
 
 /**
- * Départ de « Connecter Notion » (import de scripts) : admin RÉEL seulement (jamais « en tant que »),
- * `state` aléatoire en cookie httpOnly (anti-CSRF, relu au retour), puis redirection vers Notion.
+ * Départ de « Connecter Notion » (import de scripts) : admin ou encadrant RÉEL, jamais « en tant que » (0192 :
+ * chacun connecte son Notion), `state` aléatoire en cookie httpOnly (anti-CSRF, relu au retour), puis
+ * redirection vers Notion.
  * Route Handler = cas OAuth prévu par archi-web.
  */
 export async function GET(req: Request) {
   const back = (notion: string) => NextResponse.redirect(new URL(`/chatter/import-scripts?notion=${notion}`, req.url))
   const profile = await getProfile()
-  if (!profile || profile.role !== 'admin' || (await readStateCookie())) return back('refus')
+  if (!profile || !isAdminOrManager(profile) || (await readStateCookie())) return back('refus')
   const clientId = process.env.NOTION_OAUTH_CLIENT_ID
   if (!clientId) return back('config')
 
