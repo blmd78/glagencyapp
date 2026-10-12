@@ -4303,6 +4303,7 @@ export type Database = {
           label: string
           owner_id: string
           position: number
+          starts_on: string | null
           urgency: string
           weekdays: string
         }
@@ -4316,6 +4317,7 @@ export type Database = {
           label: string
           owner_id: string
           position?: number
+          starts_on?: string | null
           urgency?: string
           weekdays?: string
         }
@@ -4329,6 +4331,7 @@ export type Database = {
           label?: string
           owner_id?: string
           position?: number
+          starts_on?: string | null
           urgency?: string
           weekdays?: string
         }

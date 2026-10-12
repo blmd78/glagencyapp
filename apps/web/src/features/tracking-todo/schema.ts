@@ -138,6 +138,16 @@ export const addLinkInput = z.object({
 
 export const deleteLinkInput = z.object({ ownerId: owner, linkId: z.uuid() })
 
+/**
+ * Import d'un fichier `.txt` (#163) : le TEXTE brut, relu par le serveur avec `parseTodoFile` — on ne
+ * reçoit jamais l'aperçu calculé par le navigateur. 200 000 caractères : l'exemple d'octobre (trois
+ * semaines, trois modèles) en fait 10 700.
+ */
+export const importTxtInput = z.object({
+  ownerId: owner,
+  text: z.string().min(1, 'Fichier vide').max(200_000, 'Fichier trop gros'),
+})
+
 export type AddTaskInput = z.infer<typeof addTaskInput>
 export type DailyInput = z.infer<typeof dailyInput>
 

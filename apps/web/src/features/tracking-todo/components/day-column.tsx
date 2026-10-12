@@ -4,19 +4,9 @@ import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { isoWeekday } from '@glagency/core'
 import { QuickAddTask, type NewTask } from './quick-add-task'
+import { DAY_TASK_CATEGORY } from '../day-category'
 import { TaskItem } from './task-item'
 import type { TodoDay, TodoSection, TodoTask, TodoChatter } from '../types'
-
-/**
- * Catégorie d'une tâche ajoutée depuis le « + Tâche » d'une journée — par le titulaire comme par
- * son encadrement. Volontairement neutre : une tâche déposée porte déjà son badge « déposée », l'en-tête
- * du groupe n'a pas à le répéter — et si le titulaire a déjà une section de ce nom, la tâche s'y range.
- *
- * Aucune section n'est créée pour autant : `category` est du TEXTE LIBRE et non une clé étrangère
- * vers les sections (0127:44-45), et `getTodoWeek` reconstruit les groupes du jour à partir des
- * sections ET des catégories déjà portées par une tâche.
- */
-const DAY_TASK_CATEGORY = 'À faire'
 
 /** Une section = une zone de dépôt. Leur feuille l'éclaire avec `.tgroup.over`. */
 function SectionGroup({

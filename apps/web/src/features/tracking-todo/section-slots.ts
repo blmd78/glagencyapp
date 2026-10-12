@@ -1,5 +1,4 @@
 import 'server-only'
-import { isoWeekday } from '@glagency/core'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError } from '@/lib/actions'
 import { dueHabits } from './occurrence'
@@ -21,7 +20,7 @@ import { asUrgency, type Urgency } from './urgency'
 async function loadHabits(ownerId: string) {
   const { data, error } = await createAdminClient()
     .from('tracker_todo_habits')
-    .select('id, category, label, weekdays, active, urgency')
+    .select('id, category, label, weekdays, active, starts_on, urgency')
     .eq('owner_id', ownerId)
     .order('position')
     .order('created_at')
@@ -53,7 +52,7 @@ async function sectionSlots(ownerId: string, date: string, category: string, exc
   const real: Slot[] = dayTasks
     .filter((t) => t.category === category && t.id !== exclude)
     .map((t) => ({ id: t.id, key: t.position, tie: t.created_at, fixed: false, urgency: asUrgency(t.urgency) }))
-  const virtual: Slot[] = dueHabits(habits, isoWeekday(date), category, keys).map(({ habit, rank }) => ({
+  const virtual: Slot[] = dueHabits(habits, date, category, keys).map(({ habit, rank }) => ({
     id: `habit:${habit.id}:${date}`,
     key: habitKey(rank),
     tie: '',

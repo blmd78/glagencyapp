@@ -5,7 +5,7 @@ import { getCreatorScope } from '@/lib/services/creator-scope'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
-import { dueHabits } from '../occurrence'
+import { dueHabits, isDue } from '../occurrence'
 import { habitKey, sortSlots } from '../order'
 import type { TodoChatter, TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 import { asUrgency } from '../urgency'
@@ -79,7 +79,7 @@ export async function getTodoWeek(params: {
       // `created_at` en second tri : le RANG d'une habitude fixe la place de son occurrence en haut
       // de la section (#161, `habitKey`) — il doit être le même d'un rendu à l'autre, et le même
       // que celui que calculent les actions (`section-slots.ts`).
-      supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, position, created_by')
+      supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, starts_on, position, created_by')
         .eq('owner_id', params.ownerId).order('position').order('created_at'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
@@ -115,7 +115,7 @@ export async function getTodoWeek(params: {
     const names = new Set<string>()
     for (const s of sections) if (s.weekdays.split(',').map(Number).includes(wd)) names.add(s.name)
     for (const t of dayTasks) names.add(t.category)
-    for (const h of habits) if (h.active && h.weekdays.split(',').map(Number).includes(wd)) names.add(h.category)
+    for (const h of habits) if (isDue(h, date)) names.add(h.category)
 
     const ordered = [...names].sort((a, b) => {
       const pa = sections.find((s) => s.name === a)?.position ?? 999
@@ -156,7 +156,7 @@ export async function getTodoWeek(params: {
             } satisfies TodoTask,
           }))
         // Une habitude ne s'affiche que si son occurrence du jour n'a pas déjà été matérialisée.
-        const virtual = dueHabits(habits, wd, name, dayKeys)
+        const virtual = dueHabits(habits, date, name, dayKeys)
           .map(({ habit: h, rank }) => ({
             key: habitKey(rank),
             tie: '',
