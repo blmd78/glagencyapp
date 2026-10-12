@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { NotionError } from '@glagency/scripts'
-import { NOT_A_SCRIPT, PROMPT_PAGE, checkDraftForSend, failureText, notionReadMessage, prepareRefusal, withSendLock } from './send-rules'
+import { NOT_A_SCRIPT, PROMPT_PAGE, checkDraftForSend, failureText, notionReadMessage, prepareRefusal, toCompleteWritten, withSendLock } from './send-rules'
 
 describe('checkDraftForSend', () => {
   const msg = { type: 'message', title: '#1', content: 'coucou', price: 0, media: [], pendingMedia: null, chainDelays: [] }
@@ -97,5 +97,18 @@ describe('prepareRefusal', () => {
     expect(prepareRefusal({ title: 'Script de vente · Emma', text: script, pdfs: [] })).toBeNull()
     expect(prepareRefusal({ title: 'Fiche Emma', text: 'Âge : 20 ans', pdfs: [] })).toBe(NOT_A_SCRIPT)
     expect(prepareRefusal({ title: 'Script de vente · Emma', text: 'page de référence', pdfs: [{ name: 'x.pdf', data: 'JVBERi0=' }] })).toBeNull()
+  })
+})
+
+describe('toCompleteWritten', () => {
+  const m = (title: string) => ({ type: 'message', title })
+  it('vrai si un message écrit par l’IA est à la racine ou dans un chemin', () => {
+    expect(toCompleteWritten(JSON.stringify([m('#1'), m('⏩ À la suite · ✍️ écrit par l’IA')]))).toBe(true)
+    expect(toCompleteWritten(JSON.stringify([{ type: 'branch', paths: [{ messages: [m('#16 🟢 · ✍️ écrit par l’IA')] }] }]))).toBe(true)
+  })
+  it('faux pour un brouillon d’avant (aucune marque), absent ou illisible', () => {
+    expect(toCompleteWritten(JSON.stringify([m('#1'), m('#16 🟢 — Bonne réponse')]))).toBe(false)
+    expect(toCompleteWritten(null)).toBe(false)
+    expect(toCompleteWritten('{pas du json')).toBe(false)
   })
 })

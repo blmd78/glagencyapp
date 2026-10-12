@@ -4,7 +4,8 @@ import type { PdfDocument } from './sources'
 
 /**
  * Conversion d'une page Notion de script en brouillon pour le Studio MyPuls — un appel Claude en
- * sortie structurée. L'IA ne fait que STRUCTURER : textes recopiés, aucune invention d'id de média ;
+ * sortie structurée. L'IA STRUCTURE : textes recopiés, aucune invention d'id de média — sauf deux textes
+ * qu'elle rédige, le Brief IA et les messages « ✏️ À COMPLÉTER » (spec 2026-10-12) ;
  * les règles du Studio sont vérifiées ensuite par `validateScriptDraft`, jamais confiées au modèle.
  *
  * Même fournisseur et même clé que la Formation (`ANTHROPIC_API_KEY`). Opus 5.5 : la pensée ne se
@@ -106,6 +107,8 @@ const say = (title: string, content: string, extra: Partial<DraftMessage> = {}):
   ...extra,
 })
 const NOT_FREE = "S'il n'est pas libre → PASSER AU SCRIPT RELATIONNEL"
+/** Marque de titre (interne, jamais vue du fan) d'un message que le script laissait « ✏️ À COMPLÉTER » et que Claude a écrit. */
+export const AI_WRITTEN = '· ✍️ écrit par l’IA'
 const FREE = "S'il est libre → ENVOYER LA PHOTO 1"
 
 /**
@@ -156,13 +159,14 @@ export const CONVERT_EXAMPLE: ScriptDraft = {
       ],
     },
     say('#3 — Question 1', 'question 1… le cœur il est à gauche ou à droite ?'),
-    say('#4 — Bonne réponse → ENVOYER LE PPV 1', 'bien joué binôme 😏', { chainDelays: [60] }),
+    say('#4 — Bonne réponse → ENVOYER LE PPV 1', 'bien joué binôme 😏', { chainDelays: [60, 10] }),
     say('⏩ À la suite', 'tiens ta récompense…', { pendingMedia: { description: 'PPV 1 – 3 photos', price: 12 } }),
+    say(`⏩ À la suite ${AI_WRITTEN}`, 'trois photos rien que pour toi… dis moi laquelle te fait le plus d’effet 😏'),
     say("#5 — Vocal d'urgence", '.', { pendingMedia: { description: 'VOCAL 1 – fais vite 😈', price: 0 } }),
   ],
 }
 
-export const CONVERT_SYSTEM = `Tu convertis une page Notion de script de chatting (agence qui gère des créatrices de contenu adulte, toutes majeures) en JSON pour le Studio de scripts MyPuls. Tu STRUCTURES, tu ne réécris rien : chaque texte est recopié à l'identique, emojis et fautes compris.
+export const CONVERT_SYSTEM = `Tu convertis une page Notion de script de chatting (agence qui gère des créatrices de contenu adulte, toutes majeures) en JSON pour le Studio de scripts MyPuls. Tu STRUCTURES, tu ne réécris rien : chaque texte est recopié à l'identique, emojis et fautes compris — seules exceptions, le Brief IA et les messages « ✏️ À COMPLÉTER », que tu rédiges (voir plus bas).
 
 Ce qui devient un message :
 - Chaque bulle envoyée par la modèle (bloc de citation « > », ligne de texte d'une étape) = un message. content = le texte exact de la bulle, consignes entre parenthèses comprises (« (réagir à sa réponse) mmmh… ») : c'est ainsi que les scripts sont saisis aujourd'hui, le chatteur complète avant d'envoyer.
@@ -170,7 +174,7 @@ Ce qui devient un message :
 - Une bulle qui n'envoie qu'un média, sans texte (photo sans légende, vocal sans transcription) : content = "." — le Studio exige un texte, c'est la convention de l'équipe.
 - Les messages automatiques (tableau « Message automatique » : déclenchement, message) sont des messages en tête de script, titrés « ⏱️ Message automatique n · déclenchement tel qu'écrit » ; les délais « +N s après le précédent » forment un enchaînement comme les autres (chainDelays du premier, règles ci-dessous). Chaque ligne va AUSSI dans autoMessages (trigger = le déclenchement tel qu'écrit, message = le texte) : le Studio n'a pas de déclenchement d'abonnement, l'équipe le règle dans l'Auto-DM.
 - N'est PAS un message : légende, mémo, règles d'or, fiche de synthèse, tableaux de questions ou de chronologie, sommaire, checklist, consignes de mise en page, liens vers d'autres scripts.
-- « ✏️ À COMPLÉTER : … » (message que le manager doit écrire) n'est JAMAIS un texte de bulle : une entrée dans toComplete (where = le titre de l'étape où il manque, hint = la consigne après les deux-points). Si ce bloc porte aussi un média ou un prix (badges 🖼️ / 🔒), le message reste, avec content = "." et son pendingMedia et son prix : seul le texte part dans toComplete.
+- « ✏️ À COMPLÉTER : consigne » (message que le script laisse à écrire) : tu l'ÉCRIS, pour que rien ne reste à faire. Un message à sa place, title = le titre qu'il aurait eu suivi de « ${AI_WRITTEN} » ; content = une ou deux phrases dans la voix de la modèle (comme ses autres bulles : minuscules, phrases courtes, son ton, un emoji au plus) qui suivent la consigne en ne reprenant QUE ce que le script dit du média (sa description, sa légende) — tu ne vois pas le média, n'invente aucun détail. Suggestif, jamais une description sexuelle graphique : c'est le média qui est explicite. Jamais d'âge ni d'allusion à un mineur, à l'école, au collège ou au lycée ; jamais de prix ni de promesse (rencontre, exclusivité) ; aucun cadeau qui ne figure pas dans le script. La phrase « ✏️ À COMPLÉTER : … » elle-même n'apparaît jamais dans une bulle. Ajoute aussi une entrée dans toComplete (where = le titre de l'étape, hint = la consigne d'origine) : l'équipe sait quel message relire. Si ce bloc portait aussi un média ou un prix (badges 🖼️ / 🔒), ce message-là garde content = "." avec son pendingMedia et son prix, et ton texte part dans un message « ⏩ À la suite » juste après.
 
 Format « messages numérotés » (prompt V3) : chaque bloc est « [n] #N 🔴/🟢 — Titre », une ligne de badges, puis la bulle en citation. Un bloc = un message ; title = « #N 🔴/🟢 — Titre » tel qu'écrit, sans le [n], pour le premier message de l'étape ; ses messages suivants (titrés « Suite », « Suite Teasing », « Suite (Vocal) » dans la page) suivent la règle des titres ci-dessus (« ⏩ À la suite »). Badges : 💬 Texte = message sans média ; 🎙️ Vocal ou 🖼️ Média / « 🖼️ n médias » = message à média (pendingMedia) ; « 🔒 X € » = le prix du PPV (pendingMedia.price) ; « ⏱️ +10 s / +1 min » = le délai de ce message après le précédent (chainDelays du premier message de l'étape, comme ci-dessous) ; « 🔗 n » se lit seulement, il ne devient rien.
 
@@ -189,13 +193,13 @@ Médias et prix :
 - Tu ne connais AUCUN id de média : media = [] toujours.
 - Un message qui envoie un média (🖼️, photo, vidéo, teaser, PPV, « ENVOYER LA PHOTO 2 », lien vers une page média) ou un vocal (🎙️) : pendingMedia = { description : le média tel que nommé dans le script (« PHOTO 2 – les fesses », « PPV 3 – photos nue », « VOCAL 1 – fais vite »), price : le prix du PPV en euros (0 si gratuit) }, et price = 0 sur le message. Le texte de la bulle reste dans content. Le libellé qui ouvre la description (« PHOTO 2 », « PPV 3 », jusqu'au premier tiret) est recopié EXACTEMENT comme dans le script : c'est le titre du média dans MyM, il sert à le rattacher automatiquement. Un vocal : content = ".", et sa description suit le même format, numéroté dans l'ordre du script (« VOCAL 1 – fais vite ») : ce que la modèle dit va après le tiret — l'audio porte déjà la phrase, le texte partirait en double.
 - Prix en fourchette (« 8-10 € ») : le plus bas. Prix décimal : avec un point (9.99).
-- Vocal décrit par « 🎙️ Texte que le vocal doit dire : « … » » (suivi du ton et de la durée) : ce texte est À ENREGISTRER par la modèle, il ne part jamais au fan. Le message : content = ".", pendingMedia « VOCAL n – début du texte » (numérotés dans l'ordre du script, même règle que ci-dessus) ; et une entrée dans voiceNotes : label = « VOCAL n », text = le texte exact à dire, direction = ton et durée tels qu'écrits (vide s'il n'y en a pas). Un vocal simplement nommé (« 🎙️ VOCAL 2 ») : seulement le message.
+- Vocal décrit par « 🎙️ Texte que le vocal doit dire : « … » » (suivi du ton et de la durée) : ce texte est À ENREGISTRER par la modèle, il n'est jamais dans la bulle (l'envoi le passe à l'écrit seulement si l'audio manque). Le message : content = ".", pendingMedia « VOCAL n – début du texte » (numérotés dans l'ordre du script, même règle que ci-dessus) ; et une entrée dans voiceNotes : label = « VOCAL n », text = le texte exact à dire, direction = ton et durée tels qu'écrits (vide s'il n'y en a pas). Un vocal simplement nommé (« 🎙️ VOCAL 2 ») : seulement le message.
 
 Sources : après la page viennent parfois des PDF joints et des pages liées (sections « === Page liée « … » === », « === Sous-page … », « === Google Doc … »). Le script est là où sont les bulles et les étapes — souvent le PDF quand la page n'est qu'une page de référence (« Script de référence à donner à Claude »). Le même script peut figurer deux fois (page + PDF) : convertis-le UNE seule fois, depuis la version la plus complète. Une sous-page de média (« PPV 2 – contenu – prix ») sert seulement à lire le contenu et le prix de ce média. Le script à convertir est celui que nomme le titre de la page (« Script de vente · Emma » → le script de vente d'Emma) : une page liée qui est un AUTRE script (KYC, négociation, relationnel, cité par « PASSER AU SCRIPT … ») se lit pour comprendre, jamais ne se convertit ni ne se fusionne.
 
 Script : name = le titre du script (celui de la page, emoji compris ; si la page n'est qu'une page de référence, le titre du script lui-même, tel qu'écrit dans le PDF ou la page liée) ; description = la « Description pour l'outil des chatteurs » si elle existe, sinon le type et le déclencheur du script en une phrase ; isSequence = true pour un déroulé (KYC, vente, tout script à étapes numérotées : le chat le déroule fan par fan et les embranchements deviennent des boutons de réponse) ; isSequence = false seulement pour une bibliothèque de messages sans ordre (ex. script de négociation).
 
-Brief IA (aiBrief) : le SEUL texte que tu rédiges toi-même. Il est lu par Aurel, le chatteur IA du Studio, jamais par le fan : il choisit la scène qui colle au moment et pose le décor avant la première étape. Six lignes, dans cet ordre : « Quand ça colle : … », « Décor : … », « Humeur de départ et déclencheur : … », « Progression : … », « Profil de fan : … », « Mots-clés : … », tirées de la fiche, du scénario, de la description et du déroulé. Jamais de prix, jamais d'heure de la journée (décris la lumière, l'ambiance), jamais « version 2 ». Moins de 1 500 caractères. Chaîne vide si la page n'en donne pas de quoi.
+Brief IA (aiBrief) : avec les messages « ✏️ À COMPLÉTER », le seul texte que tu rédiges toi-même. Il est lu par Aurel, le chatteur IA du Studio, jamais par le fan : il choisit la scène qui colle au moment et pose le décor avant la première étape. Six lignes, dans cet ordre : « Quand ça colle : … », « Décor : … », « Humeur de départ et déclencheur : … », « Progression : … », « Profil de fan : … », « Mots-clés : … », tirées de la fiche, du scénario, de la description et du déroulé. Jamais de prix, jamais d'heure de la journée (décris la lumière, l'ambiance), jamais « version 2 ». Moins de 1 500 caractères. Chaîne vide si la page n'en donne pas de quoi.
 
 Exemple de sortie — la STRUCTURE d'un vrai script MyPuls, avec des textes neutres : reproduis la forme (titres, embranchements, relances, médias à rattacher), jamais ses textes.
 ${JSON.stringify(CONVERT_EXAMPLE)}

@@ -137,6 +137,12 @@ describe('script-writer', () => {
     stubFetch(...[1, 2, 3].map((n) => json({ items: [media(n, 'photo')], next_cursor: `c${n}` })))
     await expect(listCollectionMedia('c', '9')).rejects.toThrow('collection 9 : plus de 3 pages de médias')
   })
+  it('bibliothèque : réponse 200 sans liste → erreur, jamais une liste vide (un vocal passerait à tort à l’écrit)', async () => {
+    stubFetch(json({ error: 'maintenance' }))
+    await expect(listCollections('c')).rejects.toThrow('GET /api/collections : réponse inattendue')
+    stubFetch(json({}))
+    await expect(listCollectionMedia('c', '9')).rejects.toThrow('GET /api/collections/medias/9 : réponse inattendue')
+  })
   it('refus MyPuls : le texte `error` de la réponse est gardé dans l’erreur (sinon un 422 ne dit pas pourquoi)', async () => {
     stubFetch(json({ error: 'Relance invalide : aucun message ne suit.' }, 422))
     const err = await createMessage('c', 7, { title: 't', content: 'x' }).catch((e: unknown) => e)

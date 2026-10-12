@@ -8,6 +8,12 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.78] — 2026-10-12
+
+### Modifié
+
+- Importer un script : les vocaux et les messages « ✏️ À COMPLÉTER » ne restent plus à faire. Un vocal pas encore dans MyM part à l'écrit avec son texte (« pas encore fait donc à l'écrit en attendant », la règle du prompt V3) ; un message « à compléter » est écrit par l'IA dans la voix de la modèle, marqué « écrit par l'IA » dans son titre pour être relu avant d'activer. Les PPV et photos absents de MyM restent « À RATTACHER ».
+
 ## [2.77] — 2026-10-12
 
 ### Ajouté
