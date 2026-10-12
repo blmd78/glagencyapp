@@ -298,8 +298,8 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   `DayColumn`, flèches jour précédent / suivant ; le jour vit dans `?jour=` (`history.replaceState`
   dans la semaine affichée, vraie navigation vers la semaine voisine). Glisser-déposer dans son
   propre contexte (`TodoDnd`).
-- **Import d'un fichier `.txt`** (#163, `0194`) : bouton de l'en-tête, pour qui a le sélecteur de
-  compte ; **seulement dans la to-do d'une personne CHOISIE**, jamais « Ma semaine » (garde-fou
+- **Import d'un fichier `.txt`** (#163, `0194`) : bouton de l'en-tête, **présent seulement sur la
+  semaine d'une personne CHOISIE** dans le sélecteur — jamais sur « Ma semaine » (garde-fou
   demandé par Benoit, refusé aussi par `importTodoFile`) ; garde `assertCanOrganize` — pour la
   to-do d'un manager, c'est l'admin. Format lu par `parseTodoFile` (`import-txt.ts`, pur) : 1re
   ligne « TO-DO DE <PRÉNOM> · … · <début> → <fin> » ; un prénom qui ne correspond pas à la

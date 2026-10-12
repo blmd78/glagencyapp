@@ -28,12 +28,13 @@ const short = (date: string): string => `${date.slice(8, 10)}/${date.slice(5, 7)
  * tracker » (`tracker-import-button.tsx`), son équivalent sur cet écran.
  *
  * Garde-fou demandé par Benoit (2026-10-12) — « s'assurer qu'ils ont bien sélectionné un mec » :
- * sur « Ma semaine », le bouton est inactif ; la pop-up dit en tête dans QUELLE to-do on importe,
+ * le bouton n'existe que sur la semaine d'une personne choisie (la page ne le rend pas sur « Ma
+ * semaine ») ; la pop-up dit en tête dans QUELLE to-do on importe,
  * et avertit si le prénom du fichier n'est pas celui de la personne choisie (sans bloquer : le même
  * prénom peut s'écrire autrement dans le CRM). L'aperçu est lu dans le navigateur ; le serveur
  * relit le fichier lui-même avant d'écrire.
  */
-export function ImportTxtButton({ ownerId, ownerName }: { ownerId: string; ownerName: string | null }) {
+export function ImportTxtButton({ ownerId, ownerName }: { ownerId: string; ownerName: string }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
@@ -62,18 +63,6 @@ export function ImportTxtButton({ ownerId, ownerName }: { ownerId: string; owner
       toast.success('To-do importée')
       router.refresh()
     })
-  }
-
-  if (!ownerName) {
-    // Le `title` sur une enveloppe : un bouton inactif ne reçoit pas le survol
-    // (`disabled:pointer-events-none`), son infobulle ne s'afficherait jamais.
-    return (
-      <span title="Choisis d’abord la personne dans le sélecteur" className="inline-flex">
-        <Button variant="outline" size="sm" disabled>
-          <FileUp className="size-3.5" /> Importer un fichier
-        </Button>
-      </span>
-    )
   }
 
   return (

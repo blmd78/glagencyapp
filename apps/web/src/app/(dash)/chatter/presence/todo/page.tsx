@@ -107,6 +107,7 @@ async function Header({
   ownWeek: boolean
 }) {
   const [d, people] = await Promise.all([data, holders])
+  const ownerName = owner ? (people.find((p) => p.id === owner)?.name ?? null) : null
   const href = (w: string): Route => {
     const q = new URLSearchParams({ week: w })
     if (owner) q.set('owner', owner)
@@ -122,20 +123,16 @@ async function Header({
       // lecture seule — lui laisser le seul bouton d'écriture de la page, que le serveur refuse,
       // serait la dernière promesse non tenue de cet écran.
       //
-      // « Importer un fichier » (#163) : pour qui peut ouvrir la to-do d'autres personnes (le
-      // sélecteur n'est pas vide). Inactif sur « Ma semaine » — on importe pour la personne
-      // CHOISIE, c'est le garde-fou demandé —, et nommé d'après elle dans sa pop-up.
+      //
+      // « Importer un fichier » (#163), lui, n'existe QUE sur la semaine d'une personne choisie dans
+      // le sélecteur — c'est le garde-fou demandé (on importe pour quelqu'un) — et se nomme d'après
+      // elle. Jamais sur « Ma semaine » : un bouton inactif n'y disait rien, et à côté de la
+      // récupération il débordait sur le sélecteur (recette du 2026-10-12).
       right={
-        (ownWeek && d.canWrite) || people.length > 0 ? (
-          <>
-            {people.length > 0 && (ownWeek || d.canOrganize) ? (
-              <ImportTxtButton
-                ownerId={d.ownerId}
-                ownerName={ownWeek ? null : (people.find((p) => p.id === owner)?.name ?? null)}
-              />
-            ) : null}
-            {ownWeek && d.canWrite ? <TrackerImportButton /> : null}
-          </>
+        ownWeek ? (
+          d.canWrite ? <TrackerImportButton /> : undefined
+        ) : d.canOrganize && ownerName ? (
+          <ImportTxtButton ownerId={d.ownerId} ownerName={ownerName} />
         ) : undefined
       }
     >
