@@ -82,6 +82,8 @@ export interface MediaReport {
   collection: string | null
   /** Pourquoi rien n'a été rattaché (`withLibrary`), ou `null`. */
   reason: 'absente' | 'ambiguë' | 'illisible' | 'trop de médias' | 'invalide' | null
+  /** Vocaux sans audio dans MyM, envoyés à l'écrit en attendant (`writeMissingVoices`) — absent si aucun. */
+  writtenVoices?: number
 }
 export type SendResult =
   | { ok: true; scriptId: number; media: MediaReport }
@@ -135,6 +137,7 @@ export async function sendScript(
   try {
     await step('choix de la modèle', () => writer.switchCreator(creatorMypulsId))
     // Bibliothèque lue APRÈS le choix de la modèle : c'est celle de la modèle courante de la session.
+    // Vocaux sans audio dans MyM : à l'écrit en attendant (règle du prompt V3), dans `withLibrary`.
     const { draft: ready, media } = await withLibrary(writer, draft, opts.scriptTitle)
     scriptId = await step('création du script', () => writer.createScript(scriptFields(ready)))
     const id = scriptId

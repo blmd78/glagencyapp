@@ -1,5 +1,5 @@
 import { normalizeDraft, parseScriptDraft, validateScriptDraft, type ScriptDraft } from '@glagency/core'
-import { NotionError, describeFailure, isPromptTitle, looksLikeScript, type Cleanup, type GatheredScript } from '@glagency/scripts'
+import { AI_WRITTEN, NotionError, describeFailure, isPromptTitle, looksLikeScript, type Cleanup, type GatheredScript } from '@glagency/scripts'
 import { BusinessError } from '@/lib/actions'
 import type { ImportStatus } from './rules'
 
@@ -39,6 +39,22 @@ export function notionReadMessage(e: unknown): string | null {
   if (e.status === 401) return 'Connexion Notion expirée : un admin doit reconnecter Notion.'
   if (e.status === 429) return 'Notion limite le débit : réessaie dans une minute.'
   return null
+}
+
+/**
+ * Les « ✏️ À COMPLÉTER » d'un brouillon ont-ils été écrits par l'IA ? Oui si un message, à la racine ou
+ * dans un chemin, porte la marque `AI_WRITTEN` dans son titre ; un brouillon d'avant le 2026-10-12 n'en a
+ * pas : ses messages sont à écrire à la main. `itemsJson` = le texte JSON de `draft->items`.
+ */
+export function toCompleteWritten(itemsJson: string | null): boolean {
+  if (!itemsJson) return false
+  try {
+    const items = JSON.parse(itemsJson) as Array<{ type?: string; title?: string; paths?: Array<{ messages?: Array<{ title?: string }> }> }>
+    const titles = items.flatMap((it) => (it.type === 'branch' ? (it.paths ?? []).flatMap((p) => (p.messages ?? []).map((m) => m.title ?? '')) : [it.title ?? '']))
+    return titles.some((t) => t.includes(AI_WRITTEN))
+  } catch {
+    return false
+  }
 }
 
 export const PROMPT_PAGE =

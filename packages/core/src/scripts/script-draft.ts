@@ -64,7 +64,7 @@ export interface DraftBranch {
   paths: DraftPath[]
 }
 export type DraftItem = DraftMessage | DraftBranch
-/** Vocal du script : l'audio se rattache comme un média (« VOCAL n ») ; le texte est À ENREGISTRER, jamais envoyé. */
+/** Vocal du script : l'audio se rattache comme un média (« VOCAL n ») ; le texte est À ENREGISTRER — envoyé à l'écrit seulement si l'audio manque (`writeMissingVoices`). */
 export interface VoiceNote {
   /** Libellé du média, tel que dans le message (« VOCAL 2 »). */
   label: string
@@ -73,7 +73,7 @@ export interface VoiceNote {
   /** Ton et durée demandés (« chuchoté, gênée · environ 8 s »), ou vide. */
   direction: string
 }
-/** Message que le script laisse au manager (« ✏️ À COMPLÉTER : … ») : jamais créé, à écrire dans le Studio. */
+/** Message que le script laisse à écrire (« ✏️ À COMPLÉTER : … ») : écrit par Claude (titre « ✍️ écrit par l'IA »), listé ici pour la relecture. */
 export interface ToComplete {
   /** Étape où il manque (« #16 🟢 — Bonne réponse (vrai) »). */
   where: string
@@ -116,7 +116,8 @@ export interface DraftSummary {
 const MEDIA_ID = /^(\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
 const euros = (n: number) => `${n} €`
 // Textes qui partiraient au fan alors qu'ils s'adressent à l'équipe (formats des prompts V2 / V3) :
-// un message laissé au manager, la consigne d'un vocal. La conversion les sort des bulles ; ce filet
+// la consigne « À COMPLÉTER », la consigne d'un vocal. La conversion les remplace (message écrit, média
+// « VOCAL n ») ; ce filet
 // arrête l'envoi si l'un d'eux y est resté. Majuscules seulement : le format les écrit ainsi (« ✏️ » seul
 // peut être une vraie bulle : un script « révisions »).
 const LEFT_TO_MANAGER = /[ÀA] COMPL[ÉE]TER/

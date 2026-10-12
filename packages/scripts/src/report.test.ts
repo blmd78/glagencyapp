@@ -66,6 +66,9 @@ describe('formatReport', () => {
 
 describe('describeMedia', () => {
   const base = { collection: 'Script-Chambre 2', reason: null }
+  it('dit les vocaux envoyés à l’écrit en attendant l’audio', () => {
+    expect(describeMedia({ ...base, attached: 0, pending: 0, writtenVoices: 2 })).toBe('2 vocaux envoyés à l’écrit en attendant l’audio (titre « pas encore fait »)')
+  })
   it('bilan en MESSAGES à média (un pack de 3 médias = 1 message) : complétés depuis la collection, restés à rattacher', () => {
     expect(describeMedia({ ...base, attached: 3, pending: 0 })).toBe('3 messages à média complétés depuis la collection « Script-Chambre 2 »')
     expect(describeMedia({ ...base, attached: 1, pending: 2 })).toBe(

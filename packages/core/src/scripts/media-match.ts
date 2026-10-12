@@ -12,7 +12,7 @@ import { SCRIPT_LIMITS, type DraftMessage, type ScriptDraft } from './script-dra
  */
 
 /** Casse, accents, caractères invisibles (U+200B…, sélecteurs d'emoji U+FE0E/F) et espaces multiples ignorés. */
-const fold = (s: string) =>
+export const fold = (s: string) =>
   s
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')

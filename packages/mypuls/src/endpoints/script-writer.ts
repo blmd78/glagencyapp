@@ -125,7 +125,9 @@ export async function editMessage(cookie: string, scriptId: number, messageId: n
  */
 export async function listCollections(cookie: string): Promise<Array<{ id: string; name: string }>> {
   const j = (await call(cookie, 'GET', '/api/collections')) as { items?: Array<{ id: unknown; name?: unknown }> } | null
-  return (j?.items ?? []).map((c) => ({ id: String(c.id), name: String(c.name ?? '') }))
+  // Réponse sans liste : une ERREUR, jamais « aucune collection » — un vocal passerait à tort à l'écrit.
+  if (!Array.isArray(j?.items)) throw new StudioError('GET /api/collections : réponse inattendue', 200)
+  return j.items.map((c) => ({ id: String(c.id), name: String(c.name ?? '') }))
 }
 
 export async function listCollectionMedia(cookie: string, collectionId: string): Promise<Array<{ id: string; type: string }>> {
@@ -140,8 +142,9 @@ export async function listCollectionMedia(cookie: string, collectionId: string):
       items?: Array<{ id: unknown; type?: unknown }>
       next_cursor?: string | null
     } | null
+    if (!Array.isArray(j?.items)) throw new StudioError(`GET /api/collections/medias/${collectionId} : réponse inattendue`, 200)
     // Type absent : vide, jamais supposé photo (la garde « vocal mêlé à une photo » en dépend).
-    for (const m of j?.items ?? []) out.push({ id: String(m.id), type: typeof m.type === 'string' ? m.type : '' })
+    for (const m of j.items) out.push({ id: String(m.id), type: typeof m.type === 'string' ? m.type : '' })
     cursor = j?.next_cursor ?? null
     if (!cursor) break
   }
