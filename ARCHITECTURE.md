@@ -1,6 +1,6 @@
 # Architecture — glagencyapp
 
-> Révision : 2026-10-01
+> Révision : 2026-10-12
 
 **Ce fichier décrit le système.** Les règles pour coder dedans vivent dans `AGENTS.md` ; où vit chaque feature : `docs/CARTE.md` ; ce qui a changé : `CHANGELOG.md`.
 
@@ -114,7 +114,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | prod (`main`) | `cqmfpsnqaxymswijdnfz` | eu-west-3 (`docs/runbook-uncove.md`) | `db.<ref>.supabase.co` injoignable IPv6-only depuis un poste de dev — passer par le pooler `aws-0-eu-west-3.pooler.supabase.com:5432` |
 | UAT (`develop`) | `ihkksdmgtrbbjugeboks` | eu-west-3 | même pooler |
 
-191 migrations séquentielles au 2026-10-12 (`packages/db/supabase/migrations/0001..0191`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
+193 migrations séquentielles au 2026-10-12 (`packages/db/supabase/migrations/0001..0193`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
 
 ## 4. Hébergement et environnements
 
@@ -222,7 +222,8 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   après garde dans les Server Actions. La frontière est **ORGANISER / ATTESTER** (décision Benoit
   2026-09-07 : « les managers ont tous les droits sur leurs sous-managers, ils peuvent gérer leur
   emploi du temps comme ils veulent ») : **organiser** = le contenu du planning (déposer,
-  déplacer, supprimer **n'importe quelle** tâche, sections, habitudes, jour de repos) →
+  modifier, déplacer, réordonner, supprimer **n'importe quelle** tâche, sections, habitudes, jour
+  de repos, import d'un fichier) →
   `assertCanOrganize`, ouvert au titulaire, à son encadrement et à l'admin ; **attester** = dire
   que c'est fait et avec quels mots (coche, débrief, bloc-notes, liens, clôture 1:1) →
   `assertOwner`, **le titulaire seul, admin compris** — cocher un « 1:1 » crée une session notée
@@ -231,11 +232,13 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   `canWrite`. Prix assumé de l'ouverture : un retrait est **muet** (aucun journal sur
   `tracker_todo_*`). Une **habitude déposée reste verrouillée pour son
   titulaire** (`0148`, `tracker_todo_habits.created_by`) — il la voit avec le badge « déposée » et
-  ne peut que sauter une occurrence (« juste aujourd'hui ») ; son encadrement, lui, touche à
+  ne touche pas au gabarit : il peut sauter une occurrence (« juste aujourd'hui »), la déplacer ou
+  la modifier dans sa pop-up, jamais l'habitude elle-même ; son encadrement, lui, touche à
   **toutes** les habitudes de la semaine. La règle vit UNE fois, pure et testée, en `lib/tracking/habit-rules.ts`
   (`canEditHabit`), lue par la garde ET par `getTodoWeek` (qui rend un `canEdit` par habitude, pour
-  que le panneau n'affiche que des boutons qui marchent) ; `materialize()` recopie `created_by` du
-  gabarit sur la tâche qu'il crée. **`category` est du texte libre** (`0127`), et la chaîne vide
+  que le panneau n'affiche que des boutons qui marchent) ; `materialize()` recopie `created_by`,
+  la description et l'urgence du gabarit sur la tâche qu'il crée, et y pose `habit_id` +
+  `habit_date` (ci-dessous). **`category` est du texte libre** (`0127`), et la chaîne vide
   (« sans section », le défaut de `habitInput`) en est une valeur **légitime** : les schémas
   d'ajout et de déplacement doivent l'accepter, sinon le groupe qu'une habitude sans section fait
   apparaître devient un cul-de-sac où tout geste répond « Saisie invalide » (bug du 2026-09-07).
@@ -260,7 +263,7 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   modèles** (ni titulaire, ni déposant) depuis le 2026-09-05 : les deux tests n'existaient que
   pour éviter des tâches inclôturables, et la clôture ne teste plus rien (cf. Suivi chatters).
   **Récap**
-  (`/chatter/presence/recap`, `0137` + `0151` + `0159`) : RPC `tracker_todo_week_recap` en **`security definer`
+  (`/chatter/presence/recap`, `0137` + `0151` + `0159` + `0160` + `0192` + `0193`) : RPC `tracker_todo_week_recap` en **`security definer`
   à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
   l'encadrement (chacun son périmètre), **verbatim pour l'admin, son propre journal et — demande
   Benoit 2026-09-14, `0159` — le manager sur ses sous-managers rattachés** (`can_manage_planning_of`,
@@ -268,6 +271,45 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   recopie plus la règle. `tracker_todo_daily` (`0132`) et `tracker_todo_notes` (`0137`) restent fermées :
   journal personnel. Les autres tables `tracker_todo_*` sont lisibles par tout porteur de
   `presence` — assumé (`0127`).
+- **Tâche : titre, description, urgence** (#160, `0192`, décision Benoit 2026-10-12) : `label` est
+  le TITRE (seul texte de la carte), `description` facultative (`''` = aucune), `urgency` ∈
+  `normale` (défaut) · `importante` · `urgente`, en `text` + `check` — couleurs bleu · orange · rouge
+  en liseré (`.u-<niveau>`, `tracker-theme.css`) ; le vert reste « fait ». Mêmes champs sur les
+  habitudes, recopiés sur chaque occurrence. Clic sur la carte → pop-up (`task-dialog.tsx`) :
+  titre, description, urgence et jour, par qui ORGANISE (`updateTask`, `assertCanOrganize`), lecture
+  seule sinon ; ni la section ni le 1:1. Sur une occurrence d'habitude, seule l'occurrence change.
+  **Une occurrence se reconnaît à (`habit_id`, `habit_date`)** — l'habitude et le jour dont elle
+  est l'occurrence, posés par `materialize()` —, où que la ligne soit ensuite : renommée ou
+  changée de jour, elle ne fait plus renaître son habitude. Règle pure `isMaterialized`
+  (`occurrence.ts`), même rapprochement dans le Récap ; repli sur (jour, section, intitulé) pour
+  les lignes d'avant 0192, qu'`updateTask` rattache à leur habitude avant de les renommer.
+- **Ordre dans une section** (#161) : `position` est la clé d'ordre, espacée de 1024, égalités
+  départagées par `created_at` (l'ordre des lignes d'avant, toutes à 0, ne bouge pas). Règle pure
+  `order.ts` (`sortSlots`, `arrivalIndex`, `placeAt`), partagée par `getTodoWeek` et
+  `section-slots.ts` côté serveur — les deux doivent voir la même section. Les habitudes passent
+  en haut : leur occurrence prend `habitKey(position)`, très négative ; la `position` des
+  habitudes est unique par titulaire (`0192`, index `(owner_id, position)`) et `materialize()`
+  pose la même clé, cocher ne fait pas sauter de rang. **L'urgence ne décide que de la place
+  d'arrivée** (création, changement d'urgence ou de jour) : urgente en haut, importante sous les
+  urgentes, normale en bas ; ensuite le glisser-déposer l'emporte, rien ne se re-trie. Glisser :
+  chaque carte est une cible (moitié haute = au-dessus), `resolveDrop` pur ; entre sections, le
+  comportement d'avant est gardé. Une occurrence virtuelle n'est jamais renumérotée.
+- **Journée seule** (#162) : clic sur le jour d'une colonne → pop-up (`day-dialog.tsx`), même
+  `DayColumn`, flèches jour précédent / suivant ; le jour vit dans `?jour=` (`history.replaceState`
+  dans la semaine affichée, vraie navigation vers la semaine voisine). Glisser-déposer dans son
+  propre contexte (`TodoDnd`).
+- **Import d'un fichier `.txt`** (#163, `0193`) : bouton de l'en-tête, pour qui a le sélecteur de
+  compte ; **seulement dans la to-do d'une personne CHOISIE**, jamais « Ma semaine » (garde-fou
+  demandé par Benoit, refusé aussi par `importTodoFile`) ; garde `assertCanOrganize` — pour la
+  to-do d'un manager, c'est l'admin. Format lu par `parseTodoFile` (`import-txt.ts`, pur) : 1re
+  ligne « TO-DO DE <PRÉNOM> · … · <début> → <fin> » ; un prénom qui ne correspond pas à la
+  personne choisie AVERTIT, sans bloquer. La routine devient la section récurrente du fichier
+  (tous les jours) + une habitude quotidienne par ligne, **déposée** (donc verrouillée pour le
+  titulaire) et due à partir du 1er jour du fichier (`tracker_todo_habits.starts_on`, `0193`, lu
+  par la grille via `isDue` et par le Récap — nulle = sans borne) ; les tâches du jour vont dans
+  « À faire », ordre du fichier, urgence normale, tag `[Modèle]` dans le titre et durée dans la
+  description. Un bloc sans date n'est pas importé mais listé dans l'aperçu ; la moindre erreur
+  de format n'écrit rien ; relancer n'ajoute rien (`dedupKey`).
 
 ### Rapport du soir police
 
