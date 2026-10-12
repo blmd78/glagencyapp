@@ -14,7 +14,7 @@ const NO_PERIOD_PREFIXES = ['/chatter/spenders', '/formation']
  * Une liste d'exceptions plutôt qu'un découpage plus fin des préfixes — le reste de la face
  * (entraînement, membres, catalogue) n'a toujours rien à faire d'un datepicker.
  */
-const PERIOD_EXCEPTIONS = ['/formation/ia']
+const PERIOD_EXCEPTIONS = ['/formation/ia', '/formation/roue']
 
 /** Affiche le sélecteur de période, sauf sur les pages qui ne raisonnent pas par période. */
 export function HeaderPeriod() {
