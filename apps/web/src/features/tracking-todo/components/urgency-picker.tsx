@@ -1,28 +1,31 @@
 'use client'
 
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { URGENCIES, URGENCY_LABEL, type Urgency } from '../urgency'
 
 /**
- * Le choix de l'urgence (#160) — trois pastilles nommées, la même couleur que le liseré de la
- * carte (`.u-<niveau>` dans `tracker-theme.css`). Un groupe radio : un seul niveau, toujours un.
- * Le même composant à la saisie rapide, dans la pop-up d'une tâche et sur une habitude.
+ * Le choix de l'urgence (#160) — trois niveaux nommés, chacun avec la pastille de la couleur du
+ * liseré de la carte (`.u-<niveau>` dans `tracker-theme.css`). Le `ToggleGroup` du kit, en choix
+ * unique comme dans la fenêtre d'un événement Agence : il porte le clavier (flèches) et l'état
+ * annoncé. Toujours un niveau : on ne peut pas tout désélectionner.
  */
 export function UrgencyPicker({ value, onChange }: { value: Urgency; onChange: (u: Urgency) => void }) {
   return (
-    <div className="urg" role="radiogroup" aria-label="Urgence">
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      size="sm"
+      className="urg justify-start"
+      aria-label="Urgence"
+      value={value}
+      onValueChange={(v) => v && onChange(v as Urgency)}
+    >
       {URGENCIES.map((u) => (
-        <button
-          key={u}
-          type="button"
-          role="radio"
-          aria-checked={value === u}
-          className={`u-${u}`}
-          onClick={() => onChange(u)}
-        >
+        <ToggleGroupItem key={u} value={u} className={`u-${u}`}>
           <span className="dot" aria-hidden />
           {URGENCY_LABEL[u]}
-        </button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   )
 }

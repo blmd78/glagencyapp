@@ -57,7 +57,7 @@ export function HabitEditor({
         <button type="button" className="btn sm" onClick={save}>
           Enregistrer
         </button>
-        <button type="button" className="btn sm btn-ghost" onClick={onCancel}>
+        <button type="button" className="btn sm" onClick={onCancel}>
           Annuler
         </button>
       </span>

@@ -183,7 +183,7 @@
 .trk .dd-menu a.on::before { content:'✓ ';color:var(--trk-accent-2) }
 .trk .dd-menu a.dim { color:var(--trk-faint) }
 .trk .seg { display:inline-flex;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:9px;padding:3px }
-.trk .seg a { padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--trk-muted);text-decoration:none }
+.trk .seg a, .trk .seg button { padding:6px 13px;border-radius:6px;font-size:12.5px;font-weight:600;color:var(--trk-muted);text-decoration:none;background:none;border:none;font-family:inherit;cursor:pointer }
 .trk .seg a.on { background:var(--trk-surface3);color:#fff }
 .trk .wrap { padding:20px 26px 64px;display:flex;flex-direction:column;gap:16px;width:100%;max-width:1080px;margin:0 auto }
 /* La To Do a besoin de toute la largeur : 7 colonnes dans 1080px donnent des
@@ -664,10 +664,8 @@
 .trk .task.drop-before { box-shadow:0 -2px 0 0 var(--trk-accent) }
 .trk .task.drop-after { box-shadow:0 2px 0 0 var(--trk-accent) }
 .trk .udot { display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--u);flex:none;margin-right:6px;vertical-align:middle }
-.trk .urg { display:flex;gap:6px;flex-wrap:wrap }
-.trk .urg button { display:inline-flex;align-items:center;gap:6px;background:var(--trk-surface2);border:1px solid var(--trk-border);border-radius:7px;padding:4px 9px;font:inherit;font-size:12px;color:var(--trk-muted);cursor:pointer }
-.trk .urg button .dot { width:8px;height:8px;border-radius:50%;background:var(--u) }
-.trk .urg button[aria-checked='true'] { border-color:var(--u);color:var(--trk-text);background:var(--trk-surface3) }
+.trk .urg { flex-wrap:wrap }
+.trk .urg .dot { width:8px;height:8px;border-radius:50%;background:var(--u);flex:none }
 .trk .qadd textarea { width:100%;margin-top:6px;background:var(--trk-surface);border:1px solid var(--trk-border);border-radius:8px;color:var(--trk-text);padding:7px 9px;font:inherit;font-size:12.5px;outline:none;resize:vertical }
 .trk .qadd textarea:focus { border-color:var(--trk-accent) }
 .trk .qadd .urg { margin:6px 0 }
@@ -681,7 +679,6 @@
 .trk .dopen { display:inline-flex;align-items:baseline;gap:7px;background:none;border:none;padding:0;font:inherit;color:inherit;text-transform:inherit;cursor:pointer }
 .trk .dopen:hover { color:var(--trk-accent-2) }
 .trk.ddlg { max-height:88vh;overflow:auto }
-.trk .dnav { display:flex;justify-content:space-between;gap:8px;padding-right:28px }
 /* Modifier une habitude (#160) : la ligne s'ouvre en petit formulaire. */
 .trk .grow:has(.hedit) { flex-wrap:wrap }
 .trk .grow>span.hedit { flex:1 1 100%;display:flex;flex-direction:column;gap:6px;white-space:normal;overflow:visible }

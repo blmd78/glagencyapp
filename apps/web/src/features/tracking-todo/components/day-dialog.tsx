@@ -44,12 +44,13 @@ export function DayDialog({
               {day.weekdayLabel} {day.dayLabel}
             </DialogTitle>
             <DialogDescription className="sr-only">La journée seule, avec ses tâches.</DialogDescription>
-            <div className="dnav">
-              <button type="button" className="btn sm btn-ghost" onClick={onPrev}>
-                ‹ Jour précédent
+            {/* La navigation SEGMENTÉE de la semaine (`.seg`, en-tête de la page), pour les jours. */}
+            <div className="seg justify-self-start">
+              <button type="button" aria-label="Jour précédent" onClick={onPrev}>
+                ‹
               </button>
-              <button type="button" className="btn sm btn-ghost" onClick={onNext}>
-                Jour suivant ›
+              <button type="button" aria-label="Jour suivant" onClick={onNext}>
+                ›
               </button>
             </div>
             <TodoDnd days={[day]} onMove={onMove}>
