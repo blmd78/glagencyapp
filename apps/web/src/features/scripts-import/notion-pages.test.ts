@@ -62,8 +62,8 @@ describe('organizeNotionPages', () => {
       creators,
     )
     expect(r.recognized.map((g) => g.creatorId)).toEqual(['c-lucie'])
+    // Le prompt (p1) n'apparaît nulle part : il ne s'importe jamais.
     expect(r.others).toEqual([
-      { id: 'parent:om', title: 'OUTILS MANAGERS', creatorId: null, scripts: [{ id: 'p1', title: 'Prompt – Script de vente V3' }] },
       { id: 'parent:k', title: 'Script découverte (KYC) · Lucie', creatorId: null, scripts: [{ id: 'm1', title: 'Photo 1' }] },
       {
         id: 'parent:',
@@ -284,7 +284,8 @@ describe('organizeNotionPages', () => {
       { id: 's1', title: 'Script de vente · Emma', parentId: null },
     ])
     expect(r.recognized.flatMap((g) => g.scripts.map((x) => x.id))).toEqual(['s1'])
-    expect(r.others.flatMap((g) => g.scripts.map((x) => x.id)).sort()).toEqual(['f-emma', 'p1', 'p2'])
+    // Ni dans « Autres pages » : un prompt ne s'importe jamais, même choisi à la main.
+    expect(r.others.flatMap((g) => g.scripts.map((x) => x.id)).sort()).toEqual(['f-emma'])
   })
 
   it('sous la page d’un prompt : jamais présélectionné, sauf « · Prénom » explicite', () => {

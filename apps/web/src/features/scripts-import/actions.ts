@@ -10,7 +10,6 @@ import {
   describeFailure,
   describeMedia,
   gatherScript,
-  looksLikeScript,
   sendScript,
   studioWriter,
 } from '@glagency/scripts'
@@ -33,15 +32,13 @@ import { canSend } from './rules'
 import { prepareClaims, sendLock } from './locks'
 import { prepareOnce } from './prepare-once'
 import { prepareImportInput, prepareStatusInput } from './schema'
-import { checkDraftForSend, notionReadMessage, withSendLock } from './send-rules'
+import { checkDraftForSend, notionReadMessage, prepareRefusal, withSendLock } from './send-rules'
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
 import type { PrepareState } from './wait-prepared'
 import { deleteNotionConnection, getNotionConnections, withNotionToken } from './services/notion-connection'
 
 const PAGE = '/chatter/import-scripts'
-const NOT_A_SCRIPT =
-  'Cette page ne ressemble pas à un script : aucune bulle (« > »), étape (#1, N1), enchaînement (⏩ ⏸️ ⏱️) ni média (PPV, PHOTO 1, VOCAL 1), ni dans ses pages liées, et aucun PDF joint. Choisis la page du script lui-même.'
 
 /** Admin ou encadrant (manager / sous-manager), jamais « en tant que » : on écrit chez un tiers. */
 async function requireImporter(): Promise<Profile> {
@@ -116,9 +113,9 @@ async function prepare({
   )
   if (!hit) throw new BusinessError('Page Notion introuvable, ou pas partagée avec le CRM (Partager → Connexions → GL Agency CRM).')
   const page = hit.value
-  // Avant de payer la conversion : une page proposée par erreur (sommaire, page média, fiche) s'arrête ici.
-  // Un PDF joint ne se juge pas sans le lire : il passe, la conversion dira s'il porte un script.
-  if (!page.pdfs.length && !looksLikeScript(page.text)) throw new BusinessError(NOT_A_SCRIPT)
+  // Avant de payer la conversion : un prompt, ou une page proposée par erreur (sommaire, page média, fiche).
+  const refusal = prepareRefusal(page)
+  if (refusal) throw new BusinessError(refusal)
   let converted: Awaited<ReturnType<typeof convertToDraft>>
   try {
     converted = await convertToDraft(anthropic(), page)

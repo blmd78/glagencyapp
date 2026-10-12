@@ -64,8 +64,9 @@ const joined = (ws: string[]) => ws.join(' ')
  * Jamais un script : un dossier de modèle ou générique lui-même ; une page dont le titre contient
  * « prompt » (des consignes de rédaction, même « Prompt négo Emma ») ; une page sous un script, à toute
  * profondeur (page média), sauf si son titre finit par « · Prénom » ; une page qui nomme deux modèles
- * ou dont le titre contredit le dossier. Le reste (prompts, dossiers, pages média) va dans « autres »,
- * groupé par dossier parent, choisissable à la main.
+ * ou dont le titre contredit le dossier. Le reste (dossiers, pages média) va dans « autres », groupé
+ * par dossier parent, choisissable à la main — sauf les prompts, qui n'apparaissent nulle part : ils ne
+ * s'importent jamais (`prepareRefusal`).
  * La reconnaissance se fait sur `creators` = TOUTES les modèles (sinon « · Julie (privé) » vu par un
  * encadrant de Julie seule tomberait chez Julie) ; seule une modèle de `allowedIds` (le périmètre de
  * l'appelant) est présélectionnée. Deux modèles du même nom → pas de présélection.
@@ -154,6 +155,8 @@ export function organizeNotionPages(
       recognized.set(key, g)
       continue
     }
+    // Un prompt ne s'importe jamais (`prepareRefusal`) : inutile de le proposer à la main.
+    if (isPromptTitle(p.title)) continue
     const key = `parent:${parentTitle !== undefined ? p.parentId : ''}`
     const g = others.get(key) ?? { id: key, title: parentTitle !== undefined ? parentTitle || 'Sans titre' : NO_FOLDER, creatorId: null, scripts: [] }
     g.scripts.push(script)
