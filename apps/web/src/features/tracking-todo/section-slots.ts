@@ -20,7 +20,7 @@ import { asUrgency, type Urgency } from './urgency'
 async function sectionSlots(ownerId: string, date: string, category: string, exclude: string): Promise<Slot[]> {
   const admin = createAdminClient()
   const [tasksRes, habitsRes] = await Promise.all([
-    // Les lignes du jour, plus les occurrences de CE jour déplacées ailleurs (`habit_date`, 0192) —
+    // Les lignes du jour, plus les occurrences de CE jour déplacées ailleurs (`habit_date`, 0193) —
     // le même périmètre que `getTodoWeek`.
     admin
       .from('tracker_todo_tasks')

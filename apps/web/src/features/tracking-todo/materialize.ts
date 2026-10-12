@@ -42,7 +42,7 @@ export async function materialize(ownerId: string, taskId: string): Promise<stri
       label: habit.label,
       description: habit.description,
       urgency: habit.urgency,
-      // Le lien vers le gabarit ET le jour (0192) : ce sont eux, et non plus l'intitulé et la date,
+      // Le lien vers le gabarit ET le jour (0193) : ce sont eux, et non plus l'intitulé et la date,
       // qui disent que l'occurrence de ce jour existe déjà (`isMaterialized`). Une occurrence
       // renommée ou changée de jour dans la pop-up reste donc la sienne, au lieu de laisser
       // l'habitude renaître à côté.

@@ -6,7 +6,7 @@ import { DEFAULT_URGENCY, URGENCIES } from './urgency'
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date invalide')
 const owner = z.uuid()
 
-/** Titre, description et urgence d'une tâche (#160) — les bornes sont celles des `check` de 0192. */
+/** Titre, description et urgence d'une tâche (#160) — les bornes sont celles des `check` de 0193. */
 const title = z.string().trim().min(1, 'Écris quelque chose').max(200, '200 caractères maximum')
 const description = z.string().trim().max(2000, '2000 caractères maximum')
 const urgency = z.enum(URGENCIES)

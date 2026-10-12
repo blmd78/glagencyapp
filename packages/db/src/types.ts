@@ -4420,6 +4420,7 @@ export type Database = {
           name: string
           owner_id: string
           position: number
+          starts_on: string | null
           weekdays: string
         }
         Insert: {
@@ -4428,6 +4429,7 @@ export type Database = {
           name: string
           owner_id: string
           position?: number
+          starts_on?: string | null
           weekdays?: string
         }
         Update: {
@@ -4436,6 +4438,7 @@ export type Database = {
           name?: string
           owner_id?: string
           position?: number
+          starts_on?: string | null
           weekdays?: string
         }
         Relationships: [

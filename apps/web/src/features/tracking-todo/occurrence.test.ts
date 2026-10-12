@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueHabits, isDue, isMaterialized, type OccurrenceRow } from './occurrence'
+import { dueHabits, isDue, isMaterialized, isSectionOn, type OccurrenceRow } from './occurrence'
 
 const HABIT = { id: 'h1', label: 'Contrôler la nuit', category: 'Routine' }
 const D = '2026-10-12'
@@ -33,7 +33,7 @@ describe('isMaterialized', () => {
     expect(isMaterialized(HABIT, '2026-10-13', [row({ habitId: 'h1', habitDate: D, date: '2026-10-13' })])).toBe(false)
   })
 
-  it('repli sur l’intitulé pour une ligne d’avant 0192 (habitId nul), même section, même jour', () => {
+  it('repli sur l’intitulé pour une ligne d’avant 0193 (habitId nul), même section, même jour', () => {
     expect(isMaterialized(HABIT, D, [row({})])).toBe(true)
   })
 
@@ -46,12 +46,12 @@ describe('isMaterialized', () => {
   })
 })
 
-describe('isDue — la date de début (0193, #163)', () => {
+describe('isDue — la date de début (0194, #163)', () => {
   const h = { active: true, weekdays: '1,2,3,4,5,6,7', starts_on: '2026-10-12' }
 
   it('pas avant sa date de début', () => expect(isDue(h, '2026-10-11')).toBe(false))
   it('dès sa date de début', () => expect(isDue(h, '2026-10-12')).toBe(true))
-  it('sans date de début (habitudes d’avant 0193) : comme avant', () =>
+  it('sans date de début (habitudes d’avant 0194) : comme avant', () =>
     expect(isDue({ ...h, starts_on: null }, '2020-01-06')).toBe(true))
   it('en pause : jamais', () => expect(isDue({ ...h, active: false }, '2026-10-13')).toBe(false))
   it('jour de la semaine non coché : non', () => expect(isDue({ ...h, weekdays: '1' }, '2026-10-13')).toBe(false))
@@ -71,4 +71,14 @@ describe('dueHabits', () => {
   it('une occurrence déjà matérialisée n’est plus due', () => {
     expect(dueHabits(habits, D, 'Routine', [row({ habitId: 'h1', habitDate: D, label: 'A' })])).toEqual([])
   })
+})
+
+describe('isSectionOn — la date de début d’une section (0194, #163)', () => {
+  const s = { weekdays: '1,2,3,4,5,6,7', starts_on: '2026-10-12' }
+
+  it('pas avant sa date de début : les semaines passées ne changent pas', () => expect(isSectionOn(s, '2026-10-11')).toBe(false))
+  it('dès sa date de début', () => expect(isSectionOn(s, '2026-10-12')).toBe(true))
+  it('sans date de début (sections d’avant 0194) : comme avant', () =>
+    expect(isSectionOn({ ...s, starts_on: null }, '2020-01-06')).toBe(true))
+  it('jour de la semaine non coché : non', () => expect(isSectionOn({ ...s, weekdays: '1' }, '2026-10-13')).toBe(false))
 })

@@ -121,7 +121,7 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
       const caller = await assertCanOrganize(d.ownerId)
       const admin = createAdminClient()
       // En DERNIER parmi ses habitudes : la `position` fixe la place de ses occurrences en haut de
-      // la section (#161, `habitKey`), et 0192 l'a rendue unique par titulaire.
+      // la section (#161, `habitKey`), et 0193 l'a rendue unique par titulaire.
       const { data: last, error: lastErr } = await admin
         .from('tracker_todo_habits')
         .select('position')
@@ -142,7 +142,7 @@ export async function saveHabit(raw: unknown): Promise<ActionResult> {
         // marquer d'un « déposée » les habitudes qu'on s'impose.
         created_by: caller.id === d.ownerId ? null : caller.id,
       })
-      // Une autre habitude créée au même instant a pris cette position (index unique, 0192).
+      // Une autre habitude créée au même instant a pris cette position (index unique, 0193).
       if (error?.code === '23505') {
         throw new BusinessError('Une autre habitude vient d’être créée en même temps : réessaie.')
       }

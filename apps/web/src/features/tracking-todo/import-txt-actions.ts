@@ -19,7 +19,7 @@ import { mergeWeekdays } from './weekdays'
  *
  * Ce que l'import écrit :
  * • la ROUTINE — la section récurrente du fichier (« Routine »), tous les jours, et une habitude
- *   quotidienne par ligne, due à partir du 1er jour du fichier (`starts_on`, 0193) ; déposée par
+ *   quotidienne par ligne, due à partir du 1er jour du fichier (`starts_on`, 0194) ; déposée par
  *   l'importeur, donc verrouillée pour son titulaire (règle 0148, décision du 2026-10-12) ;
  * • les tâches de chaque jour, dans « À faire », dans l'ordre du fichier, en urgence Normale.
  *
@@ -65,10 +65,18 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
         // Les jours s'AJOUTENT à ceux d'une section du même nom (même règle que `saveSection`) :
         // une section « Routine » existante n'est pas écrasée.
         const { data: existingSection, error: secErr } = await admin
-          .from('tracker_todo_sections').select('weekdays').eq('owner_id', d.ownerId).eq('name', section).maybeSingle()
+          .from('tracker_todo_sections').select('weekdays, starts_on').eq('owner_id', d.ownerId).eq('name', section).maybeSingle()
         if (secErr) throw new Error(secErr.message)
         const { error: upErr } = await admin.from('tracker_todo_sections').upsert(
-          { owner_id: d.ownerId, name: section, weekdays: mergeWeekdays(existingSection?.weekdays ?? '', EVERY_DAY) },
+          {
+            owner_id: d.ownerId,
+            name: section,
+            weekdays: mergeWeekdays(existingSection?.weekdays ?? '', EVERY_DAY),
+            // Une section NEUVE n'apparaît qu'à partir du 1er jour du fichier (0194) : sans ça, un
+            // groupe « Routine » vide s'afficherait chaque jour des semaines passées. Une section
+            // qui existait déjà garde sa date (nulle = partout, comme avant) : rien ne bouge chez elle.
+            starts_on: existingSection ? existingSection.starts_on : period.from,
+          },
           { onConflict: 'owner_id,name' },
         )
         if (upErr) throw new Error(upErr.message)
@@ -101,7 +109,7 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
           }))
         if (rows.length > 0) {
           const { error } = await admin.from('tracker_todo_habits').insert(rows)
-          // Une habitude créée au même instant a pris l'une de ces positions (index unique, 0192) :
+          // Une habitude créée au même instant a pris l'une de ces positions (index unique, 0193) :
           // aucune habitude ni tâche n'est écrite (la section, déjà posée, ne se doublera pas) —
           // relancer suffit.
           if (error?.code === '23505') {

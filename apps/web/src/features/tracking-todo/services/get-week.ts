@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { canEditHabit } from '@/lib/tracking/habit-rules'
 import { TODO_ROLES } from '@/lib/tracking/todo-roles'
 import { defaultDebriefDay } from '../debrief-day'
-import { dueHabits, isDue } from '../occurrence'
+import { dueHabits, isDue, isSectionOn } from '../occurrence'
 import { habitKey, sortSlots } from '../order'
 import type { TodoDaily, TodoDay, TodoLink, TodoSection, TodoTask, TodoWeek } from '../types'
 import { asUrgency } from '../urgency'
@@ -55,10 +55,10 @@ export async function getTodoWeek(params: {
 
   const [sectionsRes, tasksRes, habitsRes, dayoffRes, notesRes, linksRes, dailyRes] =
     await Promise.all([
-      supabase.from('tracker_todo_sections').select('name, weekdays, position')
+      supabase.from('tracker_todo_sections').select('name, weekdays, starts_on, position')
         .eq('owner_id', params.ownerId).order('position'),
       // Les tâches de la semaine, plus les occurrences d'habitude de la semaine DÉPLACÉES ailleurs
-      // (`habit_date`, 0192) : elles ne s'affichent pas ici, mais disent que leur habitude est
+      // (`habit_date`, 0193) : elles ne s'affichent pas ici, mais disent que leur habitude est
       // déjà matérialisée ce jour-là (`isMaterialized`).
       supabase.from('tracker_todo_tasks')
         .select('id, date, category, label, description, urgency, habit_id, habit_date, done, position, created_at, created_by, chatter_id, session_id, chatter:profiles!tracker_todo_tasks_chatter_id_fkey(display_name)')
@@ -69,7 +69,7 @@ export async function getTodoWeek(params: {
       // (leur liste les grise au lieu de les cacher, `.grow.off`). Le filtre `active` se fait plus
       // bas, au moment de projeter les occurrences dans la semaine.
       // La `position` d'une habitude fixe la place de son occurrence en haut de la section (#161,
-      // `habitKey`) ; `created_at` ne départage que les lignes d'avant 0192.
+      // `habitKey`) ; `created_at` ne départage que les lignes d'avant 0193.
       supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, starts_on, position, created_by')
         .eq('owner_id', params.ownerId).order('position').order('created_at'),
       supabase.from('tracker_todo_dayoff').select('date')
@@ -110,7 +110,7 @@ export async function getTodoWeek(params: {
     // catégorie qui porte déjà une tâche — une section supprimée ne doit jamais faire disparaître
     // des tâches de l'écran (c'est ce que leur bouton promet explicitement).
     const names = new Set<string>()
-    for (const s of sections) if (s.weekdays.split(',').map(Number).includes(wd)) names.add(s.name)
+    for (const s of sections) if (isSectionOn(s, date)) names.add(s.name)
     for (const t of dayTasks) names.add(t.category)
     for (const h of habits) if (isDue(h, date)) names.add(h.category)
 
@@ -181,7 +181,7 @@ export async function getTodoWeek(params: {
           }))
         return {
           name,
-          recurring: sections.some((s) => s.name === name && s.weekdays.split(',').map(Number).includes(wd)),
+          recurring: sections.some((s) => s.name === name && isSectionOn(s, date)),
           tasks: sortSlots([...real, ...virtual]).map((x) => x.task),
         }
       }),

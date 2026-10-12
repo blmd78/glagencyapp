@@ -1,72 +1,31 @@
--- 0192 — To-Do : description, urgence, et l'occurrence d'habitude rattachée par identifiant (#160).
+-- 0194 — To-Do : une date de début sur les habitudes et les sections (#163).
 --
--- DEMANDE (Benoit, 2026-10-12) : une tâche a un TITRE (le `label` existant), une DESCRIPTION
--- facultative et un niveau d'URGENCE — Normale (défaut), Importante, Urgente — affiché en couleur ;
--- les habitudes aussi. On ouvre la tâche dans une pop-up pour la modifier.
+-- L'IMPORT D'UNE TO-DO (fichier .txt, #163) crée la routine en habitudes quotidiennes — décision
+-- de Benoit du 2026-10-12, « comme le dit le document : une section récurrente ». Or une habitude
+-- n'avait aucune borne de date : créée le 12 octobre, elle apparaissait aussi sur les semaines
+-- passées (`get-week.ts`) et le Récap la comptait due — donc « pas faite » — sur tous les jours
+-- d'avant (0160). `starts_on` borne les deux ; l'import la pose au premier jour du fichier.
 --
--- `text` + `check`, jamais d'`enum` (AGENTS.md § Migrations). `description` vaut '' plutôt que
--- `null` : même convention que `category`, une seule façon de dire « rien ».
+-- La SECTION récurrente que l'import crée (« Routine ») avait le même défaut : sans borne, un groupe
+-- vide « Routine 0/0 » serait apparu chaque jour des semaines passées. Même colonne, même règle
+-- (`get-week.ts`, `isSectionOn`) ; le Récap ne compte pas les sections.
 --
--- `habit_id` + `habit_date` : RENOMMER une occurrence d'habitude, ou changer son JOUR depuis la
--- pop-up, la faisait réapparaître en double. Une occurrence matérialisée n'était reconnue qu'à son
--- intitulé, et le jour où elle se trouve — par la grille (`get-week.ts`) comme par le Récap (0160) :
--- titre ou jour changé = habitude « pas encore faite », rendue de nouveau et comptée due.
--- `materialize()` pose désormais l'habitude ET le jour dont la ligne est l'occurrence ; c'est sur
--- eux qu'on la reconnaît, où que la ligne soit ensuite déplacée. L'intitulé et le jour restent le
--- repli des lignes d'avant 0192 (`habit_id` nul), qu'on ne rattache pas à l'aveugle. `on delete set
--- null` : supprimer une habitude garde l'historique de ses occurrences, comme avant.
---
--- Aucune policy : les écritures `tracker_todo_*` passent en service-role après garde (0127).
-
-alter table public.tracker_todo_tasks
-  add column if not exists description text not null default ''
-    check (char_length(description) <= 2000),
-  add column if not exists urgency text not null default 'normale'
-    check (urgency in ('normale', 'importante', 'urgente')),
-  add column if not exists habit_id uuid references public.tracker_todo_habits(id) on delete set null,
-  add column if not exists habit_date date;
-
-create index if not exists tracker_todo_tasks_habit_idx
-  on public.tracker_todo_tasks (habit_id) where habit_id is not null;
+-- NULLE = sans borne : habitudes et sections existantes ne bougent pas. Pas de date de fin : la
+-- routine « revient tous les jours » ; on l'arrête en la mettant en pause ou en la supprimant.
 
 alter table public.tracker_todo_habits
-  add column if not exists description text not null default ''
-    check (char_length(description) <= 2000),
-  add column if not exists urgency text not null default 'normale'
-    check (urgency in ('normale', 'importante', 'urgente'));
+  add column if not exists starts_on date;
 
-comment on column public.tracker_todo_tasks.description is
-  'Description facultative de la tâche (#160). '''' = aucune.';
-comment on column public.tracker_todo_tasks.urgency is
-  'Urgence : normale (défaut, bleu) · importante (orange) · urgente (rouge) (#160).';
-comment on column public.tracker_todo_tasks.habit_id is
-  'Habitude dont la tâche est l''occurrence, posée par materialize() (0192). Nul avant 0192 : repli sur l''intitulé.';
-comment on column public.tracker_todo_tasks.habit_date is
-  'Jour dont la tâche est l''occurrence (0192), gardé si la ligne change de jour. Va avec habit_id.';
-comment on column public.tracker_todo_habits.description is
-  'Description recopiée sur chaque occurrence (#160).';
-comment on column public.tracker_todo_habits.urgency is
-  'Urgence recopiée sur chaque occurrence (#160).';
+comment on column public.tracker_todo_habits.starts_on is
+  'Premier jour où l''habitude est due (0194, posé par l''import #163). Nul = sans borne.';
 
--- RANG STABLE DES HABITUDES (#161) : la place d'une occurrence en haut de sa section vient de la
--- `position` de son habitude (`habitKey`, order.ts). Jamais écrite jusqu'ici, elle valait 0 partout :
--- on la rend unique par titulaire, dans l'ordre déjà affiché (position, puis création). Supprimer
--- une habitude ne décale plus les autres.
-with ranked as (
-  select id, (row_number() over (partition by owner_id order by position, created_at))::int - 1 as rn
-  from public.tracker_todo_habits
-)
-update public.tracker_todo_habits h set position = r.rn
-from ranked r
-where r.id = h.id and h.position <> r.rn;
+alter table public.tracker_todo_sections
+  add column if not exists starts_on date;
 
--- Et elle le RESTE : deux habitudes créées au même instant pour la même personne auraient pris la
--- même position — deux occurrences à la même place, entre lesquelles aucune tâche ne se pose plus.
-create unique index if not exists tracker_todo_habits_owner_position_key
-  on public.tracker_todo_habits (owner_id, position);
+comment on column public.tracker_todo_sections.starts_on is
+  'Premier jour où la section récurrente apparaît (0194, posé par l''import #163). Nul = sans borne.';
 
--- Récap : corps repris de 0160 (identique à `pg_get_functiondef` en UAT le 2026-10-12), seul le
--- rapprochement « déjà matérialisée » change.
+-- Récap : corps repris de 0193, seule la borne `starts_on` s'ajoute au comptage des habitudes dues.
 create or replace function public.tracker_todo_week_recap(p_from date, p_to date)
  RETURNS jsonb
  LANGUAGE sql
@@ -174,6 +133,10 @@ AS $function$
                                     interval '1 day') as g(d)
          where h.owner_id = s.owner_id
            and h.active
+           -- 0194 — pas avant sa date de début : une habitude posée aujourd'hui (import d'une
+           -- to-do, #163) ne compte pas en « pas faite » sur les semaines passées. Nulle = sans
+           -- borne, comme toutes les habitudes d'avant 0194.
+           and (h.starts_on is null or g.d >= h.starts_on)
            -- Jour de la semaine listé dans l'habitude. Comparaison sur le TABLEAU découpé et non
            -- par `position()` : un `like '%1%'` attraperait aussi un futur « 10 ».
            and extract(isodow from g.d)::text = any(string_to_array(h.weekdays, ','))
@@ -181,10 +144,10 @@ AS $function$
            and not exists (select 1 from tracker_todo_dayoff o
                             where o.owner_id = s.owner_id and o.date = g.d::date)
            -- Déjà matérialisée : c'est alors une ligne de `tracker_todo_tasks`, déjà comptée
-           -- ci-dessus. 0192 — rapprochement par (`habit_id`, `habit_date`) d'abord : une
+           -- ci-dessus. 0193 — rapprochement par (`habit_id`, `habit_date`) d'abord : une
            -- occurrence RENOMMÉE ou CHANGÉE DE JOUR (pop-up de la To-Do) reste la sienne, le
            -- rapprochement par intitulé et jour la perdait et comptait l'habitude due une seconde
-           -- fois. Repli sur (propriétaire, jour, intitulé) pour les lignes d'avant 0192.
+           -- fois. Repli sur (propriétaire, jour, intitulé) pour les lignes d'avant 0193.
            and not exists (select 1 from tracker_todo_tasks t2
                             where t2.owner_id = s.owner_id
                               and ((t2.habit_id = h.id and t2.habit_date = g.d::date)
@@ -234,4 +197,4 @@ $function$
 ;
 
 comment on function public.tracker_todo_week_recap(date, date) is
-  'Récap hebdo. Depuis 0160, `planned` inclut les occurrences d''habitudes DUES et non encore matérialisées (hors jours de repos, jusqu''à aujourd''hui). Depuis 0192, une occurrence se reconnaît à son habit_id et son habit_date (repli : jour et intitulé).';
+  'Récap hebdo. Depuis 0160, `planned` inclut les occurrences d''habitudes DUES et non encore matérialisées (hors jours de repos, jusqu''à aujourd''hui). Depuis 0193, une occurrence se reconnaît à son habit_id et son habit_date (repli : jour et intitulé). Depuis 0194, une habitude n''est due qu''à partir de starts_on.';

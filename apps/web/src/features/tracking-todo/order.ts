@@ -11,7 +11,7 @@ import type { Urgency } from './urgency'
  *
  * LES HABITUDES EN HAUT par défaut (décision de Benoit, 2026-10-12) : une occurrence virtuelle
  * prend la clé `habitKey(position)`, très négative, dans l'ordre des habitudes — leur `position`,
- * unique et stable depuis 0192. `materialize()` pose cette même clé sur la ligne qu'elle crée :
+ * unique et stable depuis 0193. `materialize()` pose cette même clé sur la ligne qu'elle crée :
  * cocher une habitude ne la fait pas sauter de place.
  *
  * Les clés sont ESPACÉES (`STEP`) : poser une tâche entre deux autres prend le milieu, sans
@@ -22,7 +22,7 @@ import type { Urgency } from './urgency'
 export const STEP = 1024
 const HABIT_BASE = -1024 * 1024
 
-/** Clé d'une occurrence d'habitude : la `position` de son habitude (unique par titulaire, 0192). */
+/** Clé d'une occurrence d'habitude : la `position` de son habitude (unique par titulaire, 0193). */
 export const habitKey = (position: number): number => HABIT_BASE + position * STEP
 
 export interface Slot {

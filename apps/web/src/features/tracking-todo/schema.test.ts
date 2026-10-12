@@ -39,7 +39,7 @@ describe('catégorie « sans section »', () => {
 
 /**
  * TITRE, DESCRIPTION, URGENCE (#160) — décision de Benoit du 2026-10-12 : titre obligatoire,
- * description facultative, urgence Normale par défaut. Les bornes sont celles des `check` de 0192.
+ * description facultative, urgence Normale par défaut. Les bornes sont celles des `check` de 0193.
  */
 describe('titre, description et urgence', () => {
   it('le titre seul reste une tâche complète : description vide, urgence normale', () => {

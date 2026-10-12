@@ -80,7 +80,7 @@ export async function addTask(raw: unknown): Promise<ActionResult> {
  *
  * Sur une occurrence d'habitude, seule l'occurrence change (décision de Benoit, 2026-10-12) :
  * on la matérialise, puis on modifie la ligne — le gabarit, lui, ne bouge pas. C'est `habit_id`
- * (0192) qui empêche l'habitude de renaître à côté d'une occurrence renommée.
+ * (0193) qui empêche l'habitude de renaître à côté d'une occurrence renommée.
  */
 export async function updateTask(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -99,7 +99,7 @@ export async function updateTask(raw: unknown): Promise<ActionResult> {
         .maybeSingle()
       if (readErr) throw new Error(readErr.message)
       if (!before) throw new BusinessError('Cette tâche a été supprimée entre-temps.')
-      // Une occurrence matérialisée AVANT 0192 n'a pas de `habit_id` : seuls son intitulé et son jour
+      // Une occurrence matérialisée AVANT 0193 n'a pas de `habit_id` : seuls son intitulé et son jour
       // la reconnaissent. La renommer ou la déplacer ferait renaître son habitude à côté, et le Récap
       // la compterait due une seconde fois. On la rattache donc à l'habitude qu'elle est — même règle
       // que `isMaterialized` — avant d'y toucher.

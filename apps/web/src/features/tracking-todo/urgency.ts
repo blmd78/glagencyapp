@@ -1,6 +1,6 @@
 /**
  * Les trois niveaux d'urgence d'une tâche (#160, décision de Benoit du 2026-10-12) — « les
- * classiques, comme sur Trello ou Notion ». Même liste que le `check` SQL de 0192 : un niveau
+ * classiques, comme sur Trello ou Notion ». Même liste que le `check` SQL de 0193 : un niveau
  * ajouté ici sans migration serait refusé par la base.
  *
  * Normale est le défaut. Les couleurs vivent dans `tracker-theme.css` (`.u-<niveau>`) : bleu,

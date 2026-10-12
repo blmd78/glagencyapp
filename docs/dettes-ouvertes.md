@@ -82,15 +82,7 @@ pour « Préparer » (`waitPrepared` relit la clé du clic). L'envoi (`sendImpor
 coupé — le rapport dit où il en est » et le serveur va au bout (statut relu au rafraîchissement). À
 reprendre si une coupure d'envoi est observée : même relecture, sur le statut de l'import.
 
-**12. La section « Routine » importée revient aussi sur les semaines passées** (2026-10-12, #163) :
-l'import crée la section récurrente du fichier, tous les jours, comme le demande le document
-(décision de Benoit). Les SECTIONS n'ont pas de date de début — seules les habitudes en ont une
-(`starts_on`, 0193) : avant le 1er jour du fichier, la grille montre donc un groupe « Routine »
-vide (0/0) chaque jour. Sans effet sur le Récap, qui ne compte pas les sections. À reprendre si
-ça gêne : ne pas créer la section (les habitudes font déjà apparaître leur groupe), ou une date de
-début sur les sections.
-
-**13. L'import d'un fichier n'est pas une transaction** (2026-10-12, #163) : la lecture du fichier
+**12. L'import d'un fichier n'est pas une transaction** (2026-10-12, #163) : la lecture du fichier
 est entière avant la première écriture (une erreur de format n'écrit rien), mais section,
 habitudes et tâches partent en trois écritures. Une panne de base au milieu laisse une partie
 écrite ; relancer le même fichier complète sans doublon (dédoublonnage sur jour, section, titre).
