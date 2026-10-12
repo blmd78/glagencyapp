@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Corrigé
+
+- To-Do : « Juste aujourd'hui » retire vraiment une tâche récurrente ce jour-là — elle ne revient plus au rechargement et ne compte plus dans le Récap. La croix d'une tâche récurrente déjà cochée, renommée ou déplacée fait de même au lieu de la laisser réapparaître.
+
 ## [2.81] — 2026-10-12
 
 ### Corrigé

@@ -79,3 +79,26 @@ export function isMaterialized(
       : t.date === date && t.category === habit.category && t.label === habit.label,
   )
 }
+
+/**
+ * Une ligne s'affiche-t-elle ? Une occurrence SAUTÉE (« Juste aujourd'hui », 0195, #170) non : ni
+ * dans la grille, ni dans le rang d'une section. Elle reste pourtant une occurrence — on la passe
+ * toujours à `isMaterialized`, c'est elle qui empêche l'habitude de renaître ce jour-là.
+ */
+export const isShown = (row: { skipped: boolean }): boolean => !row.skipped
+
+/**
+ * Ce que fait la croix d'une vraie ligne (#170) : un 1:1 avec bilan se REFUSE (sa session resterait
+ * orpheline) ; une occurrence d'habitude se SAUTE — effacée, l'habitude renaîtrait ce jour-là ; le
+ * reste se SUPPRIME vraiment. `linked` : une ligne d'avant 0193 vient d'être reconnue comme
+ * occurrence de son habitude (`legacyHabitLink`).
+ */
+export function deleteOutcome(
+  row: { session_id: string | null; habit_id: string | null } | null,
+  linked: boolean,
+): 'refuse' | 'skip' | 'delete' {
+  if (row?.session_id) return 'refuse'
+  if (row && (row.habit_id !== null || linked)) return 'skip'
+  return 'delete'
+}
+

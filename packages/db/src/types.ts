@@ -4471,6 +4471,7 @@ export type Database = {
           owner_id: string
           position: number
           session_id: string | null
+          skipped: boolean
           urgency: string
         }
         Insert: {
@@ -4489,6 +4490,7 @@ export type Database = {
           owner_id: string
           position?: number
           session_id?: string | null
+          skipped?: boolean
           urgency?: string
         }
         Update: {
@@ -4507,6 +4509,7 @@ export type Database = {
           owner_id?: string
           position?: number
           session_id?: string | null
+          skipped?: boolean
           urgency?: string
         }
         Relationships: [

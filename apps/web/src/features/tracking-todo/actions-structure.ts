@@ -165,6 +165,13 @@ export async function deleteHabit(raw: unknown): Promise<ActionResult> {
     handler: async (d) => {
       await assertCanEditHabit(d.ownerId, d.habitId)
       const admin = createAdminClient()
+      // Ses occurrences SAUTÉES partent avec elle (0195) : elles ne portent aucun historique, et
+      // `on delete set null` en ferait des lignes « d'avant 0193 », invisibles, qui masqueraient par
+      // leur intitulé une habitude du même nom recréée ces jours-là. Ce qui a été fait reste.
+      const { error: sErr } = await admin
+        .from('tracker_todo_tasks').delete()
+        .eq('owner_id', d.ownerId).eq('habit_id', d.habitId).eq('skipped', true)
+      if (sErr) throw new Error(sErr.message)
       const { error } = await admin
         .from('tracker_todo_habits').delete().eq('id', d.habitId).eq('owner_id', d.ownerId)
       if (error) throw new Error(error.message)
