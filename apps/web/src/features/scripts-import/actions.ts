@@ -19,7 +19,6 @@ import {
   DENY_IMPERSONATION,
   DENY_STAFF,
   noGuard,
-  requireAdminProfileLive,
   runAction,
   type ActionResult,
 } from '@/lib/actions'
@@ -36,7 +35,7 @@ import { checkDraftForSend, notionReadMessage, prepareRefusal, withSendLock } fr
 import { withCreationTrace } from './trace'
 import { allowedCreators } from './services/get-scripts-import'
 import type { PrepareState } from './wait-prepared'
-import { deleteNotionConnection, getNotionConnections, withNotionToken } from './services/notion-connection'
+import { deleteNotionConnection, getNotionConnections, withNotionToken, type Viewer } from './services/notion-connection'
 
 const PAGE = '/chatter/import-scripts'
 
@@ -62,7 +61,7 @@ export async function prepareImport(raw: unknown): Promise<ActionResult<{ import
       const importId = await prepareOnce(
         prepareClaims(supabase, profile.id),
         requestId,
-        () => prepare({ supabase, profileId: profile.id, notionPageId, creatorId, connectionId }),
+        () => prepare({ supabase, profileId: profile.id, viewer: { id: profile.id, role: profile.role }, notionPageId, creatorId, connectionId }),
         { report: (e) => Sentry.captureException(e) },
       )
       revalidatePath(PAGE)
@@ -91,19 +90,25 @@ export async function prepareStatus(raw: unknown): Promise<ActionResult<PrepareS
 async function prepare({
   supabase,
   profileId,
+  viewer,
   notionPageId,
   creatorId,
   connectionId,
 }: {
   supabase: Awaited<ReturnType<typeof createClient>>
   profileId: string
+  viewer: Viewer
   notionPageId: string
   creatorId: string
   connectionId: string | undefined
 }): Promise<string> {
-  // Script de la liste : son espace est connu. Lien collé : on le cherche dans chaque espace connecté.
-  const spaces = connectionId ? [connectionId] : (await getNotionConnections()).map((c) => c.id)
-  if (!spaces.length) throw new BusinessError('Notion n’est pas connecté — demande à un admin.')
+  // Seulement les espaces VISIBLES par l'appelant (partagés, ou connectés par lui — 0192) : un id de
+  // connexion envoyé par le navigateur ne donne jamais accès au Notion perso d'un autre.
+  const visible = (await getNotionConnections(viewer)).map((c) => c.id)
+  if (connectionId && !visible.includes(connectionId)) throw new BusinessError('Espace Notion inaccessible : reconnecte ton Notion.')
+  // Script de la liste : son espace est connu. Lien collé : on le cherche dans chaque espace visible.
+  const spaces = connectionId ? [connectionId] : visible
+  if (!spaces.length) throw new BusinessError('Aucun Notion connecté : connecte le tien en haut de la page.')
   const hit = await firstWorkspaceWithPage(spaces, (id) => withNotionToken(id, (token) => gatherScript(token, notionPageId))).catch(
     (e: unknown) => {
       // Clé expirée, débit limité : dit au manager ; le reste est technique (Sentry + générique).
@@ -270,15 +275,17 @@ export async function sendImport(raw: unknown): Promise<ActionResult<{ mypulsScr
 
 const TECHNICAL = 'Erreur technique, signalée à l’équipe.'
 
-/** Admin : déconnecte UN espace Notion (sa clé est supprimée du CRM ; la connexion se retire aussi dans Notion). */
+/** Déconnecte UN espace Notion : le sien, ou n'importe lequel pour un admin (sa clé est supprimée du CRM ; la connexion se retire aussi dans Notion). */
 export async function disconnectNotion(raw: unknown): Promise<ActionResult> {
   return runAction({
     schema: z.object({ connectionId: z.string().min(1) }),
     input: raw,
     guard: noGuard,
     handler: async ({ connectionId }) => {
-      await requireAdminProfileLive()
-      await deleteNotionConnection(connectionId)
+      const profile = await requireImporter()
+      const done = await deleteNotionConnection(connectionId, { id: profile.id, role: profile.role })
+      if (done === 'refusé') throw new BusinessError('Tu ne peux déconnecter que tes propres espaces Notion.')
+      if (done === 'absente') throw new BusinessError('Espace déjà déconnecté.')
       revalidatePath(PAGE)
     },
   })

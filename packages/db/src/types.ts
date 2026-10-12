@@ -2154,6 +2154,7 @@ export type Database = {
           id: string
           refresh_token_encrypted: string | null
           root_page_id: string | null
+          shared: boolean
           workspace_id: string
           workspace_name: string
         }
@@ -2162,9 +2163,10 @@ export type Database = {
           bot_id: string
           connected_at?: string
           connected_by?: string | null
-          id: string
+          id?: string
           refresh_token_encrypted?: string | null
           root_page_id?: string | null
+          shared?: boolean
           workspace_id: string
           workspace_name: string
         }
@@ -2176,6 +2178,7 @@ export type Database = {
           id?: string
           refresh_token_encrypted?: string | null
           root_page_id?: string | null
+          shared?: boolean
           workspace_id?: string
           workspace_name?: string
         }

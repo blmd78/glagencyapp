@@ -49,7 +49,11 @@ function WorkspaceBlock({ workspace: w, creators, titled }: { workspace: NotionW
   const othersCount = w.others.reduce((n, f) => n + f.scripts.length, 0)
   return (
     <div className="flex flex-col gap-4">
-      {titled && <h3 className="text-sm font-medium text-muted-foreground">{w.workspaceName}</h3>}
+      {titled && (
+        <h3 className="text-sm font-medium text-muted-foreground">
+          {w.workspaceName} · {w.mine ? 'ton Notion' : 'partagé avec l’équipe'}
+        </h3>
+      )}
       {w.error ? (
         <p className="text-sm text-destructive">Lecture Notion impossible : {w.error}</p>
       ) : w.recognized.length === 0 && othersCount === 0 ? (
