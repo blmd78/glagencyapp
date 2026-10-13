@@ -24,7 +24,7 @@ export function mergeWeekdays(existing: string, add: readonly number[]): string 
 
 /**
  * La date de début d'une section quand on la retape depuis une colonne (0194, #163). Une section
- * importée n'apparaît qu'à partir du 1er jour du fichier ; la redemander depuis un jour ANTÉRIEUR
+ * importée avant 0196 n'apparaît qu'à partir du 1er jour du fichier ; la redemander depuis un jour ANTÉRIEUR
  * réussissait sans rien afficher. On ramène donc sa date de début à ce jour-là. Rend `undefined`
  * quand rien ne change — sans date (partout, comme toute section d'avant 0194) ou déjà visible.
  */

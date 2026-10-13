@@ -76,7 +76,7 @@ export async function legacyHabitLink(
   if (row.habit_id !== null) return null
   const { data: habits, error } = await createAdminClient()
     .from('tracker_todo_habits')
-    .select('id, weekdays, active, starts_on')
+    .select('id, weekdays, active, starts_on, ends_on')
     .eq('owner_id', ownerId)
     .eq('category', row.category)
     .eq('label', row.label)

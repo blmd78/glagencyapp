@@ -1,19 +1,21 @@
 import { isoWeekday } from '@glagency/core'
 
 /**
- * Une habitude est-elle due CE jour-là ? Active, jour de la semaine coché, et pas avant sa date de
- * début (0194 — posée par l'import #163 : une routine créée aujourd'hui ne remonte pas dans les
- * semaines passées). Nulle = sans borne, comme toutes les habitudes d'avant 0194. Le Récap applique
- * la même borne en SQL.
+ * Une habitude est-elle due CE jour-là ? Active, jour de la semaine coché, et dans sa période : pas
+ * avant sa date de début (0194), pas après sa date de fin (0196). L'import #163 pose les deux aux
+ * bornes du fichier : sa routine ne remonte pas dans les semaines passées et ne survit pas à la
+ * période. Nulles = sans borne, comme toutes les habitudes d'avant. Le Récap applique les mêmes
+ * bornes en SQL.
  */
 export function isDue(
-  habit: { active: boolean; weekdays: string; starts_on: string | null },
+  habit: { active: boolean; weekdays: string; starts_on: string | null; ends_on: string | null },
   date: string,
 ): boolean {
   return (
     habit.active &&
     habit.weekdays.split(',').map(Number).includes(isoWeekday(date)) &&
-    (habit.starts_on === null || date >= habit.starts_on)
+    (habit.starts_on === null || date >= habit.starts_on) &&
+    (habit.ends_on === null || date <= habit.ends_on)
   )
 }
 
@@ -30,8 +32,9 @@ export interface OccurrenceRow {
 
 /**
  * Une section RÉCURRENTE revient-elle ce jour-là ? Jour de la semaine coché, et pas avant sa date de
- * début (0194 — posée par l'import #163 : la section « Routine » ne s'affiche pas, vide, sur les
- * semaines passées). Nulle = sans borne, comme toutes les sections d'avant 0194.
+ * début (0194 — posée par l'import #163 jusqu'à 0196, qui rend sa section « Routine » ponctuelle :
+ * celles déjà importées ne s'affichent pas, vides, sur les semaines passées). Nulle = sans borne,
+ * comme toutes les autres sections.
  */
 export function isSectionOn(section: { weekdays: string; starts_on: string | null }, date: string): boolean {
   return (
@@ -50,7 +53,15 @@ export function isSectionOn(section: { weekdays: string; starts_on: string | nul
  * qu'on a visé à l'écran.
  */
 export function dueHabits<
-  H extends { id: string; label: string; category: string; weekdays: string; active: boolean; starts_on: string | null },
+  H extends {
+    id: string
+    label: string
+    category: string
+    weekdays: string
+    active: boolean
+    starts_on: string | null
+    ends_on: string | null
+  },
 >(habits: readonly H[], date: string, category: string, rows: readonly OccurrenceRow[]): H[] {
   return habits.filter((h) => h.category === category && isDue(h, date) && !isMaterialized(h, date, rows))
 }

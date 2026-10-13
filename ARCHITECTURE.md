@@ -114,7 +114,7 @@ Deux projets Supabase, réfs documentées dans `docs/git-workflow.md` :
 | prod (`main`) | `cqmfpsnqaxymswijdnfz` | eu-west-3 (`docs/runbook-uncove.md`) | `db.<ref>.supabase.co` injoignable IPv6-only depuis un poste de dev — passer par le pooler `aws-0-eu-west-3.pooler.supabase.com:5432` |
 | UAT (`develop`) | `ihkksdmgtrbbjugeboks` | eu-west-3 | même pooler |
 
-195 migrations séquentielles au 2026-10-12 (`packages/db/supabase/migrations/0001..0195`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
+196 migrations séquentielles au 2026-10-12 (`packages/db/supabase/migrations/0001..0196`, mesuré sur le dossier) ; l'état prod / UAT daté et la prochaine migration : `AGENTS.md` § Migrations. Procédure, pièges réseau (`no route to host` sur le direct) et commande d'application : `AGENTS.md` § Migrations. RLS activée par table pour le cloisonnement par modèle ; l'UI reste optimiste — principe posé dans `AGENTS.md` § Règles (« RLS = enforcement réel »).
 
 ## 4. Hébergement et environnements
 
@@ -263,7 +263,7 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
   modèles** (ni titulaire, ni déposant) depuis le 2026-09-05 : les deux tests n'existaient que
   pour éviter des tâches inclôturables, et la clôture ne teste plus rien (cf. Suivi chatters).
   **Récap**
-  (`/chatter/presence/recap`, `0137` + `0151` + `0159` + `0160` + `0193` + `0194` + `0195`) : RPC `tracker_todo_week_recap` en **`security definer`
+  (`/chatter/presence/recap`, `0137` + `0151` + `0159` + `0160` + `0193` + `0194` + `0195` + `0196`) : RPC `tracker_todo_week_recap` en **`security definer`
   à dessein** — c'est le seul moyen de compter les débriefs sans les lire ; compteurs pour
   l'encadrement (chacun son périmètre), **verbatim pour l'admin, son propre journal et — demande
   Benoit 2026-09-14, `0159` — le manager sur ses sous-managers rattachés** (`can_manage_planning_of`,
@@ -307,22 +307,31 @@ La face **Formation** (catalogue, entraînement, recrutement, roues, drapeau « 
 - **Journée seule** (#162) : clic sur le jour d'une colonne → pop-up (`day-dialog.tsx`), même
   `DayColumn`, flèches jour précédent / suivant ; le jour vit dans `?jour=` (`history.replaceState`
   dans la semaine affichée, vraie navigation vers la semaine voisine). Glisser-déposer dans son
-  propre contexte (`TodoDnd`).
-- **Import d'un fichier `.txt`** (#163, `0194`) : bouton de l'en-tête, **présent seulement sur la
+  propre contexte (`TodoDnd`). Plus large que les autres pop-ups (`sm:max-w-3xl`) ; partout, le
+  titre d'une tâche tient en deux lignes au plus, puis « … » (`.task .tt`) — entier dans sa pop-up.
+- **Import d'un fichier `.txt`** (#163, `0194`, `0196`) : bouton de l'en-tête, **présent seulement sur la
   semaine d'une personne CHOISIE** dans le sélecteur — jamais sur « Ma semaine » (garde-fou
   demandé par Benoit, refusé aussi par `importTodoFile`) ; garde `assertCanOrganize` — pour la
   to-do d'un manager, c'est l'admin. Format lu par `parseTodoFile` (`import-txt.ts`, pur) : 1re
   ligne « TO-DO DE <PRÉNOM> · … · <début> → <fin> » ; un prénom qui ne correspond pas à la
-  personne choisie AVERTIT, sans bloquer. La routine devient la section récurrente du fichier
-  (tous les jours) + une habitude quotidienne par ligne, **déposée** (donc verrouillée pour le
-  titulaire) ; habitudes ET section n'apparaissent qu'à partir du 1er jour du fichier (`starts_on`
-  sur `tracker_todo_habits` et `tracker_todo_sections`, `0194`, lu par la grille via `isDue` /
-  `isSectionOn` et par le Récap — nulle = sans borne, une section qui existait déjà garde la
-  sienne ; la retaper depuis un jour antérieur ramène son début à ce jour, `startAfterAdd`) : les
-  semaines passées ne changent pas. Dans un jour, la 1re ligne de chaque paragraphe est un TITRE DE
+  personne choisie AVERTIT, sans bloquer. La routine devient une habitude quotidienne par ligne,
+  **déposée** (donc verrouillée pour le titulaire), due **sur la seule période du fichier** :
+  `starts_on` (`0194`) et `ends_on` (`0196`) sur `tracker_todo_habits`, lus par la grille via
+  `isDue` et par le Récap — nulles = sans borne ; les semaines passées ne changent pas, et la
+  routine s'arrête au dernier jour (« pas que sur 20 jours », Benoit, 2026-10-12 : `0194` la
+  laissait revenir sans fin ; `0196` rattrape les fichiers déjà importés : fin = dernier jour des
+  tâches du même import). Une habitude du fichier est « déjà là » si une habitude de même section et
+  même titre recoupe la période (`periodsOverlap`) — sa période s'étend alors au fichier
+  (`widenedPeriod`) ; sans recoupement, le fichier du mois suivant crée sa propre routine. Sa
+  section (« Routine ») est enregistrée PONCTUELLE, comme les groupes : elle s'ouvre les jours où
+  ses habitudes sont dues. `starts_on` sur `tracker_todo_sections` (`0194`) n'est plus posé par
+  personne : il reste lu (`isSectionOn`) pour la section « Routine » récurrente des imports d'avant
+  `0196`, et la retaper depuis un jour antérieur ramène son début à ce jour (`startAfterAdd`). Dans
+  un jour, la 1re ligne de chaque paragraphe est un TITRE DE
   GROUPE (2e format du fichier, 2026-10-12) : il devient la section de ses tâches ce jour-là,
-  enregistrée PONCTUELLE (aucun jour) pour garder l'ordre du fichier (`GROUP_BASE`, après les
-  sections existantes et les groupes des imports précédents, avant « À faire » ; dette n° 15) ; un groupe nommé exactement « Urgences » passe ses tâches en Urgente ; un paragraphe sans titre
+  enregistrée PONCTUELLE (aucun jour) pour garder l'ordre du fichier (`GROUP_BASE`, la routine
+  d'abord, après les sections existantes et les groupes des imports précédents, avant « À faire » ;
+  dette n° 15) ; un groupe nommé exactement « Urgences » passe ses tâches en Urgente ; un paragraphe sans titre
   revient dans « À faire » ; le format se décide une fois par fichier (une ligne `[Modèle] …` ou à
   durée = 1er format, sans titres) ;
   sans titre (1er format, `[Modèle] … (durée)`), les tâches vont dans « À faire ». Ordre du fichier,

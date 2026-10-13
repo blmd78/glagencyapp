@@ -640,7 +640,9 @@
 .trk .task .box { width:15px;height:15px;border-radius:4px;border:1.5px solid var(--trk-border2);flex:none;margin-top:1px;cursor:pointer;display:grid;place-items:center;font-size:10px;color:transparent;background:none }
 .trk .task.done .box { background:var(--trk-accent);border-color:var(--trk-accent);color:var(--trk-bg) }
 .trk .task .tb { min-width:0;flex:1 }
-.trk .task .tt { word-break:break-word;line-height:1.35 }
+/* Deux lignes au plus, puis « … » : un titre importé fait jusqu'à 130 caractères, soit six lignes
+   dans une colonne de la semaine. Le titre entier se lit dans la pop-up de la tâche. */
+.trk .task .tt { word-break:break-word;line-height:1.35;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden }
 .trk .task .tm { display:flex;gap:6px;align-items:center;margin-top:3px;flex-wrap:wrap }
 .trk .task .hh { font-variant-numeric:tabular-nums;font-weight:700;color:var(--trk-accent-2);font-size:11px }
 .trk .task .who { font-size:10.5px;font-weight:600;background:var(--trk-surface3);border-radius:5px;padding:1px 6px;color:var(--trk-muted) }

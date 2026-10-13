@@ -78,7 +78,7 @@ export function ImportPreview({
       </div>
       {parsed.routineSection && parsed.routine.length > 0 ? (
         <p className="text-xs text-muted-foreground">
-          La routine reviendra chaque jour à partir du {p ? short(p.from) : '—'}. {ownerName} pourra en sauter
+          La routine reviendra chaque jour {p ? `du ${short(p.from)} au ${short(p.to)}` : 'sur la période'}, puis s’arrêtera. {ownerName} pourra en sauter
           une ligne un jour donné, pas la retirer.
         </p>
       ) : null}

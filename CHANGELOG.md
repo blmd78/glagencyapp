@@ -11,6 +11,11 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Modifié
 
 - To-Do › Importer un fichier : une vraie zone d'envoi (glisser le fichier ou « Choisir un fichier ») et, avant d'importer, l'aperçu de chaque tâche, jour par jour, avec sa couleur d'urgence. Le fichier peut découper chaque jour en groupes titrés : les tâches arrivent dans la section de leur groupe, et celles du groupe « Urgences » en Urgente. Les notes en tête du fichier (« Règles : … ») ne sont plus signalées comme non importées.
+- To-Do : la journée seule s'ouvre plus large, et le titre d'une tâche tient en deux lignes au plus, puis « … » — entier dans sa pop-up.
+
+### Corrigé
+
+- To-Do › Importer un fichier : la routine du fichier ne vaut plus que pour sa période (du 1er au dernier jour du fichier) ; elle revenait ensuite tous les jours, et le Récap la comptait due. Les fichiers déjà importés sont rattrapés (fin au dernier jour de leur fichier). Le panneau Habitudes l'affiche « jusqu'au JJ/MM ».
 
 ## [2.82] — 2026-10-12
 

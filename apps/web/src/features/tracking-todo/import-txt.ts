@@ -105,7 +105,10 @@ function periodOf(s: string): { from: string; to: string; endMonth: number; year
   const startYear = startMonth > endMonth ? year - 1 : year
   const [d1, d2] = [Number(m[1]), Number(m[3])]
   if (!isRealDate(startYear, startMonth, d1) || !isRealDate(year, endMonth, d2)) return null
-  return { from: iso(startYear, startMonth, d1), to: iso(year, endMonth, d2), endMonth, year }
+  const [from, to] = [iso(startYear, startMonth, d1), iso(year, endMonth, d2)]
+  // « 31 → 12 OCTOBRE » : une période qui finit avant de commencer (refusée en base depuis 0196).
+  if (from > to) return null
+  return { from, to, endMonth, year }
 }
 
 const TITLE_MAX = 200
@@ -250,6 +253,31 @@ export function parseTodoFile(text: string): ParsedTodoFile {
 
   out.days.sort((a, b) => (a.date < b.date ? -1 : 1))
   return out
+}
+
+/** Les bornes d'une habitude (0194, 0196) : nulles = sans borne. */
+export interface HabitPeriod {
+  starts_on: string | null
+  ends_on: string | null
+}
+
+/**
+ * Une habitude de la routine, de même section et même titre, est-elle « déjà là » pour ce fichier ?
+ * Oui si sa période RECOUPE celle du fichier : la doubler ferait deux fois la même ligne les jours
+ * communs. Sinon (le fichier du mois suivant), le fichier crée la sienne.
+ */
+export const periodsOverlap = (h: HabitPeriod, p: { from: string; to: string }): boolean =>
+  (h.starts_on === null || h.starts_on <= p.to) && (h.ends_on === null || h.ends_on >= p.from)
+
+/**
+ * Les bornes d'une habitude « déjà là », étendues au fichier — l'union des deux périodes, une borne
+ * nulle restant nulle — ou `null` si elle le couvre déjà. Sans ça, un fichier du 19 au 31 importé
+ * après celui du 12 au 20 laissait sa routine s'arrêter le 20 (revue Codex + Claude, 2026-10-12).
+ */
+export function widenedPeriod(h: HabitPeriod, p: { from: string; to: string }): HabitPeriod | null {
+  const starts_on = h.starts_on !== null && p.from < h.starts_on ? p.from : h.starts_on
+  const ends_on = h.ends_on !== null && p.to > h.ends_on ? p.to : h.ends_on
+  return starts_on === h.starts_on && ends_on === h.ends_on ? null : { starts_on, ends_on }
 }
 
 /** Le nombre de jours de la période, pour l'aperçu (« 20 jours »). */
