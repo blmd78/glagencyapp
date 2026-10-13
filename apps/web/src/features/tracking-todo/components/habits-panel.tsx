@@ -199,6 +199,8 @@ export function HabitsPanel({
                   <span className={`udot u-${h.urgency}`} aria-hidden />
                   {h.label}
                   {h.category ? <em className="cnt"> · {h.category}</em> : null}
+                  {/* La routine d'un fichier importé s'arrête avec la période du fichier (0196). */}
+                  {h.endsOn ? <em className="cnt"> · jusqu’au {h.endsOn.slice(8, 10)}/{h.endsOn.slice(5, 7)}</em> : null}
                   {/* Même badge et même mot que sur une tâche déposée (`task-item.tsx`). */}
                   {h.fromOther ? <span className="asg">déposée</span> : null}
                 </span>

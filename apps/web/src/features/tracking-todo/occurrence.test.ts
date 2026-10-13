@@ -46,8 +46,8 @@ describe('isMaterialized', () => {
   })
 })
 
-describe('isDue — la date de début (0194, #163)', () => {
-  const h = { active: true, weekdays: '1,2,3,4,5,6,7', starts_on: '2026-10-12' }
+describe('isDue — la période (0194, 0196, #163)', () => {
+  const h = { active: true, weekdays: '1,2,3,4,5,6,7', starts_on: '2026-10-12', ends_on: null }
 
   it('pas avant sa date de début', () => expect(isDue(h, '2026-10-11')).toBe(false))
   it('dès sa date de début', () => expect(isDue(h, '2026-10-12')).toBe(true))
@@ -55,13 +55,18 @@ describe('isDue — la date de début (0194, #163)', () => {
     expect(isDue({ ...h, starts_on: null }, '2020-01-06')).toBe(true))
   it('en pause : jamais', () => expect(isDue({ ...h, active: false }, '2026-10-13')).toBe(false))
   it('jour de la semaine non coché : non', () => expect(isDue({ ...h, weekdays: '1' }, '2026-10-13')).toBe(false))
+  // La routine d'un fichier importé du 12 au 31 octobre (retour de Benoit, 2026-10-12).
+  it('jusqu’à sa date de fin incluse', () => expect(isDue({ ...h, ends_on: '2026-10-31' }, '2026-10-31')).toBe(true))
+  it('plus après sa date de fin', () => expect(isDue({ ...h, ends_on: '2026-10-31' }, '2026-11-01')).toBe(false))
+  it('ni avant sa date de début quand les deux sont posées', () =>
+    expect(isDue({ ...h, ends_on: '2026-10-31' }, '2026-10-11')).toBe(false))
 })
 
 describe('dueHabits', () => {
   const habits = [
-    { id: 'h0', label: 'Pause', category: 'Routine', weekdays: '1', active: false, starts_on: null },
-    { id: 'h1', label: 'A', category: 'Routine', weekdays: '1', active: true, starts_on: null },
-    { id: 'h2', label: 'B', category: 'Autre', weekdays: '1', active: true, starts_on: null },
+    { id: 'h0', label: 'Pause', category: 'Routine', weekdays: '1', active: false, starts_on: null, ends_on: null },
+    { id: 'h1', label: 'A', category: 'Routine', weekdays: '1', active: true, starts_on: null, ends_on: null },
+    { id: 'h2', label: 'B', category: 'Autre', weekdays: '1', active: true, starts_on: null, ends_on: null },
   ]
 
   it('seulement les habitudes actives de la section, dues ce jour-là', () => {
@@ -89,7 +94,7 @@ describe('occurrence SAUTÉE (« Juste aujourd’hui », 0195, #170)', () => {
   it('n’est pas affichée…', () => expect(isShown(sautee)).toBe(false))
   it('… mais masque toujours l’occurrence de son habitude : elle ne renaît pas', () => {
     expect(isMaterialized(HABIT, D, [sautee])).toBe(true)
-    expect(dueHabits([{ ...HABIT, weekdays: '1', active: true, starts_on: null }], D, HABIT.category, [sautee])).toEqual([])
+    expect(dueHabits([{ ...HABIT, weekdays: '1', active: true, starts_on: null, ends_on: null }], D, HABIT.category, [sautee])).toEqual([])
   })
   it('une tâche ordinaire reste affichée', () => expect(isShown({ skipped: false })).toBe(true))
 })

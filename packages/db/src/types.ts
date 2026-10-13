@@ -4302,6 +4302,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string
+          ends_on: string | null
           id: string
           label: string
           owner_id: string
@@ -4316,6 +4317,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string
+          ends_on?: string | null
           id?: string
           label: string
           owner_id: string
@@ -4330,6 +4332,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string
+          ends_on?: string | null
           id?: string
           label?: string
           owner_id?: string

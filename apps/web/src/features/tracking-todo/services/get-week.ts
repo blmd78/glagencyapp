@@ -70,7 +70,7 @@ export async function getTodoWeek(params: {
       // bas, au moment de projeter les occurrences dans la semaine.
       // La `position` d'une habitude fixe la place de son occurrence en haut de la section (#161,
       // `habitKey`) ; `created_at` ne départage que les lignes d'avant 0193.
-      supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, starts_on, position, created_by')
+      supabase.from('tracker_todo_habits').select('id, category, label, description, urgency, weekdays, active, starts_on, ends_on, position, created_by')
         .eq('owner_id', params.ownerId).order('position').order('created_at'),
       supabase.from('tracker_todo_dayoff').select('date')
         .eq('owner_id', params.ownerId).gte('date', weekStart).lte('date', weekEnd),
@@ -224,6 +224,7 @@ export async function getTodoWeek(params: {
       category: h.category,
       weekdays: h.weekdays.split(',').map(Number),
       active: h.active,
+      endsOn: h.ends_on,
       fromOther: h.created_by != null && h.created_by !== params.ownerId,
       // `canOrganize` en garde d'entrée : `canEditHabit` ne tranche que la PROPRIÉTÉ du gabarit,
       // pas le droit d'écrire sur cet écran (un chatteur à qui on a coché « Présence » est

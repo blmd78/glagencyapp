@@ -107,7 +107,8 @@ habitudes et tâches partent en trois écritures. Une panne de base au milieu la
 écrite ; relancer le même fichier complète sans doublon (dédoublonnage sur jour, section, titre).
 
 **15. Les groupes d'un fichier importé restent comme sections ponctuelles** (2026-10-12, import #163,
-2e format) : chaque titre de groupe (« Urgences », « Scripts de Sarah (suite) »…) est enregistré dans
+2e format) : la section de la routine (« Routine », depuis `0196`) et chaque titre de groupe
+(« Urgences », « Scripts de Sarah (suite) »…) sont enregistrés dans
 `tracker_todo_sections` sans jour (`weekdays ''`), pour que la grille garde l'ordre du fichier
 (`position` à partir de 100, à la suite des imports précédents). Ces lignes ne s'affichent jamais
 seules (pas de ✕, `isSectionOn` faux) et aucun écran ne les supprime : elles restent après le

@@ -55,6 +55,8 @@ export interface TodoHabit {
   /** Jours ISO (1 = lundi … 7 = dimanche). */
   weekdays: number[]
   active: boolean
+  /** Dernier jour où elle est due (0196, la routine d'un fichier importé) ; `null` = sans fin. */
+  endsOn: string | null
   /**
    * DÉPOSÉE par quelqu'un d'autre que son titulaire (`created_by` non nul). Même drapeau, même
    * badge et même sens que `TodoTask.fromOther` : « ceci ne vient pas de moi ».

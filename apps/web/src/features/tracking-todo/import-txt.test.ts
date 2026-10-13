@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { holderMatches, parseTodoFile, periodLength } from './import-txt'
+import { holderMatches, parseTodoFile, periodLength, periodsOverlap, widenedPeriod } from './import-txt'
 
 /**
  * Fichier ANONYMISÉ, au format de l'exemple du 2026-10-12 (#163) : le vrai contient des noms et
@@ -114,6 +114,39 @@ describe('périodes', () => {
 
   it('longueur en jours', () => {
     expect(periodLength({ from: '2026-10-12', to: '2026-10-31' })).toBe(20)
+  })
+
+  it('une période qui finit avant de commencer est refusée', () => {
+    const r = parseTodoFile('TO-DO DE X · A · 31 → 12 OCTOBRE 2026\n=== ROUTINE ===\nMatin · x')
+    expect(r.period).toBeNull()
+    expect(r.errors).toHaveLength(1)
+  })
+})
+
+describe('routine déjà là — la période d’une habitude face au fichier (0196)', () => {
+  const oct = { from: '2026-10-12', to: '2026-10-31' }
+
+  it('recoupe : même période, en partie, ou habitude sans borne', () => {
+    expect(periodsOverlap({ starts_on: '2026-10-12', ends_on: '2026-10-31' }, oct)).toBe(true)
+    expect(periodsOverlap({ starts_on: '2026-10-01', ends_on: '2026-10-12' }, oct)).toBe(true)
+    expect(periodsOverlap({ starts_on: null, ends_on: null }, oct)).toBe(true)
+  })
+
+  it('ne recoupe pas : le fichier du mois suivant crée sa propre routine', () => {
+    expect(periodsOverlap({ starts_on: '2026-10-12', ends_on: '2026-10-31' }, { from: '2026-11-01', to: '2026-11-30' })).toBe(false)
+  })
+
+  it('en partie : la période s’étend au fichier, sans doubler les jours communs', () => {
+    expect(widenedPeriod({ starts_on: '2026-10-12', ends_on: '2026-10-20' }, { from: '2026-10-19', to: '2026-10-31' }))
+      .toEqual({ starts_on: '2026-10-12', ends_on: '2026-10-31' })
+    expect(widenedPeriod({ starts_on: '2026-10-19', ends_on: '2026-10-31' }, { from: '2026-10-12', to: '2026-10-20' }))
+      .toEqual({ starts_on: '2026-10-12', ends_on: '2026-10-31' })
+  })
+
+  it('le même fichier relancé, ou une habitude sans borne : rien ne change', () => {
+    expect(widenedPeriod({ starts_on: '2026-10-12', ends_on: '2026-10-31' }, oct)).toBeNull()
+    expect(widenedPeriod({ starts_on: null, ends_on: null }, oct)).toBeNull()
+    expect(widenedPeriod({ starts_on: '2026-10-12', ends_on: null }, oct)).toBeNull()
   })
 })
 

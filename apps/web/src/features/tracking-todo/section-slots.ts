@@ -29,7 +29,7 @@ async function sectionSlots(ownerId: string, date: string, category: string, exc
       .or(`date.eq.${date},habit_date.eq.${date}`),
     admin
       .from('tracker_todo_habits')
-      .select('id, category, label, weekdays, active, starts_on, position, urgency')
+      .select('id, category, label, weekdays, active, starts_on, ends_on, position, urgency')
       .eq('owner_id', ownerId),
   ])
   if (tasksRes.error) throw new Error(tasksRes.error.message)

@@ -4,10 +4,9 @@ import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, runAction, type ActionResult } from '@/lib/actions'
 import { assertCanOrganize, revalidateTodo } from './actions-shared'
 import { DAY_TASK_CATEGORY } from './day-category'
-import { dedupKey, parseTodoFile } from './import-txt'
+import { dedupKey, parseTodoFile, periodsOverlap, widenedPeriod, type HabitPeriod } from './import-txt'
 import { STEP } from './order'
 import { importTxtInput } from './schema'
-import { mergeWeekdays } from './weekdays'
 
 /**
  * IMPORTER UN FICHIER `.txt` DANS LA TO-DO D'UNE PERSONNE (#163).
@@ -18,15 +17,17 @@ import { mergeWeekdays } from './weekdays'
  * qu'optimiste. Déposer des tâches chez quelqu'un, c'est ORGANISER sa semaine : `assertCanOrganize`.
  *
  * Ce que l'import écrit :
- * • la ROUTINE — la section récurrente du fichier (« Routine »), tous les jours, et une habitude
- *   quotidienne par ligne, due à partir du 1er jour du fichier (`starts_on`, 0194) ; déposée par
- *   l'importeur, donc verrouillée pour son titulaire (règle 0148, décision du 2026-10-12) ;
+ * • la ROUTINE — une habitude quotidienne par ligne, due du 1er au dernier jour du fichier
+ *   (`starts_on`, 0194 ; `ends_on`, 0196 — « pas que sur 20 jours », Benoit, 2026-10-12), dans la
+ *   section du fichier (« Routine ») ; déposée par l'importeur, donc verrouillée pour son titulaire
+ *   (règle 0148, décision du 2026-10-12) ;
  * • les tâches de chaque jour, dans la section de leur groupe (« À faire » sans titre), dans l'ordre
  *   du fichier, en urgence Normale — Urgente pour un groupe « Urgences ».
  *
  * Relancer le même fichier n'ajoute rien : une tâche est reconnue à (jour, section, titre), une
- * habitude à (section, titre). Un fichier qui a la moindre erreur n'écrit RIEN — la lecture est
- * entière avant la première écriture. Écritures en service-role, comme toute la to-do (0127).
+ * habitude à (section, titre) sur une période qui recoupe celle du fichier — le fichier du mois
+ * suivant crée donc sa propre routine. Un fichier qui a la moindre erreur n'écrit RIEN — la lecture
+ * est entière avant la première écriture. Écritures en service-role, comme toute la to-do (0127).
  */
 
 export interface ImportTxtResult {
@@ -38,7 +39,7 @@ export interface ImportTxtResult {
 
 const EVERY_DAY = [1, 2, 3, 4, 5, 6, 7]
 
-/** Rang des groupes d'un fichier : après les sections existantes (0 par défaut), avant « À faire » (999). */
+/** Rang des sections d'un fichier : après les sections existantes (0 par défaut), avant « À faire » (999). */
 const GROUP_BASE = 100
 
 export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportTxtResult>> {
@@ -63,75 +64,21 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
       const admin = createAdminClient()
       const result: ImportTxtResult = { tasksAdded: 0, tasksSkipped: 0, habitsAdded: 0, habitsSkipped: 0 }
 
-      // ─────────────── ROUTINE : la section récurrente, et une habitude par ligne
-      if (parsed.routineSection && parsed.routine.length > 0) {
-        const section = parsed.routineSection
-        // Les jours s'AJOUTENT à ceux d'une section du même nom (même règle que `saveSection`) :
-        // une section « Routine » existante n'est pas écrasée.
-        const { data: existingSection, error: secErr } = await admin
-          .from('tracker_todo_sections').select('weekdays, starts_on').eq('owner_id', d.ownerId).eq('name', section).maybeSingle()
-        if (secErr) throw new Error(secErr.message)
-        const { error: upErr } = await admin.from('tracker_todo_sections').upsert(
-          {
-            owner_id: d.ownerId,
-            name: section,
-            weekdays: mergeWeekdays(existingSection?.weekdays ?? '', EVERY_DAY),
-            // Une section NEUVE n'apparaît qu'à partir du 1er jour du fichier (0194) : sans ça, un
-            // groupe « Routine » vide s'afficherait chaque jour des semaines passées. Une section
-            // qui existait déjà garde sa date (nulle = partout, comme avant) : rien ne bouge chez elle.
-            starts_on: existingSection ? existingSection.starts_on : period.from,
-          },
-          { onConflict: 'owner_id,name' },
-        )
-        if (upErr) throw new Error(upErr.message)
-
-        const { data: habits, error: hErr } = await admin
-          .from('tracker_todo_habits').select('category, label, position').eq('owner_id', d.ownerId)
-        if (hErr) throw new Error(hErr.message)
-        const known = new Set((habits ?? []).filter((h) => h.category === section).map((h) => dedupKey(h.label)))
-        // Rangées APRÈS les habitudes existantes, dans l'ordre du fichier : un seul `insert` donne la
-        // même `created_at` à toutes, seul `position` peut les départager (rang, #161).
-        const start = Math.max(-1, ...(habits ?? []).map((h) => h.position)) + 1
-        const rows = parsed.routine
-          .filter((t) => {
-            if (known.has(dedupKey(t.label))) {
-              result.habitsSkipped++
-              return false
-            }
-            return true
-          })
-          .map((t, i) => ({
-            owner_id: d.ownerId,
-            category: section,
-            label: t.label,
-            description: t.description,
-            urgency: 'normale',
-            weekdays: EVERY_DAY.join(','),
-            starts_on: period.from,
-            position: start + i,
-            created_by: caller.id,
-          }))
-        if (rows.length > 0) {
-          const { error } = await admin.from('tracker_todo_habits').insert(rows)
-          // Une habitude créée au même instant a pris l'une de ces positions (index unique, 0193) :
-          // aucune habitude ni tâche n'est écrite (la section, déjà posée, ne se doublera pas) —
-          // relancer suffit.
-          if (error?.code === '23505') {
-            throw new BusinessError('Une habitude vient d’être créée en même temps : relance l’import.')
-          }
-          if (error) throw new Error(error.message)
-        }
-        result.habitsAdded = rows.length
-      }
-
-      // ─────────────── GROUPES : l'ordre du fichier, d'un jour à l'autre
-      // Un titre de groupe devient la section de ses tâches ce jour-là. Sans section enregistrée,
-      // la grille rangerait ces groupes par ordre alphabétique (« Chérif et outils » avant
-      // « Urgences ») : on enregistre ceux qui n'existent pas encore, PONCTUELS (aucun jour : ils
-      // n'apparaissent que là où ils ont des tâches) et rangés dans l'ordre où le fichier les cite —
-      // après les sections existantes, avant « À faire ». Une section du même nom est laissée telle quelle.
-      const groups = [...new Set(parsed.days.flatMap((x) => x.tasks.map((t) => t.category)))]
-        .filter((name) => name !== DAY_TASK_CATEGORY)
+      // ─────────────── SECTIONS : la routine puis les groupes, dans l'ordre du fichier
+      // Une habitude ouvre sa section les jours où elle est due, un titre de groupe les jours où il
+      // a des tâches (`get-week.ts`) : aucune n'a besoin de revenir d'elle-même. Elles sont donc
+      // enregistrées PONCTUELLES (aucun jour), seulement pour leur rang — sans section enregistrée,
+      // la grille les rangerait par ordre alphabétique (« Chérif et outils » avant « Urgences »).
+      // Une section « Routine » RÉCURRENTE ouvrait sa case vide chaque jour après la période.
+      // Après les sections existantes, avant « À faire » ; une section du même nom est laissée telle
+      // quelle.
+      const routineSection = parsed.routine.length > 0 ? parsed.routineSection : null
+      const groups = [
+        ...new Set([
+          ...(routineSection ? [routineSection] : []),
+          ...parsed.days.flatMap((x) => x.tasks.map((t) => t.category)),
+        ]),
+      ].filter((name) => name !== DAY_TASK_CATEGORY)
       if (groups.length > 0) {
         const { data: sections, error: sErr } = await admin
           .from('tracker_todo_sections').select('name, position').eq('owner_id', d.ownerId)
@@ -150,6 +97,62 @@ export async function importTodoFile(raw: unknown): Promise<ActionResult<ImportT
             .upsert(missing, { onConflict: 'owner_id,name', ignoreDuplicates: true })
           if (error) throw new Error(error.message)
         }
+      }
+
+      // ─────────────── ROUTINE : une habitude par ligne, sur la période du fichier
+      if (routineSection) {
+        const section = routineSection
+        const { data: habits, error: hErr } = await admin
+          .from('tracker_todo_habits').select('id, category, label, position, starts_on, ends_on').eq('owner_id', d.ownerId)
+        if (hErr) throw new Error(hErr.message)
+        // Déjà là = même section, même titre, et une période qui recoupe celle du fichier
+        // (`periodsOverlap`) : elle s'étend alors au fichier (`widenedPeriod`). La routine d'octobre
+        // ne bloque pas celle de novembre.
+        const known = new Map<string, { id: string } & HabitPeriod>()
+        for (const h of habits ?? []) {
+          const k = dedupKey(h.label)
+          if (h.category === section && periodsOverlap(h, period) && !known.has(k)) known.set(k, h)
+        }
+        const widen: ({ id: string } & HabitPeriod)[] = []
+        // Rangées APRÈS les habitudes existantes, dans l'ordre du fichier : un seul `insert` donne la
+        // même `created_at` à toutes, seul `position` peut les départager (rang, #161).
+        const start = Math.max(-1, ...(habits ?? []).map((h) => h.position)) + 1
+        const rows = parsed.routine
+          .filter((t) => {
+            const h = known.get(dedupKey(t.label))
+            if (!h) return true
+            result.habitsSkipped++
+            const p = widenedPeriod(h, period)
+            if (p) widen.push({ id: h.id, ...p })
+            return false
+          })
+          .map((t, i) => ({
+            owner_id: d.ownerId,
+            category: section,
+            label: t.label,
+            description: t.description,
+            urgency: 'normale',
+            weekdays: EVERY_DAY.join(','),
+            starts_on: period.from,
+            ends_on: period.to,
+            position: start + i,
+            created_by: caller.id,
+          }))
+        if (rows.length > 0) {
+          const { error } = await admin.from('tracker_todo_habits').insert(rows)
+          // Une habitude créée au même instant a pris l'une de ces positions (index unique, 0193) :
+          // aucune habitude ni tâche n'est écrite (les sections, déjà posées, ne se doubleront pas) —
+          // relancer suffit.
+          if (error?.code === '23505') {
+            throw new BusinessError('Une habitude vient d’être créée en même temps : relance l’import.')
+          }
+          if (error) throw new Error(error.message)
+        }
+        for (const { id, ...p } of widen) {
+          const { error } = await admin.from('tracker_todo_habits').update(p).eq('id', id).eq('owner_id', d.ownerId)
+          if (error) throw new Error(error.message)
+        }
+        result.habitsAdded = rows.length
       }
 
       // ─────────────── TÂCHES DU JOUR : dans leur groupe, à la suite de ce qui y est déjà
