@@ -37,7 +37,7 @@ export function DayDialog({
 }) {
   return (
     <Dialog open={day !== null} onOpenChange={(v) => (v ? null : onClose())}>
-      <DialogContent className="trk ddlg">
+      <DialogContent className="trk ddlg sm:max-w-3xl">
         {day ? (
           <>
             <DialogTitle className="sr-only">
