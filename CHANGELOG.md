@@ -11,6 +11,15 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 ### Ajouté
 
 - Formation › Roue › Historique : récap « Gains par chatteur » — le nom de chaque chatteur qui a gagné de l'argent et son total, du plus gros au plus petit, pour la compta. Un récap pour toute la période choisie en haut à droite, sous « Total gagné », et un dans chaque semaine, au-dessus du détail des tirages. Les Ratés et les lots sans montant n'y comptent pas.
+- Formation › Overview, fiche d'un chatteur : « Redonner aux N niveaux bloqués » en haut du Parcours — on choisit un nombre d'essais et il est redonné à chaque niveau où le chatteur n'en a plus, d'un seul clic (8 niveaux bloqués × 5 essais = 40 essais). Le bouton n'apparaît que s'il y a au moins un niveau bloqué ; chaque niveau débloqué reste tracé comme un « Redonner » fait à la main.
+
+### Modifié
+
+- Formation › Overview, fiche d'un chatteur : « Redonner 5 » donne désormais 5 parties jouables, même quand le chatteur a joué le niveau plus de fois que la limite avant qu'elle existe (un 10/3 passe à 10/15, et non plus à 10/8 toujours bloqué). Vaut pour le bouton de chaque ligne comme pour celui du haut.
+
+### Corrigé
+
+- Formation › Overview : passer directement de la fiche d'un chatteur à celle d'un autre gardait le premier en mémoire dans les boutons « Redonner » — les essais redonnés pouvaient partir sur le mauvais chatteur.
 
 ## [2.84] — 2026-10-15
 
