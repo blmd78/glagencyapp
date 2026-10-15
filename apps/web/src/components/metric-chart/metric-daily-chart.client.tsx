@@ -10,7 +10,16 @@ import {
 } from '@/components/ui/chart'
 import { int, eur } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import { SERIES, TOOLTIP_LINKS, type ChartMode, type Metric, type MetricPoint } from './options'
+import {
+  SERIES,
+  TOOLTIP_LINKS,
+  isByLinkMetric,
+  linksFor,
+  type ByLinkMetric,
+  type ChartMode,
+  type Metric,
+  type MetricPoint,
+} from './options'
 
 /**
  * UNE métrique par jour, en barres, en courbe ou les deux.
@@ -28,7 +37,8 @@ import { SERIES, TOOLTIP_LINKS, type ChartMode, type Metric, type MetricPoint } 
  * chaque chiffre deux fois.
  *
  * `onDayClick` : un clic sur un jour remonte sa date — le panneau y ouvre la liste complète des
- * liens du jour, que l'infobulle ne peut pas porter (elle disparaît dès que la souris la quitte).
+ * liens du jour pour cette métrique, que l'infobulle ne peut pas porter (elle disparaît dès que la
+ * souris la quitte).
  */
 export function MetricDailyChart({
   data,
@@ -90,8 +100,8 @@ export function MetricDailyChart({
                       {metric === 'revenue' ? eur(Number(value)) : int(Number(value))}
                     </span>
                   </span>
-                  {metric === 'conversions' && (
-                    <SubsByLink point={item.payload as MetricPoint} clickable={!!onDayClick} />
+                  {isByLinkMetric(metric) && (
+                    <ByLink point={item.payload as MetricPoint} metric={metric} clickable={!!onDayClick} />
                   )}
                 </>
               )}
@@ -123,20 +133,23 @@ export function MetricDailyChart({
   )
 }
 
-/** D'où viennent les subs du jour (demande 2026-10-12) — seulement si l'écran fournit la
- *  répartition (l'Overview) ; l'écran Liens et la modale d'un lien n'ont que le total. */
-function SubsByLink({ point, clickable }: { point: MetricPoint; clickable: boolean }) {
-  if (!point.subsByLink?.length) return null
-  const rest = point.subsByLink.slice(TOOLTIP_LINKS)
+/** D'où viennent les subs (demande 2026-10-12) ou le CA (2026-10-15) du jour — seulement si
+ *  l'écran fournit la répartition (l'Overview, plusieurs liens cumulés sur l'écran Liens) ; la
+ *  modale d'un lien n'a que le total. */
+function ByLink({ point, metric, clickable }: { point: MetricPoint; metric: ByLinkMetric; clickable: boolean }) {
+  const links = linksFor(point, metric)
+  if (!links.length) return null
+  const fmt = metric === 'revenue' ? eur : int
+  const rest = links.slice(TOOLTIP_LINKS)
   return (
     <span className="mt-1 grid w-full gap-1">
-      {point.subsByLink.slice(0, TOOLTIP_LINKS).map((l, i) => (
+      {links.slice(0, TOOLTIP_LINKS).map((l, i) => (
         <span key={i} className="flex items-baseline justify-between gap-3">
           <span className="max-w-56 truncate">
             {l.name}
             {l.creator && <span className="text-muted-foreground"> · {l.creator}</span>}
           </span>
-          <span className="tabular-nums">{int(l.subs)}</span>
+          <span className="tabular-nums">{fmt(l.value)}</span>
         </span>
       ))}
       {rest.length > 0 && (
@@ -144,7 +157,7 @@ function SubsByLink({ point, clickable }: { point: MetricPoint; clickable: boole
           <span>
             Autres ({rest.length} {rest.length > 1 ? 'liens' : 'lien'})
           </span>
-          <span className="tabular-nums">{int(rest.reduce((s, l) => s + l.subs, 0))}</span>
+          <span className="tabular-nums">{fmt(rest.reduce((s, l) => s + l.value, 0))}</span>
         </span>
       )}
       {clickable && <span className="mt-1 text-muted-foreground">Clic : tous les liens du jour</span>}

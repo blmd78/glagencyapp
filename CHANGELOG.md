@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Modifié
+
+- Marketing › Overview (et SFS › Vue d'ensemble), Liens tracking › Graphique : sur le graphe « Revenus / jour », survoler un jour montre le CA de chaque lien de tracking — les 10 qui ont rapporté le plus (avec leur modèle), puis le reste cumulé en « Autres ». Cliquer sur le jour ouvre sous le graphe la liste complète. Sur Liens tracking › Graphique, les subs ont aussi leur détail par lien, dès que plusieurs liens sont cumulés.
+
 ## [2.83] — 2026-10-13
 
 ### Modifié
