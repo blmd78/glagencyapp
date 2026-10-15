@@ -57,7 +57,14 @@ Monorepo pnpm workspaces (`apps/*`, `packages/*`), pas de Turborepo. Le détail 
   `lib/training/start-session.ts` (frontière ESLint interdit le cross-feature) — précédent
   `lib/impersonation/actions.ts`. **Écritures des sessions (sessions/threads/messages/signalements)
   = service-role après vérification de propriété dans les Server Actions ; RLS = lecture
-  (propriétaire, encadrant `frm-suivi`, admin).** Roue des récompenses
+  (propriétaire, encadrant `frm-suivi`, admin).** **Limite d'essais** (`0161`, `attemptState`) :
+  un essai = une session terminée hors reprise GLA ; plafond = `max_attempts` + essais redonnés
+  (`training_attempt_grants` : les lignes sont la trace — qui, quand, pour qui ; `extra` = ajout
+  au plafond, compensation comprise). Sur la fiche Overview,
+  « Redonner N » — sur une ligne, ou « Redonner aux X niveaux bloqués » en tête du Parcours
+  (2026-10-15) — = **N parties jouables de plus** qu'avant : un historique d'avant la limite qui la
+  dépasse (10/3) est compensé (10/15, pas 10/8 toujours bloqué) ; `extra` ≤ 20, d'où parfois
+  plusieurs lignes (`training-overview/attempt-grants.ts`). Roue des récompenses
   (`/formation/roue`, incr. 3) : ticket = top 3 du classement hebdo
   (`training_weekly_ranking`, points de la semaine), tirage serveur (`pickWeighted`), gains
   stockés (`training_wheel_spins`, € nullable, `paid_at` pour la compta plus tard), config

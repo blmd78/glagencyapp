@@ -62,7 +62,10 @@ export function OverviewTemplate({
       {chatter ? (
         <>
           {picker}
-          <OverviewChatter detail={chatter} displayName={selectedName} />
+          {/* `key` : une fiche neuve par chatteur. Sans elle, passer de A à B garde les formulaires
+              montés (même place, même clé de ligne) et RHF garde le `profileId` de A dans ses
+              `defaultValues` — « Redonner » sur la fiche de B créditait A. */}
+          <OverviewChatter key={chatter.profileId} detail={chatter} displayName={selectedName} />
         </>
       ) : (
         <>
