@@ -1,25 +1,29 @@
 import { describe, it, expect } from 'vitest'
-import { grantExtras, lockedCases } from './attempt-grants'
+import { grantExtras, selectionGrants } from './attempt-grants'
 
-describe('lockedCases', () => {
-  it('garde les exercices sans essai restant, essais redonnés et historique dépassé compris', () => {
-    const cases = [
-      { id: 'a', max_attempts: 3 },
-      { id: 'b', max_attempts: 3 },
-      { id: 'c', max_attempts: 3 },
-      { id: 'd', max_attempts: 3 },
-    ]
-    const attempts = new Map([
-      ['a', { used: 3, granted: 0 }], // épuisé
-      ['b', { used: 3, granted: 1 }], // un essai redonné, pas encore joué
-      ['c', { used: 4, granted: 1 }], // l'essai redonné aussi est joué
-      ['d', { used: 10, granted: 0 }], // joué avant la limite : 10/3
+describe('selectionGrants', () => {
+  const cases = [
+    { id: 'a', max_attempts: 3 },
+    { id: 'b', max_attempts: 3 },
+    { id: 'c', max_attempts: 3 },
+    { id: 'd', max_attempts: 3 },
+  ]
+  const attempts = new Map([
+    ['a', { used: 3, granted: 0 }], // bloqué
+    ['b', { used: 1, granted: 0 }], // libre, déjà joué
+    ['c', { used: 10, granted: 0 }], // joué avant la limite : 10/3
+  ])
+
+  it('les niveaux sélectionnés et déjà joués, N parties de plus chacun (dépassement compensé)', () => {
+    expect(selectionGrants(cases, attempts, ['a', 'b', 'c'], 5)).toEqual([
+      { caseId: 'a', extra: 5 },
+      { caseId: 'b', extra: 5 },
+      { caseId: 'c', extra: 12 },
     ])
-    expect(lockedCases(cases, attempts).map((c) => c.id)).toEqual(['a', 'c', 'd'])
   })
 
-  it('un exercice jamais tenté n’est pas bloqué', () => {
-    expect(lockedCases([{ id: 'a', max_attempts: 3 }], new Map())).toEqual([])
+  it('ignore un niveau jamais joué, hors sélection ou inconnu du catalogue', () => {
+    expect(selectionGrants(cases, attempts, ['a', 'd', 'zz'], 2)).toEqual([{ caseId: 'a', extra: 2 }])
   })
 })
 

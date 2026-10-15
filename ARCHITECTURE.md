@@ -61,8 +61,10 @@ Monorepo pnpm workspaces (`apps/*`, `packages/*`), pas de Turborepo. Le détail 
   un essai = une session terminée hors reprise GLA ; plafond = `max_attempts` + essais redonnés
   (`training_attempt_grants` : les lignes sont la trace — qui, quand, pour qui ; `extra` = ajout
   au plafond, compensation comprise). Sur la fiche Overview,
-  « Redonner N » — sur une ligne, ou « Redonner aux X niveaux bloqués » en tête du Parcours
-  (2026-10-15) — = **N parties jouables de plus** qu'avant : un historique d'avant la limite qui la
+  « Redonner N » — sur une ligne, ou sur une sélection en tête du Parcours (interrupteur par
+  niveau déjà joué, « Tout le module », « Tout le chapitre », « Sélectionner les bloqués »,
+  2026-10-15) — = **N parties
+  jouables de plus** qu'avant : un historique d'avant la limite qui la
   dépasse (10/3) est compensé (10/15, pas 10/8 toujours bloqué) ; `extra` ≤ 20, d'où parfois
   plusieurs lignes (`training-overview/attempt-grants.ts`). Roue des récompenses
   (`/formation/roue`, incr. 3) : ticket = top 3 du classement hebdo

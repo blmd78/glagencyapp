@@ -5,16 +5,21 @@ import { GRANT_MAX } from './schema'
 type CaseLimit = { id: string; max_attempts: number }
 
 /**
- * Les exercices où le chatteur n'a plus d'essai — la cible de « Redonner partout ». Même règle que
- * le compteur rouge de la fiche (`attemptState`, `get-chatter.ts`) : ce que l'encadrant voit bloqué
- * est exactement ce qui sera débloqué. Un exercice jamais tenté n'est jamais bloqué
- * (`max_attempts ≥ 1`, 0161).
+ * Les lignes à écrire pour une SÉLECTION de niveaux (interrupteurs de la fiche) : `n` parties de
+ * plus sur chacun (`grantExtras`). Ne garde que les niveaux du catalogue affiché (`cases`) déjà
+ * joués — la règle des interrupteurs, qui n'apparaissent que là — : un id forgé, hors catalogue ou
+ * jamais joué, n'écrit rien.
  */
-export function lockedCases<C extends CaseLimit>(cases: readonly C[], attempts: ReadonlyMap<string, CaseAttempts>): C[] {
-  return cases.filter((c) => {
-    const a = attempts.get(c.id)
-    return attemptState(c.max_attempts, a?.used ?? 0, a?.granted ?? 0).locked
-  })
+export function selectionGrants(
+  cases: readonly CaseLimit[],
+  attempts: ReadonlyMap<string, CaseAttempts>,
+  caseIds: readonly string[],
+  n: number,
+): { caseId: string; extra: number }[] {
+  const wanted = new Set(caseIds)
+  return cases
+    .filter((c) => wanted.has(c.id) && (attempts.get(c.id)?.used ?? 0) > 0)
+    .flatMap((c) => grantExtras(n, c.max_attempts, attempts.get(c.id)).map((extra) => ({ caseId: c.id, extra })))
 }
 
 /**

@@ -17,10 +17,17 @@ export const grantAttemptsInput = z.object({
 
 export type GrantAttemptsValues = z.input<typeof grantAttemptsInput>
 
-/** « Redonner partout » : les mêmes `extra` essais sur chaque exercice bloqué du chatteur. */
-export const grantLockedAttemptsInput = z.object({
-  profileId: z.uuid(),
-  extra,
-})
+/** Le nombre d'essais saisi — le seul champ du formulaire de la sélection. */
+export const grantExtraInput = z.object({ extra })
 
-export type GrantLockedAttemptsValues = z.input<typeof grantLockedAttemptsInput>
+export type GrantExtraValues = z.input<typeof grantExtraInput>
+
+/**
+ * « Redonner » sur une SÉLECTION de niveaux (interrupteurs de la fiche, « Tout le module »,
+ * « Sélectionner les bloqués ») : les mêmes `extra` essais sur chacun. 500 au plus : bien au-delà
+ * du catalogue, de quoi refuser un envoi forgé démesuré.
+ */
+export const grantSelectedAttemptsInput = grantExtraInput.extend({
+  profileId: z.uuid(),
+  caseIds: z.array(z.uuid()).min(1, 'Sélectionne au moins un niveau').max(500),
+})
