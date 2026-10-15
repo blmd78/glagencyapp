@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { ChatterDetail } from '../types'
-import { GrantLockedAttempts } from './grant-locked-attempts.client'
+import { GrantSelectionBar, GrantSelectionProvider } from './grant-selection.client'
 import { OverviewChatterModules } from './overview-chatter-modules'
 
 /** Barème d'un axe (solo / défi) — même échelle que le détail de note d'une session. */
@@ -28,7 +28,10 @@ function statusLabel(status: string): string {
  * la fiche ne le re-requête pas.
  */
 export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail; displayName: string }) {
-  const lockedCount = detail.modules.flatMap((m) => m.groups.flatMap((g) => g.cases)).filter((c) => c.locked).length
+  const cases = detail.modules.flatMap((m) => m.groups.flatMap((g) => g.cases))
+  const lockedIds = cases.filter((c) => c.locked).map((c) => c.caseId)
+  // La barre n'a de sens que s'il existe un niveau sélectionnable (déjà joué).
+  const anyPlayed = cases.some((c) => c.attemptsUsed > 0)
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -62,11 +65,13 @@ export function OverviewChatter({ detail, displayName }: { detail: ChatterDetail
       </section>
 
       <section className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-base font-semibold tracking-tight">Parcours</h3>
-          {lockedCount > 0 && <GrantLockedAttempts profileId={detail.profileId} lockedCount={lockedCount} />}
-        </div>
-        <OverviewChatterModules modules={detail.modules} profileId={detail.profileId} />
+        <GrantSelectionProvider>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-base font-semibold tracking-tight">Parcours</h3>
+            {anyPlayed && <GrantSelectionBar profileId={detail.profileId} lockedIds={lockedIds} />}
+          </div>
+          <OverviewChatterModules modules={detail.modules} profileId={detail.profileId} />
+        </GrantSelectionProvider>
       </section>
 
       <section className="flex flex-col gap-3">

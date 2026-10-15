@@ -7,6 +7,7 @@ import { CollapsibleSection } from '@/components/collapsible-section'
 import { CASE_KIND_LABELS } from '@/lib/types/training'
 import type { CaseProgress, ModuleProgress } from '../types'
 import { GrantAttempts } from './grant-attempts.client'
+import { CaseSwitch, GroupSwitch } from './grant-selection.client'
 
 /**
  * Le parcours d'un chatter, MODULE PAR MODULE — la reprise, côté encadrant, de l'organisation que
@@ -50,6 +51,7 @@ export function OverviewChatterModules({ modules, profileId }: { modules: Module
             />
           }
         >
+          <PlayedSwitch cases={m.groups.flatMap((g) => g.cases)} label="Tout le module" title={m.title} />
           {/* Un seul groupe anonyme = module sans compétence : on saute un niveau de dépliage. */}
           {m.groups.length === 1 && m.groups[0].id === null ? (
             <Levels cases={m.groups[0].cases} profileId={profileId} />
@@ -60,6 +62,7 @@ export function OverviewChatterModules({ modules, profileId }: { modules: Module
                   key={g.id ?? 'hors-competence'}
                   trigger={<Summary title={g.title} avg={g.avg} attempted={g.attempted} total={g.total} />}
                 >
+                  <PlayedSwitch cases={g.cases} label="Tout le chapitre" title={g.title} />
                   <Levels cases={g.cases} profileId={profileId} />
                 </CollapsibleSection>
               ))}
@@ -69,6 +72,15 @@ export function OverviewChatterModules({ modules, profileId }: { modules: Module
       ))}
     </div>
   )
+}
+
+/**
+ * « Tout le module » / « Tout le chapitre » sur les niveaux déjà joués du bloc — rien quand aucun ne
+ * l'est (aucun interrupteur à piloter).
+ */
+function PlayedSwitch({ cases, label, title }: { cases: CaseProgress[]; label: string; title: string }) {
+  const played = cases.filter((c) => c.attemptsUsed > 0).map((c) => c.caseId)
+  return played.length > 0 ? <GroupSwitch caseIds={played} label={label} title={title} /> : null
 }
 
 /** L'en-tête d'un module ou d'une compétence : le nom à gauche, ce qu'il vaut à droite. */
@@ -148,6 +160,11 @@ function CaseLine({ c, index, total, profileId }: { c: CaseProgress; index: numb
         title={c.locked ? 'Plus d’essai : le chatteur ne peut plus lancer cet exercice' : undefined}
       >
         {c.attemptsUsed}/{c.attemptsAllowed} essai{c.attemptsAllowed > 1 ? 's' : ''}
+      </span>
+      {/* L'interrupteur de la sélection (barre en tête du Parcours) et le « Redonner » de la ligne
+          coexistent (choix de Benoit) — tous deux seulement sur un niveau déjà joué. */}
+      <span className="flex w-9 justify-center">
+        {c.attemptsUsed > 0 && <CaseSwitch caseId={c.caseId} title={c.title} />}
       </span>
       <span className="w-36">
         {c.attemptsUsed > 0 && <GrantAttempts profileId={profileId} caseId={c.caseId} />}

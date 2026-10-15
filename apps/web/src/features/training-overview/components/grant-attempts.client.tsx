@@ -1,6 +1,7 @@
 'use client'
 
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import { grantAttemptsInput, type GrantAttemptsValues } from '../schema'
  */
 export function GrantAttempts({ profileId, caseId }: { profileId: string; caseId: string }) {
   'use no memo' // RHF : formState est un Proxy à abonnement, le React Compiler le figerait.
+  const router = useRouter()
   const {
     register,
     handleSubmit,
@@ -34,6 +36,10 @@ export function GrantAttempts({ profileId, caseId }: { profileId: string; caseId
     const n = Number(values.extra)
     toast.success(`${n} essai${n > 1 ? 's' : ''} redonné${n > 1 ? 's' : ''}`)
     reset({ profileId, caseId, extra: 1 })
+    // `revalidatePath` seul ne repeint pas la fiche (même constat qu'en aefe77a). Sans ce refresh, le
+    // compteur restait figé — et « Sélectionner les bloqués » (rendu serveur) recochait un niveau
+    // déjà débloqué ici, qui recevait alors ses essais deux fois.
+    router.refresh()
   })
 
   return (

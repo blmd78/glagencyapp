@@ -13,8 +13,8 @@ import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive
 import { getAttempts } from '@/lib/services/training-attempts'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
-import { grantExtras, lockedCases } from './attempt-grants'
-import { grantAttemptsInput, grantLockedAttemptsInput } from './schema'
+import { grantExtras, selectionGrants } from './attempt-grants'
+import { grantAttemptsInput, grantSelectedAttemptsInput } from './schema'
 
 // Schémas INLINE (guidelines §5) : ces deux actions n'ont pas de formulaire, un `schema.ts` de
 // feature pour deux `z.object({ … z.uuid() })` n'apportait rien.
@@ -93,22 +93,23 @@ export async function grantAttempts(raw: unknown): Promise<ActionResult> {
 }
 
 /**
- * « Redonner partout » (demande du 2026-10-15) : N parties jouables sur CHAQUE exercice où le
- * chatteur est bloqué, d'un seul geste — 8 niveaux épuisés × 5 essais = 40, sans cliquer ligne à
- * ligne. Même garde, même règle (`grantExtras`) et même trace que `grantAttempts`.
+ * « Redonner » sur une SÉLECTION de niveaux (2026-10-15) : les interrupteurs de la fiche — un par
+ * niveau déjà joué, « Tout le module », « Sélectionner les bloqués » — puis N parties de plus sur
+ * chacun, d'un seul geste. Même garde, même règle (`grantExtras`) et même trace que `grantAttempts`.
  *
- * La liste est recalculée ICI, jamais reçue du client : une fiche restée ouverte ne redonne pas sur
- * un exercice débloqué entre-temps. C'est aussi ce qui rend l'action rejouable sans dégât
- * (`callAction`) : après un passage, chaque exercice a N ≥ 1 essai devant lui, plus rien n'est
- * bloqué et un second envoi répond « Aucun niveau bloqué ». Périmètre = ce que la fiche affiche :
- * cas actifs des modules actifs (`get-chatter.ts`).
+ * La liste reçue n'est qu'une INTENTION : elle est croisée ici avec le catalogue affiché (cas actifs
+ * des modules actifs, `get-chatter.ts`) et les essais du chatteur — un niveau inconnu ou jamais
+ * joué n'écrit rien (`selectionGrants`). Comme `grantAttempts`, l'action n'est pas idempotente : un
+ * second envoi après une réponse perdue redonne une seconde fois. Le client resynchronise la fiche
+ * et décoche ce qu'il a envoyé après chaque réponse, succès ou échec : l'encadrant voit ce qui est
+ * réellement écrit, et renvoyer demande de recocher.
  */
-export async function grantLockedAttempts(raw: unknown): Promise<ActionResult<{ count: number }>> {
+export async function grantSelectedAttempts(raw: unknown): Promise<ActionResult<{ count: number }>> {
   return runAction({
-    schema: grantLockedAttemptsInput,
+    schema: grantSelectedAttemptsInput,
     input: raw,
     guard: noGuard,
-    handler: async ({ profileId, extra }) => {
+    handler: async ({ profileId, caseIds, extra }) => {
       const profile = await requirePageProfileLive('frm-suivi')
       const supabase = await createClient()
       const [{ data: catalog, error: cErr }, attempts] = await Promise.all([
@@ -117,25 +118,15 @@ export async function grantLockedAttempts(raw: unknown): Promise<ActionResult<{ 
       ])
       if (cErr) throw new Error(cErr.message)
       const cases = (catalog ?? []).flatMap((m) => (m.training_cases ?? []).filter((c) => c.active))
-      // Un id forgé ne crée rien : sans session, aucun exercice n'est bloqué.
-      const locked = lockedCases(cases, attempts)
-      if (locked.length === 0) throw new BusinessError('Aucun niveau bloqué')
+      const rows = selectionGrants(cases, attempts, caseIds, extra)
+      if (rows.length === 0) throw new BusinessError('Aucun niveau joué dans la sélection')
       const { error } = await createAdminClient()
         .from('training_attempt_grants')
-        .insert(
-          locked.flatMap((c) =>
-            grantExtras(extra, c.max_attempts, attempts.get(c.id)).map((e) => ({
-              profile_id: profileId,
-              case_id: c.id,
-              extra: e,
-              granted_by: profile.id,
-            })),
-          ),
-        )
+        .insert(rows.map((r) => ({ profile_id: profileId, case_id: r.caseId, extra: r.extra, granted_by: profile.id })))
       if (error) throw new Error(error.message)
       revalidatePath('/formation/overview')
       revalidatePath('/formation/modules', 'layout')
-      return { count: locked.length }
+      return { count: new Set(rows.map((r) => r.caseId)).size }
     },
   })
 }
