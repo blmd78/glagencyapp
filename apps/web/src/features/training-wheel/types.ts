@@ -41,11 +41,20 @@ export interface WheelHistoryRow {
   paidAt: string | null
 }
 
+/** Récap compta d'un chatteur : Σ de ses gains en euros (`gainsByChatter`). */
+export interface ChatterGains {
+  profileId: string
+  displayName: string
+  totalEur: number
+}
+
 export interface WheelHistory {
   rows: WheelHistoryRow[]
   /** Σ des montants GAGNÉS (les lots non monétaires comptent 0). */
   totalEur: number
-  byWeek: { week: string; count: number; totalEur: number }[]
+  /** Récap de la période : seuls les chatteurs qui ont gagné de l'argent, du plus gros total au plus petit. */
+  byChatter: ChatterGains[]
+  byWeek: { week: string; count: number; totalEur: number; byChatter: ChatterGains[] }[]
 }
 
 /**

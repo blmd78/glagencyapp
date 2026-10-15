@@ -8,6 +8,10 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+### Ajouté
+
+- Formation › Roue › Historique : récap « Gains par chatteur » — le nom de chaque chatteur qui a gagné de l'argent et son total, du plus gros au plus petit, pour la compta. Un récap pour toute la période choisie en haut à droite, sous « Total gagné », et un dans chaque semaine, au-dessus du détail des tirages. Les Ratés et les lots sans montant n'y comptent pas.
+
 ## [2.84] — 2026-10-15
 
 ### Modifié
