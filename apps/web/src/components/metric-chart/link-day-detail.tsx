@@ -1,16 +1,26 @@
 import { X } from 'lucide-react'
 import { frDayLong } from '@glagency/core'
 import { Button } from '@/components/ui/button'
-import { int } from '@/lib/format'
-import type { MetricPoint } from './options'
+import { eur, int } from '@/lib/format'
+import { linksFor, type ByLinkMetric, type MetricPoint } from './options'
 
 /**
- * Tous les liens qui ont amené des subs un jour donné, ouverts par un clic sur ce jour (demande
- * 2026-10-12) : l'infobulle n'en montre que le haut et disparaît dès que la souris la quitte.
- * En colonnes, pour que le classement se lise de haut en bas.
+ * Tous les liens qui ont amené des subs (demande 2026-10-12) ou du CA (2026-10-15) un jour donné,
+ * ouverts par un clic sur ce jour : l'infobulle n'en montre que le haut et disparaît dès que la
+ * souris la quitte. En colonnes, pour que le classement se lise de haut en bas.
  */
-export function SubsDayDetail({ point, onClose }: { point: MetricPoint; onClose: () => void }) {
-  const links = point.subsByLink ?? []
+export function LinkDayDetail({
+  point,
+  metric,
+  onClose,
+}: {
+  point: MetricPoint
+  metric: ByLinkMetric
+  onClose: () => void
+}) {
+  const links = linksFor(point, metric)
+  const fmt = metric === 'revenue' ? eur : int
+  const total = metric === 'revenue' ? eur(point.revenue) : `${int(point.conversions)} subs`
   return (
     <div className="mt-4 flex flex-col gap-3 px-1">
       <div className="flex items-center justify-between gap-3">
@@ -18,7 +28,7 @@ export function SubsDayDetail({ point, onClose }: { point: MetricPoint; onClose:
           {frDayLong(point.date)}
           <span className="font-normal text-muted-foreground">
             {' '}
-            · {int(point.conversions)} subs · {links.length} {links.length > 1 ? 'liens' : 'lien'}
+            · {total} · {links.length} {links.length > 1 ? 'liens' : 'lien'}
           </span>
         </p>
         <Button
@@ -39,7 +49,7 @@ export function SubsDayDetail({ point, onClose }: { point: MetricPoint; onClose:
               {l.name}
               {l.creator && <span className="text-muted-foreground"> · {l.creator}</span>}
             </span>
-            <span className="tabular-nums">{int(l.subs)}</span>
+            <span className="tabular-nums">{fmt(l.value)}</span>
           </div>
         ))}
       </div>
