@@ -8,6 +8,8 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.85] — 2026-10-15
+
 ### Ajouté
 
 - Formation › Roue › Historique : les gains par chatteur, pour la compta, dans le décor de la roue. En tête, « 💰 Gains de la période » (celle choisie en haut à droite) : le total gagné en grand, le podium des trois plus gros gagnants, puis tous ceux qui ont gagné de l'argent, du plus gros total au plus petit (médailles, barre, montant). Chaque semaine a aussi son classement « 🏆 Gains de la semaine », au-dessus du détail des tirages. Les Ratés et les lots sans montant n'y comptent pas.
