@@ -5,8 +5,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { MetricDailyChart } from './metric-daily-chart'
-import { SubsDayDetail } from './subs-day-detail'
-import { METRICS, SERIES, type ChartMode, type Metric, type MetricPoint } from './options'
+import { LinkDayDetail } from './link-day-detail'
+import {
+  METRICS,
+  SERIES,
+  isByLinkMetric,
+  linksFor,
+  type ByLinkMetric,
+  type ChartMode,
+  type Metric,
+  type MetricPoint,
+} from './options'
 
 type Vue = Metric | 'all'
 
@@ -34,8 +43,9 @@ const TITRES: Record<Vue, string> = {
  * droite dans l'en-tête), onglets = `Tabs` comme le critère des Liens, bascule = `ToggleGroup`
  * comme le grain du Relevé (`report-filters.tsx`). `bare` : sans la carte, pour une modale.
  *
- * Quand les points portent `subsByLink` (l'Overview), un clic sur un jour du graphe des subs
- * ouvre sous le graphe la liste complète de ses liens ; re-cliquer le même jour la referme.
+ * Quand les points portent `byLink` (l'Overview, plusieurs liens cumulés sur l'écran Liens), un
+ * clic sur un jour du graphe des revenus ou des subs ouvre sous le graphe la liste complète de ses
+ * liens pour cette métrique ; re-cliquer le même jour la referme.
  */
 export function MetricDailyPanel({
   daily,
@@ -50,13 +60,15 @@ export function MetricDailyPanel({
 }) {
   const [vue, setVue] = useState<Vue>('revenue')
   const [mode, setMode] = useState<ChartMode>('both')
-  const [jour, setJour] = useState<string | null>(null)
+  const [jour, setJour] = useState<{ date: string; metric: ByLinkMetric } | null>(null)
   const color = identity?.color
-  const onSubsDayClick = daily.some((d) => d.subsByLink)
-    ? (date: string) => setJour((j) => (j === date ? null : date))
-    : undefined
+  const parLien = daily.some((d) => d.byLink?.length)
+  const onDayClick = (m: Metric) =>
+    parLien && isByLinkMetric(m)
+      ? (date: string) => setJour((j) => (j?.date === date && j.metric === m ? null : { date, metric: m }))
+      : undefined
   const pointJour =
-    jour && (vue === 'conversions' || vue === 'all') ? daily.find((d) => d.date === jour) : undefined
+    jour && (vue === jour.metric || vue === 'all') ? daily.find((d) => d.date === jour.date) : undefined
 
   const entete = (
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -129,7 +141,7 @@ export function MetricDailyPanel({
             color={color}
             height={140}
             showXAxis={i === METRICS.length - 1}
-            onDayClick={m === 'conversions' ? onSubsDayClick : undefined}
+            onDayClick={onDayClick(m)}
           />
         </div>
       ))}
@@ -140,13 +152,14 @@ export function MetricDailyPanel({
       metric={vue}
       mode={mode}
       color={color}
-      onDayClick={vue === 'conversions' ? onSubsDayClick : undefined}
+      onDayClick={onDayClick(vue)}
     />
   )
-  // Un jour sans aucun sub n'ouvre rien : le panneau ne dirait que « 0 subs · 0 lien ».
-  const detail = pointJour?.subsByLink?.length ? (
-    <SubsDayDetail point={pointJour} onClose={() => setJour(null)} />
-  ) : null
+  // Un jour sans aucun sub (ou sans CA) n'ouvre rien : le panneau ne dirait que « 0 subs · 0 lien ».
+  const detail =
+    jour && pointJour && linksFor(pointJour, jour.metric).length ? (
+      <LinkDayDetail point={pointJour} metric={jour.metric} onClose={() => setJour(null)} />
+    ) : null
 
   if (bare) {
     return (

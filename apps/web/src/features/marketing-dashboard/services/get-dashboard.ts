@@ -5,7 +5,7 @@ import type { Period } from '@/lib/period'
 import type { MktDashboardData } from '../types'
 import { getLinkRows } from '@/lib/services/get-mkt-links'
 import { inScope, sfsLinkIds, type MktScope } from '@/lib/mkt-sfs'
-import type { LinkSubs } from '@/components/metric-chart/options'
+import type { LinkDay } from '@/components/metric-chart/options'
 
 const r2 = (v: number) => Math.round(v * 100) / 100
 
@@ -59,18 +59,20 @@ export async function getMktDashboard(period: Period, scope: MktScope = 'externe
   const daily = inScope(dailyRes.data ?? [], (d) => d.link_id, sfsIds, scope)
   const prevDaily = inScope(prevDailyRes.data ?? [], (d) => d.link_id, sfsIds, scope)
 
-  // Une ligne = un lien un jour (clé primaire `(link_id, date)`) : la répartition des subs du
-  // jour par lien se lit directement, sans ré-agréger.
+  // Une ligne = un lien un jour (clé primaire `(link_id, date)`) : la répartition des subs et du
+  // CA du jour par lien se lit directement, sans ré-agréger.
   const linkById = new Map(links.map((l) => [l.id, l]))
-  const byDay = new Map<string, { revenue: number; conversions: number; clicks: number; subs: LinkSubs[] }>()
+  const byDay = new Map<string, { revenue: number; conversions: number; clicks: number; byLink: LinkDay[] }>()
   for (const d of daily) {
-    const a = byDay.get(d.date) ?? { revenue: 0, conversions: 0, clicks: 0, subs: [] }
-    a.revenue += Number(d.revenue_eur)
+    const a = byDay.get(d.date) ?? { revenue: 0, conversions: 0, clicks: 0, byLink: [] }
+    // `numeric` : PostgREST le rend en chaîne (cf. `dailySeries`).
+    const revenue = Number(d.revenue_eur)
+    a.revenue += revenue
     a.conversions += d.conversions
     a.clicks += d.clicks
-    if (d.conversions > 0) {
+    if (d.conversions > 0 || revenue > 0) {
       const l = linkById.get(d.link_id)
-      a.subs.push({ name: l?.name ?? d.link_id, creator: l?.creator ?? null, subs: d.conversions })
+      a.byLink.push({ name: l?.name ?? d.link_id, creator: l?.creator ?? null, subs: d.conversions, revenue })
     }
     byDay.set(d.date, a)
   }
@@ -96,7 +98,7 @@ export async function getMktDashboard(period: Period, scope: MktScope = 'externe
       clicks: a.clicks,
       // Liste COMPLÈTE (17 à 29 liens par jour en octobre 2026) : le clic sur un jour l'affiche
       // en entier, l'infobulle n'en montre que le haut.
-      subsByLink: a.subs.sort((x, y) => y.subs - x.subs || x.name.localeCompare(y.name)),
+      byLink: a.byLink,
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
   const best = dailyPoints.reduce<{ date: string; revenue: number } | null>(

@@ -78,7 +78,7 @@ export function LinkGraphView({
 
       <LinkTotals totals={sumLinks(selected)} />
       <MetricDailyPanel
-        daily={toMetricPoints(points)}
+        daily={toMetricPoints(points, selected)}
         subtitle={`${selected.length} lien${selected.length > 1 ? 's' : ''} sur la période`}
         identity={groupe ? { label: groupe.label, color: groupe.color } : null}
       />

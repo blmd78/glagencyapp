@@ -2,15 +2,15 @@
 
 import type { MktLinkRow } from '@/lib/types/marketing'
 import type { MktScope } from '@/lib/mkt-sfs'
-import type { LinkSubs } from '@/components/metric-chart/options'
+import type { LinkDay } from '@/components/metric-chart/options'
 
 export interface MktDailyPoint {
   date: string
   revenue: number
   conversions: number
   clicks: number
-  /** « Subs / jour » : tous les liens qui ont amené des subs ce jour-là, les plus gros d'abord. */
-  subsByLink: LinkSubs[]
+  /** Tous les liens qui ont amené des subs ou du CA ce jour-là (survol et clic sur un jour). */
+  byLink: LinkDay[]
 }
 
 export interface MktCreatorSplit {
