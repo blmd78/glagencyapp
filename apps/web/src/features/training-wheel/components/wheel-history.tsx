@@ -1,6 +1,9 @@
 import { frDateTimeParis, wheelWeekLabel } from '@glagency/core'
+import { Podium } from '@/components/training/podium'
+import { AVATAR_BG, MEDAL } from '@/components/training/rank-list'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { eur } from '@/lib/format'
+import { cn } from '@/lib/utils'
 import type { ChatterGains, WheelHistory as WheelHistoryData } from '../types'
 
 /**
@@ -15,10 +18,7 @@ export function WheelHistory({ history }: { history: WheelHistoryData }) {
 
   return (
     <section className="flex flex-col gap-4">
-      <p className="text-sm text-muted-foreground">
-        Total gagné : <span className="font-medium tabular-nums text-foreground">{eur(history.totalEur)}</span> ({history.rows.length} tirages)
-      </p>
-      <GainsParChatteur gains={history.byChatter} titre="Gains par chatteur sur la période" />
+      <GainsPeriode gains={history.byChatter} totalEur={history.totalEur} spins={history.rows.length} />
       <div className="flex flex-col gap-3">
         {history.byWeek.map((w, i) => (
           <details key={w.week} open={i === 0} className="rounded-xl border px-4 py-3">
@@ -29,7 +29,17 @@ export function WheelHistory({ history }: { history: WheelHistoryData }) {
               </span>
             </summary>
             <div className="mt-3 flex flex-col gap-3">
-              <GainsParChatteur gains={w.byChatter} titre="Gains par chatteur" />
+              {w.byChatter.length > 0 && (
+                <div className="gla-panel">
+                  <h3 className="mb-2.5 flex items-center gap-2 text-[13.5px] font-bold">
+                    <span aria-hidden>🏆</span> Gains de la semaine
+                    <span className="ml-auto text-[11.5px] font-semibold text-[var(--gla-muted)]">
+                      {w.byChatter.length} gagnant{w.byChatter.length > 1 ? 's' : ''}
+                    </span>
+                  </h3>
+                  <GainsList gains={w.byChatter} />
+                </div>
+              )}
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -72,32 +82,68 @@ export function WheelHistory({ history }: { history: WheelHistoryData }) {
 }
 
 /**
- * Récap compta : un chatteur par ligne et ce qu'il a gagné en tout, pour payer sans additionner le
- * détail à la main. Rien quand personne n'a gagné d'argent.
+ * Le récap de la période, dans le décor de la roue (demande Benoit, 2026-10-15 : un tableau « ne
+ * donne pas envie ») : le total en grand, le podium des trois plus gros gagnants — le même que
+ * celui de « Ma formation » —, puis TOUS les gagnants, pour que la compta paie sans additionner.
  */
-function GainsParChatteur({ gains, titre }: { gains: ChatterGains[]; titre: string }) {
-  if (gains.length === 0) return null
+function GainsPeriode({ gains, totalEur, spins }: { gains: ChatterGains[]; totalEur: number; spins: number }) {
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-sm font-medium">{titre}</p>
-      <div className="max-w-md rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Chatter</TableHead>
-              <TableHead className="w-28 text-right">Total gagné</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {gains.map((g) => (
-              <TableRow key={g.profileId}>
-                <TableCell className="font-medium">{g.displayName}</TableCell>
-                <TableCell className="text-right tabular-nums">{eur(g.totalEur)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+    <section className="gla-panel">
+      <h2 className="mb-[14px] flex items-center gap-2 text-[15px] font-bold">
+        <span aria-hidden>💰</span> Gains de la période
+        <span className="ml-auto text-[11.5px] font-semibold text-[var(--gla-muted)]">
+          {spins} tirage{spins > 1 ? 's' : ''} · {gains.length} gagnant{gains.length > 1 ? 's' : ''}
+        </span>
+      </h2>
+      <p className="mb-4 text-center">
+        <span className="block text-[11.5px] font-semibold uppercase tracking-wide text-[var(--gla-muted)]">Total gagné</span>
+        <span className="text-[34px] font-extrabold tabular-nums text-[var(--gla-gold)] [text-shadow:0_0_24px_rgba(255,207,92,0.35)]">
+          {eur(totalEur)}
+        </span>
+      </p>
+      {gains.length === 0 ? (
+        <p className="text-center text-[12.5px] text-[var(--gla-muted)]">Aucun gain en argent sur la période.</p>
+      ) : (
+        <>
+          <Podium rows={gains.map((g) => ({ profileId: g.profileId, displayName: g.displayName, points: g.totalEur }))} format={eur} />
+          <GainsList gains={gains} />
+        </>
+      )}
+    </section>
+  )
+}
+
+/**
+ * Tous les gagnants, du plus gros total au plus petit, avec les repères du classement de la
+ * formation (`RankList`) : médaille et pastille or / argent / bronze pour les trois premiers, puis
+ * une barre à la mesure du premier et le montant en or.
+ */
+function GainsList({ gains }: { gains: ChatterGains[] }) {
+  const max = gains[0]?.totalEur ?? 0
+  return (
+    <ol className="flex flex-col gap-1.5">
+      {gains.map((g, i) => {
+        const top = i < 3
+        return (
+          <li key={g.profileId} className={cn('flex items-center gap-2.5 rounded-xl px-2.5 py-2', top && 'bg-[var(--gla-surface2)]')}>
+            <span className="w-[18px] text-center" aria-hidden>
+              {MEDAL[i] ?? <span className="text-xs font-bold text-[var(--gla-faint)]">{i + 1}</span>}
+            </span>
+            <span
+              aria-hidden
+              className="inline-flex size-7 flex-none items-center justify-center rounded-full text-xs font-extrabold"
+              style={{ background: AVATAR_BG[i] ?? 'var(--gla-surface3)', color: top ? '#1a1204' : 'var(--gla-text)' }}
+            >
+              {g.displayName.trim().charAt(0).toUpperCase() || '?'}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{g.displayName}</span>
+            <span className="gla-bar hidden h-1.5 w-24 sm:block" aria-hidden>
+              <i style={{ width: `${max > 0 ? (g.totalEur / max) * 100 : 0}%` }} />
+            </span>
+            <span className="w-20 text-right text-sm font-extrabold tabular-nums text-[var(--gla-gold)]">{eur(g.totalEur)}</span>
+          </li>
+        )
+      })}
+    </ol>
   )
 }

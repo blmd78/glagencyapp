@@ -10,7 +10,7 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ### Ajouté
 
-- Formation › Roue › Historique : récap « Gains par chatteur » — le nom de chaque chatteur qui a gagné de l'argent et son total, du plus gros au plus petit, pour la compta. Un récap pour toute la période choisie en haut à droite, sous « Total gagné », et un dans chaque semaine, au-dessus du détail des tirages. Les Ratés et les lots sans montant n'y comptent pas.
+- Formation › Roue › Historique : les gains par chatteur, pour la compta, dans le décor de la roue. En tête, « 💰 Gains de la période » (celle choisie en haut à droite) : le total gagné en grand, le podium des trois plus gros gagnants, puis tous ceux qui ont gagné de l'argent, du plus gros total au plus petit (médailles, barre, montant). Chaque semaine a aussi son classement « 🏆 Gains de la semaine », au-dessus du détail des tirages. Les Ratés et les lots sans montant n'y comptent pas.
 - Formation › Overview, fiche d'un chatteur : « Redonner aux N niveaux bloqués » en haut du Parcours — on choisit un nombre d'essais et il est redonné à chaque niveau où le chatteur n'en a plus, d'un seul clic (8 niveaux bloqués × 5 essais = 40 essais). Le bouton n'apparaît que s'il y a au moins un niveau bloqué ; chaque niveau débloqué reste tracé comme un « Redonner » fait à la main.
 
 ### Modifié
