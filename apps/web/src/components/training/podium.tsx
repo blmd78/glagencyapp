@@ -16,19 +16,39 @@ const BAR_HEIGHT: Record<number, number> = { 1: 64, 2: 46, 3: 34 }
  * l'affichent tous les deux, et une feature ne peut pas importer une autre feature (frontière
  * ESLint). Il ne reçoit QUE des lignes déjà triées et filtrées — il ne connaît ni scope, ni RPC.
  */
-export function Podium({ rows, myProfileId }: { rows: PodiumRow[]; myProfileId: string }) {
+export function Podium({
+  rows,
+  myProfileId,
+  format = (n) => n.toLocaleString('fr-FR'),
+}: {
+  rows: PodiumRow[]
+  /** Absent hors classement personnel (historique de la roue, côté encadrant) : aucune ligne « toi ». */
+  myProfileId?: string
+  /** Rendu de la valeur sous le nom — des points par défaut, des euros pour les gains de la roue. */
+  format?: (value: number) => string
+}) {
   const [first, second, third] = rows
   return (
     // `items-end` : les marches sont alignées par le bas, c'est leur hauteur qui parle.
     <ol className="mb-3 flex min-h-[120px] items-end justify-center gap-2">
-      <Step row={second} place={2} me={second?.profileId === myProfileId} />
-      <Step row={first} place={1} me={first?.profileId === myProfileId} />
-      <Step row={third} place={3} me={third?.profileId === myProfileId} />
+      <Step row={second} place={2} me={second?.profileId === myProfileId} format={format} />
+      <Step row={first} place={1} me={first?.profileId === myProfileId} format={format} />
+      <Step row={third} place={3} me={third?.profileId === myProfileId} format={format} />
     </ol>
   )
 }
 
-function Step({ row, place, me }: { row: PodiumRow | undefined; place: number; me: boolean }) {
+function Step({
+  row,
+  place,
+  me,
+  format,
+}: {
+  row: PodiumRow | undefined
+  place: number
+  me: boolean
+  format: (value: number) => string
+}) {
   // Marche vide (moins de 3 classés) : on garde la colonne pour ne pas décentrer le 1er.
   if (!row) return <li className="min-w-0 flex-1" aria-hidden />
   const first = place === 1
@@ -48,7 +68,7 @@ function Step({ row, place, me }: { row: PodiumRow | undefined; place: number; m
         {me && ' (toi)'}
       </p>
       <p className="text-[11px] font-bold tabular-nums text-[var(--gla-muted)]">
-        {row.points.toLocaleString('fr-FR')}
+        {format(row.points)}
       </p>
       <span className="sr-only">{place}e place</span>
     </li>

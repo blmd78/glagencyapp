@@ -117,3 +117,11 @@ si deux jours ne citent pas les groupes dans le même ordre, la grille suit l'or
 apparition. Sans effet sur le Récap. À reprendre si ça gêne : ordonner les groupes sans section par
 la plus petite clé de leurs tâches.
 
+
+**16. « Redonner » : deux crédits simultanés compensent deux fois un historique dépassé** (2026-10-15,
+relevé en revue). La compensation (`grantExtras`, `training-overview/attempt-grants.ts`) lit les
+essais, calcule, puis insère — sans verrou. Si deux encadrants redonnent 5 dans la même seconde sur
+le même niveau d'un chatteur à 10/3, chacun ajoute 12 : 17 parties jouables au lieu de 10. Rien
+d'autre n'est faussé (la trace garde les deux lignes et leur auteur). Assumé : le cas demande deux
+clics concurrents sur le même chatteur, et le corriger veut une fonction SQL avec verrou, donc une
+migration. À reprendre si un compteur trop généreux remonte.

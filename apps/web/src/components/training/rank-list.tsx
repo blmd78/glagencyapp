@@ -10,10 +10,10 @@ export interface RankListRow {
 }
 
 /** Médaille des trois premiers, numéro ensuite (GLA `rankMedal`). */
-const MEDAL = ['🥇', '🥈', '🥉']
+export const MEDAL = ['🥇', '🥈', '🥉']
 
 /** Pastille de l'avatar : or, argent, bronze, puis neutre (GLA `rankAv`). */
-const AVATAR_BG = ['#ffb02e', '#c9ced9', '#cd7f32']
+export const AVATAR_BG = ['#ffb02e', '#c9ced9', '#cd7f32']
 
 /**
  * Le classement en liste — transposition de `rankRow` de l'app Good Luck Agency, où trois repères

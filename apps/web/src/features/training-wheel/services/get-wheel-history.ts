@@ -3,6 +3,7 @@ import { chunk } from '@glagency/core'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/supabase/fetch-all'
 import type { Period } from '@/lib/period'
+import { gainsByChatter } from '../gains-by-chatter'
 import { historyWeekBounds } from '../history-range'
 import type { WheelHistory, WheelHistoryRow } from '../types'
 
@@ -98,7 +99,9 @@ export async function getWheelHistory(period: Period): Promise<WheelHistory> {
   }
   // Tri explicite (et pas l'ordre d'insertion) : `spun_at` desc ne garantit pas `week` desc — les
   // tirages d'avant la règle du 2026-08-24 portent la semaine RÉCOMPENSÉE, pas celle du tirage.
-  const byWeek = [...acc.values()].sort((a, b) => (a.week < b.week ? 1 : a.week > b.week ? -1 : 0))
+  const byWeek = [...acc.values()]
+    .sort((a, b) => (a.week < b.week ? 1 : a.week > b.week ? -1 : 0))
+    .map((w) => ({ ...w, byChatter: gainsByChatter(rows.filter((r) => r.week === w.week)) }))
 
-  return { rows, totalEur, byWeek }
+  return { rows, totalEur, byChatter: gainsByChatter(rows), byWeek }
 }

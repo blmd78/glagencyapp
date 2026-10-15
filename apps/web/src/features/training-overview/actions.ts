@@ -10,9 +10,11 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { createAdminClient } from '@glagency/db'
 import { BusinessError, noGuard, requireAdminProfileLive, requirePageProfileLive, runAction, type ActionResult } from '@/lib/actions'
+import { getAttempts } from '@/lib/services/training-attempts'
 import { scoreSessionById } from '@/lib/services/training-scoring'
 import { createClient } from '@/lib/supabase/server'
-import { grantAttemptsInput } from './schema'
+import { grantExtras, selectionGrants } from './attempt-grants'
+import { grantAttemptsInput, grantSelectedAttemptsInput } from './schema'
 
 // Schémas INLINE (guidelines §5) : ces deux actions n'ont pas de formulaire, un `schema.ts` de
 // feature pour deux `z.object({ … z.uuid() })` n'apportait rien.
@@ -47,7 +49,13 @@ export async function resolveReport(raw: unknown): Promise<ActionResult> {
  * Redonner des essais sur un exercice (0161) — l'encadrant a expliqué, le chatteur peut retenter.
  * Droit Suivi (managers, sous-managers, admins), sur tous les chatteurs. Écriture en SERVICE-ROLE
  * après garde : `training_attempt_grants` n'a aucune politique d'écriture, comme le reste de la
- * Formation (0121). La ligne insérée EST la trace : qui (`granted_by`), quand, combien, pour qui.
+ * Formation (0121). Les lignes insérées SONT la trace : qui (`granted_by`), quand, pour qui, et
+ * `extra` = ce qui est ajouté au plafond.
+ *
+ * Redonner N = N parties de PLUS qu'aujourd'hui, même sur un historique d'avant la limite qui la
+ * dépasse (`grantExtras`, décision du 2026-10-15) — avant, « + 5 » sur un 10/3 donnait 10/8 :
+ * toujours bloqué. Le `extra` écrit compte donc la compensation (12 pour « 5 » sur un 10/3), et
+ * au-delà de 20 un geste écrit plusieurs lignes.
  */
 export async function grantAttempts(raw: unknown): Promise<ActionResult> {
   return runAction({
@@ -58,9 +66,10 @@ export async function grantAttempts(raw: unknown): Promise<ActionResult> {
       const profile = await requirePageProfileLive('frm-suivi')
       const admin = createAdminClient()
       // Un id forgé ne crée rien : le compte et l'exercice doivent exister.
-      const [{ data: target, error: pErr }, { data: exercise, error: cErr }] = await Promise.all([
+      const [{ data: target, error: pErr }, { data: exercise, error: cErr }, attempts] = await Promise.all([
         admin.from('profiles').select('id').eq('id', profileId).maybeSingle(),
-        admin.from('training_cases').select('id').eq('id', caseId).maybeSingle(),
+        admin.from('training_cases').select('id, max_attempts').eq('id', caseId).maybeSingle(),
+        getAttempts(profileId),
       ])
       if (pErr) throw new Error(pErr.message)
       if (cErr) throw new Error(cErr.message)
@@ -68,10 +77,56 @@ export async function grantAttempts(raw: unknown): Promise<ActionResult> {
       if (!exercise) throw new BusinessError('Exercice introuvable')
       const { error } = await admin
         .from('training_attempt_grants')
-        .insert({ profile_id: profileId, case_id: caseId, extra, granted_by: profile.id })
+        .insert(
+          grantExtras(extra, exercise.max_attempts, attempts.get(caseId)).map((e) => ({
+            profile_id: profileId,
+            case_id: caseId,
+            extra: e,
+            granted_by: profile.id,
+          })),
+        )
       if (error) throw new Error(error.message)
       revalidatePath('/formation/overview')
       revalidatePath('/formation/modules', 'layout')
+    },
+  })
+}
+
+/**
+ * « Redonner » sur une SÉLECTION de niveaux (2026-10-15) : les interrupteurs de la fiche — un par
+ * niveau déjà joué, « Tout le module », « Sélectionner les bloqués » — puis N parties de plus sur
+ * chacun, d'un seul geste. Même garde, même règle (`grantExtras`) et même trace que `grantAttempts`.
+ *
+ * La liste reçue n'est qu'une INTENTION : elle est croisée ici avec le catalogue affiché (cas actifs
+ * des modules actifs, `get-chatter.ts`) et les essais du chatteur — un niveau inconnu ou jamais
+ * joué n'écrit rien (`selectionGrants`). Comme `grantAttempts`, l'action n'est pas idempotente : un
+ * second envoi après une réponse perdue redonne une seconde fois. Le client resynchronise la fiche
+ * et décoche ce qu'il a envoyé après chaque réponse, succès ou échec : l'encadrant voit ce qui est
+ * réellement écrit, et renvoyer demande de recocher.
+ */
+export async function grantSelectedAttempts(raw: unknown): Promise<ActionResult<{ count: number }>> {
+  return runAction({
+    schema: grantSelectedAttemptsInput,
+    input: raw,
+    guard: noGuard,
+    handler: async ({ profileId, caseIds, extra }) => {
+      const profile = await requirePageProfileLive('frm-suivi')
+      const supabase = await createClient()
+      const [{ data: catalog, error: cErr }, attempts] = await Promise.all([
+        supabase.from('training_modules').select('training_cases(id, active, max_attempts)').eq('active', true),
+        getAttempts(profileId),
+      ])
+      if (cErr) throw new Error(cErr.message)
+      const cases = (catalog ?? []).flatMap((m) => (m.training_cases ?? []).filter((c) => c.active))
+      const rows = selectionGrants(cases, attempts, caseIds, extra)
+      if (rows.length === 0) throw new BusinessError('Aucun niveau joué dans la sélection')
+      const { error } = await createAdminClient()
+        .from('training_attempt_grants')
+        .insert(rows.map((r) => ({ profile_id: profileId, case_id: r.caseId, extra: r.extra, granted_by: profile.id })))
+      if (error) throw new Error(error.message)
+      revalidatePath('/formation/overview')
+      revalidatePath('/formation/modules', 'layout')
+      return { count: new Set(rows.map((r) => r.caseId)).size }
     },
   })
 }

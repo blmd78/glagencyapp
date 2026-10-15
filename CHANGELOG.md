@@ -8,6 +8,22 @@ Format [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), en français. U
 
 ## Non publié
 
+## [2.85] — 2026-10-15
+
+### Ajouté
+
+- Formation › Roue › Historique : les gains par chatteur, pour la compta, dans le décor de la roue. En tête, « 💰 Gains de la période » (celle choisie en haut à droite) : le total gagné en grand, le podium des trois plus gros gagnants, puis tous ceux qui ont gagné de l'argent, du plus gros total au plus petit (médailles, barre, montant). Chaque semaine a aussi son classement « 🏆 Gains de la semaine », au-dessus du détail des tirages. Les Ratés et les lots sans montant n'y comptent pas.
+- Formation › Overview, fiche d'un chatteur : redonner des essais à plusieurs niveaux d'un coup. Chaque niveau déjà joué a un interrupteur, chaque module et chaque chapitre ouverts un « Tout le module » / « Tout le chapitre », et en haut du Parcours « Sélectionner les bloqués » coche d'un clic tous les niveaux sans essai. On choisit le nombre d'essais, « Redonner aux N sélectionnés », et il est redonné à chacun (8 niveaux × 5 essais = 40 essais). Le « Redonner » de chaque ligne reste là pour un niveau seul ; chaque niveau débloqué est tracé comme un « Redonner » fait à la main.
+
+### Modifié
+
+- Formation › Overview, fiche d'un chatteur : « Redonner 5 » donne désormais 5 parties jouables, même quand le chatteur a joué le niveau plus de fois que la limite avant qu'elle existe (un 10/3 passe à 10/15, et non plus à 10/8 toujours bloqué). Vaut pour le bouton de chaque ligne comme pour celui du haut.
+
+### Corrigé
+
+- Formation › Overview : passer directement de la fiche d'un chatteur à celle d'un autre gardait le premier en mémoire dans les boutons « Redonner » — les essais redonnés pouvaient partir sur le mauvais chatteur.
+- Formation › Overview : après « Redonner » sur la ligne d'un niveau, le compteur d'essais se met à jour tout de suite — il fallait recharger la page.
+
 ## [2.84] — 2026-10-15
 
 ### Modifié
